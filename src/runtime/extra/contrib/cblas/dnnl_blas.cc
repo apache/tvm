@@ -21,10 +21,10 @@
  * \file Use external cblas library call.
  */
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 
 extern "C" {
 #include <dnnl.h>
@@ -35,7 +35,6 @@ extern "C" {
 namespace tvm {
 namespace contrib {
 
-using namespace runtime;
 inline char DNNLBooleanToTransposeChar(bool trans) { return trans ? 'T' : 'N'; }
 
 struct DNNLSgemmOp {
@@ -52,7 +51,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.dnnl.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto A = args[0].cast<DLTensor*>();
-    TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+    TVM_FFI_ICHECK((A->dtype == DLDataType{kDLFloat, 32, 1}));
     CallGemm(args, ret, DNNLSgemmOp());
   });
 }

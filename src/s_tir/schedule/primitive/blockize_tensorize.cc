@@ -37,7 +37,7 @@ bool UsesVar(const T& x, const Var& var) {
 }
 
 Range RangeFromExtent(const PrimExpr& extent) {
-  return Range::FromMinExtent(IntImm(extent->dtype, 0), extent);
+  return Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
 }
 
 template <class T>
@@ -256,7 +256,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
       // substitution
       if (is_one(outer_mark->extent) && !preserve_unit_iters) {
         // Simplify outer if not preserve_unit_iters
-        sub = IntImm(outer_mark->extent.dtype(), 0);
+        sub = IntImm(outer_mark->extent.ty(), 0);
       } else {
         sub = outer_iter;
       }
@@ -776,14 +776,14 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<BufferRegion>& buffer_regions) {
     for (const BufferRegion& buffer_region : buffer_regions) {
       for (const auto& range : buffer_region->region) {
-        index_dtype_bits = std::max(index_dtype_bits, range->min.dtype().bits());
+        index_dtype_bits = std::max(index_dtype_bits, range->min.ty().bits());
       }
     }
   };
   f_update_max_dtype_bits_from_region(block_realize->block->reads);
   f_update_max_dtype_bits_from_region(block_realize->block->writes);
   TVM_FFI_ICHECK(index_dtype_bits > 0);
-  intrin_impl = IndexDataTypeNormalizer(DataType::Int(index_dtype_bits)).Rewrite(intrin_impl);
+  intrin_impl = IndexDataTypeNormalizer(PrimType::Int(index_dtype_bits)).Rewrite(intrin_impl);
   // Step 2: Structural pattern matching
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
   comparator.VisitStmt(block_realize, intrin_desc->body);
@@ -829,12 +829,12 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     new_region.reserve(cur->shape.size());
     for (int i = 0; i < offset; i++) {
       PrimExpr min = indices_base[i];
-      PrimExpr extent = MakeConst(min.dtype(), 1);
+      PrimExpr extent = MakeConst(min.ty(), 1);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       PrimExpr min = indices_base[i + offset];
-      PrimExpr extent = cast(min.dtype(), old_region[i]->extent);
+      PrimExpr extent = cast(min.ty(), old_region[i]->extent);
       new_region.push_back(Range::FromMinExtent(min, extent));
     }
     match_buffer_regions.push_back(MatchBufferRegion(impl, BufferRegion(cur, new_region)));

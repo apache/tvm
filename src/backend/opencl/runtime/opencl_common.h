@@ -186,24 +186,25 @@ inline const char* CLGetErrorString(cl_int error) {
 }
 
 inline cl_channel_type DTypeToOpenCLChannelType(DLDataType data_type) {
-  DataType dtype(data_type);
-  dtype = dtype.with_lanes(1);
+  DLDataType dtype = data_type;
+  // OpenCL image channel type depends on the scalar element type, not vector lanes.
+  dtype.lanes = 1;
 
-  if (dtype == DataType::Float(32)) {
+  if (dtype == DLDataType{kDLFloat, 32, 1}) {
     return CL_FLOAT;
-  } else if (dtype == DataType::Float(16)) {
+  } else if (dtype == DLDataType{kDLFloat, 16, 1}) {
     return CL_HALF_FLOAT;
-  } else if (dtype == DataType::Int(8)) {
+  } else if (dtype == DLDataType{kDLInt, 8, 1}) {
     return CL_SIGNED_INT8;
-  } else if (dtype == DataType::Int(16)) {
+  } else if (dtype == DLDataType{kDLInt, 16, 1}) {
     return CL_SIGNED_INT16;
-  } else if (dtype == DataType::Int(32)) {
+  } else if (dtype == DLDataType{kDLInt, 32, 1}) {
     return CL_SIGNED_INT32;
-  } else if (dtype == DataType::UInt(8)) {
+  } else if (dtype == DLDataType{kDLUInt, 8, 1}) {
     return CL_UNSIGNED_INT8;
-  } else if (dtype == DataType::UInt(16)) {
+  } else if (dtype == DLDataType{kDLUInt, 16, 1}) {
     return CL_UNSIGNED_INT16;
-  } else if (dtype == DataType::UInt(32)) {
+  } else if (dtype == DLDataType{kDLUInt, 32, 1}) {
     return CL_UNSIGNED_INT32;
   }
   TVM_FFI_THROW(InternalError) << "data type is not supported in OpenCL runtime yet: " << dtype;

@@ -23,10 +23,10 @@
 
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 
 #include <algorithm>
 #include <vector>
@@ -35,8 +35,6 @@
 
 namespace tvm {
 namespace contrib {
-
-using namespace runtime;
 
 template <typename DType, bool stable_comparison = false>
 bool CompareAscend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_t, DType>& rhs) {

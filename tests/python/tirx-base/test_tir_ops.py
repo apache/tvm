@@ -130,16 +130,16 @@ def test_binary_dtype_match():
             rhs = tvm.tirx.Var("rhs", rhs_dtype)
             out = f(lhs, rhs)
             if not is_conditional:
-                assert out.dtype == out_dtype
+                assert out.ty.dtype == out_dtype
             else:
-                assert out.dtype == "bool"
+                assert out.ty.dtype == "bool"
             if hasattr(out, "a"):
-                assert out.a.dtype == out_dtype
-                assert out.b.dtype == out_dtype
+                assert out.a.ty.dtype == out_dtype
+                assert out.b.ty.dtype == out_dtype
             elif hasattr(out, "args"):
                 # CallOp
-                assert out.args[0].dtype == out_dtype
-                assert out.args[1].dtype == out_dtype
+                assert out.args[0].ty.dtype == out_dtype
+                assert out.args[1].ty.dtype == out_dtype
             else:
                 raise ValueError("Unknown binary op format!")
 
@@ -161,16 +161,16 @@ def test_binary_dtype_match():
                         target_dtype = "float32"
                     else:
                         target_dtype = "int32"
-                    assert out.dtype == target_dtype
+                    assert out.ty.dtype == target_dtype
 
                     # Final inputs are the right type
-                    assert out.args[0].dtype == target_dtype
-                    assert out.args[1].dtype == target_dtype
+                    assert out.args[0].ty.dtype == target_dtype
+                    assert out.args[1].ty.dtype == target_dtype
                 else:
                     out = f(lhs, rhs)
-                    assert out.dtype == rhs_dtype
-                    assert out.args[0].dtype == rhs_dtype
-                    assert out.args[1].dtype == rhs_dtype
+                    assert out.ty.dtype == rhs_dtype
+                    assert out.args[0].ty.dtype == rhs_dtype
+                    assert out.args[1].ty.dtype == rhs_dtype
 
     verify_general_dtype_support(lambda a, b: a + b)
     verify_general_dtype_support(lambda a, b: a * b)
@@ -205,12 +205,12 @@ def test_if_then_else():
             else:
                 tvm.ir.assert_structural_equal(out, rhs.astype(out_dtype)) == 1
                 tvm.ir.assert_structural_equal(out3, lhs.astype(out_dtype)) == 1
-        elif cond.dtype == "bool":
+        elif cond.ty.dtype == "bool":
             out = tvm.tirx.if_then_else(cond, lhs, rhs)
-            assert out.dtype == out_dtype
-            assert out.args[1].dtype == out_dtype
-            assert out.args[2].dtype == out_dtype
-        elif cond.dtype != "bool":
+            assert out.ty.dtype == out_dtype
+            assert out.args[1].ty.dtype == out_dtype
+            assert out.args[2].ty.dtype == out_dtype
+        elif cond.ty.dtype != "bool":
             check_throws(lambda: tvm.tirx.if_then_else(cond, lhs, rhs))
         else:
             raise ValueError("Unknown combinations")

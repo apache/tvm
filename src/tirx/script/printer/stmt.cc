@@ -502,7 +502,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
     }
     if (shapes_compatible) {
       ExprDoc dtype_doc =
-          LiteralDoc::Str(DType2Str(child->dtype), p->Attr("buffer")->Attr("dtype"));
+          LiteralDoc::Str(DType2Str(child->dtype->dtype), p->Attr("buffer")->Attr("dtype"));
       return pdoc->Attr("view")->Call({dtype_doc});
     }
   }
@@ -723,7 +723,7 @@ Doc AllocBufferDoc(tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) {
       d->Define(stmt->buffer->data, d->frames.back(),
                 [d, buf, p]() { return d->AsDoc<ExprDoc>(buf, p->Attr("buffer"))->Attr("data"); });
     }
-    ExprDoc type_ann = TIR(d, DType2Str(stmt->buffer->dtype));
+    ExprDoc type_ann = TIR(d, DType2Str(stmt->buffer->dtype->dtype));
     return AssignDoc(lhs, std::nullopt, type_ann);
   }
   ExprDoc rhs = BufferDecl(stmt->buffer, "alloc_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
@@ -814,7 +814,7 @@ ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& a
 /*! \brief Check whether an AttrStmt has node=IntImm(int32, 0) (the dict-attr pattern). */
 static bool IsDictAttrPattern(const tirx::AttrStmt& stmt) {
   if (auto int_imm = stmt->node.as<IntImmNode>()) {
-    return int_imm->dtype == DataType::Int(32) && int_imm->value == 0;
+    return int_imm->ty()->dtype == DLDataType{kDLInt, 32, 1} && int_imm->value == 0;
   }
   return false;
 }

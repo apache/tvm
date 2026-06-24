@@ -136,7 +136,7 @@ def test_check():
     assert res1.is_nothing()
 
     # multiple compare operators
-    res2 = tvm.arith.deduce_bound(a, (a + b > 3).astype(c.dtype) > c, {b: b_s, c: c_s}, {})
+    res2 = tvm.arith.deduce_bound(a, (a + b > 3).astype(c.ty) > c, {b: b_s, c: c_s}, {})
     assert res2.is_nothing()
 
     # multiple target variable

@@ -120,15 +120,13 @@ size_t GetTextureMemorySize(T shape, int bits, int lanes, std::string mem_scope,
 /*!
  * \brief Returns the standard channel datatype for any given type.
  * \param channel_size The Number of bits in a Channel
- * \return DataType to be used in the codegen.
+ * \return DLDataType to be used in the codegen.
  */
-inline DataType GetChannelType(size_t channel_size) {
-  DataType channel_type;
-
+inline DLDataType GetChannelType(size_t channel_size) {
   if (channel_size == 128)
-    return DataType::Float(32, 4);
+    return DLDataType{kDLFloat, 32, 4};
   else if (channel_size == 64)
-    return DataType::Float(16, 4);
+    return DLDataType{kDLFloat, 16, 4};
 
   TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
 }

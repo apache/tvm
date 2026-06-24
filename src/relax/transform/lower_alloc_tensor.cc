@@ -72,7 +72,10 @@ class Mutator : public ExprMutator {
       }();
 
       PrimExpr nbytes = [&]() -> PrimExpr {
-        PrimExpr nbytes = IntImm::Int64(dtype->value.bytes());
+        PrimType dtype_ty(dtype->value);
+        TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
+            << "Cannot statically compute allocation size for scalable vector dtype " << dtype_ty;
+        PrimExpr nbytes = IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
         for (const auto& dim : shape) {
           nbytes *= dim;
         }
@@ -112,7 +115,7 @@ class Mutator : public ExprMutator {
       auto offset = PrimValue::Int64(0);
 
       Expr storage = relax::Call(mem_alloc_storage_op, {size, runtime_device_index, storage_scope,
-                                                        DataTypeImm(DataType::UInt(8))});
+                                                        DataTypeImm((DLDataType{kDLUInt, 8, 1}))});
       storage = builder_->Emit(storage, "storage");
       Expr tensor =
           relax::Call(mem_alloc_tensor_op, {storage, offset, shape_arg, dtype, op->args[2]});

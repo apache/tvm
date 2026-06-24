@@ -333,7 +333,7 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) con
       return LiteralDoc::Str(string_value, path).as_or_throw<TDoc>();
     }
     case ffi::TypeIndex::kTVMFFIDataType:
-      return LiteralDoc::DataType(value.as<runtime::DataType>().value(), path).as_or_throw<TDoc>();
+      return LiteralDoc::DataType(value.as<DLDataType>().value(), path).as_or_throw<TDoc>();
     case ffi::TypeIndex::kTVMFFIDevice:
       return LiteralDoc::Device(value.as<DLDevice>().value(), path).as_or_throw<TDoc>();
     default: {

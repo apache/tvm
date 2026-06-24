@@ -43,7 +43,7 @@ class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
  public:
   Type VisitType_(const ObjectTypeNode* op) final { return ObjectType(op->span); }
 
-  Type VisitType_(const PrimTypeNode* op) final { return PrimType(op->dtype, op->span); }
+  Type VisitType_(const PrimTypeNode* op) final { return tvm::PrimType(op->dtype); }
 
   Type VisitType_(const ShapeTypeNode* op) final { return ShapeType(op->ndim, op->span); }
 
@@ -86,7 +86,9 @@ Type TypeFromStaticType(const Type& type) {
   if (type.as<ObjectTypeNode>()) {
     return ObjectType(type->span);
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
-    return PrimType(prim_type->dtype, prim_type->span);
+    return tvm::PrimType(prim_type->dtype);
+  } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
+    return tvm::PrimType(prim_type->dtype);
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
     return ShapeType(shape_type->ndim, type->span);
   } else if (const TensorTypeNode* tensor_type = type.as<TensorTypeNode>()) {
@@ -221,9 +223,9 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
     if (ret.defined()) {
       PrimExpr value = ret.value();
       if (value->IsInstance<IntImmNode>()) {
-        return tvm::cast(DataType::Int(64), value);
+        return tvm::cast(PrimType::Int(64), value);
       }
-      TVM_FFI_ICHECK(value.dtype() == DataType::Int(64))
+      TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
           << "Can only provide i64 expressions in shape";
       return value;
     } else {
@@ -1015,7 +1017,9 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     if (rhs == nullptr) return ObjectType(lhs->span);
 
     // find the target dtype, ndim, and vdevice.
-    DataType dtype = lhs->dtype == rhs->dtype ? lhs->dtype : DataType::Void();
+    PrimType dtype = lhs->dtype->dtype == rhs->dtype->dtype
+                         ? PrimType(lhs->dtype->dtype)
+                         : PrimType(DLDataType{kDLOpaqueHandle, 0, 0});
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     VDevice vdev = VDevice();
     if (lhs->vdevice.defined() && rhs->vdevice.defined() &&
@@ -1028,7 +1032,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
         !CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(),
                             ffi::GetRef<arith::Analyzer>(analyzer_))) {
       // reuse lhs when possible
-      if (!lhs->shape.defined() && lhs->dtype == dtype && lhs->ndim == ndim &&
+      if (!lhs->shape.defined() && lhs->dtype->dtype == dtype->dtype && lhs->ndim == ndim &&
           (!lhs->vdevice.defined() || vdev.defined())) {
         return ffi::GetRef<Type>(lhs);
       } else {
@@ -1036,7 +1040,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
       }
     }
     // symbolic shape and vdevice match but dtype mismatch
-    if (lhs->dtype != dtype || (lhs->vdevice.defined() && !vdev.defined())) {
+    if (lhs->dtype->dtype != dtype->dtype || (lhs->vdevice.defined() && !vdev.defined())) {
       return TensorType(lhs->shape.value(), dtype, vdev, lhs->span);
     } else {
       return ffi::GetRef<Type>(lhs);

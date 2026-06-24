@@ -49,9 +49,9 @@ Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
   return Buffer(new_buffer);
 }
 
-Buffer WithDType(const Buffer& buffer, const DataType& dtype) {
+Buffer WithDType(const Buffer& buffer, DLDataType dtype) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
-  new_buffer->dtype = dtype;
+  new_buffer->dtype = PrimType(dtype);
   const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
   new_buffer->data =
       Var(buffer->data->name_hint, PointerType(PrimType(dtype), ptr_type->storage_scope));

@@ -21,7 +21,7 @@
 import tvm_ffi
 from tvm_ffi import Array
 
-from tvm.ir import EnvFunc, PrimExpr, Span, TupleType, VDevice
+from tvm.ir import EnvFunc, PrimExpr, PrimType, Span, TupleType, VDevice
 
 from . import _ffi_api
 from .expr import Expr, ShapeExpr, Type
@@ -92,7 +92,7 @@ class TensorType(Type):
     """
 
     shape: Expr | None
-    dtype: str
+    dtype: PrimType
     vdevice: VDevice | None
     ndim: int
     span: Span
@@ -100,13 +100,15 @@ class TensorType(Type):
     def __init__(
         self,
         shape: Expr | None | list[PrimExpr] = None,
-        dtype: str = "float32",
+        dtype: str | PrimType | None = "float32",
         vdevice: VDevice | None | str = None,
         ndim: int = -1,
         span: Span = None,
     ) -> None:
         if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
+        if dtype is not None and not isinstance(dtype, PrimType):
+            dtype = PrimType(dtype)
         self.__init_handle_by_constructor__(
             _ffi_api.TensorType,
             shape,

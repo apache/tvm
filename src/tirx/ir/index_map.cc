@@ -53,7 +53,7 @@ IndexMap IndexMap::FromFunc(int ndim,
   ffi::Array<Var> initial_indices;
   initial_indices.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
-    initial_indices.push_back(Var("i" + std::to_string(i), DataType::Int(32)));
+    initial_indices.push_back(Var("i" + std::to_string(i), PrimType::Int(32)));
   }
   return IndexMap(initial_indices, func(initial_indices), std::move(inverse_index_map));
 }
@@ -83,7 +83,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // should be named (X.outer,X.inner).
     std::stringstream ss;
     ss << "axis" << i;
-    Var var_index(ss.str(), index.dtype());
+    Var var_index(ss.str(), index.ty());
     output_vars.push_back(var_index);
   }
 
@@ -249,12 +249,13 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
   auto output_dtype = [&]() {
     int max_bits = ranges.empty() ? 32 : 0;
     for (const auto& range : ranges) {
-      max_bits = std::max(max_bits, range->extent.dtype().bits());
+      max_bits = std::max(max_bits, range->extent.ty().bits());
     }
-    return DataType::Int(max_bits);
+    return PrimType::Int(max_bits);
   }();
   output.MutateByApply([&](const Range& range) {
-    if (range->min.dtype() != output_dtype || range->extent.dtype() != output_dtype) {
+    if (range->min.ty()->dtype != output_dtype->dtype ||
+        range->extent.ty()->dtype != output_dtype->dtype) {
       return Range::FromMinExtent(cast(output_dtype, range->min),
                                   cast(output_dtype, range->extent));
     } else {
@@ -275,7 +276,7 @@ ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
 
   ffi::Array<Range> ranges;
   for (auto& dim : shape) {
-    ranges.push_back(Range(IntImm(dim.dtype(), 0), dim));
+    ranges.push_back(Range(IntImm(dim.ty(), 0), dim));
   }
   ffi::Array<Range> mapped = MapRanges(std::move(ranges), analyzer);
 
@@ -366,7 +367,7 @@ IndexMap IndexMap::RenameVariables(
           ffi::String name = opt_name.value();
           TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
           name_supply->ReserveName(name, /*add_prefix=*/false);
-          var_remap.Set(var, Var(name, var->dtype));
+          var_remap.Set(var, Var(name, var.ty()));
         }
       });
     });

@@ -57,7 +57,7 @@ using tvm::tirx::Var;
  * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
-Buffer BufferDecl(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
+Buffer BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                   ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                   ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                   int offset_factor, ffi::String buffer_type,
@@ -122,7 +122,7 @@ Type FuncRet(Type ret_type);
  * \return The matched buffer.
  */
 Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
-                   DataType dtype = DataType::Float(32), ffi::Optional<Var> data = std::nullopt,
+                   PrimType dtype = PrimType::Float(32), ffi::Optional<Var> data = std::nullopt,
                    ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
                    ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
                    ffi::String buffer_type = "default",
@@ -197,7 +197,7 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * T.prim_func(tirx=True).
  */
 ffi::Variant<Buffer, AllocBufferFrame> SBlockAllocBuffer(
-    ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+    ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
     ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
     PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "", int align = -1,
     int offset_factor = 0, ffi::String buffer_type = "default",
@@ -213,7 +213,7 @@ namespace axis {
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Spatial(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The reduced block axis defining function.
@@ -222,7 +222,7 @@ Var Spatial(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Reduce(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The scanning block axis defining function.
@@ -231,7 +231,7 @@ Var Reduce(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Scan(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The opaque block axis defining function.
@@ -240,7 +240,7 @@ Var Scan(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
+Var Opaque(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The block axis remapping function.
@@ -250,7 +250,7 @@ Var Opaque(Range dom, PrimExpr binding, DataType dtype = DataType::Int(32));
  * \return The iteration variables.
  */
 ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings,
-                      DataType dtype = DataType::Int(32));
+                      PrimType dtype = PrimType::Int(32));
 
 }  // namespace axis
 
@@ -412,7 +412,7 @@ ElseFrame Else();
  * \param layout The layout of the buffer.
  * \return The declaration frame.
  */
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String buffer_name,
+DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                            ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                            int align, int offset_factor, ffi::String buffer_type,
@@ -428,7 +428,7 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::Stri
  * \param annotations Optional annotations for the allocation.
  * \return The allocated buffer.
  */
-Buffer AllocBuffer(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+Buffer AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                    ffi::String storage_scope = "global",
                    ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
@@ -465,7 +465,7 @@ ComposeOpFrame ComposeOp(ffi::Map<ffi::String, Buffer> workspace,
  * \param dtype The data type of the variable.
  * \return The result variable which gets bound to the thread env.
  */
-Var EnvThread(ffi::String thread_tag, DataType dtype = DataType::Int(32));
+Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief Store data in a buffer.
@@ -494,21 +494,20 @@ void Evaluate(PrimExpr value);
  * \param is_size_var Whether the pointer is a size var.
  *
  * \param is_unknown_type Used to distinguish between
- * `PrimType(DataType::Handle())` and
- * `PointerType(PrimType(DataType::Void()))`.  If true, resolve dtype
+ * `PrimType::Handle()` and `PointerType(PrimType(DLDataType{kDLOpaqueHandle, 0, 0}))`.
+ * If true, resolve dtype
  * of `Void()` as `PrimType`, and if false resolve dtype of `Void()`
  * as a `PointerType`.
  *
  * \return The pointer.
  */
-inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
-                  ffi::String storage_scope = "global", bool is_size_var = false,
-                  bool is_unknown_type = false) {
+inline Var Handle(PrimType dtype = PrimType::Handle(), ffi::String storage_scope = "global",
+                  bool is_size_var = false, bool is_unknown_type = false) {
   Type type_annotation{nullptr};
   if (is_unknown_type && storage_scope == "global") {
-    type_annotation = PrimType(runtime::DataType::Handle());
+    type_annotation = PrimType::Handle();
   } else {
-    type_annotation = PointerType(PrimType(dtype), storage_scope);
+    type_annotation = PointerType(dtype, storage_scope);
   }
   return is_size_var ? tvm::tirx::SizeVar("", type_annotation)
                      : tvm::tirx::Var("", type_annotation);
@@ -519,67 +518,67 @@ inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType()))
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                 \
   inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt,                     \
                            bool is_size_var = false) {                                      \
-    DataType dtype = DType;                                                                 \
+    PrimType dtype(DType);                                                                  \
     return expr.defined()                                                                   \
                ? tvm::cast(dtype, expr.value())                                             \
                : (is_size_var ? tvm::tirx::SizeVar("", dtype) : tvm::tirx::Var("", dtype)); \
   }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, FDType) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##8, FDType(8));      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##16, FDType(16));    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##32, FDType(32));    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##64, FDType(64));
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)               \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##8, (DLDataType{Code, 8, 1}));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##16, (DLDataType{Code, 16, 1})); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##32, (DLDataType{Code, 32, 1})); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##64, (DLDataType{Code, 64, 1}));
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(BFloat, DataType::BFloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Float, DataType::Float);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(UInt, DataType::UInt);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, DataType::Int);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(BFloat, kDLBfloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Float, kDLFloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(UInt, kDLUInt);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, kDLInt);
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(FuncName, FDType, Size) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x2, FDType(Size, 2))      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x4, FDType(Size, 4));     \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x8, FDType(Size, 8));     \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x16, FDType(Size, 16));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x32, FDType(Size, 32));   \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x64, FDType(Size, 64));
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(FuncName, Code, Size)             \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x2, (DLDataType{Code, Size, 2}))    \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x4, (DLDataType{Code, Size, 4}));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x8, (DLDataType{Code, Size, 8}));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x16, (DLDataType{Code, Size, 16})); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x32, (DLDataType{Code, Size, 32})); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName##x64, (DLDataType{Code, Size, 64}));
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(DType, FDType) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##8, FDType, 8);      \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##16, FDType, 16);    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##32, FDType, 32);    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##64, FDType, 64);
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(DType, Code) \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##8, Code, 8);      \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##16, Code, 16);    \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##32, Code, 32);    \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES(DType##64, Code, 64);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(BFloat, DataType::BFloat);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, DataType::Float);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, DataType::UInt);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, DataType::Int);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(BFloat, kDLBfloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, kDLFloat);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, kDLUInt);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, kDLInt);
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, FDType) \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType, FDType(1));                    \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x2, FDType(2));                \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, FDType(4));                \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, FDType(8));                \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, FDType(16));              \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, FDType(32));              \
-  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, FDType(64));
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, Code, Bits)  \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType, (DLDataType{Code, Bits, 1}));       \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x2, (DLDataType{Code, Bits, 2}));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, (DLDataType{Code, Bits, 4}));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, (DLDataType{Code, Bits, 8}));   \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, (DLDataType{Code, Bits, 16})); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, (DLDataType{Code, Bits, 32})); \
+  TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, (DLDataType{Code, Bits, 64}));
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E3M4, DataType::Float8E3M4);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3, DataType::Float8E4M3);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3B11FNUZ, DataType::Float8E4M3B11FNUZ);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FN, DataType::Float8E4M3FN);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FNUZ, DataType::Float8E4M3FNUZ);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2, DataType::Float8E5M2);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2FNUZ, DataType::Float8E5M2FNUZ);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E8M0FNU, DataType::Float8E8M0FNU);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E3M4, kDLFloat8_e3m4, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3, kDLFloat8_e4m3, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3B11FNUZ, kDLFloat8_e4m3b11fnuz, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FN, kDLFloat8_e4m3fn, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E4M3FNUZ, kDLFloat8_e4m3fnuz, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2, kDLFloat8_e5m2, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E5M2FNUZ, kDLFloat8_e5m2fnuz, 8);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float8E8M0FNU, kDLFloat8_e8m0fnu, 8);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E2M3FN, DataType::Float6E2M3FN);
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E3M2FN, DataType::Float6E3M2FN);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E2M3FN, kDLFloat6_e2m3fn, 6);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float6E3M2FN, kDLFloat6_e3m2fn, 6);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float4E2M1FN, DataType::Float4E2M1FN);
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(Float4E2M1FN, kDLFloat4_e2m1fn, 4);
 
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Boolean, DataType::Bool());
-TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Void, DataType::Void());
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Boolean, (DLDataType{kDLBool, 8, 1}));
+TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(Void, (DLDataType{kDLOpaqueHandle, 0, 0}));
 
 #undef TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST
 

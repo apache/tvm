@@ -275,7 +275,8 @@ InferLayoutOutput InferLayoutPool2d(
   ffi::ObjectPtr<Pool2DAttrs> new_attrs = ffi::make_object<Pool2DAttrs>(*attrs);
 
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    tirx::SLayout in_layout(attrs->layout, DataType::Int(64));
+    tvm::PrimType i64_ty = tvm::PrimType::Int(64);
+    tirx::SLayout in_layout(attrs->layout, i64_ty);
     auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();
@@ -675,7 +676,8 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ffi::ObjectPtr<AdaptivePool2DAttrs> new_attrs = ffi::make_object<AdaptivePool2DAttrs>(*attrs);
   if (layout->layout.ndim() != layout->layout.ndim_primal()) {
-    tirx::SLayout in_layout(attrs->layout, DataType::Int(64));
+    tvm::PrimType i64_ty = tvm::PrimType::Int(64);
+    tirx::SLayout in_layout(attrs->layout, i64_ty);
     auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
     auto data_si = GetType(call->args[0]);
     TensorType data_ty = data_si.as<TensorType>().value();

@@ -2482,12 +2482,12 @@ def test_void_ptr_vs_handle():
     one of the two C++ representations.
     """
 
-    # Generates PointerType(PrimType(DataType::Void()))
+    # Generates PointerType(PrimType::Void())
     @T.prim_func(s_tir=True)
     def void_ptr(out_ret_value: T.handle("void")):
         T.evaluate(out_ret_value)
 
-    # Generates PrimType(DataType::Handle())
+    # Generates PrimType::Handle()
     @T.prim_func(s_tir=True)
     def handle(out_ret_value: T.handle):
         T.evaluate(out_ret_value)

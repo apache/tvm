@@ -17,6 +17,7 @@
 """Creation operators."""
 
 from tvm import DataType, DataTypeCode
+from tvm.ir import PrimType
 from tvm.ir.expr import PrimExpr
 
 from ..expr import Expr, PrimValue, ShapeExpr
@@ -267,7 +268,9 @@ def arange(
             return True
         if isinstance(expr, PrimValue):
             expr = expr.value
-        return isinstance(expr, PrimExpr) and DataType(expr.dtype).type_code == DataTypeCode.INT  # type: ignore
+        if isinstance(expr, PrimExpr):
+            return expr.ty.matches_code(DataTypeCode.INT)
+        return False
 
     if dtype is None:
         args = (start, end, step)

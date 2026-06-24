@@ -38,7 +38,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /* relax.astype */
 
-Expr astype(Expr x, DataType dtype) {
+Expr astype(Expr x, DLDataType dtype) {
   ffi::ObjectPtr<AstypeAttrs> attrs = ffi::make_object<AstypeAttrs>();
   attrs->dtype = dtype;
 
@@ -55,7 +55,7 @@ Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
   TensorType ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<AstypeAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
-  new_ty->dtype = attrs->dtype;
+  new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
 }
 
@@ -70,7 +70,7 @@ TVM_REGISTER_OP("relax.astype")
 
 /* relax.wrap_param */
 
-Expr MakeWrapParam(Expr data, DataType dtype) {
+Expr MakeWrapParam(Expr data, DLDataType dtype) {
   ffi::ObjectPtr<WrapParamAttrs> attrs = ffi::make_object<WrapParamAttrs>();
   attrs->dtype = dtype;
 
@@ -87,7 +87,7 @@ Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
   TensorType ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<WrapParamAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
-  new_ty->dtype = attrs->dtype;
+  new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
 }
 

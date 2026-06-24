@@ -605,7 +605,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     // Synthesize the warp_id_in_cta helper (CUDA only) when threadIdx is set.
     if (launch_params_.count("threadIdx.x") > 0) {
       PrimExpr shuffled = ScopeIdResolve::ComputeWarpIdInCta(launch_params_);
-      Var warp_id_in_cta_var("warp_id_in_cta", shuffled.dtype());
+      Var warp_id_in_cta_var("warp_id_in_cta", shuffled.ty());
       scope_binds->push_back({warp_id_in_cta_var, shuffled});
       IterVar warp_iv(Range::FromMinExtent(0, 1), warp_id_in_cta_var, kThreadIndex,
                       "warp_id_in_cta");
@@ -664,8 +664,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         // to map Vars back to their ScopeBinding.
         Var bind_var = def->def_ids[i];
         PrimExpr value = resolved[i];
-        if (bind_var->dtype != value.dtype()) {
-          value = Cast(bind_var->dtype, value);
+        if (bind_var.ty() != value.ty()) {
+          value = Cast(bind_var.ty(), value);
         }
         scope_binds->push_back({bind_var, value});
         if (is_implicit(bind_var)) {
@@ -1157,8 +1157,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
     auto target = ResolveScopeIdTarget(call->args[0]);
     if (target && ElectSyncFinder::Contains(call->args[1])) {
-      PrimExpr selector = tirx::Call(call->args[0].dtype(), tirx::builtin::selector(),
-                                     {call->args[0], call->args[1]});
+      PrimExpr selector =
+          tirx::Call(call->args[0].ty(), tirx::builtin::selector(), {call->args[0], call->args[1]});
       int pushed = TryPushSelectorForTarget(*target, selector) ? 1 : 0;
       return pushed + PushPredicateCtx(call->args[1]);
     }
@@ -1269,7 +1269,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         auto lane = FindLaneScopeVar();
         if (!lane) return -1;
         ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-        PrimExpr selector = tirx::Call(lane->dtype(), tirx::builtin::selector(), {*lane, cond});
+        PrimExpr selector = tirx::Call(lane->ty(), tirx::builtin::selector(), {*lane, cond});
         return TryPushSelectorForTarget(target, selector) ? 1 : 0;
       }
       return -1;
@@ -1337,7 +1337,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
     PrimExpr selector =
-        tirx::Call(lane->dtype(), tirx::builtin::selector(), {*lane, atom.elect_sync_call});
+        tirx::Call(lane->ty(), tirx::builtin::selector(), {*lane, atom.elect_sync_call});
     return TryPushSelectorForTarget(target, selector);
   }
 
@@ -1399,17 +1399,18 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         args.push_back(new_arg);
       }
       if (changed) {
-        return tirx::Call(call->dtype, call->op, args, call->attrs, call->span);
+        return tirx::Call(call->ty(), call->op, args, call->attrs, call->span);
       }
     }
     return pred;
   }
 
   PrimExpr AsBool(PrimExpr pred) const {
-    if (pred.dtype().is_bool()) {
+    PrimType pred_ty = pred.ty();
+    if (pred_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
       return pred;
     }
-    return pred != IntImm(pred.dtype(), 0);
+    return pred != IntImm(pred.ty(), 0);
   }
 
   ffi::Map<Var, Range> var_range_map_;

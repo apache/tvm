@@ -147,7 +147,7 @@ ffi::Array<Buffer> MakeScratchpads(const ffi::Array<Buffer>& reduction_buffers,
   for (const Buffer& buffer : reduction_buffers) {
     ffi::String name = is_cross_thread_buffer ? "cross" : "in";
     name = name + "_thread_" + buffer->name;
-    new_buffers.push_back(Buffer(/*ptr=*/Var(name, PointerType(PrimType(buffer->dtype), "local")),
+    new_buffers.push_back(Buffer(/*ptr=*/Var(name, PointerType(buffer->dtype, "local")),
                                  /*dtype=*/buffer->dtype,
                                  /*shape=*/{IntImm::Int32(1)},
                                  /*strides=*/{IntImm::Int32(1)},
@@ -377,7 +377,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     ffi::Array<PrimExpr> parameters;
     parameters.reserve(reduction_loops.size() + 4);
     // 1-st argument: number of buffers
-    parameters.push_back(IntImm(DataType::UInt(32), n_buffers));
+    parameters.push_back(IntImm(PrimType::UInt(32), n_buffers));
     // Next `n_buffers` arguments: sources
     if (it_buffers.defined()) {
       for (int i = 0; i < n_buffers; ++i) {
@@ -424,7 +424,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                         /*attr_key=*/s_tir::attr::reduce_scope,
                         /*value=*/ConstHandle(0),
                         /*body=*/
-                        Evaluate(Call(/*dtype=*/DataType::Handle(),
+                        Evaluate(Call(/*dtype=*/PrimType::Handle(),
                                       /*op=*/tirx::builtin::tvm_thread_allreduce(),
                                       /*args=*/std::move(parameters)))))));
   }
@@ -507,7 +507,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     if (wb_buffers[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
         if (loop->thread_binding.defined()) {
-          wb_predicate = wb_predicate && (loop->loop_var == IntImm(loop->loop_var->dtype, 0));
+          wb_predicate = wb_predicate && (loop->loop_var == IntImm(loop->loop_var.ty(), 0));
         }
       }
     }
@@ -862,7 +862,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     loop_vars.reserve(unbound_thread2range.size());
     for (auto [scope, range] : unbound_thread2range) {
       std::string dim_index(1, static_cast<char>(scope.dim_index + 'x'));
-      Var loop_var("t" + dim_index, range->min->dtype);
+      Var loop_var("t" + dim_index, range->min.ty());
       loop_vars.push_back(loop_var);
       predicate = (loop_var == range->min) && predicate;
     }
@@ -882,7 +882,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
           /*kind=*/ForKind::kThreadBinding,                   //
           /*body=*/body,                                      //
           /*thread_binding=*/
-          IterVar(Range(), Var("", loop_vars[i]->dtype), IterVarType::kThreadIndex,
+          IterVar(Range(), Var("", loop_vars[i].ty()), IterVarType::kThreadIndex,
                   "threadIdx." + dim_index),
           /*annotations=*/{},
           /*step=*/std::nullopt);

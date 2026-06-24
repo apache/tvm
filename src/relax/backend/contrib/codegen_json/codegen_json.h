@@ -89,8 +89,8 @@ class OpAttrExtractor {
     }
   }
 
-  void Visit(const char* key, DataType* value) {
-    if (!value->is_void()) {
+  void Visit(const char* key, DLDataType* value) {
+    if (!(value->code == kDLOpaqueHandle && value->bits == 0 && value->lanes == 0)) {
       SetNodeAttr(key, ffi::String(ffi::DLDataTypeToString(*value)));
     } else {
       SetNodeAttr(key, ffi::String(""));
@@ -201,7 +201,7 @@ class OpAttrExtractor {
           break;
         }
         case ffi::TypeIndex::kTVMFFIDataType: {
-          DataType value(field_value.cast<DLDataType>());
+          DLDataType value = field_value.cast<DLDataType>();
           this->Visit(field_info->name.data, &value);
           break;
         }
@@ -282,7 +282,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
         ShapeExpr output_shape = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
-        dtype.emplace_back(DType2String(tensor_ty->dtype));
+        dtype.emplace_back(DType2String(tensor_ty->dtype->dtype));
       }
       node->SetNumOutput(tuple_ty->fields.size());
     } else {
@@ -292,7 +292,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       ShapeExpr output_shape = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
 
       shape.emplace_back(GetIntShape(output_shape->values));
-      dtype.emplace_back(DType2String(tensor_ty->dtype));
+      dtype.emplace_back(DType2String(tensor_ty->dtype->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));
     }
     node->SetShape(shape);

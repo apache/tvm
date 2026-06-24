@@ -102,7 +102,7 @@ class LayoutConvertMutator : public ExprMutator {
     ffi::Array<PrimExpr> initial_indices_expr;
     initial_indices.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      auto var = tvm::tirx::Var("i" + std::to_string(i), DataType::Int(32));
+      auto var = tvm::tirx::Var("i" + std::to_string(i), PrimType::Int(32));
       initial_indices.push_back(var);
       initial_indices_expr.push_back(var);
     }

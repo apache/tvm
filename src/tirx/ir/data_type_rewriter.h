@@ -141,7 +141,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
  */
 class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
  public:
-  explicit IndexDataTypeNormalizer(DataType target_data_type);
+  explicit IndexDataTypeNormalizer(PrimType target_data_type);
   PrimFunc Rewrite(PrimFunc func);
 
  protected:
@@ -153,9 +153,9 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   PrimExpr VisitExpr_(const CastNode* op) override;
 
   /*! \brief Specifies which data type we can rewrite */
-  virtual bool CanRewriteDType(DataType dtype) const;
+  virtual bool CanRewriteDType(PrimType dtype) const;
 
-  DataType target_data_type_ = DataType::Int(64);
+  PrimType target_data_type_ = PrimType::Int(64);
 };
 
 }  // namespace tirx

@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_DISTRIBUTED_GLOBAL_INFO_H_
 #define TVM_RELAX_DISTRIBUTED_GLOBAL_INFO_H_
 
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 namespace tvm {

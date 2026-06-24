@@ -173,7 +173,7 @@ class PaddingInfoAnalyzer {
     }
     for (const arith::IterSumExpr& sum : res->indices) {
       if (sum->args.empty()) {
-        region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.dtype(), /* value */ 1)));
+        region.push_back(Range::FromMinExtent(sum->base, IntImm(sum->base.ty(), /* value */ 1)));
       } else {
         TVM_FFI_ICHECK_EQ(sum->args.size(), 1U);
         if (!analyzer_->CanProveEqual(sum->args[0]->scale, 1)) {
@@ -291,7 +291,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
     const IterVar& origin_itervar = block->iter_vars[i];
     Var new_var = origin_itervar->var.copy_with_suffix("");
     Range new_range =
-        Range::FromMinExtent(IntImm(new_var->dtype, 0), info.in_bound_region[i]->extent);
+        Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_itervar->var, new_var + info.in_bound_region[i]->min);
 

@@ -94,8 +94,8 @@ bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
 
 bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
   bool equal = n.same_as(other) ||
-               ((n->type_index() == other->type_index()) &&
-                n.dtype().code() == other.dtype().code() && ExprComparator::VisitExpr(n, other)) ||
+               ((n->type_index() == other->type_index()) && n.ty().code() == other.ty().code() &&
+                ExprComparator::VisitExpr(n, other)) ||
                (ContainsVscaleCall(n) && analyzer_->CanProveEqual(n, other));
 
   if (!equal && assert_mode_) {
@@ -109,11 +109,11 @@ bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
 bool TensorizeComparator::VisitExpr_(const CallNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<CallNode>();
   if (!rhs->op.same_as(op->op)) return false;
-  if (op->dtype.code() != rhs->dtype.code()) {
+  if (op->ty().code() != rhs->ty().code()) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "CallNode data type codes do not match: op->dtype.code()=" << op->dtype.code()
-         << " vs rhs->dtype.code()=" << rhs->dtype.code();
+      os << "CallNode data type codes do not match: op->dtype.code()=" << op->ty().code()
+         << " vs rhs->dtype.code()=" << rhs->ty().code();
       EmitError(os.str());
     }
     return false;
@@ -330,11 +330,11 @@ bool TensorizeComparator::VisitExpr_(const VarNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<VarNode>();
   auto lhs = ffi::GetRef<Var>(op);
   if (lhs.same_as(other)) return true;
-  if (op->dtype.code() != rhs->dtype.code()) {
+  if (op->ty().code() != rhs->ty().code()) {
     if (assert_mode_) {
       std::ostringstream os;
-      os << "VarNode data type codes do not match: op->dtype.code()=" << op->dtype.code()
-         << " vs rhs->dtype.code()=" << rhs->dtype.code();
+      os << "VarNode data type codes do not match: op->dtype.code()=" << op->ty().code()
+         << " vs rhs->dtype.code()=" << rhs->ty().code();
       EmitError(os.str());
     }
     return false;
@@ -363,7 +363,7 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   equal_map_[lhs] = rhs;
   // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
   // the indices.
-  analyzer_->Bind(lhs, cast(lhs.dtype(), rhs));
+  analyzer_->Bind(lhs, cast(lhs.ty(), rhs));
   return true;
 }
 

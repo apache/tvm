@@ -54,7 +54,7 @@ void AppendFloorDivConstraints(const FloorDivNode* div, int64_t value, CompareKi
   int64_t divisor_value = 0;
   if (!TryGetIntImm(div->b, &divisor_value) || divisor_value <= 0) return;
 
-  DataType dtype = div->a.dtype();
+  PrimType dtype = div->a.ty();
   PrimExpr divisor = MakeConst(dtype, divisor_value);
   PrimExpr k = MakeConst(dtype, value);
   PrimExpr lo = k * divisor;
@@ -117,7 +117,8 @@ void CollectDerivedConstraintFacts(const PrimExpr& condition, std::vector<PrimEx
   }
   if (const auto* call = condition.as<CallNode>()) {
     if (call->op.same_as(tirx::builtin::bitwise_and()) && call->args.size() == 2 &&
-        call->args[0].dtype().is_bool() && call->args[1].dtype().is_bool()) {
+        call->args[0].ty().MatchesElementType(DLDataTypeCode::kDLBool, 8) &&
+        call->args[1].ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
       CollectDerivedConstraintFacts(call->args[0], out);
       CollectDerivedConstraintFacts(call->args[1], out);
       return;
@@ -260,7 +261,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      Range dom = Range::FromMinExtent(IntImm(op->value.dtype(), 0), op->value);
+      Range dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
       analyzer_->Bind(iv->var, dom);
       iter_vars_.Set(iv->var, dom);
     }
@@ -313,7 +314,8 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
         false_value.same_as(op->args[2])) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Call(op->dtype, op->op, {cond, true_value, false_value}, op->attrs, op->span);
+      return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op, {cond, true_value, false_value},
+                  op->attrs, op->span);
     }
   }
   return StmtExprMutator::VisitExpr_(op);

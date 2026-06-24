@@ -34,6 +34,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -67,11 +68,11 @@ class TVM_DLL OperationNode : public ffi::Object {
   /*! \return number of outputs */
   virtual int num_outputs() const = 0;
   /*!
-   * \brief Get data type. i-th output tensor.
+   * \brief Get the primitive element type of the i-th output tensor.
    * \param i The output index.
-   * \return type of i-th output.
+   * \return primitive element type of i-th output.
    */
-  virtual DataType output_dtype(size_t i) const = 0;
+  virtual PrimType output_dtype(size_t i) const = 0;
   /*!
    * \brief Get shape of i-th output tensor.
    * \param i The output index.
@@ -101,11 +102,11 @@ class PlaceholderOpNode : public OperationNode {
  public:
   /*! \brief The shape of the input */
   ffi::Array<PrimExpr> shape;
-  /*! \brief The data type of the input. */
-  DataType dtype;
+  /*! \brief The dtype of the input. */
+  PrimType dtype{DLDataType{kDLOpaqueHandle, 0, 0}};
   // override behavior.
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<PrimExpr> output_shape(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
@@ -124,7 +125,9 @@ class PlaceholderOpNode : public OperationNode {
  */
 class PlaceholderOp : public Operation {
  public:
-  TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, DataType dtype);
+  TVM_DLL PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, PrimType dtype);
+  PlaceholderOp(std::string name, ffi::Array<PrimExpr> shape, DLDataType dtype)
+      : PlaceholderOp(std::move(name), std::move(shape), PrimType(dtype)) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PlaceholderOp, Operation, PlaceholderOpNode);
 };
@@ -162,7 +165,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   ComputeOpNode() {}
   // override functions
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
   static void RegisterReflection() {
@@ -217,7 +220,7 @@ class ScanOpNode : public OperationNode {
   ScanOpNode() {}
   // override behavior.
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<PrimExpr> output_shape(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
@@ -266,7 +269,7 @@ class ExternOpNode : public OperationNode {
   ExternOpNode() {}
   // override functions
   int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
+  PrimType output_dtype(size_t i) const final;
   ffi::Array<PrimExpr> output_shape(size_t i) const final;
   ffi::Array<Tensor> InputTensors() const final;
 
@@ -299,7 +302,7 @@ class ExternOp : public Operation {
  * \param name_hint The name hint for the expression
  * \param t The type of the expression
  */
-TVM_DLL Var var(std::string name_hint, DataType t = DataType::Int(32));
+TVM_DLL Var var(std::string name_hint, PrimType t = PrimType::Int(32));
 
 /*!
  * \brief Create a new IterVar that represents an axis in thread.
@@ -329,8 +332,13 @@ using FBatchCompute = std::function<ffi::Array<PrimExpr>(const ffi::Array<Var>& 
  * \param dtype the data type of the tensor.
  * \param name The name of the Tensor.
  */
-TVM_DLL Tensor placeholder(ffi::Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
+TVM_DLL Tensor placeholder(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                            std::string name = "placeholder");
+
+inline Tensor placeholder(ffi::Array<PrimExpr> shape, DLDataType dtype,
+                          std::string name = "placeholder") {
+  return placeholder(std::move(shape), PrimType(dtype), std::move(name));
+}
 
 /*!
  * \brief Construct a new tensor by computing over shape,

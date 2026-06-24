@@ -19,7 +19,7 @@
 """Default legalization function for manipulate operators."""
 
 import tvm
-from tvm import relax, s_tir, te, tirx, topi
+from tvm import DataTypeCode, relax, s_tir, te, tirx, topi
 from tvm.relax.op.base import call_tir
 from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
@@ -337,7 +337,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     if pad_value is not None:
         pad_value = pad_value.value
     else:
-        if "int" in call.args[0].ty.dtype:
+        if call.args[0].ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT):
             pad_value = 0
         else:
             pad_value = 0.0

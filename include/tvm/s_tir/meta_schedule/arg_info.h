@@ -20,9 +20,9 @@
 #define TVM_S_TIR_META_SCHEDULE_ARG_INFO_H_
 
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/tirx/function.h>
 
 namespace tvm {
@@ -77,7 +77,7 @@ class ArgInfo : public ffi::ObjectRef {
 class TensorInfoNode : public ArgInfoNode {
  public:
   /*! \brief The data type of the tensor. */
-  runtime::DataType dtype;
+  DLDataType dtype;
   /*! \brief The shape of the tensor. */
   ffi::Shape shape;
 
@@ -104,7 +104,7 @@ class TensorInfo : public ArgInfo {
    * \param dtype The data type of the tensor argument.
    * \param shape The shape tuple of the tensor argument.
    */
-  TVM_DLL explicit TensorInfo(runtime::DataType dtype, ffi::Shape shape);
+  TVM_DLL explicit TensorInfo(DLDataType dtype, ffi::Shape shape);
   /*!
    * \brief Parse the argument information from a JSON object.
    * \param json_obj The json object to parse.

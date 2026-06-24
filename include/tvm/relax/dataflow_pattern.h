@@ -116,8 +116,8 @@ class DFPattern : public ffi::ObjectRef {
   TVM_DLL AttrPattern HasAttr(const ffi::Map<ffi::String, Any>& attrs) const;
   /*! \brief Syntatic Sugar for creating a TypePattern */
   TVM_DLL TypePattern HasType(const Type& ty) const;
-  /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
-  TVM_DLL DataTypePattern HasDtype(const DataType& dtype) const;
+  /*! \brief Syntatic Sugar for creating a DataTypePattern with a dtype */
+  TVM_DLL DataTypePattern HasDtype(DLDataType dtype) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a data type's name */
   TVM_DLL DataTypePattern HasDtype(const std::string& dtype) const;
   /*! \brief Syntatic Sugar for creating a ShapePattern */
@@ -860,7 +860,7 @@ class SameShapeConstraint : public DFConstraint {
 class DataTypePatternNode : public DFPatternNode {
  public:
   DFPattern pattern; /*!< The root pattern to match */
-  DataType dtype;    /*!< The data type to match */
+  DLDataType dtype;  /*!< The data type to match */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -878,7 +878,7 @@ class DataTypePatternNode : public DFPatternNode {
  */
 class DataTypePattern : public DFPattern {
  public:
-  TVM_DLL DataTypePattern(DFPattern pattern, DataType dtype);
+  TVM_DLL DataTypePattern(DFPattern pattern, DLDataType dtype);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypePattern, DFPattern, DataTypePatternNode);
 };
 

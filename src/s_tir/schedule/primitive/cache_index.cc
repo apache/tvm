@@ -58,14 +58,14 @@ struct IndexInfo {
  * \param range The range of the integer.
  * \returns A data type that covers the input range.
  */
-DataType DetermineDatatype(const arith::IntSet& range) {
+PrimType DeterminePrimType(const arith::IntSet& range) {
   arith::Analyzer ana;
   if (ana->CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
-    return DataType::Int(32);
+    return PrimType::Int(32);
   } else {
     TVM_FFI_ICHECK(ana->CanProve(range.min() >= IntImm::Int64(INT64_MIN) &&
                                  range.max() <= IntImm::Int64(INT64_MAX)));
-    return DataType::Int(64);
+    return PrimType::Int(64);
   }
 }
 
@@ -261,23 +261,23 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       });
     }
 
-    DataType data_type = index_expr.dtype();
+    PrimType data_ty = index_expr.ty();
     Var index_buffer_var("index_var_" + std::to_string(expr_index),
-                         PointerType(PrimType(data_type), storage_scope));
+                         PointerType(data_ty, storage_scope));
     ffi::Array<PrimExpr> buffer_shape;
     for (const Var& it : info->origin_block_vars[expr_index]) {
       buffer_shape.push_back(
           arith::EvalSet(info->var_binding.at(it), arith::AsIntSet(info->range_map)).max() + 1);
     }
-    info->cache_buffer.push_back(Buffer(index_buffer_var, data_type, buffer_shape, {1}, {0},
+    info->cache_buffer.push_back(Buffer(index_buffer_var, data_ty->dtype, buffer_shape, {1}, {0},
                                         index_buffer_var->name_hint, 0, 0, kDefault));
 
     // Create loop vars and block vars' binding_value
     std::vector<Var> loop_vars;
     ffi::Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
-      DataType data_type = DetermineDatatype(arith::IntSet::FromRange(info->range_map.at(it)));
-      Var loop_var("ax" + std::to_string(replace_table.size()), data_type);
+      PrimType data_ty = DeterminePrimType(arith::IntSet::FromRange(info->range_map.at(it)));
+      Var loop_var("ax" + std::to_string(replace_table.size()), data_ty);
       loop_vars.push_back(loop_var);
       replace_table.Set(it, loop_var);
     }
@@ -296,15 +296,15 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // Create block vars, block's accessed region and accessing indices
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
-      Var var("v" + std::to_string(access_indices.size()), block_var.dtype());
-      Range range = Range::FromMinExtent(IntImm(block_var.dtype(), 0),
-                                         info->range_map.at(iter_vars[i])->extent);
+      Var var("v" + std::to_string(access_indices.size()), block_var.ty());
+      Range range =
+          Range::FromMinExtent(IntImm(block_var.ty(), 0), info->range_map.at(iter_vars[i])->extent);
       block_vars.push_back(IterVar(/*dom=*/range,
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
 
       access_indices.push_back(var);
-      access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
+      access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
       block_var_map.Set(block_var, var);
     }
 

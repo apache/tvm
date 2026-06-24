@@ -294,7 +294,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       new_indices = inverse->initial_indices.Map([](Var var) {
         std::stringstream ss;
         ss << "v_" << var->name_hint;
-        return Var(ss.str(), var.dtype());
+        return Var(ss.str(), var.ty());
       });
 
       ffi::Map<Var, Var>
@@ -314,7 +314,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         PrimExpr dim = new_buffer->shape[i];
         new_iter_values.push_back(var);
         new_iter_vars.push_back(
-            IterVar(Range::FromMinExtent(IntImm(dim.dtype(), 0), dim), virtual_var, kDataPar));
+            IterVar(Range::FromMinExtent(IntImm(dim.ty(), 0), dim), virtual_var, kDataPar));
         loop_var_to_virtual_var.Set(var, virtual_var);
       }
 
@@ -476,7 +476,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
-      Var block_var("v_" + loop_var->name_hint, loop_var->dtype);
+      Var block_var("v_" + loop_var->name_hint, loop_var.ty());
       IterVar iter_var(Range(0, dim), block_var, kDataPar);
       loop_indices_to_block_indices.Set(loop_var, block_var);
       indices.push_back(iter_var->var);
@@ -488,7 +488,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<arith::Analyzer>(analyzer))[0];
     PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
-    Stmt stmt = Evaluate(Call(DataType::Bool(), builtin::assume(), {expr}));
+    Stmt stmt = Evaluate(Call(PrimType::Bool(), builtin::assume(), {expr}));
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_assumptions";
@@ -571,7 +571,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
-      Var block_var("v_" + loop_var->name_hint, loop_var->dtype);
+      Var block_var("v_" + loop_var->name_hint, loop_var.ty());
       IterVar iter_var(Range(0, dim), block_var, kDataPar);
       indices.push_back(iter_var->var);
       iter_vars.push_back(iter_var);
@@ -991,7 +991,7 @@ class TransformationPaddingTypeError : public ScheduleError {
   TransformationPaddingTypeError(IRModule mod, Buffer buffer, IndexMap pad_value)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value) {
     TVM_FFI_ICHECK_EQ(pad_value_->final_indices.size(), 1);
-    pad_value_dtype_ = pad_value_->final_indices[0].dtype();
+    pad_value_dtype_ = pad_value_->final_indices[0].ty()->dtype;
   }
 
   ffi::String FastErrorString() const final {
@@ -1015,7 +1015,7 @@ class TransformationPaddingTypeError : public ScheduleError {
   IRModule mod_;
   Buffer buffer_;
   IndexMap pad_value_;
-  DataType pad_value_dtype_;
+  DLDataType pad_value_dtype_;
 };
 
 class TransformationPaddingExpressionError : public ScheduleError {
@@ -1116,19 +1116,21 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
 
   ffi::Array<Var> initial_indices;
   ffi::Map<Var, PrimExpr> var_map;
-  std::optional<DataType> index_dtype = std::nullopt;
+  std::optional<DLDataType> index_dtype = std::nullopt;
 
   for (size_t i = 0; i < args.size(); ++i) {
+    DLDataType arg_dtype = args[i].ty()->dtype;
     if (index_dtype.has_value()) {
-      TVM_FFI_ICHECK_EQ(*index_dtype, args[i]->dtype)
-          << "Buffer index " << args[i] << " has dtype " << args[i]->dtype
+      TVM_FFI_ICHECK_EQ(*index_dtype, arg_dtype)
+          << "Buffer index " << args[i] << " has dtype " << arg_dtype
           << ", but previous index for the same buffer access used index type " << *index_dtype;
     } else {
-      index_dtype = args[i]->dtype;
+      index_dtype = arg_dtype;
     }
 
-    if (args[i]->dtype != initial_indices_orig[i].dtype()) {
-      auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i]->dtype);
+    DLDataType initial_dtype = initial_indices_orig[i].ty()->dtype;
+    if (arg_dtype != initial_dtype) {
+      auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i].ty());
       initial_indices.push_back(new_idx);
       var_map.Set(initial_indices_orig[i], new_idx);
     } else {
@@ -1140,7 +1142,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
     auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
       if (auto* ptr = index.as<IntImmNode>()) {
         TVM_FFI_ICHECK(index_dtype.has_value());
-        return tirx::MakeConst(*index_dtype, ptr->value);
+        return tirx::MakeConst(PrimType(*index_dtype), ptr->value);
       } else {
         return SubstituteWithDataTypeLegalization(index,
                                                   [&](const Var& var) { return var_map.Get(var); });
@@ -1176,7 +1178,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     if (pad_value.value()->final_indices.size() != 1) {
       throw TransformationPaddingIndexMapError(self->mod, pad_value.value());
     }
-    if (pad_value.value()->final_indices[0]->dtype != old_buffer->dtype) {
+    if (pad_value.value()->final_indices[0].ty() != old_buffer->dtype) {
       throw TransformationPaddingTypeError(self->mod, old_buffer, pad_value.value());
     }
 
@@ -1194,7 +1196,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     std::tie(opt_inverse, padding_predicate) = [&]() {
       ffi::Array<Range> region;
       for (const auto& dim : old_buffer->shape) {
-        region.push_back(Range::FromMinExtent(IntImm(dim.dtype(), 0), dim));
+        region.push_back(Range::FromMinExtent(IntImm(dim.ty(), 0), dim));
       }
       return index_map.NonSurjectiveInverse(region, analyzer);
     }();
@@ -1412,7 +1414,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   ffi::Array<IterVar> new_block_iters;  // new block iters
   ffi::Array<PrimExpr> new_block_vars;  // iter_var->var of new block iters
   for (size_t i = 0; i < transformed_block_iters.size(); ++i) {
-    Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i]->dtype};
+    Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i].ty()};
     new_block_vars.push_back(new_block_var);
     IterVarType iter_type;
     if (is_one(new_block_iter_range[i])) {
@@ -1424,7 +1426,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
       throw OpaqueNewIterTypeError(self->mod, ffi::GetRef<SBlock>(block_ptr),
                                    transformed_block_iters[i]);
     }
-    auto dtype = new_block_var.dtype();
+    PrimType dtype = new_block_var.ty();
     new_block_iters.push_back(IterVar(
         /*dom=*/Range::FromMinExtent(IntImm(dtype, 0), cast(dtype, new_block_iter_range[i])),
         /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
@@ -1437,7 +1439,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   {
     ffi::Array<Range> initial_ranges;
     for (const PrimExpr& extent : block_iter_range_array) {
-      initial_ranges.push_back(Range::FromMinExtent(IntImm(extent.dtype(), 0), extent));
+      initial_ranges.push_back(Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
     }
     IndexMap inverse_index_map{nullptr};
     try {
@@ -1462,7 +1464,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Make new loop vars
   ffi::Array<PrimExpr> new_loop_vars;
   for (int i = 0; i < static_cast<int>(new_block_iters.size()); ++i) {
-    new_loop_vars.push_back(Var("ax" + std::to_string(i), new_block_iters[i]->var.dtype()));
+    new_loop_vars.push_back(Var("ax" + std::to_string(i), new_block_iters[i]->var.ty()));
   }
 
   // Make new block realize

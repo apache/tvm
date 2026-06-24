@@ -24,7 +24,7 @@
 using namespace tvm;
 
 TEST(TensorTest, IsContiguous_ContiguousStride) {
-  auto array = runtime::Tensor::Empty({5, 10}, DataType::Float(32), {kDLCPU});
+  auto array = runtime::Tensor::Empty({5, 10}, DLDataType{kDLFloat, 32, 1}, {kDLCPU});
   DLManagedTensor* managed_tensor = array.ToDLPack();
 
   int64_t strides[] = {10, 1};
@@ -36,7 +36,7 @@ TEST(TensorTest, IsContiguous_ContiguousStride) {
 }
 
 TEST(TensorTest, IsContiguous_NullStride) {
-  auto array = runtime::Tensor::Empty({5, 10}, DataType::Float(32), {kDLCPU});
+  auto array = runtime::Tensor::Empty({5, 10}, DLDataType{kDLFloat, 32, 1}, {kDLCPU});
   DLManagedTensor* managed_tensor = array.ToDLPack();
 
   managed_tensor->dl_tensor.strides = nullptr;
@@ -47,7 +47,7 @@ TEST(TensorTest, IsContiguous_NullStride) {
 }
 
 TEST(TensorTest, IsContiguous_AnyStrideForSingular) {
-  auto array = runtime::Tensor::Empty({5, 1, 10}, DataType::Float(32), {kDLCPU});
+  auto array = runtime::Tensor::Empty({5, 1, 10}, DLDataType{kDLFloat, 32, 1}, {kDLCPU});
   DLManagedTensor* managed_tensor = array.ToDLPack();
 
   int64_t strides[] = {10, 1, 1};  // strides[1] is normalized to 1 because shape[1] == 1.
@@ -60,7 +60,7 @@ TEST(TensorTest, IsContiguous_AnyStrideForSingular) {
 }
 
 TEST(TensorTest, IsContiguous_UncontiguousStride) {
-  auto array = runtime::Tensor::Empty({5, 1, 10}, DataType::Float(32), {kDLCPU});
+  auto array = runtime::Tensor::Empty({5, 1, 10}, DLDataType{kDLFloat, 32, 1}, {kDLCPU});
   DLManagedTensor* managed_tensor = array.ToDLPack();
 
   int64_t strides[] = {1, 1, 1};

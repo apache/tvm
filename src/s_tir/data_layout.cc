@@ -22,10 +22,10 @@
  * \brief Data SLayout expression.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/data_layout.h>
 #include <tvm/tirx/analysis.h>
@@ -113,8 +113,9 @@ SLayout::SLayout(const ffi::Array<IterVar>& axes) {
   data_ = std::move(node);
 }
 
-SLayout::SLayout(const std::string& name, DataType dtype) {  // NOLINT(*)
-  TVM_FFI_CHECK(dtype.is_int(), TypeError) << "The input dtype should be integer type";
+SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
+  TVM_FFI_CHECK(index_ty.code() == DLDataTypeCode::kDLInt, TypeError)
+      << "The input dtype should be integer type";
   if (name == "__undef__") return;
 
   auto node = ffi::make_object<SLayoutNode>();
@@ -131,8 +132,8 @@ SLayout::SLayout(const std::string& name, DataType dtype) {  // NOLINT(*)
     if (c >= 'A' && c <= 'Z') {
       TVM_FFI_ICHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                                    << factor << " before dimension " << c;
-      IterVar axis(Range(IntImm(dtype, 0), Var(std::string(1, c), dtype)),
-                   Var(std::string(1, c), dtype), tirx::kDataPar);
+      IterVar axis(Range(IntImm(index_ty, 0), Var(std::string(1, c), index_ty)),
+                   Var(std::string(1, c), index_ty), tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -143,7 +144,7 @@ SLayout::SLayout(const std::string& name, DataType dtype) {  // NOLINT(*)
                                    << factor << " for dimension " << c;
       std::stringstream name;
       name << factor << c;
-      IterVar axis(Range(IntImm(dtype, 0), IntImm(dtype, factor)), Var(name.str(), dtype),
+      IterVar axis(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)), Var(name.str(), index_ty),
                    tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
@@ -174,8 +175,8 @@ SLayout::SLayout(const std::string& name, DataType dtype) {  // NOLINT(*)
         extent = extent * factor->value;
       }
       std::string grouped_name = ss.str();
-      IterVar grouped_axis(Range(IntImm(dtype, 0), IntImm(dtype, extent)), Var(grouped_name, dtype),
-                           tirx::kDataPar);
+      IterVar grouped_axis(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
+                           Var(grouped_name, index_ty), tirx::kDataPar);
       node->axes.push_back(grouped_axis);
 
       in_packing = false;
@@ -231,21 +232,21 @@ ffi::Array<IterVar> SLayout::UnpackIterVar(IterVar packed_iter) {
   int64_t factor = 0, final_factor = 1;
 
   std::string name(packed_iter->var->name_hint.c_str());
-  DataType dtype = packed_iter->var.dtype();
+  PrimType index_ty = packed_iter->var.ty();
 
   for (auto ch : name) {
     if (ch >= '0' && ch <= '9') {
       factor = factor * 10 + (ch - '0');
     } else if (ch >= 'a' && ch <= 'z') {
       TVM_FFI_ICHECK(factor != 0) << "Invalid Factor Size";
-      result.push_back(IterVar(Range(IntImm(dtype, 0), IntImm(dtype, factor)),
-                               Var(std::string(1, ch), dtype), tirx::kDataPar));
+      result.push_back(IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)),
+                               Var(std::string(1, ch), index_ty), tirx::kDataPar));
       final_factor *= factor;
       factor = 0;
     } else if (ch >= 'A' && ch <= 'Z') {
       TVM_FFI_ICHECK(factor == 0) << "Can't have non-zero factors for primal axis";
-      result.push_back(IterVar(Range(IntImm(dtype, 0), Var(std::string(1, ch), dtype)),
-                               Var(std::string(1, ch), dtype), tirx::kDataPar));
+      result.push_back(IterVar(Range(IntImm(index_ty, 0), Var(std::string(1, ch), index_ty)),
+                               Var(std::string(1, ch), index_ty), tirx::kDataPar));
     }
   }
 
@@ -256,7 +257,7 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   std::stringstream name;
   size_t extent = 1;
 
-  DataType dtype = iter_vars[0]->dom->extent.as<PrimExpr>().value()->dtype;
+  PrimType index_ty = iter_vars[0]->dom->extent.as<PrimExpr>().value().ty();
   for (auto itvar : iter_vars) {
     TVM_FFI_ICHECK(itvar->dom->extent.as<IntImm>())
         << "Packed Axis can contain only Subordinate Axes";
@@ -264,7 +265,7 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
     extent = extent * itvar->dom->extent.as<IntImm>().value()->value;
   }
 
-  return IterVar(Range(IntImm(dtype, 0), IntImm(dtype, extent)), Var(name.str(), dtype),
+  return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)), Var(name.str(), index_ty),
                  tirx::kDataPar);
 }
 
@@ -357,7 +358,8 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
             if (axis == sub_axis) {
               const auto* sub_extent = inter_unpacked_axes[l]->dom->extent.as<IntImmNode>();
               TVM_FFI_ICHECK(sub_extent) << "Expected Integer Extents for Offset Calculation";
-              factor_ij = factor_ij * IntImm(sub_extent->dtype, sub_extent->value);
+              factor_ij =
+                  factor_ij * IntImm(ffi::GetRef<PrimExpr>(sub_extent).ty(), sub_extent->value);
             }
           }
         }
@@ -498,11 +500,11 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
               << ", get " << orig_shape;
         }
       }
-      bind_map[orig_axis->var.get()] = IntImm(orig_axis->var->dtype, 0);
+      bind_map[orig_axis->var.get()] = IntImm(orig_axis->var.ty(), 0);
     } else {
-      bind_map[orig_axis->var.get()] = orig_axis->var->dtype == orig_shape->dtype
+      bind_map[orig_axis->var.get()] = orig_axis->var.ty()->dtype == orig_shape.ty()->dtype
                                            ? orig_shape
-                                           : cast(orig_axis->var->dtype, orig_shape);
+                                           : cast(orig_axis->var.ty(), orig_shape);
     }
   }
   // infer the target shape,
@@ -583,7 +585,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("s_tir.SLayout", [](std::string name, DataType dtype) { return SLayout(name, dtype); })
+      .def("s_tir.SLayout", [](std::string name, PrimType dtype) { return SLayout(name, dtype); })
       .def("s_tir.SLayoutIndexOf",
            [](SLayout layout, std::string axis) -> int { return layout.IndexOf(axis); })
       .def("s_tir.SLayoutFactorOf",

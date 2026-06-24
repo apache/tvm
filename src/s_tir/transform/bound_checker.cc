@@ -71,7 +71,7 @@ class BoundChecker : public StmtExprMutator {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     if (UpdateIsNeeded(op->buffer->data)) {
-      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype);
+      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype->dtype);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -118,15 +118,17 @@ class BoundChecker : public StmtExprMutator {
     return (buffer_var.defined() && mem_to_shape_.count(buffer_var.get()));
   }
 
-  void Update(const Var& buffer_var, ffi::Array<PrimExpr> new_shape, const DataType& type) {
+  void Update(const Var& buffer_var, ffi::Array<PrimExpr> new_shape, DLDataType dtype) {
     // Sanity check at first.
     if (!ShapeIsValid(new_shape)) {
       return;
     }
 
+    int16_t lanes = static_cast<int16_t>(dtype.lanes);
+    TVM_FFI_ICHECK_GE(lanes, 0);
     new_shape.MutateByApply([&](const PrimExpr& dim) {
       // Cast to uint64 to avoid potential overflow.
-      return IntImm(DataType::UInt(64), type.lanes()) * dim;
+      return IntImm(PrimType::UInt(64), lanes) * dim;
     });
     mem_to_shape_[buffer_var.get()] = new_shape;
   }
@@ -175,7 +177,8 @@ class BoundChecker : public StmtExprMutator {
   }
 
   bool IsValidScalar(const PrimExpr& expr) const {
-    return expr.defined() && expr.dtype().is_scalar();
+    if (!expr.defined()) return false;
+    return expr.ty().IsScalar();
   }
 
   bool CanInstrument(const ffi::Array<PrimExpr>& indices, const Var& buffer_var) const {
@@ -210,8 +213,8 @@ class BoundChecker : public StmtExprMutator {
         upper_bound = analyzer_->Simplify(upper_bound);
 
         // Cast to the same type - signed, to be able to check lower bound.
-        index = Cast(DataType::Int(64), index);
-        upper_bound = Cast(DataType::Int(64), upper_bound);
+        index = Cast(PrimType::Int(64), index);
+        upper_bound = Cast(PrimType::Int(64), upper_bound);
 
         // Looks like a lower bound should always be zero after normalization.
         PrimExpr lower_bound = IntImm::Int64(0);

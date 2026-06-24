@@ -33,7 +33,7 @@ namespace relax {
 
 Type InferTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
   return InferTypeUnary<false>(call, ctx,
-                               [](const TensorType& input_ty) { return DataType::Bool(); });
+                               [](const TensorType& input_ty) { return PrimType::Bool(); });
 }
 
 /***************** Arithmetic operators *****************/

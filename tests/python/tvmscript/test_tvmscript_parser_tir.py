@@ -29,14 +29,14 @@ def test_tir_buffer_proxy():
     assert (
         isinstance(buffer_0, tirx.Buffer)
         and list(buffer_0.shape) == [128, 128]
-        and buffer_0.dtype == "float32"
+        and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
         isinstance(buffer_1, tirx.Buffer)
         and list(buffer_1.shape) == [64, 64, 64]
-        and buffer_1.dtype == "int32"
+        and buffer_1.dtype == ir.PrimType("int32")
     )
 
 
@@ -44,7 +44,7 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and ptr_0.dtype == "handle"
+        and ptr_0.ty.dtype == "handle"
         and isinstance(ptr_0.type_annotation, ir.PointerType)
         and ptr_0.type_annotation.element_type == ir.PrimType("int32")
         and ptr_0.type_annotation.storage_scope == "global"
@@ -53,7 +53,7 @@ def test_tir_ptr_proxy():
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and ptr_1.dtype == "handle"
+        and ptr_1.ty.dtype == "handle"
         and isinstance(ptr_1.type_annotation, ir.PointerType)
         and ptr_1.type_annotation.element_type == ir.PrimType("float32")
         and ptr_1.type_annotation.storage_scope == "shared"

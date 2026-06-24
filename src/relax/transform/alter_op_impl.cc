@@ -45,7 +45,7 @@ static constexpr const char* kOperatorName = "operator_name";
 
 /*! \brief Construct ranges from shape dimensions */
 static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& shape) {
-  return shape.Map([](const PrimExpr& dim) { return Range(IntImm(dim.dtype(), 0), dim); });
+  return shape.Map([](const PrimExpr& dim) { return Range(IntImm(dim.ty(), 0), dim); });
 }
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
@@ -206,7 +206,7 @@ class AlterOpImplMutator : public ExprMutator {
    * \brief Adds the \p remove_pad op to the module if it has not already been added before.
    * \returns The global var associated with the remove_pad PrimFunc.
    */
-  GlobalVar GetOrCreateRemovePadOp(const ffi::Array<PrimExpr>& old_shape, const DataType& dtype) {
+  GlobalVar GetOrCreateRemovePadOp(const ffi::Array<PrimExpr>& old_shape, DLDataType dtype) {
     int t_shape = old_shape.size();
     if (remove_pad_map_.count(t_shape) != 0) {
       return remove_pad_map_[t_shape];
@@ -214,8 +214,8 @@ class AlterOpImplMutator : public ExprMutator {
     // Create dynamic shapes for input and output tensors
     ffi::Array<PrimExpr> dyn_padded_shape, dyn_old_shape;
     for (int i = 0; i < t_shape; i++) {
-      tirx::Var var1("p" + std::to_string(i), old_shape[i].dtype());
-      tirx::Var var2("i" + std::to_string(i), old_shape[i].dtype());
+      tirx::Var var1("p" + std::to_string(i), old_shape[i].ty());
+      tirx::Var var2("i" + std::to_string(i), old_shape[i].ty());
       dyn_padded_shape.push_back(var1);
       dyn_old_shape.push_back(var2);
     }
@@ -264,7 +264,7 @@ class AlterOpImplMutator : public ExprMutator {
           TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator));
       const auto& tensor_ty = padded_expr->ty.as_or_throw<TensorType>();
 
-      GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype);
+      GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype->dtype);
       return Call(call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {}, {old_tensor_ty});
     }
   }

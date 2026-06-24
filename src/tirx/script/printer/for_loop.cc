@@ -34,8 +34,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       };
       if (d->cfg->syntax_sugar) {
         for (const tirx::ForNode* l = loop.get(); l != nullptr; l = l->body.as<tirx::ForNode>()) {
-          TVM_FFI_ICHECK(l->loop_var->dtype == l->min->dtype);
-          TVM_FFI_ICHECK(l->loop_var->dtype == l->extent->dtype);
+          TVM_FFI_ICHECK(l->loop_var.ty()->dtype == l->min.ty()->dtype);
+          TVM_FFI_ICHECK(l->loop_var.ty()->dtype == l->extent.ty()->dtype);
           if (l->kind != tirx::ForKind::kSerial ||  //
               !tirx::is_zero(l->min) ||             //
               !l->annotations.empty() ||            //

@@ -27,13 +27,13 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/node_functor.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/tirx/buffer.h>
 #include <tvm/tirx/var.h>
 
@@ -96,7 +96,7 @@ class CastNode : public PrimExprNode {
  */
 class Cast : public PrimExpr {
  public:
-  TVM_DLL Cast(DataType dtype, PrimExpr value, Span span = Span());
+  TVM_DLL Cast(PrimType value_ty, PrimExpr value, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Cast, PrimExpr, CastNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CastNode);
 };
@@ -752,9 +752,9 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs = Attrs(),
+  TVM_DLL Call(PrimType ret_ty, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs = Attrs(),
                Span span = Span());
-  TVM_DLL Call(DataType dtype, RelaxExpr op, ffi::Array<PrimExpr> args, Span span);
+  TVM_DLL Call(PrimType ret_ty, RelaxExpr op, ffi::Array<PrimExpr> args, Span span);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };

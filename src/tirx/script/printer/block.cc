@@ -149,7 +149,9 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
 
   // Step 2. Handle block predicate
   if (realize) {
-    TVM_FFI_ICHECK(realize->predicate.defined() && realize->predicate->dtype.is_bool());
+    PrimType predicate_ty = realize->predicate.ty();
+    TVM_FFI_ICHECK(realize->predicate.defined() &&
+                   predicate_ty.MatchesCode(DLDataTypeCode::kDLBool));
     if (!tirx::is_one(realize->predicate)) {
       (*frame)->stmts.push_back(ExprStmtDoc(
           TIR(d, "where")

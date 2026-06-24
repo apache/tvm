@@ -498,8 +498,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
       if (is_const_int(factor) && !is_positive_const(factor)) {
         throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
       }
-      if (factor.dtype().bits() > loop->extent.dtype().bits()) {
-        factor = cast(loop->extent.dtype(), factor);
+      if (factor.ty().bits() > loop->extent.ty().bits()) {
+        factor = cast(loop->extent.ty(), factor);
       }
       factors.push_back(factor);
       tot_length *= factor;
@@ -565,8 +565,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
       if (is_const_int(factor) && !is_positive_const(factor)) {
         throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
       }
-      if (factor.dtype().bits() > loop->extent.dtype().bits()) {
-        factor = cast(loop->extent.dtype(), factor);
+      if (factor.ty().bits() > loop->extent.ty().bits()) {
+        factor = cast(loop->extent.ty(), factor);
       }
       factors.push_back(factor);
       tot_length += factor;

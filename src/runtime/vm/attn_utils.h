@@ -359,7 +359,7 @@ class HostMemoryVector {
 
   explicit HostMemoryVector(int64_t reserved_size, DLDataType dtype, Device device)
       : reserved_size_(reserved_size) {
-    TVM_FFI_ICHECK(DataType(dtype) == DataType::Int(32));
+    TVM_FFI_ICHECK((dtype == DLDataType{kDLInt, 32, 1}));
     data_ = Tensor::Empty({reserved_size}, dtype, device);
   }
 
@@ -368,7 +368,7 @@ class HostMemoryVector {
     if (current_size_ == reserved_size_) {
       reserved_size_ *= 2;
       Tensor new_data = Tensor::Empty({reserved_size_}, data_->dtype, data_->device);
-      std::memcpy(new_data->data, data_->data, current_size_ * DataType(data_->dtype).bytes());
+      std::memcpy(new_data->data, data_->data, current_size_ * (((data_->dtype).bits + 7) / 8));
       data_ = new_data;
     }
     static_cast<int32_t*>(data_->data)[current_size_++] = value;
@@ -382,7 +382,7 @@ class HostMemoryVector {
         reserved_size_ *= 2;
       }
       Tensor new_data = Tensor::Empty({reserved_size_}, data_->dtype, data_->device);
-      std::memcpy(new_data->data, data_->data, current_size_ * DataType(data_->dtype).bytes());
+      std::memcpy(new_data->data, data_->data, current_size_ * (((data_->dtype).bits + 7) / 8));
       data_ = new_data;
     }
     std::memcpy(static_cast<int32_t*>(data_->data) + current_size_, values.data(),
@@ -466,7 +466,7 @@ class PagedKVCacheAuxDataManager {
         device_(device),
         preferred_host_device_(preferred_host_device),
         copy_stream_(copy_stream) {
-    TVM_FFI_ICHECK(DataType(dtype_aux) == DataType::Int(32));
+    TVM_FFI_ICHECK((dtype_aux == DLDataType{kDLInt, 32, 1}));
   }
 
   virtual ~PagedKVCacheAuxDataManager() = default;

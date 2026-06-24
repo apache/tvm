@@ -180,7 +180,7 @@ class TVMFFIABIBuilder {
 
   /*! \brief Load the i-th packed argument as the given type from the union value. */
   static PrimExpr LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
-                                          DataType arg_type);
+                                          PrimType arg_type);
 
   // ── Per-dtype type-check + value-load methods ──────────────────
   //
@@ -211,7 +211,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamInt(int param_index, const Var& type_index, DataType dtype);
+  PrimExpr DecodeParamInt(int param_index, const Var& type_index, PrimType dtype);
 
   /*!
    * \brief Type-check and load a float argument.
@@ -220,7 +220,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamFloat(int param_index, const Var& type_index, DataType dtype);
+  PrimExpr DecodeParamFloat(int param_index, const Var& type_index, PrimType dtype);
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 

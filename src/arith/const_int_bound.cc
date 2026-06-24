@@ -151,7 +151,7 @@ class ConstIntBoundAnalyzer::Impl
 
   // Override visitor behaviors
   Entry VisitExprDefault_(const ffi::Object* op) final {
-    return Everything(static_cast<const PrimExprNode*>(op)->dtype);
+    return Everything(static_cast<const PrimExprNode*>(op)->ty());
   }
 
   Entry VisitExpr(const PrimExpr& expr) final {
@@ -167,7 +167,7 @@ class ConstIntBoundAnalyzer::Impl
     if (bound_) {
       auto val = bound_->find(expr);
       if (val != bound_->end()) {
-        auto everything = Everything(expr->dtype);
+        auto everything = Everything(expr->ty());
         TVM_FFI_ICHECK(
             (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
@@ -203,7 +203,7 @@ class ConstIntBoundAnalyzer::Impl
       a = VisitExpr(op->value);
     }
 
-    Entry b = Everything(op->dtype);
+    Entry b = Everything(op->ty());
     return Intersect(a, b);
   }
 
@@ -263,7 +263,7 @@ class ConstIntBoundAnalyzer::Impl
   Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
-    return HandleDivision(a, b, op->dtype, InfAwareDiv);
+    return HandleDivision(a, b, op->ty(), InfAwareDiv);
   }
 
   Entry VisitExpr_(const ModNode* op) final {
@@ -312,14 +312,14 @@ class ConstIntBoundAnalyzer::Impl
       TVM_FFI_ICHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->dtype);
+      return Everything(op->ty());
     }
   }
 
   Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
-    return HandleDivision(a, b, op->dtype, InfAwareFloorDiv);
+    return HandleDivision(a, b, op->ty(), InfAwareFloorDiv);
   }
 
   Entry VisitExpr_(const FloorModNode* op) final {
@@ -385,7 +385,7 @@ class ConstIntBoundAnalyzer::Impl
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
       return Intersect(MakeBound(std::min(static_cast<int64_t>(0), b_min_cap),
                                  std::max(static_cast<int64_t>(0), b_max_cap)),
-                       Everything(op->dtype));
+                       Everything(op->ty()));
     }
   }
 
@@ -424,7 +424,7 @@ class ConstIntBoundAnalyzer::Impl
     } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
-      return Everything(op->dtype);
+      return Everything(op->ty());
     }
   }
 
@@ -434,7 +434,7 @@ class ConstIntBoundAnalyzer::Impl
     if (it != var_map_.end()) {
       return it->second;
     } else {
-      return Everything(op->dtype);
+      return Everything(op->ty());
     }
   }
 
@@ -456,7 +456,7 @@ class ConstIntBoundAnalyzer::Impl
       // If either operand can negative, we may run into undefined
       // behavior for some targets.  In these cases, avoid making any
       // assumptions about the result.
-      return Everything(op->dtype);
+      return Everything(op->ty());
     }
 
     return BinaryOpBoundary(a, b, InfAwareLeftShift);
@@ -481,7 +481,7 @@ class ConstIntBoundAnalyzer::Impl
       if (a.min_value >= 0) {
         return MakeBound(0, a.max_value);
       }
-      return Everything(op->dtype);
+      return Everything(op->ty());
     }
   }
 
@@ -549,7 +549,7 @@ class ConstIntBoundAnalyzer::Impl
    * \return The result.
    */
   template <typename F>
-  static Entry HandleDivision(Entry a, Entry b, DataType dt, const F& op) {
+  static Entry HandleDivision(Entry a, Entry b, PrimType dt, const F& op) {
     // Here we have a / b.
     // The largest value of the division will be for the smallest (with
     // respect to the absolute value) value of b. If the range of b starts
@@ -557,7 +557,7 @@ class ConstIntBoundAnalyzer::Impl
     // be closer to 0, because BinaryOpBoundary only checks end-points of
     // the domain ranges.
     // If the range of b contains 0, then some infinity will be involved
-    if (b.min_value <= 0 && 0 <= b.max_value && dt.is_int()) {
+    if (b.min_value <= 0 && 0 <= b.max_value && dt.code() == DLDataTypeCode::kDLInt) {
       Entry b_neg = b.min_value < 0 ? MakeBound(b.min_value, -1) : Everything(dt);
       Entry b_pos = b.max_value > 0 ? MakeBound(1, b.max_value) : Everything(dt);
 
@@ -566,7 +566,7 @@ class ConstIntBoundAnalyzer::Impl
 
       return MakeBound(std::min(e_neg.min_value, e_pos.min_value),
                        std::max(e_neg.max_value, e_pos.max_value));
-    } else if (b.min_value == 0 && dt.is_uint()) {
+    } else if (b.min_value == 0 && dt.code() == DLDataTypeCode::kDLUInt) {
       // uints only have one sided bounds
       Entry assumed_b = MakeBound(1, b.max_value);
       return BinaryOpBoundary(a, assumed_b, op);
@@ -727,16 +727,17 @@ class ConstIntBoundAnalyzer::Impl
    * \param dtype The data type.
    * \return Bound that represent everything dtype can represent.
    */
-  static Entry Everything(DataType dtype) {
-    if (!dtype.is_int() && !dtype.is_uint() && !dtype.is_bool()) {
+  static Entry Everything(PrimType dtype) {
+    if (dtype.code() != DLDataTypeCode::kDLInt && dtype.code() != DLDataTypeCode::kDLUInt &&
+        dtype.code() != DLDataTypeCode::kDLBool) {
       return MakeBound(kNegInf, kPosInf);
     }
-    if (dtype.is_bool()) {
+    if (dtype.code() == DLDataTypeCode::kDLBool) {
       return MakeBound(0, 1);
     }
     Entry ret;
-    int64_t vbits = dtype.bits() - static_cast<int>(dtype.is_int());
-    if (dtype.is_uint()) {
+    int64_t vbits = dtype.bits() - static_cast<int>(dtype.code() == DLDataTypeCode::kDLInt);
+    if (dtype.code() == DLDataTypeCode::kDLUInt) {
       ret.min_value = 0;
     } else {
       if (vbits >= 63) {
@@ -800,7 +801,7 @@ class ConstIntBoundAnalyzer::Impl
   static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
     static const Op& ceil_op = Op::Get("tirx.ceil");
     static const Op& log2_op = Op::Get("tirx.log2");
-    if (op->dtype.is_int()) {
+    if (op->ty().code() == DLDataTypeCode::kDLInt) {
       if (auto as_call = op->value.as<CallNode>()) {
         if (as_call->op.same_as(ceil_op)) {
           PrimExpr ceil_arg = as_call->args[0];

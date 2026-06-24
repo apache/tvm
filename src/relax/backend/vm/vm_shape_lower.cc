@@ -229,7 +229,7 @@ class VMShapeLowerMutator
     slot_map_.clear();
     current_gvar_ = gvar;
     PrimExprSlotCollector::Collect(func, &slot_vec_, &slot_map_);
-    heap_size_ = IntImm(ShapeDType(), static_cast<int64_t>(slot_vec_.size()));
+    heap_size_ = IntImm(tvm::PrimType(ShapeDType()), static_cast<int64_t>(slot_vec_.size()));
     VarBinding shape_heap_binding = this->AllocShapeHeapBinding(heap_size_);
     shape_heap_ = shape_heap_binding->var;
 
@@ -298,7 +298,7 @@ class VMShapeLowerMutator
   //-------------------------------------------------------
   // PrimExpr slot handling
   //-------------------------------------------------------
-  static DataType ShapeDType() { return DataType::Int(64); }
+  static DLDataType ShapeDType() { return DLDataType{kDLInt, 64, 1}; }
 
   /*! \brief populate additional information in the slot. */
   void PopulateSlotInfo() {
@@ -329,7 +329,7 @@ class VMShapeLowerMutator
 
   VarBinding AllocShapeHeapBinding(IntImm heap_size) {
     if (heap_size->value > 0) {
-      TensorType heap_ty(ShapeDType(), 1);
+      TensorType heap_ty(PrimType(ShapeDType()), 1);
       Var var("shape_heap", heap_ty);
       // set up the builtin func.
       Call call(call_builtin_with_ctx_op_,
@@ -566,7 +566,7 @@ class VMShapeLowerMutator
     if (to_compute.size() == 0) return 0;
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a PrimFunc that compute the shape.
-    tirx::Var heap("heap", DataType::Handle());
+    tirx::Var heap("heap", PrimType::Handle());
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
     tirx::Buffer buffer = tirx::decl_buffer(buffer_shape, ShapeDType(), "H", "global");
     ffi::Map<tirx::Var, tirx::Buffer> buffer_map;
@@ -575,7 +575,8 @@ class VMShapeLowerMutator
     auto var_map = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
       auto it = slot_map_.find(var);
       TVM_FFI_ICHECK(it != slot_map_.end());
-      return tirx::BufferLoad(buffer, {IntImm(ShapeDType(), it->second->index)});
+      return tirx::BufferLoad(
+          buffer, ffi::Array<PrimExpr>{IntImm(tvm::PrimType(ShapeDType()), it->second->index)});
     };
 
     ffi::Array<tirx::Stmt> seq;
@@ -583,7 +584,8 @@ class VMShapeLowerMutator
       TVM_FFI_ICHECK(!slot->value_computed);
       slot->value_computed = true;
       PrimExpr value = tirx::Substitute(slot->expr, var_map);
-      seq.push_back(tirx::BufferStore(buffer, value, {IntImm(ShapeDType(), slot->index)}));
+      seq.push_back(
+          tirx::BufferStore(buffer, value, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
     }
 
     tirx::Stmt body = tirx::SeqStmt::Flatten(seq);
@@ -678,10 +680,11 @@ class VMShapeLowerMutator
       // if we only check dynamic shapes, and the shape is static, we can skip.
       return;
     }
-    if (always_check || !IsBaseOf(TensorType(op->dtype, op->ndim), GetType(value))) {
+    if (always_check || !IsBaseOf(TensorType(PrimType(op->dtype), op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
       Call call(builtin_check_tensor_info_,
-                {value, PrimValue::Int64(op->ndim), DataTypeImm(op->dtype), GetErrContext(err_ctx)},
+                {value, PrimValue::Int64(op->ndim), DataTypeImm(op->dtype->dtype),
+                 GetErrContext(err_ctx)},
                 Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }

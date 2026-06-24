@@ -42,7 +42,7 @@ namespace relax {
  * \return The result tensor.
  */
 Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
-          ffi::Optional<DataType> dtype);
+          ffi::Optional<DLDataType> dtype);
 
 /*!
  * \brief Construct a tensor such that
@@ -55,7 +55,7 @@ Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr full_like(Expr x, Expr fill_value, ffi::Optional<DataType> dtype);
+Expr full_like(Expr x, Expr fill_value, ffi::Optional<DLDataType> dtype);
 
 /*!
  * \brief Construct a tensor of all ones, with the input shape and dtype.
@@ -63,7 +63,7 @@ Expr full_like(Expr x, Expr fill_value, ffi::Optional<DataType> dtype);
  * \param dtype The data type of the created tensor.
  * \return The result tensor.
  */
-Expr ones(Expr shape, DataType dtype);
+Expr ones(Expr shape, DLDataType dtype);
 
 /*!
  * \brief Construct a tensor with all ones, with shape of the input tensor shape.
@@ -73,7 +73,7 @@ Expr ones(Expr shape, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr ones_like(Expr x, ffi::Optional<DataType> dtype);
+Expr ones_like(Expr x, ffi::Optional<DLDataType> dtype);
 
 /*!
  * \brief Construct a tensor of all zeros, with the input shape and dtype.
@@ -81,7 +81,7 @@ Expr ones_like(Expr x, ffi::Optional<DataType> dtype);
  * \param dtype The data type of the created tensor.
  * \return The result tensor.
  */
-Expr zeros(Expr shape, DataType dtype);
+Expr zeros(Expr shape, DLDataType dtype);
 
 /*!
  * \brief Construct a tensor with all zeros, with shape of the input tensor shape.
@@ -91,7 +91,7 @@ Expr zeros(Expr shape, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr zeros_like(Expr x, ffi::Optional<DataType> dtype);
+Expr zeros_like(Expr x, ffi::Optional<DLDataType> dtype);
 
 /*!
  * \brief Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
@@ -102,7 +102,7 @@ Expr zeros_like(Expr x, ffi::Optional<DataType> dtype);
  * \param dtype The data type of the created tensor.
  * \return The result tensor.
  */
-Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype);
+Expr eye(PrimValue n, PrimValue m, PrimValue k, DLDataType dtype);
 
 /*!
  * \brief Construct a tensor with ones on the diagonal and zeros elsewhere,
@@ -115,10 +115,10 @@ Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr eye_like(Expr x, PrimValue k, ffi::Optional<DataType> dtype);
+Expr eye_like(Expr x, PrimValue k, ffi::Optional<DLDataType> dtype);
 
 /*! \brief Construct a tensor with evenly spaced elements. */
-Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);
+Expr arange(PrimValue start, PrimValue stop, PrimValue step, DLDataType dtype);
 
 /*!
  * \brief Hamming window function.
@@ -131,7 +131,7 @@ Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);
  * \return The result tensor.
  */
 Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
-                    DataType dtype);
+                    DLDataType dtype);
 
 /*! \brief Return the lower triangular part of a matrix or a batch of matrices. */
 Expr tril(Expr x, Expr k);

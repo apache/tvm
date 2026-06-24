@@ -779,14 +779,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     int64_t height = shape[1];
                     int64_t depth = shape[2];
                     int64_t channel_size = args[7].cast<int64_t>();
-                    DataType channel_type = GetChannelType(channel_size);
+                    DLDataType channel_type = GetChannelType(channel_size);
                     Device dev;
                     dev.device_type = static_cast<DLDeviceType>(device_type);
                     dev.device_id = device_id;
                     DLDataType type_hint;
-                    type_hint.code = channel_type.code();
-                    type_hint.bits = channel_type.bits();
-                    type_hint.lanes = channel_type.lanes();
+                    type_hint = channel_type;
 
                     *rv = OpenCLWorkspace::Global()->AllocDataSpace(
                         dev, static_cast<size_t>(width), static_cast<size_t>(height),

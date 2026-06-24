@@ -66,5 +66,9 @@ def const(value, dtype=None, span=None):
     if dtype is None:
         dtype = _scalar_type_inference(value)
     if dtype == "uint64" and value >= (1 << 63):
-        return _ffi_node_api.LargeUIntImm(dtype, value & ((1 << 32) - 1), value >> 32, span)
+        from tvm.ir import PrimType  # pylint: disable=import-outside-toplevel
+
+        return _ffi_node_api.LargeUIntImm(
+            PrimType(dtype), value & ((1 << 32) - 1), value >> 32, span
+        )
     return _ffi_node_api._const(value, dtype, span)

@@ -369,15 +369,15 @@ RELAX_PATTERN_PRINTER_DEF(SameShapeConstraintNode, [](auto p, auto node) {
   p->stream << ")";
 });
 
-DataTypePattern::DataTypePattern(DFPattern pattern, DataType dtype) {
+DataTypePattern::DataTypePattern(DFPattern pattern, DLDataType dtype) {
   ffi::ObjectPtr<DataTypePatternNode> n = ffi::make_object<DataTypePatternNode>();
   n->pattern = std::move(pattern);
-  n->dtype = std::move(dtype);
+  n->dtype = dtype;
   data_ = std::move(n);
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.dpl.DataTypePattern", [](DFPattern pattern, DataType dtype) {
+  refl::GlobalDef().def("relax.dpl.DataTypePattern", [](DFPattern pattern, DLDataType dtype) {
     return DataTypePattern(pattern, dtype);
   });
 }
@@ -474,11 +474,11 @@ AttrPattern DFPattern::HasAttr(const ffi::Map<ffi::String, Any>& attrs) const {
   return AttrPattern(*this, DictAttrs(attrs));
 }
 TypePattern DFPattern::HasType(const Type& ty) const { return TypePattern(*this, ty); }
-DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
+DataTypePattern DFPattern::HasDtype(DLDataType dtype) const {
   return DataTypePattern(*this, dtype);
 }
 DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
-  return HasDtype(DataType(ffi::StringToDLDataType(dtype)));
+  return HasDtype(ffi::StringToDLDataType(dtype));
 }
 ShapePattern DFPattern::HasShape(const ffi::Array<PrimExpr>& shape) const {
   return ShapePattern(*this, shape);

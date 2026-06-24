@@ -86,39 +86,39 @@ inline void StreamDestroy(deviceStream_t stream) { ROCM_CALL(hipStreamDestroy(st
 
 #endif
 
-/*! \brief Convert DataType to ncclDataType. */
-inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
-  if (dtype == DataType::Int(8)) {
+/*! \brief Convert DLPack dtype to ncclDataType. */
+inline ncclDataType_t AsNCCLDataType(DLDataType dtype) {
+  if (dtype == DLDataType{kDLInt, 8, 1}) {
     return ncclInt8;
   }
-  if (dtype == DataType::UInt(8) || dtype == DataType::Float8E4M3FN() ||
-      dtype == DataType::Float8E5M2()) {
+  if (dtype == DLDataType{kDLUInt, 8, 1} || dtype == DLDataType{kDLFloat8_e4m3fn, 8, 1} ||
+      dtype == DLDataType{kDLFloat8_e5m2, 8, 1}) {
     // For float8 data type, pretend to be uint8 in nccl.
     // And will throw error when allreduce, as it makes no sense in this case.
     return ncclUint8;
   }
-  if (dtype == DataType::Int(32)) {
+  if (dtype == DLDataType{kDLInt, 32, 1}) {
     return ncclInt32;
   }
-  if (dtype == DataType::UInt(32)) {
+  if (dtype == DLDataType{kDLUInt, 32, 1}) {
     return ncclUint32;
   }
-  if (dtype == DataType::Int(64)) {
+  if (dtype == DLDataType{kDLInt, 64, 1}) {
     return ncclInt64;
   }
-  if (dtype == DataType::UInt(64)) {
+  if (dtype == DLDataType{kDLUInt, 64, 1}) {
     return ncclUint64;
   }
-  if (dtype == DataType::Float(16)) {
+  if (dtype == DLDataType{kDLFloat, 16, 1}) {
     return ncclFloat16;
   }
-  if (dtype == DataType::Float(32)) {
+  if (dtype == DLDataType{kDLFloat, 32, 1}) {
     return ncclFloat32;
   }
-  if (dtype == DataType::Float(64)) {
+  if (dtype == DLDataType{kDLFloat, 64, 1}) {
     return ncclFloat64;
   }
-  if (dtype == DataType::BFloat(16)) {
+  if (dtype == DLDataType{kDLBfloat, 16, 1}) {
     return ncclBfloat16;
   }
   TVM_FFI_THROW(ValueError) << "Unsupported data type " << dtype;

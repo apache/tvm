@@ -131,10 +131,10 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
   if (inner->IsInstance<tirx::ForNode>() || inner->IsInstance<tirx::SBlockRealizeNode>()) {
     return func;
   }
-  tvm::IntImm zero(tvm::DataType::Int(32), 0);
-  tvm::IntImm one(tvm::DataType::Int(32), 1);
-  tirx::Var loop_var("u", tvm::DataType::Int(32));
-  tirx::Var iter_var_var("vu", tvm::DataType::Int(32));
+  tvm::IntImm zero(tvm::PrimType::Int(32), 0);
+  tvm::IntImm one(tvm::PrimType::Int(32), 1);
+  tirx::Var loop_var("u", tvm::PrimType::Int(32));
+  tirx::Var iter_var_var("vu", tvm::PrimType::Int(32));
   tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), iter_var_var,
                          tirx::IterVarType::kDataPar);
   tirx::SBlock inner_block = realize->block;

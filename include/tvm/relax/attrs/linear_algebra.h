@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes for matmul operator */
 struct MatmulAttrs : public AttrsNode {
-  DataType out_dtype;
+  DLDataType out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

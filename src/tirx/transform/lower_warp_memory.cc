@@ -155,9 +155,10 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
                                              << "Has FlattenBuffer been run?";
 
     PrimExpr index = op->indices[0];
-    if (op->value.dtype().lanes() != 1) {
+    PrimType value_ty = op->value.ty();
+    if (value_ty.lanes() != 1) {
       arith::PVar<PrimExpr> base;
-      TVM_FFI_ICHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(index))
+      TVM_FFI_ICHECK(arith::ramp(base, 1, value_ty.lanes()).Match(index))
           << "LowerWarpMemory failed due to store index=" << index
           << ", can only handle continuous store";
       UpdatePattern(base.Eval());
@@ -294,7 +295,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
         new_args.Set(i + 1, local_index);
       }
     }
-    return Call(op->dtype, op->op, new_args, op->attrs, op->span);
+    return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op, new_args, op->attrs, op->span);
   }
 
   PrimExpr VisitExpr_(const CallNode* op) override {
@@ -390,8 +391,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return load;
     }
 
-    PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
-    return Call(load.dtype(), builtin::tvm_warp_shuffle(), {mask, load, group, width_, warp_size_});
+    PrimExpr mask = Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {});
+    return Call(load.ty(), builtin::tvm_warp_shuffle(), {mask, load, group, width_, warp_size_});
   }
 
   // Split the index to the two component
@@ -400,15 +401,16 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // source index is the corresponding source index
   // in this access pattern.
   std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& index) {
-    if (index.dtype().lanes() != 1) {
+    PrimType index_ty = index.ty();
+    if (index_ty.lanes() != 1) {
       arith::PVar<PrimExpr> base;
-      TVM_FFI_ICHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
+      TVM_FFI_ICHECK(arith::ramp(base, 1, index_ty.lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
-      local_index = Ramp(local_index, MakeConst(local_index.dtype(), 1), index.dtype().lanes());
+      local_index = Ramp(local_index, MakeConst(local_index.ty(), 1), index_ty.lanes());
       return std::make_pair(local_index, group);
     }
-    PrimExpr m = MakeConst(index.dtype(), warp_coeff_);
+    PrimExpr m = MakeConst(index_ty, warp_coeff_);
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
@@ -417,9 +419,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return std::make_pair(x, z);
     } else {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
-      PrimExpr y = index / MakeConst(index.dtype(), warp_coeff_ * width_);
+      PrimExpr y = index / MakeConst(index_ty, warp_coeff_ * width_);
       y = y * m + x;
-      PrimExpr z = indexdiv(indexmod(index, MakeConst(index.dtype(), warp_coeff_ * width_)), m);
+      PrimExpr z = indexdiv(indexmod(index, MakeConst(index_ty, warp_coeff_ * width_)), m);
       return std::make_pair(analyzer_->canonical_simplify(y), analyzer_->canonical_simplify(z));
     }
   }

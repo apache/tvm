@@ -25,6 +25,7 @@
 #define TVM_TARGET_INTRIN_RULE_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ir/type.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 
@@ -37,10 +38,10 @@ using namespace tirx;
 
 // Add float suffix to the intrinsics
 struct FloatSuffix {
-  std::string operator()(DataType t, std::string name) const {
-    if (t == DataType::Float(32)) {
+  std::string operator()(PrimType t, std::string name) const {
+    if (t->dtype == DLDataType{kDLFloat, 32, 1}) {
       return name + 'f';
-    } else if (t == DataType::Float(64)) {
+    } else if (t->dtype == DLDataType{kDLFloat, 64, 1}) {
       return name;
     } else {
       return "";
@@ -50,7 +51,7 @@ struct FloatSuffix {
 
 // Return the intrinsic name
 struct Direct {
-  std::string operator()(DataType t, std::string name) const { return name; }
+  std::string operator()(PrimType t, std::string name) const { return name; }
 };
 
 /*!
@@ -69,13 +70,10 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   TVM_FFI_ICHECK(op != nullptr);
   std::string name = op->name;
   TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
-  DataType dtype;
   if (dtype_from_arg) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
-    dtype = call->args[0].dtype();
-  } else {
-    dtype = call->dtype;
   }
+  PrimType dtype = dtype_from_arg ? call->args[0].ty() : call->ty();
   name = T()(dtype, name.substr(5));
 
   if (name.length() != 0) {
@@ -83,7 +81,7 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
     for (auto arg : call->args) {
       new_args.push_back(arg);
     }
-    return Call(call->dtype, builtin::call_pure_extern(), new_args);
+    return Call(e.ty(), builtin::call_pure_extern(), new_args);
   } else {
     return e;
   }

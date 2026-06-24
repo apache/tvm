@@ -54,10 +54,10 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     *ret = VisitExpr(e, e);
     if (fail_) return false;
     if (!ret->base.defined()) {
-      ret->base = IntImm(var_.dtype(), 0);
+      ret->base = IntImm(var_.ty(), 0);
     }
     if (!ret->coeff.defined()) {
-      ret->coeff = IntImm(var_.dtype(), 0);
+      ret->coeff = IntImm(var_.ty(), 0);
     }
     return true;
   }
@@ -101,8 +101,8 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
   LinearEqEntry VisitExpr_(const VarNode* op, const PrimExpr& e) final {
     LinearEqEntry ret;
     if (op == var_.get()) {
-      auto dtype = op->dtype;
-      ret.coeff = MakeConst(DataType::Int(dtype.bits(), dtype.lanes()), 1);
+      PrimType dtype = op->ty();
+      ret.coeff = MakeConst(PrimType::Int(dtype.bits(), dtype.lanes()), 1);
     } else {
       ret.base = e;
     }
@@ -194,19 +194,21 @@ bool DetectClipBound(const PrimExpr& cond,
   bool is_eq = false;
   PrimExpr canonical;
   if (const LTNode* op = cond.as<LTNode>()) {
-    if (!op->a.dtype().is_int()) return false;
-    canonical = op->b - op->a - MakeConst(op->a.dtype(), 1);
+    PrimType a_ty = op->a.ty();
+    if (a_ty.code() != DLDataTypeCode::kDLInt) return false;
+    canonical = op->b - op->a - MakeConst(a_ty, 1);
   } else if (const LENode* op = cond.as<LENode>()) {
-    if (!op->a.dtype().is_int()) return false;
+    if (op->a.ty().code() != DLDataTypeCode::kDLInt) return false;
     canonical = op->b - op->a;
   } else if (const GTNode* op = cond.as<GTNode>()) {
-    if (!op->a.dtype().is_int()) return false;
-    canonical = op->a - op->b - MakeConst(op->a.dtype(), 1);
+    PrimType a_ty = op->a.ty();
+    if (a_ty.code() != DLDataTypeCode::kDLInt) return false;
+    canonical = op->a - op->b - MakeConst(a_ty, 1);
   } else if (const GENode* op = cond.as<GENode>()) {
-    if (!op->a.dtype().is_int()) return false;
+    if (op->a.ty().code() != DLDataTypeCode::kDLInt) return false;
     canonical = op->a - op->b;
   } else if (const EQNode* op = cond.as<EQNode>()) {
-    if (!op->a.dtype().is_int()) return false;
+    if (op->a.ty().code() != DLDataTypeCode::kDLInt) return false;
     canonical = op->a - op->b;
     is_eq = true;
   } else {

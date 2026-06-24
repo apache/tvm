@@ -57,8 +57,8 @@ class CodeGenCHost : public CodeGenC {
   void DefineModuleName();
 
   using CodeGenC::PrintType;
-  void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
-  void PrintFuncPrefix(std::ostream& os) final;        // NOLINT(*)
+  void PrintType(DLDataType t, std::ostream& os) final;  // NOLINT(*)
+  void PrintFuncPrefix(std::ostream& os) final;          // NOLINT(*)
 
   // overload visitor functions
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)

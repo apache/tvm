@@ -105,8 +105,9 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
  */
 Stmt RewriteWmmaLoad(Stmt stmt) {
   using arith::IntSet;
-  const DataType dtype = DataType::Float(16);
-  const DataType int32 = DataType::Int(32);
+  const PrimType dtype_ty = PrimType::Float(16);
+  const DLDataType dtype = dtype_ty->dtype;
+  const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
@@ -128,21 +129,21 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   Buffer tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
   Buffer new_src_buffer(
-      /*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
+      /*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
       /*dtype=*/dtype,
       /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
-      /*strides=*/{Var("s1", int32), Var("s0", int32)},
-      /*elem_offset=*/Var("src_elem_offset", int32),
+      /*strides=*/{Var("s1", int32_ty), Var("s0", int32_ty)},
+      /*elem_offset=*/Var("src_elem_offset", int32_ty),
       /*name=*/"src",
       /*data_alignment=*/64,
       /*offset_factor=*/16,
       /*buffer_type=*/kDefault);
   Buffer new_tgt_buffer(
-      /*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
+      /*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
       /*dtype=*/dtype,
       /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
       /*strides=*/{},
-      /*elem_offset=*/Var("tgt_elem_offset", int32),
+      /*elem_offset=*/Var("tgt_elem_offset", int32_ty),
       /*name=*/"tgt",
       /*data_alignment=*/64,
       /*offset_factor=*/16,
@@ -160,7 +161,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
           /*name_hint=*/"wmma_load",
           /*body=*/
           Evaluate(Call(
-              /*data=*/runtime::DataType::Handle(),
+              /*data=*/PrimType::Handle(),
               /*op=*/tvm_load_matrix_sync_op,
               {
                   /*0:*/ new_tgt_buffer->data,
@@ -171,7 +172,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                       floordiv(floormod(new_tgt_buffer->elem_offset, 256), 16),
                   /*5:*/
                   Call(
-                      /*dtype=*/runtime::DataType::Handle(),
+                      /*dtype=*/PrimType::Handle(),
                       /*op=*/builtin::tvm_access_ptr(),
                       /*args=*/
                       {
@@ -207,7 +208,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
  */
 Stmt RewriteWmmaStore(Stmt stmt) {
   using arith::IntSet;
-  const DataType int32 = DataType::Int(32);
+  const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
@@ -236,22 +237,23 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   Buffer src_buffer = buf_load->buffer;
   Buffer tgt_buffer = buf_store->buffer;
 
-  const DataType dtype = src_buffer->dtype;
+  PrimType dtype_ty = src_buffer->dtype;
+  const DLDataType dtype = dtype_ty->dtype;
 
-  Buffer new_src_buffer(/*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
+  Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                         /*strides=*/{},
-                        /*elem_offset=*/Var("src_elem_offset", int32),
+                        /*elem_offset=*/Var("src_elem_offset", int32_ty),
                         /*name=*/"src",
                         /*data_alignment=*/64,
                         /*offset_factor=*/16,
                         /*buffer_type=*/kDefault);
-  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
+  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
-                        /*strides=*/{Var("s1", int32), Var("s0", int32)},
-                        /*elem_offset=*/Var("tgt_elem_offset", int32),
+                        /*strides=*/{Var("s1", int32_ty), Var("s0", int32_ty)},
+                        /*elem_offset=*/Var("tgt_elem_offset", int32_ty),
                         /*name=*/"tgt",
                         /*data_alignment=*/64,
                         /*offset_factor=*/16,
@@ -268,7 +270,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
              /*name_hint=*/"wmma_store",
              Evaluate(Call(
-                 /*data=*/runtime::DataType::Handle(),
+                 /*data=*/PrimType::Handle(),
                  /*op=*/tvm_store_matrix_sync_op,
                  {/*0:*/ new_src_buffer->data,
                   /*1:*/ 16,
@@ -278,7 +280,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                       floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
                   /*5:*/
                   Call(
-                      /*data=*/runtime::DataType::Handle(),
+                      /*data=*/PrimType::Handle(),
                       /*op=*/builtin::tvm_access_ptr(),
                       {
                           /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
@@ -418,7 +420,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
  */
 Stmt RewriteMmaStore(Stmt stmt) {
   using arith::IntSet;
-  const DataType int32 = DataType::Int(32);
+  const PrimType int32_ty = PrimType::Int(32);
 
   // Step 1. Get inner loop body
   Stmt body = stmt;
@@ -458,21 +460,22 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // Step 3.1. Generate new buffer
   Buffer src_buffer = buf_load->buffer;
   Buffer tgt_buffer = buf_store->buffer;
-  const DataType dtype = src_buffer->dtype;
-  Buffer new_src_buffer(/*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
+  PrimType dtype_ty = src_buffer->dtype;
+  const DLDataType dtype = dtype_ty->dtype;
+  Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
                         /*strides=*/{},
-                        /*elem_offset=*/Var("src_elem_offset", int32),
+                        /*elem_offset=*/Var("src_elem_offset", int32_ty),
                         /*name=*/"src",
                         /*data_alignment=*/64,
                         /*offset_factor=*/8,
                         /*buffer_type=*/kDefault);
-  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
+  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
-                        /*strides=*/{Var("s1", int32), Var("s0", int32)},
-                        /*elem_offset=*/Var("tgt_elem_offset", int32),
+                        /*strides=*/{Var("s1", int32_ty), Var("s0", int32_ty)},
+                        /*elem_offset=*/Var("tgt_elem_offset", int32_ty),
                         /*name=*/"tgt",
                         /*data_alignment=*/64,
                         /*offset_factor=*/8,

@@ -86,11 +86,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.shape",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = shape(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = shape(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.tensor_size",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = tensor_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = tensor_size(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.split",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -141,7 +141,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_packed("topi.arange",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     *rv = arange(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(),
-                                 args[2].cast<PrimExpr>(), args[3].cast<DataType>());
+                                 args[2].cast<PrimExpr>(), args[3].cast<PrimType>());
                   })
       .def_packed("topi.meshgrid",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -261,7 +261,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   [](ffi::PackedArgs args, ffi::Any* rv) {
                     int depth = args[3].cast<int>();
                     int axis = args[4].cast<int>();
-                    DataType dtype = args[5].cast<DataType>();
+                    PrimType dtype = args[5].cast<PrimType>();
                     *rv = one_hot(args[0].cast<te::Tensor>(), args[1].cast<PrimExpr>(),
                                   args[2].cast<PrimExpr>(), depth, axis, dtype);
                   })

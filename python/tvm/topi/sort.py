@@ -110,7 +110,7 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
         f = tvm.compile(s, [data, out], "llvm")
         dev = tvm.cpu()
         tvm_data = tvm.runtime.tensor(np_data, dev)
-        tvm_out = tvm.runtime.tensor(np.zeros(dshape, dtype=data.dtype), dev)
+        tvm_out = tvm.runtime.tensor(np.zeros(dshape, dtype=data.dtype.dtype), dev)
         f(tvm_data, tvm_out)
     """
     data_buf = tvm.tirx.decl_buffer(

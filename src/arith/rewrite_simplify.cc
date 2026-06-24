@@ -425,7 +425,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + ramp(b2, s2, lanes), ramp(b1 + b2, s1 + s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes), ramp(b1 + x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + ramp(b1, s1, lanes), ramp(x + b1, s1, lanes));
@@ -433,7 +433,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE_IF(x + broadcast(c4, lanes), x, c4.Eval()->value == 0.0f);
   }
 
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     // Index rules
     // cancelation rules
     TVM_TRY_REWRITE((x - y) + y, x);
@@ -535,7 +535,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
     if (SideEffect(subconstraint) <= CallEffectKind::kPure) {
       literal_constraints_.push_back(subconstraint);
       PrimExpr negation;
-      if (subconstraint.dtype().is_bool()) {
+      if (subconstraint.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
         // We could apply NormalizeBooleanOperators during
         // TryMatchLiteralConstraint, but that would require
         // performing a rewrite of each expression being checked.
@@ -543,7 +543,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
         // applied.
         negation = NormalizeBooleanOperators(Not(subconstraint));
       } else {
-        negation = subconstraint == IntImm(subconstraint.dtype(), 0);
+        negation = subconstraint == IntImm(subconstraint.ty(), 0);
       }
       literal_constraints_.push_back(Not(negation));
     }
@@ -575,14 +575,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - ramp(b2, s2, lanes), ramp(b1 - b2, s1 - s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - broadcast(x, lanes), ramp(b1 - x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) - ramp(b1, s1, lanes), ramp(x - b1, 0 - s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) - broadcast(y, lanes), broadcast(x - y, lanes));
   }
 
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     // Index rules
     // cancelation rules
     TVM_TRY_REWRITE(matches_one_of((x + y) - y, (y + x) - y), x);
@@ -765,7 +765,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
     TVM_TRY_REWRITE(matches_one_of(ramp(b1, s1, lanes) * broadcast(x, lanes),
                                    broadcast(x, lanes) * ramp(b1, s1, lanes)),
@@ -773,7 +773,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
     TVM_TRY_REWRITE_IF(broadcast(c3, lanes) * x, broadcast(c3, lanes), c3.Eval()->value == 0.0f);
   }
 
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     // constant simplification rule
     TVM_TRY_REWRITE((x + c1) * c2, x * c2 + c1 * c2);
     TVM_TRY_REWRITE((x * c1) * c2, x * (c1 * c2));
@@ -803,7 +803,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     // NOTE: use div as the pattern also works for float.
     TVM_TRY_REWRITE(div(broadcast(x, lanes), broadcast(y, lanes)), broadcast(div(x, y), lanes));
     // ramp / bcast
@@ -827,7 +827,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     }
   }
 
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     // Be-aware of the division rules:
     // We adopt the default C division uses truncation instead of floordiv.
     // This means most rules need to check non-negativeness of the operands.
@@ -839,7 +839,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     if (truncdiv(c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      return MakeConst(op->dtype, truncdiv(c1val, c2val));
+      return MakeConst(op->ty(), truncdiv(c1val, c2val));
     }
 
     // while it is always true for trunc div
@@ -957,7 +957,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(truncmod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(truncmod(x, y), lanes));
 
@@ -994,7 +994,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     }
   }
 
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     // Be-aware of the division rules:
     // We adopt the default C division uses truncation instead of floordiv.
     // This means most rules need to check non-negativeness of the operands.
@@ -1019,7 +1019,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     // canonicalization: x % c == x % (-c) for truncated division
     // NOTE: trunc div required
     TVM_TRY_RECURSIVE_REWRITE_IF(
-        truncmod(x, c1), truncmod(x, PConst<PrimExpr>(MakeConst(op->dtype, -c1.Eval()->value))),
+        truncmod(x, c1), truncmod(x, PConst<PrimExpr>(MakeConst(op->ty(), -c1.Eval()->value))),
         c1.Eval()->value < 0);
 
     // try modular analysis
@@ -1046,7 +1046,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(floordiv(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floordiv(x, y), lanes));
     // ramp // bcast
@@ -1077,7 +1077,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     }
   }
 
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     // Be-aware of the division rules: this is floor division.
     TVM_TRY_REWRITE_IF(floordiv(floordiv(x, c1), c2), floordiv(x, c1 * c2),
                        c1.Eval()->value > 0 && c2.Eval()->value > 0);
@@ -1198,7 +1198,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(floormod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floormod(x, y), lanes));
 
@@ -1238,7 +1238,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     }
   }
 
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     // Be-aware of the division rules: we use floordiv/floormod here
     TVM_TRY_REWRITE_IF(floormod(x * c1, c2), floormod(x * floormod(c1, c2), c2),
                        c2.Eval()->value != 0);
@@ -1314,12 +1314,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(min(broadcast(x, lanes), broadcast(y, lanes)), broadcast(min(x, y), lanes));
     TVM_TRY_REWRITE(min(min(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     min(x, broadcast(min(y, z), lanes)));
   }
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     TVM_TRY_REWRITE(min(x, x), x);
 
     // constant int bound
@@ -1498,12 +1498,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(max(broadcast(x, lanes), broadcast(y, lanes)), broadcast(max(x, y), lanes));
     TVM_TRY_REWRITE(max(max(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     max(x, broadcast(max(y, z), lanes)));
   }
-  if (IsIndexType(op->dtype)) {
+  if (IsIndexTypedExpr(op)) {
     TVM_TRY_REWRITE(max(x, x), x);
 
     // constant int bound
@@ -1686,10 +1686,10 @@ ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
   ExprDeepEqual expr_equal;
   for (const auto& constraint : literal_constraints_) {
     if (expr_equal(constraint, expr)) {
-      return MakeConst(expr->dtype, true);
+      return MakeConst(expr->ty(), true);
     }
     if (expr_equal(constraint, negation)) {
-      return MakeConst(expr->dtype, false);
+      return MakeConst(expr->ty(), false);
     }
   }
   return std::nullopt;
@@ -1715,20 +1715,20 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   PVar<PrimExpr> lanes;
-  PConst<PrimExpr> ctrue(MakeConst(ret->dtype, true));
+  PConst<PrimExpr> ctrue(MakeConst(ret->ty(), true));
 
   // vector rule
-  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
+  if (ret->ty().IsScalableVector() || ret->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) == broadcast(y, lanes), broadcast(x == y, lanes));
   }
 
-  if (IsIndexType(ret->a.dtype())) {
+  if (IsIndexTypedExpr(ret->a)) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kEQ) {
-      return MakeConst(ret->dtype, true);
+      return MakeConst(ret->ty(), true);
     } else if (result == CompareResult::kNE || result == CompareResult::kGT ||
                result == CompareResult::kLT) {
-      return MakeConst(ret->dtype, false);
+      return MakeConst(ret->ty(), false);
     }
     TVM_TRY_REWRITE(c1 == x, x == c1);
 
@@ -1758,13 +1758,13 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
   if (auto const_res = TryConstFold<NE>(op->a, op->b)) return const_res.value();
   if (auto match = TryMatchLiteralConstraint(ret)) return match.value();
 
-  if (IsIndexType(op->a.dtype())) {
+  if (IsIndexTypedExpr(op->a)) {
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kNE || result == CompareResult::kGT ||
         result == CompareResult::kLT) {
-      return MakeConst(op->dtype, true);
+      return MakeConst(op->ty(), true);
     } else if (result == CompareResult::kEQ) {
-      return MakeConst(op->dtype, false);
+      return MakeConst(op->ty(), false);
     } else if (result == CompareResult::kGE) {
       // Known: a >= b
       //
@@ -1802,13 +1802,13 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LENode* op) {
   // (floordiv(A,B)<x) in these cases instead.
   ret = ApplyRewriteRules(Not(ApplyRewriteRules(LT(op->b, op->a))));
 
-  if (auto op = ret.as<LENode>(); op && IsIndexType(op->a.dtype())) {
+  if (auto op = ret.as<LENode>(); op && IsIndexTypedExpr(op->a)) {
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kLE || result == CompareResult::kLT ||
         result == CompareResult::kEQ) {
-      return MakeConst(op->dtype, true);
+      return MakeConst(op->ty(), true);
     } else if (result == CompareResult::kGT) {
-      return MakeConst(op->dtype, false);
+      return MakeConst(op->ty(), false);
     } else if (result == CompareResult::kNE) {
       // Known: a != b
       //
@@ -1857,19 +1857,19 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   PVar<PrimExpr> lanes;
 
   // vector rule
-  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
+  if (ret->ty().IsScalableVector() || ret->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) < broadcast(y, lanes), broadcast(x < y, lanes));
     TVM_TRY_REWRITE(ramp(x, s1, lanes) < ramp(y, s1, lanes), broadcast(x < y, lanes));
   }
 
-  if (IsIndexType(ret->a.dtype())) {
+  if (IsIndexTypedExpr(ret->a)) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kLT) {
-      return MakeConst(ret->dtype, true);
+      return MakeConst(ret->ty(), true);
     }
     if (result == CompareResult::kEQ || result == CompareResult::kGT ||
         result == CompareResult::kGE) {
-      return MakeConst(ret->dtype, false);
+      return MakeConst(ret->ty(), false);
     }
 
     // clang-format off
@@ -1987,9 +1987,9 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
       } else if (diff == 1) {
         return lhs <= rhs;
       } else if (diff < 0 && rhs_offset != 0) {
-        return lhs + MakeConst(lhs.dtype(), -diff) < rhs;
+        return lhs + MakeConst(lhs.ty(), -diff) < rhs;
       } else if (diff > 0 && lhs_offset != 0) {
-        return lhs < rhs + MakeConst(rhs.dtype(), diff);
+        return lhs < rhs + MakeConst(rhs.ty(), diff);
       }
 
       return std::nullopt;
@@ -2024,7 +2024,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
   PVar<PrimExpr> lanes;
-  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
+  if (ret->ty().IsScalableVector() || ret->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
 
@@ -2100,11 +2100,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   PVar<IntImm> c1, c2, c3;
   PVar<PrimExpr> lanes;
 
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
   }
 
-  auto cfalse = PConst<PrimExpr>(MakeConst(op->dtype, false));
+  auto cfalse = PConst<PrimExpr>(MakeConst(op->ty(), false));
   TVM_TRY_REWRITE(x == y && x != y, cfalse);
   TVM_TRY_REWRITE(x != y && x == y, cfalse);
   TVM_TRY_REWRITE(x && !x, cfalse);
@@ -2248,11 +2248,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   PVar<IntImm> c1, c2;
   PVar<PrimExpr> lanes;
 
-  if (op->dtype.is_scalable_or_fixed_length_vector()) {
+  if (op->ty().IsScalableVector() || op->ty().IsFixedLengthVector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
   }
 
-  auto ctrue = PConst<PrimExpr>(MakeConst(op->dtype, true));
+  auto ctrue = PConst<PrimExpr>(MakeConst(op->ty(), true));
 
   TVM_TRY_REWRITE(x == y || x != y, ctrue);
   TVM_TRY_REWRITE(x != y || x == y, ctrue);
@@ -2319,12 +2319,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   static const Op& ceil_op = Op::Get("tirx.ceil");
   static const Op& log2_op = Op::Get("tirx.log2");
   static const Op& clz_op = Op::Get("tirx.clz");
+  PrimType ret_ty = ffi::GetRef<PrimExpr>(op).ty();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0];
     if (auto arg_int = op->args[0].as<IntImmNode>()) {
-      return cast(op->dtype, IntImm(arg_int->dtype, arg_int->value));
+      return cast(ret_ty, IntImm(ffi::GetRef<PrimExpr>(arg_int).ty(), arg_int->value));
     } else if (auto arg_float = ceil_arg.as<FloatImmNode>()) {
-      return cast(op->dtype, FloatImm(arg_float->dtype, std::ceil(arg_float->value)));
+      return cast(ret_ty,
+                  FloatImm(ffi::GetRef<PrimExpr>(arg_float).ty(), std::ceil(arg_float->value)));
     } else if (auto arg_call = ceil_arg.as<CallNode>()) {
       // ceil(log2(cast(n,"float64"))) is used as the implementation of
       // topi.math.ceil_log2, and appears in iteration bounds.
@@ -2334,17 +2336,17 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
           // ceil(log2(n)) can be simplified, and should produce the
           // same integer result regardless of the target's rounding
           // conventions.
-          return FloatImm(op->dtype, std::ceil(std::log2(as_float->value)));
+          return FloatImm(ret_ty, std::ceil(std::log2(as_float->value)));
         }
       }
     }
   } else if (op->op.same_as(clz_op)) {
     if (const auto* arg_int = op->args[0].as<IntImmNode>()) {
-      int bits = arg_int->dtype.bits();
-      if (arg_int->value == 0) return MakeConst(op->dtype, bits);
+      int bits = arg_int->ty().bits();
+      if (arg_int->value == 0) return MakeConst(ret_ty, bits);
       for (int i = bits - 1; i >= 0; --i) {
         if ((int64_t(1) << i) & arg_int->value) {
-          return IntImm(op->dtype, bits - i - 1);
+          return IntImm(ret_ty, bits - i - 1);
         }
       }
       TVM_FFI_THROW(InternalError) << "Should not reach here";
@@ -2373,7 +2375,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
       // Only check constant cases to avoid recursion
       if (is_const_number(inner_else_expr) && is_const_number(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
-        return Call(op->dtype, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
+        return Call(ret_ty, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
                     op->span);
       }
     }
@@ -2384,7 +2386,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
-  if (op->dtype == DataType::Bool()) {
+  PrimType op_ty = op->ty();
+  if (op_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !op_ty.IsScalableVector() &&
+      !op_ty.IsFixedLengthVector()) {
     if (auto match = TryMatchLiteralConstraint(var)) {
       return match.value();
     }
@@ -2400,7 +2404,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CastNode* op) {
   PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
   op = ret.as<CastNode>();
-  return cast(op->dtype, op->value);
+  return cast(ret.ty(), op->value);
 }
 
 bool RewriteSimplifier::Impl::CanInlineLet(const LetNode* op) {

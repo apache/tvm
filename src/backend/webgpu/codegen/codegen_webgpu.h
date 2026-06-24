@@ -51,16 +51,17 @@ class CodeGenWebGPU final : public CodeGenC {
   using CodeGenC::AddFunction;
   runtime::FunctionInfo AddFunction(const PrimFunc& f, bool skip_readonly_decl);  // NOLINT(*)
   void InitFuncState(const PrimFunc& f) final;
-  void PrintStorageSync(const CallNode* op) final;     // NOLINT(*)
-  void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
-  void BindThreadIndex(const IterVar& iv) final;       // NOLINT(*)
+  void PrintStorageSync(const CallNode* op) final;       // NOLINT(*)
+  void PrintType(DLDataType t, std::ostream& os) final;  // NOLINT(*)
+  void BindThreadIndex(const IterVar& iv) final;         // NOLINT(*)
 
   // assignment printing
-  void PrintSSAAssign(const std::string& target, const std::string& src, DataType type) final;
+  void PrintSSAAssign(const std::string& target, const std::string& src, PrimType type) final;
 
   // overload printing vector element load/store
-  void PrintVecElemLoad(const std::string& vec, DataType t, int i, std::ostream& os) final;
-  void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
+  void PrintVecElemLoad(const std::string& vec, DLDataType t, int i, std::ostream& os) final;
+  void PrintVecElemStore(const std::string& vec, DLDataType t, int i,
+                         const std::string& value) final;
 
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;   // NOLINT(*)
@@ -90,7 +91,7 @@ class CodeGenWebGPU final : public CodeGenC {
   /*!
    * \brief Storage type of bool values.
    */
-  DataType boolean_storage_type_{DataType::Int(8)};
+  PrimType boolean_storage_type_{PrimType::Int(8)};
 
   // whether enable fp16
   bool enable_fp16_{false};

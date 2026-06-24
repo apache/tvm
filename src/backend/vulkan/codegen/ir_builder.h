@@ -50,7 +50,7 @@ struct SType {
   /*! \brief The Id to represent type */
   uint32_t id{0};
   /*! \brief corresponding TVM type */
-  tvm::DataType type;
+  tvm::PrimType type{tvm::PrimType::Void()};
   /*! \brief content type id if it is a pointer/struct-array class */
   uint32_t element_type_id{0};
   /*! \brief The storage class, if it is a pointer */
@@ -430,7 +430,7 @@ class IRBuilder {
    * \return The result value.
    */
   Value CallKHRIntegerDotProduct(const SType& ret_type, const std::vector<Value>& args,
-                                 const DataType& dtype);
+                                 const PrimType& dtype);
 
   /*!
    * \brief Build vector by concatenating components
@@ -444,7 +444,7 @@ class IRBuilder {
    * \param dtype The data type.
    * \return The corresponding spirv type.
    */
-  SType GetSType(const tvm::DataType& dtype, uint32_t row = 0, uint32_t col = 0);
+  SType GetSType(const tvm::PrimType& dtype, uint32_t row = 0, uint32_t col = 0);
   /*!
    * \brief Get the pointer type that points to value_type
    * \param value_type.
@@ -656,11 +656,11 @@ class IRBuilder {
   Value GetConst_(const SType& dtype, const uint64_t* pvalue);
 
   // declare type
-  SType DeclareType(const DataType& dtype, uint32_t row = 0, uint32_t col = 0);
+  SType DeclareType(const PrimType& dtype, uint32_t row = 0, uint32_t col = 0);
 
   // Declare the appropriate SPIR-V capabilities and extensions to use
   // this data type.
-  void AddCapabilityFor(const DataType& dtype);
+  void AddCapabilityFor(const PrimType& dtype);
 
   /*! \brief SPIRV-related capabilities of the target
    *

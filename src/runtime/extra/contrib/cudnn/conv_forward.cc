@@ -21,9 +21,9 @@
  * \file cuDNN kernel calls for the forward algorithm.
  */
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
@@ -31,8 +31,6 @@
 
 namespace tvm {
 namespace contrib {
-
-using namespace runtime;
 
 void ConvolutionForward(int mode, int format, int algo, int dims, int groups, const int pad[],
                         const int stride[], const int dilation[], const DLTensor* x,

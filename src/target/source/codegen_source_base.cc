@@ -34,7 +34,7 @@ void CodeGenSourceBase::ClearFuncState() {
   scope_mark_.clear();
 }
 
-std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
+std::string CodeGenSourceBase::SSAGetID(std::string src, PrimType t) {
   if (name_supply_->ContainsName(src)) return src;
   auto it = ssa_assign_map_.find(src);
   if (it != ssa_assign_map_.end()) {
@@ -99,50 +99,51 @@ void CodeGenSourceBase::EndScope(int scope_id) {
   indent_ -= 2;
 }
 
-void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK_EQ(type.lanes(), 1) << "do not yet support vector types";
-  if (type.is_handle()) {
+void CodeGenSourceBase::PrintType(DLDataType type, std::ostream& os) {  // NOLINT(*)
+  int lanes = static_cast<int16_t>(type.lanes);
+  TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
+  if (type.code == kDLOpaqueHandle && !(type.bits == 0 && lanes == 0)) {
     os << "void*";
     return;
   }
-  if (type.is_void()) {
+  if (type.code == kDLOpaqueHandle && type.bits == 0 && lanes == 0) {
     os << "void";
     return;
   }
   // default c may be have bool type, can be handled in subclass
-  if (type.is_bool()) {
+  if (type.code == kDLBool) {
     os << "int";
     return;
   }
-  if (type.is_float()) {
-    if (type.bits() == 32) {
+  if (type.code == kDLFloat) {
+    if (type.bits == 32) {
       os << "float";
       return;
     }
-    if (type.bits() == 64) {
+    if (type.bits == 64) {
       os << "double";
       return;
     }
-  } else if (type.is_uint()) {
-    switch (type.bits()) {
+  } else if (type.code == kDLUInt) {
+    switch (type.bits) {
       case 8:
       case 16:
       case 32:
       case 64: {
-        os << "uint" << type.bits() << "_t";
+        os << "uint" << static_cast<int>(type.bits) << "_t";
         return;
       }
       case 1:
         os << "int";
         return;
     }
-  } else if (type.is_int()) {
-    switch (type.bits()) {
+  } else if (type.code == kDLInt) {
+    switch (type.bits) {
       case 8:
       case 16:
       case 32:
       case 64: {
-        os << "int" << type.bits() << "_t";
+        os << "int" << static_cast<int>(type.bits) << "_t";
         return;
       }
     }

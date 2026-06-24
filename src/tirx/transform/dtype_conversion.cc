@@ -27,30 +27,41 @@ namespace tvm {
 namespace tirx {
 
 PrimExpr ReinterpretAsUInt(PrimExpr value) {
-  return reinterpret(GetStorageUIntDType(value.dtype()), value);
+  return reinterpret(GetStorageUIntDType(value.ty()), value);
 }
 
-DataType GetStorageUIntDType(DataType dtype) { return DataType::UInt(dtype.bits(), dtype.lanes()); }
+PrimType GetStorageUIntDType(PrimType dtype) {
+  if (dtype.IsScalableVector()) {
+    return PrimType::ScalableVector(DLDataTypeCode::kDLUInt, dtype.bits(), dtype.VScaleFactor());
+  }
+  return PrimType::UInt(dtype.bits(), dtype.lanes());
+}
 
-PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode round_mode) {
-  DataType src_dtype = src_value.dtype();
+PrimExpr DTypeConversion(PrimExpr src_value, PrimType tgt_dtype, RoundingMode round_mode) {
+  PrimType src_dtype = src_value.ty();
   // Step 1: check dtype
   // The lanes of src dtype and target dtype must match.
-  TVM_FFI_ICHECK_EQ(src_dtype.lanes(), tgt_dtype.lanes())
+  TVM_FFI_ICHECK_EQ(src_dtype->dtype.lanes, tgt_dtype->dtype.lanes)
       << "The lanes for data type for source value must matches the target datatype.";
-  auto is_floating_point = [](DataType dtype) {
-    return dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() || dtype.is_float6() ||
-           dtype.is_float4();
+  auto is_floating_point = [](PrimType dtype) {
+    DLDataTypeCode code = dtype.code();
+    return code == DLDataTypeCode::kDLFloat ||
+           (code == DLDataTypeCode::kDLBfloat && dtype.bits() == 16) ||
+           code == DLDataTypeCode::kDLFloat8_e3m4 || code == DLDataTypeCode::kDLFloat8_e4m3 ||
+           code == DLDataTypeCode::kDLFloat8_e4m3b11fnuz ||
+           code == DLDataTypeCode::kDLFloat8_e4m3fn || code == DLDataTypeCode::kDLFloat8_e4m3fnuz ||
+           code == DLDataTypeCode::kDLFloat8_e5m2 || code == DLDataTypeCode::kDLFloat8_e5m2fnuz ||
+           code == DLDataTypeCode::kDLFloat8_e8m0fnu || code == DLDataTypeCode::kDLFloat6_e2m3fn ||
+           code == DLDataTypeCode::kDLFloat6_e3m2fn || code == DLDataTypeCode::kDLFloat4_e2m1fn;
   };
   // Both source dtype and target dtype should be floating point.
   TVM_FFI_ICHECK(is_floating_point(src_dtype) && is_floating_point(tgt_dtype));
-  FloatConfig src_fp = FloatConfig::FromDataType(src_value.dtype()),
+  FloatConfig src_fp = FloatConfig::FromDataType(src_dtype),
               tgt_fp = FloatConfig::FromDataType(tgt_dtype);
   int exponent_delta = tgt_fp.exponent - src_fp.exponent;
   int bias_delta = tgt_fp.bias - src_fp.bias;
   int mantissa_delta = tgt_fp.mantissa - src_fp.mantissa;
-  DataType src_uint = GetStorageUIntDType(src_value.dtype()),
-           tgt_uint = GetStorageUIntDType(tgt_dtype);
+  PrimType src_uint = GetStorageUIntDType(src_dtype), tgt_uint = GetStorageUIntDType(tgt_dtype);
   PrimExpr src_uint_value = ReinterpretAsUInt(src_value);
   if (mantissa_delta < 0) {
     // use rounding

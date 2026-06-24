@@ -463,7 +463,7 @@ inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return FloatImm(DataType::Float(32), (*opt_int_imm)->value);
+        return FloatImm(PrimType::Float(32), (*opt_int_imm)->value);
       } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {

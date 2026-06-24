@@ -27,8 +27,8 @@ TEST(Tensor, Basic) {
 
   Var m("m"), n("n"), l("l");
 
-  Tensor A = placeholder({m, l}, DataType::Float(32), "A");
-  Tensor B = placeholder({n, l}, DataType::Float(32), "B");
+  Tensor A = placeholder({m, l}, PrimType::Float(32), "A");
+  Tensor B = placeholder({n, l}, PrimType::Float(32), "B");
 
   auto C = compute({m, n}, [&](Var i, Var j) { return A[i][j]; }, "C");
 
@@ -40,8 +40,8 @@ TEST(Tensor, Reduce) {
   using namespace tvm::te;
 
   Var m("m"), n("n"), l("l");
-  te::Tensor A = te::placeholder({m, l}, DataType::Float(32), "A");
-  te::Tensor B = te::placeholder({n, l}, DataType::Float(32), "B");
+  te::Tensor A = te::placeholder({m, l}, PrimType::Float(32), "A");
+  te::Tensor B = te::placeholder({n, l}, PrimType::Float(32), "B");
   IterVar rv = reduce_axis(Range{0, l}, "k");
 
   auto C = te::compute(
@@ -53,5 +53,5 @@ TEST(Tensor, Indexing) {
   using namespace tvm::te;
 
   Var x("x"), y("y");
-  te::Tensor A = te::placeholder({x, y}, DataType::Float(32), "A");
+  te::Tensor A = te::placeholder({x, y}, PrimType::Float(32), "A");
 }

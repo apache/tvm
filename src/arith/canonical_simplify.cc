@@ -83,14 +83,14 @@ inline PrimExpr DivImpl(PrimExpr a, PrimExpr b, DivMode mode) {
  * \param analyzer The analyzer
  * \return whether value fits in dtype
  */
-bool CastIsSafe(DataType dtype, PrimExpr value, AnalyzerObj* analyzer) {
-  if (!IsIndexType(dtype)) {
+bool CastIsSafe(PrimType dtype, PrimExpr value, AnalyzerObj* analyzer) {
+  if (!IsIndexType(dtype->dtype)) {
     return false;
   }
   ConstIntBound bound = analyzer->const_int_bound(value);
   int64_t ubound = max_value(dtype).as_or_throw<IntImm>()->value;
   int64_t lbound = min_value(dtype).as_or_throw<IntImm>()->value;
-  if (value.dtype().bits() <= dtype.bits() ||  // upcast is safe
+  if (value.ty().bits() <= dtype.bits() ||  // upcast is safe
       (bound->max_value <= ubound && bound->min_value >= lbound)) {
     return true;
   }
@@ -128,7 +128,7 @@ class SplitExprNode : public CanonicalExprNode {
 
   PrimExpr NormalizeWithScale(int64_t sscale) const {
     PrimExpr res = this->index;
-    DataType dtype = this->dtype;
+    PrimType dtype = this->ty();
     if (this->scale == 0) {
       return IntImm(dtype, 0);
     }
@@ -140,7 +140,7 @@ class SplitExprNode : public CanonicalExprNode {
     }
     sscale *= this->scale;
     if (sscale != 1) {
-      TVM_FFI_ICHECK(!dtype.is_uint() || sscale > 0);
+      TVM_FFI_ICHECK(dtype.code() != DLDataTypeCode::kDLUInt || sscale > 0);
       res = res * MakeConst(dtype, sscale);
     }
     return res;
@@ -156,12 +156,12 @@ class SplitExprNode : public CanonicalExprNode {
    * \param analyzer The analyzer
    * \return whether the cast can be safely pushed to children
    */
-  bool CanPushCastToChildren(DataType dtype, AnalyzerObj* analyzer) const {
+  bool CanPushCastToChildren(PrimType dtype, AnalyzerObj* analyzer) const {
     // cast(dtype, index % upper_factor / lower_factor * scale) ==
     // cast(dtype, index) % upper_factor / lower_factor * scale
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
-    if (dtype.bits() >= this->dtype.bits()) {
+    if (dtype.bits() >= this->ty().bits()) {
       return true;  // upcast is safe
     }
     PrimExpr res = this->index;
@@ -172,20 +172,20 @@ class SplitExprNode : public CanonicalExprNode {
       return false;
     }
     if (this->upper_factor != SplitExprNode::kPosInf) {
-      res = ModImpl(res, MakeConst(this->dtype, this->upper_factor), div_mode);
+      res = ModImpl(res, MakeConst(this->ty(), this->upper_factor), div_mode);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
     }
     if (this->lower_factor != 1) {
-      res = DivImpl(res, MakeConst(this->dtype, this->lower_factor), div_mode);
+      res = DivImpl(res, MakeConst(this->ty(), this->lower_factor), div_mode);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
     }
     if (this->scale != 1) {
-      TVM_FFI_ICHECK(!this->dtype.is_uint() || this->scale > 0);
-      res = res * MakeConst(this->dtype, this->scale);
+      TVM_FFI_ICHECK(this->ty().code() != DLDataTypeCode::kDLUInt || this->scale > 0);
+      res = res * MakeConst(this->ty(), this->scale);
       if (!CastIsSafe(dtype, res, analyzer)) {
         return false;
       }
@@ -197,9 +197,9 @@ class SplitExprNode : public CanonicalExprNode {
    * \brief self = cast(dtype, self)
    * \param dtype The target datatype
    */
-  void PushCastToChildren(DataType dtype) {
+  void PushCastToChildren(PrimType dtype) {
     this->index = cast(dtype, this->index);
-    this->dtype = dtype;
+    this->BaseExprNode::ty = dtype;
   }
 
   inline bool IndexEqual(const SplitExpr& other) const;
@@ -252,9 +252,9 @@ class SumExprNode : public CanonicalExprNode {
   PrimExpr Normalize() const final {
     // quick path 1.
     if (this->args.size() == 0) {
-      return MakeConst(this->dtype, this->base);
+      return MakeConst(this->ty(), this->base);
     }
-    return Normalize_(this->dtype, SimplifySplitExprs(args), base);
+    return Normalize_(this->ty(), SimplifySplitExprs(args), base);
   }
   /*!
    * \brief Whether self is divisible by scale.
@@ -334,14 +334,14 @@ class SumExprNode : public CanonicalExprNode {
    * \param analyzer The analyzer
    * \return whether the cast can be safely pushed to children
    */
-  bool CanPushCastToChildren(DataType dtype, AnalyzerObj* analyzer) const {
+  bool CanPushCastToChildren(PrimType dtype, AnalyzerObj* analyzer) const {
     bool is_min_value = dtype.bits() == 64 ? base == std::numeric_limits<int64_t>::lowest()
                                            : base == -(1LL << (dtype.bits() - 1));
     // cast(dtype, arg_1 + arg_2 + ... arg_n) ==
     // cast(dtype, arg_1) + ... + cast(dtype, arg_n)
     // iff it is an upcast (dtype.bits >= self.dtype.bits) or all of
     // its intermediate results fit in the range of dtype
-    if (dtype.bits() >= this->dtype.bits()) {
+    if (dtype.bits() >= this->ty().bits()) {
       return true;  // upcast is safe
     }
     PrimExpr res = IntImm(dtype, 0);
@@ -386,11 +386,11 @@ class SumExprNode : public CanonicalExprNode {
    * \brief self = cast(dtype, self)
    * \param dtype The target datatype
    */
-  void PushCastToChildren(DataType dtype) {
+  void PushCastToChildren(PrimType dtype) {
     for (auto& arg : args) {
       arg.CopyOnWrite()->PushCastToChildren(dtype);
     }
-    this->dtype = dtype;
+    this->BaseExprNode::ty = dtype;
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("arith.SumExpr", SumExprNode, CanonicalExprNode);
 
@@ -496,7 +496,7 @@ class SumExprNode : public CanonicalExprNode {
     std::stable_sort(args.begin(), args.end(), fcompare);
     return args;
   }
-  static PrimExpr Normalize_(DataType dtype, const std::vector<SplitExpr>& args, int64_t base) {
+  static PrimExpr Normalize_(PrimType dtype, const std::vector<SplitExpr>& args, int64_t base) {
     bool is_min_value = dtype.bits() == 64 ? base == std::numeric_limits<int64_t>::lowest()
                                            : base == -(1LL << (dtype.bits() - 1));
     // Positive scales first
@@ -648,7 +648,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
       expr = op->Normalize();
     }
     ffi::ObjectPtr<SplitExprNode> n = ffi::make_object<SplitExprNode>();
-    n->dtype = expr.dtype();
+    n->BaseExprNode::ty = expr.ty();
     n->index = std::move(expr);
     n->div_mode = kTruncDiv;
     return SplitExpr(n);
@@ -685,7 +685,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
       return op.value();
     }
     ffi::ObjectPtr<SumExprNode> n = ffi::make_object<SumExprNode>();
-    n->dtype = expr.dtype();
+    n->BaseExprNode::ty = expr.ty();
     if (const auto* op = expr.as<IntImmNode>()) {
       n->base = op->value;
       return SumExpr(n);
@@ -699,7 +699,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
 };
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
   // normalize
@@ -723,7 +723,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
   // normalize
@@ -747,7 +747,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
   // normalize
@@ -794,8 +794,8 @@ void CanonicalSimplifier::Impl::SeparateDivisibleParts(const SumExprNode* psum, 
                                                        SumExpr* out_non_divisible) {
   auto divisible = ffi::make_object<SumExprNode>();
   auto non_divisible = ffi::make_object<SumExprNode>();
-  divisible->dtype = psum->dtype;
-  non_divisible->dtype = psum->dtype;
+  divisible->BaseExprNode::ty = psum->ty();
+  non_divisible->BaseExprNode::ty = psum->ty();
 
   if (psum->base % coeff == 0) {
     divisible->base = psum->base;
@@ -834,11 +834,11 @@ SplitExpr CanonicalSimplifier::Impl::SplitDivConst(SplitExpr lhs, int64_t cval, 
       return lhs;
     } else if (lhs->upper_factor <= (lhs->lower_factor * scaled_cval)) {
       // (x % c1) / c2  => 0 when c2 >= c1
-      return ToSplitExpr(IntImm(lhs.dtype(), 0));
+      return ToSplitExpr(IntImm(lhs.ty(), 0));
     } else {
       // move the upper_factor modular into index.
       lhs.CopyOnWrite()->index =
-          ModImpl(lhs->index, MakeConst(lhs.dtype(), lhs->upper_factor), div_mode);
+          ModImpl(lhs->index, MakeConst(lhs.ty(), lhs->upper_factor), div_mode);
       lhs.CopyOnWrite()->upper_factor = SplitExprNode::kPosInf;
       lhs.CopyOnWrite()->scale = 1;
       lhs.CopyOnWrite()->lower_factor *= scaled_cval;
@@ -862,8 +862,9 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   if (prhs->as<IntImmNode>()) return false;
   // collect lhs products and try to eliminate by matching them to prod in rhs
   ffi::Array<ffi::Optional<PrimExpr>> lhs_prods;
-  PrimExpr new_rhs = MakeConst(prhs->dtype(), 1);
-  PrimExpr new_common_scale = MakeConst(prhs->dtype(), 1);
+  PrimType rhs_ty = prhs->ty();
+  PrimExpr new_rhs = MakeConst(rhs_ty, 1);
+  PrimExpr new_common_scale = MakeConst(rhs_ty, 1);
   int64_t lhs_cscale = 1, rhs_cscale = 1;
   int num_elimination = 0;
 
@@ -905,18 +906,19 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   if (num_elimination == 0 && cscale_gcd == 1) return false;
 
   // construct prod via canonical form
-  PrimExpr new_lhs = MakeConst(plhs->dtype(), 1);
+  PrimType lhs_ty = plhs->ty();
+  PrimExpr new_lhs = MakeConst(lhs_ty, 1);
   for (ffi::Optional<PrimExpr> val : lhs_prods) {
     if (val.defined()) new_lhs = new_lhs * val.value();
   }
-  *plhs = new_lhs * MakeConst(plhs->dtype(), lhs_cscale);
-  *prhs = new_rhs * MakeConst(prhs->dtype(), rhs_cscale);
-  *common_scale = new_common_scale * MakeConst(prhs->dtype(), cscale_gcd);
+  *plhs = new_lhs * MakeConst(lhs_ty, lhs_cscale);
+  *prhs = new_rhs * MakeConst(rhs_ty, rhs_cscale);
+  *common_scale = new_common_scale * MakeConst(rhs_ty, cscale_gcd);
   return true;
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
 
@@ -958,7 +960,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return IntImm(a.dtype(), 0);
+        return IntImm(a.ty(), 0);
       }
     }
     return SplitDivConst(ToSplitExpr(std::move(a)), cval, kTruncDiv);
@@ -980,7 +982,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
   PrimExpr a = this->CanonicalMutate(op->a);
@@ -1019,7 +1021,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
       if (cbound->min_value >= 0 && cbound->max_value < cval) {
-        return IntImm(a.dtype(), 0);
+        return IntImm(a.ty(), 0);
       }
     }
     // Identity: floordiv(floormod(index, m*n), n) = floormod(floordiv(index, n), m)
@@ -1049,7 +1051,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
             }
             // Apply floormod(floordiv_result, m) to complete the identity
             PrimExpr div_result = Normalize(lhs);
-            return this->VisitExpr(floormod(div_result, MakeConst(a.dtype(), new_mod)));
+            return this->VisitExpr(floormod(div_result, MakeConst(a.ty(), new_mod)));
           }
         }
       }
@@ -1095,8 +1097,8 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
       // Perhaps there are more chances in simplifying the index
       // Do a recursive call to simplify the mod with the new factor.
       if (new_upper_factor < lhs->upper_factor && lhs->upper_factor != SplitExprNode::kPosInf) {
-        auto updated = ToSplitExpr(this->VisitExpr(
-            ModImpl(lhs->index, MakeConst(lhs.dtype(), new_upper_factor), div_mode)));
+        auto updated = ToSplitExpr(
+            this->VisitExpr(ModImpl(lhs->index, MakeConst(lhs.ty(), new_upper_factor), div_mode)));
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
           auto ret = SplitDivConst(updated, lhs->lower_factor, div_mode);
@@ -1126,7 +1128,7 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
   // normalize
@@ -1144,7 +1146,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
       SumExpr lhs, extra;
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       if (extra->IsZero()) {
-        return IntImm(a.dtype(), 0);
+        return IntImm(a.ty(), 0);
       }
       // both lhs and extra are non-negative
       if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
@@ -1200,7 +1202,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
   // normalize
@@ -1362,7 +1364,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ReduceNode* op) {
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
-  if (!IsIndexType(op->dtype)) {
+  if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
   // normalize
@@ -1370,15 +1372,15 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   // PushCastToChildren
   if (value.as<SumExprNode>()) {
     SumExpr se = value.as_or_throw<SumExpr>();
-    if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
-      se.CopyOnWrite()->PushCastToChildren(op->dtype);
+    if (se->CanPushCastToChildren(op->ty(), analyzer_)) {
+      se.CopyOnWrite()->PushCastToChildren(op->ty());
       return se;
     }
   }
   if (value.as<SplitExprNode>()) {
     SplitExpr se = value.as_or_throw<SplitExpr>();
-    if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
-      se.CopyOnWrite()->PushCastToChildren(op->dtype);
+    if (se->CanPushCastToChildren(op->ty(), analyzer_)) {
+      se.CopyOnWrite()->PushCastToChildren(op->ty());
       return se;
     }
   }
@@ -1411,8 +1413,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
     }
     SumExpr divisible, extra;
     SeparateDivisibleParts(lhs, gcd, &divisible, &extra);
-    DataType dtype = divisible->dtype;
-    TVM_FFI_ICHECK(extra->dtype == dtype);
+    PrimType dtype = divisible->ty();
+    TVM_FFI_ICHECK(extra->ty()->dtype == dtype->dtype);
     PrimExpr normal_extra = extra->Normalize();
     if (this->analyzer_->CanProve(normal_extra < MakeConst(dtype, gcd)) &&
         this->analyzer_->CanProve(normal_extra >= IntImm(dtype, 0))) {

@@ -83,7 +83,7 @@ class RNNStateImpObj : public RNNStateObj {
   const ffi::Array<Tensor> init_layer_value_;
 
   /*! \brief We fix int32 to be the index dtype of auxiliary data. */
-  const DLDataType dtype_aux_ = DLDataType(DataType::Int(32, 1));
+  const DLDataType dtype_aux_ = DLDataType{kDLInt, 32, 1};
 
   /******************* Storage Structures *******************/
 

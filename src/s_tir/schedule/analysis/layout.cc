@@ -40,7 +40,7 @@ ffi::Array<PrimExpr> GetStrides(const Buffer& buffer) {
     return {};
   }
   ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
-  PrimExpr stride = MakeConst(buffer->DefaultIndexType(), 1);
+  PrimExpr stride = MakeConst(PrimType(buffer->DefaultIndexType()), 1);
   for (int i = ndim - 1; i >= 0; --i) {
     strides.Set(i, stride);
     stride = stride * buffer->shape[i];
@@ -146,7 +146,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
   // Step 2. Calculate a functor that flattens a multi-dimensional index
   auto f_flatten_index = [ndim, strides = GetStrides(buffer), dtype = buffer->DefaultIndexType()](
                              const ffi::Array<PrimExpr>& indices) -> PrimExpr {
-    PrimExpr flatten_index = IntImm(dtype, 0);
+    PrimExpr flatten_index = IntImm(PrimType(dtype), 0);
     for (int i = 0; i < ndim; ++i) {
       flatten_index = flatten_index + strides[i] * indices[i];
     }
@@ -223,7 +223,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
     }
 
     // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.
-    PrimExpr flattened_index = IntImm(indices[0]->dtype, 0);
+    PrimExpr flattened_index = IntImm(indices[0].ty(), 0);
     int64_t stride = 1;
     for (int i = static_cast<int>(split_exprs.size()) - 1; i >= 0; --i) {
       flattened_index = inv_permuted_indices[i] * IntImm::Int32(stride) + flattened_index;

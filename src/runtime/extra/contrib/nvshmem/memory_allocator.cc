@@ -57,7 +57,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
     return allocator;
   }
 
-  Tensor Empty(ffi::Shape shape, DataType dtype, Device device) {
+  Tensor Empty(ffi::Shape shape, DLDataType dtype, Device device) {
     class NVSHMEMAlloc {
      public:
       explicit NVSHMEMAlloc(Buffer buffer) : buffer_(buffer) {}
@@ -87,7 +87,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
   void DeviceFreeDataSpace(Device dev, void* ptr) final { nvshmem_free(ptr); }
 };
 
-Tensor NVSHMEMEmpty(ffi::Shape shape, DataType dtype, ffi::Optional<Device> device) {
+Tensor NVSHMEMEmpty(ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device) {
   return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 

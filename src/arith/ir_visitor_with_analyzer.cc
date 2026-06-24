@@ -79,7 +79,7 @@ void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
       IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
+      analyzer_->Bind(iv->var, Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value));
     }
     StmtExprVisitor::VisitStmt_(op);
   });

@@ -44,15 +44,15 @@ void CoreMLModel::SetInput(const std::string& key, DLTensor* data_in) {
     [shape addObject:[NSNumber numberWithInteger:data_in->shape[i]]];
   }
 
-  DataType dtype(data_in->dtype);
+  DLDataType dtype = data_in->dtype;
   MLMultiArrayDataType dataType;
-  if (dtype == DataType::Float(64)) {
+  if (dtype == DLDataType{kDLFloat, 64, 1}) {
     dataType = MLMultiArrayDataTypeDouble;
     size *= sizeof(double);
-  } else if (dtype == DataType::Float(32)) {
+  } else if (dtype == DLDataType{kDLFloat, 32, 1}) {
     dataType = MLMultiArrayDataTypeFloat32;
     size *= sizeof(float);
-  } else if (dtype == DataType::Int(32)) {
+  } else if (dtype == DLDataType{kDLInt, 32, 1}) {
     dataType = MLMultiArrayDataTypeInt32;
     size *= sizeof(int);
   } else {
@@ -87,15 +87,15 @@ Tensor CoreMLModel::GetOutput(int index) const {
     shape.push_back(n);
   }
 
-  DataType dtype;
+  DLDataType dtype = DLDataType{kDLOpaqueHandle, 0, 0};
   if (data_desc.dataType == MLMultiArrayDataTypeDouble) {
-    dtype = DataType::Float(64);
+    dtype = DLDataType{kDLFloat, 64, 1};
     size *= sizeof(double);
   } else if (data_desc.dataType == MLMultiArrayDataTypeFloat32) {
-    dtype = DataType::Float(32);
+    dtype = DLDataType{kDLFloat, 32, 1};
     size *= sizeof(float);
   } else if (data_desc.dataType == MLMultiArrayDataTypeInt32) {
-    dtype = DataType::Int(32);
+    dtype = DLDataType{kDLInt, 32, 1};
     size *= sizeof(int);
   } else {
     LOG(FATAL) << "unexpected data type " << data_desc.dataType;

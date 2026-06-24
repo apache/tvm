@@ -21,10 +21,10 @@
  * \file External random functions for tensor.
  */
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -68,8 +68,6 @@
 
 namespace tvm {
 namespace contrib {
-
-using namespace runtime;
 
 struct RandomThreadLocalEntry {
   RandomEngine random_engine;

@@ -198,7 +198,7 @@ class ConcreteCodegenSourceBase : public CodeGenSourceBase {
   /*!
    * \brief Do nothing as this class exist to get access to methods of CodeGenSourceBase
    */
-  void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) final {
+  void PrintSSAAssign(const std::string& target, const std::string& src, PrimType t) final {
     return;
   }
 };

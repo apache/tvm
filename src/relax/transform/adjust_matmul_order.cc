@@ -208,22 +208,24 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     // If two of the three are compile-time, group those two values
     // together, to allow them to be lifted out and pre-computed.
     if (is_compile_time(expr_a) && is_compile_time(expr_b)) {
-      return matmul(matmul(expr_a, expr_b, DataType::Void()), expr_c, DataType::Void());
+      return matmul(matmul(expr_a, expr_b, (DLDataType{kDLOpaqueHandle, 0, 0})), expr_c,
+                    (DLDataType{kDLOpaqueHandle, 0, 0}));
     } else if (is_compile_time(expr_b) && is_compile_time(expr_c)) {
-      return matmul(expr_a, matmul(expr_b, expr_c, DataType::Void()), DataType::Void());
+      return matmul(expr_a, matmul(expr_b, expr_c, (DLDataType{kDLOpaqueHandle, 0, 0})),
+                    (DLDataType{kDLOpaqueHandle, 0, 0}));
     }
 
     // Otherwise, select the order that reduces the total number of
     // operations required, assuming a naive matmul (see below).
 
     if (shape_a.size() == 1) {
-      shape_a = {IntImm(shape_a[0].dtype(), 1), shape_a[0]};
+      shape_a = {IntImm(shape_a[0].ty(), 1), shape_a[0]};
     }
     if (shape_b.size() == 1) {
       if (matches.count(pat_matmul_on_lhs)) {
-        shape_b = {shape_b[0], IntImm(shape_b[0].dtype(), 1)};
+        shape_b = {shape_b[0], IntImm(shape_b[0].ty(), 1)};
       } else if (matches.count(pat_matmul_on_rhs)) {
-        shape_b = {IntImm(shape_b[0].dtype(), 1), shape_b[0]};
+        shape_b = {IntImm(shape_b[0].ty(), 1), shape_b[0]};
       } else {
         TVM_FFI_THROW(InternalError)
             << "OrPattern " << pat << " matched, but neither " << pat_matmul_on_lhs << " nor "
@@ -231,7 +233,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       }
     }
     if (shape_c.size() == 1) {
-      shape_c = {shape_c[0], IntImm(shape_c[0].dtype(), 1)};
+      shape_c = {shape_c[0], IntImm(shape_c[0].ty(), 1)};
     }
 
     PrimExpr size_N = shape_a[shape_a.size() - 2];  // row of A
@@ -285,9 +287,11 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
                       size_N > 0 && size_R > 0 && size_M > 0 && size_B > 0);
 
     if (analyzer->CanProve(ops_with_lhs_first < ops_with_rhs_first)) {
-      return matmul(matmul(expr_a, expr_b, DataType::Void()), expr_c, DataType::Void());
+      return matmul(matmul(expr_a, expr_b, (DLDataType{kDLOpaqueHandle, 0, 0})), expr_c,
+                    (DLDataType{kDLOpaqueHandle, 0, 0}));
     } else if (analyzer->CanProve(ops_with_rhs_first < ops_with_lhs_first)) {
-      return matmul(expr_a, matmul(expr_b, expr_c, DataType::Void()), DataType::Void());
+      return matmul(expr_a, matmul(expr_b, expr_c, (DLDataType{kDLOpaqueHandle, 0, 0})),
+                    (DLDataType{kDLOpaqueHandle, 0, 0}));
     }
 
     // If we cannot determine which order is best, keep the existing order.

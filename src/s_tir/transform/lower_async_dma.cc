@@ -76,11 +76,17 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
 
     auto src = BufferLoad(mem_copy->source->buffer, {src_min});
     auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
+    DLDataType src_dtype = src.ty()->dtype;
+    int src_bytes = (src_dtype.bits * static_cast<int16_t>(src_dtype.lanes) + 7) / 8;
+    PrimExpr dst_nbytes = dst_extent * src_bytes;
     return Evaluate(
-        Call(DataType::Int(32), builtin::dma_copy(),
-             {async_queue_id_.value(), Call(DataType::Handle(), builtin::address_of(), {dst}),
-              Call(DataType::Handle(), builtin::address_of(), {src}),
-              dst_extent * src->dtype.bytes(), dma_bypass_cache_}));
+        Call(PrimType::Int(32), builtin::dma_copy(),
+             ffi::Array<PrimExpr>{
+                 async_queue_id_.value(),
+                 Call(PrimType::Handle(), builtin::address_of(), ffi::Array<PrimExpr>{dst}, Span()),
+                 Call(PrimType::Handle(), builtin::address_of(), ffi::Array<PrimExpr>{src}, Span()),
+                 dst_nbytes, dma_bypass_cache_},
+             Span()));
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
@@ -119,7 +125,7 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
         return previsit;
       }
       auto call_dma_wait =
-          Evaluate(Call(DataType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
+          Evaluate(Call(PrimType::Int(32), builtin::dma_wait(), {queue_id, async_wait->value}));
 
       // concatenate the call with the body and return
       return SeqStmt({call_dma_wait, arith::IRMutatorWithAnalyzer::VisitStmt(async_wait->body)});
@@ -147,9 +153,9 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
       auto result = arith::IRMutatorWithAnalyzer::VisitStmt_(op);
       if (dmas_in_group_ > 1) {
         auto call_dma_start_group = Evaluate(
-            Call(DataType::Int(32), builtin::dma_start_group(), {async_queue_id_.value()}));
+            Call(PrimType::Int(32), builtin::dma_start_group(), {async_queue_id_.value()}));
         auto call_dma_end_group =
-            Evaluate(Call(DataType::Int(32), builtin::dma_end_group(), {async_queue_id_.value()}));
+            Evaluate(Call(PrimType::Int(32), builtin::dma_end_group(), {async_queue_id_.value()}));
         result = SeqStmt({call_dma_start_group, result, call_dma_end_group});
       }
 

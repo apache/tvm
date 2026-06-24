@@ -128,18 +128,19 @@ TVM_REGISTER_OP("tirx.tvm_access_ptr")
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
-      DataType dtype = call->args[0].dtype();
+      PrimType dtype = call->args[0].ty();
       Var buffer_var = call->args[1].as_or_throw<Var>();
       PrimExpr offset = call->args[2];
-      TVM_FFI_ICHECK(call->dtype.is_handle());
+      TVM_FFI_ICHECK(call->ty().IsHandle());
       if (dtype.lanes() != 1) {
-        offset = offset * MakeConst(offset.dtype(), dtype.lanes());
-        offset = Ramp(offset, MakeConst(offset.dtype(), 1), dtype.lanes());
+        PrimType offset_ty = offset.ty();
+        offset = offset * MakeConst(offset_ty, dtype.lanes());
+        offset = Ramp(offset, MakeConst(offset_ty, 1), dtype.lanes());
       }
-      Buffer dummy_buf(buffer_var, dtype.element_of(), {offset + 1}, {}, 0, buffer_var->name_hint,
+      Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name_hint,
                        0, 0, kDefault);
       BufferLoad buf_load(dummy_buf, {offset});
-      return Call(DataType::Handle(), builtin::address_of(), {buf_load});
+      return Call(PrimType::Handle(), builtin::address_of(), {buf_load});
     });
 
 PrimExpr DispatchFastErf(const PrimExpr& e) {
@@ -148,9 +149,10 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 1);
   PrimExpr arg = call->args[0];
-  int bits = arg.dtype().bits();
+  PrimType arg_ty = arg.ty();
+  int bits = arg_ty.bits();
   PrimExpr res;
-  if (arg.dtype().is_float() && (bits == 16 || bits == 32)) {
+  if (arg_ty.code() == DLDataTypeCode::kDLFloat && (bits == 16 || bits == 32)) {
     res = fast_erf_float_expr(arg, bits);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type in Metal fast_erf";
@@ -163,9 +165,10 @@ PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
   const tirx::CallNode* call = e.as<tirx::CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   const PrimExpr& x = call->args[0];
-  PrimExpr one = MakeConst(x.dtype(), 1);
-  PrimExpr two = MakeConst(x.dtype(), 2);
-  PrimExpr neg_two = MakeConst(x.dtype(), -2);
+  PrimType x_ty = x.ty();
+  PrimExpr one = MakeConst(x_ty, 1);
+  PrimExpr two = MakeConst(x_ty, 2);
+  PrimExpr neg_two = MakeConst(x_ty, -2);
 
   PrimExpr exp_neg2x = exp(neg_two * x);
   PrimExpr exp_pos2x = exp(two * x);
@@ -173,7 +176,7 @@ PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
   PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
   PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
   // MakeConst can handle both vector and scalar types.
-  return tirx::Select(x >= MakeConst(x.dtype(), 0), tanh_pos, tanh_neg);
+  return tirx::Select(x >= MakeConst(x_ty, 0), tanh_pos, tanh_neg);
 }
 
 }  // namespace intrin
@@ -186,7 +189,7 @@ TVM_REGISTER_OP("tirx.rsqrt")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      auto one = MakeConst(call->args[0].dtype(), 1);
+      auto one = MakeConst(call->args[0].ty(), 1);
       return one / sqrt(call->args[0]);
     });
 
@@ -194,7 +197,7 @@ TVM_REGISTER_OP("tirx.sigmoid")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      auto one = MakeConst(call->args[0].dtype(), 1);
+      auto one = MakeConst(call->args[0].ty(), 1);
       return one / (one + exp(-call->args[0]));
     });
 
@@ -226,14 +229,19 @@ TVM_REGISTER_OP("tirx.isinf")
 static PrimExpr QMultiplyShift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr left_shift,
                                PrimExpr right_shift, PrimExpr is_left_shift_required) {
   // Only int32 types are supported (any number of lanes is allowed)
-  TVM_FFI_ICHECK(y.dtype().code() == DLDataTypeCode::kDLInt && y.dtype().bits() == 32);
-  TVM_FFI_ICHECK(left_shift.dtype().code() == DLDataTypeCode::kDLInt &&
-                 left_shift.dtype().bits() == 32);
-  TVM_FFI_ICHECK(right_shift.dtype().code() == DLDataTypeCode::kDLInt &&
-                 right_shift.dtype().bits() == 32);
+  TVM_FFI_ICHECK(y.ty().MatchesElementType(DLDataTypeCode::kDLInt, 32));
+  TVM_FFI_ICHECK(left_shift.ty().MatchesElementType(DLDataTypeCode::kDLInt, 32));
+  TVM_FFI_ICHECK(right_shift.ty().MatchesElementType(DLDataTypeCode::kDLInt, 32));
 
-  DataType hp_dtype = DataType::Int(64, x.dtype().lanes());
-  DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
+  PrimType x_ty = x.ty();
+  auto signed_int_ty = [](int bits, const PrimType& source_ty) {
+    if (source_ty.IsScalableVector()) {
+      return PrimType::ScalableVector(DLDataTypeCode::kDLInt, bits, source_ty.VScaleFactor());
+    }
+    return PrimType::Int(bits, source_ty.lanes());
+  };
+  PrimType hp_dtype = signed_int_ty(64, x_ty);
+  PrimType lp_dtype = signed_int_ty(32, x_ty);
 
   // 1) Cast and Multiply the integer multiplier
   PrimExpr one = MakeConst(hp_dtype, 1);
@@ -290,7 +298,11 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
           return x << exp;
         } else {
           // power of 2 is less than 0, round and then apply right shift.
-          DataType lp_dtype = DataType::Int(32, x.dtype().lanes());
+          PrimType x_ty = x.ty();
+          PrimType lp_dtype =
+              x_ty.IsScalableVector()
+                  ? PrimType::ScalableVector(DLDataTypeCode::kDLInt, 32, x_ty.VScaleFactor())
+                  : PrimType::Int(32, x_ty.lanes());
           PrimExpr one = MakeConst(lp_dtype, 1);
           exp = -exp;
           PrimExpr rounding_factor = one << (exp - 1);
@@ -299,10 +311,11 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
         }
       } else {
         // Only int32 types are supported (any number of lanes is allowed)
-        TVM_FFI_ICHECK(s.dtype().code() == DLDataTypeCode::kDLInt && s.dtype().bits() == 32);
+        TVM_FFI_ICHECK(s.ty().MatchesElementType(DLDataTypeCode::kDLInt, 32));
 
         // Calculating integer shifts. MakeConst can handle both vector and scalar types.
-        PrimExpr zero = MakeConst(s.dtype(), 0);
+        PrimType s_ty = s.ty();
+        PrimExpr zero = MakeConst(s_ty, 0);
         PrimExpr left_shift = tirx::Select(s > zero, s, zero);
         PrimExpr right_shift = tirx::Select(s > zero, zero, -s);
         PrimExpr is_left_shift_required = (left_shift != zero);

@@ -24,9 +24,9 @@
 #ifndef TVM_TIR_VAR_H_
 #define TVM_TIR_VAR_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/data_type.h>
 
 #include <functional>
 #include <string>
@@ -57,7 +57,7 @@ class VarNode : public PrimExprNode {
    *
    * It is an optional field that provides a refined type of the variable than dtype.
    *
-   * \sa tvm/ir/type.h for discussion of relations between runtime::DataType and Type.
+   * \sa tvm/ir/type.h for discussion of relations between DLPack dtype and Type.
    */
   Type type_annotation;
 
@@ -84,7 +84,7 @@ class Var : public PrimExpr {
    * \param dtype data type
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit Var(ffi::String name_hint = "v", DataType dtype = DataType::Int(32),
+  TVM_DLL explicit Var(ffi::String name_hint = "v", PrimType dtype = PrimType::Int(32),
                        Span span = Span());
   /*!
    * \brief Constructor which provides a more detailed type annotation.
@@ -110,7 +110,7 @@ class Var : public PrimExpr {
    * \param dtype The specified dtype
    * \return The new variable
    */
-  TVM_DLL Var copy_with_dtype(DataType dtype) const;
+  TVM_DLL Var copy_with_dtype(PrimType dtype) const;
 
   /*!
    * \brief Get pointer to the internal value.
@@ -150,7 +150,7 @@ class SizeVar : public Var {
    * \param t data type
    * \param span The location of this object in the source code.
    */
-  TVM_DLL explicit SizeVar(ffi::String name_hint = "s", DataType t = DataType::Int(32),
+  TVM_DLL explicit SizeVar(ffi::String name_hint = "s", PrimType t = PrimType::Int(32),
                            Span span = Span());
   /*!
    * \brief Constructor which provides a more detailed type annotation.

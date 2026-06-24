@@ -218,17 +218,18 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-      DataType dtype = op->args[0].dtype();
+      DLDataType dtype = op->args[0].ty()->dtype;
       const VarNode* buffer = op->args[1].as<VarNode>();
       auto it = alloc_remap_.find(buffer);
       if (it == alloc_remap_.end()) return StmtExprMutator::VisitExpr_(op);
       visit_touched_var_ = true;
       PrimExpr offset = this->VisitExpr(op->args[2]);
       PrimExpr extent = this->VisitExpr(op->args[3]);
-      PrimExpr stride = it->second / MakeConst(offset.dtype(), dtype.lanes());
+      PrimExpr stride = it->second / MakeConst(offset.ty(), static_cast<int16_t>((dtype).lanes));
       offset = RewriteIndex(offset, stride);
 
-      return Call(op->dtype, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
+      return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op,
+                  {op->args[0], op->args[1], offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? ffi::GetRef<PrimExpr>(op) : var_;
     } else {
@@ -465,15 +466,15 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       // do unrolling if it is inside innermost content.
       ffi::Array<Stmt> seq;
       for (int i = 0; i < num_threads_; ++i) {
-        seq.push_back(Substitute(stmt, {{var_, MakeConst(var_.dtype(), i)}}));
+        seq.push_back(Substitute(stmt, {{var_, MakeConst(var_.ty(), i)}}));
       }
       return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
-      Var idx(var_->name_hint + ".s", var_->dtype);
+      Var idx(var_->name_hint + ".s", var_.ty());
       stmt = Substitute(stmt, {{var_, idx}});
-      return For(idx, IntImm(idx.dtype(), 0), MakeConst(idx.dtype(), num_threads_),
-                 ForKind::kSerial, stmt);
+      return For(idx, IntImm(idx.ty(), 0), MakeConst(idx.ty(), num_threads_), ForKind::kSerial,
+                 stmt);
     }
   }
 

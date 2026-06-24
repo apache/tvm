@@ -58,14 +58,16 @@ class Scalarizer : public ExprMutator {
     }
   }
   PrimExpr VisitExpr_(const LetNode* op) final {
-    if (op->value.dtype().lanes() == 1) {
+    PrimType value_ty = op->value.ty();
+    if (value_ty.lanes() == 1) {
       return ExprMutator::VisitExpr_(op);
     }
 
     auto it = let_var_remap_.find(op->var.get());
     TVM_FFI_ICHECK(it == let_var_remap_.end()) << "Duplicate binding of variable " << op->var;
 
-    Var new_var(op->var->name_hint + "_scalar", op->var.dtype().element_of());
+    PrimType var_ty = op->var.ty();
+    Var new_var(op->var->name_hint + "_scalar", var_ty.WithLanes(1));
     let_var_remap_[op->var.get()] = new_var;
 
     PrimExpr value = this->VisitExpr(op->value);

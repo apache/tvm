@@ -23,8 +23,8 @@
 #ifndef TVM_TIR_IR_BUFFER_COMMON_H_
 #define TVM_TIR_IR_BUFFER_COMMON_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/data_type.h>
 
 #include <optional>
 
@@ -36,11 +36,11 @@ namespace tirx {
  *
  * \param type The type to be checked.
  *
- * \return An std::optional<DataType> object. If the type is a pointer
+ * \return An std::optional<DLDataType> object. If the type is a pointer
  * to a primitive type, the object has a value which is the pointed-to
  * type. Otherwise the object is nullopt.
  */
-inline std::optional<runtime::DataType> GetPointerType(const Type& type) {
+inline std::optional<DLDataType> GetPointerType(const Type& type) {
   if (type.defined()) {
     if (auto* ptr_type = type.as<PointerTypeNode>()) {
       if (auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {

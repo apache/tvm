@@ -321,7 +321,7 @@ class PagedDecodeFunc : public AttnBackendFunc {
                             Tensor page_locked_int_workspace_buffer, HostMemoryVector* page_indptr,
                             int64_t batch_size, int64_t page_size, int64_t num_qo_heads,
                             int64_t num_kv_heads, int64_t qk_head_dim, int64_t v_head_dim,
-                            RoPEMode rope_mode, DataType q_dtype, DataType kv_dtype,
+                            RoPEMode rope_mode, DLDataType q_dtype, DLDataType kv_dtype,
                             TVMStreamHandle copy_stream) {
     // Do nothing. Subclasses can override to customize behavior.
   }
@@ -377,7 +377,7 @@ class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
                     Tensor page_locked_int_workspace_buffer, HostMemoryVector* page_indptr,
                     int64_t batch_size, int64_t page_size, int64_t num_qo_heads,
                     int64_t num_kv_heads, int64_t qk_head_dim, int64_t v_head_dim,
-                    RoPEMode rope_mode, DataType q_dtype, DataType kv_dtype,
+                    RoPEMode rope_mode, DLDataType q_dtype, DLDataType kv_dtype,
                     TVMStreamHandle copy_stream) final {
     // Todo(tvm-team): enable cuda graph
     ffi::Shape plan_info_vec =

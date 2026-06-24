@@ -29,6 +29,7 @@ from functools import reduce
 import tvm_ffi
 
 from tvm import relax, tirx
+from tvm.runtime import DataTypeCode
 
 
 class BaseFXGraphImporter(metaclass=abc.ABCMeta):
@@ -566,7 +567,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if (
             isinstance(lhs, relax.Expr)
             and isinstance(lhs.ty, relax.TensorType)
-            and "int" in lhs.ty.dtype
+            and lhs.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT)
             and isinstance(rhs, int)
             and not isinstance(rhs, bool)
             and rhs >= 0
@@ -1607,7 +1608,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if attn_mask is not None:
             attn_mask = self.env[attn_mask]
             msg = "Only a float mask is supported for the attn_mask input."
-            assert "float" in attn_mask.ty.dtype, msg
+            assert attn_mask.ty.dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT), msg
 
         attention_output = self.block_builder.emit(
             relax.op.nn.attention(query, key, value, bias=attn_mask, causal_mask=causal_mask)

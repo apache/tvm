@@ -18,7 +18,7 @@
 
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
-from tvm import DataType, DataTypeCode, te
+from tvm import DataTypeCode, te
 from tvm.tirx import PrimExpr
 
 from . import cpp, tag
@@ -26,9 +26,13 @@ from .utils import get_const_tuple
 
 
 def _require_float_tensor(op_name, x):
-    if DataType(x.dtype).type_code not in (DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
+    if not x.dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
         raise TypeError(f"topi.{op_name} only supports floating-point inputs, but got {x.dtype}")
     return x
+
+
+def _is_integer_tensor(x):
+    return x.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT)
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -478,7 +482,7 @@ def log(x):
     y : tvm.te.Tensor
         The result.
     """
-    if x.dtype.startswith("int"):
+    if x.dtype.matches_code(DataTypeCode.INT):
         x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.log(x(*i)), tag=tag.ELEMWISE)
 
@@ -496,7 +500,7 @@ def log2(x):
     y : tvm.te.Tensor
         The result.
     """
-    if x.dtype.startswith("int"):
+    if x.dtype.matches_code(DataTypeCode.INT):
         x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.log2(x(*i)), tag=tag.ELEMWISE)
 
@@ -514,7 +518,7 @@ def log10(x):
     y : tvm.te.Tensor
         The result.
     """
-    if x.dtype.startswith("int"):
+    if x.dtype.matches_code(DataTypeCode.INT):
         x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.log10(x(*i)), tag=tag.ELEMWISE)
 
@@ -533,7 +537,7 @@ def sqrt(x):
     y : tvm.te.Tensor
         The result.
     """
-    if x.dtype.startswith("int"):
+    if x.dtype.matches_code(DataTypeCode.INT):
         x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.sqrt(x(*i)))
 
@@ -552,7 +556,7 @@ def rsqrt(x):
     y : tvm.te.Tensor
         The result.
     """
-    if x.dtype.startswith("int"):
+    if x.dtype.matches_code(DataTypeCode.INT):
         x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.rsqrt(x(*i)))
 
@@ -798,7 +802,7 @@ def fast_exp(x):
     y : tvm.te.Tensor
         The result.
     """
-    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+    if _is_integer_tensor(x):
         x = cast(x, "float32")
     return cpp.fast_exp(x, x.dtype, tag.ELEMWISE)
 
@@ -816,7 +820,7 @@ def fast_tanh(x):
     y : tvm.te.Tensor
         The result.
     """
-    if x.dtype.startswith("int") or x.dtype.startswith("uint"):
+    if _is_integer_tensor(x):
         x = cast(x, "float32")
     return cpp.fast_tanh(x, x.dtype, tag.ELEMWISE)
 
@@ -855,24 +859,26 @@ def ceil_log2(x):
     if not isinstance(x, tvm.tirx.PrimExpr):
         x = tvm.tirx.const(x)
 
-    if "float" in x.dtype:
+    if x.ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
         return tvm.tirx.ceil(tvm.tirx.log2(x))
 
     target = tvm.target.Target.current()
 
-    if "vulkan" in target.kind.name:
-        clz = tvm.tirx.clz(x)
-        bits = int(x.dtype[-2:])
-        res = tvm.tirx.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
-        if res.dtype != x.dtype:
-            return cast(res, x.dtype)
-        return res
+    if target is not None:
+        target_name = target.kind.name
+        if "vulkan" in target_name:
+            clz = tvm.tirx.clz(x)
+            bits = x.ty.dtype.bits
+            res = tvm.tirx.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
+            if res.dtype != x.dtype:
+                return cast(res, x.dtype)
+            return res
 
-    if "adreno" in str(target.attrs.get("device", "")) or target.kind.name in [
-        "metal",
-        "rocm",
-        "webgpu",
-    ]:
-        return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float32"))), x.dtype)
+        if "adreno" in str(target.attrs.get("device", "")) or target_name in [
+            "metal",
+            "rocm",
+            "webgpu",
+        ]:
+            return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float32"))), x.dtype)
 
     return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float64"))), x.dtype)

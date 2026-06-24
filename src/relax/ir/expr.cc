@@ -257,9 +257,9 @@ ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) {
 
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
-      return tvm::cast(DataType::Int(64), value);
+      return tvm::cast(PrimType::Int(64), value);
     }
-    TVM_FFI_ICHECK(value.dtype() == DataType::Int(64))
+    TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
         << "the value in ShapeType can only have dtype of int64";
     return value;
   });
@@ -350,7 +350,7 @@ Constant::Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span
   if (ty_annotation.defined()) {
     n->ty = ty_annotation.value();
   } else {
-    TensorType tinfo(ShapeExpr(values), n->data.DataType(), VDevice(), span);
+    TensorType tinfo(ShapeExpr(values), PrimType(n->data.DataType()), VDevice(), span);
     n->ty = tinfo;
   }
 
@@ -366,7 +366,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimValue::PrimValue(PrimExpr value, Span span) {
   ffi::ObjectPtr<PrimValueNode> n = ffi::make_object<PrimValueNode>();
-  n->ty = PrimType(value.dtype());
+  n->ty = PrimType(value.ty());
   n->value = std::move(value);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -396,9 +396,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         [](ffi::String value, Span span) { return StringImm(value, span); });
 }
 
-DataTypeImm::DataTypeImm(DataType value, Span span) {
+DataTypeImm::DataTypeImm(DLDataType value, Span span) {
   ffi::ObjectPtr<DataTypeImmNode> n = ffi::make_object<DataTypeImmNode>();
-  n->value = std::move(value);
+  n->value = value;
   n->span = std::move(span);
   n->ty = ObjectType();
   data_ = std::move(n);
@@ -407,7 +407,7 @@ DataTypeImm::DataTypeImm(DataType value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.DataTypeImm",
-                        [](DataType value, Span span) { return DataTypeImm(value, span); });
+                        [](DLDataType value, Span span) { return DataTypeImm(value, span); });
 }
 
 MatchCast::MatchCast(Var var, Expr value, Type ty, Span span) {

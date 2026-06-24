@@ -116,9 +116,9 @@ int GetMixedPrecisionInfo(const CallNode* call_node) {
  */
 class DTypeDecisionCollector : public ExprVisitor {
  public:
-  explicit DTypeDecisionCollector(DataType output_dtype) : output_dtype_(output_dtype) {}
+  explicit DTypeDecisionCollector(DLDataType output_dtype) : output_dtype_(output_dtype) {}
 
-  static VarDTypeMap Collect(Function func, DataType output_dtype) {
+  static VarDTypeMap Collect(Function func, DLDataType output_dtype) {
     DTypeDecisionCollector collector(output_dtype);
     collector.VisitExpr(func);
     return std::move(collector.only_fp16_map_);
@@ -165,7 +165,7 @@ class DTypeDecisionCollector : public ExprVisitor {
   }
 
   // merge the message for all vars in the expr list
-  void RequireArgsToType(ffi::Array<Expr> args, DataType to) {
+  void RequireArgsToType(ffi::Array<Expr> args, DLDataType to) {
     std::vector<Expr> arg_arr;
     std::vector<NType> to_arr;
     for (const Expr& arg : args) {
@@ -262,16 +262,16 @@ class DTypeDecisionCollector : public ExprVisitor {
     }
   }
 
-  DataType unknown_ = DataType(DataType::TypeCode::kFloat, 0, 1);
-  DataType fp16_ = DataType(DataType::TypeCode::kFloat, 16, 1);
-  DataType fp32_ = DataType(DataType::TypeCode::kFloat, 32, 1);
-  DataType output_dtype_;
+  DLDataType unknown_ = DLDataType{kDLFloat, 0, 1};
+  DLDataType fp16_ = DLDataType{kDLFloat, 16, 1};
+  DLDataType fp32_ = DLDataType{kDLFloat, 32, 1};
+  DLDataType output_dtype_;
   VarDTypeMap only_fp16_map_;
 };
 
 class ToMixedPrecisionRewriter : public ExprMutator {
  public:
-  explicit ToMixedPrecisionRewriter(const VarDTypeMap* only_fp16_map, DataType output_dtype,
+  explicit ToMixedPrecisionRewriter(const VarDTypeMap* only_fp16_map, DLDataType output_dtype,
                                     const std::unordered_set<std::string>& fp16_input_names)
       : only_fp16_map_(only_fp16_map),
         output_dtype_(output_dtype),
@@ -290,7 +290,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
           if (tensor_ty->vdevice.defined()) {
             vdev = tensor_ty->vdevice.value();
           }
-          TensorType fp16_ty(tensor_ty->shape.value(), DataType::Float(16), vdev, tensor_ty->span);
+          TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
           Var fp16_var(var->vid, fp16_ty, var->span);
           var_remap_[var->vid] = fp16_var;
           return fp16_var;
@@ -315,13 +315,14 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
       // supported to be rewritten
-      if (tensor->dtype != fp16_ && tensor->dtype != fp32_) return expr;
-      return astype(expr, DataType(ffi::StringToDLDataType(to[0].LeafValue())));
+      DLDataType tensor_dtype = tensor->dtype->dtype;
+      if (tensor_dtype != fp16_ && tensor_dtype != fp32_) return expr;
+      return astype(expr, ffi::StringToDLDataType(to[0].LeafValue()));
     };
     return TransformTupleLeaf<ffi::String>(expr, std::array<NType, 1>({to}), fvisitleaf);
   }
 
-  ffi::Array<Expr> RewriteArgs(const ffi::Array<Expr>& args, DataType to) {
+  ffi::Array<Expr> RewriteArgs(const ffi::Array<Expr>& args, DLDataType to) {
     ffi::Array<Expr> new_args;
     for (const Expr& arg : args) {
       if (IsNestedTensor(arg)) {
@@ -346,7 +347,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   bool AllFP16Castable(const ffi::Array<Expr>& args) {
     auto is_fp16 = [](Type ty) {
       if (auto tensor_ty = ty.as<TensorTypeNode>();
-          tensor_ty && tensor_ty->dtype == DataType::Float(16)) {
+          tensor_ty && tensor_ty->dtype == PrimType::Float(16)) {
         return true;
       }
       return false;
@@ -359,7 +360,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
         return false;
       }
 
-      if (data.DataType() == DataType::Float(16)) {
+      if (data.DataType() == DLDataType{kDLFloat, 16, 1}) {
         return true;
       }
 
@@ -372,17 +373,17 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       std::vector<uint8_t> bytes(size_1d * elem_bytes);
       data.CopyToBytes(bytes.data(), bytes.size());
 
-      if (data.DataType() == DataType::Float(32)) {
+      if (data.DataType() == DLDataType{kDLFloat, 32, 1}) {
         return CheckInFP16Range<float>(bytes, size_1d);
-      } else if (data.DataType() == DataType::Float(64)) {
+      } else if (data.DataType() == DLDataType{kDLFloat, 64, 1}) {
         return CheckInFP16Range<double>(bytes, size_1d);
-      } else if (data.DataType() == DataType::Int(8)) {
+      } else if (data.DataType() == DLDataType{kDLInt, 8, 1}) {
         return CheckInFP16Range<std::int8_t>(bytes, size_1d);
-      } else if (data.DataType() == DataType::Int(16)) {
+      } else if (data.DataType() == DLDataType{kDLInt, 16, 1}) {
         return CheckInFP16Range<std::int16_t>(bytes, size_1d);
-      } else if (data.DataType() == DataType::Int(32)) {
+      } else if (data.DataType() == DLDataType{kDLInt, 32, 1}) {
         return CheckInFP16Range<std::int32_t>(bytes, size_1d);
-      } else if (data.DataType() == DataType::Int(64)) {
+      } else if (data.DataType() == DLDataType{kDLInt, 64, 1}) {
         return CheckInFP16Range<std::int64_t>(bytes, size_1d);
       }
       return false;
@@ -476,7 +477,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     new_call.CopyOnWrite()->args = RemapArgs(new_call->args);
 
     // Then we rewrite the args according to the policy
-    std::optional<DataType> opt_new_dtype = std::nullopt;
+    std::optional<DLDataType> opt_new_dtype = std::nullopt;
 
     if (policy == kAlways) {
       opt_new_dtype = fp16_;
@@ -589,16 +590,16 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
   const VarDTypeMap* only_fp16_map_;
 
-  DataType fp16_ = DataType(DataType::TypeCode::kFloat, 16, 1);
-  DataType fp32_ = DataType(DataType::TypeCode::kFloat, 32, 1);
-  DataType output_dtype_;
+  DLDataType fp16_ = DLDataType{kDLFloat, 16, 1};
+  DLDataType fp32_ = DLDataType{kDLFloat, 32, 1};
+  DLDataType output_dtype_;
   ffi::Array<Var> params_;
   std::unordered_set<std::string> fp16_input_names_;
 
   const Op& wrap_param_op = Op::Get("relax.wrap_param");
 };
 
-Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
+Expr ToMixedPrecision(const Function& f, DLDataType out_dtype,
                       ffi::Optional<ffi::Array<ffi::String>> fp16_input_names) {
   VarDTypeMap only_fp16_map = DTypeDecisionCollector::Collect(f, out_dtype);
   std::unordered_set<std::string> fp16_input_names_set;
@@ -611,7 +612,7 @@ Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
 
 namespace transform {
 
-Pass ToMixedPrecision(const DataType& out_dtype,
+Pass ToMixedPrecision(DLDataType out_dtype,
                       ffi::Optional<ffi::Array<ffi::String>> fp16_input_names) {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
     return ToMixedPrecision(f, out_dtype, fp16_input_names).as_or_throw<Function>();

@@ -17,10 +17,10 @@
  * under the License.
  */
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/vm/tensor_cache_support.h>
 
@@ -45,7 +45,7 @@ using ParamRecord = TensorCacheMetadata::FileRecord::ParamRecord;
 struct ShardInfo {
   struct TensorInfo {
     ffi::Shape shape;
-    DataType dtype;
+    DLDataType dtype;
   };
   struct ShardFunc {
     std::string name;
@@ -67,8 +67,7 @@ ShardInfo::TensorInfo LoadTensorInfoFromJSON(const json::Array& json_tensor_info
     shape.push_back(shape_json[i].cast<int64_t>());
   }
   std::string dtype = json_tensor_info[1].cast<ffi::String>();
-  return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)),
-                               DataType(ffi::StringToDLDataType(dtype))};
+  return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)), ffi::StringToDLDataType(dtype)};
 }
 
 ShardInfo::ShardFunc LoadShardFuncFromJSON(const json::Array& json_shard_func) {
@@ -301,7 +300,7 @@ Tensor ShardLoaderObj::Load(int weight_index) const {
   bool needs_sharding = !param_info.shard_info.funcs.empty();
   if (needs_sharding) {
     ffi::Shape shape = param_info.shard_info.funcs.back().output_info.shape;
-    DataType dtype = param_info.shard_info.funcs.back().output_info.dtype;
+    DLDataType dtype = param_info.shard_info.funcs.back().output_info.dtype;
     TVM_FFI_CHECK(shape.size() >= 1 && shape[0] == num_shards, ValueError)
         << "The first dimension of the "
         << "output shape must be equal to the "

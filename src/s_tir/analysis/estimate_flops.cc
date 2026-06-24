@@ -26,15 +26,13 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-int32_t DataType2Int(const tvm::DataType& dtype) {
+int32_t DataType2Int(DLDataType dtype) {
   static_assert(sizeof(DLDataType) == sizeof(int32_t), "Incorrect size of DLDataType");
   union {
     DLDataType src;
     int32_t dst;
   } converter;
-  converter.src.code = dtype.code();
-  converter.src.bits = dtype.bits();
-  converter.src.lanes = dtype.lanes();
+  converter.src = dtype;
   return converter.dst;
 }
 
@@ -57,7 +55,7 @@ ffi::String Int2DataTypeStr(int32_t dtype) {
 struct TResult {
   TResult() = default;
 
-  void Add(const tvm::DataType& dtype) { data_[DataType2Int(dtype)] += 1; }
+  void Add(DLDataType dtype) { data_[DataType2Int(dtype)] += 1; }
 
   TResult operator+=(const TResult& rhs) {
     for (const auto& kv : rhs.data_) {
@@ -98,7 +96,7 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr_(const Node* op) final {     \
     TResult result = VisitExpr(op->a);           \
     result += VisitExpr(op->b);                  \
-    result.Add(op->dtype);                       \
+    result.Add(op->ty()->dtype);                 \
     return result;                               \
   }
   TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(AddNode);

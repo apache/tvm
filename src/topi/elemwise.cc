@@ -92,11 +92,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   })
       .def_packed("topi.cast",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = cast(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = cast(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.reinterpret",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = reinterpret(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+                    *rv = reinterpret(args[0].cast<te::Tensor>(), args[1].cast<PrimType>());
                   })
       .def_packed("topi.elemwise_sum",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
@@ -106,7 +106,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                   ffi::Any* rv) { *rv = sign(args[0].cast<te::Tensor>()); })
       .def_packed("topi.full",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
-                    *rv = full(args[0].cast<ffi::Array<PrimExpr>>(), args[1].cast<DataType>(),
+                    *rv = full(args[0].cast<ffi::Array<PrimExpr>>(), args[1].cast<PrimType>(),
                                args[2].cast<PrimExpr>());
                   })
       .def_packed("topi.full_like",

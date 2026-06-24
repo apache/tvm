@@ -54,7 +54,7 @@ class RenewDefMutator : public StmtExprMutator {
       params.push_back(generator.ReDefineVar(param));
     }
     for (const auto& param : func->params) {
-      if (param->dtype.is_handle()) {
+      if (param->ty().IsHandle()) {
         const Buffer& buffer = func->buffer_map.at(param);
         for (const PrimExpr& e : buffer->shape) {
           if (const auto* v = e.as<VarNode>()) {
@@ -69,7 +69,7 @@ class RenewDefMutator : public StmtExprMutator {
     // TODO(Siyuan Feng): checking var is used after define
     ffi::Map<tirx::Var, Buffer> buffer_map;
     for (const auto& param : func->params) {
-      if (param->dtype.is_handle()) {
+      if (param->ty().IsHandle()) {
         const Buffer& buffer = func->buffer_map.at(param);
         Var new_param = generator.VisitExpr(param).as_or_throw<Var>();
         Buffer new_buffer = generator.DefineBuffer(buffer);

@@ -60,10 +60,10 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
   void VisitExpr(const PrimExpr& node, const PrimExpr& other) {
     if (node.same_as(other)) {
       return;
-    } else if (node.dtype().code() != other.dtype().code()) {
+    } else if (node.ty().code() != other.ty().code()) {
       TVM_FFI_THROW(InternalError)
-          << "Parameter expression " << node << " with dtype " << node.dtype()
-          << " cannot match to argument " << other << " with dtype " << other.dtype();
+          << "Parameter expression " << node << " with dtype " << node.ty()->dtype
+          << " cannot match to argument " << other << " with dtype " << other.ty()->dtype;
     } else {
       ExprFunctor::VisitExpr(node, other);
     }
@@ -120,9 +120,10 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
   void VisitExpr_(const CastNode* op, const PrimExpr& other) {
     const auto* rhs = other.as<CastNode>();
     if (!rhs) {
-      TVM_FFI_THROW(InternalError) << "Parameter expression " << ffi::GetRef<PrimExpr>(op)
-                                   << " expected an cast to " << op->dtype << " as the argument, "
-                                   << "but was provided with the argument " << other;
+      TVM_FFI_THROW(InternalError)
+          << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " expected an cast to "
+          << op->ty()->dtype << " as the argument, "
+          << "but was provided with the argument " << other;
     }
     VisitExpr(op->value, rhs->value);
   }
@@ -132,10 +133,11 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
 
     if (lhs.same_as(rhs)) {
       // Reference identity, no further checks needed.
-    } else if (op->dtype.code() != rhs->dtype.code()) {
+    } else if (op->ty().code() != rhs.ty().code()) {
       TVM_FFI_THROW(InternalError)
-          << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " with dtype " << op->dtype
-          << " cannot match to argument " << rhs << " with dtype " << rhs.dtype();
+          << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " with dtype "
+          << op->ty()->dtype << " cannot match to argument " << rhs << " with dtype "
+          << rhs.ty()->dtype;
     } else if (auto it = var_remap_->find(lhs); it != var_remap_->end()) {
       VisitExpr((*it).second, rhs);
     } else {
@@ -592,7 +594,7 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // Buffer is used more than param it gets the name with better
         // readability.
-        tirx::Var param = tirx::Var("p_" + buffer->name, tvm::PrimType(DataType::Handle()));
+        tirx::Var param = tirx::Var("p_" + buffer->name, tvm::PrimType::Handle());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
       }
@@ -636,8 +638,7 @@ class FusedTIRConstructor : public ExprVisitor {
         continue;
       }
 
-      tirx::Var param =
-          tirx::Var("p_output" + std::to_string(out_idx), tvm::PrimType(DataType::Handle()));
+      tirx::Var param = tirx::Var("p_output" + std::to_string(out_idx), tvm::PrimType::Handle());
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);
@@ -855,9 +856,10 @@ class FusedTIRConstructor : public ExprVisitor {
     for (int64_t idx : output_indices) {
       int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
-      if (param->dtype.is_int() || param->dtype.is_uint()) {
+      tvm::PrimType param_ty = param.ty();
+      if (param_ty.code() == DLDataTypeCode::kDLInt || param_ty.code() == DLDataTypeCode::kDLUInt) {
         if (symbolic_var_index == -1) symbolic_var_index = i;
-      } else if (param->dtype.is_handle()) {
+      } else if (param_ty.IsHandle()) {
         TVM_FFI_ICHECK(symbolic_var_index == -1)
             << "The scalar input should be at the ending of the "
                "parameter list.";
@@ -865,7 +867,7 @@ class FusedTIRConstructor : public ExprVisitor {
       } else {
         TVM_FFI_THROW(InternalError)
             << "The params of PrimFunc are expected to be Buffer handle or scalar, but got: "
-            << param->dtype;
+            << param_ty->dtype;
       }
     }
 
@@ -967,7 +969,7 @@ class FusedTIRConstructor : public ExprVisitor {
       // Case 1. The relax param is a Tensor, we directly create a tirx var and buffer
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
-      DataType dtype = tensor->dtype;
+      DLDataType dtype = tensor->dtype->dtype;
       tirx::Buffer buffer;
       if (tir_buffer_param.defined()) {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
@@ -980,7 +982,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
       // Case 2. The relax param is a scalar, we directly create a tirx var
-      out->push_back(tirx::Var(name_hint, prim_value->dtype));
+      out->push_back(tirx::Var(name_hint, tvm::PrimType(prim_value->dtype)));
 
     } else if (const auto* shape_expr = ty.as<ShapeTypeNode>()) {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
@@ -1257,7 +1259,7 @@ class TIRFuseMutator : public ExprMutator {
         if (const auto* literal = arg.as<PrimValueNode>()) {
           tir_vars.push_back(literal->value);
         } else if (const auto* var = arg.as<VarNode>()) {
-          tir_vars.push_back(tirx::Var(var->name_hint(), prim_value->dtype));
+          tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype)));
         } else {
           TVM_FFI_THROW(TypeError) << "FuseTIR expects scalar arguments to be PrimValue or Var, "
                                    << "but received " << arg;

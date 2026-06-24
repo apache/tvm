@@ -98,7 +98,7 @@ ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tirx::PrimFunc& func) {
   for (const tirx::Var& arg : func->params) {
     if (ffi::Optional<tirx::Buffer> _buffer = func->buffer_map.Get(arg)) {
       tirx::Buffer buffer = _buffer.value();
-      result.push_back(TensorInfo(/*dtype=*/buffer->dtype,
+      result.push_back(TensorInfo(/*dtype=*/buffer->dtype->dtype,
                                   /*shape=*/AsVector<PrimExpr, int64_t>(buffer->shape)));
     } else {
       TVM_FFI_THROW(ValueError) << "Unsupported argument type: " << arg;
@@ -117,7 +117,7 @@ ffi::Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_prep
 
 /******** TensorInfo ********/
 
-TensorInfo::TensorInfo(runtime::DataType dtype, ffi::Shape shape) {
+TensorInfo::TensorInfo(DLDataType dtype, ffi::Shape shape) {
   ffi::ObjectPtr<TensorInfoNode> n = ffi::make_object<TensorInfoNode>();
   n->dtype = dtype;
   n->shape = shape;
@@ -150,7 +150,7 @@ TensorInfo TensorInfo::FromJSON(const ffi::ObjectRef& json_obj) {
   }
   std::vector<int64_t> s;
   std::transform(shape.begin(), shape.end(), std::back_inserter(s), [](int64_t i) { return i; });
-  return TensorInfo(DataType(dtype), ffi::Shape(s.begin(), s.end()));
+  return TensorInfo(dtype, ffi::Shape(s.begin(), s.end()));
 }
 
 /******** Repr ********/
@@ -182,10 +182,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.meta_schedule.ArgInfoFromPrimFunc", ArgInfo::FromPrimFunc)
       .def("s_tir.meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
       .def("s_tir.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON)
-      .def("s_tir.meta_schedule.TensorInfo",
-           [](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
-             return TensorInfo(dtype, shape);
-           });
+      .def("s_tir.meta_schedule.TensorInfo", [](DLDataType dtype, ffi::Shape shape) -> TensorInfo {
+        return TensorInfo(dtype, shape);
+      });
 }
 
 }  // namespace meta_schedule

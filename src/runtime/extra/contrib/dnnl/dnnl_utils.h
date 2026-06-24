@@ -34,7 +34,7 @@
 //  -Wzero-as-null-pointer-constant and -Wdocumentation-unknown-command
 #include <dnnl.hpp>
 
-#include "tvm/runtime/data_type.h"
+#include "tvm/ffi/dtype.h"
 
 namespace tvm {
 namespace runtime {

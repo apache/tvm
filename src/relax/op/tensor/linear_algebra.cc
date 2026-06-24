@@ -42,9 +42,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /* relax.matmul */
 
-Expr matmul(Expr x1, Expr x2, ffi::Optional<DataType> out_dtype) {
+Expr matmul(Expr x1, Expr x2, ffi::Optional<DLDataType> out_dtype) {
   ffi::ObjectPtr<MatmulAttrs> attrs = ffi::make_object<MatmulAttrs>();
-  attrs->out_dtype = out_dtype.value_or(DataType::Void());
+  attrs->out_dtype = out_dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
 
   static const Op& op = Op::Get("relax.matmul");
   return Call(op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
@@ -74,9 +74,9 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<MatmulAttrs>();
-  DataType out_dtype = attrs->out_dtype.is_void()
-                           ? InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty)
-                           : attrs->out_dtype;
+  PrimType out_dtype = PrimType(attrs->out_dtype == DLDataType{kDLOpaqueHandle, 0, 0}
+                                    ? InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty)
+                                    : attrs->out_dtype);
 
   if (x1_ty->IsUnknownNdim() || x2_ty->IsUnknownNdim()) {
     if (vdev.defined()) {
@@ -158,7 +158,7 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(output_shape), out_dtype);
 }
 
-Call InferMixedPrecisionMatmul(const Call& call, const DataType& out_dtype) {
+Call InferMixedPrecisionMatmul(const Call& call, DLDataType out_dtype) {
   return matmul(call->args[0], call->args[1], out_dtype).as_or_throw<Call>();
 }
 
@@ -218,17 +218,17 @@ Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
 
   ffi::String subscripts = attrs->subscripts;
 
-  DataType operand_dtype = operands_tensor_ty[0]->dtype;
+  PrimType operand_ty = operands_tensor_ty[0]->dtype;
   std::vector<ffi::Array<PrimExpr>> input_shapes;
   input_shapes.reserve(operands_tensor_ty.size());
 
   for (TensorType tensor_ty : operands_tensor_ty) {
     // Check the input tuple consists of tensors with same dtype
-    if (tensor_ty->dtype != operand_dtype) {
+    if (tensor_ty->dtype != operand_ty) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "Einsum expects all input tensors to have the same dtype. However, the "
              "input contains tensors with dtype "
-          << operand_dtype << " and " << tensor_ty->dtype;
+          << operand_ty << " and " << tensor_ty->dtype;
     }
 
     // Get input shapes
@@ -237,18 +237,18 @@ Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
       input_shapes.push_back(shape_expr->values);
     } else {
       if (!vdevice_unknown) {
-        return TensorType(operand_dtype, tensor_ty->ndim, vdev);
+        return TensorType(operand_ty, tensor_ty->ndim, vdev);
       }
-      return TensorType(operand_dtype, tensor_ty->ndim);
+      return TensorType(operand_ty, tensor_ty->ndim);
     }
   }
   // Calculate output shape using InferEinsumShape in topi
   ffi::Array<PrimExpr> oshape = topi::InferEinsumShape(subscripts, input_shapes);
 
   if (!vdevice_unknown) {
-    return TensorType(ShapeExpr(oshape), operand_dtype, vdev);
+    return TensorType(ShapeExpr(oshape), operand_ty, vdev);
   }
-  return TensorType(ShapeExpr(oshape), operand_dtype);
+  return TensorType(ShapeExpr(oshape), operand_ty);
 }
 
 TVM_REGISTER_OP("relax.einsum")

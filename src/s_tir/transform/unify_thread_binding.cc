@@ -55,7 +55,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     }
     IterVar old_iter_var = op->node.as_or_throw<IterVar>();
     return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
-                                  Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
+                                  Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value));
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -76,12 +76,12 @@ class ThreadBindingUnifier : public StmtExprMutator {
 
     } else {
       // Create a new unit loop with the annotation.
-      DataType dtype = op->loop_var->dtype;
-      return For(/*loop_var=*/Var("var", dtype),   //
-                 /*min=*/IntImm(dtype, 0),         //
-                 /*extent=*/IntImm(dtype, 1),      //
-                 /*kind=*/ForKind::kSerial, stmt,  //
-                 /*thread_binding=*/std::nullopt,  //
+      PrimType loop_ty = op->loop_var.ty();
+      return For(/*loop_var=*/Var("var", loop_ty),  //
+                 /*min=*/IntImm(loop_ty, 0),        //
+                 /*extent=*/IntImm(loop_ty, 1),     //
+                 /*kind=*/ForKind::kSerial, stmt,   //
+                 /*thread_binding=*/std::nullopt,   //
                  /*annotation=*/std::move(annotations),
                  /*step=*/std::nullopt);
     }
@@ -121,7 +121,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
     } else {
-      new_iter_var = IterVar(dom, Var(thread_tag, dom->extent.dtype()), old_iter_var->iter_type,
+      new_iter_var = IterVar(dom, Var(thread_tag, dom->extent.ty()), old_iter_var->iter_type,
                              old_iter_var->thread_tag);
       thread_tag2iter_var_map_.Set(thread_tag, new_iter_var);
       launch_threads_.push_back(new_iter_var);
@@ -130,7 +130,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     // Step 4. We will substitute the occurrences of the old variable in the old IterVar with the
     // new variable in further mutation. Thus, we store the mapping entry. Cast to old dtype if
     // needed (we assume both old and new dtype are valid for the range of the thread extent).
-    var_substitution_map_.Set(old_var, cast(old_var.dtype(), new_iter_var->var));
+    var_substitution_map_.Set(old_var, cast(old_var.ty(), new_iter_var->var));
 
     // Step 5. Mutate recursively, update the body with the new IterVar, and restore the depth
     // counter. Emit for-loops to launch threads if current statement is the outermost thread

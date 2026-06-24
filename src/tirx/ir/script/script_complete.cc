@@ -45,8 +45,9 @@ class ScriptCompleter : public StmtMutator {
   ffi::Map<Var, Buffer>* buffer_var_map_;
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
-      TVM_FFI_ICHECK(value.dtype().is_int())
-          << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
+      PrimType value_ty = value.ty();
+      TVM_FFI_ICHECK(value_ty.code() == DLDataTypeCode::kDLInt)
+          << "BlockRealize iter_value expected a IntImm, but got " << value_ty->dtype;
     }
     return StmtMutator::VisitStmt_(op);
   }

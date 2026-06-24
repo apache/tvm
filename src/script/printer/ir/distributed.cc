@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ir/expr.h>
 
 #include "./utils.h"

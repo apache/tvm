@@ -282,7 +282,7 @@ class LegalizeMutator : public ExprMutator {
         //     This fallback would only be applicable for cases where
         //     both the dtype and the dimensionality are known.  While
         //     Relax can express a tensor with unknown dtype and
-        //     dimensionality as `TensorType(DataType::Void(),
+        //     dimensionality as `TensorType(DLDataType{kDLOpaqueHandle, 0, 0},
         //     kUnknownNDim)`, TIR cannot express unknown dtype or
         //     unknown dimensionality.
         return false;

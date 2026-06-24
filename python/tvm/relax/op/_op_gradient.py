@@ -22,6 +22,7 @@ import operator
 
 from tvm import relax
 from tvm.arith import Analyzer
+from tvm.ir import PrimType
 from tvm.relax.type import ShapeType
 
 from ...tirx import PrimExpr
@@ -81,6 +82,8 @@ def _get_dtype(expr: Expr) -> str:
         raise RuntimeError(
             f"Get the dtype of {expr} failed. Please normalize it first and ensure it is a Tensor."
         ) from error
+    if isinstance(dtype, PrimType):
+        dtype = dtype.dtype
     return dtype
 
 

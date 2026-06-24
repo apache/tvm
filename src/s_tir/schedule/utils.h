@@ -166,7 +166,7 @@ inline bool IsSingleStmt(const Stmt& stmt) {
  */
 inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType iter_var_type) {
   return IterVar(Range::FromMinExtent(loop->min, loop->extent),
-                 Var(std::move(name), loop->loop_var.dtype()), iter_var_type);
+                 Var(std::move(name), loop->loop_var.ty()), iter_var_type);
 }
 
 /*!
@@ -241,7 +241,7 @@ inline ffi::Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr,
   // match: "var - shift"
   if ((var - shift).Match(expr)) {
     IntImm result = shift.Eval();
-    *constant = IntImm(result->dtype, -result->value);
+    *constant = IntImm(result.ty(), -result->value);
     return var.Eval();
   }
   return std::nullopt;

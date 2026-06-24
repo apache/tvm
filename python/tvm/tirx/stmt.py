@@ -35,7 +35,7 @@ import tvm_ffi
 
 from tvm.ir import Op, PrimExpr, Range, Span
 from tvm.runtime import Object, Scriptable, const
-from tvm.tirx import FloatImm
+from tvm.tirx import FloatImm, IntImm
 
 from . import _ffi_api
 from .buffer import Buffer
@@ -656,7 +656,7 @@ class BufferRegion(Object, Scriptable):
                 new_min = old_range.min + index
                 new_region.append(
                     Range.from_min_extent(
-                        new_min, const(1, index.dtype) if isinstance(index, PrimExpr) else 1
+                        new_min, IntImm(index.ty, 1) if isinstance(index, PrimExpr) else 1
                     )
                 )
         # Fill remaining dimensions with their original ranges

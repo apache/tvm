@@ -34,8 +34,8 @@ namespace intrin {
 using tirx::FLowerIntrinsic;
 
 struct CUDAMath {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_float()) {
+  std::string operator()(PrimType t, std::string name) const {
+    if (t.code() == DLDataTypeCode::kDLFloat) {
       switch (t.bits()) {
         case 64:
           // Use nearbyint (ties-to-even) for round to match constant-folding semantics.
@@ -56,7 +56,7 @@ struct CUDAMath {
         default:
           return "";
       }
-    } else if (t.is_bfloat16()) {
+    } else if (t.code() == DLDataTypeCode::kDLBfloat && t.bits() == 16) {
       if (name == "fabs") {
         return "__habs";
       } else if (name == "round") {
@@ -64,7 +64,7 @@ struct CUDAMath {
       } else {
         return "h" + name;
       }
-    } else if (t.is_int() || t.is_uint()) {
+    } else if (t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       switch (t.bits()) {
         case 32:
           return "__" + name;
@@ -79,8 +79,8 @@ struct CUDAMath {
 };
 
 struct CUDAFastMath : public CUDAMath {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_float() && t.bits() == 32) {
+  std::string operator()(PrimType t, std::string name) const {
+    if (t.code() == DLDataTypeCode::kDLFloat && t.bits() == 32) {
       return "__" + name + 'f';
     } else {
       return CUDAMath::operator()(t, name);
@@ -90,8 +90,8 @@ struct CUDAFastMath : public CUDAMath {
 };
 
 struct CUDAFastMathTan : public CUDAMath {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_float()) {
+  std::string operator()(PrimType t, std::string name) const {
+    if (t.code() == DLDataTypeCode::kDLFloat) {
       switch (t.bits()) {
         case 64:
           return name;
@@ -110,8 +110,8 @@ struct CUDAFastMathTan : public CUDAMath {
 };
 
 struct CUDAPopcount {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_uint()) {
+  std::string operator()(PrimType t, std::string name) const {
+    if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
       switch (t.bits()) {
         case 32:
           return "__popc";
@@ -126,7 +126,7 @@ struct CUDAPopcount {
 };
 
 struct CUDAWarpIntrinsic {
-  const Op operator()(DataType t, const Op& orig_op) const {
+  const Op operator()(PrimType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
       static const Op& cuda_shfl_sync_op = Op::Get("tirx.cuda.__shfl_sync");
       return cuda_shfl_sync_op;
@@ -147,7 +147,7 @@ struct CUDAWarpIntrinsic {
 static PrimExpr DispatchCUDAWarpActiveMask(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   static const Op& cuda_active_mask_op = Op::Get("tirx.cuda.__activemask");
-  return Call(call->dtype, cuda_active_mask_op, call->args);
+  return Call(e.ty(), cuda_active_mask_op, call->args);
 }
 
 template <typename T>
@@ -156,7 +156,7 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   ffi::Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
-  return Call(call->dtype, T()(call->dtype, call->op.as_or_throw<Op>()), cuda_args);
+  return Call(e.ty(), T()(e.ty(), call->op.as_or_throw<Op>()), cuda_args);
 }
 
 void RegisterCudaIntrinRules() {
