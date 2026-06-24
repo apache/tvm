@@ -1118,6 +1118,20 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
     l1 = _build_l1_result(s_buf, g_buf, g_st, g_ext, s_st, s_ext)
     plan = _build_plan_with_shrink(l1, g_buf, s_buf)
 
+    # Optional descriptor dtype override. An fp32 buffer feeding a tf32 MMA should
+    # be loaded via a TFLOAT32 (== 11) descriptor so the TMA hardware RN-truncates
+    # fp32 -> tf32 ON LOAD (matching the MMA's operand precision and a torch
+    # allow_tf32 / DeepGEMM reference); leaving it as FLOAT32 loads full fp32 and
+    # the tf32 MMA then RZ-truncates, diverging by ~1 tf32 ULP. -1 = derive from
+    # the buffer dtype (the C++ ``runtime.cuTensorMapEncodeTiled`` default).
+    _TMA_DTYPE_TO_CU = {"tf32": 11, "tfloat32": 11}
+    _tma_dtype = op_call.config.get("tma_dtype", None)
+    if _tma_dtype is not None and _tma_dtype not in _TMA_DTYPE_TO_CU:
+        fail(f"Unsupported tma_dtype={_tma_dtype!r}; expected one of {sorted(_TMA_DTYPE_TO_CU)}")
+    if _tma_dtype is not None and plan.elem_dtype not in ("float32", "tfloat32"):
+        fail(f"tma_dtype={_tma_dtype!r} requires a float32 descriptor; got {plan.elem_dtype}")
+    force_cu_dtype = _TMA_DTYPE_TO_CU.get(_tma_dtype, -1)
+
     # Direction / runtime-config bits that don't affect the plan itself.
     cta_group = op_call.config.get("cta_group", None)
     if cta_group is None:
@@ -1158,7 +1172,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
         f":{tuple(val_key(v) for v in plan.shape)}"
         f":{tuple(val_key(v) for v in tma_g_strides_for_map)}"
         f":{tuple(val_key(v) for v in plan.box_dim)}"
-        f":{val_key(plan.swizzle_mode.value)}:{oob_fill_kind}"
+        f":{val_key(plan.swizzle_mode.value)}:{oob_fill_kind}:{force_cu_dtype}"
     )
 
     cached_tensormap = sctx.cache_get(tensormap_cache_key)
@@ -1235,6 +1249,10 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
                 plan.swizzle_mode.value,
                 2,  # CU_TENSOR_MAP_L2_PROMOTION_L2_128B
                 oob_fill_kind,
+                # Append the dtype override ONLY when requested, so the default
+                # (derive-from-dtype) path emits a byte-identical encode call (the
+                # C++ wrapper treats the trailing arg as optional).
+                *([force_cu_dtype] if force_cu_dtype >= 0 else []),
             )
             T.tvm_kernel_replace_point()
         # fmt: on
