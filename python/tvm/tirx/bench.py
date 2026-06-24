@@ -60,19 +60,24 @@ def setup():
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def _parse_proton_tree(text, value_scale=1.0):
-    """Parse proton-viewer tree output into {impl: time_ms}.
+# proton-viewer -m avg_time/us prints average kernel time in microseconds (see
+# triton/profiler/viewer.py avg_time_factor_dict). Store microseconds as-is.
+PROTON_AVG_TIME_METRIC = "avg_time/us"
+
+
+def _parse_proton_tree(text, *, kernel: str = ""):
+    """Parse proton-viewer tree output into {impl: time_us}.
 
     Accepts ALL depth-1 nodes (no KNOWN_IMPLS filter). For each depth-1 impl,
     takes the slowest depth-2 child kernel time.
 
-    ``value_scale`` converts the displayed metric to milliseconds.  For
-    example, use ``1e-3`` when parsing ``avg_time/us`` output.
+    Tree numbers are microseconds when ProtonContext uses avg_time/us.
 
     Returns (impl_times, baseline_errors) where:
-      impl_times: {str: float} — impl name to avg time in ms
+      impl_times: {str: float} — impl name to avg time in microseconds
       baseline_errors: {str: str} — impl name to error message
     """
+    _ = kernel  # kept for callers; unit does not depend on workload
     impl = None
     results = {}
     baseline_errors = {}
@@ -104,7 +109,7 @@ def _parse_proton_tree(text, value_scale=1.0):
                 ):
                     continue
                 try:
-                    t = float(parts[0]) * value_scale
+                    t = float(parts[0])
                     results[impl] = max(results.get(impl, 0), t)
                 except ValueError:
                     pass
@@ -130,15 +135,15 @@ class ProtonContext:
         hook="triton",
         debug=False,
         nsight=False,
-        metric="avg_time/us",
-        metric_scale=1e-3,
+        metric=PROTON_AVG_TIME_METRIC,
+        kernel="",
     ):
         self.name = name
         self.hook = hook
         self.debug = debug
         self.nsight = nsight
         self.metric = metric
-        self.metric_scale = metric_scale
+        self.kernel = kernel
         self._impl_times = {}
         self._baseline_errors = {}
 
@@ -161,9 +166,10 @@ class ProtonContext:
             )
             if result.returncode == 0:
                 self._impl_times, self._baseline_errors = _parse_proton_tree(
-                    result.stdout, value_scale=self.metric_scale
+                    result.stdout, kernel=self.kernel
                 )
                 out = sys.stderr if os.environ.get("TIRX_BENCH_JSON") else sys.stdout
+                print(f"# proton {PROTON_AVG_TIME_METRIC} (microseconds)\n", file=out, end="")
                 print(result.stdout, file=out, end="")
             else:
                 print(
@@ -175,7 +181,7 @@ class ProtonContext:
                 os.remove(hatchet)
 
     def get_impl_times(self):
-        """Return {impl_name: avg_time_ms} parsed from proton-viewer output."""
+        """Return {impl_name: avg_time_us} parsed from proton-viewer output."""
         return dict(self._impl_times)
 
     def get_baseline_errors(self):
@@ -313,16 +319,18 @@ def _bench_event_groups(funcs, groups, warmup, repeat, cooldown_s):
         end_event.record()
 
         torch.cuda.synchronize()
-        results[name] = start_event.elapsed_time(end_event) / repeat
+        results[name] = start_event.elapsed_time(end_event) / repeat * 1000.0
 
         time.sleep(cooldown_s)
 
     return results
 
 
-def _bench_proton_groups(funcs, groups, warmup, repeat, cooldown_s, proton_name, debug, nsight):
+def _bench_proton_groups(
+    funcs, groups, warmup, repeat, cooldown_s, proton_name, debug, nsight, *, kernel=""
+):
     num_groups = len(groups)
-    with ProtonContext(proton_name, debug=debug, nsight=nsight) as ctx:
+    with ProtonContext(proton_name, debug=debug, nsight=nsight, kernel=kernel) as ctx:
         for idx, (name, func) in enumerate(funcs.items()):
             if idx > 0:
                 time.sleep(cooldown_s)
@@ -353,13 +361,8 @@ def _flush_l2_legacy(flush_l2_size):
 
 
 def _bench_legacy_callable(func, warmup, repeat, proton_name, debug, nsight, flush_l2_size):
-    for _ in range(warmup):
-        _flush_l2_legacy(flush_l2_size)
-        func()
-
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
-    torch.cuda.synchronize()
 
     def timed_loop():
         start_event.record()
@@ -368,6 +371,10 @@ def _bench_legacy_callable(func, warmup, repeat, proton_name, debug, nsight, flu
             func()
         end_event.record()
 
+    for _ in range(warmup):
+        _flush_l2_legacy(flush_l2_size)
+        func()
+    torch.cuda.synchronize()
     if not is_running_under_pytest() and not debug and not nsight:
         proton.activate()
         with proton.scope(proton_name, metrics={}):
@@ -375,9 +382,47 @@ def _bench_legacy_callable(func, warmup, repeat, proton_name, debug, nsight, flu
         proton.deactivate()
     else:
         timed_loop()
-
     torch.cuda.synchronize()
-    return start_event.elapsed_time(end_event) / repeat
+
+    return start_event.elapsed_time(end_event) / repeat * 1000.0
+
+
+# Labels identifying our own kernel (vs external reference impls). Must match
+# OUR_IMPLS in tir-bench's ratio_diff.py. Used by the TIRX_BENCH_IMPLS filter.
+OURS_IMPLS = frozenset({"tir", "tirx"})
+
+
+def bench_impls_mode():
+    """Current impl-selection mode: 'all' (default), 'ours', or 'baseline'.
+
+    Set via the ``TIRX_BENCH_IMPLS`` env var (by tir-bench ``run.py --impls``).
+    A kernel's ``run_bench`` can use this to skip *building/warming* reference
+    impls (e.g. flashinfer autotune, deepgemm/cublas ext setup) that ``bench``'s
+    filter alone cannot avoid, since that setup runs before ``bench`` is called.
+    """
+    mode = os.environ.get("TIRX_BENCH_IMPLS", "all").lower()
+    if mode not in {"all", "ours", "baseline"}:
+        raise ValueError(f"TIRX_BENCH_IMPLS must be 'all', 'ours', or 'baseline', got {mode!r}")
+    return mode
+
+
+def bench_only_ours():
+    """True when only our own kernel should be benched (reference setup skippable)."""
+    return bench_impls_mode() == "ours"
+
+
+def filter_impls(funcs):
+    """Filter a ``{label: callable}`` impl map per the current ``bench_impls_mode``.
+
+    Call this right after building ``funcs`` so any subsequent
+    ``if "<ref>" in funcs:`` reference-setup blocks are skipped in 'ours' mode.
+    """
+    mode = bench_impls_mode()
+    if mode == "ours":
+        return {n: f for n, f in funcs.items() if n in OURS_IMPLS}
+    if mode == "baseline":
+        return {n: f for n, f in funcs.items() if n not in OURS_IMPLS}
+    return funcs
 
 
 def bench(
@@ -392,6 +437,10 @@ def bench(
     debug=False,
     nsight=False,
     flush_l2_size=int(8e8 // 4),
+    references=None,
+    rounds=1,
+    round_cooldown_s=1.0,
+    validate_case=None,
 ):
     """Benchmark implementations with a factory-owned input footprint.
 
@@ -405,27 +454,48 @@ def bench(
     ----------
     funcs : dict[str, callable]
         Map of implementation name to callable.  Each callable receives one
-        ``case`` returned by ``input_factory``.
+        ``case`` returned by ``input_factory``.  This should hold only *our*
+        kernel(s); external baselines go in ``references``.
+    references : dict[str, callable], optional
+        Map of reference-impl name to a no-arg *builder* that does the heavy
+        import/setup and returns the run callable.  Builders run lazily and only
+        when that impl will actually be benched (skipped entirely under
+        ``--impls ours``); a builder that raises is recorded as a
+        ``BASELINE_ERROR`` instead of failing the workload.
     input_factory : callable
         Factory returning ``(case, input_bytes)`` for one benchmark group.
     warmup : int
         Number of untimed warmup iterations per implementation.
     repeat : int
-        Number of timed iterations.
+        Number of timed iterations per round.
     cooldown_s : float
         Seconds to sleep between impls for thermal cooldown.
+    rounds : int
+        Independent benchmark rounds (compile + inputs once; each round runs
+        warmup + repeat for every selected impl).
+    round_cooldown_s : float
+        Seconds to sleep between rounds (ignored when ``rounds == 1``).
+    validate_case : callable, optional
+        Called once on the first prepared ``case`` (after ``prepare_input_groups``,
+        before warmup/repeat rounds). Under tir-bench, ``run_kernel_bench`` holds
+        the per-GPU lock for the whole ``run_bench()`` call.
     timer : {"event", "proton"}
         Timing backend.
 
     Returns
     -------
     dict
-        ``{"impls": {name: ms}, "errors": {}, "timer": ..., ...}``.
+        ``{"impls": {name: us}, "round_samples": {name: [us, ...]}, ...}``.
+        Times are stored in microseconds (same unit as pinned tir-bench baselines).
     """
     if repeat <= 0:
         raise ValueError("repeat must be positive")
     if warmup < 0:
         raise ValueError("warmup must be non-negative")
+    if rounds < 1:
+        raise ValueError("rounds must be >= 1")
+    if round_cooldown_s < 0:
+        raise ValueError("round_cooldown_s must be non-negative")
     if timer not in {"event", "proton"}:
         raise ValueError(f"unsupported timer {timer!r}; expected event or proton")
 
@@ -450,32 +520,106 @@ def bench(
         if not callable(func):
             raise TypeError(f"funcs[{name!r}] must be callable")
 
+    # Select impls for this run. ``funcs`` holds our own kernel(s); external
+    # baselines are passed as ``references`` (name -> no-arg builder). A builder
+    # is invoked here ONLY when its impl will actually be benched, so --impls
+    # ours skips all reference setup, --impls baseline skips ours, and a builder
+    # that fails is recorded as a BASELINE_ERROR rather than failing the
+    # workload. Legacy kernels that put references directly in ``funcs`` are
+    # still handled by the label filter (filter_impls) below.
+    funcs = filter_impls(funcs)
+    build_errors: dict[str, str] = {}
+    if bench_impls_mode() != "ours":
+        for ref_name, builder in (references or {}).items():
+            if not isinstance(ref_name, str) or not callable(builder):
+                raise TypeError("references must map a name to a no-arg builder callable")
+            try:
+                ref_fn = builder()
+            except Exception as e:
+                build_errors[ref_name] = str(e)
+                print(f"BASELINE_ERROR: {ref_name}: {e}", file=sys.stderr)
+                continue
+            if ref_fn is None:
+                continue
+            if not callable(ref_fn):
+                raise TypeError(f"references[{ref_name!r}] builder must return a callable")
+            funcs = {**funcs, ref_name: ref_fn}
+
+    if not funcs:
+        # Nothing to bench in this mode (e.g. 'ours' on a kernel with no tir
+        # impl, or 'baseline' with no references). Return an empty-but-valid
+        # result so the workload is a no-op.
+        return {
+            "impls": {},
+            "round_samples": {},
+            "errors": build_errors,
+            "timer": timer,
+            "benchmark_protocol": {
+                "warmup": warmup,
+                "repeat": repeat,
+                "cooldown_s": cooldown_s,
+                "rounds": rounds,
+                "round_cooldown_s": round_cooldown_s,
+                "order": [],
+            },
+        }
+
     inputs, protocol = prepare_input_groups(input_factory, l2_bytes=l2_bytes)
     num_groups = len(inputs)
     if num_groups == 0:
         return {
             "impls": {},
-            "errors": {},
+            "round_samples": {},
+            "errors": build_errors,
             "timer": timer,
             "benchmark_protocol": {
                 **protocol,
                 "warmup": warmup,
                 "repeat": repeat,
                 "cooldown_s": cooldown_s,
+                "rounds": rounds,
+                "round_cooldown_s": round_cooldown_s,
                 "order": list(funcs.keys()),
             },
         }
 
-    errors = {}
-    if timer == "event":
-        impls = _bench_event_groups(funcs, inputs, warmup, repeat, cooldown_s)
+    if validate_case is not None:
+        validate_case(inputs[0])
+
+    errors = dict(build_errors)
+    round_samples: dict[str, list[float]] = {}
+    for round_idx in range(rounds):
+        if round_idx > 0:
+            time.sleep(round_cooldown_s)
+        if timer == "event":
+            impls = _bench_event_groups(funcs, inputs, warmup, repeat, cooldown_s)
+            proton_errors = {}
+        else:
+            impls, proton_errors = _bench_proton_groups(
+                funcs,
+                inputs,
+                warmup,
+                repeat,
+                cooldown_s,
+                proton_name,
+                debug,
+                nsight,
+                kernel=proton_name,
+            )
+        errors.update(proton_errors)
+        for impl, sec in impls.items():
+            round_samples.setdefault(impl, []).append(sec)
+
+    if not round_samples:
+        aggregated = {}
     else:
-        impls, errors = _bench_proton_groups(
-            funcs, inputs, warmup, repeat, cooldown_s, proton_name, debug, nsight
-        )
+        import statistics
+
+        aggregated = {impl: statistics.mean(samples) for impl, samples in round_samples.items()}
 
     return {
-        "impls": impls,
+        "impls": aggregated,
+        "round_samples": round_samples,
         "errors": errors,
         "timer": timer,
         "benchmark_protocol": {
@@ -483,6 +627,8 @@ def bench(
             "warmup": warmup,
             "repeat": repeat,
             "cooldown_s": cooldown_s,
+            "rounds": rounds,
+            "round_cooldown_s": round_cooldown_s,
             "order": list(funcs.keys()),
         },
     }

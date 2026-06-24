@@ -2,9 +2,13 @@ Run the full TIRX test suite.
 
 ## Steps
 
-1. Select the least busy GPU to avoid conflicts:
+1. Install the kernel package and select the least busy GPU:
    ```bash
+   pip install -e /path/to/tirx-kernels-staging   # or sibling tirx-kernels checkout
    export CUDA_VISIBLE_DEVICES=$(nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits | sort -t',' -k2 -n | head -1 | cut -d',' -f1 | tr -d ' ')
+   export TVM_PATH=/path/to/tvm
+   export PYTHONPATH="${TVM_PATH}/python"
+   export TVM_LIBRARY_PATH="${TVM_PATH}/build/lib"
    ```
 
 2. Start the GPU monitor in the background so we can detect if anyone else lands on the same GPU mid-run:
@@ -15,18 +19,29 @@ Run the full TIRX test suite.
    trap 'kill $MON_PID 2>/dev/null' EXIT
    ```
 
-3. Run the full test suite with xdist parallelism:
+3. Import gate — bench workloads: fail fast if any kernel listed in `workloads.yaml` fails to import:
    ```bash
-   pytest tests/python/tirx/ -n auto
+   python -m tirx_kernels.tir_bench --check-imports
+   ```
+   A non-zero exit means a pinned workload kernel failed to import — fix it before proceeding.
+
+4. Full kernel import gate (correctness test suite coverage):
+   ```bash
+   python -m tirx_kernels.registry --cc 10 --strict
    ```
 
-4. Stop the monitor and check for foreign GPU usage during the run:
+5. Run the full test suite with xdist parallelism:
+   ```bash
+   pytest tests/python/tirx/ -n 16
+   ```
+
+6. Stop the monitor and check for foreign GPU usage during the run:
    ```bash
    kill $MON_PID 2>/dev/null; wait $MON_PID 2>/dev/null
    grep -E 'FOREIGN USER|\[FOREIGN\]' "$GPU_LOG" || echo "no foreign GPU usage observed"
    ```
 
-5. Report results: total passed, failed, skipped, errors. If any foreign-user events are present in step 4, mention them — flaky failures should be re-evaluated on a clean GPU before being attributed to code changes.
+7. Report results: total passed, failed, skipped, errors — and the import-gate results from steps 3–4. If any foreign-user events are present in step 6, mention them — flaky failures should be re-evaluated on a clean GPU before being attributed to code changes.
 
 ## Failure triage rules
 
