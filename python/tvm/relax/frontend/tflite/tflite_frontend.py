@@ -3374,6 +3374,12 @@ class OperatorConverter:
                 "STABLEHLO_DYNAMIC_UPDATE_SLICE requires operand, update, "
                 "and start-index ranks to match"
             )
+        for dim, size in zip(operand_shape, update_shape):
+            if size > dim:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_DYNAMIC_UPDATE_SLICE update shape must be smaller than "
+                    "or equal to operand shape for all dimensions"
+                )
 
         operand = self.get_tensor_expr(operand_tensor)
         update = self.get_tensor_expr(update_tensor)
@@ -3416,7 +3422,7 @@ class OperatorConverter:
             start_expr = relax.op.maximum(start_expr, relax.const(0, "int64"))
             start_expr = relax.op.minimum(start_expr, relax.const(max_start, "int64"))
 
-            base = relax.op.arange(update_shape[axis], dtype="int64")
+            base = relax.op.arange(0, update_shape[axis], 1, "int64")
             idx = relax.op.add(base, start_expr)
 
             broadcast_shape = [1] * rank
