@@ -461,7 +461,7 @@ class PrimProxy(TypeProxy):
     ) -> None:
         if dtype is None:
             if isinstance(value, PrimExpr):
-                dtype = value.dtype
+                dtype = str(value.ty)
             elif isinstance(value, float):
                 dtype = "float32"
             elif value is not None:

@@ -39,7 +39,7 @@ def test_tensor():
     assert T.op.output(0).__hash__() == T.__hash__()
     d = {T.op.output(0): 1}
     assert d[T] == 1
-    assert T[0][0][0].astype("float16").dtype == "float16"
+    assert T[0][0][0].astype("float16").ty == tvm.ir.PrimType("float16")
 
 
 def test_rank_zero():

@@ -64,11 +64,10 @@ def bind_assign_value(
                     "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
                     "define the TIR variable with another name.",
                 )
-            if prev_value.dtype != value.dtype:
+            if prev_value.ty != value.ty:
                 self.report_error(
                     node,
-                    "Expected the same dtype for TIR vars "
-                    f"but got {value.dtype} vs {prev_value.dtype}",
+                    f"Expected the same dtype for TIR vars but got {value.ty} vs {prev_value.ty}",
                 )
             if not isinstance(value, type(prev_value)):
                 self.report_error(

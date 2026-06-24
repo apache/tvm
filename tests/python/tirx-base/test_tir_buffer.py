@@ -43,7 +43,7 @@ def test_buffer_access_ptr():
     Ab = tvm.tirx.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw")
     tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m)
-    assert aptr.args[0].dtype == Ab.dtype.dtype
+    assert aptr.args[0].ty == Ab.dtype
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
     aptr = Ab.access_ptr("w")
     assert aptr.args[4].value == Buffer.WRITE

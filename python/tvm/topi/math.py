@@ -639,14 +639,14 @@ def clip(x, a_min, a_max):
     def _compute(*indices):
         value = x(*indices)
         const_min = (
-            tvm.tirx.Cast(value.dtype, a_min)
+            tvm.tirx.Cast(value.ty, a_min)
             if isinstance(a_min, PrimExpr)
-            else tvm.tirx.const(a_min, value.dtype)
+            else tvm.tirx.const(a_min, value.ty)
         )
         const_max = (
-            tvm.tirx.Cast(value.dtype, a_max)
+            tvm.tirx.Cast(value.ty, a_max)
             if isinstance(a_max, PrimExpr)
-            else tvm.tirx.const(a_max, value.dtype)
+            else tvm.tirx.const(a_max, value.ty)
         )
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
 
@@ -870,8 +870,8 @@ def ceil_log2(x):
             clz = tvm.tirx.clz(x)
             bits = x.ty.dtype.bits
             res = tvm.tirx.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
-            if res.dtype != x.dtype:
-                return cast(res, x.dtype)
+            if res.ty != x.ty:
+                return cast(res, x.ty)
             return res
 
         if "adreno" in str(target.attrs.get("device", "")) or target_name in [
@@ -879,6 +879,6 @@ def ceil_log2(x):
             "rocm",
             "webgpu",
         ]:
-            return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float32"))), x.dtype)
+            return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float32"))), x.ty)
 
-    return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float64"))), x.dtype)
+    return cast(tvm.tirx.ceil(tvm.tirx.log2(cast(x, "float64"))), x.ty)

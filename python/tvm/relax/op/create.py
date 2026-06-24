@@ -17,7 +17,6 @@
 """Creation operators."""
 
 from tvm import DataType, DataTypeCode
-from tvm.ir import PrimType
 from tvm.ir.expr import PrimExpr
 
 from ..expr import Expr, PrimValue, ShapeExpr

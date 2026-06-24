@@ -553,13 +553,13 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
                 node.annotation,
                 "Use T.let[...] for non-PrimType annotations (e.g. PointerType, handle)",
             )
-        if str(ann_var.dtype) == "handle":
+        if str(ann_var.ty) == "handle":
             self.report_error(
                 node.annotation,
                 "handle type cannot be used as scalar annotation; use T.let[T.handle] instead",
             )
         # x: T.int32 = expr -> scalar (mutable scalar buffer)
-        scalar = T.local_scalar(dtype=str(ann_var.dtype))
+        scalar = T.local_scalar(dtype=str(ann_var.ty))
         self.eval_assign(target=lhs, source=scalar, bind_value=bind_assign_value)
         if rhs is not None:
             T.buffer_store(scalar.scalar.buffer, rhs, [0])
