@@ -39,7 +39,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_disp
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.stmt import TilePrimitiveCall
 
-from ._common import _alignment_ok
+from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_return_type
 from ._swizzle_iter import (
     emit_fallback_offset,
     emit_init,
@@ -515,7 +515,10 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     for _ax, val in r_p.offset.items():
         r_off_base = r_off_base + val
 
-    copy_op = getattr(T.cuda, f"copy_{vec_bits}b")
+    s_is_shared = s_buf.scope().startswith("shared")
+    num_bytes = vec_bits // 8
+    vec, ptx_type = copy_ptx_form(num_bytes)
+    space = "shared" if s_is_shared else "global"
 
     total_outer = 1
     for a in outer:
@@ -572,9 +575,16 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), _s_iter_off(f, ds, s_off))
             r_ptr = _ptr_off(r_local.ptr_to([0]), r_off_base + dr)
             if r_is_src:
-                copy_op(s_ptr, r_ptr)
+                T.ptx.st(s_ptr, src=r_ptr, space=space, vec=vec, ptx_type=ptx_type)
             else:
-                copy_op(r_ptr, s_ptr)
+                T.ptx.ld(
+                    s_ptr,
+                    copy_ptx_ld_return_type(ptx_type),
+                    ptx_type,
+                    dst=r_ptr,
+                    space=space,
+                    vec=vec,
+                )
     # fmt: on
     import os
 

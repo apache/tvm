@@ -333,7 +333,7 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
 
 def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     """Regression: R→S copy where R has a ``wg_local_layout`` (thread iter
-    ``1 @ tid_in_wg``) must pick the widest vec ``copy_128b`` AND use the
+    ``1 @ tid_in_wg``) must pick the widest vec PTX ``st.shared.v4`` AND use the
     swizzle fast path (precomputed ``signed_strides`` + per-iter
     bit-select), not the per-iter ``swizzle.apply()`` fallback.
 
@@ -388,12 +388,13 @@ def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
         ex = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = ex.mod.imports[0].inspect_source()
 
-    # (1) Widest variant: 8 fp16 elements per call.
-    assert "tvm_builtin_copy_128b" in src, (
-        "expected copy_128b in generated CUDA, alignment check fell back to a narrower variant"
+    # (1) Widest variant: 8 fp16 elements per call (16 bytes → v4.u32 st).
+    assert "tvm_builtin_ptx_st" in src, (
+        "expected PTX st in generated CUDA, alignment check fell back to a narrower variant"
     )
-    assert "tvm_builtin_copy_16b" not in src, (
-        "scalar copy_16b appeared — vec=8 was wrongly rejected"
+    assert "st.shared.v4" in src, "expected 128b vector store (st.shared.v4.u32)"
+    assert "tvm_builtin_copy_" not in src, (
+        "copy_xxb helpers appeared — reg dispatch should use PTX ld/st only"
     )
     # (2) Swizzle fast path fingerprint:
     #   * emit_init allocates a size-N int buffer of "signed strides".

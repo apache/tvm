@@ -42,6 +42,8 @@ from ._common import (
     _TID_AXIS_FOR_SCOPE,
     _thread_cnt,
     align_layouts_gs,
+    copy_ptx_form,
+    copy_ptx_ld_return_type,
 )
 from ._swizzle_iter import (
     emit_init,
@@ -136,7 +138,8 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     # [outer x thread x vec] coord scheme below.
 
     vec_bits = vec_len * elem_bits
-    copy_op = getattr(T.cuda, f"copy_{vec_bits}b")
+    num_bytes = vec_bits // 8
+    vec, ptx_type = copy_ptx_form(num_bytes)
 
     # Partition guarantees ``prod(s_p.shard.extents) == prod(g_p.shard.extents)
     # == n_elements`` (the total transfer count). Express the per-thread
@@ -267,6 +270,8 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     def impl():
         tid = _decl_tid()
         _setup_swizzle(tid)
+        tmp = T.alloc_local((vec_len,), src.dtype)
+        tmp_ptr = tmp.ptr_to([0])
         # NB: pass typed ptr_to(...) directly to _ptr_off; caching in a
         # local var turns it into void* + offset = byte arithmetic →
         # misaligned vector ops.
@@ -285,9 +290,29 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero), s_off)
             g_ptr = _ptr_off(g_buf.ptr_to(g_zero), g_lin)
             if g_is_src:
-                copy_op(s_ptr, g_ptr)
+                T.ptx.ld(
+                    g_ptr,
+                    copy_ptx_ld_return_type(ptx_type),
+                    ptx_type,
+                    dst=tmp_ptr,
+                    space="global",
+                    vec=vec,
+                )
+                T.ptx.st(
+                    s_ptr, src=tmp_ptr, space="shared", vec=vec, ptx_type=ptx_type
+                )
             else:
-                copy_op(g_ptr, s_ptr)
+                T.ptx.ld(
+                    s_ptr,
+                    copy_ptx_ld_return_type(ptx_type),
+                    ptx_type,
+                    dst=tmp_ptr,
+                    space="shared",
+                    vec=vec,
+                )
+                T.ptx.st(
+                    g_ptr, src=tmp_ptr, space="global", vec=vec, ptx_type=ptx_type
+                )
     # fmt: on
     return impl
 
