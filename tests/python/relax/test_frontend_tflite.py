@@ -6496,25 +6496,57 @@ def _build_tflite_resource_read_uninitialized_model():
     )
 
 
-def _build_tflite_hashtable_find_model():
-    """Build a model that imports a static hashtable and finds runtime query keys."""
+def _build_tflite_hashtable_find_string_to_int64_model(
+    query_values=None,
+    query_shape=None,
+    default_values=None,
+    default_shape=None,
+    table_keys=None,
+    table_values=None,
+    query_is_input=False,
+):
+    """Build a static string-to-int64 HASHTABLE_FIND model."""
     builder = flatbuffers.Builder(1024)
     resource_type = _get_resource_tensor_type()
     string_type = _get_string_tensor_type()
-    table_keys = np.array([10, 20], dtype=np.int64)
-    table_values = _build_tflite_string_buffer(["one hundred", "two hundred"])
-    default_value = _build_tflite_string_buffer(["missing"])
+    query_values = ["alpha", "missing", "beta"] if query_values is None else query_values
+    query_shape = [len(query_values)] if query_shape is None else query_shape
+    default_shape = [] if default_shape is None else default_shape
+    table_keys = ["alpha", "beta", "gamma"] if table_keys is None else table_keys
+    table_values = (
+        np.array([10, 20, 30], dtype=np.int64)
+        if table_values is None
+        else np.array(table_values, dtype=np.int64)
+    )
+    default_values = (
+        np.array(-1, dtype=np.int64)
+        if default_values is None
+        else np.array(default_values, dtype=np.int64)
+    )
+    query_buffer = _build_tflite_string_buffer(query_values)
+    table_key_buffer = _build_tflite_string_buffer(table_keys)
 
     call_once_options = _build_call_once_options(builder, 1)
-    main_table_options = _build_hashtable_options(builder, table_id=0)
+    main_table_options = _build_hashtable_options(
+        builder,
+        table_id=0,
+        key_dtype=string_type,
+        value_dtype=_tfl_tensor_type.INT64,
+    )
     find_options = _build_empty_builtin_options(builder, "HashtableFindOptions")
-    init_table_options = _build_hashtable_options(builder, table_id=0)
+    init_table_options = _build_hashtable_options(
+        builder,
+        table_id=0,
+        key_dtype=string_type,
+        value_dtype=_tfl_tensor_type.INT64,
+    )
     import_options = _build_empty_builtin_options(builder, "HashtableImportOptions")
 
-    query_tensor = _build_tensor(builder, 0, [3], tensor_type=_tfl_tensor_type.INT64)
+    query_buffer_idx = 0 if query_is_input else 1
+    query_tensor = _build_tensor(builder, query_buffer_idx, query_shape, tensor_type=string_type)
     table_tensor = _build_tensor(builder, 0, [1], tensor_type=resource_type)
-    default_tensor = _build_tensor(builder, 1, [], tensor_type=string_type)
-    output_tensor = _build_tensor(builder, 0, [3], tensor_type=string_type)
+    default_tensor = _build_tensor(builder, 2, default_shape, tensor_type=_tfl_tensor_type.INT64)
+    output_tensor = _build_tensor(builder, 0, query_shape, tensor_type=_tfl_tensor_type.INT64)
     main_call_once = _build_operator(
         builder,
         0,
@@ -6543,17 +6575,17 @@ def _build_tflite_hashtable_find_model():
         builder,
         tensors=[query_tensor, table_tensor, default_tensor, output_tensor],
         operators=[main_call_once, main_hashtable, main_find],
-        inputs=[0],
+        inputs=[0] if query_is_input else [],
         outputs=[3],
     )
 
     init_table_tensor = _build_tensor(builder, 0, [1], tensor_type=resource_type)
-    init_keys_tensor = _build_tensor(builder, 2, [2], tensor_type=_tfl_tensor_type.INT64)
+    init_keys_tensor = _build_tensor(builder, 3, [len(table_keys)], tensor_type=string_type)
     init_values_tensor = _build_tensor(
         builder,
-        3,
-        [2],
-        tensor_type=string_type,
+        4,
+        [len(table_values)],
+        tensor_type=_tfl_tensor_type.INT64,
     )
     init_hashtable = _build_operator(
         builder,
@@ -6587,6 +6619,108 @@ def _build_tflite_hashtable_find_model():
     ]
     buffers = [
         _build_buffer(builder),
+        _build_buffer(builder, b"" if query_is_input else query_buffer),
+        _build_buffer(builder, default_values.tobytes()),
+        _build_buffer(builder, table_key_buffer),
+        _build_buffer(builder, table_values.tobytes()),
+    ]
+    return _finish_tflite_model(
+        builder,
+        subgraph=main_subgraph,
+        extra_subgraphs=[init_subgraph],
+        operator_codes=operator_codes,
+        buffers=buffers,
+    )
+
+
+def _build_tflite_hashtable_find_int64_to_string_model():
+    """Build a static int64-to-string HASHTABLE_FIND model."""
+    builder = flatbuffers.Builder(1024)
+    resource_type = _get_resource_tensor_type()
+    string_type = _get_string_tensor_type()
+    query_values = np.array([10, 30], dtype=np.int64)
+    table_keys = np.array([10, 20], dtype=np.int64)
+    table_values = _build_tflite_string_buffer(["ten", "twenty"])
+    default_value = _build_tflite_string_buffer(["missing"])
+
+    call_once_options = _build_call_once_options(builder, 1)
+    main_table_options = _build_hashtable_options(builder, table_id=0)
+    find_options = _build_empty_builtin_options(builder, "HashtableFindOptions")
+    init_table_options = _build_hashtable_options(builder, table_id=0)
+    import_options = _build_empty_builtin_options(builder, "HashtableImportOptions")
+
+    query_tensor = _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.INT64)
+    table_tensor = _build_tensor(builder, 0, [1], tensor_type=resource_type)
+    default_tensor = _build_tensor(builder, 2, [], tensor_type=string_type)
+    output_tensor = _build_tensor(builder, 0, [2], tensor_type=string_type)
+    main_call_once = _build_operator(
+        builder,
+        0,
+        [],
+        [],
+        builtin_options_type=_get_builtin_options_type("CallOnceOptions"),
+        builtin_options=call_once_options,
+    )
+    main_hashtable = _build_operator(
+        builder,
+        1,
+        [],
+        [1],
+        builtin_options_type=_get_builtin_options_type("HashtableOptions"),
+        builtin_options=main_table_options,
+    )
+    main_find = _build_operator(
+        builder,
+        2,
+        [1, 0, 2],
+        [3],
+        builtin_options_type=_get_builtin_options_type("HashtableFindOptions"),
+        builtin_options=find_options,
+    )
+    main_subgraph = _build_subgraph(
+        builder,
+        tensors=[query_tensor, table_tensor, default_tensor, output_tensor],
+        operators=[main_call_once, main_hashtable, main_find],
+        inputs=[],
+        outputs=[3],
+    )
+
+    init_table_tensor = _build_tensor(builder, 0, [1], tensor_type=resource_type)
+    init_keys_tensor = _build_tensor(builder, 3, [2], tensor_type=_tfl_tensor_type.INT64)
+    init_values_tensor = _build_tensor(builder, 4, [2], tensor_type=string_type)
+    init_hashtable = _build_operator(
+        builder,
+        1,
+        [],
+        [0],
+        builtin_options_type=_get_builtin_options_type("HashtableOptions"),
+        builtin_options=init_table_options,
+    )
+    init_import = _build_operator(
+        builder,
+        3,
+        [0, 1, 2],
+        [],
+        builtin_options_type=_get_builtin_options_type("HashtableImportOptions"),
+        builtin_options=import_options,
+    )
+    init_subgraph = _build_subgraph(
+        builder,
+        tensors=[init_table_tensor, init_keys_tensor, init_values_tensor],
+        operators=[init_hashtable, init_import],
+        inputs=[],
+        outputs=[],
+    )
+
+    operator_codes = [
+        _build_operator_code(builder, _get_builtin_operator("CALL_ONCE")),
+        _build_operator_code(builder, _get_builtin_operator("HASHTABLE")),
+        _build_operator_code(builder, _get_builtin_operator("HASHTABLE_FIND")),
+        _build_operator_code(builder, _get_builtin_operator("HASHTABLE_IMPORT")),
+    ]
+    buffers = [
+        _build_buffer(builder),
+        _build_buffer(builder, query_values.tobytes()),
         _build_buffer(builder, default_value),
         _build_buffer(builder, table_keys.tobytes()),
         _build_buffer(builder, table_values),
@@ -6934,10 +7068,67 @@ def test_read_variable_uninitialized_unsupported():
         _load_model_from_buffer(_build_tflite_resource_read_uninitialized_model())
 
 
-def test_hashtable_call_once_import_find_unsupported():
-    """Test HASHTABLE_FIND remains unsupported until TFLite string tensors are supported."""
-    with pytest.raises(tvm.error.OpNotImplemented, match="TensorType.STRING"):
-        _load_model_from_buffer(_build_tflite_hashtable_find_model())
+def test_hashtable_call_once_import_find_string_to_int64():
+    """Test HASHTABLE_FIND for a static string-to-int64 table."""
+    mod = _load_model_from_buffer(_build_tflite_hashtable_find_string_to_int64_model())
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((3,), dtype="int64"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((3,), dtype="int64") = R.const([10, -1, 20], "int64")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_hashtable_call_once_import_find_string_to_int64_2d_query():
+    """Test HASHTABLE_FIND preserves the static query shape."""
+    mod = _load_model_from_buffer(
+        _build_tflite_hashtable_find_string_to_int64_model(
+            query_values=["alpha", "beta", "missing", "gamma"],
+            query_shape=[2, 2],
+        )
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2, 2), dtype="int64"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="int64") = R.const([[10, 20], [-1, 30]], "int64")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_hashtable_call_once_import_find_int64_to_string_unsupported():
+    """Test HASHTABLE_FIND rejects int64-to-string tables until string outputs exist."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="string -> int64"):
+        _load_model_from_buffer(_build_tflite_hashtable_find_int64_to_string_model())
+
+
+def test_hashtable_call_once_import_find_runtime_query_unsupported():
+    """Test HASHTABLE_FIND rejects runtime string queries."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="string queries|STRING graph inputs"):
+        _load_model_from_buffer(
+            _build_tflite_hashtable_find_string_to_int64_model(query_is_input=True)
+        )
+
+
+def test_hashtable_call_once_import_duplicate_keys_unsupported():
+    """Test HASHTABLE_IMPORT rejects duplicate static keys."""
+    with pytest.raises(tvm.error.OpNotImplemented, match="duplicate keys"):
+        _load_model_from_buffer(
+            _build_tflite_hashtable_find_string_to_int64_model(
+                table_keys=["alpha", "alpha"], table_values=[10, 20]
+            )
+        )
 
 
 def test_hashtable_call_once_import_size():
@@ -7126,7 +7317,7 @@ def test_hashtable_lookup_2d_value():
 
 def test_hashtable_lookup_string_value_unsupported():
     string_type = _get_string_tensor_type()
-    with pytest.raises(ValueError, match="unknown dtype `string`"):
+    with pytest.raises(tvm.error.OpNotImplemented, match="STRING graph inputs"):
         _load_model_from_buffer(
             _build_tflite_hashtable_lookup_model(value_shape=[3], value_type=string_type)
         )

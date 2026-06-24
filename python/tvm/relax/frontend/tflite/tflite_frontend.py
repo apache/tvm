@@ -721,6 +721,45 @@ class OperatorConverter:
             and tensor_wrapper.buffer.DataLength() > 0
         )
 
+    def _get_string_tensor_value(self, tensor_wrapper, op_name):
+        """Decode a constant TFLite string tensor buffer."""
+        if not self._is_tflite_string_type(tensor_wrapper.tensor.Type()):
+            raise tvm.error.OpNotImplemented(f"{op_name} requires a TensorType.STRING tensor")
+        if not self._has_tensor_buffer_data(tensor_wrapper):
+            raise tvm.error.OpNotImplemented(f"{op_name} requires a constant string tensor")
+
+        data = bytes(tensor_wrapper.buffer.DataAsNumpy())
+        if len(data) < 4:
+            raise tvm.error.OpNotImplemented(f"{op_name} has an invalid string tensor buffer")
+
+        count = int(np.frombuffer(data, dtype="<i4", count=1)[0])
+        if count < 0:
+            raise tvm.error.OpNotImplemented(f"{op_name} has an invalid string tensor count")
+
+        header_size = 4 * (count + 2)
+        if len(data) < header_size:
+            raise tvm.error.OpNotImplemented(f"{op_name} has an invalid string tensor offsets")
+
+        offsets = np.frombuffer(data, dtype="<i4", count=count + 1, offset=4).astype(np.int64)
+        if np.any(offsets < header_size) or np.any(offsets > len(data)):
+            raise tvm.error.OpNotImplemented(f"{op_name} has out-of-bounds string tensor offsets")
+        if np.any(offsets[:-1] > offsets[1:]):
+            raise tvm.error.OpNotImplemented(f"{op_name} has non-monotonic string tensor offsets")
+
+        try:
+            values = [
+                data[int(offsets[i]) : int(offsets[i + 1])].decode("utf-8") for i in range(count)
+            ]
+        except UnicodeDecodeError as e:
+            raise tvm.error.OpNotImplemented(f"{op_name} has invalid UTF-8 string data: {e}") from e
+        shape = self._get_tensor_shape_tuple(tensor_wrapper)
+        expected_count = math.prod(shape) if shape else 1
+        if expected_count != count:
+            raise tvm.error.OpNotImplemented(
+                f"{op_name} string tensor buffer count does not match its shape"
+            )
+        return np.array(values, dtype=object).reshape(shape)
+
     def convert_hashtable(self, op):
         """Convert a TFLite HASHTABLE into an importer-local table handle."""
         input_tensors = self.get_input_tensors(op)
@@ -769,6 +808,20 @@ class OperatorConverter:
         ):
             raise tvm.error.OpNotImplemented("HASHTABLE_IMPORT requires constant keys and values")
 
+        if self._is_tflite_string_type(table_info["key_dtype"]):
+            keys = self._get_string_tensor_value(key_tensor, "HASHTABLE_IMPORT")
+        else:
+            keys = self.get_tensor_value(key_tensor)
+        if self._is_tflite_string_type(table_info["value_dtype"]):
+            values = self._get_string_tensor_value(value_tensor, "HASHTABLE_IMPORT")
+        else:
+            values = self.get_tensor_value(value_tensor)
+
+        if np.unique(keys).size != keys.size:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_IMPORT with duplicate keys is not supported"
+            )
+
         hashtable_values = self.conversion_state["hashtable_values"]
         table_key = table_info["table_key"]
         if table_key not in hashtable_values:
@@ -776,14 +829,81 @@ class OperatorConverter:
                 "size": math.prod(key_shape) if key_shape else 1,
                 "key_dtype": table_info["key_dtype"],
                 "value_dtype": table_info["value_dtype"],
+                "keys": keys,
+                "values": values,
             }
         return None
 
     def convert_hashtable_find(self, op):
-        """Reject HASHTABLE_FIND until Relax can represent TFLite string tensors."""
-        raise tvm.error.OpNotImplemented(
-            "HASHTABLE_FIND requires TensorType.STRING support in Relax TFLite frontend"
+        """Convert the constant-foldable string-to-int64 HASHTABLE_FIND subset."""
+        from tflite.TensorType import TensorType
+
+        input_tensors = self.get_input_tensors(op)
+        output_tensors = self.get_output_tensors(op)
+        if len(input_tensors) != 3 or len(output_tensors) != 1:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND expects table, query, and default inputs with one output"
+            )
+
+        table_tensor, query_tensor, default_tensor = input_tensors
+        output_tensor = output_tensors[0]
+        table_info = self._get_hashtable_info_for_handle(table_tensor, "HASHTABLE_FIND")
+        table_key = table_info["table_key"]
+        hashtable_values = self.conversion_state["hashtable_values"]
+        if table_key not in hashtable_values:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND requires a table initialized by a supported CALL_ONCE subgraph"
+            )
+        table_values = hashtable_values[table_key]
+
+        if (
+            query_tensor.tensor.Type() != table_values["key_dtype"]
+            or default_tensor.tensor.Type() != table_values["value_dtype"]
+            or output_tensor.tensor.Type() != table_values["value_dtype"]
+        ):
+            raise tvm.error.OpNotImplemented("HASHTABLE_FIND key/value dtypes mismatch")
+
+        if not (
+            self._is_tflite_string_type(table_values["key_dtype"])
+            and table_values["value_dtype"] == TensorType.INT64
+        ):
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND only supports constant string -> int64 tables"
+            )
+        if not self._has_tensor_buffer_data(query_tensor):
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND with runtime string queries is not supported"
+            )
+        if not self._has_tensor_buffer_data(default_tensor):
+            raise tvm.error.OpNotImplemented("HASHTABLE_FIND requires constant default values")
+
+        query_shape = self._get_tensor_shape_tuple(query_tensor)
+        output_shape = self._get_tensor_shape_tuple(output_tensor)
+        if output_shape != query_shape:
+            raise tvm.error.OpNotImplemented("HASHTABLE_FIND output shape must match query shape")
+
+        query_values = self._get_string_tensor_value(query_tensor, "HASHTABLE_FIND")
+        default_values = self.get_tensor_value(default_tensor)
+        default_shape = self._get_tensor_shape_tuple(default_tensor)
+        if default_shape == () or default_values.size == 1:
+            result = np.full(output_shape, int(default_values.item()), dtype=np.int64)
+        elif default_shape == query_shape:
+            result = default_values.astype(np.int64).copy()
+        else:
+            raise tvm.error.OpNotImplemented(
+                "HASHTABLE_FIND default value must be scalar or match query shape"
+            )
+
+        table_map = dict(
+            zip(
+                table_values["keys"].reshape(-1).tolist(),
+                table_values["values"].reshape(-1).astype(np.int64).tolist(),
+            )
         )
+        for index, key in np.ndenumerate(query_values):
+            if key in table_map:
+                result[index] = table_map[key]
+        return relax.const(result.astype(np.int64), "int64")
 
     def convert_hashtable_lookup(self, op):
         """Convert TFLite HASHTABLE_LOOKUP for non-string value tensors."""
@@ -8834,6 +8954,15 @@ def from_tflite(
                     dtype = "float32"
                     if shape is not None:
                         shape = tuple(shape) + (2,)
+                if dtype == "string":
+                    # Relax has no string tensor type, so TFLite TensorType.STRING graph
+                    # inputs cannot be represented. This also covers runtime string queries
+                    # for ops like HASHTABLE_FIND, whose constant-foldable subset is handled
+                    # in the op converter.
+                    raise tvm.error.OpNotImplemented(
+                        "Relax TFLite frontend does not support TensorType.STRING graph inputs "
+                        "(e.g. runtime string queries)"
+                    )
                 input_var = relax.Var(
                     name_hint=model_input_name,
                     ty=relax.TensorType(shape=shape, dtype=dtype),
