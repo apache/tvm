@@ -1990,9 +1990,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         # Replace None with arange for full dimension indexing
                         arange_idx = self.block_builder.emit(
                             relax.op.arange(
-                                relax.expr._to_prim_expr(0),
+                                relax.prim_value(0),
                                 data_shape[i],
-                                relax.expr._to_prim_expr(1),
+                                relax.prim_value(1),
                                 "int64",
                             )
                         )
@@ -2084,9 +2084,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             if idx is None:
                 arange_idx = self.block_builder.emit(
                     relax.op.arange(
-                        relax.expr._to_prim_expr(0),
+                        relax.prim_value(0),
                         data_shape[i],
-                        relax.expr._to_prim_expr(1),
+                        relax.prim_value(1),
                         "int64",
                     )
                 )
@@ -2152,17 +2152,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
             if isinstance(bound, tirx.PrimExpr):
                 value = _adjust(bound.value)
-                return relax.expr._to_prim_expr(value)
+                return relax.prim_value(value)
 
             bound = _adjust(bound)
             if not isinstance(bound, tirx.PrimExpr):
-                bound = relax.expr._to_prim_expr(bound)
+                bound = relax.prim_value(bound)
             return bound
 
         start = _normalize_bound(start)
         end = _normalize_bound(end)
         if not isinstance(step, tirx.PrimExpr):
-            step = relax.expr._to_prim_expr(step)
+            step = relax.prim_value(step)
 
         return self.block_builder.emit(
             relax.op.slice_scatter(input_tensor, src, start, end, step, axis=dim)

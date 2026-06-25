@@ -21,7 +21,7 @@ import numpy as np  # type: ignore
 
 import tvm
 
-from ..expr import Expr, _to_prim_expr
+from ..expr import Expr, prim_value
 from . import _ffi_api
 
 
@@ -70,15 +70,15 @@ def unique(
     """
 
     if isinstance(sorted, bool):
-        sorted = _to_prim_expr(sorted)
+        sorted = prim_value(sorted)
     if isinstance(return_index, bool):
-        return_index = _to_prim_expr(return_index)
+        return_index = prim_value(return_index)
     if isinstance(return_inverse, bool):
-        return_inverse = _to_prim_expr(return_inverse)
+        return_inverse = prim_value(return_inverse)
     if isinstance(return_counts, bool):
-        return_counts = _to_prim_expr(return_counts)
+        return_counts = prim_value(return_counts)
     if axis is not None and isinstance(axis, int):
-        axis = _to_prim_expr(axis)
+        axis = prim_value(axis)
     return _ffi_api.unique(  # type: ignore
         x, sorted, return_index, return_inverse, return_counts, axis
     )

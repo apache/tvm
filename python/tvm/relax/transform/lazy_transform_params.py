@@ -60,7 +60,7 @@ class ForwardCollector(PyExprVisitor):
             for i, expr in enumerate(binding.value.fields):
                 if expr not in self.out_tuple_map:
                     self.out_tuple_map[expr] = []
-                self.out_tuple_map[expr].append(relax.expr._to_prim_expr(i))
+                self.out_tuple_map[expr].append(relax.prim_value(i))
         else:
             self.is_tuple_get_item_input = False
             super().visit_var_binding_(binding)
@@ -266,7 +266,7 @@ class LazyInputMutator(PyExprMutator):
             get_item_result = self.builder_.emit(
                 relax.Call(
                     relax.ExternFunc(self.func_creator.fget_item),
-                    self.func_creator.extra_get_item_params + [relax.expr._to_prim_expr(index)],
+                    self.func_creator.extra_get_item_params + [relax.prim_value(index)],
                     None,
                     [relax.AnyType()],
                 )
@@ -287,8 +287,7 @@ class LazyInputMutator(PyExprMutator):
             get_item_result = self.builder_.emit(
                 relax.Call(
                     relax.ExternFunc(self.func_creator.fget_item),
-                    self.func_creator.extra_get_item_params
-                    + [relax.expr._to_prim_expr(node.index)],
+                    self.func_creator.extra_get_item_params + [relax.prim_value(node.index)],
                     None,
                     [relax.AnyType()],
                 )

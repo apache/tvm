@@ -22,7 +22,7 @@ from tvm.ir.expr import PrimExpr
 from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
-from ..expr import Expr, ShapeExpr, _to_prim_expr
+from ..expr import Expr, ShapeExpr, prim_value
 from ..expr import Tuple as RxTuple
 from . import _ffi_api
 
@@ -158,7 +158,7 @@ def layout_transform(
             isinstance(pad_value, int | float)
         ):
             pad_value = FloatImm(x_dtype.dtype, float(pad_value))
-        pad_value = _to_prim_expr(pad_value)
+        pad_value = prim_value(pad_value)
 
     if axis_separators is None:
         axis_separators = []
@@ -846,11 +846,11 @@ def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
 
     """
     if not isinstance(start, PrimExpr):
-        start = _to_prim_expr(start)
+        start = prim_value(start)
     if not isinstance(end, PrimExpr):
-        end = _to_prim_expr(end)
+        end = prim_value(end)
     if not isinstance(step, PrimExpr):
-        step = _to_prim_expr(step)
+        step = prim_value(step)
     return _ffi_api.slice_scatter(input_tensor, src, axis, start, end, step)
 
 
@@ -899,6 +899,6 @@ def one_hot(
              [0, 1, 0],
              [0, 0, 1]]
     """
-    on_value = _to_prim_expr(on_value)
-    off_value = _to_prim_expr(off_value)
+    on_value = prim_value(on_value)
+    off_value = prim_value(off_value)
     return _ffi_api.one_hot(indices, on_value, off_value, depth, axis)  # type: ignore

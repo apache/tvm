@@ -29,7 +29,7 @@ while keeping the same underlying data.
 from collections.abc import Sequence
 
 from tvm.relax import DataTypeImm, Expr, ShapeExpr
-from tvm.relax.expr import _to_prim_expr
+from tvm.relax.expr import prim_value
 from tvm.tirx import PrimExpr
 
 from . import _ffi_api
@@ -93,7 +93,7 @@ def view(
     relative_byte_offset = (
         relative_byte_offset
         if relative_byte_offset is None or isinstance(relative_byte_offset, Expr)
-        else _to_prim_expr(relative_byte_offset)
+        else prim_value(relative_byte_offset)
     )
 
     return _ffi_api.view(data, shape, dtype, relative_byte_offset)  # type: ignore

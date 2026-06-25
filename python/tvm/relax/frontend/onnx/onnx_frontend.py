@@ -479,14 +479,14 @@ class BinaryBase(OnnxOpConverter):
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
             if isinstance(x, tvm.tirx.PrimExpr) and isinstance(y, tvm.tirx.PrimExpr):
-                return relax.expr._to_prim_expr(output.item())
+                return relax.prim_value(output.item())
             if x.dtype == y.dtype:
                 # no numpy precision widening
                 output = output.astype(x.dtype)
             if all([isinstance(inp, relax.Constant) for inp in inputs]):
                 return relax.const(output, output.dtype)  # pylint: disable=not-callable
             if any([isinstance(inp, tvm.tirx.PrimExpr) for inp in inputs]):
-                return relax.expr._to_prim_expr(output.item())  # pylint: disable=not-callable
+                return relax.prim_value(output.item())  # pylint: disable=not-callable
 
         return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
 
@@ -906,8 +906,8 @@ class Hardmax(OnnxOpConverter):
         normalized_axis, axis_extent = _get_axis_extent(data, axis, "Hardmax")
         dtype = data.ty.dtype
         argmax = relax.op.argmax(data, axis=normalized_axis)
-        on_value = relax.expr._to_prim_expr(tvm.tirx.const(1.0, dtype))
-        off_value = relax.expr._to_prim_expr(tvm.tirx.const(0.0, dtype))
+        on_value = relax.prim_value(tvm.tirx.const(1.0, dtype))
+        off_value = relax.prim_value(tvm.tirx.const(0.0, dtype))
         return relax.op.one_hot(argmax, on_value, off_value, axis_extent, normalized_axis)
 
     @classmethod
@@ -1195,7 +1195,7 @@ class Gather(OnnxOpConverter):
                 np_index = np_index[0]
             np_index = int(np_index)
             shape_val = data[np_index]
-            return relax.expr._to_prim_expr(shape_val)
+            return relax.prim_value(shape_val)
 
         indices_dtype = indices.ty.dtype.dtype
         if not indices_dtype.startswith("uint"):
@@ -1959,11 +1959,11 @@ class Squeeze(OnnxOpConverter):
             shape_tensor_ndim = 1
             if axis is None:
                 if len(data) == 1:
-                    return relax.expr._to_prim_expr(data[0])
+                    return relax.prim_value(data[0])
                 return data
             normalized_axes = _normalize_constant_axes(list(axis), shape_tensor_ndim, "Squeeze")
             if normalized_axes == [0] and len(data) == 1:
-                return relax.expr._to_prim_expr(data[0])
+                return relax.prim_value(data[0])
             raise NotImplementedError(
                 "Squeeze on symbolic shape tensors only supports removing the sole axis."
             )
@@ -2380,7 +2380,7 @@ def get_prim_value_list(values):
     new_values = []
     for v in list(values):
         if isinstance(v, relax.expr.PrimExpr):
-            new_values.append(relax.expr._to_prim_expr(v))
+            new_values.append(relax.prim_value(v))
         else:
             new_values.append(v)
     return new_values
@@ -4454,8 +4454,8 @@ class OneHot(OnnxOpConverter):
         values = values.data.numpy().tolist()
         off_value, on_value = values
         off_value, on_value = (
-            relax.expr._to_prim_expr(off_value),
-            relax.expr._to_prim_expr(on_value),
+            relax.prim_value(off_value),
+            relax.prim_value(on_value),
         )
         return relax.op.one_hot(indices, on_value, off_value, depth, axis)
 

@@ -45,19 +45,6 @@ Type = tvm.ir.Type  # pylint: disable=invalid-name
 GlobalVar = tvm.ir.GlobalVar
 
 
-def _to_prim_expr(value: PrimExpr | int | float, dtype: str | None = None) -> PrimExpr:
-    if isinstance(value, PrimExpr):
-        return value
-    if isinstance(value, bool | int):
-        return tvm.tirx.IntImm(dtype or "int64", int(value))
-    if isinstance(value, float):
-        return tvm.tirx.FloatImm(dtype or "float64", value)
-    tvm_value = tvm_ffi.convert(value)
-    if isinstance(tvm_value, PrimExpr):
-        return tvm_value
-    raise TypeError(f"Cannot convert {value} with type {type(value)} to `PrimExpr`")
-
-
 def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimExpr:
     """Convert a Python scalar or primitive expression to ``PrimExpr``.
 
@@ -75,7 +62,16 @@ def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimE
         The converted primitive expression.  Existing ``PrimExpr`` inputs are
         returned unchanged.
     """
-    return _to_prim_expr(value, dtype)
+    if isinstance(value, PrimExpr):
+        return value
+    if isinstance(value, bool | int):
+        return tvm.tirx.IntImm(dtype or "int64", int(value))
+    if isinstance(value, float):
+        return tvm.tirx.FloatImm(dtype or "float64", value)
+    tvm_value = tvm_ffi.convert(value)
+    if isinstance(tvm_value, PrimExpr):
+        return tvm_value
+    raise TypeError(f"Cannot convert {value} with type {type(value)} to `PrimExpr`")
 
 
 @tvm_ffi.register_object("relax.Id")

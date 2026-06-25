@@ -117,7 +117,7 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
             # The "cuda_ipc.custom_allreduce" implementation does not
             # yet support num_groups>1, and therefore does not use the
             # `in_group` argument.
-            [allreduce_input, relax.expr._to_prim_expr(self.allreduce_strategy), allreduce_output],
+            [allreduce_input, relax.prim_value(self.allreduce_strategy), allreduce_output],
         )
 
 

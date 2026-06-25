@@ -78,6 +78,6 @@ class _Rewriter(PyExprMutator):
         )
         return relax.Call(
             self.memory_alloc_tensor_op,
-            args=[ipc_alloc_storage, call.args[2], shape, dtype, relax.expr._to_prim_expr(0)],
+            args=[ipc_alloc_storage, call.args[2], shape, dtype, relax.prim_value(0)],
             ty_args=call.ty_args,
         )

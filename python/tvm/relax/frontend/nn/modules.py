@@ -811,7 +811,7 @@ class KVCache(Effect):
                     "vm.builtin.attention_kv_cache_create",
                     rx.op.zeros(init_shape, self.dtype),
                     init_shape,
-                    rx.expr._to_prim_expr(0),
+                    rx.prim_value(0),
                     ty_args=rx.ObjectType(),
                 ),
                 name_hint=name_hint,

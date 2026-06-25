@@ -1011,8 +1011,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         off_value = node.args[3] if len(node.args) > 3 else node.kwargs.get("off_value", 0)
         axis = node.args[4] if len(node.args) > 4 else node.kwargs.get("axis", -1)
 
-        on_value = relax.expr._to_prim_expr(on_value)
-        off_value = relax.expr._to_prim_expr(off_value)
+        on_value = relax.prim_value(on_value)
+        off_value = relax.prim_value(off_value)
 
         return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
 

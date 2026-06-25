@@ -20,7 +20,7 @@ from tvm import DataType, DataTypeCode
 from tvm.ir import PrimType
 from tvm.ir.expr import PrimExpr
 
-from ..expr import Expr, ShapeExpr, _to_prim_expr
+from ..expr import Expr, ShapeExpr, prim_value
 from . import _ffi_api
 
 PrimExprLike = int | PrimExpr
@@ -197,9 +197,9 @@ def eye(
         The result tensor.
     """
     m = n if m is None else m
-    n = _to_prim_expr(n)
-    m = _to_prim_expr(m)
-    k = _to_prim_expr(k)
+    n = prim_value(n)
+    m = prim_value(m)
+    k = prim_value(k)
     return _ffi_api.eye(n, m, k, _raw_dtype(dtype))  # type: ignore
 
 
@@ -231,7 +231,7 @@ def eye_like(
     result : relax.Expr
         The result tensor.
     """
-    k = _to_prim_expr(k)
+    k = prim_value(k)
     return _ffi_api.eye_like(x, k, _raw_dtype(dtype))  # type: ignore
 
 
@@ -279,9 +279,9 @@ def arange(
         integer_args = all(is_int(arg) for arg in args)
         dtype = "int64" if integer_args else "float32"
 
-    start = _to_prim_expr(start)
-    end = _to_prim_expr(end)
-    step = _to_prim_expr(step)
+    start = prim_value(start)
+    end = prim_value(end)
+    step = prim_value(step)
     return _ffi_api.arange(start, end, step, dtype)  # type: ignore
 
 
@@ -309,13 +309,13 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
         The result tensor.
     """
     if not isinstance(window_size, Expr):
-        window_size = _to_prim_expr(window_size)
+        window_size = prim_value(window_size)
     if not isinstance(periodic, Expr):
-        periodic = _to_prim_expr(periodic)
+        periodic = prim_value(periodic)
     if not isinstance(alpha, Expr):
-        alpha = _to_prim_expr(alpha)
+        alpha = prim_value(alpha)
     if not isinstance(beta, Expr):
-        beta = _to_prim_expr(beta)
+        beta = prim_value(beta)
 
     return _ffi_api.hamming_window(window_size, periodic, alpha, beta, dtype)
 
@@ -341,7 +341,7 @@ def tril(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
         The result tensor.
     """
     if not isinstance(k, Expr):
-        k = _to_prim_expr(k)
+        k = prim_value(k)
 
     return _ffi_api.tril(x, k)  # type: ignore
 
@@ -367,6 +367,6 @@ def triu(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
         The result tensor.
     """
     if not isinstance(k, Expr):
-        k = _to_prim_expr(k)
+        k = prim_value(k)
 
     return _ffi_api.triu(x, k)  # type: ignore

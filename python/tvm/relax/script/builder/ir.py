@@ -686,7 +686,7 @@ def If(condition: Expr | PrimExpr) -> frame.IfFrame:  # pylint: disable=invalid-
 
     """
     if not isinstance(condition, Expr):
-        condition = relax.expr._to_prim_expr(condition)
+        condition = relax.prim_value(condition)
 
     return _ffi_api.If(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
 

@@ -7843,11 +7843,11 @@ class OperatorConverter:
         on_val = self.get_tensor_value(on_value).item()
         off_val = self.get_tensor_value(off_value).item()
         if "float" in dtype:
-            on_prim = relax.expr._to_prim_expr(tvm.tirx.FloatImm(dtype, float(on_val)))
-            off_prim = relax.expr._to_prim_expr(tvm.tirx.FloatImm(dtype, float(off_val)))
+            on_prim = relax.prim_value(tvm.tirx.FloatImm(dtype, float(on_val)))
+            off_prim = relax.prim_value(tvm.tirx.FloatImm(dtype, float(off_val)))
         else:
-            on_prim = relax.expr._to_prim_expr(tvm.tirx.IntImm(dtype, int(on_val)))
-            off_prim = relax.expr._to_prim_expr(tvm.tirx.IntImm(dtype, int(off_val)))
+            on_prim = relax.prim_value(tvm.tirx.IntImm(dtype, int(on_val)))
+            off_prim = relax.prim_value(tvm.tirx.IntImm(dtype, int(off_val)))
 
         out = relax.op.one_hot(indices_expr, on_prim, off_prim, depth, axis)
 
