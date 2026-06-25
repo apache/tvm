@@ -39,7 +39,7 @@ struct Resize2DAttrs : public AttrsNode {
   double cubic_alpha;
   int cubic_exclude;
   double extrapolation_value;
-  DLDataType out_dtype;
+  ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -88,7 +88,7 @@ struct Resize3DAttrs : public AttrsNode {
   double cubic_alpha;
   int cubic_exclude;
   double extrapolation_value;
-  DLDataType out_dtype;
+  ffi::Optional<DLDataType> out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

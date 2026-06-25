@@ -155,8 +155,9 @@ Type InferTypeScan(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<ScanopAttrs>();
 
-  PrimType out_type =
-      attrs->dtype == DLDataType{kDLOpaqueHandle, 0, 0} ? data_ty->dtype : PrimType(attrs->dtype);
+  ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
+                                         ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
+                                         : data_ty->dtype;
 
   if (!attrs->axis.has_value()) {
     // flattened
@@ -243,7 +244,7 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> d
              bool exclusive) {
   auto attrs = ffi::make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
+  attrs->dtype = dtype;
   attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumprod");
@@ -267,7 +268,7 @@ Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> dt
             bool exclusive) {
   auto attrs = ffi::make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
+  attrs->dtype = dtype;
   attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumsum");

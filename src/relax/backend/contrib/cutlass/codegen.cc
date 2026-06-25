@@ -167,7 +167,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     for (const auto& arg : ext_func_args_) {
       auto ty = GetType(arg);
       if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
-        arg_types.emplace_back(backend::DType2String(tensor_ty->dtype->dtype));
+        arg_types.emplace_back(backend::DType2String(tensor_ty->GetDtypeRaw()));
       } else if (const auto* shape_ty = ty.as<ShapeTypeNode>()) {
         arg_types.emplace_back(backend::DType2String(shape_ty->values.value()[0].ty()->dtype));
       } else {
@@ -302,7 +302,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
 
     std::vector<std::string> out_types;
     if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
-      out_types.emplace_back(backend::DType2String(tensor_ty->dtype->dtype));
+      out_types.emplace_back(backend::DType2String(tensor_ty->GetDtypeRaw()));
     } else {
       TVM_FFI_THROW(InternalError) << "Unimplemented ty type: " << ty;
     }

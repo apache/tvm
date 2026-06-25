@@ -347,7 +347,7 @@ class CodegenCBase {
    */
   std::string GetDtypeString(const TensorTypeNode* tensor_ty) {
     std::string dtype;
-    DLDataType raw_dtype = tensor_ty->dtype->dtype;
+    DLDataType raw_dtype = tensor_ty->GetDtypeRaw();
     if (raw_dtype == DLDataType{kDLFloat, 32, 1}) {
       dtype = "float";
     } else if (raw_dtype == DLDataType{kDLFloat, 16, 1}) {

@@ -482,6 +482,7 @@ def test_lower_runtime_builtin_shape_change():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "float32")):
+            _ = R.null_value()
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
@@ -514,6 +515,7 @@ def test_lower_runtime_builtin_view_shape_from_unknown():
     class Expected:
         @R.function
         def main(A: R.Tensor(dtype="float32")):
+            _ = R.null_value()
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
@@ -574,6 +576,7 @@ def test_lower_runtime_builtin_byte_offset():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "float32")):
+            _ = R.null_value()
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(

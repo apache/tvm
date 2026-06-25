@@ -85,7 +85,7 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
   if (indices_ty->IsUnknownDtype()) {
     LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else {
-    PrimType indices_dtype = indices_ty->dtype;
+    PrimType indices_dtype = indices_ty->GetDtype();
     if (!indices_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "Take op requires the input indices to have integer dtype. However, the "
@@ -350,7 +350,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
   const auto* data_ty = data->ty.as<TensorTypeNode>();
 
-  PrimType dtype(DLDataType{kDLOpaqueHandle, 0, 0});
+  ffi::Optional<PrimType> dtype = std::nullopt;
   ffi::Optional<VDevice> vdevice = std::nullopt;
   int ndim = kUnknownNDim;
   if (data_ty) {

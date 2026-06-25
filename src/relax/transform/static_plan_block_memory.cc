@@ -640,7 +640,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
     TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-    TVM_FFI_ICHECK(ty->dtype->dtype == call->args[1].as_or_throw<DataTypeImm>()->value);
+    TVM_FFI_ICHECK(ty->GetDtypeRaw() == call->args[1].as_or_throw<DataTypeImm>()->value);
     TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
@@ -657,7 +657,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-    StorageToken token(upper_bounded_shape, ty->dtype->dtype, storage_scope->value, vdevice);
+    StorageToken token(upper_bounded_shape, ty->GetDtypeRaw(), storage_scope->value, vdevice);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -955,7 +955,7 @@ class StorageAllocationRewriter : public ExprMutator {
 
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimExpr offset = IntImm::Int64(0);
-      DLDataType dtype = ty->dtype->dtype;
+      DLDataType dtype = ty->GetDtypeRaw();
       return Call(mem_alloc_tensor,
                   {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
                   Attrs());
@@ -974,12 +974,12 @@ class StorageAllocationRewriter : public ExprMutator {
           GetUpperBoundShape(shape->values, ana_.get(), dom_map_);
       if (!IsStaticShape(shape->values)) {
         TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-        TVM_FFI_ICHECK_EQ(ty->dtype->dtype, call->args[1].as_or_throw<DataTypeImm>()->value);
+        TVM_FFI_ICHECK_EQ(ty->GetDtypeRaw(), call->args[1].as_or_throw<DataTypeImm>()->value);
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
         }
-        DLDataType dtype = ty->dtype->dtype;
+        DLDataType dtype = ty->GetDtypeRaw();
         PrimType dtype_ty(dtype);
         TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
             << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;

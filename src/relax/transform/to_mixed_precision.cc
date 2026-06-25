@@ -315,7 +315,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
       // supported to be rewritten
-      DLDataType tensor_dtype = tensor->dtype->dtype;
+      DLDataType tensor_dtype = tensor->GetDtypeRaw();
       if (tensor_dtype != fp16_ && tensor_dtype != fp32_) return expr;
       return astype(expr, ffi::StringToDLDataType(to[0].LeafValue()));
     };

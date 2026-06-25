@@ -52,10 +52,11 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
       << "but expression " << call << " has RHS " << call->args[1] << ", which has Type " << rhs_ty;
 
   // Dtype
-  PrimType output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);
+  ffi::Optional<PrimType> output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);
 
   if (lhs_ty.as<PrimTypeNode>() && rhs_ty.as<PrimTypeNode>()) {
-    return output_dtype;
+    TVM_FFI_ICHECK(output_dtype.defined());
+    return output_dtype.value();
   }
 
   // VDevice

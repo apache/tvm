@@ -87,7 +87,8 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
     }
   }();
 
-  auto view_dtype = [&]() -> std::optional<DLDataType> {
+  bool view_dtype_arg_present = false;
+  auto view_dtype = [&]() -> ffi::Optional<PrimType> {
     Type ty = GetType(arg_dtype);
 
     if (HasVoidType(arg_dtype)) {
@@ -105,6 +106,17 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
       }
     }
 
+    static const Op& null_value_op = Op::Get("relax.null_value");
+    if (const CallNode* call_node = arg_value.as<CallNode>()) {
+      if (call_node->op.same_as(null_value_op)) {
+        // No datatype change is applied.  This is the non-void
+        // representation used for missing optional dtype arguments.
+        return std::nullopt;
+      }
+    }
+
+    view_dtype_arg_present = true;
+
     // In general, Type inference should only depend on the
     // Type of the arguments, and not on the arguments
     // themselves.  However, `relax::DataTypeImm` uses
@@ -112,11 +124,11 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
     // in this case.
     if (auto dtype_imm = arg_value.as<DataTypeImmNode>()) {
       // We know the datatype for the view.
-      return dtype_imm->value;
+      return PrimType(dtype_imm->value);
     } else if (ty.as<AnyTypeNode>()) {
       // The view changes the datatype, but we don't know what it is
       // being changed into.
-      return DLDataType{kDLOpaqueHandle, 0, 0};
+      return std::nullopt;
     } else {
       TVM_FFI_THROW(TypeError) << "Operator " << call->op
                                << " expects the dtype argument to be a relax::DataTypeImm, "
@@ -167,8 +179,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
     output_ndim = data_ty->ndim;
   }
 
-  DLDataType output_raw_dtype = view_dtype.value_or(data_ty->dtype->dtype);
-  PrimType output_dtype(output_raw_dtype);
+  ffi::Optional<PrimType> output_dtype = view_dtype_arg_present ? view_dtype : data_ty->dtype;
 
   // Helper function returns the number of bytes per vectorized element.
   auto get_size_bytes = [](DLDataType dtype) -> ffi::Optional<IntImm> {
@@ -198,8 +209,10 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimExpr> input_nelements = get_num_elements(input_shape);
   ffi::Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
 
-  ffi::Optional<IntImm> input_element_size = get_size_bytes(data_ty->dtype->dtype);
-  ffi::Optional<IntImm> output_element_size = get_size_bytes(output_raw_dtype);
+  ffi::Optional<IntImm> input_element_size =
+      data_ty->dtype.defined() ? get_size_bytes(data_ty->GetDtypeRaw()) : std::nullopt;
+  ffi::Optional<IntImm> output_element_size =
+      output_dtype.defined() ? get_size_bytes(output_dtype.value()->dtype) : std::nullopt;
 
   if (input_nelements && output_nelements && input_element_size && output_element_size &&
       view_relative_byte_offset) {
@@ -259,7 +272,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
         << view_dtype.value() << ", increasing the size per element from " << input_element_size
         << " bytes to " << output_element_size << " bytes.  "
         << "Consider providing a new shape for the R.view.";
-  } else if (input_nelements && output_nelements && !view_dtype) {
+  } else if (input_nelements && output_nelements && !view_dtype_arg_present) {
     // The shape is being updated, while keeping the datatype the
     // same.  Even though we don't know the size of each element, we
     // know it must be the same for the input and output arrays.  An
@@ -306,7 +319,25 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   Expr dtype = call->args[2];
   Expr relative_byte_offset = call->args[3];
 
-  if (HasVoidType(shape) && HasVoidType(dtype) && HasVoidType(relative_byte_offset)) {
+  auto is_null_value = [&bb](Expr arg) {
+    while (auto arg_var = arg.as<Var>()) {
+      if (auto bound_value = bb->LookupBinding(arg_var.value())) {
+        arg = bound_value.value();
+      } else {
+        break;
+      }
+    }
+
+    static const Op& null_value_op = Op::Get("relax.null_value");
+    if (const CallNode* call_node = arg.as<CallNode>()) {
+      return call_node->op.same_as(null_value_op);
+    }
+    return false;
+  };
+
+  bool dtype_is_unspecified = HasVoidType(dtype) || is_null_value(dtype);
+
+  if (HasVoidType(shape) && dtype_is_unspecified && HasVoidType(relative_byte_offset)) {
     // Special-case, no change is required by the view.
     return data;
   }
@@ -327,16 +358,15 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
     shape = ShapeExpr(data_shape.value());
   }
 
-  if (HasVoidType(dtype)) {
-    DLDataType data_dtype = data->ty.as<TensorType>().value()->dtype->dtype;
-    TVM_FFI_ICHECK(!(((data_dtype).code == kDLOpaqueHandle) && ((data_dtype).bits == 0) &&
-                     ((data_dtype).lanes == 0)))
+  if (dtype_is_unspecified) {
+    auto data_tensor_ty = data->ty.as<TensorType>().value();
+    TVM_FFI_ICHECK(!data_tensor_ty->IsUnknownDtype())
         << "Legalization of " << call->op
         << " requires that either the output dtype be explicitly specified, "
         << "or the input dtype is known.  "
         << "However, in expression " << call << ", no output dtype is specified, "
         << "and the input " << data << " of type " << data->ty << " has unknown dtype.";
-    dtype = relax::DataTypeImm(data_dtype);
+    dtype = relax::DataTypeImm(data_tensor_ty->GetDtypeRaw());
   }
 
   if (HasVoidType(relative_byte_offset)) {

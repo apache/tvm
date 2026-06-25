@@ -98,7 +98,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           if (!n->IsUnknownDtype()) {
             kwargs_keys.push_back("dtype");
-            kwargs_values.push_back(LiteralDoc::DataType(n->dtype->dtype, n_p->Attr("dtype")));
+            kwargs_values.push_back(LiteralDoc::DataType(n->GetDtypeRaw(), n_p->Attr("dtype")));
           }
           if (!n->shape.defined() && !n->IsUnknownNdim()) {
             kwargs_keys.push_back("ndim");

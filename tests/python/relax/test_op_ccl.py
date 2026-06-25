@@ -48,9 +48,9 @@ def test_allreduce_infer_ty():
     _check_inference(bb, relax.op.ccl.allreduce(x0), relax.TensorType((2, 3), "float32"))
     _check_inference(bb, relax.op.ccl.allreduce(x1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.ccl.allreduce(x2), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.ccl.allreduce(x3), relax.TensorType((2, 3), dtype=""))
-    _check_inference(bb, relax.op.ccl.allreduce(x4), relax.TensorType(dtype=""))
-    _check_inference(bb, relax.op.ccl.allreduce(x5), relax.TensorType((3, 4), dtype=""))
+    _check_inference(bb, relax.op.ccl.allreduce(x3), relax.TensorType((2, 3), dtype=None))
+    _check_inference(bb, relax.op.ccl.allreduce(x4), relax.TensorType(dtype=None))
+    _check_inference(bb, relax.op.ccl.allreduce(x5), relax.TensorType((3, 4), dtype=None))
 
 
 def test_allreduce_infer_ty_shape_symbolic():
@@ -98,9 +98,9 @@ def test_allgather_infer_ty():
     _check_inference(bb, relax.op.ccl.allgather(x0, 2), relax.TensorType((4, 3), "float32"))
     _check_inference(bb, relax.op.ccl.allgather(x1, 2), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.ccl.allgather(x2, 2), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.ccl.allgather(x3, 2), relax.TensorType((4, 3), dtype=""))
-    _check_inference(bb, relax.op.ccl.allgather(x4, 2), relax.TensorType(dtype=""))
-    _check_inference(bb, relax.op.ccl.allgather(x5, 2), relax.TensorType((6, 4), dtype=""))
+    _check_inference(bb, relax.op.ccl.allgather(x3, 2), relax.TensorType((4, 3), dtype=None))
+    _check_inference(bb, relax.op.ccl.allgather(x4, 2), relax.TensorType(dtype=None))
+    _check_inference(bb, relax.op.ccl.allgather(x5, 2), relax.TensorType((6, 4), dtype=None))
 
 
 def test_allgather_infer_ty_shape_symbolic():
@@ -153,11 +153,11 @@ def test_broadcast_from_worker0_infer_ty():
     )
     _check_inference(bb, relax.op.ccl.broadcast_from_worker0(x2), relax.TensorType(dtype="float32"))
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_worker0(x3), relax.TensorType((2, 3), dtype="")
+        bb, relax.op.ccl.broadcast_from_worker0(x3), relax.TensorType((2, 3), dtype=None)
     )
-    _check_inference(bb, relax.op.ccl.broadcast_from_worker0(x4), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.ccl.broadcast_from_worker0(x4), relax.TensorType(dtype=None))
     _check_inference(
-        bb, relax.op.ccl.broadcast_from_worker0(x5), relax.TensorType((3, 4), dtype="")
+        bb, relax.op.ccl.broadcast_from_worker0(x5), relax.TensorType((3, 4), dtype=None)
     )
 
 
@@ -209,7 +209,7 @@ def test_scatter_from_worker0_infer_ty():
         bb, relax.op.ccl.scatter_from_worker0(x0, 2), relax.TensorType((1, 3), "float32")
     )
     _check_inference(
-        bb, relax.op.ccl.scatter_from_worker0(x1, 3), relax.TensorType((1, 4, 5), dtype="")
+        bb, relax.op.ccl.scatter_from_worker0(x1, 3), relax.TensorType((1, 4, 5), dtype=None)
     )
 
 
