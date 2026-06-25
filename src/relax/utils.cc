@@ -183,8 +183,12 @@ bool IsBoolType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dt
   int ndim;
 
   if (const auto* tensor = ty.as<TensorTypeNode>()) {
-    dtype = tensor->dtype.value()->dtype;
     ndim = tensor->ndim;
+    if (tensor->IsUnknownDtype()) {
+      bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
+      return permit_unknown_dtype && correct_rank;
+    }
+    dtype = tensor->dtype.value()->dtype;
   } else if (const auto* prim = ty.as<PrimTypeNode>()) {
     dtype = prim->dtype;
     ndim = 0;

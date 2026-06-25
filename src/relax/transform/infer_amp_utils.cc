@@ -26,10 +26,12 @@ NType NTypeFrom(const Type& ty, DLDataType dtype) {
   auto fmapleaf = [&](const Type& ty) -> NType {
     const auto* tensor = ty.as<TensorTypeNode>();
     TVM_FFI_ICHECK(tensor) << "Expected TensorType, but got " << ty;
-    if (dtype == DLDataType{kDLOpaqueHandle, 0, 0})
+    if (dtype == DLDataType{kDLOpaqueHandle, 0, 0}) {
+      if (tensor->IsUnknownDtype()) return NType(ffi::String(""));
       return NType(DLDataTypeToString(tensor->dtype.value()->dtype));
-    else
+    } else {
       return NType(DLDataTypeToString(dtype));
+    }
   };
   return MapToNestedMsg<ffi::String>(ty, fmapleaf);
 }

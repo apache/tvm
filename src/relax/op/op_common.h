@@ -203,7 +203,7 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
-        << input_ty->dtype;
+        << input_ty->dtype.value();
   }
   auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
   ffi::Optional<PrimType> computed_dtype = f_compute_out_dtype(input_ty);

@@ -313,6 +313,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       TVM_FFI_ICHECK(tensor != nullptr) << "Only support rewriting tensor expr";
       // We only rewrite the expr if the dtype is not the same as the given dtype
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
+      // If the source dtype is unknown, there is no concrete dtype to cast from.
+      if (tensor->IsUnknownDtype()) return expr;
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
       // supported to be rewritten
       DLDataType tensor_dtype = tensor->dtype.value()->dtype;
