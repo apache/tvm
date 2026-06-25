@@ -64,7 +64,7 @@ te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::
       << "to constrain the shape before passing into te_tensor";
   n->shape = shape_expr->values.Map(
       [&tir_var_map](const PrimExpr& e) { return tirx::Substitute(e, tir_var_map); });
-  n->dtype = tensor_ty->GetDtype();
+  n->dtype = tensor_ty->dtype.value();
   return te::PlaceholderOp(n).output(0);
 }
 

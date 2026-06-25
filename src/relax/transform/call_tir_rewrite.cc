@@ -92,7 +92,7 @@ class CallTIRMutator : public ExprMutator {
         if (!is_inplace) {
           outs.push_back(builder_->Emit(Call(alloc_tensor_op,
                                              {output_ty->shape.value().as_or_throw<ShapeExpr>(),
-                                              DataTypeImm(output_ty->GetDtypeRaw()),
+                                              DataTypeImm(output_ty->dtype.value()->dtype),
                                               IntImm::Int64(dev_index), StringImm(scope)},
                                              Attrs(), {output_ty}),
                                         "alloc"));
@@ -129,7 +129,7 @@ class CallTIRMutator : public ExprMutator {
             outs.push_back(
                 builder_->Emit(Call(alloc_tensor_op,
                                     {field_tensor->shape.value().as_or_throw<ShapeExpr>(),
-                                     DataTypeImm(field_tensor->GetDtypeRaw()),
+                                     DataTypeImm(field_tensor->dtype.value()->dtype),
                                      IntImm::Int64(dev_index), StringImm(scope)},
                                     Attrs(), {field_tensor}),
                                "alloc"));

@@ -264,7 +264,7 @@ class AlterOpImplMutator : public ExprMutator {
           TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator));
       const auto& tensor_ty = padded_expr->ty.as_or_throw<TensorType>();
 
-      GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->GetDtypeRaw());
+      GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype.value()->dtype);
       return Call(call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {}, {old_tensor_ty});
     }
   }

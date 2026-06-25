@@ -202,7 +202,8 @@ ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, E
       }
 
       auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
-      DLDataType out_dtype = GetTensorType(matchings[patterns.matmul[indices[0]]])->GetDtypeRaw();
+      DLDataType out_dtype =
+          GetTensorType(matchings[patterns.matmul[indices[0]]])->dtype.value()->dtype;
       auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
 
       if (branch_info.bias_dim) {

@@ -192,15 +192,6 @@ class TensorTypeNode : public TypeNode {
   /*! \return Whether the type contains unknown dtype. */
   bool IsUnknownDtype() const { return !dtype.defined(); }
 
-  /*! \return The known dtype. */
-  tvm::PrimType GetDtype() const {
-    TVM_FFI_ICHECK(dtype.defined()) << "TensorType has unknown dtype";
-    return dtype.value();
-  }
-
-  /*! \return The known dtype as a raw DLPack dtype. */
-  DLDataType GetDtypeRaw() const { return GetDtype()->dtype; }
-
   /*! \return Shape if it is known. */
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.defined()) return {};

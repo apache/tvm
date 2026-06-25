@@ -123,7 +123,7 @@ Type InferTypePRelu(const Call& call, const BlockBuilder& ctx) {
     return data_ty;
   }
   // PRelu preserves the old float-kind check; vector lanes are irrelevant to this check.
-  if (!data_ty->IsUnknownDtype() && !data_ty->GetDtype().MatchesCode(DLDataTypeCode::kDLFloat)) {
+  if (!data_ty->IsUnknownDtype() && !data_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call) << "Prelu requires the input tensor to have float "
                                             "dtype. However, the given input dtype is "
                                          << data_ty->dtype;
@@ -188,7 +188,7 @@ Type InferTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
     return data_ty;
   }
   if (!data_ty->IsUnknownDtype()) {
-    PrimType data_dtype = data_ty->GetDtype();
+    PrimType data_dtype = data_ty->dtype.value();
     // Softmax only requires a floating element kind; lane encoding is irrelevant to the check.
     if (!data_dtype.MatchesCode(kDLFloat, kDLBfloat)) {
       TVM_FFI_VISIT_THROW(TypeError, call) << "Softmax requires the input tensor to have float "
@@ -386,7 +386,7 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
   }
   int n_axis = axes.size();
   if (!data_ty->IsUnknownDtype()) {
-    PrimType data_dtype = data_ty->GetDtype();
+    PrimType data_dtype = data_ty->dtype.value();
     // Norm ops only require a floating element kind; lane encoding is irrelevant to the check.
     if (!data_dtype.MatchesCode(kDLFloat, kDLBfloat)) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -630,7 +630,7 @@ Type InferTypeGroupNorm(const Call& call, const BlockBuilder& ctx) {
     }
   }
   // GroupNorm preserves the old float-kind check; vector lanes are irrelevant to this check.
-  if (!data_ty->IsUnknownDtype() && !data_ty->GetDtype().MatchesCode(DLDataTypeCode::kDLFloat)) {
+  if (!data_ty->IsUnknownDtype() && !data_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << op << " expects that data must be float, but got " << data_ty->dtype;
   }
@@ -1023,7 +1023,7 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
   // the type of targets must be int/uint.
   if (!tgt_ty->IsUnknownDtype()) {
-    PrimType target_dtype = tgt_ty->GetDtype();
+    PrimType target_dtype = tgt_ty->dtype.value();
     // NLLLoss only needs the target element kind; vector lanes do not affect target indexing.
     if (!target_dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
         !target_dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {

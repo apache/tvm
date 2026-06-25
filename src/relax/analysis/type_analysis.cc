@@ -355,7 +355,8 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
       return BaseCheckResult::kFailL0;
     }
     // dtype mismatch
-    if (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() && lhs->GetDtype() != rhs->GetDtype()) {
+    if (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() &&
+        lhs->dtype.value() != rhs->dtype.value()) {
       if (rhs->IsUnknownDtype()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
@@ -673,7 +674,8 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
       return IntImm::Bool(false);
     }
     // dtype mismatch
-    if (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() && lhs->GetDtype() != rhs->GetDtype()) {
+    if (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() &&
+        lhs->dtype.value() != rhs->dtype.value()) {
       return IntImm::Bool(false);
     }
     if (!lhs->IsUnknownDtype() && rhs->IsUnknownDtype()) {
@@ -1021,10 +1023,10 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     if (rhs == nullptr) return AnyType(lhs->span);
 
     // find the target dtype, ndim, and vdevice.
-    ffi::Optional<PrimType> dtype =
-        (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() && lhs->GetDtype() == rhs->GetDtype())
-            ? ffi::Optional<PrimType>(lhs->GetDtype())
-            : std::nullopt;
+    ffi::Optional<PrimType> dtype = (!lhs->IsUnknownDtype() && !rhs->IsUnknownDtype() &&
+                                     lhs->dtype.value() == rhs->dtype.value())
+                                        ? ffi::Optional<PrimType>(lhs->dtype.value())
+                                        : std::nullopt;
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     VDevice vdev = VDevice();
     if (lhs->vdevice.defined() && rhs->vdevice.defined() &&

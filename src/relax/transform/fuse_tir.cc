@@ -969,7 +969,7 @@ class FusedTIRConstructor : public ExprVisitor {
       // Case 1. The relax param is a Tensor, we directly create a tirx var and buffer
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
-      PrimType dtype = tensor->GetDtype();
+      PrimType dtype = tensor->dtype.value();
       tirx::Buffer buffer;
       if (tir_buffer_param.defined()) {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,

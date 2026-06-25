@@ -66,7 +66,7 @@ Tuple DecomposeBatchNorm(const Call& call) {
   Expr moving_var = ExpandToMatchInput(call->args[4], ty->ndim, {attrs->axis});
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->GetDtypeRaw());
+  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype.value()->dtype);
   Expr sqrt_var = sqrt(add(moving_var, epsilon));
   Expr out = divide(subtract(data, moving_mean), sqrt_var);
 
@@ -103,8 +103,8 @@ Expr MutateBatchNormForTraining(Call call) {
   Expr data_mean = mean(data, reduce_axes, false);
   Expr data_var = variance(data, reduce_axes, false);
 
-  Expr momentum = MakeConstantScalar(attrs->momentum, ty->GetDtypeRaw());
-  Expr one_minus_mom = MakeConstantScalar(1 - attrs->momentum, ty->GetDtypeRaw());
+  Expr momentum = MakeConstantScalar(attrs->momentum, ty->dtype.value()->dtype);
+  Expr one_minus_mom = MakeConstantScalar(1 - attrs->momentum, ty->dtype.value()->dtype);
 
   Expr new_moving_mean = add(multiply(one_minus_mom, moving_mean), multiply(momentum, data_mean));
   Expr new_moving_var = add(multiply(one_minus_mom, moving_var), multiply(momentum, data_var));
@@ -128,7 +128,7 @@ Expr DecomposeLayerNorm(const Call& call) {
   Expr data_var = variance(data, attrs->axes, true);
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->GetDtypeRaw());
+  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype.value()->dtype);
   Expr sqrt_var = sqrt(add(data_var, epsilon));
   Expr out = divide(subtract(data, data_mean), sqrt_var);
 

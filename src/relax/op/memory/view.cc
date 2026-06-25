@@ -210,7 +210,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
 
   ffi::Optional<IntImm> input_element_size =
-      data_ty->dtype.defined() ? get_size_bytes(data_ty->GetDtypeRaw()) : std::nullopt;
+      data_ty->dtype.defined() ? get_size_bytes(data_ty->dtype.value()->dtype) : std::nullopt;
   ffi::Optional<IntImm> output_element_size =
       output_dtype.defined() ? get_size_bytes(output_dtype.value()->dtype) : std::nullopt;
 
@@ -366,7 +366,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
         << "or the input dtype is known.  "
         << "However, in expression " << call << ", no output dtype is specified, "
         << "and the input " << data << " of type " << data->ty << " has unknown dtype.";
-    dtype = relax::DataTypeImm(data_tensor_ty->GetDtypeRaw());
+    dtype = relax::DataTypeImm(data_tensor_ty->dtype.value()->dtype);
   }
 
   if (HasVoidType(relative_byte_offset)) {

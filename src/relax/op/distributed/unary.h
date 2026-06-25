@@ -42,7 +42,7 @@ Type InferDistTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compu
 
   // Unary op validation preserves the old float-kind check; lanes do not affect this policy.
   if (require_float_dtype && !input_tensor_ty->IsUnknownDtype() &&
-      !input_tensor_ty->GetDtype().MatchesCode(DLDataTypeCode::kDLFloat)) {
+      !input_tensor_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "

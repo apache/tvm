@@ -199,7 +199,7 @@ template <bool require_float_dtype, typename FType>
 inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
   if (require_float_dtype && !input_ty->IsUnknownDtype() &&
-      !input_ty->GetDtype().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
+      !input_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "

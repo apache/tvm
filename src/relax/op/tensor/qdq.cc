@@ -69,9 +69,9 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetInputTensorType(call, ctx)[0];
   TensorType scale_ty = GetInputTensorType(call, ctx)[1];
   TensorType zp_ty = GetInputTensorType(call, ctx)[2];
-  PrimType input_dtype = input_ty->GetDtype();
-  PrimType scale_dtype = scale_ty->GetDtype();
-  PrimType zp_dtype = zp_ty->GetDtype();
+  PrimType input_dtype = input_ty->dtype.value();
+  PrimType scale_dtype = scale_ty->dtype.value();
+  PrimType zp_dtype = zp_ty->dtype.value();
 
   // Check input datatype:
   if (input_dtype != PrimType::Float(16) && input_dtype != PrimType::Float(32)) {
@@ -171,9 +171,9 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetInputTensorType(call, ctx)[0];
   TensorType scale_ty = GetInputTensorType(call, ctx)[1];
   TensorType zp_ty = GetInputTensorType(call, ctx)[2];
-  PrimType input_dtype = input_ty->GetDtype();
-  PrimType scale_dtype = scale_ty->GetDtype();
-  PrimType zp_dtype = zp_ty->GetDtype();
+  PrimType input_dtype = input_ty->dtype.value();
+  PrimType scale_dtype = scale_ty->dtype.value();
+  PrimType zp_dtype = zp_ty->dtype.value();
 
   // Check input datatype:
   if (input_dtype != PrimType::Int(8) && input_dtype != PrimType::UInt(8) &&

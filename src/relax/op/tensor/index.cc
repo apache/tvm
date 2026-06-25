@@ -85,7 +85,7 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
   if (indices_ty->IsUnknownDtype()) {
     LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else {
-    PrimType indices_dtype = indices_ty->GetDtype();
+    PrimType indices_dtype = indices_ty->dtype.value();
     if (!indices_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "Take op requires the input indices to have integer dtype. However, the "
