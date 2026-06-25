@@ -9868,29 +9868,25 @@ def test_stablehlo_dynamic_update_slice_dynamic_starts():
         ) -> R.Tensor((3, 4), dtype="float32"):
             R.func_attr({"num_input": 4})
             with R.dataflow():
-                lv: R.Tensor((), dtype="int64") = R.astype(s0, dtype="int64")
-                lv1: R.Tensor((2, 1), dtype="int64") = R.reshape(
-                    R.add(
-                        R.arange(0, 2, 1, dtype="int64"),
-                        R.minimum(R.maximum(lv, R.const(0, "int64")), R.const(1, "int64")),
-                    ),
-                    (2, 1),
-                )
-                lv2: R.Tensor((2, 2), dtype="int64") = R.broadcast_to(lv1, (2, 2))
-                lv3: R.Tensor((2, 2, 1), dtype="int64") = R.expand_dims(lv2, axis=[-1])
-                lv4: R.Tensor((), dtype="int64") = R.astype(s1, dtype="int64")
-                lv5: R.Tensor((1, 2), dtype="int64") = R.reshape(
-                    R.add(
-                        R.arange(0, 2, 1, dtype="int64"),
-                        R.minimum(R.maximum(lv4, R.const(0, "int64")), R.const(2, "int64")),
-                    ),
-                    (1, 2),
-                )
+                lv: R.Tensor((2,), dtype="int64") = R.arange(0, 2, 1, dtype="int64")
+                lv1: R.Tensor((), dtype="int64") = R.astype(s0, dtype="int64")
+                lv2: R.Tensor((), dtype="int64") = R.maximum(lv1, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.minimum(lv2, R.const(1, "int64"))
+                lv4: R.Tensor((2,), dtype="int64") = R.add(lv, lv3)
+                lv5: R.Tensor((2, 1), dtype="int64") = R.reshape(lv4, (2, 1))
                 lv6: R.Tensor((2, 2), dtype="int64") = R.broadcast_to(lv5, (2, 2))
-                lv7: R.Tensor((2, 2, 1), dtype="int64") = R.expand_dims(lv6, axis=[-1])
-                lv8: R.Tensor((2, 2, 2), dtype="int64") = R.concat((lv3, lv7), axis=-1)
+                lv7: R.Tensor((2,), dtype="int64") = R.arange(0, 2, 1, dtype="int64")
+                lv8: R.Tensor((), dtype="int64") = R.astype(s1, dtype="int64")
+                lv9: R.Tensor((), dtype="int64") = R.maximum(lv8, R.const(0, "int64"))
+                lv10: R.Tensor((), dtype="int64") = R.minimum(lv9, R.const(2, "int64"))
+                lv11: R.Tensor((2,), dtype="int64") = R.add(lv7, lv10)
+                lv12: R.Tensor((1, 2), dtype="int64") = R.reshape(lv11, (1, 2))
+                lv13: R.Tensor((2, 2), dtype="int64") = R.broadcast_to(lv12, (2, 2))
+                lv14: R.Tensor((2, 2, 1), dtype="int64") = R.expand_dims(lv6, axis=[-1])
+                lv15: R.Tensor((2, 2, 1), dtype="int64") = R.expand_dims(lv13, axis=[-1])
+                lv16: R.Tensor((2, 2, 2), dtype="int64") = R.concat((lv14, lv15), axis=-1)
                 gv: R.Tensor((3, 4), dtype="float32") = R.scatter_nd(
-                    operand, lv8, update, reduction="update"
+                    operand, lv16, update, reduction="update"
                 )
                 R.output(gv)
             return gv
