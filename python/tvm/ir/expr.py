@@ -43,8 +43,6 @@ class PrimExpr(BaseExpr):
     optimizations and integer analysis.
     """
 
-    dtype: str
-
 
 @tvm_ffi.register_object("ir.RelaxExpr")
 class RelaxExpr(BaseExpr):

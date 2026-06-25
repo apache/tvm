@@ -176,7 +176,7 @@ def test_tir_too_large_literal_f64():
 )
 def test_tir_const_auto_dtype(literal, expect_dtype):
     x = tirx.const(literal, dtype=None)
-    assert x.dtype == expect_dtype
+    assert x.ty.dtype == expect_dtype
     assert x.value == literal
 
 

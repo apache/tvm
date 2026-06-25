@@ -79,7 +79,8 @@ inline void UnpackSum(const PrimExpr& value, FLeaf fleaf, int sign = 1) {
  */
 inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
   int64_t cscale = 1;
-  PrimExpr res = tirx::MakeConst(lhs.dtype(), 1);
+  PrimType lhs_ty = lhs.ty();
+  PrimExpr res = tirx::MakeConst(lhs_ty, 1);
   auto fcollect = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
       cscale *= intimm->value;
@@ -90,7 +91,7 @@ inline PrimExpr MulAndNormalize(const PrimExpr& lhs, const PrimExpr& rhs) {
   UnpackReduction<tirx::MulNode>(lhs, fcollect);
   UnpackReduction<tirx::MulNode>(rhs, fcollect);
   if (cscale != 1) {
-    res = res * tirx::MakeConst(res.dtype(), cscale);
+    res = res * tirx::MakeConst(res.ty(), cscale);
   }
   return res;
 }

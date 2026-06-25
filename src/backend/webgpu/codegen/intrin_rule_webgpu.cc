@@ -34,7 +34,7 @@ using tirx::FLowerIntrinsic;
 
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
-  const Op operator()(DataType t, const Op& orig_op) const {
+  const Op operator()(PrimType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
       static const Op& webgpu_subgroup_shuffle_op = Op::Get("tirx.webgpu.subgroup_shuffle");
       return webgpu_subgroup_shuffle_op;
@@ -55,9 +55,9 @@ static PrimExpr DispatchWebGPUShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
-  PrimExpr lane_or_delta = Cast(DataType::UInt(32, call->args[2].dtype().lanes()), call->args[2]);
+  PrimExpr lane_or_delta = Cast(PrimType::UInt(32, call->args[2].ty().lanes()), call->args[2]);
   ffi::Array<PrimExpr> webgpu_args{{call->args[1], lane_or_delta}};
-  return Call(call->dtype, T()(call->dtype, call->op.as_or_throw<Op>()), webgpu_args);
+  return Call(e.ty(), T()(e.ty(), call->op.as_or_throw<Op>()), webgpu_args);
 }
 
 void RegisterWebGPUIntrinRules() {
@@ -69,7 +69,7 @@ void RegisterWebGPUIntrinRules() {
 // See full list of builtin: https://www.w3.org/TR/WGSL/#builtin-functions
 
 struct ReturnAbs {
-  std::string operator()(DataType t, std::string name) const { return "abs"; }
+  std::string operator()(PrimType t, std::string name) const { return "abs"; }
 };
 
 TVM_REGISTER_OP("tirx.fabs")
@@ -124,7 +124,7 @@ TVM_REGISTER_OP("tirx.pow")
     .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
 struct ReturnRound {
-  std::string operator()(DataType t, std::string name) const { return "round"; }
+  std::string operator()(PrimType t, std::string name) const { return "round"; }
 };
 
 // WGSL round() uses ties-to-even (banker's rounding), matching IEEE 754 and ONNX Round spec.

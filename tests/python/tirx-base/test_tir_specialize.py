@@ -302,8 +302,8 @@ def test_specialize_buffer_var_to_expr():
     """Handle specialization of buffer var
 
     The `tirx::Buffer::data` field must be an explicit `tirx::Var`, and
-    cannot be replaced with a `tirx::PrimExpr` of type
-    `DataType::Handle()`.  However, these substitutions are useful
+    cannot be replaced with a handle-typed `tirx::PrimExpr`.  However,
+    these substitutions are useful
     when lowering.  If these occur, a binding of the `tirx::Var` is
     included in the specialized function.
     """

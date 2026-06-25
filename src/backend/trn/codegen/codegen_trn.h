@@ -41,7 +41,7 @@ struct NKIInstructionCtx {
   bool is_matmul_input = false;
   int buffer_index = -1;
   int used_var_cnt = 0;
-  DataType dst_dtype;
+  PrimType dst_dtype = PrimType::Void();
   PrimExpr mask;
   bool tensorizing = false;
 };
@@ -57,7 +57,7 @@ class CodeGenTrainium final : public CodeGenC {
   void InitFuncState(const PrimFunc& f) final;
   std::string GetStorageScopeStr(const std::string& scope);           // NOLINT(*)
   void VisitExpr_(const VarNode* op, std::ostream& os) final;         // NOLINT(*)
-  void PrintType(DataType t, std::ostream& os) final;                 // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;          // NOLINT(*)
   void VisitStmt_(const AllocBufferNode* op) final;                   // NOLINT(*)
   void VisitStmt_(const AttrStmtNode* op) final;                      // NOLINT(*)
   void VisitStmt_(const ForNode* op) final;                           // NOLINT(*)

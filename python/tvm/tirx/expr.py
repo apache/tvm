@@ -34,7 +34,7 @@ import tvm.ir._ffi_api
 from tvm import ir
 from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
-from tvm.runtime import DataType, DataTypeCode, Object, ObjectConvertible, Scriptable, const
+from tvm.runtime import DataTypeCode, Object, ObjectConvertible, Scriptable, const
 
 from . import _ffi_api
 from . import generic as _generic
@@ -56,19 +56,30 @@ def div_ambiguity_error() -> RuntimeError:
 def _dtype_is_int(value):
     if isinstance(value, int):
         return True
-    return isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.INT  # type: ignore
+    if isinstance(value, ExprOp):
+        return value.expr_ty().matches_code(DataTypeCode.INT)
+    return False
 
 
 def _dtype_is_float(value):
     if isinstance(value, float):
         return True
-    return isinstance(value, ExprOp) and DataType(value.dtype).type_code == DataTypeCode.FLOAT  # type: ignore
+    if isinstance(value, ExprOp):
+        return value.expr_ty().matches_code(DataTypeCode.FLOAT)
+    return False
 
 
 class ExprOp:
     """Operator overloading for Expr like expressions."""
 
     # TODO(tkonolige): use inspect to add source information to these objects
+
+    def expr_ty(self) -> ir.PrimType:
+        """Return the compile-time primitive type for expression operators."""
+        ty = getattr(self, "ty", None)
+        if isinstance(ty, ir.PrimType):
+            return ty
+        raise TypeError(f"Cannot determine PrimType for {type(self).__name__}")
 
     def __add__(self, other: PrimExpr) -> PrimExpr:
         return _generic.add(self, other)
@@ -121,7 +132,7 @@ class ExprOp:
         return _ffi_api._OpFloorMod(other, self, None)  # type: ignore
 
     def __neg__(self) -> PrimExpr:
-        neg_one = const(-1, self.dtype)  # type: ignore
+        neg_one = const(-1, self.expr_ty().dtype)
         return self.__mul__(neg_one)
 
     def __lshift__(self, other: PrimExpr) -> PrimExpr:
@@ -204,7 +215,7 @@ class ExprOp:
         """
         return _ffi_api._OpEQ(self, other, span)  # type: ignore
 
-    def astype(self, dtype: str, span: Span | None = None) -> PrimExpr:
+    def astype(self, dtype: str | ir.PrimType, span: Span | None = None) -> PrimExpr:
         """Cast the expression to other type.
 
         Parameters
@@ -259,6 +270,10 @@ class EqualOp(ObjectConvertible, ExprOp):
         """Convert object."""
         return _ffi_api._OpEQ(self.a, self.b, self.span)  # type: ignore
 
+    def expr_ty(self) -> ir.PrimType:
+        """Compile-time type of the equality result."""
+        return ir.PrimType("bool")
+
     def __repr__(self) -> str:
         return f"EqualOp({self.a!r}, {self.b!r})"
 
@@ -298,6 +313,10 @@ class NotEqualOp(ObjectConvertible, ExprOp):
     def asobject(self) -> PrimExpr:
         """Convert object."""
         return _ffi_api._OpNE(self.a, self.b, self.span)  # type: ignore
+
+    def expr_ty(self) -> ir.PrimType:
+        """Compile-time type of the inequality result."""
+        return ir.PrimType("bool")
 
     def __repr__(self) -> str:
         return f"NotEqualOp({self.a!r}, {self.b!r})"
@@ -458,12 +477,10 @@ class IterVar(ExprOp, Object, Scriptable):
                 raise TypeError("dom need to be Range")
 
         name = var if var is not None else "iter"
-        dtype = "int32" if dom is None else dom.extent.dtype
+        dtype = "int32" if dom is None else dom.extent.ty
         var = Var(name, dtype=dtype, span=span) if not isinstance(var, Var) else var
         if dom is not None:
-            assert var.dtype == dom.extent.dtype, (
-                "IterVar's Var dtype must match its domain's extent's dtype"
-            )
+            assert var.ty == dom.extent.ty, "IterVar's Var type must match its domain's extent type"
         self.__init_handle_by_constructor__(
             _ffi_api.IterVar,
             dom,
@@ -472,6 +489,10 @@ class IterVar(ExprOp, Object, Scriptable):
             thread_tag,
             span,  # type: ignore
         )
+
+    def expr_ty(self) -> ir.PrimType:
+        """Compile-time type of the iteration variable."""
+        return self.var.ty
 
 
 @tvm_ffi.register_object("tirx.CommReducer")
@@ -595,7 +616,9 @@ class FloatImm(ConstExpr):
 
     value: float
 
-    def __init__(self, dtype: str, value: float, span: Span | None = None) -> None:
+    def __init__(self, dtype: str | ir.PrimType, value: float, span: Span | None = None) -> None:
+        if isinstance(dtype, ir.PrimType):
+            dtype = dtype.dtype
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.FloatImm,
             dtype,
@@ -625,7 +648,9 @@ class IntImm(ConstExpr):
 
     value: int
 
-    def __init__(self, dtype: str, value: int, span: Span | None = None) -> None:
+    def __init__(self, dtype: str | ir.PrimType, value: int, span: Span | None = None) -> None:
+        if isinstance(dtype, ir.PrimType):
+            dtype = dtype.dtype
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.IntImm,
             dtype,
@@ -702,7 +727,9 @@ class Cast(PrimExprWithOp):
 
     value: PrimExpr
 
-    def __init__(self, dtype, value, span: Span | None = None) -> None:
+    def __init__(self, dtype: str | ir.PrimType, value, span: Span | None = None) -> None:
+        if isinstance(dtype, ir.PrimType):
+            dtype = dtype.dtype
         self.__init_handle_by_constructor__(_ffi_api.Cast, dtype, value, span)  # type: ignore
 
 
@@ -1313,7 +1340,7 @@ class Call(PrimExprWithOp):
 
     def __init__(
         self,
-        dtype: str,
+        dtype: str | ir.PrimType | None,
         op: Op | str,
         args: list[PrimExpr],
         attrs: ir.Attrs | dict | None = None,
@@ -1332,6 +1359,10 @@ class Call(PrimExprWithOp):
             op = Op.get(op)
         if isinstance(attrs, dict):
             attrs = ir.make_node("ir.DictAttrs", **attrs)
+        if dtype is None:
+            dtype = ir.PrimType("void")
+        elif not isinstance(dtype, ir.PrimType):
+            dtype = ir.PrimType(dtype)
         if attrs:
             self.__init_handle_by_constructor__(  # type: ignore
                 _ffi_api.CallWithAttrs, dtype, op, args, attrs, span

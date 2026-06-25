@@ -37,6 +37,31 @@
 namespace tvm {
 namespace tirx {
 
+namespace {
+
+bool IsBFloat16Type(const PrimType& type) {
+  return type.MatchesElementType(DLDataTypeCode::kDLBfloat, 16);
+}
+
+bool IsFloat8Type(const PrimType& type) {
+  DLDataTypeCode code = type.code();
+  return code == DLDataTypeCode::kDLFloat8_e3m4 || code == DLDataTypeCode::kDLFloat8_e4m3 ||
+         code == DLDataTypeCode::kDLFloat8_e4m3b11fnuz ||
+         code == DLDataTypeCode::kDLFloat8_e4m3fn || code == DLDataTypeCode::kDLFloat8_e4m3fnuz ||
+         code == DLDataTypeCode::kDLFloat8_e5m2 || code == DLDataTypeCode::kDLFloat8_e5m2fnuz ||
+         code == DLDataTypeCode::kDLFloat8_e8m0fnu;
+}
+
+template <typename F>
+bool MatchPrimType(const Type& type, F f) {
+  if (const auto* prim_type = type.as<PrimTypeNode>()) {
+    return f(ffi::GetRef<PrimType>(prim_type));
+  }
+  return false;
+}
+
+}  // namespace
+
 // NOTE: do not touch buffer on function boundary
 // remap internal fp8/bf16 buffer to f32 if they meet the following condition
 // - constant allocation size
@@ -47,7 +72,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
   ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
+      std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
       : buffer_remap_(buffer_remap), var_remap_(var_remap), promote_dtype_(promote_dtype) {}
 
   // run planning to populate buffer remap and var remap.
@@ -74,7 +99,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     }
   }
 
-  virtual bool MatchDType(DataType dtype) const = 0;
+  virtual bool MatchType(const Type& type) const = 0;
 
   void VisitStmt_(const BufferStoreNode* op) final {
     StmtExprVisitor::VisitStmt_(op);
@@ -88,14 +113,13 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   void VisitStmt_(const AllocBufferNode* op) final {
     // remap all intermediate constant buffer to promote data types (fp16/fp32)
-    if (MatchDType(op->buffer->dtype)) {
-      DataType dtype = promote_dtype_.with_lanes(op->buffer->dtype.lanes());
+    if (MatchType(op->buffer->dtype)) {
+      PrimType dtype = promote_dtype_.WithLanes(op->buffer->dtype.lanes());
       ffi::String storage_scope = "global";
       if (auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
-      Var buffer_var =
-          Var(op->buffer->data->name_hint, PointerType(PrimType(dtype), storage_scope));
+      Var buffer_var = Var(op->buffer->data->name_hint, PointerType(dtype, storage_scope));
       (*var_remap_)[op->buffer->data] = buffer_var;
     }
     return StmtExprVisitor::VisitStmt_(op);
@@ -109,7 +133,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var.dtype().is_handle()) {
+    if (buffer_var.ty().IsHandle()) {
       opaque_var_access_.insert(buffer_var);
     }
   }
@@ -119,7 +143,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     auto var_it = var_remap_->find(buf->data);
     if (var_it == var_remap_->end()) return;
 
-    Buffer new_buffer(var_it->second, promote_dtype_.with_lanes(buf->dtype.lanes()), buf->shape,
+    Buffer new_buffer(var_it->second, promote_dtype_.WithLanes(buf->dtype.lanes()), buf->shape,
                       buf->strides, buf->elem_offset, buf->name, buf->data_alignment,
                       buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span,
                       buf->layout, buf->allocated_addr);
@@ -129,25 +153,29 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap_;
   std::unordered_map<Var, Var>* var_remap_;
   std::unordered_set<Var> opaque_var_access_;
-  DataType promote_dtype_;
+  PrimType promote_dtype_;
 };
 
 class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit BF16ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
+      std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
-  bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
+  bool MatchType(const Type& type) const {
+    return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
+  }
 };
 
 class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit FP8ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
+      std::unordered_map<Var, Var>* var_remap, PrimType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
-  bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
+  bool MatchType(const Type& type) const {
+    return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
+  }
 };
 
 #define DEFINE_BIOP_EXPR_LEGALIZE(OP, FUNC)                      \
@@ -169,7 +197,7 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
 // point in the TIR lowering phases.
 class ComputeLegalizer : public StmtExprMutator {
  public:
-  explicit ComputeLegalizer(DataType promote_dtype) : promote_dtype_(promote_dtype) {}
+  explicit ComputeLegalizer(PrimType promote_dtype) : promote_dtype_(promote_dtype) {}
 
   PrimFunc LegalizeWithPlanner(PrimFunc func, ComputeLegalizePlanner* planner) {
     planner->Plan(func);
@@ -180,21 +208,22 @@ class ComputeLegalizer : public StmtExprMutator {
 
   virtual PrimFunc Legalize(PrimFunc func) = 0;
 
-  virtual bool MatchDType(DataType dtype) const = 0;
+  virtual bool MatchType(const Type& type) const = 0;
 
  protected:
   PrimExpr VisitExpr_(const CastNode* op) final {
     auto op_val = PromoteToTarget(this->VisitExpr(op->value));
 
     // all casts to matched data type (fp8/bf16) becomes f32
-    if (MatchDType(op->dtype)) {
-      return cast(promote_dtype_.with_lanes(op->dtype.lanes()), op_val);
+    PrimType op_ty = op->ty();
+    if (MatchType(op_ty)) {
+      return cast(promote_dtype_.WithLanes(op_ty.lanes()), op_val);
     }
 
     if (op_val.same_as(op->value)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return cast(op->dtype, op_val);
+      return cast(op_ty, op_val);
     }
   }
 
@@ -237,18 +266,19 @@ class ComputeLegalizer : public StmtExprMutator {
     // update normal computations to return f32 instead.
     auto fmutate = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
     ffi::Array<PrimExpr> args = op->args.Map(fmutate);
-    if (MatchDType(op->dtype)) {
-      return Call(promote_dtype_.with_lanes(op->dtype.lanes()), op->op, args, op->attrs, op->span);
+    PrimType op_ty = op->ty();
+    if (MatchType(op_ty)) {
+      return Call(promote_dtype_.WithLanes(op_ty.lanes()), op->op, args, op->attrs, op->span);
     }
     if (args.same_as(op->args)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      return Call(op->dtype, op->op, args, op->attrs, op->span);
+      return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op, args, op->attrs, op->span);
     }
   }
 
   PrimExpr VisitExpr_(const FloatImmNode* op) final {
-    if (MatchDType(op->dtype)) {
+    if (MatchType(op->ty())) {
       return FloatImm(promote_dtype_, op->value);
     }
     return ffi::GetRef<PrimExpr>(op);
@@ -268,8 +298,8 @@ class ComputeLegalizer : public StmtExprMutator {
   PrimExpr VisitExpr_(const LetNode* op) final {
     PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
-    if (value.dtype() != op->value.dtype()) {
-      var = op->var.copy_with_dtype(op->value.dtype());
+    if (value.ty() != op->value.ty()) {
+      var = op->var.copy_with_dtype(op->value.ty());
       var_remap_[op->var] = var;
     }
 
@@ -298,8 +328,8 @@ class ComputeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const BindNode* op) final {
     PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
-    if (value.dtype() != op->value.dtype()) {
-      var = op->var.copy_with_dtype(op->value.dtype());
+    if (value.ty() != op->value.ty()) {
+      var = op->var.copy_with_dtype(op->value.ty());
       var_remap_[op->var] = var;
     }
 
@@ -321,17 +351,17 @@ class ComputeLegalizer : public StmtExprMutator {
     if (value.same_as(op->value) && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      if (MatchDType(new_buf->dtype)) {
-        int index_lanes = indices.size() ? indices.back().dtype().lanes() : 1;
+      if (MatchType(new_buf->dtype)) {
+        int index_lanes = indices.size() ? indices.back().ty().lanes() : 1;
         int buffer_lanes = new_buf->dtype.lanes();
-        DataType legalized_dtype = new_buf->dtype.with_lanes(index_lanes * buffer_lanes);
+        PrimType legalized_dtype = new_buf->dtype.WithLanes(index_lanes * buffer_lanes);
         value = CastTargetToDType(value, legalized_dtype);
       }
-      if (value.dtype() != new_buf->dtype) {
+      if (value.ty() != new_buf->dtype) {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
-        TVM_FFI_ICHECK(MatchDType(value->dtype));
-        value = DTypeConversion(value, new_buf->dtype.with_lanes(value.dtype().lanes()));
+        TVM_FFI_ICHECK(MatchType(value.ty()));
+        value = DTypeConversion(value, new_buf->dtype.WithLanes(value.ty().lanes()));
       }
       TVM_FFI_ICHECK(!op->predicate.defined())
           << "Predicated buffer store is not currently supported in "
@@ -360,12 +390,12 @@ class ComputeLegalizer : public StmtExprMutator {
       // Remap input variables
       for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
         Var lhs_var = reducer->lhs[i];
-        if (lhs_var.dtype() != legalized_identity_elements[i].dtype()) {
-          var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        if (lhs_var.ty() != legalized_identity_elements[i].ty()) {
+          var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
         }
         Var rhs_var = reducer->rhs[i];
-        if (rhs_var.dtype() != legalized_identity_elements[i].dtype()) {
-          var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        if (rhs_var.ty() != legalized_identity_elements[i].ty()) {
+          var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
         }
       }
 
@@ -442,12 +472,12 @@ class ComputeLegalizer : public StmtExprMutator {
    * \return The converted value.
    */
   PrimExpr PromoteToTarget(PrimExpr value) {
-    if (!MatchDType(value.dtype())) return value;
+    PrimType value_ty = value.ty();
+    if (!MatchType(value_ty)) return value;
     if (const CastNode* cast = value.as<CastNode>()) {
-      if (cast->value.dtype() == promote_dtype_.with_lanes(value.dtype().lanes()))
-        return cast->value;
+      if (cast->value.ty() == promote_dtype_.WithLanes(value_ty.lanes())) return cast->value;
     }
-    return DTypeConversion(value, promote_dtype_.with_lanes(value.dtype().lanes()));
+    return DTypeConversion(value, promote_dtype_.WithLanes(value_ty.lanes()));
   }
 
   /*!
@@ -456,9 +486,10 @@ class ComputeLegalizer : public StmtExprMutator {
    * \param value The input value
    * \return The converted value.
    */
-  PrimExpr CastTargetToDType(PrimExpr value, DataType dtype) {
-    if (!value.dtype().is_float()) return value;
-    TVM_FFI_ICHECK_EQ(value.dtype(), this->promote_dtype_.with_lanes(value.dtype().lanes()));
+  PrimExpr CastTargetToDType(PrimExpr value, PrimType dtype) {
+    PrimType value_ty = value.ty();
+    if (value_ty.code() != DLDataTypeCode::kDLFloat) return value;
+    TVM_FFI_ICHECK_EQ(value.ty(), this->promote_dtype_.WithLanes(value_ty.lanes()));
     return DTypeConversion(value, dtype);
   }
 
@@ -471,29 +502,33 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
  protected:
-  DataType promote_dtype_;
+  PrimType promote_dtype_;
   std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var> var_remap_;
 };
 
 class BF16ComputeLegalizer : public ComputeLegalizer {
  public:
-  BF16ComputeLegalizer() : ComputeLegalizer(DataType::Float(32)) {}
+  BF16ComputeLegalizer() : ComputeLegalizer(PrimType::Float(32)) {}
   PrimFunc Legalize(PrimFunc func) {
     BF16ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_, promote_dtype_);
     return LegalizeWithPlanner(func, &planner);
   }
-  bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
+  bool MatchType(const Type& type) const {
+    return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
+  }
 };
 
 class FP8ComputeLegalizer : public ComputeLegalizer {
  public:
-  explicit FP8ComputeLegalizer(DataType promote_dtype) : ComputeLegalizer(promote_dtype) {}
+  explicit FP8ComputeLegalizer(PrimType promote_dtype) : ComputeLegalizer(promote_dtype) {}
   PrimFunc Legalize(PrimFunc func) {
     FP8ComputeLegalizePlanner planner(&buffer_remap_, &var_remap_, promote_dtype_);
     return LegalizeWithPlanner(func, &planner);
   }
-  bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
+  bool MatchType(const Type& type) const {
+    return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
+  }
 };
 
 /*!
@@ -529,13 +564,13 @@ class StorageLegalizer : public StmtExprMutator {
     // in a rare case the buffer didn't get remapped
     // because the original var is not bfloat*
     // force remap here
-    if (MatchDType(buf->dtype)) {
-      DataType new_dtype = GetStorageUIntDType(buf->dtype);
+    if (MatchType(buf->dtype)) {
+      PrimType new_dtype = GetStorageUIntDType(buf->dtype);
       ffi::String storage_scope = "global";
       if (auto* ptr_type = buf->data->type_annotation.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
-      Var new_data = Var(buf->data->name_hint, PointerType(PrimType(new_dtype), storage_scope));
+      Var new_data = Var(buf->data->name_hint, PointerType(new_dtype, storage_scope));
       var_remap_[buf->data] = new_data;
       buf = Buffer(new_data, new_dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
                    buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
@@ -556,7 +591,7 @@ class StorageLegalizer : public StmtExprMutator {
     // in a rare case the buffer didn't get remapped
     // because the original var is not bfloat*
     // force remap here
-    if (MatchDType(buf->dtype)) {
+    if (MatchType(buf->dtype)) {
       buf = Buffer(buf->data, GetStorageUIntDType(buf->dtype), buf->shape, buf->strides,
                    buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor,
                    buf->buffer_type, buf->axis_separators, buf->span, buf->layout,
@@ -600,8 +635,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) && value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      if (MatchDType(op->value.dtype())) {
-        TVM_FFI_ICHECK(new_buf->dtype.is_uint());
+      if (MatchType(op->value.ty())) {
+        TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
       }
       TVM_FFI_ICHECK(!op->predicate.defined())
           << "Predicated buffer store is not currently supported in "
@@ -647,20 +682,21 @@ class StorageLegalizer : public StmtExprMutator {
     if (op->op.same_as(builtin::reinterpret())) {
       PrimExpr value = VisitExpr(op->args[0]);
       // sometimes the input dtype can change and we can skip.
-      if (value.dtype() == op->dtype) return value;
-      if (MatchDType(op->dtype)) {
-        return reinterpret(GetStorageUIntDType(op->dtype), value);
+      PrimType op_dtype = op->ty();
+      if (value.ty() == op_dtype) return value;
+      if (MatchType(op_dtype)) {
+        return reinterpret(GetStorageUIntDType(op_dtype), value);
       }
       if (op->args[0].same_as(value)) {
         return ffi::GetRef<PrimExpr>(op);
       } else {
-        return reinterpret(op->dtype, value);
+        return reinterpret(op_dtype, value);
       }
     }
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  virtual bool MatchDType(DataType dtype) const = 0;
+  virtual bool MatchType(const Type& type) const = 0;
 
  private:
   /*!
@@ -669,10 +705,11 @@ class StorageLegalizer : public StmtExprMutator {
    * \return The converted value.
    */
   PrimExpr ChangeToUInt(PrimExpr value) {
-    if (!MatchDType(value->dtype)) return value;
+    PrimType value_dtype = value.ty();
+    if (!MatchType(value_dtype)) return value;
     auto* call = value.as<CallNode>();
     if (call && call->op.same_as(builtin::reinterpret())) {
-      return reinterpret(GetStorageUIntDType(value->dtype), call->args[0]);
+      return reinterpret(GetStorageUIntDType(value_dtype), call->args[0]);
     } else {
       return value;
     }
@@ -680,13 +717,13 @@ class StorageLegalizer : public StmtExprMutator {
 
   Var RemapVarDef(Var var) {
     // remap the var
-    if (var.dtype().is_handle()) {
+    if (var.ty().IsHandle()) {
       if (auto* ptr_type = var->type_annotation.as<PointerTypeNode>()) {
         if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
-          if (MatchDType(elem_type->dtype)) {
-            Var new_var =
-                Var(var->name_hint, PointerType(PrimType(GetStorageUIntDType(elem_type->dtype)),
-                                                ptr_type->storage_scope));
+          PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
+          if (MatchType(elem_prim_type)) {
+            Var new_var = Var(var->name_hint, PointerType(GetStorageUIntDType(elem_prim_type),
+                                                          ptr_type->storage_scope));
             var_remap_[var] = new_var;
             return new_var;
           }
@@ -704,12 +741,12 @@ class StorageLegalizer : public StmtExprMutator {
     Buffer new_buf = buf;
     auto var_it = var_remap_.find(buf->data);
     if (var_it != var_remap_.end()) {
-      DataType dtype = MatchDType(buf->dtype) ? GetStorageUIntDType(buf->dtype) : buf->dtype;
+      PrimType dtype = MatchType(buf->dtype) ? GetStorageUIntDType(buf->dtype) : buf->dtype;
       new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
                        buf->data_alignment, buf->offset_factor, buf->buffer_type,
                        buf->axis_separators, buf->span, buf->layout, buf->allocated_addr);
     } else {
-      TVM_FFI_ICHECK(!MatchDType(buf->dtype)) << "Cannot find var remap for " << buf;
+      TVM_FFI_ICHECK(!MatchType(buf->dtype)) << "Cannot find var remap for " << buf;
     }
 
     buffer_remap_[buf] = new_buf;
@@ -723,12 +760,16 @@ class StorageLegalizer : public StmtExprMutator {
 
 class BF16StorageLegalizer : public StorageLegalizer {
  public:
-  bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
+  bool MatchType(const Type& type) const {
+    return MatchPrimType(type, [](const PrimType& prim_type) { return IsBFloat16Type(prim_type); });
+  }
 };
 
 class FP8StorageLegalizer : public StorageLegalizer {
  public:
-  bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
+  bool MatchType(const Type& type) const {
+    return MatchPrimType(type, [](const PrimType& prim_type) { return IsFloat8Type(prim_type); });
+  }
 };
 
 namespace transform {
@@ -787,7 +828,7 @@ Pass FP8ComputeLegalize(ffi::String promote_dtype) {
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
       return f;
     }
-    return FP8ComputeLegalizer(DataType(ffi::StringToDLDataType(promote_dtype))).Legalize(f);
+    return FP8ComputeLegalizer(PrimType(ffi::StringToDLDataType(promote_dtype))).Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.FP8ComputeLegalize", {});
 }

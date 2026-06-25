@@ -66,6 +66,11 @@
 namespace tvm {
 namespace codegen {
 
+TVM_FFI_INLINE int GetVectorBytes(const PrimType& dtype) {
+  TVM_FFI_ICHECK(dtype.IsFixedLengthVector() || dtype.IsScalar());
+  return static_cast<int>(dtype.StorageBytes());
+}
+
 // Hexagon code generation
 class CodeGenHexagon final : public CodeGenCPU {
  public:
@@ -97,12 +102,12 @@ class CodeGenHexagon final : public CodeGenCPU {
   void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
 
  private:
-  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
-                               llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype) final;
+  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, PrimType buffer_element_dtype,
+                               llvm::ArrayRef<llvm::Value*> indices, PrimType value_dtype) final;
 
   bool IsQHLFunction(const std::string& func);
 
-  llvm::Value* VectorLookupLoad(Buffer buffer, DataType buffer_type, ffi::Array<PrimExpr> indices);
+  llvm::Value* VectorLookupLoad(Buffer buffer, PrimType buffer_type, ffi::Array<PrimExpr> indices);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
   std::vector<std::string> fqhl_list_ = {
       "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",
@@ -149,8 +154,9 @@ void CodeGenHexagon::InitTarget() {
 llvm::Value* CodeGenHexagon::CreateCallExternQHL(Type ret_type, ffi::String global_symbol,
                                                  const ffi::Array<PrimExpr>& args,
                                                  bool skip_first_arg) {
-  int num_lanes = args[1].dtype().lanes();
-  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  PrimType arg_ty = args[1].ty();
+  int num_lanes = arg_ty.lanes();
+  int vector_length = native_vector_bits_ / arg_ty.bits();
   num_lanes = ((num_lanes + vector_length - 1) / vector_length) * vector_length;
   std::vector<llvm::Value*> vect_split;
   for (int i = 0; i < num_lanes / vector_length; ++i) {
@@ -181,8 +187,9 @@ bool CodeGenHexagon::IsQHLFunction(const std::string& func) {
 llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_symbol,
                                               const ffi::Array<PrimExpr>& args,
                                               bool skip_first_arg) {
-  int num_lanes = args[1].dtype().lanes();
-  int vector_length = native_vector_bits_ / args[1].dtype().bits();
+  PrimType arg_ty = args[1].ty();
+  int num_lanes = arg_ty.lanes();
+  int vector_length = native_vector_bits_ / arg_ty.bits();
   if (IsQHLFunction(global_symbol) && (num_lanes > vector_length))
     return CreateCallExternQHL(ret_type, global_symbol, args, skip_first_arg);
   return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
@@ -192,7 +199,7 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
   if (!op->buffer.same_as(op->buffer->data)) {
     // Check if we can generate a vector lookup.
     if (!op->indices[0].as<RampNode>()) {
-      if (auto* vlut = VectorLookupLoad(op->buffer, op->dtype, op->indices)) {
+      if (auto* vlut = VectorLookupLoad(op->buffer, PrimType(op->ty()->dtype), op->indices)) {
         return vlut;
       }
     }
@@ -261,9 +268,9 @@ void CodeGenHexagon::CreatePrintf(const std::string& format,
 }
 
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_ptr,
-                                                          DataType buffer_element_dtype,
+                                                          PrimType buffer_element_dtype,
                                                           llvm::ArrayRef<llvm::Value*> indices,
-                                                          DataType value_dtype) {
+                                                          PrimType value_dtype) {
   // Flat indices get delegated to the LLVM codegen.
   if (indices.size() == 1) {
     return CodeGenCPU::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
@@ -274,7 +281,7 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_pt
       << "-d buffer indices";
 
   // Use the first index to identify the pointer.
-  DataType dtype_void_ptr = DataType::Handle();
+  PrimType dtype_void_ptr = PrimType::Handle();
   CodeGenLLVM::TypedPointer buffer_chunk_ptr_ptr =
       CodeGenCPU::CreateBufferPtr(buffer_ptr, dtype_void_ptr, {indices[0]}, dtype_void_ptr);
   llvm::Value* buffer_chunk_ptr =
@@ -317,10 +324,11 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
   return builder_->CreateCall(intf_callee, conv_args);
 }
 
-llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_type,
+llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, PrimType buffer_type,
                                               ffi::Array<PrimExpr> indices) {
   PrimExpr index = indices[0];
-  if (!index.dtype().is_fixed_length_vector()) {
+  PrimType index_ty = index.ty();
+  if (!index_ty.IsFixedLengthVector()) {
     return nullptr;
   }
 
@@ -329,16 +337,16 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
   int table_elem_count = arith::Analyzer()->Simplify(buffer->shape[0]).as<IntImmNode>()->value;
   if (table_elem_count <= 0 || table_elem_count > 256) return nullptr;
 
-  auto int32 = DataType::Int(32);
+  auto int32 = PrimType::Int(32);
   auto native_vector_bytes = native_vector_bits_ / 8;
 
   // Indexes
-  llvm::Value* trunc = MakeValue(Cast(index.dtype().with_bits(8), index));
+  llvm::Value* trunc = MakeValue(Cast(index_ty.WithBits(8), index));
   llvm::Value* index_pad = CreateVecPad(trunc, native_vector_bytes);
 
   // Values
   std::vector<llvm::Value*> vloads;
-  DataType table_type = buffer_type.with_lanes(table_elem_count);
+  PrimType table_type = buffer_type.WithLanes(table_elem_count);
 
   auto table_all =
       MakeValue(BufferLoad(buffer, {
@@ -347,7 +355,7 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(Buffer buffer, DataType buffer_typ
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);
-  int table_vec_length = native_vector_bytes / buffer_type.bytes();
+  int table_vec_length = native_vector_bytes / GetVectorBytes(buffer_type);
   for (int i = 0; i != table_vec_count; ++i) {
     // CreateVecSlice will generate undefs for elements outside the source vector.
     vloads.push_back(CreateVecSlice(table_all, i * table_vec_length, table_vec_length));

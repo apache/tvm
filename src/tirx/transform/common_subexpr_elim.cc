@@ -296,7 +296,8 @@ class CSEPlanner : public StmtExprVisitor {
     // the predicate directly. BoolImm is already filtered above as an IntImm
     // leaf, so this rule only affects compound bool expressions
     // (LT/LE/GT/GE/EQ/NE/And/Or/Not/Cast-to-bool/Select-of-bool).
-    if (expr.dtype().is_bool()) return false;
+    PrimType expr_ty = expr.ty();
+    if (expr_ty.MatchesCode(DLDataTypeCode::kDLBool)) return false;
     if (CheckContains::ExprContains(expr, IsForbiddenNode)) return false;
     return true;
   }
@@ -662,7 +663,7 @@ class CSEPlanner : public StmtExprVisitor {
       // entry->repr may already contain CSE vars from shallower entries.
       ++counter;
       std::string name = "cse_v" + std::to_string(counter);
-      Var cse_var(name, entry->repr.dtype());
+      Var cse_var(name, entry->repr.ty());
       Stmt bind = Bind(cse_var, entry->repr);
 
       // Step 3c: Record in output tables.

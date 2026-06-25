@@ -70,13 +70,13 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     n->module_alias = v.value().as_or_throw<ffi::String>();
   }
   if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>()));
+    n->buffer_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = DataType(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>()));
+    n->int_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = DataType(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>()));
+    n->float_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("verbose_expr")) {
     n->verbose_expr = v.value().cast<bool>();

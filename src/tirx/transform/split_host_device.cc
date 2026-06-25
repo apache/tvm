@@ -141,7 +141,7 @@ class HostDeviceSplitter : public StmtMutator {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
             return std::tuple{
-                !var->dtype.is_handle(),
+                !var->ty().IsHandle(),
                 var->name_hint,
             };
           };
@@ -167,10 +167,10 @@ class HostDeviceSplitter : public StmtMutator {
       auto kind = device_target->GetTargetDeviceType();
       return kind == kDLCPU || kind == kDLExtDev || kind == kDLHexagon;
     }();
-    IntImm success(DataType::Int(32), 0);
+    IntImm success(PrimType::Int(32), 0);
     Type kernel_ret_type;
     if (can_propagate_errors) {
-      kernel_ret_type = PrimType(DataType::Int(32));
+      kernel_ret_type = PrimType::Int(32);
       body = SeqStmt::Flatten(body, Evaluate(ret(success)));
     } else {
       kernel_ret_type = VoidType();
@@ -202,14 +202,14 @@ class HostDeviceSplitter : public StmtMutator {
     ffi::Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
 
     if (can_propagate_errors) {
-      Var kernel_error_code("kernel_error_code", success->dtype);
-      Call kernel_call(success->dtype, kernel_symbol_global, args);
+      Var kernel_error_code("kernel_error_code", success.ty());
+      Call kernel_call(success.ty(), kernel_symbol_global, args);
       AssertStmt assert_success(kernel_error_code == success, StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
       return SeqStmt({Bind(kernel_error_code, kernel_call), assert_success});
 
     } else {
-      return Evaluate(Call(DataType::Void(), kernel_symbol_global, args));
+      return Evaluate(Call(PrimType::Void(), kernel_symbol_global, args));
     }
   }
 
@@ -353,7 +353,7 @@ class DeviceInfoCollector : public StmtVisitor {
       for (const auto& extent : op->buffer->shape) {
         dyn_size *= extent;
       }
-      dyn_size *= op->buffer->dtype.bytes();
+      dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
 
       // Inline any locally-bound variables (e.g. from CSE).
       if (bind_map_.size()) {
@@ -570,7 +570,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         for (const auto& arg : node->args) {
           args.push_back(arg);
         }
-        return Call(node->dtype, builtin::call_extern(), args);
+        return Call(node.ty(), builtin::call_extern(), args);
       }
     }
 
@@ -607,9 +607,9 @@ class DeviceKernelMutator : public StmtExprMutator {
       call_args.push_back(Substitute(launch_arg, param_map));
     }
 
-    auto dtype = node->dtype.is_void() ? DataType::Int(32) : node->dtype;
+    PrimType ret_ty = node->ty().IsVoid() ? PrimType::Int(32) : node.ty();
 
-    return Call(dtype, builtin::tvm_call_packed(), call_args);
+    return Call(ret_ty, builtin::tvm_call_packed(), call_args);
   }
 
   ffi::Optional<Target> current_target_;

@@ -21,30 +21,133 @@
  * \file src/ir/type.cc
  * \brief Common type system AST nodes throughout the IR.
  */
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
+
+#include <cstdint>
+#include <unordered_map>
+
 namespace tvm {
 
+namespace {
+
+DLDataType ScalableVectorDType(DLDataTypeCode code, int bits, int lanes) {
+  TVM_FFI_ICHECK_GT(lanes, 1) << "Invalid value for vscale factor " << lanes;
+  TVM_FFI_ICHECK_LT(lanes, 32768);
+  return DLDataType{static_cast<uint8_t>(code), static_cast<uint8_t>(bits),
+                    static_cast<uint16_t>(-lanes)};
+}
+
+uint32_t PackDataTypeKey(DLDataType dtype) {
+  return (static_cast<uint32_t>(dtype.code) << 24) | (static_cast<uint32_t>(dtype.bits) << 16) |
+         static_cast<uint32_t>(dtype.lanes);
+}
+
+int64_t PrimTypeAnyHash(const ffi::Any& src) {
+  return static_cast<int64_t>(PackDataTypeKey(src.cast<PrimType>()->dtype));
+}
+
+bool PrimTypeAnyEqual(const ffi::Any& lhs, const ffi::Any& rhs) {
+  return lhs.cast<PrimType>()->dtype == rhs.cast<PrimType>()->dtype;
+}
+
+ffi::ObjectPtr<PrimTypeNode> GetCachedPrimTypeNode(DLDataType dtype) {
+  thread_local std::unordered_map<uint32_t, ffi::ObjectPtr<PrimTypeNode>> cache;
+  uint32_t key = PackDataTypeKey(dtype);
+  auto it = cache.find(key);
+  if (it != cache.end()) {
+    return it->second;
+  }
+
+  ffi::ObjectPtr<PrimTypeNode> node = ffi::make_object<PrimTypeNode>();
+  node->dtype = dtype;
+  return cache.emplace(key, std::move(node)).first->second;
+}
+
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   TypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
+  refl::TypeAttrDef<PrimTypeNode>()
+      .attr(refl::type_attr::kAnyHash, reinterpret_cast<void*>(&PrimTypeAnyHash))
+      .attr(refl::type_attr::kAnyEqual, reinterpret_cast<void*>(&PrimTypeAnyEqual));
   PointerTypeNode::RegisterReflection();
   TupleTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
   TensorMapTypeNode::RegisterReflection();
 }
 
-PrimType::PrimType(runtime::DataType dtype, Span span) {
-  ffi::ObjectPtr<PrimTypeNode> n = ffi::make_object<PrimTypeNode>();
-  n->dtype = dtype;
-  n->span = std::move(span);
-  data_ = std::move(n);
+PrimType::PrimType(DLDataType dtype) { data_ = GetCachedPrimTypeNode(dtype); }
+
+PrimType::PrimType(DLDataTypeCode code, int bits, int lanes)
+    : PrimType(DLDataType{static_cast<uint8_t>(code), static_cast<uint8_t>(bits),
+                          static_cast<uint16_t>(lanes)}) {}
+
+PrimType PrimType::Int(int bits, int lanes) {
+  if (lanes == 1) {
+    if (bits == 32) {
+      thread_local PrimType i32_ty(DLDataType{kDLInt, 32, 1});
+      return i32_ty;
+    }
+    if (bits == 64) {
+      thread_local PrimType i64_ty(DLDataType{kDLInt, 64, 1});
+      return i64_ty;
+    }
+  }
+  return PrimType(DLDataType{kDLInt, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::UInt(int bits, int lanes) {
+  return PrimType(DLDataType{kDLUInt, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::Float(int bits, int lanes) {
+  if (bits == 32 && lanes == 1) {
+    thread_local PrimType f32_ty(DLDataType{kDLFloat, 32, 1});
+    return f32_ty;
+  }
+  return PrimType(DLDataType{kDLFloat, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::BFloat(int bits, int lanes) {
+  return PrimType(DLDataType{kDLBfloat, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::Bool(int lanes) {
+  if (lanes == 1) {
+    thread_local PrimType bool_ty(DLDataType{kDLBool, 8, 1});
+    return bool_ty;
+  }
+  return PrimType(DLDataType{kDLBool, 8, static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::Handle(int bits, int lanes) {
+  return PrimType(
+      DLDataType{kDLOpaqueHandle, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::Void() { return PrimType(DLDataType{kDLOpaqueHandle, 0, 0}); }
+
+PrimType PrimType::ScalableVector(DLDataTypeCode code, int bits, int lanes) {
+  return PrimType(ScalableVectorDType(code, bits, lanes));
+}
+
+size_t PrimType::StorageBytes() const {
+  int16_t encoded_lanes = static_cast<int16_t>(get()->dtype.lanes);
+  if (TVM_FFI_PREDICT_FALSE(encoded_lanes < 0)) {
+    TVM_FFI_THROW(InternalError)
+        << "Cannot compute compile-time storage bytes for non-fixed vector type " << get()->dtype;
+  }
+  return ffi::GetDataSize(1, get()->dtype);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.PrimType", [](runtime::DataType dtype) { return PrimType(dtype); });
+  refl::GlobalDef().def("ir.PrimType", [](DLDataType dtype) { return PrimType(dtype); });
 }
 
 PointerType::PointerType(Type element_type, ffi::String storage_scope) {

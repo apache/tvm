@@ -50,7 +50,7 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
     ffi::Array<DLDataType> arg_types;
     ffi::Array<runtime::ArgExtraTags> arg_extra_tags;
     for (size_t i = 0; i < f->params.size(); ++i) {
-      arg_types.push_back(f->params[i].dtype());
+      arg_types.push_back(f->params[i].ty()->dtype);
       auto is_tensormap = [](const tirx::Var& var) -> bool {
         const auto* type = var->type_annotation.as<PointerTypeNode>();
         if (type == nullptr) {

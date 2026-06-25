@@ -126,7 +126,7 @@ TVM_REGISTER_OP("tirx.exp10")
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
-      PrimExpr ln10 = MakeConst(x.dtype(), 2.302585093);
+      PrimExpr ln10 = MakeConst(x.ty(), 2.302585093);
       PrimExpr ret = exp(x * ln10);
       return ret;
     });
@@ -162,8 +162,9 @@ TVM_REGISTER_OP("tirx.atanh")
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
       const PrimExpr& x = call->args[0];
-      PrimExpr one = MakeConst(x.dtype(), 1.0);
-      return (log(one + x) - log(one - x)) * MakeConst(x.dtype(), 0.5);
+      PrimType x_ty = x.ty();
+      PrimExpr one = MakeConst(x_ty, 1.0);
+      return (log(one + x) - log(one - x)) * MakeConst(x_ty, 0.5);
     });
 
 TVM_REGISTER_OP("tirx.clz")
@@ -172,12 +173,12 @@ TVM_REGISTER_OP("tirx.clz")
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 1);
       ffi::Array<PrimExpr> cargs;
-      cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
+      cargs.push_back(IntImm(PrimType::UInt(32), ::llvm::Intrinsic::ctlz));
       cargs.push_back(call->args[0]);
-      cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
+      cargs.push_back(IntImm(PrimType::Int(1), 1));  // is_zero_undef
       // LLVM requires that the return type must match the first argument type
-      auto clz = tirx::Call(call->args[0]->dtype, tirx::builtin::call_llvm_intrin(), cargs);
-      return cast(call->dtype, clz);
+      auto clz = tirx::Call(call->args[0].ty(), tirx::builtin::call_llvm_intrin(), cargs);
+      return cast(call->ty(), clz);
     });
 
 }  // namespace legalize

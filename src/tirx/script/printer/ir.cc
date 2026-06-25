@@ -28,10 +28,10 @@ TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IntImm>("", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-      DataType dtype = imm->dtype;
+      DLDataType dtype = imm->ty()->dtype;
       if (dtype == d->cfg->int_dtype) {
         return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
-      } else if (dtype == DataType::Bool()) {
+      } else if (dtype == DLDataType{kDLBool, 8, 1}) {
         return TIR(d, DType2Str(dtype))
             ->Call({LiteralDoc::Boolean(imm->value, imm_p->Attr("value"))});
       } else {
@@ -41,7 +41,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<FloatImm>("", [](FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-      DataType dtype = imm->dtype;
+      DLDataType dtype = imm->ty()->dtype;
       if (dtype == d->cfg->float_dtype) {
         return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
       } else {
