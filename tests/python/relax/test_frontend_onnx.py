@@ -705,496 +705,459 @@ SHAPE_PARAMS = [
 ]
 
 
-@pytest.mark.parametrize("input_shapes, expected_output_shape", SHAPE_PARAMS)
-@pytest.mark.parametrize("op_name", ["Min", "Max", "Sum", "Mean"])
-def test_multi_input_broadcasting(op_name, input_shapes, expected_output_shape):
+def test_multi_input_broadcasting():
     """Multi-input reductions should import broadcast + stack + reduce."""
-    num_inputs = len(input_shapes)
-    input_names = [f"i{i}" for i in range(num_inputs)]
 
-    input_values_info = []
-    for name, shape in zip(input_names, input_shapes):
-        input_values_info.append(helper.make_tensor_value_info(name, TensorProto.FLOAT, shape))
-    test_node = helper.make_node(op_name, input_names, ["output"])
-    output_info = helper.make_tensor_value_info("output", TensorProto.FLOAT, expected_output_shape)
-    graph = helper.make_graph(
-        [test_node],
-        f"multi_input_{op_name}_test",
-        inputs=input_values_info,
-        outputs=[output_info],
-    )
-    model = helper.make_model(graph, producer_name="multi_input_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+    def verify_multi_input_broadcasting(op_name, input_shapes, expected_output_shape, expected):
+        num_inputs = len(input_shapes)
+        input_names = [f"i{i}" for i in range(num_inputs)]
 
-    if input_shapes == [[32, 32], [32, 32]] and op_name == "Min":
-
-        @I.ir_module
-        class ExpectedMultiInput0Min:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32), dtype="float32"),
-                i1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
-                    lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32), dtype="float32") = R.min(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput0Min
-
-    elif input_shapes == [[32, 32], [32, 32]] and op_name == "Max":
-
-        @I.ir_module
-        class ExpectedMultiInput0Max:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32), dtype="float32"),
-                i1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
-                    lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32), dtype="float32") = R.max(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput0Max
-
-    elif input_shapes == [[32, 32], [32, 32]] and op_name == "Sum":
-
-        @I.ir_module
-        class ExpectedMultiInput0Sum:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32), dtype="float32"),
-                i1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
-                    lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32), dtype="float32") = R.sum(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput0Sum
-
-    elif input_shapes == [[32, 32], [32, 32]] and op_name == "Mean":
-
-        @I.ir_module
-        class ExpectedMultiInput0Mean:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32), dtype="float32"),
-                i1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
-                    lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32), dtype="float32") = R.mean(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput0Mean
-
-    elif input_shapes == [[32, 1], [1, 2]] and op_name == "Min":
-
-        @I.ir_module
-        class ExpectedMultiInput1Min:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 1), dtype="float32"),
-                i1: R.Tensor((1, 2), dtype="float32"),
-            ) -> R.Tensor((32, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
-                    lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 2), dtype="float32") = R.min(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput1Min
-
-    elif input_shapes == [[32, 1], [1, 2]] and op_name == "Max":
-
-        @I.ir_module
-        class ExpectedMultiInput1Max:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 1), dtype="float32"),
-                i1: R.Tensor((1, 2), dtype="float32"),
-            ) -> R.Tensor((32, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
-                    lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 2), dtype="float32") = R.max(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput1Max
-
-    elif input_shapes == [[32, 1], [1, 2]] and op_name == "Sum":
-
-        @I.ir_module
-        class ExpectedMultiInput1Sum:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 1), dtype="float32"),
-                i1: R.Tensor((1, 2), dtype="float32"),
-            ) -> R.Tensor((32, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
-                    lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 2), dtype="float32") = R.sum(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput1Sum
-
-    elif input_shapes == [[32, 1], [1, 2]] and op_name == "Mean":
-
-        @I.ir_module
-        class ExpectedMultiInput1Mean:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 1), dtype="float32"),
-                i1: R.Tensor((1, 2), dtype="float32"),
-            ) -> R.Tensor((32, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
-                    lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 2), dtype="float32") = R.mean(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput1Mean
-
-    elif input_shapes == [[32], [1]] and op_name == "Min":
-
-        @I.ir_module
-        class ExpectedMultiInput2Min:
-            @R.function
-            def main(
-                i0: R.Tensor((32,), dtype="float32"),
-                i1: R.Tensor((1,), dtype="float32"),
-            ) -> R.Tensor((32,), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
-                    lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32,), dtype="float32") = R.min(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput2Min
-
-    elif input_shapes == [[32], [1]] and op_name == "Max":
-
-        @I.ir_module
-        class ExpectedMultiInput2Max:
-            @R.function
-            def main(
-                i0: R.Tensor((32,), dtype="float32"),
-                i1: R.Tensor((1,), dtype="float32"),
-            ) -> R.Tensor((32,), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
-                    lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32,), dtype="float32") = R.max(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput2Max
-
-    elif input_shapes == [[32], [1]] and op_name == "Sum":
-
-        @I.ir_module
-        class ExpectedMultiInput2Sum:
-            @R.function
-            def main(
-                i0: R.Tensor((32,), dtype="float32"),
-                i1: R.Tensor((1,), dtype="float32"),
-            ) -> R.Tensor((32,), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
-                    lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32,), dtype="float32") = R.sum(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput2Sum
-
-    elif input_shapes == [[32], [1]] and op_name == "Mean":
-
-        @I.ir_module
-        class ExpectedMultiInput2Mean:
-            @R.function
-            def main(
-                i0: R.Tensor((32,), dtype="float32"),
-                i1: R.Tensor((1,), dtype="float32"),
-            ) -> R.Tensor((32,), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
-                    lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32,), dtype="float32") = R.mean(lv2, axis=[0], keepdims=False)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput2Mean
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 32]] and op_name == "Min":
-
-        @I.ir_module
-        class ExpectedMultiInput3Min:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.min(
-                        lv2, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput3Min
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 32]] and op_name == "Max":
-
-        @I.ir_module
-        class ExpectedMultiInput3Max:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.max(
-                        lv2, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput3Max
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 32]] and op_name == "Sum":
-
-        @I.ir_module
-        class ExpectedMultiInput3Sum:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.sum(
-                        lv2, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput3Sum
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 32]] and op_name == "Mean":
-
-        @I.ir_module
-        class ExpectedMultiInput3Mean:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2 = R.stack((lv, lv1), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.mean(
-                        lv2, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput3Mean
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 1], [32]] and op_name == "Min":
-
-        @I.ir_module
-        class ExpectedMultiInput4Min:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 1), dtype="float32"),
-                i2: R.Tensor((32,), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i2, R.shape([32, 32, 32, 32])
-                    )
-                    lv3 = R.stack((lv, lv1, lv2), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.min(
-                        lv3, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput4Min
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 1], [32]] and op_name == "Max":
-
-        @I.ir_module
-        class ExpectedMultiInput4Max:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 1), dtype="float32"),
-                i2: R.Tensor((32,), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i2, R.shape([32, 32, 32, 32])
-                    )
-                    lv3 = R.stack((lv, lv1, lv2), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.max(
-                        lv3, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput4Max
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 1], [32]] and op_name == "Sum":
-
-        @I.ir_module
-        class ExpectedMultiInput4Sum:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 1), dtype="float32"),
-                i2: R.Tensor((32,), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i2, R.shape([32, 32, 32, 32])
-                    )
-                    lv3 = R.stack((lv, lv1, lv2), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.sum(
-                        lv3, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput4Sum
-
-    elif input_shapes == [[32, 32, 1, 1], [1, 32, 1], [32]] and op_name == "Mean":
-
-        @I.ir_module
-        class ExpectedMultiInput4Mean:
-            @R.function
-            def main(
-                i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
-                i1: R.Tensor((1, 32, 1), dtype="float32"),
-                i2: R.Tensor((32,), dtype="float32"),
-            ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i0, R.shape([32, 32, 32, 32])
-                    )
-                    lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i1, R.shape([32, 32, 32, 32])
-                    )
-                    lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
-                        i2, R.shape([32, 32, 32, 32])
-                    )
-                    lv3 = R.stack((lv, lv1, lv2), axis=0)
-                    gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.mean(
-                        lv3, axis=[0], keepdims=False
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMultiInput4Mean
-
-    else:
-        raise AssertionError(
-            f"Unexpected multi-input structural case: op={op_name}, shapes={input_shapes}"
+        input_values_info = []
+        for name, shape in zip(input_names, input_shapes):
+            input_values_info.append(helper.make_tensor_value_info(name, TensorProto.FLOAT, shape))
+        test_node = helper.make_node(op_name, input_names, ["output"])
+        output_info = helper.make_tensor_value_info(
+            "output", TensorProto.FLOAT, expected_output_shape
         )
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+        graph = helper.make_graph(
+            [test_node],
+            f"multi_input_{op_name}_test",
+            inputs=input_values_info,
+            outputs=[output_info],
+        )
+        model = helper.make_model(graph, producer_name="multi_input_test")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedMultiInput0Min:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32), dtype="float32"),
+            i1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
+                lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32), dtype="float32") = R.min(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput0Max:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32), dtype="float32"),
+            i1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
+                lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32), dtype="float32") = R.max(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput0Sum:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32), dtype="float32"),
+            i1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
+                lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32), dtype="float32") = R.sum(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput0Mean:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32), dtype="float32"),
+            i1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i0, R.shape([32, 32]))
+                lv1: R.Tensor((32, 32), dtype="float32") = R.broadcast_to(i1, R.shape([32, 32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32), dtype="float32") = R.mean(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput1Min:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 1), dtype="float32"),
+            i1: R.Tensor((1, 2), dtype="float32"),
+        ) -> R.Tensor((32, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
+                lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 2), dtype="float32") = R.min(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput1Max:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 1), dtype="float32"),
+            i1: R.Tensor((1, 2), dtype="float32"),
+        ) -> R.Tensor((32, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
+                lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 2), dtype="float32") = R.max(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput1Sum:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 1), dtype="float32"),
+            i1: R.Tensor((1, 2), dtype="float32"),
+        ) -> R.Tensor((32, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
+                lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 2), dtype="float32") = R.sum(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput1Mean:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 1), dtype="float32"),
+            i1: R.Tensor((1, 2), dtype="float32"),
+        ) -> R.Tensor((32, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i0, R.shape([32, 2]))
+                lv1: R.Tensor((32, 2), dtype="float32") = R.broadcast_to(i1, R.shape([32, 2]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 2), dtype="float32") = R.mean(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput2Min:
+        @R.function
+        def main(
+            i0: R.Tensor((32,), dtype="float32"),
+            i1: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((32,), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
+                lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32,), dtype="float32") = R.min(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput2Max:
+        @R.function
+        def main(
+            i0: R.Tensor((32,), dtype="float32"),
+            i1: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((32,), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
+                lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32,), dtype="float32") = R.max(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput2Sum:
+        @R.function
+        def main(
+            i0: R.Tensor((32,), dtype="float32"),
+            i1: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((32,), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
+                lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32,), dtype="float32") = R.sum(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput2Mean:
+        @R.function
+        def main(
+            i0: R.Tensor((32,), dtype="float32"),
+            i1: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((32,), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="float32") = R.broadcast_to(i0, R.shape([32]))
+                lv1: R.Tensor((32,), dtype="float32") = R.broadcast_to(i1, R.shape([32]))
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32,), dtype="float32") = R.mean(lv2, axis=[0], keepdims=False)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput3Min:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.min(
+                    lv2, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput3Max:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.max(
+                    lv2, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput3Sum:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.sum(
+                    lv2, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput3Mean:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2 = R.stack((lv, lv1), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.mean(
+                    lv2, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput4Min:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 1), dtype="float32"),
+            i2: R.Tensor((32,), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i2, R.shape([32, 32, 32, 32])
+                )
+                lv3 = R.stack((lv, lv1, lv2), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.min(
+                    lv3, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput4Max:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 1), dtype="float32"),
+            i2: R.Tensor((32,), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i2, R.shape([32, 32, 32, 32])
+                )
+                lv3 = R.stack((lv, lv1, lv2), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.max(
+                    lv3, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput4Sum:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 1), dtype="float32"),
+            i2: R.Tensor((32,), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i2, R.shape([32, 32, 32, 32])
+                )
+                lv3 = R.stack((lv, lv1, lv2), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.sum(
+                    lv3, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMultiInput4Mean:
+        @R.function
+        def main(
+            i0: R.Tensor((32, 32, 1, 1), dtype="float32"),
+            i1: R.Tensor((1, 32, 1), dtype="float32"),
+            i2: R.Tensor((32,), dtype="float32"),
+        ) -> R.Tensor((32, 32, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i0, R.shape([32, 32, 32, 32])
+                )
+                lv1: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i1, R.shape([32, 32, 32, 32])
+                )
+                lv2: R.Tensor((32, 32, 32, 32), dtype="float32") = R.broadcast_to(
+                    i2, R.shape([32, 32, 32, 32])
+                )
+                lv3 = R.stack((lv, lv1, lv2), axis=0)
+                gv: R.Tensor((32, 32, 32, 32), dtype="float32") = R.mean(
+                    lv3, axis=[0], keepdims=False
+                )
+                R.output(gv)
+            return gv
+
+    # Shape case 0
+    verify_multi_input_broadcasting("Min", [[32, 32], [32, 32]], [32, 32], ExpectedMultiInput0Min)
+    verify_multi_input_broadcasting("Max", [[32, 32], [32, 32]], [32, 32], ExpectedMultiInput0Max)
+    verify_multi_input_broadcasting("Sum", [[32, 32], [32, 32]], [32, 32], ExpectedMultiInput0Sum)
+    verify_multi_input_broadcasting("Mean", [[32, 32], [32, 32]], [32, 32], ExpectedMultiInput0Mean)
+
+    # Shape case 1
+    verify_multi_input_broadcasting("Min", [[32, 1], [1, 2]], [32, 2], ExpectedMultiInput1Min)
+    verify_multi_input_broadcasting("Max", [[32, 1], [1, 2]], [32, 2], ExpectedMultiInput1Max)
+    verify_multi_input_broadcasting("Sum", [[32, 1], [1, 2]], [32, 2], ExpectedMultiInput1Sum)
+    verify_multi_input_broadcasting("Mean", [[32, 1], [1, 2]], [32, 2], ExpectedMultiInput1Mean)
+
+    # Shape case 2
+    verify_multi_input_broadcasting("Min", [[32], [1]], [32], ExpectedMultiInput2Min)
+    verify_multi_input_broadcasting("Max", [[32], [1]], [32], ExpectedMultiInput2Max)
+    verify_multi_input_broadcasting("Sum", [[32], [1]], [32], ExpectedMultiInput2Sum)
+    verify_multi_input_broadcasting("Mean", [[32], [1]], [32], ExpectedMultiInput2Mean)
+
+    # Shape case 3
+    verify_multi_input_broadcasting(
+        "Min", [[32, 32, 1, 1], [1, 32, 32]], [32, 32, 32, 32], ExpectedMultiInput3Min
+    )
+    verify_multi_input_broadcasting(
+        "Max", [[32, 32, 1, 1], [1, 32, 32]], [32, 32, 32, 32], ExpectedMultiInput3Max
+    )
+    verify_multi_input_broadcasting(
+        "Sum", [[32, 32, 1, 1], [1, 32, 32]], [32, 32, 32, 32], ExpectedMultiInput3Sum
+    )
+    verify_multi_input_broadcasting(
+        "Mean", [[32, 32, 1, 1], [1, 32, 32]], [32, 32, 32, 32], ExpectedMultiInput3Mean
+    )
+
+    # Shape case 4
+    verify_multi_input_broadcasting(
+        "Min", [[32, 32, 1, 1], [1, 32, 1], [32]], [32, 32, 32, 32], ExpectedMultiInput4Min
+    )
+    verify_multi_input_broadcasting(
+        "Max", [[32, 32, 1, 1], [1, 32, 1], [32]], [32, 32, 32, 32], ExpectedMultiInput4Max
+    )
+    verify_multi_input_broadcasting(
+        "Sum", [[32, 32, 1, 1], [1, 32, 1], [32]], [32, 32, 32, 32], ExpectedMultiInput4Sum
+    )
+    verify_multi_input_broadcasting(
+        "Mean", [[32, 32, 1, 1], [1, 32, 1], [32]], [32, 32, 32, 32], ExpectedMultiInput4Mean
+    )
 
 
 @pytest.mark.parametrize("op_name", ["Less", "LessOrEqual", "Greater", "GreaterOrEqual"])
@@ -1412,232 +1375,188 @@ def test_hardmax_ir():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-def assert_legacy_softmax_family_axis_ir(
-    op_name: str, expected_axis: int, axis_attr: int | None = None
-):
-    attrs = {} if axis_attr is None else {"axis": axis_attr}
-    node = helper.make_node(op_name, ["x"], ["y"], **attrs)
-    graph = helper.make_graph(
-        [node],
-        "legacy_softmax_family_axis_ir_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="legacy_softmax_family_axis_ir_test",
-        opset_imports=[helper.make_opsetid("", 11)],
-    )
-    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+def test_legacy_softmax_family_opset11_axis_semantics():
+    def verify_legacy_softmax_family_axis_ir(op_name: str, expected, axis_attr: int | None = None):
+        attrs = {} if axis_attr is None else {"axis": axis_attr}
+        node = helper.make_node(op_name, ["x"], ["y"], **attrs)
+        graph = helper.make_graph(
+            [node],
+            "legacy_softmax_family_axis_ir_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="legacy_softmax_family_axis_ir_test",
+            opset_imports=[helper.make_opsetid("", 11)],
+        )
+        tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    normalized_axis = expected_axis if expected_axis >= 0 else expected_axis + 3
-    if op_name == "Softmax" and normalized_axis == 0:
+    @I.ir_module
+    class ExpectedSoftmaxAxis0:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 24), dtype="float32") = R.reshape(x, R.shape([1, 24]))
+                lv1: R.Tensor((1, 24), dtype="float32") = R.nn.softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedSoftmaxAxis0:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 24), dtype="float32") = R.reshape(x, R.shape([1, 24]))
-                    lv1: R.Tensor((1, 24), dtype="float32") = R.nn.softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedSoftmaxAxis1:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
+                lv1: R.Tensor((2, 12), dtype="float32") = R.nn.softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        expected = ExpectedSoftmaxAxis0
+    @I.ir_module
+    class ExpectedSoftmaxAxisRank:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((24, 1), dtype="float32") = R.reshape(x, R.shape([24, 1]))
+                lv1: R.Tensor((24, 1), dtype="float32") = R.nn.softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-    elif op_name == "Softmax" and normalized_axis == 1:
+    @I.ir_module
+    class ExpectedLogSoftmaxAxis0:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 24), dtype="float32") = R.reshape(x, R.shape([1, 24]))
+                lv1: R.Tensor((1, 24), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedSoftmaxAxis1:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
-                    lv1: R.Tensor((2, 12), dtype="float32") = R.nn.softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedLogSoftmaxAxis1:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
+                lv1: R.Tensor((2, 12), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        expected = ExpectedSoftmaxAxis1
+    @I.ir_module
+    class ExpectedLogSoftmaxAxisRank:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((24, 1), dtype="float32") = R.reshape(x, R.shape([24, 1]))
+                lv1: R.Tensor((24, 1), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-    elif op_name == "Softmax" and normalized_axis == 3:
+    @I.ir_module
+    class ExpectedHardmaxAxis0:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 24), dtype="float32") = R.reshape(x, R.shape([1, 24]))
+                lv1: R.Tensor((1,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
+                lv2: R.Tensor((1, 24), dtype="float32") = R.one_hot(
+                    lv1,
+                    R.prim_value(T.float32(1.0)),
+                    R.prim_value(T.float32(0.0)),
+                    depth=24,
+                    axis=1,
+                )
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedSoftmaxAxisRank:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((24, 1), dtype="float32") = R.reshape(x, R.shape([24, 1]))
-                    lv1: R.Tensor((24, 1), dtype="float32") = R.nn.softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedHardmaxAxis1:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
+                lv1: R.Tensor((2,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
+                lv2: R.Tensor((2, 12), dtype="float32") = R.one_hot(
+                    lv1,
+                    R.prim_value(T.float32(1.0)),
+                    R.prim_value(T.float32(0.0)),
+                    depth=12,
+                    axis=1,
+                )
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        expected = ExpectedSoftmaxAxisRank
+    @I.ir_module
+    class ExpectedHardmaxAxisRank:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((24, 1), dtype="float32") = R.reshape(x, R.shape([24, 1]))
+                lv1: R.Tensor((24,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
+                lv2: R.Tensor((24, 1), dtype="float32") = R.one_hot(
+                    lv1,
+                    R.prim_value(T.float32(1.0)),
+                    R.prim_value(T.float32(0.0)),
+                    depth=1,
+                    axis=1,
+                )
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-    elif op_name == "LogSoftmax" and normalized_axis == 0:
+    # Default axis and equivalent negative axis both flatten from axis 1.
+    verify_legacy_softmax_family_axis_ir("Softmax", ExpectedSoftmaxAxis1)
+    verify_legacy_softmax_family_axis_ir("LogSoftmax", ExpectedLogSoftmaxAxis1)
+    verify_legacy_softmax_family_axis_ir("Hardmax", ExpectedHardmaxAxis1)
+    verify_legacy_softmax_family_axis_ir("Softmax", ExpectedSoftmaxAxis1, axis_attr=-2)
+    verify_legacy_softmax_family_axis_ir("LogSoftmax", ExpectedLogSoftmaxAxis1, axis_attr=-2)
+    verify_legacy_softmax_family_axis_ir("Hardmax", ExpectedHardmaxAxis1, axis_attr=-2)
 
-        @I.ir_module
-        class ExpectedLogSoftmaxAxis0:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 24), dtype="float32") = R.reshape(x, R.shape([1, 24]))
-                    lv1: R.Tensor((1, 24), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
+    # Positive axis 0 flattens the whole input as one row.
+    verify_legacy_softmax_family_axis_ir("Softmax", ExpectedSoftmaxAxis0, axis_attr=0)
+    verify_legacy_softmax_family_axis_ir("LogSoftmax", ExpectedLogSoftmaxAxis0, axis_attr=0)
+    verify_legacy_softmax_family_axis_ir("Hardmax", ExpectedHardmaxAxis0, axis_attr=0)
 
-        expected = ExpectedLogSoftmaxAxis0
-
-    elif op_name == "LogSoftmax" and normalized_axis == 1:
-
-        @I.ir_module
-        class ExpectedLogSoftmaxAxis1:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
-                    lv1: R.Tensor((2, 12), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLogSoftmaxAxis1
-
-    elif op_name == "LogSoftmax" and normalized_axis == 3:
-
-        @I.ir_module
-        class ExpectedLogSoftmaxAxisRank:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((24, 1), dtype="float32") = R.reshape(x, R.shape([24, 1]))
-                    lv1: R.Tensor((24, 1), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLogSoftmaxAxisRank
-
-    elif op_name == "Hardmax" and normalized_axis == 0:
-
-        @I.ir_module
-        class ExpectedHardmaxAxis0:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 24), dtype="float32") = R.reshape(x, R.shape([1, 24]))
-                    lv1: R.Tensor((1,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
-                    lv2: R.Tensor((1, 24), dtype="float32") = R.one_hot(
-                        lv1,
-                        R.prim_value(T.float32(1.0)),
-                        R.prim_value(T.float32(0.0)),
-                        depth=24,
-                        axis=1,
-                    )
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedHardmaxAxis0
-
-    elif op_name == "Hardmax" and normalized_axis == 1:
-
-        @I.ir_module
-        class ExpectedHardmaxAxis1:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
-                    lv1: R.Tensor((2,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
-                    lv2: R.Tensor((2, 12), dtype="float32") = R.one_hot(
-                        lv1,
-                        R.prim_value(T.float32(1.0)),
-                        R.prim_value(T.float32(0.0)),
-                        depth=12,
-                        axis=1,
-                    )
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedHardmaxAxis1
-
-    elif op_name == "Hardmax" and normalized_axis == 3:
-
-        @I.ir_module
-        class ExpectedHardmaxAxisRank:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((24, 1), dtype="float32") = R.reshape(x, R.shape([24, 1]))
-                    lv1: R.Tensor((24,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
-                    lv2: R.Tensor((24, 1), dtype="float32") = R.one_hot(
-                        lv1,
-                        R.prim_value(T.float32(1.0)),
-                        R.prim_value(T.float32(0.0)),
-                        depth=1,
-                        axis=1,
-                    )
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedHardmaxAxisRank
-
-    else:
-        raise AssertionError(f"unexpected {op_name} legacy axis case: {expected_axis}")
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
-
-
-@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
-def test_legacy_softmax_family_opset11_default_axis_semantics(op_name: str):
-    assert_legacy_softmax_family_axis_ir(op_name, expected_axis=1)
-
-
-@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
-def test_legacy_softmax_family_opset11_negative_axis_semantics(op_name: str):
-    assert_legacy_softmax_family_axis_ir(op_name, expected_axis=-2, axis_attr=-2)
-
-
-@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
-def test_legacy_softmax_family_opset11_positive_axis_semantics(op_name: str):
-    assert_legacy_softmax_family_axis_ir(op_name, expected_axis=0, axis_attr=0)
-
-
-@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
-def test_legacy_softmax_family_opset11_axis_equals_rank_semantics(op_name: str):
-    assert_legacy_softmax_family_axis_ir(op_name, expected_axis=3, axis_attr=3)
+    # Axis equal to rank produces a trailing singleton reduction dimension.
+    verify_legacy_softmax_family_axis_ir("Softmax", ExpectedSoftmaxAxisRank, axis_attr=3)
+    verify_legacy_softmax_family_axis_ir("LogSoftmax", ExpectedLogSoftmaxAxisRank, axis_attr=3)
+    verify_legacy_softmax_family_axis_ir("Hardmax", ExpectedHardmaxAxisRank, axis_attr=3)
 
 
 @pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax"])
@@ -2413,247 +2332,201 @@ def test_scatter_nd(reduction):
     verify_scatter_nd([10], [5, 1], [5])
 
 
-@pytest.mark.parametrize("tensor_shape", [[32, 32]])
-@pytest.mark.parametrize("condition_shape", [None, [8], [16]])
-@pytest.mark.parametrize("axis", [None, 0, 1])
-def test_compress(
-    tensor_shape: list[int],
-    condition_shape: list[int] | None,
-    axis: int | None,
-):
-    if condition_shape is None and axis is None:
-        pytest.skip("Either condition_shape or axis must be specified")
-    if condition_shape is None:
-        condition_shape = [tensor_shape[axis]]
-    compress_node = helper.make_node("Compress", ["tensor", "condition"], ["output"], axis=axis)
-    graph = helper.make_graph(
-        [compress_node],
-        "compress_test",
-        inputs=[
-            helper.make_tensor_value_info("tensor", TensorProto.FLOAT, tensor_shape),
-            helper.make_tensor_value_info("condition", TensorProto.BOOL, condition_shape),
-        ],
-        outputs=[
-            helper.make_tensor_value_info("output", TensorProto.FLOAT, [])
-        ],  # shape is unknown
-    )
-    model = helper.make_model(graph, producer_name="compress_test")
-    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
-    condition_len = condition_shape[0]
-    if axis is None and condition_len == 8:
+def test_compress():
+    def verify_compress(
+        tensor_shape: list[int],
+        condition_shape: list[int] | None,
+        axis: int | None,
+        expected,
+    ):
+        if condition_shape is None:
+            condition_shape = [tensor_shape[axis]]
+        compress_node = helper.make_node("Compress", ["tensor", "condition"], ["output"], axis=axis)
+        graph = helper.make_graph(
+            [compress_node],
+            "compress_test",
+            inputs=[
+                helper.make_tensor_value_info("tensor", TensorProto.FLOAT, tensor_shape),
+                helper.make_tensor_value_info("condition", TensorProto.BOOL, condition_shape),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("output", TensorProto.FLOAT, [])
+            ],  # shape is unknown
+        )
+        model = helper.make_model(graph, producer_name="compress_test")
+        tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-        @I.ir_module
-        class ExpectedCompressFlatCond8:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((8,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((1024,), dtype="float32") = R.reshape(tensor, R.shape([1024]))
-                    lv2: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((num_nonzero,), dtype="float32") = R.take(
-                        lv1, lv2, axis=0, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedCompressFlatCond8:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((8,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((1024,), dtype="float32") = R.reshape(tensor, R.shape([1024]))
+                lv2: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((num_nonzero,), dtype="float32") = R.take(
+                    lv1, lv2, axis=0, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-        expected = ExpectedCompressFlatCond8
+    @I.ir_module
+    class ExpectedCompressFlatCond16:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((16,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((1024,), dtype="float32") = R.reshape(tensor, R.shape([1024]))
+                lv2: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((num_nonzero,), dtype="float32") = R.take(
+                    lv1, lv2, axis=0, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-    elif axis is None and condition_len == 16:
+    @I.ir_module
+    class ExpectedCompressAxis0Cond8:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((8,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((num_nonzero, 32), dtype="float32") = R.take(
+                    tensor, lv1, axis=0, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedCompressFlatCond16:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((16,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((1024,), dtype="float32") = R.reshape(tensor, R.shape([1024]))
-                    lv2: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((num_nonzero,), dtype="float32") = R.take(
-                        lv1, lv2, axis=0, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedCompressAxis0Cond16:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((16,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((num_nonzero, 32), dtype="float32") = R.take(
+                    tensor, lv1, axis=0, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-        expected = ExpectedCompressFlatCond16
+    @I.ir_module
+    class ExpectedCompressAxis0Cond32:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((32,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((num_nonzero, 32), dtype="float32") = R.take(
+                    tensor, lv1, axis=0, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-    elif axis == 0 and condition_len == 8:
+    @I.ir_module
+    class ExpectedCompressAxis1Cond8:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((8,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((32, num_nonzero), dtype="float32") = R.take(
+                    tensor, lv1, axis=1, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedCompressAxis0Cond8:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((8,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((num_nonzero, 32), dtype="float32") = R.take(
-                        tensor, lv1, axis=0, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedCompressAxis1Cond16:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((16,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((32, num_nonzero), dtype="float32") = R.take(
+                    tensor, lv1, axis=1, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-        expected = ExpectedCompressAxis0Cond8
+    @I.ir_module
+    class ExpectedCompressAxis1Cond32:
+        @R.function
+        def main(
+            tensor: R.Tensor((32, 32), dtype="float32"),
+            condition: R.Tensor((32,), dtype="bool"),
+        ):
+            num_nonzero = T.int64()
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                    R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                )
+                lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(lv, R.shape([num_nonzero]))
+                gv: R.Tensor((32, num_nonzero), dtype="float32") = R.take(
+                    tensor, lv1, axis=1, mode="fast"
+                )
+                R.output(gv)
+            return gv
 
-    elif axis == 0 and condition_len == 16:
-
-        @I.ir_module
-        class ExpectedCompressAxis0Cond16:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((16,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((num_nonzero, 32), dtype="float32") = R.take(
-                        tensor, lv1, axis=0, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedCompressAxis0Cond16
-
-    elif axis == 0 and condition_len == 32:
-
-        @I.ir_module
-        class ExpectedCompressAxis0Cond32:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((32,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((num_nonzero, 32), dtype="float32") = R.take(
-                        tensor, lv1, axis=0, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedCompressAxis0Cond32
-
-    elif axis == 1 and condition_len == 8:
-
-        @I.ir_module
-        class ExpectedCompressAxis1Cond8:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((8,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((32, num_nonzero), dtype="float32") = R.take(
-                        tensor, lv1, axis=1, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedCompressAxis1Cond8
-
-    elif axis == 1 and condition_len == 16:
-
-        @I.ir_module
-        class ExpectedCompressAxis1Cond16:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((16,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((32, num_nonzero), dtype="float32") = R.take(
-                        tensor, lv1, axis=1, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedCompressAxis1Cond16
-
-    elif axis == 1 and condition_len == 32:
-
-        @I.ir_module
-        class ExpectedCompressAxis1Cond32:
-            @R.function
-            def main(
-                tensor: R.Tensor((32, 32), dtype="float32"),
-                condition: R.Tensor((32,), dtype="bool"),
-            ):
-                num_nonzero = T.int64()
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
-                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
-                    )
-                    lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
-                        lv, R.shape([num_nonzero])
-                    )
-                    gv: R.Tensor((32, num_nonzero), dtype="float32") = R.take(
-                        tensor, lv1, axis=1, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedCompressAxis1Cond32
-
-    else:
-        raise AssertionError(f"unexpected Compress case: axis={axis}, condition={condition_shape}")
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_compress([32, 32], [8], None, ExpectedCompressFlatCond8)
+    verify_compress([32, 32], [16], None, ExpectedCompressFlatCond16)
+    verify_compress([32, 32], [8], 0, ExpectedCompressAxis0Cond8)
+    verify_compress([32, 32], [16], 0, ExpectedCompressAxis0Cond16)
+    verify_compress([32, 32], None, 0, ExpectedCompressAxis0Cond32)
+    verify_compress([32, 32], [8], 1, ExpectedCompressAxis1Cond8)
+    verify_compress([32, 32], [16], 1, ExpectedCompressAxis1Cond16)
+    verify_compress([32, 32], None, 1, ExpectedCompressAxis1Cond32)
 
 
 def test_size():
@@ -2707,179 +2580,160 @@ def test_eye_like(k: int):
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-@pytest.mark.parametrize("alpha", [None, 0.25, 1.0])
-@pytest.mark.parametrize("beta", [None, 0.35, 1.0])
-@pytest.mark.parametrize("useC", [False, True])
-def test_gemm(alpha, beta, useC):
-    if useC:
-        gemm_node = helper.make_node(
-            "Gemm", ["a", "b", "c"], ["y"], alpha=alpha, beta=beta, transA=1, transB=1
+def test_gemm():
+    def verify_gemm(alpha, beta, useC, expected):
+        if useC:
+            gemm_node = helper.make_node(
+                "Gemm", ["a", "b", "c"], ["y"], alpha=alpha, beta=beta, transA=1, transB=1
+            )
+        else:
+            gemm_node = helper.make_node(
+                "Gemm", ["a", "b"], ["y"], alpha=alpha, beta=beta, transA=1, transB=1
+            )
+
+        inputs = [
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [4, 3]),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, [5, 4]),
+        ]
+        if useC:
+            inputs.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, [1, 5]))
+
+        graph = helper.make_graph(
+            [gemm_node],
+            "gemm_test",
+            inputs=inputs,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 5])],
         )
-    else:
-        gemm_node = helper.make_node(
-            "Gemm", ["a", "b"], ["y"], alpha=alpha, beta=beta, transA=1, transB=1
-        )
 
-    inputs = [
-        helper.make_tensor_value_info("a", TensorProto.FLOAT, [4, 3]),
-        helper.make_tensor_value_info("b", TensorProto.FLOAT, [5, 4]),
-    ]
-    if useC:
-        inputs.append(helper.make_tensor_value_info("c", TensorProto.FLOAT, [1, 5]))
+        model = helper.make_model(graph, producer_name="gemm_test")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    graph = helper.make_graph(
-        [gemm_node],
-        "gemm_test",
-        inputs=inputs,
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 5])],
-    )
+    @I.ir_module
+    class ExpectedGemmNoC:
+        @R.function
+        def main(
+            a: R.Tensor((4, 3), dtype="float32"),
+            b: R.Tensor((5, 4), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
+                lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
+                gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                R.output(gv)
+            return gv
 
-    model = helper.make_model(graph, producer_name="gemm_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+    @I.ir_module
+    class ExpectedGemmNoCScaledA:
+        @R.function
+        def main(
+            a: R.Tensor((4, 3), dtype="float32"),
+            b: R.Tensor((5, 4), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((4, 3), dtype="float32") = R.multiply(a, R.const(0.25, "float32"))
+                lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
+                lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
+                gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2, out_dtype="void")
+                R.output(gv)
+            return gv
 
-    scale_a = alpha is not None and alpha != 1.0
-    scale_c = beta is not None and beta != 1.0
-    alpha_value = float(np.float32(1.0 if alpha is None else alpha))
-    beta_value = float(np.float32(1.0 if beta is None else beta))
+    @I.ir_module
+    class ExpectedGemmWithC:
+        @R.function
+        def main(
+            a: R.Tensor((4, 3), dtype="float32"),
+            b: R.Tensor((5, 4), dtype="float32"),
+            c: R.Tensor((1, 5), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
+                lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
+                lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                gv: R.Tensor((3, 5), dtype="float32") = R.add(lv2, c)
+                R.output(gv)
+            return gv
 
-    if not useC and not scale_a:
+    @I.ir_module
+    class ExpectedGemmWithCScaledA:
+        @R.function
+        def main(
+            a: R.Tensor((4, 3), dtype="float32"),
+            b: R.Tensor((5, 4), dtype="float32"),
+            c: R.Tensor((1, 5), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((4, 3), dtype="float32") = R.multiply(a, R.const(0.25, "float32"))
+                lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
+                lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
+                lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2, out_dtype="void")
+                gv: R.Tensor((3, 5), dtype="float32") = R.add(lv3, c)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedGemmNoC:
-            @R.function
-            def main(
-                a: R.Tensor((4, 3), dtype="float32"),
-                b: R.Tensor((5, 4), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
-                    lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                    gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedGemmWithCScaledC:
+        @R.function
+        def main(
+            a: R.Tensor((4, 3), dtype="float32"),
+            b: R.Tensor((5, 4), dtype="float32"),
+            c: R.Tensor((1, 5), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
+                lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
+                lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                lv3: R.Tensor((1, 5), dtype="float32") = R.multiply(
+                    c, R.const(0.3499999940395355, "float32")
+                )
+                gv: R.Tensor((3, 5), dtype="float32") = R.add(lv2, lv3)
+                R.output(gv)
+            return gv
 
-        expected = ExpectedGemmNoC
+    @I.ir_module
+    class ExpectedGemmWithCScaledAC:
+        @R.function
+        def main(
+            a: R.Tensor((4, 3), dtype="float32"),
+            b: R.Tensor((5, 4), dtype="float32"),
+            c: R.Tensor((1, 5), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((4, 3), dtype="float32") = R.multiply(a, R.const(0.25, "float32"))
+                lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
+                lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
+                lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2, out_dtype="void")
+                lv4: R.Tensor((1, 5), dtype="float32") = R.multiply(
+                    c, R.const(0.3499999940395355, "float32")
+                )
+                gv: R.Tensor((3, 5), dtype="float32") = R.add(lv3, lv4)
+                R.output(gv)
+            return gv
 
-    elif not useC:
-
-        @I.ir_module
-        class ExpectedGemmNoCScaledA:
-            @R.function
-            def main(
-                a: R.Tensor((4, 3), dtype="float32"),
-                b: R.Tensor((5, 4), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((4, 3), dtype="float32") = R.multiply(
-                        a, R.const(alpha_value, "float32")
-                    )
-                    lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
-                    lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                    gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2, out_dtype="void")
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedGemmNoCScaledA
-
-    elif not scale_a and not scale_c:
-
-        @I.ir_module
-        class ExpectedGemmWithC:
-            @R.function
-            def main(
-                a: R.Tensor((4, 3), dtype="float32"),
-                b: R.Tensor((5, 4), dtype="float32"),
-                c: R.Tensor((1, 5), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
-                    lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                    lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
-                    gv: R.Tensor((3, 5), dtype="float32") = R.add(lv2, c)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedGemmWithC
-
-    elif scale_a and not scale_c:
-
-        @I.ir_module
-        class ExpectedGemmWithCScaledA:
-            @R.function
-            def main(
-                a: R.Tensor((4, 3), dtype="float32"),
-                b: R.Tensor((5, 4), dtype="float32"),
-                c: R.Tensor((1, 5), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((4, 3), dtype="float32") = R.multiply(
-                        a, R.const(alpha_value, "float32")
-                    )
-                    lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
-                    lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                    lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2, out_dtype="void")
-                    gv: R.Tensor((3, 5), dtype="float32") = R.add(lv3, c)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedGemmWithCScaledA
-
-    elif not scale_a:
-
-        @I.ir_module
-        class ExpectedGemmWithCScaledC:
-            @R.function
-            def main(
-                a: R.Tensor((4, 3), dtype="float32"),
-                b: R.Tensor((5, 4), dtype="float32"),
-                c: R.Tensor((1, 5), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
-                    lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                    lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
-                    lv3: R.Tensor((1, 5), dtype="float32") = R.multiply(
-                        c, R.const(beta_value, "float32")
-                    )
-                    gv: R.Tensor((3, 5), dtype="float32") = R.add(lv2, lv3)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedGemmWithCScaledC
-
-    else:
-
-        @I.ir_module
-        class ExpectedGemmWithCScaledAC:
-            @R.function
-            def main(
-                a: R.Tensor((4, 3), dtype="float32"),
-                b: R.Tensor((5, 4), dtype="float32"),
-                c: R.Tensor((1, 5), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((4, 3), dtype="float32") = R.multiply(
-                        a, R.const(alpha_value, "float32")
-                    )
-                    lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
-                    lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                    lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2, out_dtype="void")
-                    lv4: R.Tensor((1, 5), dtype="float32") = R.multiply(
-                        c, R.const(beta_value, "float32")
-                    )
-                    gv: R.Tensor((3, 5), dtype="float32") = R.add(lv3, lv4)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedGemmWithCScaledAC
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_gemm(None, None, False, ExpectedGemmNoC)
+    verify_gemm(0.25, None, False, ExpectedGemmNoCScaledA)
+    verify_gemm(1.0, None, False, ExpectedGemmNoC)
+    verify_gemm(None, 0.35, False, ExpectedGemmNoC)
+    verify_gemm(0.25, 0.35, False, ExpectedGemmNoCScaledA)
+    verify_gemm(1.0, 0.35, False, ExpectedGemmNoC)
+    verify_gemm(None, 1.0, False, ExpectedGemmNoC)
+    verify_gemm(0.25, 1.0, False, ExpectedGemmNoCScaledA)
+    verify_gemm(1.0, 1.0, False, ExpectedGemmNoC)
+    verify_gemm(None, None, True, ExpectedGemmWithC)
+    verify_gemm(None, 0.35, True, ExpectedGemmWithCScaledC)
+    verify_gemm(None, 1.0, True, ExpectedGemmWithC)
+    verify_gemm(1.0, None, True, ExpectedGemmWithC)
+    verify_gemm(1.0, 0.35, True, ExpectedGemmWithCScaledC)
+    verify_gemm(1.0, 1.0, True, ExpectedGemmWithC)
+    verify_gemm(0.25, None, True, ExpectedGemmWithCScaledA)
+    verify_gemm(0.25, 0.35, True, ExpectedGemmWithCScaledAC)
+    verify_gemm(0.25, 1.0, True, ExpectedGemmWithCScaledA)
 
 
 @pytest.mark.parametrize(
@@ -5666,5158 +5520,41 @@ def _reduce_output_shape(input_shape: list[int], axes, keepdims: bool, noop_with
     return list(np.sum(np.empty(input_shape), axis=axis, keepdims=keepdims).shape)
 
 
-def _make_composite_reduce_expected(
+def verify_composite_reduce_axes_attr_ir(
     func: str,
     input_shape: list[int],
     axes,
     keepdims: bool,
     dynamic: bool,
-    axes_input_shape: list[int] | None = None,
-    noop_with_empty_axes: bool = False,
+    opset: int,
+    expected,
 ):
-    if (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce0:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce0
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce1:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce1
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce2:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce2
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce3:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce3
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce4:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce4
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce5:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce5
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce6:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce6
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce7:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce7
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce8:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce8
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce9:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce9
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce10:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce10
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce11:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce11
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce12:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce12
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce13:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce13
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce14:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce14
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce15:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce15
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce16:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce16
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce17:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce17
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce18:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce18
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce19:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce19
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce20:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce20
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce21:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce21
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce22:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce22
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce23:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce23
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce24:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce24
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce25:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce25
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce26:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce26
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce27:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce27
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce28:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce28
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce29:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce29
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce30:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce30
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce31:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce31
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce32:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce32
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce33:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce33
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce34:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce34
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce35:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce35
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce36:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce36
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce37:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce37
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce38:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce38
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce39:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce39
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce40:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce40
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce41:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce41
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce42:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce42
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce43:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce43
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce44:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce44
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce45:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce45
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce46:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce46
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce47:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1,), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce47
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce48:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce48
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce49:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce49
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce50:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce50
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce51:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce51
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce52:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce52
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce53:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce53
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce54:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=None)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce54
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce55:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=None)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce55
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce56:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1,))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce56
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce57:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1, 2))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce57
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce58:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1,))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce58
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce59:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1,))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce59
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce60:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce60
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce61:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce61
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce62:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce62
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce63:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce63
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce64:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce64
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce65:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce65
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce66:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=None)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce66
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce67:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=None)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce67
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce68:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1,))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce68
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce69:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1, 2))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce69
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce70:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1,))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce70
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce71:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1,), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1,), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1,))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce71
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce72:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce72
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce73:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce73
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce74:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce74
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce75:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce75
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce76:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce76
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce77:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce77
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce78:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce78
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce79:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce79
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce80:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce80
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce81:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce81
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce82:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce82
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce83:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce83
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce84:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce84
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce85:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce85
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce86:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce86
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce87:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce87
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce88:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce88
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce89:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce89
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce90:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce90
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce91:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce91
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce92:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce92
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce93:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce93
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce94:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce94
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce95:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1,), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce95
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce96:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce96
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce97:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce97
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce98:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce98
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce99:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce99
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce100:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce100
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce101:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce101
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce102:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce102
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce103:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce103
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce104:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce104
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce105:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce105
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce106:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce106
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce107:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce107
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce108:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce108
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce109:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce109
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce110:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce110
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce111:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce111
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce112:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce112
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce113:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce113
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce114:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce114
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 3]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce115:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce115
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce116:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce116
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce117:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce117
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce118:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce118
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [1, 3, 4, 1]
-        and axes == (1,)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape is None
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce119:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1,), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce119
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce120:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce120
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce121:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce121
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce122:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce122
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce123:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce123
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce124:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce124
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce125:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce125
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce126:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce126
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce127:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce127
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce128:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce128
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce129:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce129
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce130:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce130
-
-    elif (
-        func == "ReduceSumSquare"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce131:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce131
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce132:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce132
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce133:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce133
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce134:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce134
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce135:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce135
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce136:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce136
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce137:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce137
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce138:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce138
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce139:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce139
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce140:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=True)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce140
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce141:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=None, keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce141
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce142:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce142
-
-    elif (
-        func == "ReduceLogSum"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce143:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.sum(x, axis=(1, 2), keepdims=False)
-                    gv = R.log(lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce143
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce144:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce144
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce145:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce145
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce146:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce146
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce147:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=None)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce147
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce148:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce148
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce149:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1, 2))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce149
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce150:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce150
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce151:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce151
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce152:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    gv = R.add(lv4, lv)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce152
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce153:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=None, keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=None, keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=None)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce153
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce154:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce154
-
-    elif (
-        func == "ReduceLogSumExp"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce155:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.max(x, axis=(1, 2), keepdims=True)
-                    lv1 = R.subtract(x, lv)
-                    lv2 = R.exp(lv1)
-                    lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
-                    lv4 = R.log(lv3)
-                    lv5 = R.add(lv4, lv)
-                    gv = R.squeeze(lv5, axis=(1, 2))
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce155
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce156:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce156
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce157:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce157
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce158:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce158
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce159:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce159
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce160:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce160
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce161:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce161
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce162:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce162
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce163:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce163
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce164:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=True)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce164
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce165:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=None, keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce165
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce166:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce166
-
-    elif (
-        func == "ReduceL1"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce167:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.abs(x)
-                    gv = R.sum(lv, axis=(1, 2), keepdims=False)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce167
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce168:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce168
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce169:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce169
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce170:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce170
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce171:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce171
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce172:
-            @R.function
-            def main(
-                x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce172
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is True
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce173:
-            @R.function
-            def main(
-                x: R.Tensor(
-                    ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"),
-                    dtype="float32",
-                ),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                reduce_dim_0 = T.int64(is_size_var=True)
-                reduce_dim_1 = T.int64(is_size_var=True)
-                reduce_dim_2 = T.int64(is_size_var=True)
-                reduce_dim_3 = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce173
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce174:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce174
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce175:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce175
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is True
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce176:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce176
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 2, 2]
-        and axes is None
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce177:
-            @R.function
-            def main(
-                x: R.Tensor((3, 2, 2), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=None, keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce177
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [4, 3]
-        and axes == []
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [0]
-        and noop_with_empty_axes is True
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce178:
-            @R.function
-            def main(
-                x: R.Tensor((4, 3), dtype="float32"),
-                reduce_axes: R.Tensor((0,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = x
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce178
-
-    elif (
-        func == "ReduceL2"
-        and input_shape == [3, 3, 3, 1]
-        and axes == (1, 2)
-        and keepdims is False
-        and dynamic is False
-        and axes_input_shape == [2]
-        and noop_with_empty_axes is False
-    ):
-
-        @I.ir_module
-        class ExpectedCompositeReduce179:
-            @R.function
-            def main(
-                x: R.Tensor((3, 3, 3, 1), dtype="float32"),
-                reduce_axes: R.Tensor((2,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.multiply(x, x)
-                    lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
-                    gv = R.sqrt(lv1)
-                    R.output(gv)
-                return gv
-
-        return ExpectedCompositeReduce179
-
-    else:
-        raise AssertionError(
-            "Unexpected composite reduce structural case: "
-            f"func={func}, input_shape={input_shape}, axes={axes}, keepdims={keepdims}, "
-            f"dynamic={dynamic}, axes_input_shape={axes_input_shape}, "
-            f"noop_with_empty_axes={noop_with_empty_axes}"
-        )
+    attrs = {"keepdims": keepdims}
+    if axes:
+        attrs["axes"] = axes
+    node = onnx.helper.make_node(func, inputs=["x"], outputs=["y"], **attrs)
+    output_shape = _reduce_output_shape(input_shape, axes, keepdims)
+    graph = helper.make_graph(
+        [node],
+        "composite_reduce_axes_attr_ir_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "x", TensorProto.FLOAT, ["?"] * len(input_shape) if dynamic else input_shape
+            )
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "y", TensorProto.FLOAT, ["?"] * len(output_shape) if dynamic else output_shape
+            )
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="composite_reduce_axes_attr_ir_test",
+        opset_imports=[helper.make_opsetid("", opset)],
+    )
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+    tvm.ir.assert_structural_equal(tvm_model, expected, map_free_vars=dynamic)
 
 
 def create_reduce_test_parameters_axes_attr():
@@ -10901,42 +5638,2807 @@ def test_all_reduce_funcs_axes_attr(func, dynamic, opset):
         )
 
 
-@pytest.mark.parametrize(
-    "func, dynamic, opset", create_composite_reduce_test_parameters_axes_attr()
-)
-@pytest.mark.parametrize("keepdims", [True, False])
-@pytest.mark.parametrize("input_shape, axes", REDUCE_AXES_ATTR_TEST_CASES)
-def test_composite_reduce_funcs_axes_attr_ir(func, dynamic, opset, keepdims, input_shape, axes):
-    attrs = {"keepdims": keepdims}
-    if axes:
-        attrs["axes"] = axes
-    node = onnx.helper.make_node(func, inputs=["x"], outputs=["y"], **attrs)
-    output_shape = _reduce_output_shape(input_shape, axes, keepdims)
-    graph = helper.make_graph(
-        [node],
-        "composite_reduce_axes_attr_ir_test",
-        inputs=[
-            helper.make_tensor_value_info(
-                "x", TensorProto.FLOAT, ["?"] * len(input_shape) if dynamic else input_shape
-            )
-        ],
-        outputs=[
-            helper.make_tensor_value_info(
-                "y", TensorProto.FLOAT, ["?"] * len(output_shape) if dynamic else output_shape
-            )
-        ],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="composite_reduce_axes_attr_ir_test",
-        opset_imports=[helper.make_opsetid("", opset)],
-    )
-    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+def test_composite_reduce_funcs_axes_attr_ir():
+    @I.ir_module
+    class ExpectedCompositeReduceAttr0:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
 
-    tvm.ir.assert_structural_equal(
-        tvm_model,
-        _make_composite_reduce_expected(func, input_shape, axes, keepdims, dynamic),
-        map_free_vars=dynamic,
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, True, True, 13, ExpectedCompositeReduceAttr0
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, True, True, 11, ExpectedCompositeReduceAttr0
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr1:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, True, True, 13, ExpectedCompositeReduceAttr1
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, True, True, 11, ExpectedCompositeReduceAttr1
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr2:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), True, True, 13, ExpectedCompositeReduceAttr2
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), True, True, 11, ExpectedCompositeReduceAttr2
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr3:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), True, True, 13, ExpectedCompositeReduceAttr3
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), True, True, 11, ExpectedCompositeReduceAttr3
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr4:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr4
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr4
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr5:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr5
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr5
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr6:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, True, 13, ExpectedCompositeReduceAttr6
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, True, 11, ExpectedCompositeReduceAttr6
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr7:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, False, True, 13, ExpectedCompositeReduceAttr7
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, False, True, 11, ExpectedCompositeReduceAttr7
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr8:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), False, True, 13, ExpectedCompositeReduceAttr8
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), False, True, 11, ExpectedCompositeReduceAttr8
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr9:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), False, True, 13, ExpectedCompositeReduceAttr9
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), False, True, 11, ExpectedCompositeReduceAttr9
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr10:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr10
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr10
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr11:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr11
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr11
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr12:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, True, False, 13, ExpectedCompositeReduceAttr12
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, True, False, 11, ExpectedCompositeReduceAttr12
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr13:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, True, False, 13, ExpectedCompositeReduceAttr13
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, True, False, 11, ExpectedCompositeReduceAttr13
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr14:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), True, False, 13, ExpectedCompositeReduceAttr14
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), True, False, 11, ExpectedCompositeReduceAttr14
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr15:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), True, False, 13, ExpectedCompositeReduceAttr15
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), True, False, 11, ExpectedCompositeReduceAttr15
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr16:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr16
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr16
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr17:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr17
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr17
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr18:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, False, 13, ExpectedCompositeReduceAttr18
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, False, 11, ExpectedCompositeReduceAttr18
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr19:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, False, False, 13, ExpectedCompositeReduceAttr19
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 2, 3], None, False, False, 11, ExpectedCompositeReduceAttr19
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr20:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), False, False, 13, ExpectedCompositeReduceAttr20
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3], (1,), False, False, 11, ExpectedCompositeReduceAttr20
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr21:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), False, False, 13, ExpectedCompositeReduceAttr21
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1, 2), False, False, 11, ExpectedCompositeReduceAttr21
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr22:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr22
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [3, 3, 3, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr22
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr23:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr23
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceSumSquare", [1, 3, 4, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr23
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr24:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, True, True, 13, ExpectedCompositeReduceAttr24
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, True, True, 11, ExpectedCompositeReduceAttr24
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr25:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, True, True, 13, ExpectedCompositeReduceAttr25
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, True, True, 11, ExpectedCompositeReduceAttr25
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr26:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), True, True, 13, ExpectedCompositeReduceAttr26
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), True, True, 11, ExpectedCompositeReduceAttr26
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr27:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), True, True, 13, ExpectedCompositeReduceAttr27
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), True, True, 11, ExpectedCompositeReduceAttr27
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr28:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr28
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr28
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr29:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr29
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr29
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr30:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, True, 13, ExpectedCompositeReduceAttr30
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, True, 11, ExpectedCompositeReduceAttr30
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr31:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, False, True, 13, ExpectedCompositeReduceAttr31
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, False, True, 11, ExpectedCompositeReduceAttr31
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr32:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), False, True, 13, ExpectedCompositeReduceAttr32
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), False, True, 11, ExpectedCompositeReduceAttr32
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr33:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), False, True, 13, ExpectedCompositeReduceAttr33
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), False, True, 11, ExpectedCompositeReduceAttr33
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr34:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr34
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr34
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr35:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr35
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr35
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr36:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, True, False, 13, ExpectedCompositeReduceAttr36
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, True, False, 11, ExpectedCompositeReduceAttr36
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr37:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, True, False, 13, ExpectedCompositeReduceAttr37
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, True, False, 11, ExpectedCompositeReduceAttr37
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr38:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), True, False, 13, ExpectedCompositeReduceAttr38
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), True, False, 11, ExpectedCompositeReduceAttr38
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr39:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), True, False, 13, ExpectedCompositeReduceAttr39
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), True, False, 11, ExpectedCompositeReduceAttr39
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr40:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr40
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr40
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr41:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr41
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr41
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr42:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, False, 13, ExpectedCompositeReduceAttr42
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, False, 11, ExpectedCompositeReduceAttr42
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr43:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, False, False, 13, ExpectedCompositeReduceAttr43
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 2, 3], None, False, False, 11, ExpectedCompositeReduceAttr43
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr44:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), False, False, 13, ExpectedCompositeReduceAttr44
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3], (1,), False, False, 11, ExpectedCompositeReduceAttr44
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr45:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), False, False, 13, ExpectedCompositeReduceAttr45
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), False, False, 11, ExpectedCompositeReduceAttr45
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr46:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr46
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr46
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr47:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1,), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr47
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSum", [1, 3, 4, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr47
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr48:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, True, True, 13, ExpectedCompositeReduceAttr48
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, True, True, 11, ExpectedCompositeReduceAttr48
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr49:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, True, True, 13, ExpectedCompositeReduceAttr49
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, True, True, 11, ExpectedCompositeReduceAttr49
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr50:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), True, True, 13, ExpectedCompositeReduceAttr50
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), True, True, 11, ExpectedCompositeReduceAttr50
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr51:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), True, True, 13, ExpectedCompositeReduceAttr51
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), True, True, 11, ExpectedCompositeReduceAttr51
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr52:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr52
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr52
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr53:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr53
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr53
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr54:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, True, 13, ExpectedCompositeReduceAttr54
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, True, 11, ExpectedCompositeReduceAttr54
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr55:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, False, True, 13, ExpectedCompositeReduceAttr55
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, False, True, 11, ExpectedCompositeReduceAttr55
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr56:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1,))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), False, True, 13, ExpectedCompositeReduceAttr56
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), False, True, 11, ExpectedCompositeReduceAttr56
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr57:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1, 2))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), False, True, 13, ExpectedCompositeReduceAttr57
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), False, True, 11, ExpectedCompositeReduceAttr57
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr58:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1,))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr58
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr58
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr59:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1,))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr59
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr59
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr60:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, True, False, 13, ExpectedCompositeReduceAttr60
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, True, False, 11, ExpectedCompositeReduceAttr60
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr61:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, True, False, 13, ExpectedCompositeReduceAttr61
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, True, False, 11, ExpectedCompositeReduceAttr61
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr62:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), True, False, 13, ExpectedCompositeReduceAttr62
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), True, False, 11, ExpectedCompositeReduceAttr62
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr63:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), True, False, 13, ExpectedCompositeReduceAttr63
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), True, False, 11, ExpectedCompositeReduceAttr63
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr64:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr64
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr64
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr65:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr65
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr65
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr66:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, False, 13, ExpectedCompositeReduceAttr66
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, False, 11, ExpectedCompositeReduceAttr66
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr67:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, False, False, 13, ExpectedCompositeReduceAttr67
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 2, 3], None, False, False, 11, ExpectedCompositeReduceAttr67
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr68:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1,))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), False, False, 13, ExpectedCompositeReduceAttr68
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3], (1,), False, False, 11, ExpectedCompositeReduceAttr68
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr69:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1, 2))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), False, False, 13, ExpectedCompositeReduceAttr69
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1, 2), False, False, 11, ExpectedCompositeReduceAttr69
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr70:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1,))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr70
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [3, 3, 3, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr70
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr71:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1,), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1,), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1,))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr71
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceLogSumExp", [1, 3, 4, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr71
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr72:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, True, True, 13, ExpectedCompositeReduceAttr72
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, True, True, 11, ExpectedCompositeReduceAttr72
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr73:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, True, True, 13, ExpectedCompositeReduceAttr73
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, True, True, 11, ExpectedCompositeReduceAttr73
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr74:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), True, True, 13, ExpectedCompositeReduceAttr74
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), True, True, 11, ExpectedCompositeReduceAttr74
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr75:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), True, True, 13, ExpectedCompositeReduceAttr75
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), True, True, 11, ExpectedCompositeReduceAttr75
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr76:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr76
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr76
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr77:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr77
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr77
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr78:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, False, True, 13, ExpectedCompositeReduceAttr78
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, False, True, 11, ExpectedCompositeReduceAttr78
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr79:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, False, True, 13, ExpectedCompositeReduceAttr79
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, False, True, 11, ExpectedCompositeReduceAttr79
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr80:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), False, True, 13, ExpectedCompositeReduceAttr80
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), False, True, 11, ExpectedCompositeReduceAttr80
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr81:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, True, 13, ExpectedCompositeReduceAttr81
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, True, 11, ExpectedCompositeReduceAttr81
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr82:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr82
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr82
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr83:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr83
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr83
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr84:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, True, False, 13, ExpectedCompositeReduceAttr84
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, True, False, 11, ExpectedCompositeReduceAttr84
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr85:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, True, False, 13, ExpectedCompositeReduceAttr85
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, True, False, 11, ExpectedCompositeReduceAttr85
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr86:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), True, False, 13, ExpectedCompositeReduceAttr86
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), True, False, 11, ExpectedCompositeReduceAttr86
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr87:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), True, False, 13, ExpectedCompositeReduceAttr87
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), True, False, 11, ExpectedCompositeReduceAttr87
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr88:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr88
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr88
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr89:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr89
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr89
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr90:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, False, False, 13, ExpectedCompositeReduceAttr90
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 2], None, False, False, 11, ExpectedCompositeReduceAttr90
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr91:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, False, False, 13, ExpectedCompositeReduceAttr91
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 2, 3], None, False, False, 11, ExpectedCompositeReduceAttr91
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr92:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), False, False, 13, ExpectedCompositeReduceAttr92
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3], (1,), False, False, 11, ExpectedCompositeReduceAttr92
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr93:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, False, 13, ExpectedCompositeReduceAttr93
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, False, 11, ExpectedCompositeReduceAttr93
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr94:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr94
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [3, 3, 3, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr94
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr95:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1,), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr95
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL1", [1, 3, 4, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr95
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr96:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, True, True, 13, ExpectedCompositeReduceAttr96
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, True, True, 11, ExpectedCompositeReduceAttr96
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr97:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, True, True, 13, ExpectedCompositeReduceAttr97
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, True, True, 11, ExpectedCompositeReduceAttr97
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr98:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), True, True, 13, ExpectedCompositeReduceAttr98
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), True, True, 11, ExpectedCompositeReduceAttr98
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr99:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), True, True, 13, ExpectedCompositeReduceAttr99
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), True, True, 11, ExpectedCompositeReduceAttr99
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr100:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr100
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr100
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr101:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), True, True, 13, ExpectedCompositeReduceAttr101
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), True, True, 11, ExpectedCompositeReduceAttr101
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr102:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, False, True, 13, ExpectedCompositeReduceAttr102
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, False, True, 11, ExpectedCompositeReduceAttr102
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr103:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, False, True, 13, ExpectedCompositeReduceAttr103
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, False, True, 11, ExpectedCompositeReduceAttr103
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr104:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), False, True, 13, ExpectedCompositeReduceAttr104
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), False, True, 11, ExpectedCompositeReduceAttr104
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr105:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, True, 13, ExpectedCompositeReduceAttr105
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, True, 11, ExpectedCompositeReduceAttr105
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr106:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr106
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr106
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr107:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), False, True, 13, ExpectedCompositeReduceAttr107
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), False, True, 11, ExpectedCompositeReduceAttr107
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr108:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, True, False, 13, ExpectedCompositeReduceAttr108
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, True, False, 11, ExpectedCompositeReduceAttr108
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr109:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, True, False, 13, ExpectedCompositeReduceAttr109
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, True, False, 11, ExpectedCompositeReduceAttr109
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr110:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), True, False, 13, ExpectedCompositeReduceAttr110
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), True, False, 11, ExpectedCompositeReduceAttr110
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr111:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), True, False, 13, ExpectedCompositeReduceAttr111
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), True, False, 11, ExpectedCompositeReduceAttr111
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr112:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr112
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr112
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr113:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), True, False, 13, ExpectedCompositeReduceAttr113
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), True, False, 11, ExpectedCompositeReduceAttr113
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr114:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, False, False, 13, ExpectedCompositeReduceAttr114
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 2], None, False, False, 11, ExpectedCompositeReduceAttr114
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr115:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, False, False, 13, ExpectedCompositeReduceAttr115
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 2, 3], None, False, False, 11, ExpectedCompositeReduceAttr115
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr116:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), False, False, 13, ExpectedCompositeReduceAttr116
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3], (1,), False, False, 11, ExpectedCompositeReduceAttr116
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr117:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, False, 13, ExpectedCompositeReduceAttr117
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, False, 11, ExpectedCompositeReduceAttr117
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr118:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr118
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [3, 3, 3, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr118
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceAttr119:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1,), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), False, False, 13, ExpectedCompositeReduceAttr119
+    )
+    verify_composite_reduce_axes_attr_ir(
+        "ReduceL2", [1, 3, 4, 1], (1,), False, False, 11, ExpectedCompositeReduceAttr119
     )
 
 
@@ -10957,6 +8459,71 @@ def create_composite_reduce_test_parameters_axes_input():
         for func in COMPOSITE_REDUCE_FUNCS:
             output.append((func, dynamic, 18))
     return output
+
+
+def verify_composite_reduce_axes_input_ir(
+    func: str,
+    input_shape: list[int],
+    axes,
+    noop_with_empty_axes: bool,
+    keepdims: bool,
+    dynamic: bool,
+    opset: int,
+    expected,
+):
+    node_inputs = ["x"]
+    initializers = []
+    axes_input_shape = None
+    if axes is not None:
+        axes_np = np.asarray(axes, dtype=np.int64)
+        axes_input_shape = list(axes_np.shape)
+        initializers.append(
+            helper.make_tensor(
+                name="reduce_axes",
+                data_type=TensorProto.INT64,
+                dims=axes_input_shape,
+                vals=axes_np,
+            )
+        )
+        node_inputs.append("reduce_axes")
+
+    effective_axes = None if not axes and not noop_with_empty_axes else axes
+    output_shape = _reduce_output_shape(
+        input_shape, effective_axes, keepdims, noop_with_empty_axes=noop_with_empty_axes
+    )
+    node = onnx.helper.make_node(
+        func,
+        inputs=node_inputs,
+        outputs=["y"],
+        keepdims=keepdims,
+        noop_with_empty_axes=noop_with_empty_axes,
+    )
+    graph = helper.make_graph(
+        [node],
+        "composite_reduce_axes_input_ir_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "x", TensorProto.FLOAT, ["?"] * len(input_shape) if dynamic else input_shape
+            )
+        ],
+        initializer=initializers,
+        outputs=[
+            helper.make_tensor_value_info(
+                "y", TensorProto.FLOAT, ["?"] * len(output_shape) if dynamic else output_shape
+            )
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="composite_reduce_axes_input_ir_test",
+        opset_imports=[helper.make_opsetid("", opset)],
+    )
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+    if axes_input_shape is not None:
+        assert len(tvm_model["main"].attrs["params"]) == 1
+        tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    tvm.ir.assert_structural_equal(tvm_model, expected, map_free_vars=dynamic)
 
 
 @pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_input())
@@ -11064,78 +8631,1674 @@ def test_all_reduce_funcs_axes_input(func, dynamic, opset):
         )
 
 
-@pytest.mark.parametrize(
-    "func, dynamic, opset", create_composite_reduce_test_parameters_axes_input()
-)
-@pytest.mark.parametrize("keepdims", [True, False])
-@pytest.mark.parametrize("input_shape, axes, noop_with_empty_axes", REDUCE_AXES_INPUT_TEST_CASES)
-def test_composite_reduce_funcs_axes_input_ir(
-    func, dynamic, opset, keepdims, input_shape, axes, noop_with_empty_axes
-):
-    node_inputs = ["x"]
-    initializers = []
-    axes_input_shape = None
-    if axes is not None:
-        axes_np = np.asarray(axes, dtype=np.int64)
-        axes_input_shape = list(axes_np.shape)
-        initializers.append(
-            helper.make_tensor(
-                name="reduce_axes",
-                data_type=TensorProto.INT64,
-                dims=axes_input_shape,
-                vals=axes_np,
-            )
-        )
-        node_inputs.append("reduce_axes")
+def test_composite_reduce_funcs_axes_input_ir():
+    @I.ir_module
+    class ExpectedCompositeReduceInput0:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
 
-    effective_axes = None if not axes and not noop_with_empty_axes else axes
-    output_shape = _reduce_output_shape(
-        input_shape, effective_axes, keepdims, noop_with_empty_axes=noop_with_empty_axes
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], [], False, True, True, 18, ExpectedCompositeReduceInput0
     )
-    node = onnx.helper.make_node(
-        func,
-        inputs=node_inputs,
-        outputs=["y"],
-        keepdims=keepdims,
-        noop_with_empty_axes=noop_with_empty_axes,
-    )
-    graph = helper.make_graph(
-        [node],
-        "composite_reduce_axes_input_ir_test",
-        inputs=[
-            helper.make_tensor_value_info(
-                "x", TensorProto.FLOAT, ["?"] * len(input_shape) if dynamic else input_shape
-            )
-        ],
-        initializer=initializers,
-        outputs=[
-            helper.make_tensor_value_info(
-                "y", TensorProto.FLOAT, ["?"] * len(output_shape) if dynamic else output_shape
-            )
-        ],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="composite_reduce_axes_input_ir_test",
-        opset_imports=[helper.make_opsetid("", opset)],
-    )
-    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
-    if axes_input_shape is not None:
-        assert len(tvm_model["main"].attrs["params"]) == 1
-        tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    tvm.ir.assert_structural_equal(
-        tvm_model,
-        _make_composite_reduce_expected(
-            func,
-            input_shape,
-            effective_axes,
-            keepdims,
-            dynamic,
-            axes_input_shape=axes_input_shape,
-            noop_with_empty_axes=noop_with_empty_axes,
-        ),
-        map_free_vars=dynamic,
+    @I.ir_module
+    class ExpectedCompositeReduceInput1:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, True, True, 18, ExpectedCompositeReduceInput1
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput2:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [4, 3], [], True, True, True, 18, ExpectedCompositeReduceInput2
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput3:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        True,
+        True,
+        18,
+        ExpectedCompositeReduceInput3,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput4:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], [], False, False, True, 18, ExpectedCompositeReduceInput4
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput5:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, False, True, 18, ExpectedCompositeReduceInput5
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput6:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [4, 3], [], True, False, True, 18, ExpectedCompositeReduceInput6
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput7:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        False,
+        True,
+        18,
+        ExpectedCompositeReduceInput7,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput8:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], [], False, True, False, 18, ExpectedCompositeReduceInput8
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput9:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, True, False, 18, ExpectedCompositeReduceInput9
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput10:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [4, 3], [], True, True, False, 18, ExpectedCompositeReduceInput10
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput11:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        True,
+        False,
+        18,
+        ExpectedCompositeReduceInput11,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput12:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], [], False, False, False, 18, ExpectedCompositeReduceInput12
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput13:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [3, 2, 2], None, False, False, False, 18, ExpectedCompositeReduceInput13
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput14:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare", [4, 3], [], True, False, False, 18, ExpectedCompositeReduceInput14
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput15:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceSumSquare",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        False,
+        False,
+        18,
+        ExpectedCompositeReduceInput15,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput16:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], [], False, True, True, 18, ExpectedCompositeReduceInput16
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput17:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, True, True, 18, ExpectedCompositeReduceInput17
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput18:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [4, 3], [], True, True, True, 18, ExpectedCompositeReduceInput18
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput19:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), False, True, True, 18, ExpectedCompositeReduceInput19
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput20:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], [], False, False, True, 18, ExpectedCompositeReduceInput20
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput21:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, False, True, 18, ExpectedCompositeReduceInput21
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput22:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [4, 3], [], True, False, True, 18, ExpectedCompositeReduceInput22
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput23:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), False, False, True, 18, ExpectedCompositeReduceInput23
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput24:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], [], False, True, False, 18, ExpectedCompositeReduceInput24
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput25:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, True, False, 18, ExpectedCompositeReduceInput25
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput26:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [4, 3], [], True, True, False, 18, ExpectedCompositeReduceInput26
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput27:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=True)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 3, 3, 1], (1, 2), False, True, False, 18, ExpectedCompositeReduceInput27
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput28:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], [], False, False, False, 18, ExpectedCompositeReduceInput28
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput29:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=None, keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [3, 2, 2], None, False, False, False, 18, ExpectedCompositeReduceInput29
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput30:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum", [4, 3], [], True, False, False, 18, ExpectedCompositeReduceInput30
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput31:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.sum(x, axis=(1, 2), keepdims=False)
+                gv = R.log(lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSum",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        False,
+        False,
+        18,
+        ExpectedCompositeReduceInput31,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput32:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], [], False, True, True, 18, ExpectedCompositeReduceInput32
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput33:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, True, True, 18, ExpectedCompositeReduceInput33
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput34:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [4, 3], [], True, True, True, 18, ExpectedCompositeReduceInput34
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput35:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        True,
+        True,
+        18,
+        ExpectedCompositeReduceInput35,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput36:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], [], False, False, True, 18, ExpectedCompositeReduceInput36
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput37:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, False, True, 18, ExpectedCompositeReduceInput37
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput38:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [4, 3], [], True, False, True, 18, ExpectedCompositeReduceInput38
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput39:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1, 2))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        False,
+        True,
+        18,
+        ExpectedCompositeReduceInput39,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput40:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], [], False, True, False, 18, ExpectedCompositeReduceInput40
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput41:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, True, False, 18, ExpectedCompositeReduceInput41
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput42:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [4, 3], [], True, True, False, 18, ExpectedCompositeReduceInput42
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput43:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                gv = R.add(lv4, lv)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        True,
+        False,
+        18,
+        ExpectedCompositeReduceInput43,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput44:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], [], False, False, False, 18, ExpectedCompositeReduceInput44
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput45:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=None, keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=None, keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=None)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [3, 2, 2], None, False, False, False, 18, ExpectedCompositeReduceInput45
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput46:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp", [4, 3], [], True, False, False, 18, ExpectedCompositeReduceInput46
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput47:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.max(x, axis=(1, 2), keepdims=True)
+                lv1 = R.subtract(x, lv)
+                lv2 = R.exp(lv1)
+                lv3 = R.sum(lv2, axis=(1, 2), keepdims=True)
+                lv4 = R.log(lv3)
+                lv5 = R.add(lv4, lv)
+                gv = R.squeeze(lv5, axis=(1, 2))
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceLogSumExp",
+        [3, 3, 3, 1],
+        (1, 2),
+        False,
+        False,
+        False,
+        18,
+        ExpectedCompositeReduceInput47,
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput48:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], [], False, True, True, 18, ExpectedCompositeReduceInput48
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput49:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], None, False, True, True, 18, ExpectedCompositeReduceInput49
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput50:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [4, 3], [], True, True, True, 18, ExpectedCompositeReduceInput50
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput51:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, True, True, 18, ExpectedCompositeReduceInput51
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput52:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], [], False, False, True, 18, ExpectedCompositeReduceInput52
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput53:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], None, False, False, True, 18, ExpectedCompositeReduceInput53
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput54:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [4, 3], [], True, False, True, 18, ExpectedCompositeReduceInput54
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput55:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, False, True, 18, ExpectedCompositeReduceInput55
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput56:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], [], False, True, False, 18, ExpectedCompositeReduceInput56
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput57:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], None, False, True, False, 18, ExpectedCompositeReduceInput57
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput58:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [4, 3], [], True, True, False, 18, ExpectedCompositeReduceInput58
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput59:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=True)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, True, False, 18, ExpectedCompositeReduceInput59
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput60:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], [], False, False, False, 18, ExpectedCompositeReduceInput60
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput61:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=None, keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 2, 2], None, False, False, False, 18, ExpectedCompositeReduceInput61
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput62:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [4, 3], [], True, False, False, 18, ExpectedCompositeReduceInput62
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput63:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.abs(x)
+                gv = R.sum(lv, axis=(1, 2), keepdims=False)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL1", [3, 3, 3, 1], (1, 2), False, False, False, 18, ExpectedCompositeReduceInput63
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput64:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], [], False, True, True, 18, ExpectedCompositeReduceInput64
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput65:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], None, False, True, True, 18, ExpectedCompositeReduceInput65
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput66:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [4, 3], [], True, True, True, 18, ExpectedCompositeReduceInput66
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput67:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, True, True, 18, ExpectedCompositeReduceInput67
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput68:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], [], False, False, True, 18, ExpectedCompositeReduceInput68
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput69:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1", "reduce_dim_2"), dtype="float32"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], None, False, False, True, 18, ExpectedCompositeReduceInput69
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput70:
+        @R.function
+        def main(
+            x: R.Tensor(("reduce_dim_0", "reduce_dim_1"), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [4, 3], [], True, False, True, 18, ExpectedCompositeReduceInput70
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput71:
+        @R.function
+        def main(
+            x: R.Tensor(
+                ("reduce_dim_0", "reduce_dim_1", "reduce_dim_2", "reduce_dim_3"), dtype="float32"
+            ),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            reduce_dim_0 = T.int64(is_size_var=True)
+            reduce_dim_1 = T.int64(is_size_var=True)
+            reduce_dim_2 = T.int64(is_size_var=True)
+            reduce_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, False, True, 18, ExpectedCompositeReduceInput71
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput72:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], [], False, True, False, 18, ExpectedCompositeReduceInput72
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput73:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], None, False, True, False, 18, ExpectedCompositeReduceInput73
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput74:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [4, 3], [], True, True, False, 18, ExpectedCompositeReduceInput74
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput75:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=True)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, True, False, 18, ExpectedCompositeReduceInput75
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput76:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], [], False, False, False, 18, ExpectedCompositeReduceInput76
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput77:
+        @R.function
+        def main(
+            x: R.Tensor((3, 2, 2), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=None, keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 2, 2], None, False, False, False, 18, ExpectedCompositeReduceInput77
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput78:
+        @R.function
+        def main(
+            x: R.Tensor((4, 3), dtype="float32"),
+            reduce_axes: R.Tensor((0,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = x
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [4, 3], [], True, False, False, 18, ExpectedCompositeReduceInput78
+    )
+
+    @I.ir_module
+    class ExpectedCompositeReduceInput79:
+        @R.function
+        def main(
+            x: R.Tensor((3, 3, 3, 1), dtype="float32"),
+            reduce_axes: R.Tensor((2,), dtype="int64"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.multiply(x, x)
+                lv1 = R.sum(lv, axis=(1, 2), keepdims=False)
+                gv = R.sqrt(lv1)
+                R.output(gv)
+            return gv
+
+    verify_composite_reduce_axes_input_ir(
+        "ReduceL2", [3, 3, 3, 1], (1, 2), False, False, False, 18, ExpectedCompositeReduceInput79
     )
 
 
@@ -11502,7 +10665,7 @@ def test_constantofshape_default_value():
 
 
 def test_slice():
-    def verify_slice(data_shape, output_shape, starts, ends, axes=None, steps=None):
+    def verify_slice(data_shape, output_shape, starts, ends, expected, axes=None, steps=None):
         if isinstance(starts, list):
             starts = np.array(starts, "int64")
         if isinstance(ends, list):
@@ -11540,129 +10703,115 @@ def test_slice():
         model = helper.make_model(graph, producer_name="slice_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-
-        axes_list = axes.tolist() if axes is not None else list(range(len(starts)))
-        steps_list = steps.tolist() if steps is not None else [1] * len(axes_list)
-        starts_list = starts.tolist()
-        ends_list = ends.tolist()
-
-        if axes is not None and steps is not None and axes_list == [0, 1]:
-
-            @I.ir_module
-            class ExpectedSliceAxesAndSteps:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, 5), dtype="float32"),
-                    starts: R.Tensor((2,), dtype="int64"),
-                    ends: R.Tensor((2,), dtype="int64"),
-                    axes: R.Tensor((2,), dtype="int64"),
-                    steps: R.Tensor((2,), dtype="int64"),
-                ) -> R.Tensor((3, 10, 5), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((3, 10, 5), dtype="float32") = R.strided_slice(
-                            x,
-                            axes=[0, 1],
-                            begin=[0, 0],
-                            end=[3, 10],
-                            strides=[1, 1],
-                            assume_inbound=False,
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSliceAxesAndSteps
-
-        elif axes is None:
-
-            @I.ir_module
-            class ExpectedSliceDefaultAxesAndSteps:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, 5), dtype="float32"),
-                    starts: R.Tensor((2,), dtype="int64"),
-                    ends: R.Tensor((2,), dtype="int64"),
-                ) -> R.Tensor((3, 10, 5), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((3, 10, 5), dtype="float32") = R.strided_slice(
-                            x,
-                            axes=[0, 1],
-                            begin=[0, 0],
-                            end=[3, 10],
-                            strides=[1, 1],
-                            assume_inbound=False,
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSliceDefaultAxesAndSteps
-
-        elif steps is not None:
-
-            @I.ir_module
-            class ExpectedSliceNegativeSteps:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, 5), dtype="float32"),
-                    starts: R.Tensor((3,), dtype="int64"),
-                    ends: R.Tensor((3,), dtype="int64"),
-                    axes: R.Tensor((3,), dtype="int64"),
-                    steps: R.Tensor((3,), dtype="int64"),
-                ) -> R.Tensor((19, 3, 2), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((19, 3, 2), dtype="float32") = R.strided_slice(
-                            x,
-                            axes=[0, 1, 2],
-                            begin=[20, 10, 4],
-                            end=[0, 0, 1],
-                            strides=[-1, -3, -2],
-                            assume_inbound=False,
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSliceNegativeSteps
-
-        elif axes_list == [1, 2]:
-
-            @I.ir_module
-            class ExpectedSliceAxesOnly:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, 5), dtype="float32"),
-                    starts: R.Tensor((2,), dtype="int64"),
-                    ends: R.Tensor((2,), dtype="int64"),
-                    axes: R.Tensor((2,), dtype="int64"),
-                ) -> R.Tensor((20, 3, 5), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((20, 3, 5), dtype="float32") = R.strided_slice(
-                            x,
-                            axes=[1, 2],
-                            begin=[0, 0],
-                            end=[3, 10],
-                            strides=[1, 1],
-                            assume_inbound=False,
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSliceAxesOnly
-
-        else:
-            raise AssertionError(
-                f"Unexpected Slice structural case: starts={starts_list}, "
-                f"ends={ends_list}, axes={axes_list}, steps={steps_list}"
-            )
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
+    @I.ir_module
+    class ExpectedSliceAxesAndSteps:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, 5), dtype="float32"),
+            starts: R.Tensor((2,), dtype="int64"),
+            ends: R.Tensor((2,), dtype="int64"),
+            axes: R.Tensor((2,), dtype="int64"),
+            steps: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((3, 10, 5), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 10, 5), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[0, 1],
+                    begin=[0, 0],
+                    end=[3, 10],
+                    strides=[1, 1],
+                    assume_inbound=False,
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSliceDefaultAxesAndSteps:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, 5), dtype="float32"),
+            starts: R.Tensor((2,), dtype="int64"),
+            ends: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((3, 10, 5), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 10, 5), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[0, 1],
+                    begin=[0, 0],
+                    end=[3, 10],
+                    strides=[1, 1],
+                    assume_inbound=False,
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSliceNegativeSteps:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, 5), dtype="float32"),
+            starts: R.Tensor((3,), dtype="int64"),
+            ends: R.Tensor((3,), dtype="int64"),
+            axes: R.Tensor((3,), dtype="int64"),
+            steps: R.Tensor((3,), dtype="int64"),
+        ) -> R.Tensor((19, 3, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((19, 3, 2), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[0, 1, 2],
+                    begin=[20, 10, 4],
+                    end=[0, 0, 1],
+                    strides=[-1, -3, -2],
+                    assume_inbound=False,
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSliceAxesOnly:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, 5), dtype="float32"),
+            starts: R.Tensor((2,), dtype="int64"),
+            ends: R.Tensor((2,), dtype="int64"),
+            axes: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((20, 3, 5), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((20, 3, 5), dtype="float32") = R.strided_slice(
+                    x,
+                    axes=[1, 2],
+                    begin=[0, 0],
+                    end=[3, 10],
+                    strides=[1, 1],
+                    assume_inbound=False,
+                )
+                R.output(gv)
+            return gv
+
     # Test with all parameters set.
-    verify_slice([20, 10, 5], [3, 10, 5], starts=[0, 0], ends=[3, 10], axes=[0, 1], steps=[1, 1])
+    verify_slice(
+        [20, 10, 5],
+        [3, 10, 5],
+        starts=[0, 0],
+        ends=[3, 10],
+        axes=[0, 1],
+        steps=[1, 1],
+        expected=ExpectedSliceAxesAndSteps,
+    )
     # Test with default axes and steps.
-    verify_slice([20, 10, 5], [3, 10, 5], starts=[0, 0], ends=[3, 10])
+    verify_slice(
+        [20, 10, 5],
+        [3, 10, 5],
+        starts=[0, 0],
+        ends=[3, 10],
+        expected=ExpectedSliceDefaultAxesAndSteps,
+    )
     # Test with negative steps.
     verify_slice(
         [20, 10, 5],
@@ -11671,9 +10820,24 @@ def test_slice():
         ends=[0, 0, 1],
         steps=[-1, -3, -2],
         axes=[0, 1, 2],
+        expected=ExpectedSliceNegativeSteps,
     )
-    verify_slice([20, 10, 5], [10, 5], starts=[0, 0], ends=[3, 10], axes=[1, 2])
-    verify_slice([20, 10, 5], [10, 5], starts=[0, 0], ends=[3, 10], axes=[1, 2])
+    verify_slice(
+        [20, 10, 5],
+        [10, 5],
+        starts=[0, 0],
+        ends=[3, 10],
+        axes=[1, 2],
+        expected=ExpectedSliceAxesOnly,
+    )
+    verify_slice(
+        [20, 10, 5],
+        [10, 5],
+        starts=[0, 0],
+        ends=[3, 10],
+        axes=[1, 2],
+        expected=ExpectedSliceAxesOnly,
+    )
 
     # TODO (gigiblender): Enable this test when we have a way to pass the steps but not axes.
     # verify_slice(
@@ -11802,343 +10966,21 @@ def test_slice_zero_step_validation():
 
 
 def test_slice_dynamic_shape():
-    def make_shape_slice_expected(data_shape, starts, ends, axes):
-        assert axes == [0]
-        if data_shape == [20, 10, 5] and starts == [0] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice0:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Tensor((2,), dtype="int64"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice0
-
-        elif data_shape == ["A", 10, 5] and starts == [0] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice1:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", 10, 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=2):
-                    A = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([A, 10]) = R.shape([A, 10])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice1
-
-        elif data_shape == ["A", "B", 5] and starts == [0] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice2:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", "B", 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=2):
-                    A = T.int64(is_size_var=True)
-                    B = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([A, B]) = R.shape([A, B])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice2
-
-        elif data_shape == [20, 10, "C"] and starts == [0] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice3:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, "C"), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Tensor((2,), dtype="int64"):
-                    C = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice3
-
-        elif data_shape == ["A", "B", "C"] and starts == [0] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice4:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", "B", "C"), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=2):
-                    A = T.int64(is_size_var=True)
-                    B = T.int64(is_size_var=True)
-                    C = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([A, B]) = R.shape([A, B])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice4
-
-        elif data_shape == [20, 10, 5] and starts == [1] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice5:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Tensor((1,), dtype="int64"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice5
-
-        elif data_shape == ["A", 10, 5] and starts == [1] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice6:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", 10, 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Tensor((1,), dtype="int64"):
-                    A = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice6
-
-        elif data_shape == ["A", "B", 5] and starts == [1] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice7:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", "B", 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=1):
-                    A = T.int64(is_size_var=True)
-                    B = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([B]) = R.shape([B])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice7
-
-        elif data_shape == [20, 10, "C"] and starts == [1] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice8:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, "C"), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Tensor((1,), dtype="int64"):
-                    C = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice8
-
-        elif data_shape == ["A", "B", "C"] and starts == [1] and ends == [2]:
-
-            @I.ir_module
-            class ExpectedShapeSlice9:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", "B", "C"), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=1):
-                    A = T.int64(is_size_var=True)
-                    B = T.int64(is_size_var=True)
-                    C = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([B]) = R.shape([B])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice9
-
-        elif data_shape == [20, 10, 5] and starts == [1] and ends == [3]:
-
-            @I.ir_module
-            class ExpectedShapeSlice10:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Tensor((2,), dtype="int64"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice10
-
-        elif data_shape == ["A", 10, 5] and starts == [1] and ends == [3]:
-
-            @I.ir_module
-            class ExpectedShapeSlice11:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", 10, 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Tensor((2,), dtype="int64"):
-                    A = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice11
-
-        elif data_shape == ["A", "B", 5] and starts == [1] and ends == [3]:
-
-            @I.ir_module
-            class ExpectedShapeSlice12:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", "B", 5), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=2):
-                    A = T.int64(is_size_var=True)
-                    B = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([B, 5]) = R.shape([B, 5])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice12
-
-        elif data_shape == [20, 10, "C"] and starts == [1] and ends == [3]:
-
-            @I.ir_module
-            class ExpectedShapeSlice13:
-                @R.function
-                def main(
-                    x: R.Tensor((20, 10, "C"), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=2):
-                    C = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([10, C]) = R.shape([10, C])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice13
-
-        elif data_shape == ["A", "B", "C"] and starts == [1] and ends == [3]:
-
-            @I.ir_module
-            class ExpectedShapeSlice14:
-                @R.function
-                def main(
-                    x: R.Tensor(("A", "B", "C"), dtype="float32"),
-                    starts: R.Tensor((1,), dtype="int64"),
-                    ends: R.Tensor((1,), dtype="int64"),
-                    axes: R.Tensor((1,), dtype="int64"),
-                ) -> R.Shape(ndim=2):
-                    A = T.int64(is_size_var=True)
-                    B = T.int64(is_size_var=True)
-                    C = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Shape([B, C]) = R.shape([B, C])
-                        R.output(gv)
-                    return gv
-
-            return ExpectedShapeSlice14
-
-        raise AssertionError(
-            "Unexpected Slice(Shape(x)) structural case: "
-            f"data_shape={data_shape}, starts={starts}, ends={ends}, axes={axes}"
-        )
-
-    def verify_slice(
-        data_shape, data_instance_shape, output_shape, starts, ends, axes=None, steps=None
-    ):
+    def verify_slice(data_shape, output_shape, starts, ends, axes, expected):
         if isinstance(starts, list):
             starts = np.array(starts, "int64")
         if isinstance(ends, list):
             ends = np.array(ends, "int64")
         if isinstance(axes, list):
             axes = np.array(axes, "int64")
-        if isinstance(steps, list):
-            steps = np.array(steps, "int64")
 
         slice_inputs = ["y", "starts", "ends"]
         initializer = [
             helper.make_tensor("starts", TensorProto.INT64, starts.shape, starts),
             helper.make_tensor("ends", TensorProto.INT64, ends.shape, ends),
+            helper.make_tensor("axes", TensorProto.INT64, axes.shape, axes),
         ]
-
-        if axes is not None:
-            initializer.append(helper.make_tensor("axes", TensorProto.INT64, axes.shape, axes))
-            slice_inputs.append("axes")
-        if steps is not None:
-            initializer.append(helper.make_tensor("steps", TensorProto.INT64, steps.shape, steps))
-            slice_inputs.append("steps")
+        slice_inputs.append("axes")
 
         shape_node = helper.make_node("Shape", inputs=["x"], outputs=["y"])
         slice_node = helper.make_node("Slice", inputs=slice_inputs, outputs=["z"])
@@ -12157,28 +10999,271 @@ def test_slice_dynamic_shape():
         tvm_model = from_onnx(model, keep_params_in_input=True)
         assert len(tvm_model["main"].attrs["params"]) == 3
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(
-            tvm_model,
-            make_shape_slice_expected(data_shape, starts.tolist(), ends.tolist(), axes.tolist()),
-        )
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    verify_slice([20, 10, 5], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
-    verify_slice(["A", 10, 5], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
-    verify_slice(["A", "B", 5], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
-    verify_slice([20, 10, "C"], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
-    verify_slice(["A", "B", "C"], [20, 10, 5], [2], starts=[0], ends=[2], axes=[0])
+    @I.ir_module
+    class ExpectedShapeSlice0:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((2,), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
+                R.output(gv)
+            return gv
 
-    verify_slice([20, 10, 5], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
-    verify_slice(["A", 10, 5], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
-    verify_slice(["A", "B", 5], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
-    verify_slice([20, 10, "C"], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
-    verify_slice(["A", "B", "C"], [20, 10, 5], [1], starts=[1], ends=[2], axes=[0])
+    @I.ir_module
+    class ExpectedShapeSlice1:
+        @R.function
+        def main(
+            x: R.Tensor(("A", 10, 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=2):
+            A = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([A, 10]) = R.shape([A, 10])
+                R.output(gv)
+            return gv
 
-    verify_slice([20, 10, 5], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
-    verify_slice(["A", 10, 5], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
-    verify_slice(["A", "B", 5], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
-    verify_slice([20, 10, "C"], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
-    verify_slice(["A", "B", "C"], [20, 10, 5], [2], starts=[1], ends=[3], axes=[0])
+    @I.ir_module
+    class ExpectedShapeSlice2:
+        @R.function
+        def main(
+            x: R.Tensor(("A", "B", 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=2):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([A, B]) = R.shape([A, B])
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice3:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, "C"), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((2,), dtype="int64"):
+            C = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice4:
+        @R.function
+        def main(
+            x: R.Tensor(("A", "B", "C"), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=2):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            C = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([A, B]) = R.shape([A, B])
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice5:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((1,), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice6:
+        @R.function
+        def main(
+            x: R.Tensor(("A", 10, 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((1,), dtype="int64"):
+            A = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice7:
+        @R.function
+        def main(
+            x: R.Tensor(("A", "B", 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=1):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([B]) = R.shape([B])
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice8:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, "C"), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((1,), dtype="int64"):
+            C = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice9:
+        @R.function
+        def main(
+            x: R.Tensor(("A", "B", "C"), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=1):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            C = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([B]) = R.shape([B])
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice10:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((2,), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice11:
+        @R.function
+        def main(
+            x: R.Tensor(("A", 10, 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((2,), dtype="int64"):
+            A = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice12:
+        @R.function
+        def main(
+            x: R.Tensor(("A", "B", 5), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=2):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([B, 5]) = R.shape([B, 5])
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice13:
+        @R.function
+        def main(
+            x: R.Tensor((20, 10, "C"), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=2):
+            C = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([10, C]) = R.shape([10, C])
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedShapeSlice14:
+        @R.function
+        def main(
+            x: R.Tensor(("A", "B", "C"), dtype="float32"),
+            starts: R.Tensor((1,), dtype="int64"),
+            ends: R.Tensor((1,), dtype="int64"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape(ndim=2):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            C = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([B, C]) = R.shape([B, C])
+                R.output(gv)
+            return gv
+
+    verify_slice([20, 10, 5], [2], starts=[0], ends=[2], axes=[0], expected=ExpectedShapeSlice0)
+    verify_slice(["A", 10, 5], [2], starts=[0], ends=[2], axes=[0], expected=ExpectedShapeSlice1)
+    verify_slice(["A", "B", 5], [2], starts=[0], ends=[2], axes=[0], expected=ExpectedShapeSlice2)
+    verify_slice([20, 10, "C"], [2], starts=[0], ends=[2], axes=[0], expected=ExpectedShapeSlice3)
+    verify_slice(["A", "B", "C"], [2], starts=[0], ends=[2], axes=[0], expected=ExpectedShapeSlice4)
+    verify_slice([20, 10, 5], [1], starts=[1], ends=[2], axes=[0], expected=ExpectedShapeSlice5)
+    verify_slice(["A", 10, 5], [1], starts=[1], ends=[2], axes=[0], expected=ExpectedShapeSlice6)
+    verify_slice(["A", "B", 5], [1], starts=[1], ends=[2], axes=[0], expected=ExpectedShapeSlice7)
+    verify_slice([20, 10, "C"], [1], starts=[1], ends=[2], axes=[0], expected=ExpectedShapeSlice8)
+    verify_slice(["A", "B", "C"], [1], starts=[1], ends=[2], axes=[0], expected=ExpectedShapeSlice9)
+    verify_slice([20, 10, 5], [2], starts=[1], ends=[3], axes=[0], expected=ExpectedShapeSlice10)
+    verify_slice(["A", 10, 5], [2], starts=[1], ends=[3], axes=[0], expected=ExpectedShapeSlice11)
+    verify_slice(["A", "B", 5], [2], starts=[1], ends=[3], axes=[0], expected=ExpectedShapeSlice12)
+    verify_slice([20, 10, "C"], [2], starts=[1], ends=[3], axes=[0], expected=ExpectedShapeSlice13)
+    verify_slice(
+        ["A", "B", "C"], [2], starts=[1], ends=[3], axes=[0], expected=ExpectedShapeSlice14
+    )
 
 
 # TODO Enable dynamism
@@ -12335,399 +11420,12 @@ def test_attention(dynamic):
     )
 
 
-def make_pad_expected(input_shape, pads, mode, value, has_pad_inputs):
-    del value
-
-    if (
-        input_shape == (2, 2)
-        and pads == [0, 1, 0, 0]
-        and mode == "constant"
-        and has_pad_inputs is True
-    ):
-
-        @I.ir_module
-        class ExpectedPad0:
-            @T.prim_func(private=True, s_tir=True)
-            def pad(input: T.handle, PadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 2), dtype="float32"),
-                pads: R.Tensor((4,), dtype="int64"),
-                constant_value: R.Tensor((1,), dtype="float32"),
-            ) -> R.Tensor((2, 3), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad0
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.pad,
-                        (input,),
-                        out_ty=R.Tensor((2, 3), dtype="float32"),
-                    )
-                    gv: R.Tensor((2, 3), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad0
-
-    elif (
-        input_shape == (2, 3)
-        and pads == [1, 0, 0, 1]
-        and mode == "constant"
-        and has_pad_inputs is True
-    ):
-
-        @I.ir_module
-        class ExpectedPad1:
-            @T.prim_func(private=True, s_tir=True)
-            def pad(input: T.handle, PadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 3), dtype="float32"),
-                pads: R.Tensor((4,), dtype="int64"),
-                constant_value: R.Tensor((1,), dtype="float32"),
-            ) -> R.Tensor((3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad1
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.pad,
-                        (input,),
-                        out_ty=R.Tensor((3, 4), dtype="float32"),
-                    )
-                    gv: R.Tensor((3, 4), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad1
-
-    elif (
-        input_shape == (3, 2)
-        and pads == [0, 0, 1, 0]
-        and mode == "constant"
-        and has_pad_inputs is True
-    ):
-
-        @I.ir_module
-        class ExpectedPad2:
-            @T.prim_func(private=True, s_tir=True)
-            def pad(input: T.handle, PadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((3, 2), dtype="float32"),
-                pads: R.Tensor((4,), dtype="int64"),
-                constant_value: R.Tensor((1,), dtype="float32"),
-            ) -> R.Tensor((4, 2), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad2
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.pad,
-                        (input,),
-                        out_ty=R.Tensor((4, 2), dtype="float32"),
-                    )
-                    gv: R.Tensor((4, 2), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad2
-
-    elif (
-        input_shape == (1, 3, 4, 5)
-        and pads == [0, 1, 1, 1, 0, 0, 1, 1]
-        and mode == "reflect"
-        and has_pad_inputs is True
-    ):
-
-        @I.ir_module
-        class ExpectedPad3:
-            @T.prim_func(private=True, s_tir=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((1, 3, 4, 5), dtype="float32"),
-                pads: R.Tensor((8,), dtype="int64"),
-            ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad3
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.mirror_pad,
-                        (input,),
-                        out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
-                    )
-                    gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad3
-
-    elif (
-        input_shape == (2, 3) and pads == [1, 1, 1, 1] and mode == "edge" and has_pad_inputs is True
-    ):
-
-        @I.ir_module
-        class ExpectedPad4:
-            @T.prim_func(private=True, s_tir=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 3), dtype="float32"),
-                pads: R.Tensor((4,), dtype="int64"),
-            ) -> R.Tensor((4, 5), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad4
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.replicate_pad,
-                        (input,),
-                        out_ty=R.Tensor((4, 5), dtype="float32"),
-                    )
-                    gv: R.Tensor((4, 5), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad4
-
-    elif (
-        input_shape == (1, 3, 4, 5)
-        and pads == [0, 1, 1, 1, 0, 0, 1, 1]
-        and mode == "edge"
-        and has_pad_inputs is True
-    ):
-
-        @I.ir_module
-        class ExpectedPad5:
-            @T.prim_func(private=True, s_tir=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((1, 3, 4, 5), dtype="float32"),
-                pads: R.Tensor((8,), dtype="int64"),
-            ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad5
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.replicate_pad,
-                        (input,),
-                        out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
-                    )
-                    gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad5
-
-    elif (
-        input_shape == (2, 2)
-        and pads == [0, 1, 0, 0]
-        and mode == "constant"
-        and has_pad_inputs is False
-    ):
-
-        @I.ir_module
-        class ExpectedPad6:
-            @T.prim_func(private=True, s_tir=True)
-            def pad(input: T.handle, PadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 2), dtype="float32"),
-            ) -> R.Tensor((2, 3), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad6
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.pad,
-                        (input,),
-                        out_ty=R.Tensor((2, 3), dtype="float32"),
-                    )
-                    gv: R.Tensor((2, 3), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad6
-
-    elif (
-        input_shape == (2, 3)
-        and pads == [1, 0, 0, 1]
-        and mode == "constant"
-        and has_pad_inputs is False
-    ):
-
-        @I.ir_module
-        class ExpectedPad7:
-            @T.prim_func(private=True, s_tir=True)
-            def pad(input: T.handle, PadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 3), dtype="float32"),
-            ) -> R.Tensor((3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad7
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.pad,
-                        (input,),
-                        out_ty=R.Tensor((3, 4), dtype="float32"),
-                    )
-                    gv: R.Tensor((3, 4), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad7
-
-    elif (
-        input_shape == (3, 2)
-        and pads == [0, 0, 1, 0]
-        and mode == "constant"
-        and has_pad_inputs is False
-    ):
-
-        @I.ir_module
-        class ExpectedPad8:
-            @T.prim_func(private=True, s_tir=True)
-            def pad(input: T.handle, PadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((3, 2), dtype="float32"),
-            ) -> R.Tensor((4, 2), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad8
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.pad,
-                        (input,),
-                        out_ty=R.Tensor((4, 2), dtype="float32"),
-                    )
-                    gv: R.Tensor((4, 2), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad8
-
-    elif (
-        input_shape == (1, 3, 4, 5)
-        and pads == [0, 1, 1, 1, 0, 0, 1, 1]
-        and mode == "reflect"
-        and has_pad_inputs is False
-    ):
-
-        @I.ir_module
-        class ExpectedPad9:
-            @T.prim_func(private=True, s_tir=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((1, 3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad9
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.mirror_pad,
-                        (input,),
-                        out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
-                    )
-                    gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad9
-
-    elif (
-        input_shape == (2, 3)
-        and pads == [1, 1, 1, 1]
-        and mode == "edge"
-        and has_pad_inputs is False
-    ):
-
-        @I.ir_module
-        class ExpectedPad10:
-            @T.prim_func(private=True, s_tir=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 3), dtype="float32"),
-            ) -> R.Tensor((4, 5), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad10
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.replicate_pad,
-                        (input,),
-                        out_ty=R.Tensor((4, 5), dtype="float32"),
-                    )
-                    gv: R.Tensor((4, 5), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad10
-
-    elif (
-        input_shape == (1, 3, 4, 5)
-        and pads == [0, 1, 1, 1, 0, 0, 1, 1]
-        and mode == "edge"
-        and has_pad_inputs is False
-    ):
-
-        @I.ir_module
-        class ExpectedPad11:
-            @T.prim_func(private=True, s_tir=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((1, 3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                cls = ExpectedPad11
-                with R.dataflow():
-                    lv = R.call_tir(
-                        cls.replicate_pad,
-                        (input,),
-                        out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
-                    )
-                    gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
-                    R.output(gv)
-                return gv
-
-        return ExpectedPad11
-
-    raise AssertionError(
-        "Unexpected Pad structural case: "
-        f"input_shape={input_shape}, pads={pads}, mode={mode}, has_pad_inputs={has_pad_inputs}"
-    )
-
-
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad(dynamic):
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
-    def verify_pad(input_shape, pads, mode="constant", value=0.0):
+    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0):
         len_dim = len(pads) // 2
         np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
         pads = np.array(pads)
@@ -12777,19 +11475,159 @@ def test_pad(dynamic):
         model.opset_import[0].version = 14
         tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        expected = make_pad_expected(input_shape, pads.tolist(), mode, value, True)
         expected = tvm.IRModule(expected.functions)
         for gv in expected.get_global_vars():
             if gv.name_hint != "main":
                 expected.update_func(gv, tvm_model[gv.name_hint])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    verify_pad((2, 2), [0, 1, 0, 0], "constant", 0.0)
-    verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
-    verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
-    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
-    verify_pad((2, 3), [1, 1, 1, 1], "edge")
-    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
+    @I.ir_module
+    class ExpectedPad0:
+        @T.prim_func(private=True, s_tir=True)
+        def pad(input: T.handle, PadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 2), dtype="float32"),
+            pads: R.Tensor((4,), dtype="int64"),
+            constant_value: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad0
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.pad,
+                    (input,),
+                    out_ty=R.Tensor((2, 3), dtype="float32"),
+                )
+                gv: R.Tensor((2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad1:
+        @T.prim_func(private=True, s_tir=True)
+        def pad(input: T.handle, PadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3), dtype="float32"),
+            pads: R.Tensor((4,), dtype="int64"),
+            constant_value: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad1
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.pad,
+                    (input,),
+                    out_ty=R.Tensor((3, 4), dtype="float32"),
+                )
+                gv: R.Tensor((3, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad2:
+        @T.prim_func(private=True, s_tir=True)
+        def pad(input: T.handle, PadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((3, 2), dtype="float32"),
+            pads: R.Tensor((4,), dtype="int64"),
+            constant_value: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((4, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad2
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.pad,
+                    (input,),
+                    out_ty=R.Tensor((4, 2), dtype="float32"),
+                )
+                gv: R.Tensor((4, 2), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad3:
+        @T.prim_func(private=True, s_tir=True)
+        def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 4, 5), dtype="float32"),
+            pads: R.Tensor((8,), dtype="int64"),
+        ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad3
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.mirror_pad,
+                    (input,),
+                    out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
+                )
+                gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad4:
+        @T.prim_func(private=True, s_tir=True)
+        def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3), dtype="float32"),
+            pads: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor((4, 5), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad4
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.replicate_pad,
+                    (input,),
+                    out_ty=R.Tensor((4, 5), dtype="float32"),
+                )
+                gv: R.Tensor((4, 5), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad5:
+        @T.prim_func(private=True, s_tir=True)
+        def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 4, 5), dtype="float32"),
+            pads: R.Tensor((8,), dtype="int64"),
+        ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad5
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.replicate_pad,
+                    (input,),
+                    out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
+                )
+                gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_pad((2, 2), [0, 1, 0, 0], ExpectedPad0, "constant", 0.0)
+    verify_pad((2, 3), [1, 0, 0, 1], ExpectedPad1, "constant", 0.0)
+    verify_pad((3, 2), [0, 0, 1, 0], ExpectedPad2, "constant", 5.0)
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], ExpectedPad3, "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], ExpectedPad4, "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], ExpectedPad5, "edge")
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -12797,7 +11635,7 @@ def test_pad_v2(dynamic):
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
-    def verify_pad(input_shape, pads, mode="constant", value=0.0):
+    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0):
         len_dim = len(pads) // 2
         np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
         pads = np.array(pads)
@@ -12845,25 +11683,164 @@ def test_pad_v2(dynamic):
         model = helper.make_model(graph, producer_name="pad_test")
         model.opset_import[0].version = 10
         tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
-        expected = make_pad_expected(input_shape, pads.tolist(), mode, value, False)
         expected = tvm.IRModule(expected.functions)
         for gv in expected.get_global_vars():
             if gv.name_hint != "main":
                 expected.update_func(gv, tvm_model[gv.name_hint])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    verify_pad((2, 2), [0, 1, 0, 0], "constant", 0.0)
-    verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
-    verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
-    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
-    verify_pad((2, 3), [1, 1, 1, 1], "edge")
-    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge")
+    @I.ir_module
+    class ExpectedPad6:
+        @T.prim_func(private=True, s_tir=True)
+        def pad(input: T.handle, PadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad6
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.pad,
+                    (input,),
+                    out_ty=R.Tensor((2, 3), dtype="float32"),
+                )
+                gv: R.Tensor((2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad7:
+        @T.prim_func(private=True, s_tir=True)
+        def pad(input: T.handle, PadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad7
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.pad,
+                    (input,),
+                    out_ty=R.Tensor((3, 4), dtype="float32"),
+                )
+                gv: R.Tensor((3, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad8:
+        @T.prim_func(private=True, s_tir=True)
+        def pad(input: T.handle, PadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((3, 2), dtype="float32"),
+        ) -> R.Tensor((4, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad8
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.pad,
+                    (input,),
+                    out_ty=R.Tensor((4, 2), dtype="float32"),
+                )
+                gv: R.Tensor((4, 2), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad9:
+        @T.prim_func(private=True, s_tir=True)
+        def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad9
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.mirror_pad,
+                    (input,),
+                    out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
+                )
+                gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad10:
+        @T.prim_func(private=True, s_tir=True)
+        def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tensor((4, 5), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad10
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.replicate_pad,
+                    (input,),
+                    out_ty=R.Tensor((4, 5), dtype="float32"),
+                )
+                gv: R.Tensor((4, 5), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedPad11:
+        @T.prim_func(private=True, s_tir=True)
+        def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((1, 4, 6, 7), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedPad11
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.replicate_pad,
+                    (input,),
+                    out_ty=R.Tensor((1, 4, 6, 7), dtype="float32"),
+                )
+                gv: R.Tensor((1, 4, 6, 7), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_pad((2, 2), [0, 1, 0, 0], ExpectedPad6, "constant", 0.0)
+    verify_pad((2, 3), [1, 0, 0, 1], ExpectedPad7, "constant", 0.0)
+    verify_pad((3, 2), [0, 0, 1, 0], ExpectedPad8, "constant", 5.0)
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], ExpectedPad9, "reflect")
+    verify_pad((2, 3), [1, 1, 1, 1], ExpectedPad10, "edge")
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], ExpectedPad11, "edge")
 
 
-@pytest.mark.parametrize("fp_arith", [np.float16, np.float32])
-@pytest.mark.parametrize("dynamic", [True, False])
-def test_split(fp_arith, dynamic):
-    def verify_split(indata_shape, outdata_shapes, split, axis=0, pass_split=True, opset=11):
+def test_split():
+    def verify_split(
+        fp_arith,
+        dynamic,
+        indata_shape,
+        outdata_shapes,
+        split,
+        expected,
+        axis=0,
+        pass_split=True,
+        opset=11,
+    ):
         indata = np.random.normal(size=indata_shape).astype(fp_arith)
         input_names = ["input"]
         initializer = []
@@ -12922,1114 +11899,615 @@ def test_split(fp_arith, dynamic):
         )
         model = helper.make_model(graph, producer_name="split_test")
         tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
-
-        dtype = str(indata.dtype)
-        indata_shape_for_expected = list(indata.shape)
-
-        if (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit0:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 4], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit0
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit1:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit1
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit2:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit2
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit3:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit3
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [["?", "?"], ["?", "?"]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit4:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit4
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [["?", "?"], ["?", "?"]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit5:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit5
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [3]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and not split
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit6:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit6
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [1]
-            and outdata_shapes == [["?"]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit7:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit7
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [["?"]]
-            and split == [2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit8:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=1)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit8
-
-        elif (
-            dtype == "float16"
-            and dynamic is True
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [["?"]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit9:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit9
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [2], [2]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit10:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 4], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit10
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [2], [2]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit11:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit11
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [1], [3]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit12:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit12
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [1], [3]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit13:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit13
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [[2, 2], [2, 2]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit14:
-                @R.function
-                def main(input: R.Tensor((4, 4), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit14
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [[2, 2], [2, 2]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit15:
-                @R.function
-                def main(input: R.Tensor((4, 4), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit15
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [3]
-            and outdata_shapes == [[1], [1], [1]]
-            and not split
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit16:
-                @R.function
-                def main(input: R.Tensor((3,), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit16
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [1]
-            and outdata_shapes == [[1]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit17:
-                @R.function
-                def main(input: R.Tensor((1,), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit17
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [[2]]
-            and split == [2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit18:
-                @R.function
-                def main(input: R.Tensor((1, 2), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=1)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit18
-
-        elif (
-            dtype == "float16"
-            and dynamic is False
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [[2]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit19:
-                @R.function
-                def main(input: R.Tensor((1, 2), dtype="float16")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit19
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit20:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 4], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit20
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit21:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit21
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit22:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit22
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit23:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit23
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [["?", "?"], ["?", "?"]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit24:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit24
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [["?", "?"], ["?", "?"]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit25:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit25
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [3]
-            and outdata_shapes == [["?"], ["?"], ["?"]]
-            and not split
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit26:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit26
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [1]
-            and outdata_shapes == [["?"]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit27:
-                @R.function
-                def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit27
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [["?"]]
-            and split == [2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit28:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=1)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit28
-
-        elif (
-            dtype == "float32"
-            and dynamic is True
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [["?"]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit29:
-                @R.function
-                def main(
-                    input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
-                ):
-                    split_input_dim_0 = T.int64(is_size_var=True)
-                    split_input_dim_1 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit29
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [2], [2]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit30:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 4], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit30
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [2], [2]]
-            and split == [2, 2, 2]
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit31:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit31
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [1], [3]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit32:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit32
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [6]
-            and outdata_shapes == [[2], [1], [3]]
-            and split == [2, 1, 3]
-            and axis == 0
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit33:
-                @R.function
-                def main(input: R.Tensor((6,), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2, 3], axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit33
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [[2, 2], [2, 2]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit34:
-                @R.function
-                def main(input: R.Tensor((4, 4), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit34
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [4, 4]
-            and outdata_shapes == [[2, 2], [2, 2]]
-            and split == [2, 2]
-            and axis == 1
-            and pass_split is True
-            and opset == 13
-        ):
-
-            @I.ir_module
-            class ExpectedSplit35:
-                @R.function
-                def main(input: R.Tensor((4, 4), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=[2], axis=1)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        gv = (lv1, lv2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit35
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [3]
-            and outdata_shapes == [[1], [1], [1]]
-            and not split
-            and axis == 0
-            and pass_split is False
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit36:
-                @R.function
-                def main(input: R.Tensor((3,), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        lv = R.split(input, indices_or_sections=3, axis=0)
-                        lv1 = lv[0]
-                        lv2 = lv[1]
-                        lv3 = lv[2]
-                        gv = (lv1, lv2, lv3)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit36
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [1]
-            and outdata_shapes == [[1]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit37:
-                @R.function
-                def main(input: R.Tensor((1,), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit37
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [[2]]
-            and split == [2]
-            and axis == 1
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit38:
-                @R.function
-                def main(input: R.Tensor((1, 2), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=1)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit38
-
-        elif (
-            dtype == "float32"
-            and dynamic is False
-            and indata_shape_for_expected == [1, 2]
-            and outdata_shapes == [[2]]
-            and split == [1]
-            and axis == 0
-            and pass_split is True
-            and opset == 11
-        ):
-
-            @I.ir_module
-            class ExpectedSplit39:
-                @R.function
-                def main(input: R.Tensor((1, 2), dtype="float32")):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv = R.split(input, indices_or_sections=1, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSplit39
-
-        else:
-            raise AssertionError(
-                "Unexpected Split structural case: "
-                f"dtype={dtype}, dynamic={dynamic}, indata_shape={indata_shape_for_expected}, "
-                f"outdata_shapes={outdata_shapes}, split={split}, axis={axis}, "
-                f"pass_split={pass_split}, opset={opset}"
-            )
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    # 1D
-    verify_split(6, [[2], [2], [2]], [2, 2, 2])
-    verify_split(6, [[2], [2], [2]], [2, 2, 2], pass_split=False)
-    verify_split(6, [[2], [1], [3]], [2, 1, 3])
-    verify_split(6, [[2], [1], [3]], [2, 1, 3], opset=13)
-    # 2D
+    @I.ir_module
+    class ExpectedSplit0:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 4], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit1:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit2:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit3:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit4:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit5:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit6:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit7:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float16")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit8:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=1)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit9:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float16"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit10:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 4], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit11:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit12:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit13:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit14:
+        @R.function
+        def main(input: R.Tensor((4, 4), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit15:
+        @R.function
+        def main(input: R.Tensor((4, 4), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit16:
+        @R.function
+        def main(input: R.Tensor((3,), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit17:
+        @R.function
+        def main(input: R.Tensor((1,), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit18:
+        @R.function
+        def main(input: R.Tensor((1, 2), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=1)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit19:
+        @R.function
+        def main(input: R.Tensor((1, 2), dtype="float16")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit20:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 4], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit21:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit22:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit23:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit24:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit25:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit26:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit27:
+        @R.function
+        def main(input: R.Tensor(("split_input_dim_0",), dtype="float32")):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit28:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=1)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit29:
+        @R.function
+        def main(
+            input: R.Tensor(("split_input_dim_0", "split_input_dim_1"), dtype="float32"),
+        ):
+            split_input_dim_0 = T.int64(is_size_var=True)
+            split_input_dim_1 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit30:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 4], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit31:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit32:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit33:
+        @R.function
+        def main(input: R.Tensor((6,), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2, 3], axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit34:
+        @R.function
+        def main(input: R.Tensor((4, 4), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit35:
+        @R.function
+        def main(input: R.Tensor((4, 4), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=[2], axis=1)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                gv = (lv1, lv2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit36:
+        @R.function
+        def main(input: R.Tensor((3,), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.split(input, indices_or_sections=3, axis=0)
+                lv1 = lv[0]
+                lv2 = lv[1]
+                lv3 = lv[2]
+                gv = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit37:
+        @R.function
+        def main(input: R.Tensor((1,), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit38:
+        @R.function
+        def main(input: R.Tensor((1, 2), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=1)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedSplit39:
+        @R.function
+        def main(input: R.Tensor((1, 2), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.split(input, indices_or_sections=1, axis=0)
+                R.output(gv)
+            return gv
+
+    # float16 dynamic
+    verify_split(np.float16, True, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit0)
+    verify_split(np.float16, True, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit1, pass_split=False)
+    verify_split(np.float16, True, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit2)
+    verify_split(np.float16, True, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit3, opset=13)
+    verify_split(np.float16, True, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit4, axis=1)
     verify_split(
-        (4, 4),
-        [[2, 2], [2, 2]],
-        [2, 2],
-        axis=1,
+        np.float16, True, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit5, axis=1, opset=13
     )
+    verify_split(np.float16, True, 3, [[1], [1], [1]], False, ExpectedSplit6, pass_split=False)
+    verify_split(np.float16, True, 1, [[1]], [1], ExpectedSplit7, pass_split=True)
+    verify_split(np.float16, True, (1, 2), [[2]], [2], ExpectedSplit8, axis=1)
+    verify_split(np.float16, True, (1, 2), [[2]], [1], ExpectedSplit9)
+
+    # float16 static
+    verify_split(np.float16, False, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit10)
     verify_split(
-        (4, 4),
-        [[2, 2], [2, 2]],
-        [2, 2],
-        axis=1,
-        opset=13,
+        np.float16, False, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit11, pass_split=False
     )
-    # Split evenly (unstack)
-    verify_split(3, [[1], [1], [1]], False, pass_split=False)
-    # Split a single value to a single value
-    verify_split(1, [[1]], [1], pass_split=True)
-    # Test that the default case modifies nothing when split list has length one
-    verify_split((1, 2), [[2]], [2], axis=1)
-    verify_split((1, 2), [[2]], [1])
+    verify_split(np.float16, False, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit12)
+    verify_split(np.float16, False, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit13, opset=13)
+    verify_split(np.float16, False, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit14, axis=1)
+    verify_split(
+        np.float16, False, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit15, axis=1, opset=13
+    )
+    verify_split(np.float16, False, 3, [[1], [1], [1]], False, ExpectedSplit16, pass_split=False)
+    verify_split(np.float16, False, 1, [[1]], [1], ExpectedSplit17, pass_split=True)
+    verify_split(np.float16, False, (1, 2), [[2]], [2], ExpectedSplit18, axis=1)
+    verify_split(np.float16, False, (1, 2), [[2]], [1], ExpectedSplit19)
+
+    # float32 dynamic
+    verify_split(np.float32, True, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit20)
+    verify_split(np.float32, True, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit21, pass_split=False)
+    verify_split(np.float32, True, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit22)
+    verify_split(np.float32, True, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit23, opset=13)
+    verify_split(np.float32, True, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit24, axis=1)
+    verify_split(
+        np.float32, True, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit25, axis=1, opset=13
+    )
+    verify_split(np.float32, True, 3, [[1], [1], [1]], False, ExpectedSplit26, pass_split=False)
+    verify_split(np.float32, True, 1, [[1]], [1], ExpectedSplit27, pass_split=True)
+    verify_split(np.float32, True, (1, 2), [[2]], [2], ExpectedSplit28, axis=1)
+    verify_split(np.float32, True, (1, 2), [[2]], [1], ExpectedSplit29)
+
+    # float32 static
+    verify_split(np.float32, False, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit30)
+    verify_split(
+        np.float32, False, 6, [[2], [2], [2]], [2, 2, 2], ExpectedSplit31, pass_split=False
+    )
+    verify_split(np.float32, False, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit32)
+    verify_split(np.float32, False, 6, [[2], [1], [3]], [2, 1, 3], ExpectedSplit33, opset=13)
+    verify_split(np.float32, False, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit34, axis=1)
+    verify_split(
+        np.float32, False, (4, 4), [[2, 2], [2, 2]], [2, 2], ExpectedSplit35, axis=1, opset=13
+    )
+    verify_split(np.float32, False, 3, [[1], [1], [1]], False, ExpectedSplit36, pass_split=False)
+    verify_split(np.float32, False, 1, [[1]], [1], ExpectedSplit37, pass_split=True)
+    verify_split(np.float32, False, (1, 2), [[2]], [2], ExpectedSplit38, axis=1)
+    verify_split(np.float32, False, (1, 2), [[2]], [1], ExpectedSplit39)
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -14161,288 +12639,274 @@ def test_tile(dynamic):
     verify_tile(x.shape, repeats, z_array.shape)
 
 
-@pytest.mark.parametrize("dynamic_input", [True, False])
-@pytest.mark.parametrize(
-    "in_shape,repeats",
-    [
-        ((2, 3), np.array([2, 2], dtype=np.int64)),
-        ((2, 3, 4), np.array([2, 2, 1], dtype=np.int64)),
-        ((2, 3, 4, 5), np.array([1, 2, 1, 2], dtype=np.int64)),
-    ],
-)
-def test_tile_dynamic_repeats(dynamic_input, in_shape, repeats):
-    out_shape = np.tile(np.empty(in_shape, dtype=np.float32), repeats).shape
+def test_tile_dynamic_repeats():
+    def verify_tile_dynamic_repeats(dynamic_input, in_shape, repeats, expected):
+        out_shape = np.tile(np.empty(in_shape, dtype=np.float32), repeats).shape
 
-    input_shape = ["?" for _ in in_shape] if dynamic_input else list(in_shape)
-    output_shape = ["?" for _ in out_shape] if dynamic_input else list(out_shape)
+        input_shape = ["?" for _ in in_shape] if dynamic_input else list(in_shape)
+        output_shape = ["?" for _ in out_shape] if dynamic_input else list(out_shape)
 
-    node = helper.make_node("Tile", inputs=["input", "repeats"], outputs=["out"])
-    graph = helper.make_graph(
-        [node],
-        "tile_dynamic_repeats_test",
-        inputs=[
-            helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
-            helper.make_tensor_value_info("repeats", TensorProto.INT64, [len(repeats)]),
-        ],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, output_shape)],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="tile_dynamic_repeats_test",
-        opset_imports=[helper.make_opsetid("", 13)],
-    )
-
-    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
-
-    if dynamic_input is True and in_shape == (2, 3) and repeats.tolist() == [2, 2]:
-
-        @I.ir_module
-        class ExpectedTileDynamicRepeats0:
-            @T.prim_func(private=True, s_tir=True)
-            def dyn_tile(input: T.handle, var_T_tile: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor(("tile_data_dim_0", "tile_data_dim_1"), dtype="float32"),
-                repeats: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor(dtype="float32", ndim=2):
-                tile_data_dim_0 = T.int64(is_size_var=True)
-                tile_data_dim_1 = T.int64(is_size_var=True)
-                tile_dim_0 = T.int64()
-                tile_dim_1 = T.int64()
-                R.func_attr({"num_input": 2})
-                cls = ExpectedTileDynamicRepeats0
-                with R.dataflow():
-                    lv = R.shape_of(input)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((2,), dtype="int64") = R.multiply(repeats, lv1)
-                    lv3: R.Shape([tile_dim_0, tile_dim_1]) = R.match_cast(
-                        R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1])
-                    )
-                    lv4 = R.call_tir(
-                        cls.dyn_tile,
-                        (input,),
-                        out_ty=R.Tensor((tile_dim_0, tile_dim_1), dtype="float32"),
-                    )
-                    gv: R.Tensor((tile_dim_0, tile_dim_1), dtype="float32") = lv4
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedTileDynamicRepeats0
-
-    elif dynamic_input is True and in_shape == (2, 3, 4) and repeats.tolist() == [2, 2, 1]:
-
-        @I.ir_module
-        class ExpectedTileDynamicRepeats1:
-            @T.prim_func(private=True, s_tir=True)
-            def dyn_tile(input: T.handle, var_T_tile: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor(
-                    ("tile_data_dim_0", "tile_data_dim_1", "tile_data_dim_2"), dtype="float32"
-                ),
-                repeats: R.Tensor((3,), dtype="int64"),
-            ) -> R.Tensor(dtype="float32", ndim=3):
-                tile_data_dim_0 = T.int64(is_size_var=True)
-                tile_data_dim_1 = T.int64(is_size_var=True)
-                tile_data_dim_2 = T.int64(is_size_var=True)
-                tile_dim_0 = T.int64()
-                tile_dim_1 = T.int64()
-                tile_dim_2 = T.int64()
-                R.func_attr({"num_input": 2})
-                cls = ExpectedTileDynamicRepeats1
-                with R.dataflow():
-                    lv = R.shape_of(input)
-                    lv1: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((3,), dtype="int64") = R.multiply(repeats, lv1)
-                    lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2]) = R.match_cast(
-                        R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1, tile_dim_2])
-                    )
-                    lv4 = R.call_tir(
-                        cls.dyn_tile,
-                        (input,),
-                        out_ty=R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32"),
-                    )
-                    gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32") = lv4
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedTileDynamicRepeats1
-
-    elif dynamic_input is True and in_shape == (2, 3, 4, 5) and repeats.tolist() == [1, 2, 1, 2]:
-
-        @I.ir_module
-        class ExpectedTileDynamicRepeats2:
-            @T.prim_func(private=True, s_tir=True)
-            def dyn_tile(input: T.handle, var_T_tile: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor(
-                    ("tile_data_dim_0", "tile_data_dim_1", "tile_data_dim_2", "tile_data_dim_3"),
-                    dtype="float32",
-                ),
-                repeats: R.Tensor((4,), dtype="int64"),
-            ) -> R.Tensor(dtype="float32", ndim=4):
-                tile_data_dim_0 = T.int64(is_size_var=True)
-                tile_data_dim_1 = T.int64(is_size_var=True)
-                tile_data_dim_2 = T.int64(is_size_var=True)
-                tile_data_dim_3 = T.int64(is_size_var=True)
-                tile_dim_0 = T.int64()
-                tile_dim_1 = T.int64()
-                tile_dim_2 = T.int64()
-                tile_dim_3 = T.int64()
-                R.func_attr({"num_input": 2})
-                cls = ExpectedTileDynamicRepeats2
-                with R.dataflow():
-                    lv = R.shape_of(input)
-                    lv1: R.Tensor((4,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((4,), dtype="int64") = R.multiply(repeats, lv1)
-                    lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]) = R.match_cast(
-                        R.tensor_to_shape(lv2),
-                        R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]),
-                    )
-                    lv4 = R.call_tir(
-                        cls.dyn_tile,
-                        (input,),
-                        out_ty=R.Tensor(
-                            (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
-                        ),
-                    )
-                    gv: R.Tensor(
-                        (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
-                    ) = lv4
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedTileDynamicRepeats2
-
-    elif dynamic_input is False and in_shape == (2, 3) and repeats.tolist() == [2, 2]:
-
-        @I.ir_module
-        class ExpectedTileDynamicRepeats3:
-            @T.prim_func(private=True, s_tir=True)
-            def dyn_tile(input: T.handle, var_T_tile: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 3), dtype="float32"),
-                repeats: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor(dtype="float32", ndim=2):
-                tile_dim_0 = T.int64()
-                tile_dim_1 = T.int64()
-                R.func_attr({"num_input": 2})
-                cls = ExpectedTileDynamicRepeats3
-                with R.dataflow():
-                    lv = R.shape_of(input)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((2,), dtype="int64") = R.multiply(repeats, lv1)
-                    lv3: R.Shape([tile_dim_0, tile_dim_1]) = R.match_cast(
-                        R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1])
-                    )
-                    lv4 = R.call_tir(
-                        cls.dyn_tile,
-                        (input,),
-                        out_ty=R.Tensor((tile_dim_0, tile_dim_1), dtype="float32"),
-                    )
-                    gv: R.Tensor((tile_dim_0, tile_dim_1), dtype="float32") = lv4
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedTileDynamicRepeats3
-
-    elif dynamic_input is False and in_shape == (2, 3, 4) and repeats.tolist() == [2, 2, 1]:
-
-        @I.ir_module
-        class ExpectedTileDynamicRepeats4:
-            @T.prim_func(private=True, s_tir=True)
-            def dyn_tile(input: T.handle, var_T_tile: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 3, 4), dtype="float32"),
-                repeats: R.Tensor((3,), dtype="int64"),
-            ) -> R.Tensor(dtype="float32", ndim=3):
-                tile_dim_0 = T.int64()
-                tile_dim_1 = T.int64()
-                tile_dim_2 = T.int64()
-                R.func_attr({"num_input": 2})
-                cls = ExpectedTileDynamicRepeats4
-                with R.dataflow():
-                    lv = R.shape_of(input)
-                    lv1: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((3,), dtype="int64") = R.multiply(repeats, lv1)
-                    lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2]) = R.match_cast(
-                        R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1, tile_dim_2])
-                    )
-                    lv4 = R.call_tir(
-                        cls.dyn_tile,
-                        (input,),
-                        out_ty=R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32"),
-                    )
-                    gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32") = lv4
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedTileDynamicRepeats4
-
-    elif dynamic_input is False and in_shape == (2, 3, 4, 5) and repeats.tolist() == [1, 2, 1, 2]:
-
-        @I.ir_module
-        class ExpectedTileDynamicRepeats5:
-            @T.prim_func(private=True, s_tir=True)
-            def dyn_tile(input: T.handle, var_T_tile: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((2, 3, 4, 5), dtype="float32"),
-                repeats: R.Tensor((4,), dtype="int64"),
-            ) -> R.Tensor(dtype="float32", ndim=4):
-                tile_dim_0 = T.int64()
-                tile_dim_1 = T.int64()
-                tile_dim_2 = T.int64()
-                tile_dim_3 = T.int64()
-                R.func_attr({"num_input": 2})
-                cls = ExpectedTileDynamicRepeats5
-                with R.dataflow():
-                    lv = R.shape_of(input)
-                    lv1: R.Tensor((4,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((4,), dtype="int64") = R.multiply(repeats, lv1)
-                    lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]) = R.match_cast(
-                        R.tensor_to_shape(lv2),
-                        R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]),
-                    )
-                    lv4 = R.call_tir(
-                        cls.dyn_tile,
-                        (input,),
-                        out_ty=R.Tensor(
-                            (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
-                        ),
-                    )
-                    gv: R.Tensor(
-                        (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
-                    ) = lv4
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedTileDynamicRepeats5
-
-    else:
-        raise AssertionError(
-            "Unexpected Tile dynamic repeats structural case: "
-            f"dynamic_input={dynamic_input}, in_shape={in_shape}, repeats={repeats.tolist()}"
+        node = helper.make_node("Tile", inputs=["input", "repeats"], outputs=["out"])
+        graph = helper.make_graph(
+            [node],
+            "tile_dynamic_repeats_test",
+            inputs=[
+                helper.make_tensor_value_info("input", TensorProto.FLOAT, input_shape),
+                helper.make_tensor_value_info("repeats", TensorProto.INT64, [len(repeats)]),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, output_shape)],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="tile_dynamic_repeats_test",
+            opset_imports=[helper.make_opsetid("", 13)],
         )
 
-    expected = tvm.IRModule(expected.functions)
-    expected.update_func(expected.get_global_var("dyn_tile"), tvm_model["dyn_tile"])
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+        tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+        expected = tvm.IRModule(expected.functions)
+        expected.update_func(expected.get_global_var("dyn_tile"), tvm_model["dyn_tile"])
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedTileDynamicRepeats0:
+        @T.prim_func(private=True, s_tir=True)
+        def dyn_tile(input: T.handle, var_T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor(("tile_data_dim_0", "tile_data_dim_1"), dtype="float32"),
+            repeats: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=2):
+            tile_data_dim_0 = T.int64(is_size_var=True)
+            tile_data_dim_1 = T.int64(is_size_var=True)
+            tile_dim_0 = T.int64()
+            tile_dim_1 = T.int64()
+            R.func_attr({"num_input": 2})
+            cls = ExpectedTileDynamicRepeats0
+            with R.dataflow():
+                lv = R.shape_of(input)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((2,), dtype="int64") = R.multiply(repeats, lv1)
+                lv3: R.Shape([tile_dim_0, tile_dim_1]) = R.match_cast(
+                    R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1])
+                )
+                lv4 = R.call_tir(
+                    cls.dyn_tile,
+                    (input,),
+                    out_ty=R.Tensor((tile_dim_0, tile_dim_1), dtype="float32"),
+                )
+                gv: R.Tensor((tile_dim_0, tile_dim_1), dtype="float32") = lv4
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedTileDynamicRepeats1:
+        @T.prim_func(private=True, s_tir=True)
+        def dyn_tile(input: T.handle, var_T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor(
+                ("tile_data_dim_0", "tile_data_dim_1", "tile_data_dim_2"), dtype="float32"
+            ),
+            repeats: R.Tensor((3,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=3):
+            tile_data_dim_0 = T.int64(is_size_var=True)
+            tile_data_dim_1 = T.int64(is_size_var=True)
+            tile_data_dim_2 = T.int64(is_size_var=True)
+            tile_dim_0 = T.int64()
+            tile_dim_1 = T.int64()
+            tile_dim_2 = T.int64()
+            R.func_attr({"num_input": 2})
+            cls = ExpectedTileDynamicRepeats1
+            with R.dataflow():
+                lv = R.shape_of(input)
+                lv1: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((3,), dtype="int64") = R.multiply(repeats, lv1)
+                lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2]) = R.match_cast(
+                    R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1, tile_dim_2])
+                )
+                lv4 = R.call_tir(
+                    cls.dyn_tile,
+                    (input,),
+                    out_ty=R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32"),
+                )
+                gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32") = lv4
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedTileDynamicRepeats2:
+        @T.prim_func(private=True, s_tir=True)
+        def dyn_tile(input: T.handle, var_T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor(
+                ("tile_data_dim_0", "tile_data_dim_1", "tile_data_dim_2", "tile_data_dim_3"),
+                dtype="float32",
+            ),
+            repeats: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=4):
+            tile_data_dim_0 = T.int64(is_size_var=True)
+            tile_data_dim_1 = T.int64(is_size_var=True)
+            tile_data_dim_2 = T.int64(is_size_var=True)
+            tile_data_dim_3 = T.int64(is_size_var=True)
+            tile_dim_0 = T.int64()
+            tile_dim_1 = T.int64()
+            tile_dim_2 = T.int64()
+            tile_dim_3 = T.int64()
+            R.func_attr({"num_input": 2})
+            cls = ExpectedTileDynamicRepeats2
+            with R.dataflow():
+                lv = R.shape_of(input)
+                lv1: R.Tensor((4,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((4,), dtype="int64") = R.multiply(repeats, lv1)
+                lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]) = R.match_cast(
+                    R.tensor_to_shape(lv2),
+                    R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]),
+                )
+                lv4 = R.call_tir(
+                    cls.dyn_tile,
+                    (input,),
+                    out_ty=R.Tensor(
+                        (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
+                    ),
+                )
+                gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32") = (
+                    lv4
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedTileDynamicRepeats3:
+        @T.prim_func(private=True, s_tir=True)
+        def dyn_tile(input: T.handle, var_T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3), dtype="float32"),
+            repeats: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=2):
+            tile_dim_0 = T.int64()
+            tile_dim_1 = T.int64()
+            R.func_attr({"num_input": 2})
+            cls = ExpectedTileDynamicRepeats3
+            with R.dataflow():
+                lv = R.shape_of(input)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((2,), dtype="int64") = R.multiply(repeats, lv1)
+                lv3: R.Shape([tile_dim_0, tile_dim_1]) = R.match_cast(
+                    R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1])
+                )
+                lv4 = R.call_tir(
+                    cls.dyn_tile,
+                    (input,),
+                    out_ty=R.Tensor((tile_dim_0, tile_dim_1), dtype="float32"),
+                )
+                gv: R.Tensor((tile_dim_0, tile_dim_1), dtype="float32") = lv4
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedTileDynamicRepeats4:
+        @T.prim_func(private=True, s_tir=True)
+        def dyn_tile(input: T.handle, var_T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3, 4), dtype="float32"),
+            repeats: R.Tensor((3,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=3):
+            tile_dim_0 = T.int64()
+            tile_dim_1 = T.int64()
+            tile_dim_2 = T.int64()
+            R.func_attr({"num_input": 2})
+            cls = ExpectedTileDynamicRepeats4
+            with R.dataflow():
+                lv = R.shape_of(input)
+                lv1: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((3,), dtype="int64") = R.multiply(repeats, lv1)
+                lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2]) = R.match_cast(
+                    R.tensor_to_shape(lv2), R.Shape([tile_dim_0, tile_dim_1, tile_dim_2])
+                )
+                lv4 = R.call_tir(
+                    cls.dyn_tile,
+                    (input,),
+                    out_ty=R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32"),
+                )
+                gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), dtype="float32") = lv4
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedTileDynamicRepeats5:
+        @T.prim_func(private=True, s_tir=True)
+        def dyn_tile(input: T.handle, var_T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3, 4, 5), dtype="float32"),
+            repeats: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor(dtype="float32", ndim=4):
+            tile_dim_0 = T.int64()
+            tile_dim_1 = T.int64()
+            tile_dim_2 = T.int64()
+            tile_dim_3 = T.int64()
+            R.func_attr({"num_input": 2})
+            cls = ExpectedTileDynamicRepeats5
+            with R.dataflow():
+                lv = R.shape_of(input)
+                lv1: R.Tensor((4,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((4,), dtype="int64") = R.multiply(repeats, lv1)
+                lv3: R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]) = R.match_cast(
+                    R.tensor_to_shape(lv2),
+                    R.Shape([tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3]),
+                )
+                lv4 = R.call_tir(
+                    cls.dyn_tile,
+                    (input,),
+                    out_ty=R.Tensor(
+                        (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32"
+                    ),
+                )
+                gv: R.Tensor((tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), dtype="float32") = (
+                    lv4
+                )
+                R.output(gv)
+            return gv
+
+    verify_tile_dynamic_repeats(
+        True, (2, 3), np.array([2, 2], dtype=np.int64), ExpectedTileDynamicRepeats0
+    )
+    verify_tile_dynamic_repeats(
+        True, (2, 3, 4), np.array([2, 2, 1], dtype=np.int64), ExpectedTileDynamicRepeats1
+    )
+    verify_tile_dynamic_repeats(
+        True,
+        (2, 3, 4, 5),
+        np.array([1, 2, 1, 2], dtype=np.int64),
+        ExpectedTileDynamicRepeats2,
+    )
+    verify_tile_dynamic_repeats(
+        False, (2, 3), np.array([2, 2], dtype=np.int64), ExpectedTileDynamicRepeats3
+    )
+    verify_tile_dynamic_repeats(
+        False, (2, 3, 4), np.array([2, 2, 1], dtype=np.int64), ExpectedTileDynamicRepeats4
+    )
+    verify_tile_dynamic_repeats(
+        False,
+        (2, 3, 4, 5),
+        np.array([1, 2, 1, 2], dtype=np.int64),
+        ExpectedTileDynamicRepeats5,
+    )
 
 
 def _generate_roi_cases():
@@ -14839,7 +13303,7 @@ def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
     return padding
 
 
-def verify_pool_ir(pool_name, shape, auto_pad, kernel_shape, strides, pads):
+def verify_pool_ir(pool_name, shape, auto_pad, kernel_shape, strides, pads, expected):
     attrs = {
         "kernel_shape": kernel_shape,
         "strides": strides,
@@ -14857,1769 +13321,1301 @@ def verify_pool_ir(pool_name, shape, auto_pad, kernel_shape, strides, pads):
     )
     model = helper.make_model(graph, producer_name="pool_structural_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
-
-    if (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3]
-        and strides == [1]
-        and pads == [1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool0:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool1d(
-                        x,
-                        pool_size=[3],
-                        strides=[1],
-                        dilation=[1],
-                        padding=[1, 1],
-                        ceil_mode=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool0
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3]
-        and strides == [2]
-        and pads == [1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool1:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool1d(
-                        x,
-                        pool_size=[3],
-                        strides=[2],
-                        dilation=[1],
-                        padding=[1, 1],
-                        ceil_mode=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool1
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [7]
-        and strides == [2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool2:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool1d(
-                        x,
-                        pool_size=[7],
-                        strides=[2],
-                        dilation=[1],
-                        padding=(2, 3),
-                        ceil_mode=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool2
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [4]
-        and strides == [4]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool3:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool1d(
-                        x,
-                        pool_size=[4],
-                        strides=[4],
-                        dilation=[1],
-                        padding=(0, 0),
-                        ceil_mode=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool3
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [5]
-        and strides == [5]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool4:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool1d(
-                        x,
-                        pool_size=[5],
-                        strides=[5],
-                        dilation=[1],
-                        padding=0,
-                        ceil_mode=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool4
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3]
-        and strides == [1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool5:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool1d(
-                        x,
-                        pool_size=[3],
-                        strides=[1],
-                        dilation=[1],
-                        padding=(1, 1),
-                        ceil_mode=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool5
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3]
-        and strides == [1, 1]
-        and pads == [1, 1, 1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool6:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[1, 1],
-                        dilation=[1, 1],
-                        padding=[1, 1, 1, 1],
-                        ceil_mode=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool6
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads == [1, 1, 1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool7:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=[1, 1, 1, 1],
-                        ceil_mode=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool7
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 7]
-        and strides == [3, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool8:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool2d(
-                        x,
-                        pool_size=[3, 7],
-                        strides=[3, 2],
-                        dilation=[1, 1],
-                        padding=(0, 2, 1, 3),
-                        ceil_mode=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool8
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool9:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=(1, 1, 0, 0),
-                        ceil_mode=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool9
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool10:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=0,
-                        ceil_mode=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool10
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 3]
-        and strides == [1, 1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool11:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[1, 1],
-                        dilation=[1, 1],
-                        padding=(1, 1, 1, 1),
-                        ceil_mode=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool11
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3, 4]
-        and strides == [1, 1, 1]
-        and pads == [1, 2, 1, 1, 2, 2]
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool12:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool3d(
-                        x,
-                        pool_size=[3, 3, 4],
-                        strides=[1, 1, 1],
-                        dilation=[1, 1, 1],
-                        padding=[1, 2, 1, 1, 2, 2],
-                        ceil_mode=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool12
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 4, 3]
-        and strides == [2, 2, 3]
-        and pads == [1, 1, 1, 1, 1, 2]
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool13:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool3d(
-                        x,
-                        pool_size=[3, 4, 3],
-                        strides=[2, 2, 3],
-                        dilation=[1, 1, 1],
-                        padding=[1, 1, 1, 1, 1, 2],
-                        ceil_mode=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool13
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [4, 3, 3]
-        and strides == [3, 2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool14:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool3d(
-                        x,
-                        pool_size=[4, 3, 3],
-                        strides=[3, 2, 2],
-                        dilation=[1, 1, 1],
-                        padding=(1, 0, 0, 1, 1, 1),
-                        ceil_mode=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool14
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [3, 3, 4]
-        and strides == [2, 2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool15:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool3d(
-                        x,
-                        pool_size=[3, 3, 4],
-                        strides=[2, 2, 2],
-                        dilation=[1, 1, 1],
-                        padding=(1, 1, 1, 0, 0, 1),
-                        ceil_mode=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool15
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [3, 3, 5]
-        and strides == [2, 2, 3]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool16:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool3d(
-                        x,
-                        pool_size=[3, 3, 5],
-                        strides=[2, 2, 3],
-                        dilation=[1, 1, 1],
-                        padding=0,
-                        ceil_mode=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool16
-
-    elif (
-        pool_name == "MaxPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 3, 5]
-        and strides == [1, 1, 1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedMaxPool17:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.max_pool3d(
-                        x,
-                        pool_size=[3, 3, 5],
-                        strides=[1, 1, 1],
-                        dilation=[1, 1, 1],
-                        padding=(1, 1, 2, 1, 1, 2),
-                        ceil_mode=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMaxPool17
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3]
-        and strides == [1]
-        and pads == [1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool18:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool1d(
-                        x,
-                        pool_size=[3],
-                        strides=[1],
-                        dilation=[1],
-                        padding=[1, 1],
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool18
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3]
-        and strides == [2]
-        and pads == [1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool19:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool1d(
-                        x,
-                        pool_size=[3],
-                        strides=[2],
-                        dilation=[1],
-                        padding=[1, 1],
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool19
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [7]
-        and strides == [2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool20:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool1d(
-                        x,
-                        pool_size=[7],
-                        strides=[2],
-                        dilation=[1],
-                        padding=(2, 3),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool20
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [4]
-        and strides == [4]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool21:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool1d(
-                        x,
-                        pool_size=[4],
-                        strides=[4],
-                        dilation=[1],
-                        padding=(0, 0),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool21
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [5]
-        and strides == [5]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool22:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool1d(
-                        x,
-                        pool_size=[5],
-                        strides=[5],
-                        dilation=[1],
-                        padding=0,
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool22
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3]
-        and strides == [1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool23:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool1d(
-                        x,
-                        pool_size=[3],
-                        strides=[1],
-                        dilation=[1],
-                        padding=(1, 1),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool23
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3]
-        and strides == [1, 1]
-        and pads == [1, 1, 1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool24:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[1, 1],
-                        dilation=[1, 1],
-                        padding=[1, 1, 1, 1],
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool24
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads == [1, 1, 1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool25:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=[1, 1, 1, 1],
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool25
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 7]
-        and strides == [3, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool26:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool2d(
-                        x,
-                        pool_size=[3, 7],
-                        strides=[3, 2],
-                        dilation=[1, 1],
-                        padding=(0, 2, 1, 3),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool26
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool27:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=(1, 1, 0, 0),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool27
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool28:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=0,
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool28
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 3]
-        and strides == [1, 1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool29:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool2d(
-                        x,
-                        pool_size=[3, 3],
-                        strides=[1, 1],
-                        dilation=[1, 1],
-                        padding=(1, 1, 1, 1),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool29
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3, 4]
-        and strides == [1, 1, 1]
-        and pads == [1, 2, 1, 1, 2, 2]
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool30:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool3d(
-                        x,
-                        pool_size=[3, 3, 4],
-                        strides=[1, 1, 1],
-                        dilation=[1, 1, 1],
-                        padding=[1, 2, 1, 1, 2, 2],
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool30
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 4, 3]
-        and strides == [2, 2, 3]
-        and pads == [1, 1, 1, 1, 1, 2]
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool31:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool3d(
-                        x,
-                        pool_size=[3, 4, 3],
-                        strides=[2, 2, 3],
-                        dilation=[1, 1, 1],
-                        padding=[1, 1, 1, 1, 1, 2],
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool31
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [4, 3, 3]
-        and strides == [3, 2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool32:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool3d(
-                        x,
-                        pool_size=[4, 3, 3],
-                        strides=[3, 2, 2],
-                        dilation=[1, 1, 1],
-                        padding=(1, 0, 0, 1, 1, 1),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool32
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [3, 3, 4]
-        and strides == [2, 2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool33:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool3d(
-                        x,
-                        pool_size=[3, 3, 4],
-                        strides=[2, 2, 2],
-                        dilation=[1, 1, 1],
-                        padding=(1, 1, 1, 0, 0, 1),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool33
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [3, 3, 5]
-        and strides == [2, 2, 3]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool34:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool3d(
-                        x,
-                        pool_size=[3, 3, 5],
-                        strides=[2, 2, 3],
-                        dilation=[1, 1, 1],
-                        padding=0,
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool34
-
-    elif (
-        pool_name == "AveragePool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 3, 5]
-        and strides == [1, 1, 1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedAveragePool35:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv = R.nn.avg_pool3d(
-                        x,
-                        pool_size=[3, 3, 5],
-                        strides=[1, 1, 1],
-                        dilation=[1, 1, 1],
-                        padding=(1, 1, 2, 1, 1, 2),
-                        ceil_mode=False,
-                        count_include_pad=False,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAveragePool35
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3]
-        and strides == [1]
-        and pads == [1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool36:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool1d(
-                        lv,
-                        pool_size=[3],
-                        strides=[1],
-                        dilation=[1],
-                        padding=[1, 1],
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(3.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool36
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3]
-        and strides == [2]
-        and pads == [1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool37:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool1d(
-                        lv,
-                        pool_size=[3],
-                        strides=[2],
-                        dilation=[1],
-                        padding=[1, 1],
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(3.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool37
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [7]
-        and strides == [2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool38:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool1d(
-                        lv,
-                        pool_size=[7],
-                        strides=[2],
-                        dilation=[1],
-                        padding=(2, 3),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(7.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool38
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [4]
-        and strides == [4]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool39:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool1d(
-                        lv,
-                        pool_size=[4],
-                        strides=[4],
-                        dilation=[1],
-                        padding=(0, 0),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(4.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool39
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [5]
-        and strides == [5]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool40:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool1d(
-                        lv,
-                        pool_size=[5],
-                        strides=[5],
-                        dilation=[1],
-                        padding=0,
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(5.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool40
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3]
-        and strides == [1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool41:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool1d(
-                        lv,
-                        pool_size=[3],
-                        strides=[1],
-                        dilation=[1],
-                        padding=(1, 1),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCW",
-                        out_layout="NCW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(3.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool41
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3]
-        and strides == [1, 1]
-        and pads == [1, 1, 1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool42:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool2d(
-                        lv,
-                        pool_size=[3, 3],
-                        strides=[1, 1],
-                        dilation=[1, 1],
-                        padding=[1, 1, 1, 1],
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(9.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool42
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads == [1, 1, 1, 1]
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool43:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool2d(
-                        lv,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=[1, 1, 1, 1],
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(9.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool43
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 7]
-        and strides == [3, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool44:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool2d(
-                        lv,
-                        pool_size=[3, 7],
-                        strides=[3, 2],
-                        dilation=[1, 1],
-                        padding=(0, 2, 1, 3),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(21.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool44
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool45:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool2d(
-                        lv,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=(1, 1, 0, 0),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(9.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool45
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [3, 3]
-        and strides == [2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool46:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool2d(
-                        lv,
-                        pool_size=[3, 3],
-                        strides=[2, 2],
-                        dilation=[1, 1],
-                        padding=0,
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(9.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool46
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 3]
-        and strides == [1, 1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool47:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool2d(
-                        lv,
-                        pool_size=[3, 3],
-                        strides=[1, 1],
-                        dilation=[1, 1],
-                        padding=(1, 1, 1, 1),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCHW",
-                        out_layout="NCHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(9.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool47
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 3, 4]
-        and strides == [1, 1, 1]
-        and pads == [1, 2, 1, 1, 2, 2]
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool48:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool3d(
-                        lv,
-                        pool_size=[3, 3, 4],
-                        strides=[1, 1, 1],
-                        dilation=[1, 1, 1],
-                        padding=[1, 2, 1, 1, 2, 2],
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(36.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool48
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "NOTSET"
-        and kernel_shape == [3, 4, 3]
-        and strides == [2, 2, 3]
-        and pads == [1, 1, 1, 1, 1, 2]
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool49:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool3d(
-                        lv,
-                        pool_size=[3, 4, 3],
-                        strides=[2, 2, 3],
-                        dilation=[1, 1, 1],
-                        padding=[1, 1, 1, 1, 1, 2],
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(36.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool49
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [4, 3, 3]
-        and strides == [3, 2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool50:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool3d(
-                        lv,
-                        pool_size=[4, 3, 3],
-                        strides=[3, 2, 2],
-                        dilation=[1, 1, 1],
-                        padding=(1, 0, 0, 1, 1, 1),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(36.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool50
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_LOWER"
-        and kernel_shape == [3, 3, 4]
-        and strides == [2, 2, 2]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool51:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool3d(
-                        lv,
-                        pool_size=[3, 3, 4],
-                        strides=[2, 2, 2],
-                        dilation=[1, 1, 1],
-                        padding=(1, 1, 1, 0, 0, 1),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(36.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool51
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "VALID"
-        and kernel_shape == [3, 3, 5]
-        and strides == [2, 2, 3]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool52:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool3d(
-                        lv,
-                        pool_size=[3, 3, 5],
-                        strides=[2, 2, 3],
-                        dilation=[1, 1, 1],
-                        padding=0,
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(45.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool52
-
-    elif (
-        pool_name == "LpPool"
-        and shape == [1, 1, 32, 32, 32]
-        and auto_pad == "SAME_UPPER"
-        and kernel_shape == [3, 3, 5]
-        and strides == [1, 1, 1]
-        and pads is None
-    ):
-
-        @I.ir_module
-        class ExpectedLpPool53:
-            @R.function
-            def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = R.nn.avg_pool3d(
-                        lv,
-                        pool_size=[3, 3, 5],
-                        strides=[1, 1, 1],
-                        dilation=[1, 1, 1],
-                        padding=(1, 1, 2, 1, 1, 2),
-                        ceil_mode=False,
-                        count_include_pad=True,
-                        layout="NCDHW",
-                        out_layout="NCDHW",
-                    )
-                    lv2 = R.multiply(lv1, R.const(45.0, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedLpPool53
-
-    else:
-        raise AssertionError(
-            "Unexpected pool structural case: "
-            f"pool_name={pool_name}, shape={shape}, auto_pad={auto_pad}, "
-            f"kernel_shape={kernel_shape}, strides={strides}, pads={pads}"
-        )
-
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
-@pytest.mark.parametrize("pool_name", ["MaxPool", "AveragePool", "LpPool"])
-@pytest.mark.parametrize(
-    "shape, auto_pad, kernel_shape, strides, pads",
-    [
-        # Pool1D
-        ([1, 1, 32], "NOTSET", [3], [1], [1, 1]),
-        # Pool1D with stride
-        ([1, 1, 32], "NOTSET", [3], [2], [1, 1]),
-        # Pool1D with stride and autopadding
-        ([1, 1, 32], "SAME_UPPER", [7], [2], None),
-        ([1, 1, 32], "SAME_LOWER", [4], [4], None),
-        ([1, 1, 32], "VALID", [5], [5], None),
-        ([1, 1, 32], "SAME_UPPER", [3], [1], None),
-        # Pool2D
-        ([1, 1, 32, 32], "NOTSET", [3, 3], [1, 1], [1, 1, 1, 1]),
-        # Pool2D with stride
-        ([1, 1, 32, 32], "NOTSET", [3, 3], [2, 2], [1, 1, 1, 1]),
-        # Pool2D with stride and autopadding
-        ([1, 1, 32, 32], "SAME_UPPER", [3, 7], [3, 2], None),
-        ([1, 1, 32, 32], "SAME_LOWER", [3, 3], [2, 2], None),
-        ([1, 1, 32, 32], "VALID", [3, 3], [2, 2], None),
-        ([1, 1, 32, 32], "SAME_UPPER", [3, 3], [1, 1], None),
-        # Pool3D
-        ([1, 1, 32, 32, 32], "NOTSET", [3, 3, 4], [1, 1, 1], [1, 2, 1, 1, 2, 2]),
-        # Pool3D with stride
-        ([1, 1, 32, 32, 32], "NOTSET", [3, 4, 3], [2, 2, 3], [1, 1, 1, 1, 1, 2]),
-        # Pool3D with stride and autopadding
-        ([1, 1, 32, 32, 32], "SAME_UPPER", [4, 3, 3], [3, 2, 2], None),
-        ([1, 1, 32, 32, 32], "SAME_LOWER", [3, 3, 4], [2, 2, 2], None),
-        ([1, 1, 32, 32, 32], "VALID", [3, 3, 5], [2, 2, 3], None),
-        ([1, 1, 32, 32, 32], "SAME_UPPER", [3, 3, 5], [1, 1, 1], None),
-    ],
-)
-def test_pool(
-    pool_name: str,
-    shape: list[int],
-    auto_pad: str,
-    kernel_shape: list[int],
-    strides: list[int],
-    pads: list[int],
-):
-    verify_pool_ir(pool_name, shape, auto_pad, kernel_shape, strides, pads)
+def test_pool():
+    @I.ir_module
+    class ExpectedMaxPool0:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool1d(
+                    x,
+                    pool_size=[3],
+                    strides=[1],
+                    dilation=[1],
+                    padding=[1, 1],
+                    ceil_mode=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool1:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool1d(
+                    x,
+                    pool_size=[3],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[1, 1],
+                    ceil_mode=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool2:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool1d(
+                    x,
+                    pool_size=[7],
+                    strides=[2],
+                    dilation=[1],
+                    padding=(2, 3),
+                    ceil_mode=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool3:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool1d(
+                    x,
+                    pool_size=[4],
+                    strides=[4],
+                    dilation=[1],
+                    padding=(0, 0),
+                    ceil_mode=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool4:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool1d(
+                    x,
+                    pool_size=[5],
+                    strides=[5],
+                    dilation=[1],
+                    padding=0,
+                    ceil_mode=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool5:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool1d(
+                    x,
+                    pool_size=[3],
+                    strides=[1],
+                    dilation=[1],
+                    padding=(1, 1),
+                    ceil_mode=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool6:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool7:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool8:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool2d(
+                    x,
+                    pool_size=[3, 7],
+                    strides=[3, 2],
+                    dilation=[1, 1],
+                    padding=(0, 2, 1, 3),
+                    ceil_mode=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool9:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=(1, 1, 0, 0),
+                    ceil_mode=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool10:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=0,
+                    ceil_mode=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool11:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=(1, 1, 1, 1),
+                    ceil_mode=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool12:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool3d(
+                    x,
+                    pool_size=[3, 3, 4],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=[1, 2, 1, 1, 2, 2],
+                    ceil_mode=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool13:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool3d(
+                    x,
+                    pool_size=[3, 4, 3],
+                    strides=[2, 2, 3],
+                    dilation=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 2],
+                    ceil_mode=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool14:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool3d(
+                    x,
+                    pool_size=[4, 3, 3],
+                    strides=[3, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=(1, 0, 0, 1, 1, 1),
+                    ceil_mode=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool15:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool3d(
+                    x,
+                    pool_size=[3, 3, 4],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=(1, 1, 1, 0, 0, 1),
+                    ceil_mode=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool16:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool3d(
+                    x,
+                    pool_size=[3, 3, 5],
+                    strides=[2, 2, 3],
+                    dilation=[1, 1, 1],
+                    padding=0,
+                    ceil_mode=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxPool17:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.max_pool3d(
+                    x,
+                    pool_size=[3, 3, 5],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=(1, 1, 2, 1, 1, 2),
+                    ceil_mode=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool18:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool1d(
+                    x,
+                    pool_size=[3],
+                    strides=[1],
+                    dilation=[1],
+                    padding=[1, 1],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool19:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool1d(
+                    x,
+                    pool_size=[3],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[1, 1],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool20:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool1d(
+                    x,
+                    pool_size=[7],
+                    strides=[2],
+                    dilation=[1],
+                    padding=(2, 3),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool21:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool1d(
+                    x,
+                    pool_size=[4],
+                    strides=[4],
+                    dilation=[1],
+                    padding=(0, 0),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool22:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool1d(
+                    x,
+                    pool_size=[5],
+                    strides=[5],
+                    dilation=[1],
+                    padding=0,
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool23:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool1d(
+                    x,
+                    pool_size=[3],
+                    strides=[1],
+                    dilation=[1],
+                    padding=(1, 1),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool24:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool25:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool26:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool2d(
+                    x,
+                    pool_size=[3, 7],
+                    strides=[3, 2],
+                    dilation=[1, 1],
+                    padding=(0, 2, 1, 3),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool27:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=(1, 1, 0, 0),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool28:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=0,
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool29:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool2d(
+                    x,
+                    pool_size=[3, 3],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=(1, 1, 1, 1),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool30:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool3d(
+                    x,
+                    pool_size=[3, 3, 4],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=[1, 2, 1, 1, 2, 2],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool31:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool3d(
+                    x,
+                    pool_size=[3, 4, 3],
+                    strides=[2, 2, 3],
+                    dilation=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 2],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool32:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool3d(
+                    x,
+                    pool_size=[4, 3, 3],
+                    strides=[3, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=(1, 0, 0, 1, 1, 1),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool33:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool3d(
+                    x,
+                    pool_size=[3, 3, 4],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=(1, 1, 1, 0, 0, 1),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool34:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool3d(
+                    x,
+                    pool_size=[3, 3, 5],
+                    strides=[2, 2, 3],
+                    dilation=[1, 1, 1],
+                    padding=0,
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedAveragePool35:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv = R.nn.avg_pool3d(
+                    x,
+                    pool_size=[3, 3, 5],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=(1, 1, 2, 1, 1, 2),
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool36:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool1d(
+                    lv,
+                    pool_size=[3],
+                    strides=[1],
+                    dilation=[1],
+                    padding=[1, 1],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                lv2 = R.multiply(lv1, R.const(3.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool37:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool1d(
+                    lv,
+                    pool_size=[3],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[1, 1],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                lv2 = R.multiply(lv1, R.const(3.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool38:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool1d(
+                    lv,
+                    pool_size=[7],
+                    strides=[2],
+                    dilation=[1],
+                    padding=(2, 3),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                lv2 = R.multiply(lv1, R.const(7.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool39:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool1d(
+                    lv,
+                    pool_size=[4],
+                    strides=[4],
+                    dilation=[1],
+                    padding=(0, 0),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                lv2 = R.multiply(lv1, R.const(4.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool40:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool1d(
+                    lv,
+                    pool_size=[5],
+                    strides=[5],
+                    dilation=[1],
+                    padding=0,
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                lv2 = R.multiply(lv1, R.const(5.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool41:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool1d(
+                    lv,
+                    pool_size=[3],
+                    strides=[1],
+                    dilation=[1],
+                    padding=(1, 1),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                lv2 = R.multiply(lv1, R.const(3.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool42:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[3, 3],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv2 = R.multiply(lv1, R.const(9.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool43:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv2 = R.multiply(lv1, R.const(9.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool44:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[3, 7],
+                    strides=[3, 2],
+                    dilation=[1, 1],
+                    padding=(0, 2, 1, 3),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv2 = R.multiply(lv1, R.const(21.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool45:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=(1, 1, 0, 0),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv2 = R.multiply(lv1, R.const(9.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool46:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[3, 3],
+                    strides=[2, 2],
+                    dilation=[1, 1],
+                    padding=0,
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv2 = R.multiply(lv1, R.const(9.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool47:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[3, 3],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=(1, 1, 1, 1),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCHW",
+                    out_layout="NCHW",
+                )
+                lv2 = R.multiply(lv1, R.const(9.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool48:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool3d(
+                    lv,
+                    pool_size=[3, 3, 4],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=[1, 2, 1, 1, 2, 2],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                lv2 = R.multiply(lv1, R.const(36.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool49:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool3d(
+                    lv,
+                    pool_size=[3, 4, 3],
+                    strides=[2, 2, 3],
+                    dilation=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 2],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                lv2 = R.multiply(lv1, R.const(36.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool50:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool3d(
+                    lv,
+                    pool_size=[4, 3, 3],
+                    strides=[3, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=(1, 0, 0, 1, 1, 1),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                lv2 = R.multiply(lv1, R.const(36.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool51:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool3d(
+                    lv,
+                    pool_size=[3, 3, 4],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=(1, 1, 1, 0, 0, 1),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                lv2 = R.multiply(lv1, R.const(36.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool52:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool3d(
+                    lv,
+                    pool_size=[3, 3, 5],
+                    strides=[2, 2, 3],
+                    dilation=[1, 1, 1],
+                    padding=0,
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                lv2 = R.multiply(lv1, R.const(45.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedLpPool53:
+        @R.function
+        def main(x: R.Tensor((1, 1, 32, 32, 32), dtype="float32")):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv = R.power(x, R.const(2.0, "float32"))
+                lv1 = R.nn.avg_pool3d(
+                    lv,
+                    pool_size=[3, 3, 5],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=(1, 1, 2, 1, 1, 2),
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                lv2 = R.multiply(lv1, R.const(45.0, "float32"))
+                gv = R.power(lv2, R.const(0.5, "float32"))
+                R.output(gv)
+            return gv
+
+    # MaxPool
+    verify_pool_ir("MaxPool", [1, 1, 32], "NOTSET", [3], [1], [1, 1], ExpectedMaxPool0)
+    verify_pool_ir("MaxPool", [1, 1, 32], "NOTSET", [3], [2], [1, 1], ExpectedMaxPool1)
+    verify_pool_ir("MaxPool", [1, 1, 32], "SAME_UPPER", [7], [2], None, ExpectedMaxPool2)
+    verify_pool_ir("MaxPool", [1, 1, 32], "SAME_LOWER", [4], [4], None, ExpectedMaxPool3)
+    verify_pool_ir("MaxPool", [1, 1, 32], "VALID", [5], [5], None, ExpectedMaxPool4)
+    verify_pool_ir("MaxPool", [1, 1, 32], "SAME_UPPER", [3], [1], None, ExpectedMaxPool5)
+    verify_pool_ir(
+        "MaxPool", [1, 1, 32, 32], "NOTSET", [3, 3], [1, 1], [1, 1, 1, 1], ExpectedMaxPool6
+    )
+    verify_pool_ir(
+        "MaxPool", [1, 1, 32, 32], "NOTSET", [3, 3], [2, 2], [1, 1, 1, 1], ExpectedMaxPool7
+    )
+    verify_pool_ir("MaxPool", [1, 1, 32, 32], "SAME_UPPER", [3, 7], [3, 2], None, ExpectedMaxPool8)
+    verify_pool_ir("MaxPool", [1, 1, 32, 32], "SAME_LOWER", [3, 3], [2, 2], None, ExpectedMaxPool9)
+    verify_pool_ir("MaxPool", [1, 1, 32, 32], "VALID", [3, 3], [2, 2], None, ExpectedMaxPool10)
+    verify_pool_ir("MaxPool", [1, 1, 32, 32], "SAME_UPPER", [3, 3], [1, 1], None, ExpectedMaxPool11)
+    verify_pool_ir(
+        "MaxPool",
+        [1, 1, 32, 32, 32],
+        "NOTSET",
+        [3, 3, 4],
+        [1, 1, 1],
+        [1, 2, 1, 1, 2, 2],
+        ExpectedMaxPool12,
+    )
+    verify_pool_ir(
+        "MaxPool",
+        [1, 1, 32, 32, 32],
+        "NOTSET",
+        [3, 4, 3],
+        [2, 2, 3],
+        [1, 1, 1, 1, 1, 2],
+        ExpectedMaxPool13,
+    )
+    verify_pool_ir(
+        "MaxPool", [1, 1, 32, 32, 32], "SAME_UPPER", [4, 3, 3], [3, 2, 2], None, ExpectedMaxPool14
+    )
+    verify_pool_ir(
+        "MaxPool", [1, 1, 32, 32, 32], "SAME_LOWER", [3, 3, 4], [2, 2, 2], None, ExpectedMaxPool15
+    )
+    verify_pool_ir(
+        "MaxPool", [1, 1, 32, 32, 32], "VALID", [3, 3, 5], [2, 2, 3], None, ExpectedMaxPool16
+    )
+    verify_pool_ir(
+        "MaxPool", [1, 1, 32, 32, 32], "SAME_UPPER", [3, 3, 5], [1, 1, 1], None, ExpectedMaxPool17
+    )
+
+    # AveragePool
+    verify_pool_ir("AveragePool", [1, 1, 32], "NOTSET", [3], [1], [1, 1], ExpectedAveragePool18)
+    verify_pool_ir("AveragePool", [1, 1, 32], "NOTSET", [3], [2], [1, 1], ExpectedAveragePool19)
+    verify_pool_ir("AveragePool", [1, 1, 32], "SAME_UPPER", [7], [2], None, ExpectedAveragePool20)
+    verify_pool_ir("AveragePool", [1, 1, 32], "SAME_LOWER", [4], [4], None, ExpectedAveragePool21)
+    verify_pool_ir("AveragePool", [1, 1, 32], "VALID", [5], [5], None, ExpectedAveragePool22)
+    verify_pool_ir("AveragePool", [1, 1, 32], "SAME_UPPER", [3], [1], None, ExpectedAveragePool23)
+    verify_pool_ir(
+        "AveragePool", [1, 1, 32, 32], "NOTSET", [3, 3], [1, 1], [1, 1, 1, 1], ExpectedAveragePool24
+    )
+    verify_pool_ir(
+        "AveragePool", [1, 1, 32, 32], "NOTSET", [3, 3], [2, 2], [1, 1, 1, 1], ExpectedAveragePool25
+    )
+    verify_pool_ir(
+        "AveragePool", [1, 1, 32, 32], "SAME_UPPER", [3, 7], [3, 2], None, ExpectedAveragePool26
+    )
+    verify_pool_ir(
+        "AveragePool", [1, 1, 32, 32], "SAME_LOWER", [3, 3], [2, 2], None, ExpectedAveragePool27
+    )
+    verify_pool_ir(
+        "AveragePool", [1, 1, 32, 32], "VALID", [3, 3], [2, 2], None, ExpectedAveragePool28
+    )
+    verify_pool_ir(
+        "AveragePool", [1, 1, 32, 32], "SAME_UPPER", [3, 3], [1, 1], None, ExpectedAveragePool29
+    )
+    verify_pool_ir(
+        "AveragePool",
+        [1, 1, 32, 32, 32],
+        "NOTSET",
+        [3, 3, 4],
+        [1, 1, 1],
+        [1, 2, 1, 1, 2, 2],
+        ExpectedAveragePool30,
+    )
+    verify_pool_ir(
+        "AveragePool",
+        [1, 1, 32, 32, 32],
+        "NOTSET",
+        [3, 4, 3],
+        [2, 2, 3],
+        [1, 1, 1, 1, 1, 2],
+        ExpectedAveragePool31,
+    )
+    verify_pool_ir(
+        "AveragePool",
+        [1, 1, 32, 32, 32],
+        "SAME_UPPER",
+        [4, 3, 3],
+        [3, 2, 2],
+        None,
+        ExpectedAveragePool32,
+    )
+    verify_pool_ir(
+        "AveragePool",
+        [1, 1, 32, 32, 32],
+        "SAME_LOWER",
+        [3, 3, 4],
+        [2, 2, 2],
+        None,
+        ExpectedAveragePool33,
+    )
+    verify_pool_ir(
+        "AveragePool",
+        [1, 1, 32, 32, 32],
+        "VALID",
+        [3, 3, 5],
+        [2, 2, 3],
+        None,
+        ExpectedAveragePool34,
+    )
+    verify_pool_ir(
+        "AveragePool",
+        [1, 1, 32, 32, 32],
+        "SAME_UPPER",
+        [3, 3, 5],
+        [1, 1, 1],
+        None,
+        ExpectedAveragePool35,
+    )
+
+    # LpPool
+    verify_pool_ir("LpPool", [1, 1, 32], "NOTSET", [3], [1], [1, 1], ExpectedLpPool36)
+    verify_pool_ir("LpPool", [1, 1, 32], "NOTSET", [3], [2], [1, 1], ExpectedLpPool37)
+    verify_pool_ir("LpPool", [1, 1, 32], "SAME_UPPER", [7], [2], None, ExpectedLpPool38)
+    verify_pool_ir("LpPool", [1, 1, 32], "SAME_LOWER", [4], [4], None, ExpectedLpPool39)
+    verify_pool_ir("LpPool", [1, 1, 32], "VALID", [5], [5], None, ExpectedLpPool40)
+    verify_pool_ir("LpPool", [1, 1, 32], "SAME_UPPER", [3], [1], None, ExpectedLpPool41)
+    verify_pool_ir(
+        "LpPool", [1, 1, 32, 32], "NOTSET", [3, 3], [1, 1], [1, 1, 1, 1], ExpectedLpPool42
+    )
+    verify_pool_ir(
+        "LpPool", [1, 1, 32, 32], "NOTSET", [3, 3], [2, 2], [1, 1, 1, 1], ExpectedLpPool43
+    )
+    verify_pool_ir("LpPool", [1, 1, 32, 32], "SAME_UPPER", [3, 7], [3, 2], None, ExpectedLpPool44)
+    verify_pool_ir("LpPool", [1, 1, 32, 32], "SAME_LOWER", [3, 3], [2, 2], None, ExpectedLpPool45)
+    verify_pool_ir("LpPool", [1, 1, 32, 32], "VALID", [3, 3], [2, 2], None, ExpectedLpPool46)
+    verify_pool_ir("LpPool", [1, 1, 32, 32], "SAME_UPPER", [3, 3], [1, 1], None, ExpectedLpPool47)
+    verify_pool_ir(
+        "LpPool",
+        [1, 1, 32, 32, 32],
+        "NOTSET",
+        [3, 3, 4],
+        [1, 1, 1],
+        [1, 2, 1, 1, 2, 2],
+        ExpectedLpPool48,
+    )
+    verify_pool_ir(
+        "LpPool",
+        [1, 1, 32, 32, 32],
+        "NOTSET",
+        [3, 4, 3],
+        [2, 2, 3],
+        [1, 1, 1, 1, 1, 2],
+        ExpectedLpPool49,
+    )
+    verify_pool_ir(
+        "LpPool", [1, 1, 32, 32, 32], "SAME_UPPER", [4, 3, 3], [3, 2, 2], None, ExpectedLpPool50
+    )
+    verify_pool_ir(
+        "LpPool", [1, 1, 32, 32, 32], "SAME_LOWER", [3, 3, 4], [2, 2, 2], None, ExpectedLpPool51
+    )
+    verify_pool_ir(
+        "LpPool", [1, 1, 32, 32, 32], "VALID", [3, 3, 5], [2, 2, 3], None, ExpectedLpPool52
+    )
+    verify_pool_ir(
+        "LpPool", [1, 1, 32, 32, 32], "SAME_UPPER", [3, 3, 5], [1, 1, 1], None, ExpectedLpPool53
+    )
 
 
 def test_global_average_pool():
@@ -16740,89 +14736,12 @@ def test_global_max_pool():
     verify_global_max_pool_ir([1, 3, 32, 32, 32], Expected3D)
 
 
-def make_global_lp_pool_expected(input_shape: list[int], p: int):
+@pytest.mark.parametrize("p", [1, 2, 3])
+def test_global_lp_pool(p: int):
     p_value = float(p)
     inv_p_value = float(1 / p)
 
-    if input_shape == [1, 3, 4]:
-
-        @I.ir_module
-        class ExpectedGlobalLpPool1D:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4), dtype="float32"),
-            ) -> R.Tensor((1, 3, 1), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 3, 4), dtype="float32") = R.abs(x)
-                    lv1: R.Tensor((1, 3, 4), dtype="float32") = R.power(
-                        lv, R.const(p_value, "float32")
-                    )
-                    lv2: R.Tensor((1, 3, 1), dtype="float32") = R.sum(lv1, axis=[2], keepdims=True)
-                    gv: R.Tensor((1, 3, 1), dtype="float32") = R.power(
-                        lv2, R.const(inv_p_value, "float32")
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedGlobalLpPool1D
-
-    if input_shape == [1, 3, 4, 4]:
-
-        @I.ir_module
-        class ExpectedGlobalLpPool2D:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 4), dtype="float32"),
-            ) -> R.Tensor((1, 3, 1, 1), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 3, 4, 4), dtype="float32") = R.abs(x)
-                    lv1: R.Tensor((1, 3, 4, 4), dtype="float32") = R.power(
-                        lv, R.const(p_value, "float32")
-                    )
-                    lv2: R.Tensor((1, 3, 1, 1), dtype="float32") = R.sum(
-                        lv1, axis=[2, 3], keepdims=True
-                    )
-                    gv: R.Tensor((1, 3, 1, 1), dtype="float32") = R.power(
-                        lv2, R.const(inv_p_value, "float32")
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedGlobalLpPool2D
-
-    if input_shape == [1, 3, 4, 4, 4]:
-
-        @I.ir_module
-        class ExpectedGlobalLpPool3D:
-            @R.function
-            def main(
-                x: R.Tensor((1, 3, 4, 4, 4), dtype="float32"),
-            ) -> R.Tensor((1, 3, 1, 1, 1), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.abs(x)
-                    lv1: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.power(
-                        lv, R.const(p_value, "float32")
-                    )
-                    lv2: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.sum(
-                        lv1, axis=[2, 3, 4], keepdims=True
-                    )
-                    gv: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.power(
-                        lv2, R.const(inv_p_value, "float32")
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedGlobalLpPool3D
-
-    raise AssertionError(f"Unexpected GlobalLpPool structural input shape: {input_shape}")
-
-
-@pytest.mark.parametrize("p", [1, 2, 3])
-def test_global_lp_pool(p: int):
-    for input_shape in ([1, 3, 4], [1, 3, 4, 4], [1, 3, 4, 4, 4]):
+    def verify_global_lp_pool(input_shape, expected):
         output_shape = input_shape[:2] + [1] * (len(input_shape) - 2)
         node = helper.make_node("GlobalLpPool", ["x"], ["y"], p=p)
         graph = helper.make_graph(
@@ -16833,274 +14752,301 @@ def test_global_lp_pool(p: int):
         )
         model = helper.make_model(graph, producer_name="global_lp_pool_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, make_global_lp_pool_expected(input_shape, p))
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedGlobalLpPool1D:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4), dtype="float32"),
+        ) -> R.Tensor((1, 3, 1), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 4), dtype="float32") = R.abs(x)
+                lv1: R.Tensor((1, 3, 4), dtype="float32") = R.power(lv, R.const(p_value, "float32"))
+                lv2: R.Tensor((1, 3, 1), dtype="float32") = R.sum(lv1, axis=[2], keepdims=True)
+                gv: R.Tensor((1, 3, 1), dtype="float32") = R.power(
+                    lv2, R.const(inv_p_value, "float32")
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedGlobalLpPool2D:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 4), dtype="float32"),
+        ) -> R.Tensor((1, 3, 1, 1), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 4, 4), dtype="float32") = R.abs(x)
+                lv1: R.Tensor((1, 3, 4, 4), dtype="float32") = R.power(
+                    lv, R.const(p_value, "float32")
+                )
+                lv2: R.Tensor((1, 3, 1, 1), dtype="float32") = R.sum(
+                    lv1, axis=[2, 3], keepdims=True
+                )
+                gv: R.Tensor((1, 3, 1, 1), dtype="float32") = R.power(
+                    lv2, R.const(inv_p_value, "float32")
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedGlobalLpPool3D:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 4, 4, 4), dtype="float32"),
+        ) -> R.Tensor((1, 3, 1, 1, 1), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.abs(x)
+                lv1: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.power(
+                    lv, R.const(p_value, "float32")
+                )
+                lv2: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.sum(
+                    lv1, axis=[2, 3, 4], keepdims=True
+                )
+                gv: R.Tensor((1, 3, 1, 1, 1), dtype="float32") = R.power(
+                    lv2, R.const(inv_p_value, "float32")
+                )
+                R.output(gv)
+            return gv
+
+    verify_global_lp_pool([1, 3, 4], ExpectedGlobalLpPool1D)
+    verify_global_lp_pool([1, 3, 4, 4], ExpectedGlobalLpPool2D)
+    verify_global_lp_pool([1, 3, 4, 4, 4], ExpectedGlobalLpPool3D)
 
 
-def make_maxunpool_expected(input_shape, kernel_shape, pads, strides):
-    if input_shape != [16, 3, 16, 16]:
-        raise AssertionError(f"Unexpected MaxUnpool input shape: {input_shape}")
-
-    if kernel_shape == [2, 2] and pads is None and strides is None:
-
-        @I.ir_module
-        class ExpectedMaxUnpool0:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 17, 17), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 17, 17), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 17, 17]), dtype="float32"
-                    )
-                    lv1: R.Tensor((13872,), dtype="float32") = R.reshape(lv, R.shape([13872]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((13872,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 17, 17), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 17, 17])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool0
-
-    elif kernel_shape == [2, 2] and pads is None and strides == [2, 2]:
-
-        @I.ir_module
-        class ExpectedMaxUnpool1:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 32, 32), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 32, 32]), dtype="float32"
-                    )
-                    lv1: R.Tensor((49152,), dtype="float32") = R.reshape(lv, R.shape([49152]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((49152,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 32, 32), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 32, 32])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool1
-
-    elif kernel_shape == [2, 2] and pads == [1, 1, 1, 1] and strides is None:
-
-        @I.ir_module
-        class ExpectedMaxUnpool2:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 15, 15), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 15, 15), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 15, 15]), dtype="float32"
-                    )
-                    lv1: R.Tensor((10800,), dtype="float32") = R.reshape(lv, R.shape([10800]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((10800,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 15, 15), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 15, 15])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool2
-
-    elif kernel_shape == [2, 2] and pads == [1, 1, 1, 1] and strides == [2, 2]:
-
-        @I.ir_module
-        class ExpectedMaxUnpool3:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 30, 30), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 30, 30), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 30, 30]), dtype="float32"
-                    )
-                    lv1: R.Tensor((43200,), dtype="float32") = R.reshape(lv, R.shape([43200]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((43200,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 30, 30), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 30, 30])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool3
-
-    elif kernel_shape == [3, 3] and pads is None and strides is None:
-
-        @I.ir_module
-        class ExpectedMaxUnpool4:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 18, 18), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 18, 18), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 18, 18]), dtype="float32"
-                    )
-                    lv1: R.Tensor((15552,), dtype="float32") = R.reshape(lv, R.shape([15552]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((15552,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 18, 18), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 18, 18])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool4
-
-    elif kernel_shape == [3, 3] and pads is None and strides == [2, 2]:
-
-        @I.ir_module
-        class ExpectedMaxUnpool5:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 33, 33), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 33, 33), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 33, 33]), dtype="float32"
-                    )
-                    lv1: R.Tensor((52272,), dtype="float32") = R.reshape(lv, R.shape([52272]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((52272,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 33, 33), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 33, 33])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool5
-
-    elif kernel_shape == [3, 3] and pads == [1, 1, 1, 1] and strides is None:
-
-        @I.ir_module
-        class ExpectedMaxUnpool6:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 16, 16), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 16, 16), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 16, 16]), dtype="float32"
-                    )
-                    lv1: R.Tensor((12288,), dtype="float32") = R.reshape(lv, R.shape([12288]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((12288,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 16, 16), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 16, 16])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool6
-
-    elif kernel_shape == [3, 3] and pads == [1, 1, 1, 1] and strides == [2, 2]:
-
-        @I.ir_module
-        class ExpectedMaxUnpool7:
-            @R.function
-            def main(
-                X: R.Tensor((16, 3, 16, 16), dtype="float32"),
-                I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
-            ) -> R.Tensor((16, 3, 31, 31), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((16, 3, 31, 31), dtype="float32") = R.zeros(
-                        R.shape([16, 3, 31, 31]), dtype="float32"
-                    )
-                    lv1: R.Tensor((46128,), dtype="float32") = R.reshape(lv, R.shape([46128]))
-                    lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
-                    lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
-                    lv4: R.Tensor((46128,), dtype="float32") = R.scatter_elements(
-                        lv1, lv2, lv3, axis=0, reduction="update"
-                    )
-                    gv: R.Tensor((16, 3, 31, 31), dtype="float32") = R.reshape(
-                        lv4, R.shape([16, 3, 31, 31])
-                    )
-                    R.output(gv)
-                return gv
-
-        return ExpectedMaxUnpool7
-
-    raise AssertionError(
-        "Unexpected MaxUnpool structural case: "
-        f"kernel_shape={kernel_shape}, pads={pads}, strides={strides}"
-    )
-
-
-@pytest.mark.parametrize("kernel_shape", [[2, 2], [3, 3]])
-@pytest.mark.parametrize("pads", [None, [1, 1, 1, 1]])
-@pytest.mark.parametrize("strides", [None, [2, 2]])
-def test_maxunpool(kernel_shape, pads, strides):
+def test_maxunpool():
     input_shape = [16, 3, 16, 16]
-    input_names = ["X", "I"]
-    input_info = [
-        helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape),
-        helper.make_tensor_value_info("I", TensorProto.INT64, input_shape),
-    ]
 
-    attrs = {"kernel_shape": kernel_shape}
-    if pads is not None:
-        attrs["pads"] = pads
-    if strides is not None:
-        attrs["strides"] = strides
+    def verify_maxunpool(kernel_shape, pads, strides, expected):
+        input_names = ["X", "I"]
+        input_info = [
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("I", TensorProto.INT64, input_shape),
+        ]
 
-    node = helper.make_node("MaxUnpool", inputs=input_names, outputs=["y"], **attrs)
+        attrs = {"kernel_shape": kernel_shape}
+        if pads is not None:
+            attrs["pads"] = pads
+        if strides is not None:
+            attrs["strides"] = strides
 
-    graph = helper.make_graph(
-        [node],
-        "maxunpool_test",
-        inputs=input_info,
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
-    )
+        node = helper.make_node("MaxUnpool", inputs=input_names, outputs=["y"], **attrs)
 
-    model = helper.make_model(graph, producer_name="maxunpool_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
-    tvm.ir.assert_structural_equal(
-        tvm_model, make_maxunpool_expected(input_shape, kernel_shape, pads, strides)
-    )
+        graph = helper.make_graph(
+            [node],
+            "maxunpool_test",
+            inputs=input_info,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
+        )
+
+        model = helper.make_model(graph, producer_name="maxunpool_test")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedMaxUnpool0:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 17, 17), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 17, 17), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 17, 17]), dtype="float32"
+                )
+                lv1: R.Tensor((13872,), dtype="float32") = R.reshape(lv, R.shape([13872]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((13872,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 17, 17), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 17, 17])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxUnpool1:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 32, 32), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 32, 32]), dtype="float32"
+                )
+                lv1: R.Tensor((49152,), dtype="float32") = R.reshape(lv, R.shape([49152]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((49152,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 32, 32), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 32, 32])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxUnpool2:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 15, 15), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 15, 15), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 15, 15]), dtype="float32"
+                )
+                lv1: R.Tensor((10800,), dtype="float32") = R.reshape(lv, R.shape([10800]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((10800,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 15, 15), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 15, 15])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxUnpool3:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 30, 30), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 30, 30), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 30, 30]), dtype="float32"
+                )
+                lv1: R.Tensor((43200,), dtype="float32") = R.reshape(lv, R.shape([43200]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((43200,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 30, 30), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 30, 30])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxUnpool4:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 18, 18), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 18, 18), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 18, 18]), dtype="float32"
+                )
+                lv1: R.Tensor((15552,), dtype="float32") = R.reshape(lv, R.shape([15552]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((15552,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 18, 18), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 18, 18])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxUnpool5:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 33, 33), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 33, 33), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 33, 33]), dtype="float32"
+                )
+                lv1: R.Tensor((52272,), dtype="float32") = R.reshape(lv, R.shape([52272]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((52272,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 33, 33), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 33, 33])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxUnpool6:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 16, 16), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 16, 16), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 16, 16]), dtype="float32"
+                )
+                lv1: R.Tensor((12288,), dtype="float32") = R.reshape(lv, R.shape([12288]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((12288,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 16, 16), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 16, 16])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMaxUnpool7:
+        @R.function
+        def main(
+            X: R.Tensor((16, 3, 16, 16), dtype="float32"),
+            I_1: R.Tensor((16, 3, 16, 16), dtype="int64"),
+        ) -> R.Tensor((16, 3, 31, 31), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((16, 3, 31, 31), dtype="float32") = R.zeros(
+                    R.shape([16, 3, 31, 31]), dtype="float32"
+                )
+                lv1: R.Tensor((46128,), dtype="float32") = R.reshape(lv, R.shape([46128]))
+                lv2: R.Tensor((12288,), dtype="int64") = R.reshape(I_1, R.shape([12288]))
+                lv3: R.Tensor((12288,), dtype="float32") = R.reshape(X, R.shape([12288]))
+                lv4: R.Tensor((46128,), dtype="float32") = R.scatter_elements(
+                    lv1, lv2, lv3, axis=0, reduction="update"
+                )
+                gv: R.Tensor((16, 3, 31, 31), dtype="float32") = R.reshape(
+                    lv4, R.shape([16, 3, 31, 31])
+                )
+                R.output(gv)
+            return gv
+
+    verify_maxunpool([2, 2], None, None, ExpectedMaxUnpool0)
+    verify_maxunpool([2, 2], None, [2, 2], ExpectedMaxUnpool1)
+    verify_maxunpool([2, 2], [1, 1, 1, 1], None, ExpectedMaxUnpool2)
+    verify_maxunpool([2, 2], [1, 1, 1, 1], [2, 2], ExpectedMaxUnpool3)
+    verify_maxunpool([3, 3], None, None, ExpectedMaxUnpool4)
+    verify_maxunpool([3, 3], None, [2, 2], ExpectedMaxUnpool5)
+    verify_maxunpool([3, 3], [1, 1, 1, 1], None, ExpectedMaxUnpool6)
+    verify_maxunpool([3, 3], [1, 1, 1, 1], [2, 2], ExpectedMaxUnpool7)
 
 
 def test_dropout():
@@ -18691,208 +16637,198 @@ def test_shape_dim_string_expression_graph_div_2():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+@I.ir_module
+class ExpectedNMSFiveBoxes:
+    @R.function
+    def main(
+        boxes: R.Tensor((1, 5, 4), dtype="float32"),
+        scores: R.Tensor((1, 2, 5), dtype="float32"),
+        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
+        iou_threshold: R.Tensor((1,), dtype="float32"),
+        score_threshold: R.Tensor((1,), dtype="float32"),
+    ):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv = R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(3, "int64"),
+                R.const(0.5, "float32"),
+                R.const(0.10000000149011612, "float32"),
+                "onnx",
+            )
+            lv1 = lv[0]
+            gv = lv1
+            R.output(gv)
+        return gv
+
+
+@I.ir_module
+class ExpectedNMSFourBoxesDefaultParams:
+    @R.function
+    def main(
+        boxes: R.Tensor((1, 4, 4), dtype="float32"),
+        scores: R.Tensor((1, 1, 4), dtype="float32"),
+    ):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv = R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(0, "int64"),
+                R.const(0.5, "float32"),
+                R.const(0.0, "float32"),
+                "onnx",
+            )
+            lv1 = lv[0]
+            gv = lv1
+            R.output(gv)
+        return gv
+
+
+@I.ir_module
+class ExpectedNMSFourBoxesWithMaxParam:
+    @R.function
+    def main(
+        boxes: R.Tensor((1, 4, 4), dtype="float32"),
+        scores: R.Tensor((1, 1, 4), dtype="float32"),
+        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
+    ):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv = R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(0, "int64"),
+                R.const(0.5, "float32"),
+                R.const(0.0, "float32"),
+                "onnx",
+            )
+            lv1 = lv[0]
+            gv = lv1
+            R.output(gv)
+        return gv
+
+
+@I.ir_module
+class ExpectedNMSFourBoxes:
+    @R.function
+    def main(
+        boxes: R.Tensor((1, 4, 4), dtype="float32"),
+        scores: R.Tensor((1, 1, 4), dtype="float32"),
+        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
+        iou_threshold: R.Tensor((1,), dtype="float32"),
+        score_threshold: R.Tensor((1,), dtype="float32"),
+    ):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv = R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(2, "int64"),
+                R.const(0.10000000149011612, "float32"),
+                R.const(0.10000000149011612, "float32"),
+                "onnx",
+            )
+            lv1 = lv[0]
+            gv = lv1
+            R.output(gv)
+        return gv
+
+
+@I.ir_module
+class ExpectedNMSThreeBoxesTwoClasses:
+    @R.function
+    def main(
+        boxes: R.Tensor((1, 3, 4), dtype="float32"),
+        scores: R.Tensor((1, 2, 3), dtype="float32"),
+        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
+        iou_threshold: R.Tensor((1,), dtype="float32"),
+        score_threshold: R.Tensor((1,), dtype="float32"),
+    ):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv = R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(2, "int64"),
+                R.const(0.5, "float32"),
+                R.const(0.10000000149011612, "float32"),
+                "onnx",
+            )
+            lv1 = lv[0]
+            gv = lv1
+            R.output(gv)
+        return gv
+
+
+@I.ir_module
+class ExpectedNMSThreeBoxesOneClass:
+    @R.function
+    def main(
+        boxes: R.Tensor((1, 3, 4), dtype="float32"),
+        scores: R.Tensor((1, 1, 3), dtype="float32"),
+        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
+        iou_threshold: R.Tensor((1,), dtype="float32"),
+        score_threshold: R.Tensor((1,), dtype="float32"),
+    ):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv = R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(2, "int64"),
+                R.const(0.5, "float32"),
+                R.const(0.10000000149011612, "float32"),
+                "onnx",
+            )
+            lv1 = lv[0]
+            gv = lv1
+            R.output(gv)
+        return gv
+
+
+@I.ir_module
+class ExpectedNMSThreeBoxesOneClassScoreThreshold:
+    @R.function
+    def main(
+        boxes: R.Tensor((1, 3, 4), dtype="float32"),
+        scores: R.Tensor((1, 1, 3), dtype="float32"),
+        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
+        iou_threshold: R.Tensor((1,), dtype="float32"),
+        score_threshold: R.Tensor((1,), dtype="float32"),
+    ):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            lv = R.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                R.const(3, "int64"),
+                R.const(0.10000000149011612, "float32"),
+                R.const(0.05000000074505806, "float32"),
+                "onnx",
+            )
+            lv1 = lv[0]
+            gv = lv1
+            R.output(gv)
+        return gv
+
+
 def _assert_nms_import(
     model,
     boxes_shape,
     scores_shape,
+    expected,
     center_point_box=0,
     nms_params=None,
 ):
     assert center_point_box == 0
-
-    def param_value(name, default, dtype):
-        for param_name, _, _, value in nms_params or []:
-            if param_name == name:
-                default = value
-                break
-        if dtype == "float32":
-            return np.float32(default).item()
-        return int(default)
-
-    max_output_boxes_value = param_value("max_output_boxes_per_class", 0, "int64")
-    iou_threshold_value = param_value("iou_threshold", 0.5, "float32")
-    score_threshold_value = param_value("score_threshold", 0.0, "float32")
     nms_params = nms_params or []
 
     tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
     if nms_params:
         assert len(tvm_model["main"].attrs["params"]) == len(nms_params)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-
-    if boxes_shape == [1, 5, 4] and scores_shape == [1, 2, 5]:
-
-        @I.ir_module
-        class ExpectedNMSFiveBoxes:
-            @R.function
-            def main(
-                boxes: R.Tensor((1, 5, 4), dtype="float32"),
-                scores: R.Tensor((1, 2, 5), dtype="float32"),
-                max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-                iou_threshold: R.Tensor((1,), dtype="float32"),
-                score_threshold: R.Tensor((1,), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.vision.all_class_non_max_suppression(
-                        boxes,
-                        scores,
-                        R.const(max_output_boxes_value, "int64"),
-                        R.const(iou_threshold_value, "float32"),
-                        R.const(score_threshold_value, "float32"),
-                        "onnx",
-                    )
-                    lv1 = lv[0]
-                    gv = lv1
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedNMSFiveBoxes
-
-    elif boxes_shape == [1, 4, 4] and scores_shape == [1, 1, 4] and len(nms_params) == 0:
-
-        @I.ir_module
-        class ExpectedNMSFourBoxesDefaultParams:
-            @R.function
-            def main(
-                boxes: R.Tensor((1, 4, 4), dtype="float32"),
-                scores: R.Tensor((1, 1, 4), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.vision.all_class_non_max_suppression(
-                        boxes,
-                        scores,
-                        R.const(max_output_boxes_value, "int64"),
-                        R.const(iou_threshold_value, "float32"),
-                        R.const(score_threshold_value, "float32"),
-                        "onnx",
-                    )
-                    lv1 = lv[0]
-                    gv = lv1
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedNMSFourBoxesDefaultParams
-
-    elif boxes_shape == [1, 4, 4] and scores_shape == [1, 1, 4] and len(nms_params) == 1:
-
-        @I.ir_module
-        class ExpectedNMSFourBoxesWithMaxParam:
-            @R.function
-            def main(
-                boxes: R.Tensor((1, 4, 4), dtype="float32"),
-                scores: R.Tensor((1, 1, 4), dtype="float32"),
-                max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.vision.all_class_non_max_suppression(
-                        boxes,
-                        scores,
-                        R.const(max_output_boxes_value, "int64"),
-                        R.const(iou_threshold_value, "float32"),
-                        R.const(score_threshold_value, "float32"),
-                        "onnx",
-                    )
-                    lv1 = lv[0]
-                    gv = lv1
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedNMSFourBoxesWithMaxParam
-
-    elif boxes_shape == [1, 4, 4] and scores_shape == [1, 1, 4]:
-
-        @I.ir_module
-        class ExpectedNMSFourBoxes:
-            @R.function
-            def main(
-                boxes: R.Tensor((1, 4, 4), dtype="float32"),
-                scores: R.Tensor((1, 1, 4), dtype="float32"),
-                max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-                iou_threshold: R.Tensor((1,), dtype="float32"),
-                score_threshold: R.Tensor((1,), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.vision.all_class_non_max_suppression(
-                        boxes,
-                        scores,
-                        R.const(max_output_boxes_value, "int64"),
-                        R.const(iou_threshold_value, "float32"),
-                        R.const(score_threshold_value, "float32"),
-                        "onnx",
-                    )
-                    lv1 = lv[0]
-                    gv = lv1
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedNMSFourBoxes
-
-    elif boxes_shape == [1, 3, 4] and scores_shape == [1, 2, 3]:
-
-        @I.ir_module
-        class ExpectedNMSThreeBoxesTwoClasses:
-            @R.function
-            def main(
-                boxes: R.Tensor((1, 3, 4), dtype="float32"),
-                scores: R.Tensor((1, 2, 3), dtype="float32"),
-                max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-                iou_threshold: R.Tensor((1,), dtype="float32"),
-                score_threshold: R.Tensor((1,), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.vision.all_class_non_max_suppression(
-                        boxes,
-                        scores,
-                        R.const(max_output_boxes_value, "int64"),
-                        R.const(iou_threshold_value, "float32"),
-                        R.const(score_threshold_value, "float32"),
-                        "onnx",
-                    )
-                    lv1 = lv[0]
-                    gv = lv1
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedNMSThreeBoxesTwoClasses
-
-    elif boxes_shape == [1, 3, 4] and scores_shape == [1, 1, 3]:
-
-        @I.ir_module
-        class ExpectedNMSThreeBoxesOneClass:
-            @R.function
-            def main(
-                boxes: R.Tensor((1, 3, 4), dtype="float32"),
-                scores: R.Tensor((1, 1, 3), dtype="float32"),
-                max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-                iou_threshold: R.Tensor((1,), dtype="float32"),
-                score_threshold: R.Tensor((1,), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.vision.all_class_non_max_suppression(
-                        boxes,
-                        scores,
-                        R.const(max_output_boxes_value, "int64"),
-                        R.const(iou_threshold_value, "float32"),
-                        R.const(score_threshold_value, "float32"),
-                        "onnx",
-                    )
-                    lv1 = lv[0]
-                    gv = lv1
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedNMSThreeBoxesOneClass
-
-    else:
-        raise AssertionError(
-            f"Unexpected NMS structural case: boxes={boxes_shape}, scores={scores_shape}, "
-            f"params={nms_params}"
-        )
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -18932,6 +16868,7 @@ def test_nms():
         model,
         boxes_shape,
         scores_shape,
+        ExpectedNMSFiveBoxes,
         nms_params=[
             ("max_output_boxes_per_class", [1], "int64", 3),
             ("iou_threshold", [1], "float32", 0.5),
@@ -18966,49 +16903,54 @@ def test_nms_scalar_shape1_constants():
     from_onnx(model)
 
 
-@pytest.mark.parametrize("with_explicit_max", [False, True])
-def test_nms_max_output_boxes_per_class_zero(with_explicit_max: bool):
+def test_nms_max_output_boxes_per_class_zero():
     """ONNX default for max_output_boxes_per_class should import as 0."""
-    node_inputs = ["boxes", "scores"]
-    initializer = []
-    nms_params = None
-    if with_explicit_max:
-        node_inputs.append("max_output_boxes_per_class")
-        initializer.append(
-            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [0])
+
+    def verify(with_explicit_max, expected):
+        node_inputs = ["boxes", "scores"]
+        initializer = []
+        nms_params = None
+        if with_explicit_max:
+            node_inputs.append("max_output_boxes_per_class")
+            initializer.append(
+                helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [0])
+            )
+            nms_params = [("max_output_boxes_per_class", [1], "int64", 0)]
+
+        nms_node = helper.make_node(
+            "NonMaxSuppression",
+            node_inputs,
+            ["selected_indices"],
+            center_point_box=0,
         )
-        nms_params = [("max_output_boxes_per_class", [1], "int64", 0)]
 
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        node_inputs,
-        ["selected_indices"],
-        center_point_box=0,
-    )
+        boxes_shape = [1, 4, 4]
+        scores_shape = [1, 1, 4]
+        graph = helper.make_graph(
+            [nms_node],
+            "nms_max_output_boxes_per_class_zero",
+            inputs=[
+                helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
+                helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
+            ],
+            initializer=initializer,
+            outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
+        )
 
-    boxes_shape = [1, 4, 4]
-    scores_shape = [1, 1, 4]
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_max_output_boxes_per_class_zero",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=initializer,
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
-    )
+        model = helper.make_model(graph, producer_name="nms_max_output_boxes_per_class_zero")
+        model.ir_version = 8
+        model.opset_import[0].version = 11
 
-    model = helper.make_model(graph, producer_name="nms_max_output_boxes_per_class_zero")
-    model.ir_version = 8
-    model.opset_import[0].version = 11
+        _assert_nms_import(
+            model,
+            boxes_shape,
+            scores_shape,
+            expected,
+            nms_params=nms_params,
+        )
 
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        nms_params=nms_params,
-    )
+    verify(False, ExpectedNMSFourBoxesDefaultParams)
+    verify(True, ExpectedNMSFourBoxesWithMaxParam)
 
 
 def test_nms_algorithm_correctness():
@@ -19048,6 +16990,7 @@ def test_nms_algorithm_correctness():
         model,
         boxes_shape,
         scores_shape,
+        ExpectedNMSThreeBoxesTwoClasses,
         nms_params=[
             ("max_output_boxes_per_class", [1], "int64", 2),
             ("iou_threshold", [1], "float32", 0.5),
@@ -19091,6 +17034,7 @@ def test_nms_iou_suppression():
         model,
         boxes_shape,
         scores_shape,
+        ExpectedNMSThreeBoxesOneClass,
         nms_params=[
             ("max_output_boxes_per_class", [1], "int64", 2),
             ("iou_threshold", [1], "float32", 0.5),
@@ -19136,6 +17080,7 @@ def test_nms_max_boxes_limit():
         model,
         boxes_shape,
         scores_shape,
+        ExpectedNMSFourBoxes,
         nms_params=[
             ("max_output_boxes_per_class", [1], "int64", 2),
             ("iou_threshold", [1], "float32", 0.1),
@@ -19179,6 +17124,7 @@ def test_nms_score_threshold():
         model,
         boxes_shape,
         scores_shape,
+        ExpectedNMSThreeBoxesOneClassScoreThreshold,
         nms_params=[
             ("max_output_boxes_per_class", [1], "int64", 3),
             ("iou_threshold", [1], "float32", 0.1),
@@ -20062,326 +18008,250 @@ def _make_matmulinteger_model(A_shape, B_shape, A_dtype, B_dtype, a_zp_array=Non
     return model
 
 
-def _make_matmulinteger_expected(
-    A_shape,
-    B_shape,
-    A_dtype,
-    B_dtype,
-    a_zp_shape=None,
-    b_zp_shape=None,
-):
-    """Build expected Relax IR for MatMulInteger frontend lowering."""
-
-    A_dtype = np.dtype(A_dtype).name
-    B_dtype = np.dtype(B_dtype).name
-
-    if A_shape == [4, 8] and B_shape == [8, 6] and a_zp_shape is None:
-        if A_dtype == "int8" and B_dtype == "int8":
-
-            @I.ir_module
-            class ExpectedInt8:
-                @R.function
-                def main(
-                    A: R.Tensor((4, 8), dtype="int8"),
-                    B: R.Tensor((8, 6), dtype="int8"),
-                ):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv = R.astype(A, dtype="int32")
-                        lv1 = R.astype(B, dtype="int32")
-                        gv = R.matmul(lv, lv1, out_dtype="int32")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedInt8
-
-        if A_dtype == "uint8" and B_dtype == "uint8":
-
-            @I.ir_module
-            class ExpectedUInt8:
-                @R.function
-                def main(
-                    A: R.Tensor((4, 8), dtype="uint8"),
-                    B: R.Tensor((8, 6), dtype="uint8"),
-                ):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv = R.astype(A, dtype="int32")
-                        lv1 = R.astype(B, dtype="int32")
-                        gv = R.matmul(lv, lv1, out_dtype="int32")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedUInt8
-
-        if A_dtype == "uint8" and B_dtype == "int8":
-
-            @I.ir_module
-            class ExpectedUInt8Int8:
-                @R.function
-                def main(
-                    A: R.Tensor((4, 8), dtype="uint8"),
-                    B: R.Tensor((8, 6), dtype="int8"),
-                ):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv = R.astype(A, dtype="int32")
-                        lv1 = R.astype(B, dtype="int32")
-                        gv = R.matmul(lv, lv1, out_dtype="int32")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedUInt8Int8
-
-        if A_dtype == "int8" and B_dtype == "uint8":
-
-            @I.ir_module
-            class ExpectedInt8UInt8:
-                @R.function
-                def main(
-                    A: R.Tensor((4, 8), dtype="int8"),
-                    B: R.Tensor((8, 6), dtype="uint8"),
-                ):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv = R.astype(A, dtype="int32")
-                        lv1 = R.astype(B, dtype="int32")
-                        gv = R.matmul(lv, lv1, out_dtype="int32")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedInt8UInt8
-
-    if A_shape == [4, 8] and B_shape == [8, 6] and a_zp_shape == []:
-        if A_dtype == "uint8" and B_dtype == "uint8":
-
-            @I.ir_module
-            class ExpectedUInt8ScalarZeroPoints:
-                @R.function
-                def main(
-                    A: R.Tensor((4, 8), dtype="uint8"),
-                    B: R.Tensor((8, 6), dtype="uint8"),
-                    a_zero_point: R.Tensor((), dtype="uint8"),
-                    b_zero_point: R.Tensor((), dtype="uint8"),
-                ):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv = R.astype(A, dtype="int32")
-                        lv1 = R.astype(a_zero_point, dtype="int32")
-                        lv2 = R.subtract(lv, lv1)
-                        lv3 = R.astype(B, dtype="int32")
-                        lv4 = R.astype(b_zero_point, dtype="int32")
-                        lv5 = R.subtract(lv3, lv4)
-                        gv = R.matmul(lv2, lv5, out_dtype="int32")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedUInt8ScalarZeroPoints
-
-        if A_dtype == "int8" and B_dtype == "int8":
-
-            @I.ir_module
-            class ExpectedInt8ScalarZeroPoints:
-                @R.function
-                def main(
-                    A: R.Tensor((4, 8), dtype="int8"),
-                    B: R.Tensor((8, 6), dtype="int8"),
-                    a_zero_point: R.Tensor((), dtype="int8"),
-                    b_zero_point: R.Tensor((), dtype="int8"),
-                ):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv = R.astype(A, dtype="int32")
-                        lv1 = R.astype(a_zero_point, dtype="int32")
-                        lv2 = R.subtract(lv, lv1)
-                        lv3 = R.astype(B, dtype="int32")
-                        lv4 = R.astype(b_zero_point, dtype="int32")
-                        lv5 = R.subtract(lv3, lv4)
-                        gv = R.matmul(lv2, lv5, out_dtype="int32")
-                        R.output(gv)
-                    return gv
-
-            return ExpectedInt8ScalarZeroPoints
-
-    if A_shape == [2, 4, 8] and B_shape == [2, 8, 6]:
-
-        @I.ir_module
-        class ExpectedBatched3D:
-            @R.function
-            def main(
-                A: R.Tensor((2, 4, 8), dtype="int8"),
-                B: R.Tensor((2, 8, 6), dtype="int8"),
-                a_zero_point: R.Tensor((), dtype="int8"),
-                b_zero_point: R.Tensor((), dtype="int8"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.astype(A, dtype="int32")
-                    lv1 = R.astype(a_zero_point, dtype="int32")
-                    lv2 = R.subtract(lv, lv1)
-                    lv3 = R.astype(B, dtype="int32")
-                    lv4 = R.astype(b_zero_point, dtype="int32")
-                    lv5 = R.subtract(lv3, lv4)
-                    gv = R.matmul(lv2, lv5, out_dtype="int32")
-                    R.output(gv)
-                return gv
-
-        return ExpectedBatched3D
-
-    if A_shape == [2, 3, 4, 8] and B_shape == [2, 3, 8, 6]:
-
-        @I.ir_module
-        class ExpectedBatched4D:
-            @R.function
-            def main(
-                A: R.Tensor((2, 3, 4, 8), dtype="int8"),
-                B: R.Tensor((2, 3, 8, 6), dtype="int8"),
-                a_zero_point: R.Tensor((), dtype="int8"),
-                b_zero_point: R.Tensor((), dtype="int8"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.astype(A, dtype="int32")
-                    lv1 = R.astype(a_zero_point, dtype="int32")
-                    lv2 = R.subtract(lv, lv1)
-                    lv3 = R.astype(B, dtype="int32")
-                    lv4 = R.astype(b_zero_point, dtype="int32")
-                    lv5 = R.subtract(lv3, lv4)
-                    gv = R.matmul(lv2, lv5, out_dtype="int32")
-                    R.output(gv)
-                return gv
-
-        return ExpectedBatched4D
-
-    if A_shape == [4, 8] and B_shape == [8, 6] and a_zp_shape == [4]:
-
-        @I.ir_module
-        class ExpectedPerChannelZeroPoints:
-            @R.function
-            def main(
-                A: R.Tensor((4, 8), dtype="int8"),
-                B: R.Tensor((8, 6), dtype="int8"),
-                a_zero_point: R.Tensor((4,), dtype="int8"),
-                b_zero_point: R.Tensor((6,), dtype="int8"),
-            ):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv = R.astype(A, dtype="int32")
-                    lv1 = R.astype(a_zero_point, dtype="int32")
-                    lv2 = R.expand_dims(lv1, axis=-1)
-                    lv3 = R.subtract(lv, lv2)
-                    lv4 = R.astype(B, dtype="int32")
-                    lv5 = R.astype(b_zero_point, dtype="int32")
-                    lv6 = R.expand_dims(lv5, axis=0)
-                    lv7 = R.subtract(lv4, lv6)
-                    gv = R.matmul(lv3, lv7, out_dtype="int32")
-                    R.output(gv)
-                return gv
-
-        return ExpectedPerChannelZeroPoints
-
-    raise AssertionError(
-        "Unexpected MatMulInteger structural case: "
-        f"A_shape={A_shape}, B_shape={B_shape}, A_dtype={A_dtype}, B_dtype={B_dtype}, "
-        f"a_zp_shape={a_zp_shape}, b_zp_shape={b_zp_shape}"
-    )
-
-
-@pytest.mark.parametrize(
-    "A_dtype,B_dtype,a_zp,b_zp",
-    [
-        (np.int8, np.int8, None, None),
-        (np.uint8, np.uint8, None, None),
-        (np.uint8, np.int8, None, None),
-        (np.int8, np.uint8, None, None),
-        (np.uint8, np.uint8, np.uint8(128), np.uint8(128)),
-        (np.int8, np.int8, np.int8(1), np.int8(2)),
-    ],
-)
-def test_matmulinteger(A_dtype, B_dtype, a_zp, b_zp):
-    """2-D MatMulInteger should import dtype casts and zero-point subtraction."""
+def verify_matmulinteger_ir(A_shape, B_shape, A_dtype, B_dtype, expected, a_zp=None, b_zp=None):
     model = _make_matmulinteger_model(
-        [4, 8],
-        [8, 6],
+        A_shape,
+        B_shape,
         A_dtype,
         B_dtype,
         a_zp_array=np.array(a_zp, dtype=A_dtype) if a_zp is not None else None,
         b_zp_array=np.array(b_zp, dtype=B_dtype) if b_zp is not None else None,
     )
     tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
-    if a_zp is not None:
+    if a_zp is not None or b_zp is not None:
         assert len(tvm_model["main"].attrs["params"]) == 2
         tvm_model["main"] = tvm_model["main"].without_attr("params")
+    tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    tvm.ir.assert_structural_equal(
-        tvm_model,
-        _make_matmulinteger_expected(
-            [4, 8],
-            [8, 6],
-            A_dtype,
-            B_dtype,
-            a_zp_shape=[] if a_zp is not None else None,
-            b_zp_shape=[] if b_zp is not None else None,
-        ),
+
+def test_matmulinteger():
+    """2-D MatMulInteger should import dtype casts and zero-point subtraction."""
+
+    @I.ir_module
+    class ExpectedInt8:
+        @R.function
+        def main(
+            A: R.Tensor((4, 8), dtype="int8"),
+            B: R.Tensor((8, 6), dtype="int8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(B, dtype="int32")
+                gv = R.matmul(lv, lv1, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedUInt8:
+        @R.function
+        def main(
+            A: R.Tensor((4, 8), dtype="uint8"),
+            B: R.Tensor((8, 6), dtype="uint8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(B, dtype="int32")
+                gv = R.matmul(lv, lv1, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedUInt8Int8:
+        @R.function
+        def main(
+            A: R.Tensor((4, 8), dtype="uint8"),
+            B: R.Tensor((8, 6), dtype="int8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(B, dtype="int32")
+                gv = R.matmul(lv, lv1, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedInt8UInt8:
+        @R.function
+        def main(
+            A: R.Tensor((4, 8), dtype="int8"),
+            B: R.Tensor((8, 6), dtype="uint8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(B, dtype="int32")
+                gv = R.matmul(lv, lv1, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedUInt8ScalarZeroPoints:
+        @R.function
+        def main(
+            A: R.Tensor((4, 8), dtype="uint8"),
+            B: R.Tensor((8, 6), dtype="uint8"),
+            a_zero_point: R.Tensor((), dtype="uint8"),
+            b_zero_point: R.Tensor((), dtype="uint8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(a_zero_point, dtype="int32")
+                lv2 = R.subtract(lv, lv1)
+                lv3 = R.astype(B, dtype="int32")
+                lv4 = R.astype(b_zero_point, dtype="int32")
+                lv5 = R.subtract(lv3, lv4)
+                gv = R.matmul(lv2, lv5, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedInt8ScalarZeroPoints:
+        @R.function
+        def main(
+            A: R.Tensor((4, 8), dtype="int8"),
+            B: R.Tensor((8, 6), dtype="int8"),
+            a_zero_point: R.Tensor((), dtype="int8"),
+            b_zero_point: R.Tensor((), dtype="int8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(a_zero_point, dtype="int32")
+                lv2 = R.subtract(lv, lv1)
+                lv3 = R.astype(B, dtype="int32")
+                lv4 = R.astype(b_zero_point, dtype="int32")
+                lv5 = R.subtract(lv3, lv4)
+                gv = R.matmul(lv2, lv5, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    verify_matmulinteger_ir([4, 8], [8, 6], np.int8, np.int8, ExpectedInt8)
+    verify_matmulinteger_ir([4, 8], [8, 6], np.uint8, np.uint8, ExpectedUInt8)
+    verify_matmulinteger_ir([4, 8], [8, 6], np.uint8, np.int8, ExpectedUInt8Int8)
+    verify_matmulinteger_ir([4, 8], [8, 6], np.int8, np.uint8, ExpectedInt8UInt8)
+    verify_matmulinteger_ir(
+        [4, 8],
+        [8, 6],
+        np.uint8,
+        np.uint8,
+        ExpectedUInt8ScalarZeroPoints,
+        a_zp=np.uint8(128),
+        b_zp=np.uint8(128),
+    )
+    verify_matmulinteger_ir(
+        [4, 8],
+        [8, 6],
+        np.int8,
+        np.int8,
+        ExpectedInt8ScalarZeroPoints,
+        a_zp=np.int8(1),
+        b_zp=np.int8(2),
     )
 
 
-@pytest.mark.parametrize(
-    "A_shape,B_shape,a_zp,b_zp",
-    [
-        ((2, 4, 8), (2, 8, 6), np.int8(1), np.int8(2)),  # 3-D batched
-        ((2, 3, 4, 8), (2, 3, 8, 6), np.int8(1), np.int8(2)),  # 4-D batched
-    ],
-)
-def test_matmulinteger_batched(A_shape, B_shape, a_zp, b_zp):
+def test_matmulinteger_batched():
     """Batched MatMulInteger should import as batched Relax matmul."""
-    model = _make_matmulinteger_model(
-        list(A_shape),
-        list(B_shape),
-        np.int8,
-        np.int8,
-        a_zp_array=np.array(a_zp, dtype=np.int8),
-        b_zp_array=np.array(b_zp, dtype=np.int8),
-    )
-    tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
-    assert len(tvm_model["main"].attrs["params"]) == 2
-    tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    tvm.ir.assert_structural_equal(
-        tvm_model,
-        _make_matmulinteger_expected(
-            list(A_shape),
-            list(B_shape),
-            np.int8,
-            np.int8,
-            a_zp_shape=[],
-            b_zp_shape=[],
-        ),
+    @I.ir_module
+    class ExpectedBatched3D:
+        @R.function
+        def main(
+            A: R.Tensor((2, 4, 8), dtype="int8"),
+            B: R.Tensor((2, 8, 6), dtype="int8"),
+            a_zero_point: R.Tensor((), dtype="int8"),
+            b_zero_point: R.Tensor((), dtype="int8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(a_zero_point, dtype="int32")
+                lv2 = R.subtract(lv, lv1)
+                lv3 = R.astype(B, dtype="int32")
+                lv4 = R.astype(b_zero_point, dtype="int32")
+                lv5 = R.subtract(lv3, lv4)
+                gv = R.matmul(lv2, lv5, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedBatched4D:
+        @R.function
+        def main(
+            A: R.Tensor((2, 3, 4, 8), dtype="int8"),
+            B: R.Tensor((2, 3, 8, 6), dtype="int8"),
+            a_zero_point: R.Tensor((), dtype="int8"),
+            b_zero_point: R.Tensor((), dtype="int8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(a_zero_point, dtype="int32")
+                lv2 = R.subtract(lv, lv1)
+                lv3 = R.astype(B, dtype="int32")
+                lv4 = R.astype(b_zero_point, dtype="int32")
+                lv5 = R.subtract(lv3, lv4)
+                gv = R.matmul(lv2, lv5, out_dtype="int32")
+                R.output(gv)
+            return gv
+
+    verify_matmulinteger_ir(
+        [2, 4, 8],
+        [2, 8, 6],
+        np.int8,
+        np.int8,
+        ExpectedBatched3D,
+        a_zp=np.int8(1),
+        b_zp=np.int8(2),
+    )
+    verify_matmulinteger_ir(
+        [2, 3, 4, 8],
+        [2, 3, 8, 6],
+        np.int8,
+        np.int8,
+        ExpectedBatched4D,
+        a_zp=np.int8(1),
+        b_zp=np.int8(2),
     )
 
 
 def test_matmulinteger_per_channel_zp():
     """1-D zero points should expand for per-row/per-column MatMulInteger."""
-    a_zp = np.arange(4, dtype=np.int8)  # shape [M=4], per-row
-    b_zp = np.arange(6, dtype=np.int8)  # shape [N=6], per-col
 
-    model = _make_matmulinteger_model(
-        [4, 8], [8, 6], np.int8, np.int8, a_zp_array=a_zp, b_zp_array=b_zp
-    )
-    tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
-    assert len(tvm_model["main"].attrs["params"]) == 2
-    tvm_model["main"] = tvm_model["main"].without_attr("params")
+    @I.ir_module
+    class ExpectedPerChannelZeroPoints:
+        @R.function
+        def main(
+            A: R.Tensor((4, 8), dtype="int8"),
+            B: R.Tensor((8, 6), dtype="int8"),
+            a_zero_point: R.Tensor((4,), dtype="int8"),
+            b_zero_point: R.Tensor((6,), dtype="int8"),
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv = R.astype(A, dtype="int32")
+                lv1 = R.astype(a_zero_point, dtype="int32")
+                lv2 = R.expand_dims(lv1, axis=-1)
+                lv3 = R.subtract(lv, lv2)
+                lv4 = R.astype(B, dtype="int32")
+                lv5 = R.astype(b_zero_point, dtype="int32")
+                lv6 = R.expand_dims(lv5, axis=0)
+                lv7 = R.subtract(lv4, lv6)
+                gv = R.matmul(lv3, lv7, out_dtype="int32")
+                R.output(gv)
+            return gv
 
-    tvm.ir.assert_structural_equal(
-        tvm_model,
-        _make_matmulinteger_expected(
-            [4, 8],
-            [8, 6],
-            np.int8,
-            np.int8,
-            a_zp_shape=[4],
-            b_zp_shape=[6],
-        ),
+    verify_matmulinteger_ir(
+        [4, 8],
+        [8, 6],
+        np.int8,
+        np.int8,
+        ExpectedPerChannelZeroPoints,
+        a_zp=np.arange(4, dtype=np.int8),
+        b_zp=np.arange(6, dtype=np.int8),
     )
 
 
@@ -20431,369 +18301,322 @@ def test_max_roi_pool(pooled_shape, rois):
     check_correctness(model, inputs=inputs, opset=16, rtol=1e-5, atol=1e-5)
 
 
-@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
-@pytest.mark.parametrize("axis", [0, 1, 2])
-@pytest.mark.parametrize("keepdims", [True, False])
-def test_arg_min_max_select_last_index(op_name, axis, keepdims):
+def test_arg_min_max_select_last_index():
     """select_last_index=1 should lower to flip + argreduce + index remap."""
-    shape = [3, 4, 5]
 
-    node = helper.make_node(
-        op_name,
-        inputs=["data"],
-        outputs=["out"],
-        axis=axis,
-        keepdims=int(keepdims),
-        select_last_index=1,
-    )
+    def verify_select_last_index(op_name, axis, keepdims, expected):
+        shape = [3, 4, 5]
+        node = helper.make_node(
+            op_name,
+            inputs=["data"],
+            outputs=["out"],
+            axis=axis,
+            keepdims=int(keepdims),
+            select_last_index=1,
+        )
 
-    out_shape = list(shape)
-    if keepdims:
-        out_shape[axis] = 1
-    else:
-        out_shape.pop(axis)
+        out_shape = list(shape)
+        if keepdims:
+            out_shape[axis] = 1
+        else:
+            out_shape.pop(axis)
 
-    graph = helper.make_graph(
-        [node],
-        "arg_select_last_index_test",
-        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, out_shape)],
-    )
-    model = helper.make_model(graph, producer_name="arg_select_last_index_test")
-    tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+        graph = helper.make_graph(
+            [node],
+            "arg_select_last_index_test",
+            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, out_shape)],
+        )
+        model = helper.make_model(graph, producer_name="arg_select_last_index_test")
+        tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if op_name == "ArgMax" and axis == 0 and keepdims:
+    @I.ir_module
+    class ExpectedArgMaxAxis0Keepdims:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((1, 4, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
+                lv1: R.Tensor((1, 4, 5), dtype="int64") = R.argmax(lv, axis=0, keepdims=True)
+                gv: R.Tensor((1, 4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedArgMaxAxis0Keepdims:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((1, 4, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
-                    lv1: R.Tensor((1, 4, 5), dtype="int64") = R.argmax(lv, axis=0, keepdims=True)
-                    gv: R.Tensor((1, 4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedArgMaxAxis0:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((4, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
+                lv1: R.Tensor((4, 5), dtype="int64") = R.argmax(lv, axis=0, keepdims=False)
+                gv: R.Tensor((4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        expected = ExpectedArgMaxAxis0Keepdims
+    @I.ir_module
+    class ExpectedArgMaxAxis1Keepdims:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 1, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
+                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=True)
+                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-    elif op_name == "ArgMax" and axis == 0:
+    @I.ir_module
+    class ExpectedArgMaxAxis1:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
+                lv1: R.Tensor((3, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
+                gv: R.Tensor((3, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedArgMaxAxis0:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((4, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
-                    lv1: R.Tensor((4, 5), dtype="int64") = R.argmax(lv, axis=0, keepdims=False)
-                    gv: R.Tensor((4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedArgMaxAxis2Keepdims:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 4, 1), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
+                lv1: R.Tensor((3, 4, 1), dtype="int64") = R.argmax(lv, axis=2, keepdims=True)
+                gv: R.Tensor((3, 4, 1), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        expected = ExpectedArgMaxAxis0
+    @I.ir_module
+    class ExpectedArgMaxAxis2:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
+                lv1: R.Tensor((3, 4), dtype="int64") = R.argmax(lv, axis=2, keepdims=False)
+                gv: R.Tensor((3, 4), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-    elif op_name == "ArgMax" and axis == 1 and keepdims:
+    @I.ir_module
+    class ExpectedArgMinAxis0Keepdims:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((1, 4, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
+                lv1: R.Tensor((1, 4, 5), dtype="int64") = R.argmin(lv, axis=0, keepdims=True)
+                gv: R.Tensor((1, 4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedArgMaxAxis1Keepdims:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 1, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                    lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=True)
-                    gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedArgMinAxis0:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((4, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
+                lv1: R.Tensor((4, 5), dtype="int64") = R.argmin(lv, axis=0, keepdims=False)
+                gv: R.Tensor((4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        expected = ExpectedArgMaxAxis1Keepdims
+    @I.ir_module
+    class ExpectedArgMinAxis1Keepdims:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 1, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
+                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=True)
+                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-    elif op_name == "ArgMax" and axis == 1:
+    @I.ir_module
+    class ExpectedArgMinAxis1:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
+                lv1: R.Tensor((3, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=False)
+                gv: R.Tensor((3, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedArgMaxAxis1:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                    lv1: R.Tensor((3, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
-                    gv: R.Tensor((3, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedArgMinAxis2Keepdims:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 4, 1), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
+                lv1: R.Tensor((3, 4, 1), dtype="int64") = R.argmin(lv, axis=2, keepdims=True)
+                gv: R.Tensor((3, 4, 1), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        expected = ExpectedArgMaxAxis1
+    @I.ir_module
+    class ExpectedArgMinAxis2:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 4), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
+                lv1: R.Tensor((3, 4), dtype="int64") = R.argmin(lv, axis=2, keepdims=False)
+                gv: R.Tensor((3, 4), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-    elif op_name == "ArgMax" and axis == 2 and keepdims:
-
-        @I.ir_module
-        class ExpectedArgMaxAxis2Keepdims:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 4, 1), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
-                    lv1: R.Tensor((3, 4, 1), dtype="int64") = R.argmax(lv, axis=2, keepdims=True)
-                    gv: R.Tensor((3, 4, 1), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMaxAxis2Keepdims
-
-    elif op_name == "ArgMax":
-
-        @I.ir_module
-        class ExpectedArgMaxAxis2:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 4), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
-                    lv1: R.Tensor((3, 4), dtype="int64") = R.argmax(lv, axis=2, keepdims=False)
-                    gv: R.Tensor((3, 4), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMaxAxis2
-
-    elif axis == 0 and keepdims:
-
-        @I.ir_module
-        class ExpectedArgMinAxis0Keepdims:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((1, 4, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
-                    lv1: R.Tensor((1, 4, 5), dtype="int64") = R.argmin(lv, axis=0, keepdims=True)
-                    gv: R.Tensor((1, 4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMinAxis0Keepdims
-
-    elif axis == 0:
-
-        @I.ir_module
-        class ExpectedArgMinAxis0:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((4, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=0)
-                    lv1: R.Tensor((4, 5), dtype="int64") = R.argmin(lv, axis=0, keepdims=False)
-                    gv: R.Tensor((4, 5), dtype="int64") = R.subtract(R.const(2, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMinAxis0
-
-    elif axis == 1 and keepdims:
-
-        @I.ir_module
-        class ExpectedArgMinAxis1Keepdims:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 1, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                    lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=True)
-                    gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMinAxis1Keepdims
-
-    elif axis == 1:
-
-        @I.ir_module
-        class ExpectedArgMinAxis1:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                    lv1: R.Tensor((3, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=False)
-                    gv: R.Tensor((3, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMinAxis1
-
-    elif axis == 2 and keepdims:
-
-        @I.ir_module
-        class ExpectedArgMinAxis2Keepdims:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 4, 1), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
-                    lv1: R.Tensor((3, 4, 1), dtype="int64") = R.argmin(lv, axis=2, keepdims=True)
-                    gv: R.Tensor((3, 4, 1), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMinAxis2Keepdims
-
-    else:
-
-        @I.ir_module
-        class ExpectedArgMinAxis2:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 4), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=2)
-                    lv1: R.Tensor((3, 4), dtype="int64") = R.argmin(lv, axis=2, keepdims=False)
-                    gv: R.Tensor((3, 4), dtype="int64") = R.subtract(R.const(4, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMinAxis2
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_select_last_index("ArgMax", 0, True, ExpectedArgMaxAxis0Keepdims)
+    verify_select_last_index("ArgMax", 0, False, ExpectedArgMaxAxis0)
+    verify_select_last_index("ArgMax", 1, True, ExpectedArgMaxAxis1Keepdims)
+    verify_select_last_index("ArgMax", 1, False, ExpectedArgMaxAxis1)
+    verify_select_last_index("ArgMax", 2, True, ExpectedArgMaxAxis2Keepdims)
+    verify_select_last_index("ArgMax", 2, False, ExpectedArgMaxAxis2)
+    verify_select_last_index("ArgMin", 0, True, ExpectedArgMinAxis0Keepdims)
+    verify_select_last_index("ArgMin", 0, False, ExpectedArgMinAxis0)
+    verify_select_last_index("ArgMin", 1, True, ExpectedArgMinAxis1Keepdims)
+    verify_select_last_index("ArgMin", 1, False, ExpectedArgMinAxis1)
+    verify_select_last_index("ArgMin", 2, True, ExpectedArgMinAxis2Keepdims)
+    verify_select_last_index("ArgMin", 2, False, ExpectedArgMinAxis2)
 
 
-@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
-def test_arg_min_max_select_last_index_no_tie(op_name):
+def test_arg_min_max_select_last_index_no_tie():
     """select_last_index=0 should keep direct argreduce lowering."""
-    shape = [4, 5]
-    node = helper.make_node(
-        op_name,
-        inputs=["data"],
-        outputs=["out"],
-        axis=1,
-        keepdims=1,
-        select_last_index=0,
-    )
-    graph = helper.make_graph(
-        [node],
-        "arg_no_tie_test",
-        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [4, 1])],
-    )
-    model = helper.make_model(graph, producer_name="arg_no_tie_test")
-    tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
 
-    if op_name == "ArgMax":
+    def verify_no_tie(op_name, expected):
+        shape = [4, 5]
+        node = helper.make_node(
+            op_name,
+            inputs=["data"],
+            outputs=["out"],
+            axis=1,
+            keepdims=1,
+            select_last_index=0,
+        )
+        graph = helper.make_graph(
+            [node],
+            "arg_no_tie_test",
+            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [4, 1])],
+        )
+        model = helper.make_model(graph, producer_name="arg_no_tie_test")
+        tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-        @I.ir_module
-        class ExpectedArgMax:
-            @R.function
-            def main(
-                data: R.Tensor((4, 5), dtype="float32"),
-            ) -> R.Tensor((4, 1), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((4, 1), dtype="int64") = R.argmax(data, axis=1, keepdims=True)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedArgMax:
+        @R.function
+        def main(
+            data: R.Tensor((4, 5), dtype="float32"),
+        ) -> R.Tensor((4, 1), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 1), dtype="int64") = R.argmax(data, axis=1, keepdims=True)
+                R.output(gv)
+            return gv
 
-        expected = ExpectedArgMax
+    @I.ir_module
+    class ExpectedArgMin:
+        @R.function
+        def main(
+            data: R.Tensor((4, 5), dtype="float32"),
+        ) -> R.Tensor((4, 1), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 1), dtype="int64") = R.argmin(data, axis=1, keepdims=True)
+                R.output(gv)
+            return gv
 
-    else:
-
-        @I.ir_module
-        class ExpectedArgMin:
-            @R.function
-            def main(
-                data: R.Tensor((4, 5), dtype="float32"),
-            ) -> R.Tensor((4, 1), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((4, 1), dtype="int64") = R.argmin(data, axis=1, keepdims=True)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedArgMin
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_no_tie("ArgMax", ExpectedArgMax)
+    verify_no_tie("ArgMin", ExpectedArgMin)
 
 
-@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
-def test_arg_min_max_select_last_index_ir(op_name):
+def test_arg_min_max_select_last_index_ir():
     """select_last_index=1 must lower to flip + argmax/argmin + subtract in the Relax IR."""
-    shape = [3, 4, 5]
 
-    node = helper.make_node(
-        op_name,
-        inputs=["data"],
-        outputs=["out"],
-        axis=1,
-        keepdims=1,
-        select_last_index=1,
-    )
-    graph = helper.make_graph(
-        [node],
-        "arg_select_last_index_ir_test",
-        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [3, 1, 5])],
-    )
-    model = helper.make_model(graph, producer_name="arg_select_last_index_ir_test")
-    tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+    def verify_select_last_index_ir(op_name, expected):
+        shape = [3, 4, 5]
+        node = helper.make_node(
+            op_name,
+            inputs=["data"],
+            outputs=["out"],
+            axis=1,
+            keepdims=1,
+            select_last_index=1,
+        )
+        graph = helper.make_graph(
+            [node],
+            "arg_select_last_index_ir_test",
+            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [3, 1, 5])],
+        )
+        model = helper.make_model(graph, producer_name="arg_select_last_index_ir_test")
+        tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if op_name == "ArgMax":
+    @I.ir_module
+    class ExpectedArgMax:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 1, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
+                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=True)
+                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedArgMax:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 1, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                    lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=True)
-                    gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedArgMin:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tensor((3, 1, 5), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
+                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=True)
+                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedArgMax)
-
-    else:
-
-        @I.ir_module
-        class ExpectedArgMin:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tensor((3, 1, 5), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                    lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=True)
-                    gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedArgMin)
+    verify_select_last_index_ir("ArgMax", ExpectedArgMax)
+    verify_select_last_index_ir("ArgMin", ExpectedArgMin)
 
 
 @pytest.mark.parametrize("axis", [0, 1, 2])
