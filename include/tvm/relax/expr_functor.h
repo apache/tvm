@@ -25,7 +25,6 @@
 #ifndef TVM_RELAX_EXPR_FUNCTOR_H_
 #define TVM_RELAX_EXPR_FUNCTOR_H_
 
-#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ir/node_functor.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -96,9 +95,7 @@ class ExprFunctor;
   V(::tvm::tirx::LetNode)                     \
   V(::tvm::tirx::CallNode)                    \
   V(::tvm::tirx::ShuffleNode)                 \
-  V(::tvm::tirx::ReduceNode)                  \
-  V(::tvm::arith::IterSplitExprNode)          \
-  V(::tvm::arith::IterSumExprNode)
+  V(::tvm::tirx::ReduceNode)
 
 #define PY_EXPR_VISITOR_DEFAULT(N, PY_FUNC, DEFAULT_FUNC) \
   {                                                       \
