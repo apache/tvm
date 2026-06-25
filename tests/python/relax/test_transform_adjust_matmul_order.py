@@ -314,28 +314,24 @@ class TestDynamicWithBatchConcrete1LHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([4, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([4, 1, 32]):
             weight: R.Tensor([16, 32]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
+            out: R.Tensor([4, 1, 32]) = R.matmul(x, weight)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, 1, lora_r]) = R.matmul(x, A)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(weight, B)
+            x: R.Tensor([4, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([4, 1, 32]):
+            weight: R.Tensor([4, 1, 16]) = R.matmul(x, A)
+            out: R.Tensor([4, 1, 32]) = R.matmul(weight, B)
             return out
 
 
@@ -351,28 +347,24 @@ class TestDynamicWithBatchConcrete1RHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, 1, lora_r]) = R.matmul(x, A)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(weight, B)
+            x: R.Tensor([64, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([64, 1, 32]):
+            weight: R.Tensor([64, 1, 16]) = R.matmul(x, A)
+            out: R.Tensor([64, 1, 32]) = R.matmul(weight, B)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16]),
-            A: R.Tensor([16, "lora_r"]),
-            B: R.Tensor(["lora_r", 32]),
-        ) -> R.Tensor(["batch_size", 1, 32]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([64, 1, 16]),
+            A: R.Tensor([16, 16]),
+            B: R.Tensor([16, 32]),
+        ) -> R.Tensor([64, 1, 32]):
             weight: R.Tensor([16, 32]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 1, 32]) = R.matmul(x, weight)
+            out: R.Tensor([64, 1, 32]) = R.matmul(x, weight)
             return out
 
 
@@ -426,28 +418,24 @@ class TestDynamicWithBatchConcrete2RHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([4, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([4, 32, 1]):
             weight: R.Tensor([32, 16]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
+            out: R.Tensor([4, 32, 1]) = R.matmul(weight, x)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(4)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, lora_r, 1]) = R.matmul(B, x)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(A, weight)
+            x: R.Tensor([4, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([4, 32, 1]):
+            weight: R.Tensor([4, 16, 1]) = R.matmul(B, x)
+            out: R.Tensor([4, 32, 1]) = R.matmul(A, weight)
             return out
 
 
@@ -463,28 +451,24 @@ class TestDynamicWithBatchConcrete2LHSFirst(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)
-            weight: R.Tensor([batch_size, lora_r, 1]) = R.matmul(B, x)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(A, weight)
+            x: R.Tensor([64, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([64, 32, 1]):
+            weight: R.Tensor([64, 16, 1]) = R.matmul(B, x)
+            out: R.Tensor([64, 32, 1]) = R.matmul(A, weight)
             return out
 
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 16, 1]),
-            A: R.Tensor([32, "lora_r"]),
-            B: R.Tensor(["lora_r", 16]),
-        ) -> R.Tensor(["batch_size", 32, 1]):
-            batch_size = T.int64(64)
-            lora_r = T.int64(16)  # noqa: F841
+            x: R.Tensor([64, 16, 1]),
+            A: R.Tensor([32, 16]),
+            B: R.Tensor([16, 16]),
+        ) -> R.Tensor([64, 32, 1]):
             weight: R.Tensor([32, 16]) = R.matmul(A, B)
-            out: R.Tensor([batch_size, 32, 1]) = R.matmul(weight, x)
+            out: R.Tensor([64, 32, 1]) = R.matmul(weight, x)
             return out
 
 

@@ -30,6 +30,14 @@ def _raw_dtype(dtype):
     return dtype.dtype if isinstance(dtype, PrimType) else dtype
 
 
+def _normalize_shape(shape):
+    if isinstance(shape, tuple | list):
+        return ShapeExpr(shape)
+    if isinstance(shape, PrimExpr):
+        raise TypeError("shape must be a tuple/list or a Relax shape expression")
+    return shape
+
+
 def full(
     shape: tuple[PrimExprLike] | Expr,
     fill_value: Expr,
@@ -54,6 +62,7 @@ def full(
     result : relax.Expr
         The result tensor.
     """
+    shape = _normalize_shape(shape)
     return _ffi_api.full(shape, fill_value, _raw_dtype(dtype))  # type: ignore
 
 
@@ -99,8 +108,7 @@ def ones(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    if isinstance(shape, tuple | list):
-        shape = ShapeExpr(shape)
+    shape = _normalize_shape(shape)
     return _ffi_api.ones(shape, _raw_dtype(dtype))  # type: ignore
 
 
@@ -141,8 +149,7 @@ def zeros(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    if isinstance(shape, tuple | list):
-        shape = ShapeExpr(shape)
+    shape = _normalize_shape(shape)
     return _ffi_api.zeros(shape, _raw_dtype(dtype))  # type: ignore
 
 
