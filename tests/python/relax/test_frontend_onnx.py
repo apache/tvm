@@ -22,6 +22,7 @@ ONNX testcases
 This file is a test script to test Relax ONNX frontend coverage.
 """
 
+import textwrap
 from typing import Literal
 
 import numpy as np
@@ -37,7 +38,7 @@ from onnx import ModelProto, TensorProto, helper, numpy_helper
 
 import tvm
 import tvm.testing
-from tvm import relax, topi
+from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.script import ir as I
 from tvm.script import relax as R
@@ -59,6 +60,33 @@ def _shape_with_size_vars(shape, prefix):
         else:
             result.append(dim)
     return result
+
+
+def _replace_dummy_primfuncs_with_actual(
+    expected: tvm.IRModule, actual: tvm.IRModule
+) -> tvm.IRModule:
+    """Keep TVMScript-written Relax main while reusing TOPI-generated PrimFuncs."""
+    expected = tvm.IRModule(expected.functions)
+    actual_by_name = {gv.name_hint: actual[gv] for gv in actual.get_global_vars()}
+    for gv in expected.get_global_vars():
+        if gv.name_hint != "main":
+            expected.update_func(gv, actual_by_name[gv.name_hint])
+    return expected
+
+
+def _shape_to_tvmscript(shape) -> str:
+    if shape in ([], ()):
+        return "()"
+    return repr(tuple(shape))
+
+
+def _parse_expected_source(
+    source: str, extra_vars: dict[str, object] | None = None
+) -> tvm.IRModule:
+    parser_vars = {"I": I, "R": R, "T": T, "np": np, "tvm": tvm}
+    if extra_vars:
+        parser_vars.update(extra_vars)
+    return tvm.script.from_source(textwrap.dedent(source), extra_vars=parser_vars)
 
 
 def generate_random_inputs(
@@ -370,15 +398,17 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
     }[op_name]
     expected_value = op(lhs, rhs).astype(dtype_str)
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", []):
-        with bb.dataflow():
-            out = bb.emit_output(relax.const(expected_value.item(), dtype_str))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 0)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((), dtype=dtype_str):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((), dtype=dtype_str) = R.const(expected_value.item(), dtype_str)
+                R.output(gv)
+            return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def verify_compare(op_name, shape, attrs={}, domain=None):
@@ -476,17 +506,36 @@ def test_matmulinteger16(a_dtype, b_dtype, a_shape, b_shape):
 
     tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
 
-    a = relax.Var("a", relax.TensorType(a_shape, np.dtype(a_dtype).name))
-    b = relax.Var("b", relax.TensorType(b_shape, np.dtype(b_dtype).name))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [a, b]):
-        with bb.dataflow():
-            cast_a = bb.emit(relax.op.astype(a, np.dtype(out_dtype).name))
-            cast_b = bb.emit(relax.op.astype(b, np.dtype(out_dtype).name))
-            out = bb.emit_output(relax.op.matmul(cast_a, cast_b))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
+    a_dtype_name = np.dtype(a_dtype).name
+    b_dtype_name = np.dtype(b_dtype).name
+    out_dtype_name = np.dtype(out_dtype).name
+    expected = _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                a: R.Tensor({_shape_to_tvmscript(a_shape)}, dtype="{a_dtype_name}"),
+                b: R.Tensor({_shape_to_tvmscript(b_shape)}, dtype="{b_dtype_name}"),
+            ) -> R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="{out_dtype_name}"):
+                R.func_attr({{"num_input": 2}})
+                with R.dataflow():
+                    lv: R.Tensor({_shape_to_tvmscript(a_shape)}, dtype="{out_dtype_name}") = R.astype(
+                        a, dtype="{out_dtype_name}"
+                    )
+                    lv1: R.Tensor({_shape_to_tvmscript(b_shape)}, dtype="{out_dtype_name}") = R.astype(
+                        b, dtype="{out_dtype_name}"
+                    )
+                    gv: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="{out_dtype_name}") = R.matmul(
+                        lv, lv1, out_dtype="void"
+                    )
+                    R.output(gv)
+                return gv
+        """
+    )
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -693,29 +742,47 @@ def test_multi_input_broadcasting(op_name, input_shapes, expected_output_shape):
     model = helper.make_model(graph, producer_name="multi_input_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    inputs = [
-        relax.Var(name, relax.TensorType(shape, "float32"))
-        for name, shape in zip(input_names, input_shapes)
-    ]
-    reduce_ops = {
-        "Min": relax.op.min,
-        "Max": relax.op.max,
-        "Sum": relax.op.sum,
-        "Mean": relax.op.mean,
-    }
+    params = ",\n                ".join(
+        f'i{i}: R.Tensor({_shape_to_tvmscript(shape)}, dtype="float32")'
+        for i, shape in enumerate(input_shapes)
+    )
+    broadcast_lines = "\n".join(
+        f"""
+                    lv{i}: R.Tensor({_shape_to_tvmscript(expected_output_shape)}, dtype="float32") = R.broadcast_to(
+                        i{i}, R.shape({_shape_to_tvmscript(expected_output_shape)})
+                    )
+        """.rstrip()
+        for i in range(num_inputs)
+    )
+    stacked_vars = ", ".join(f"lv{i}" for i in range(num_inputs))
+    reduce_op = {
+        "Min": "R.min",
+        "Max": "R.max",
+        "Sum": "R.sum",
+        "Mean": "R.mean",
+    }[op_name]
+    expected = _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", inputs):
-        with bb.dataflow():
-            broadcasted = [
-                bb.emit(relax.op.broadcast_to(inp, relax.ShapeExpr(expected_output_shape)))
-                for inp in inputs
-            ]
-            stacked = bb.emit(relax.op.stack(broadcasted, axis=0))
-            out = bb.emit_output(reduce_ops[op_name](stacked, axis=0))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", num_inputs)
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                {params},
+            ) -> R.Tensor({_shape_to_tvmscript(expected_output_shape)}, dtype="float32"):
+                R.func_attr({{"num_input": {num_inputs}}})
+                with R.dataflow():
+{broadcast_lines}
+                    lv{num_inputs} = R.stack(({stacked_vars}), axis=0)
+                    gv: R.Tensor({_shape_to_tvmscript(expected_output_shape)}, dtype="float32") = {reduce_op}(
+                        lv{num_inputs}, axis=[0], keepdims=False
+                    )
+                    R.output(gv)
+                return gv
+        """
+    )
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -943,32 +1010,59 @@ def make_legacy_softmax_family_axis_expected(op_name: str, input_shape: list[int
     dim0 = int(np.prod(input_shape[:axis], dtype=np.int64))
     dim1 = int(np.prod(input_shape[axis:], dtype=np.int64))
     flattened_shape = [dim0, dim1]
+    flattened_shape_text = _shape_to_tvmscript(flattened_shape)
 
-    x = relax.Var("x", relax.TensorType(input_shape, "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            flattened = bb.emit(relax.op.reshape(x, flattened_shape))
-            if op_name == "Softmax":
-                out = bb.emit(relax.op.nn.softmax(flattened, axis=-1))
-            elif op_name == "LogSoftmax":
-                out = bb.emit(relax.op.nn.log_softmax(flattened, axis=-1))
-            else:
-                argmax = bb.emit(relax.op.argmax(flattened, axis=1, keepdims=False))
-                out = bb.emit(
-                    relax.op.one_hot(
-                        argmax,
-                        relax.PrimValue(tvm.tirx.const(1.0, "float32")),
-                        relax.PrimValue(tvm.tirx.const(0.0, "float32")),
-                        dim1,
-                        1,
+    if op_name == "Softmax":
+        body = f'lv1: R.Tensor({flattened_shape_text}, dtype="float32") = R.nn.softmax(lv, axis=-1)'
+    elif op_name == "LogSoftmax":
+        body = (
+            f'lv1: R.Tensor({flattened_shape_text}, dtype="float32") = '
+            "R.nn.log_softmax(lv, axis=-1)"
+        )
+    else:
+        body = f"""
+                    lv1: R.Tensor(({dim0},), dtype="int64") = R.argmax(
+                        lv, axis=1, keepdims=False
                     )
-                )
-            reshaped = bb.emit_output(relax.op.reshape(out, input_shape))
-        bb.emit_func_output(reshaped)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-    return expected
+                    lv2: R.Tensor({_shape_to_tvmscript(flattened_shape)}, dtype="float32") = R.one_hot(
+                        lv1,
+                        R.prim_value(T.float32(1.0)),
+                        R.prim_value(T.float32(0.0)),
+                        depth={dim1},
+                        axis=1,
+                    )
+        """.rstrip()
+        result_var = "lv2"
+
+    if op_name in ("Softmax", "LogSoftmax"):
+        result_var = "lv1"
+        body = "                    " + body
+
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+        # from tvm.script import tirx as T
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                x: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32")
+            ) -> R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32"):
+                R.func_attr({{"num_input": 1}})
+                with R.dataflow():
+                    lv: R.Tensor({flattened_shape_text}, dtype="float32") = R.reshape(
+                        x, R.shape({flattened_shape_text})
+                    )
+{body}
+                    gv: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32") = R.reshape(
+                        {result_var}, R.shape({_shape_to_tvmscript(input_shape)})
+                    )
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 def assert_legacy_softmax_family_axis_ir(
@@ -1193,31 +1287,72 @@ def test_cast_nan_inf_to_int8():
 
 
 def make_gather_expected(data_shape, indices_shape, axis, indices_dtype):
-    data = relax.Var("data", relax.TensorType(data_shape, "float32"))
-    indices = relax.Var("indices", relax.TensorType(indices_shape, indices_dtype))
+    normalized_axis = axis if axis >= 0 else axis + len(data_shape)
+    output_shape = data_shape[:normalized_axis] + indices_shape + data_shape[normalized_axis + 1 :]
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data, indices]):
-        with bb.dataflow():
-            data_shape_expr = bb.normalize(relax.op.shape_of(data))
-            data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape_expr))
-            axis_extent = bb.normalize(
-                relax.op.take(data_shape_tensor, relax.const(axis, "int64"), axis=0, mode="wrap")
-            )
-            if indices_dtype != "int64":
-                axis_extent = bb.normalize(relax.op.astype(axis_extent, indices_dtype))
-            normalized_indices = bb.normalize(
-                relax.op.where(
-                    relax.op.less(indices, relax.const(0, indices_dtype)),
-                    relax.op.add(indices, axis_extent),
-                    indices,
-                )
-            )
-            out = bb.emit_output(relax.op.take(data, normalized_indices, axis))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
-    return expected
+    if indices_dtype == "int64":
+        body = f"""
+                    lv: R.Shape({data_shape}) = R.shape_of(data)
+                    lv1: R.Tensor(({len(data_shape)},), dtype="int64") = R.shape_to_tensor(lv)
+                    lv2: R.Tensor({_shape_to_tvmscript(indices_shape)}, dtype="bool") = R.less(
+                        indices, R.const(0, "{indices_dtype}")
+                    )
+                    lv3: R.Tensor((), dtype="{indices_dtype}") = R.take(
+                        lv1, R.const({axis}, "int64"), axis=0, mode="wrap"
+                    )
+                    lv4: R.Tensor({_shape_to_tvmscript(indices_shape)}, dtype="{indices_dtype}") = R.add(
+                        indices, lv3
+                    )
+                    lv5: R.Tensor({_shape_to_tvmscript(indices_shape)}, dtype="{indices_dtype}") = R.where(
+                        lv2, lv4, indices
+                    )
+                    gv: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32") = R.take(
+                        data, lv5, axis={axis}, mode="fast"
+                    )
+        """.rstrip()
+    else:
+        body = f"""
+                    lv: R.Shape({data_shape}) = R.shape_of(data)
+                    lv1: R.Tensor(({len(data_shape)},), dtype="int64") = R.shape_to_tensor(lv)
+                    lv2: R.Tensor((), dtype="int64") = R.take(
+                        lv1, R.const({axis}, "int64"), axis=0, mode="wrap"
+                    )
+                    lv3: R.Tensor({_shape_to_tvmscript(indices_shape)}, dtype="bool") = R.less(
+                        indices, R.const(0, "{indices_dtype}")
+                    )
+                    lv4: R.Tensor((), dtype="{indices_dtype}") = R.astype(
+                        lv2, dtype="{indices_dtype}"
+                    )
+                    lv5: R.Tensor({_shape_to_tvmscript(indices_shape)}, dtype="{indices_dtype}") = R.add(
+                        indices, lv4
+                    )
+                    lv6: R.Tensor({_shape_to_tvmscript(indices_shape)}, dtype="{indices_dtype}") = R.where(
+                        lv3, lv5, indices
+                    )
+                    gv: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32") = R.take(
+                        data, lv6, axis={axis}, mode="fast"
+                    )
+        """.rstrip()
+
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor({_shape_to_tvmscript(data_shape)}, dtype="float32"),
+                indices: R.Tensor({_shape_to_tvmscript(indices_shape)}, dtype="{indices_dtype}"),
+            ) -> R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32"):
+                R.func_attr({{"num_input": 2}})
+                with R.dataflow():
+{body}
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 def test_gather():
@@ -1588,28 +1723,52 @@ def test_scatter_nd(reduction):
 
 
 def make_compress_expected(tensor_shape: list[int], condition_shape: list[int], axis: int | None):
-    num_nonzero = tvm.tirx.Var("num_nonzero", "int64")
-    tensor = relax.Var("tensor", relax.TensorType(tensor_shape, "float32"))
-    condition = relax.Var("condition", relax.TensorType(condition_shape, "bool"))
+    flat_shape = [int(np.prod(tensor_shape))]
+    if axis is None:
+        body = f"""
+                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                    )
+                    lv1: R.Tensor({_shape_to_tvmscript(flat_shape)}, dtype="float32") = R.reshape(
+                        tensor, R.shape({_shape_to_tvmscript(flat_shape)})
+                    )
+                    lv2: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
+                        lv, R.shape([num_nonzero])
+                    )
+                    gv = R.take(lv1, lv2, axis=0, mode="fast")
+        """.rstrip()
+    else:
+        body = f"""
+                    lv: R.Tensor((1, num_nonzero), dtype="int64") = R.match_cast(
+                        R.nonzero(condition), R.Tensor((1, num_nonzero), dtype="int64")
+                    )
+                    lv1: R.Tensor((num_nonzero,), dtype="int64") = R.reshape(
+                        lv, R.shape([num_nonzero])
+                    )
+                    gv = R.take(tensor, lv1, axis={axis}, mode="fast")
+        """.rstrip()
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", [tensor, condition]):
-        with bb.dataflow():
-            nonzero_indices = bb.match_cast(
-                relax.op.nonzero(condition),
-                relax.TensorType([1, num_nonzero], "int64"),
-            )
-            if axis is None:
-                flattened = bb.emit(relax.op.reshape(tensor, [int(np.prod(tensor_shape))]))
-                indices = bb.emit(relax.op.reshape(nonzero_indices, [num_nonzero]))
-                out = bb.emit_output(relax.op.take(flattened, indices, axis=0))
-            else:
-                indices = bb.emit(relax.op.reshape(nonzero_indices, [num_nonzero]))
-                out = bb.emit_output(relax.op.take(tensor, indices, axis=axis))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
-    return expected
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+        # from tvm.script import tirx as T
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                tensor: R.Tensor({_shape_to_tvmscript(tensor_shape)}, dtype="float32"),
+                condition: R.Tensor({_shape_to_tvmscript(condition_shape)}, dtype="bool"),
+            ):
+                num_nonzero = T.int64()
+                R.func_attr({{"num_input": 2}})
+                with R.dataflow():
+{body}
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 @pytest.mark.parametrize("tensor_shape", [[32, 32]])
@@ -1656,16 +1815,17 @@ def test_size():
     model = helper.make_model(graph, producer_name="size_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    data = relax.Var("x", relax.TensorType(input_shape, "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data]):
-        with bb.dataflow():
-            out = bb.emit_output(relax.op.size(data))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((3, 3, 3), dtype="float32")) -> R.Tensor((), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int64") = R.size(x)
+                R.output(gv)
+            return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("k", [-1, 0, 1])
@@ -1680,16 +1840,17 @@ def test_eye_like(k: int):
     model = helper.make_model(graph, producer_name="eye_like_structural_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    x = relax.Var("x", relax.TensorType([32, 32], "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            out = bb.emit_output(relax.op.eye_like(x, k, "float32"))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((32, 32), dtype="float32")) -> R.Tensor((32, 32), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((32, 32), dtype="float32") = R.eye_like(x, k=k, dtype="float32")
+                R.output(gv)
+            return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("alpha", [None, 0.25, 1.0])
@@ -1722,34 +1883,77 @@ def test_gemm(alpha, beta, useC):
     model = helper.make_model(graph, producer_name="gemm_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    a = relax.Var("a", relax.TensorType([4, 3], "float32"))
-    b = relax.Var("b", relax.TensorType([5, 4], "float32"))
-    params = [a, b]
+    scale_a = alpha is not None and alpha != 1.0
+    scale_c = beta is not None and beta != 1.0
+    alpha_value = float(np.float32(1.0 if alpha is None else alpha))
+    beta_value = float(np.float32(1.0 if beta is None else beta))
+    params = [
+        'a: R.Tensor((4, 3), dtype="float32")',
+        'b: R.Tensor((5, 4), dtype="float32")',
+    ]
     if useC:
-        c = relax.Var("c", relax.TensorType([1, 5], "float32"))
-        params.append(c)
-    else:
-        c = None
+        params.append('c: R.Tensor((1, 5), dtype="float32")')
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            gemm_a = a
-            if alpha is not None and alpha != 1.0:
-                gemm_a = bb.emit(relax.op.multiply(gemm_a, relax.const(alpha, "float32")))
-            gemm_a = bb.emit(relax.op.permute_dims(gemm_a, [1, 0]))
-            gemm_b = bb.emit(relax.op.permute_dims(b, [1, 0]))
-            if c is not None:
-                y = bb.emit(relax.op.matmul(gemm_a, gemm_b))
-                gemm_c = c
-                if beta is not None and beta != 1.0:
-                    gemm_c = bb.emit(relax.op.multiply(gemm_c, relax.const(beta, "float32")))
-                gv = bb.emit_output(relax.op.add(y, gemm_c))
-            else:
-                gv = bb.emit_output(relax.op.matmul(gemm_a, gemm_b))
-        bb.emit_func_output(gv)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", len(params))
+    lines = []
+    if scale_a:
+        lines.append(
+            f'lv: R.Tensor((4, 3), dtype="float32") = R.multiply(a, R.const({alpha_value}, "float32"))'
+        )
+        a_input = "lv"
+        next_var = 1
+    else:
+        a_input = "a"
+        next_var = 0
+    lines.append(
+        f'lv{next_var}: R.Tensor((3, 4), dtype="float32") = R.permute_dims({a_input}, axes=[1, 0])'
+    )
+    lhs = f"lv{next_var}"
+    next_var += 1
+    lines.append(
+        f'lv{next_var}: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])'
+    )
+    rhs = f"lv{next_var}"
+    next_var += 1
+    if useC:
+        lines.append(
+            f'lv{next_var}: R.Tensor((3, 5), dtype="float32") = R.matmul({lhs}, {rhs}, out_dtype="void")'
+        )
+        matmul = f"lv{next_var}"
+        next_var += 1
+        if scale_c:
+            lines.append(
+                f'lv{next_var}: R.Tensor((1, 5), dtype="float32") = R.multiply(c, R.const({beta_value}, "float32"))'
+            )
+            c_input = f"lv{next_var}"
+            next_var += 1
+        else:
+            c_input = "c"
+        lines.append(f'gv: R.Tensor((3, 5), dtype="float32") = R.add({matmul}, {c_input})')
+    else:
+        lines.append(
+            f'gv: R.Tensor((3, 5), dtype="float32") = R.matmul({lhs}, {rhs}, out_dtype="void")'
+        )
+
+    body = "\n".join(f"                    {line}" for line in lines)
+    params_text = ",\n                ".join(params)
+    expected = _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                {params_text},
+            ) -> R.Tensor((3, 5), dtype="float32"):
+                R.func_attr({{"num_input": {3 if useC else 2}}})
+                with R.dataflow():
+{body}
+                    R.output(gv)
+                return gv
+        """
+    )
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -1778,16 +1982,24 @@ def test_reshape(in_shape, shape, out_shape):
     tvm_model = from_onnx(model, keep_params_in_input=True)
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    data = relax.Var("data", relax.TensorType(in_shape, "float32"))
-    shape_var = relax.Var("shape", relax.TensorType([len(shape)], "int64"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data, shape_var]):
-        with bb.dataflow():
-            out = bb.emit_output(relax.op.reshape(data, out_shape))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-
+    shape_len = len(shape)
+    expected = _parse_expected_source(
+        """
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                data: R.Tensor(in_shape, dtype="float32"),
+                shape: R.Tensor((shape_len,), dtype="int64"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor(out_shape, dtype="float32") = R.reshape(data, R.shape(out_shape))
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -1970,16 +2182,22 @@ def test_transpose_axes_validation():
         )
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-
-        x = relax.Var("x", relax.TensorType(input_shape, "float32"))
-        bb = relax.BlockBuilder()
-        with bb.function("main", [x]):
-            with bb.dataflow():
-                out = bb.emit_output(relax.op.permute_dims(x, axes=axes))
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 1)
-
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class Expected:
+                @R.function
+                def main(
+                    x: R.Tensor(input_shape, dtype="float32"),
+                ) -> R.Tensor(output_shape, dtype="float32"):
+                    R.func_attr({"num_input": 1})
+                    with R.dataflow():
+                        gv: R.Tensor(output_shape, dtype="float32") = R.permute_dims(x, axes=axes)
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
     # Test 1D tensor with correct perm
@@ -2004,25 +2222,51 @@ def assert_static_unsqueeze_ir(
     if axes_as_param:
         tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    data = relax.Var("a", relax.TensorType(input_shape, "float32"))
-    params = [data]
+    expanded_shapes = []
+    current_shape = list(input_shape)
+    for axis in sorted(axes):
+        current_shape = list(current_shape)
+        current_shape.insert(axis, 1)
+        expanded_shapes.append(list(current_shape))
+    output_shape = expanded_shapes[-1]
+    sorted_axes = sorted(axes)
+    params = [f'a: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32")']
     if axes_as_param:
-        params.append(relax.Var("axes", relax.TensorType([len(axes)], "int64")))
+        axes_len = len(axes)
+        params.append(f'axes_param: R.Tensor(({axes_len},), dtype="int64")')
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            out = data
-            sorted_axes = sorted(axes)
-            for index, axis in enumerate(sorted_axes):
-                expanded = relax.op.expand_dims(out, axis=axis)
-                if index == len(sorted_axes) - 1:
-                    out = bb.emit_output(expanded)
-                else:
-                    out = bb.emit(expanded)
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    params_text = ",\n                ".join(params)
+    input_var = "a"
+    lines = []
+    for i, axis in enumerate(sorted_axes):
+        out_var = "gv" if i == len(sorted_axes) - 1 else f"lv{i}"
+        lines.append(
+            f"""
+                    {out_var}: R.Tensor({_shape_to_tvmscript(expanded_shapes[i])}, dtype="float32") = R.expand_dims(
+                        {input_var}, axis={axis}
+                    )
+            """.rstrip()
+        )
+        input_var = out_var
+    body = "\n".join(lines)
+    expected = _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                {params_text},
+            ) -> R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32"):
+                R.func_attr({{"num_input": 1}})
+                with R.dataflow():
+{body}
+                    R.output(gv)
+                return gv
+        """
+    )
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -2375,52 +2619,76 @@ def test_clip(min, max):
     model.opset_import[0].version = 14
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    data = relax.Var("input", relax.TensorType([32, 64], "float32"))
-    params = [data]
-    if min:
-        min_bound = relax.Var("min", relax.TensorType([], "float32"))
-        params.append(min_bound)
-    elif max:
-        # The existing max-only case passes the bound as the second ONNX input,
-        # which ONNX defines as the min bound.
-        min_bound = relax.Var("max", relax.TensorType([], "float32"))
-        params.append(min_bound)
-    else:
-        min_bound = None
+    primfuncs = []
+    params = ['input: R.Tensor((32, 64), dtype="float32")']
+    lines = []
+    current = "input"
+    next_var = 0
+    if min or max:
+        bound_name = "min" if min else "max"
+        params.append(f'{bound_name}: R.Tensor((), dtype="float32")')
+        primfuncs.append(
+            """
+            @T.prim_func(private=True, s_tir=True)
+            def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+                T.evaluate(0)
+            """.rstrip()
+        )
+        lines.extend(
+            [
+                f'lv{next_var}: R.Tensor((), dtype="bool") = R.isnan({bound_name})',
+                f'lv{next_var + 1}: R.Tensor((), dtype="float32") = R.where(lv{next_var}, R.const(float("-inf"), "float32"), {bound_name})',
+                f'lv{next_var + 2} = R.call_tir(cls.maximum, ({current}, lv{next_var + 1}), out_ty=R.Tensor((32, 64), dtype="float32"))',
+            ]
+        )
+        current = f"lv{next_var + 2}"
+        next_var += 3
+    if min and max:
+        params.append('max: R.Tensor((), dtype="float32")')
+        primfuncs.append(
+            """
+            @T.prim_func(private=True, s_tir=True)
+            def minimum(var_input: T.handle, var_max: T.handle, var_output: T.handle):
+                T.evaluate(0)
+            """.rstrip()
+        )
+        lines.extend(
+            [
+                f'lv{next_var}: R.Tensor((), dtype="bool") = R.isnan(max)',
+                f'lv{next_var + 1}: R.Tensor((), dtype="float32") = R.where(lv{next_var}, R.const(float("inf"), "float32"), max)',
+                f'lv{next_var + 2} = R.call_tir(cls.minimum, ({current}, lv{next_var + 1}), out_ty=R.Tensor((32, 64), dtype="float32"))',
+            ]
+        )
+        current = f"lv{next_var + 2}"
+    lines.append(f'gv: R.Tensor((32, 64), dtype="float32") = {current}')
+    primfuncs_text = "\n\n".join(
+        textwrap.indent(textwrap.dedent(primfunc).strip(), "    ") for primfunc in primfuncs
+    )
+    params_text = ",\n            ".join(params)
+    lines_text = "\n".join(f"            {line}" for line in lines)
+    expected = _parse_expected_source(
+        f"""
+# from tvm.script import ir as I
+# from tvm.script import relax as R
+# from tvm.script import tirx as T
 
-    if max and min:
-        max_bound = relax.Var("max", relax.TensorType([], "float32"))
-        params.append(max_bound)
-    else:
-        max_bound = None
+@I.ir_module
+class Expected:
+{primfuncs_text}
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            out = data
-            if min_bound is not None:
-                lo = bb.emit(
-                    relax.op.where(
-                        relax.op.isnan(min_bound),
-                        relax.const(float("-inf"), "float32"),
-                        min_bound,
-                    )
-                )
-                out = bb.emit_te(topi.maximum, out, lo)
-            if max_bound is not None:
-                hi = bb.emit(
-                    relax.op.where(
-                        relax.op.isnan(max_bound),
-                        relax.const(float("inf"), "float32"),
-                        max_bound,
-                    )
-                )
-                out = bb.emit_te(topi.minimum, out, hi)
-            out = bb.emit_output(out)
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", len(params))
-
+    @R.function
+    def main(
+        {params_text},
+    ) -> R.Tensor((32, 64), dtype="float32"):
+        R.func_attr({{"num_input": {len(params)}}})
+        cls = Expected
+        with R.dataflow():
+{lines_text}
+            R.output(gv)
+        return gv
+"""
+    )
+    expected = _replace_dummy_primfuncs_with_actual(expected, tvm_model)
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -2441,17 +2709,45 @@ def test_clip_v6(max, min):
     )
     tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
 
-    data = relax.Var("input", relax.TensorType([32, 64], "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data]):
-        with bb.dataflow():
-            out = bb.emit_te(topi.maximum, data, min)
-            out = bb.emit_te(topi.minimum, out, max)
-            out = bb.emit_output(out)
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    expected = _parse_expected_source(
+        """
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+        # from tvm.script import tirx as T
 
+        @I.ir_module
+        class Expected:
+            @T.prim_func(private=True, s_tir=True)
+            def maximum(var_input: T.handle, var_output: T.handle):
+                T.evaluate(0)
+
+            @T.prim_func(private=True, s_tir=True)
+            def minimum(var_input: T.handle, var_output: T.handle):
+                T.evaluate(0)
+
+            @R.function
+            def main(input: R.Tensor((32, 64), dtype="float32")) -> R.Tensor(
+                (32, 64), dtype="float32"
+            ):
+                R.func_attr({"num_input": 1})
+                cls = Expected
+                with R.dataflow():
+                    lv = R.call_tir(
+                        cls.maximum,
+                        (input,),
+                        out_ty=R.Tensor((32, 64), dtype="float32"),
+                    )
+                    lv1 = R.call_tir(
+                        cls.minimum,
+                        (lv,),
+                        out_ty=R.Tensor((32, 64), dtype="float32"),
+                    )
+                    gv: R.Tensor((32, 64), dtype="float32") = lv1
+                    R.output(gv)
+                return gv
+        """
+    )
+    expected = _replace_dummy_primfuncs_with_actual(expected, tvm_model)
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -2566,15 +2862,37 @@ def test_trilu(upper: bool):
     model = helper.make_model(graph, producer_name="trilu_structural_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    x = relax.Var("x", relax.TensorType([3, 5, 5], "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            trilu = relax.op.triu if upper else relax.op.tril
-            out = bb.emit_output(trilu(x, 0))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    if upper:
+
+        @I.ir_module
+        class ExpectedTriluUpper:
+            @R.function
+            def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor(
+                (3, 5, 5), dtype="float32"
+            ):
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor((3, 5, 5), dtype="float32") = R.triu(x, 0)
+                    R.output(gv)
+                return gv
+
+        expected = ExpectedTriluUpper
+
+    else:
+
+        @I.ir_module
+        class ExpectedTriluLower:
+            @R.function
+            def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor(
+                (3, 5, 5), dtype="float32"
+            ):
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor((3, 5, 5), dtype="float32") = R.tril(x, 0)
+                    R.output(gv)
+                return gv
+
+        expected = ExpectedTriluLower
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -2600,16 +2918,17 @@ def test_trilu_with_const_k(k_value: int):
     model = helper.make_model(graph, producer_name="trilu_graph")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    x = relax.Var("x", relax.TensorType(input_shape, "float64"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            out = bb.emit_output(relax.op.triu(x, k_value))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 3), dtype="float64")) -> R.Tensor((2, 3, 3), dtype="float64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((2, 3, 3), dtype="float64") = R.triu(x, k_value)
+                R.output(gv)
+            return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_selu():
@@ -2698,8 +3017,6 @@ def test_prelu():
         model = helper.make_model(graph, producer_name="prelu_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
 
-        data = relax.Var("a", relax.TensorType([3, 32, 32], "float32"))
-        slope = relax.Var("b", relax.TensorType(slope_shape, "float32"))
         if all(dim == 1 for dim in slope_shape) or len(slope_shape) == 1:
             slope_axis = len(slope_shape) - 1
             prelu_axis = 2
@@ -2709,15 +3026,29 @@ def test_prelu():
             slope_axis = non_one_axes[0]
             prelu_axis = slope_axis
 
-        bb = relax.BlockBuilder()
-        with bb.function("main", [data, slope]):
-            with bb.dataflow():
-                flattened_slope = bb.emit(relax.op.reshape(slope, [slope_shape[slope_axis]]))
-                out = bb.emit_output(relax.op.nn.prelu(data, flattened_slope, prelu_axis))
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 2)
-
+        flattened_slope_shape = [slope_shape[slope_axis]]
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class Expected:
+                @R.function
+                def main(
+                    a: R.Tensor((3, 32, 32), dtype="float32"),
+                    b: R.Tensor(slope_shape, dtype="float32"),
+                ) -> R.Tensor((3, 32, 32), dtype="float32"):
+                    R.func_attr({"num_input": 2})
+                    with R.dataflow():
+                        lv: R.Tensor(flattened_slope_shape, dtype="float32") = R.reshape(
+                            b, R.shape(flattened_slope_shape)
+                        )
+                        gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(
+                            a, lv, axis=prelu_axis
+                        )
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
     _assert_prelu_ir([1])
@@ -3176,19 +3507,44 @@ def test_squeeze(axis):
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
     if axis:
         tvm_model["main"] = tvm_model["main"].without_attr("params")
+    axis_len = len(axis) if axis else 0
 
-    data = relax.Var("x", relax.TensorType(shape, "float32"))
-    params = [data]
     if axis:
-        params.append(relax.Var("axes", relax.TensorType([len(axis)], "int64")))
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class ExpectedSqueezeAxes:
+                @R.function
+                def main(
+                    x: R.Tensor((1, 32, 1, 32), dtype="float32"),
+                    axes: R.Tensor((axis_len,), dtype="int64"),
+                ) -> R.Tensor((32, 32), dtype="float32"):
+                    R.func_attr({"num_input": 1})
+                    with R.dataflow():
+                        gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=axis)
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            out = bb.emit_output(relax.op.squeeze(data, axis=axis))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    else:
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class ExpectedSqueezeAll:
+                @R.function
+                def main(x: R.Tensor((1, 32, 1, 32), dtype="float32")) -> R.Tensor(
+                    (32, 32), dtype="float32"
+                ):
+                    R.func_attr({"num_input": 1})
+                    with R.dataflow():
+                        gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=None)
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -3222,17 +3578,45 @@ def test_squeeze_constant(axis):
     if axis:
         tvm_model["main"] = tvm_model["main"].without_attr("params")
     expected_data = np.squeeze(data, axis=tuple(axis) if axis else None)
+    axis_len = len(axis) if axis else 0
 
-    params = []
     if axis:
-        params.append(relax.Var("axes", relax.TensorType([len(axis)], "int64")))
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            out = bb.emit_output(relax.const(expected_data, "float32"))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 0)
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class ExpectedSqueezeConstantAxes:
+                @R.function
+                def main(axes: R.Tensor((axis_len,), dtype="int64")) -> R.Tensor(
+                    (32, 32), dtype="float32"
+                ):
+                    R.func_attr({"num_input": 0})
+                    with R.dataflow():
+                        gv: R.Tensor((32, 32), dtype="float32") = R.const(
+                            expected_data, "float32"
+                        )
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
+
+    else:
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class ExpectedSqueezeConstantAll:
+                @R.function
+                def main() -> R.Tensor((32, 32), dtype="float32"):
+                    R.func_attr({"num_input": 0})
+                    with R.dataflow():
+                        gv: R.Tensor((32, 32), dtype="float32") = R.const(
+                            expected_data, "float32"
+                        )
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -3262,17 +3646,26 @@ def test_dynamic_squeeze(axis, A, B):
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    data_shape = _shape_with_size_vars(shape, "squeeze_input_dim")
-    data = relax.Var("x", relax.TensorType(data_shape, "float32"))
-    axes = relax.Var("axes", relax.TensorType([len(axis)], "int64"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data, axes]):
-        with bb.dataflow():
-            out = bb.emit_output(relax.op.squeeze(data, axis=axis))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-
+    axis_len = len(axis)
+    expected = _parse_expected_source(
+        """
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                x: R.Tensor((1, "A", "B"), dtype="float32"),
+                axes: R.Tensor((axis_len,), dtype="int64"),
+            ) -> R.Tensor(("A", "B"), dtype="float32"):
+                A = T.int64(is_size_var=True)
+                B = T.int64(is_size_var=True)
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    gv: R.Tensor((A, B), dtype="float32") = R.squeeze(x, axis=axis)
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -3865,33 +4258,40 @@ def test_skiplayernormalization(dynamic):
         model = helper.make_model(graph, producer_name="skiplayernormalization_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
 
-        input_var = relax.Var("input", relax.TensorType(input_shape, "float32"))
-        skip_var = relax.Var("skip", relax.TensorType(skip_shape, "float32"))
-        gamma_var = relax.Var("gamma", relax.TensorType(gamma_shape, "float32"))
-        beta_var = relax.Var("beta", relax.TensorType(beta_shape, "float32"))
-        bias_var = relax.Var("bias", relax.TensorType(bias_shape, "float32"))
-
-        bb = relax.BlockBuilder()
-        with bb.function("main", [input_var, skip_var, gamma_var, beta_var, bias_var]):
-            with bb.dataflow():
-                skipped = bb.emit(relax.op.add(input_var, skip_var))
-                biased = bb.emit(relax.op.add(skipped, bias_var))
-                output = bb.emit(
-                    relax.op.nn.layer_norm(
-                        biased,
-                        gamma_var,
-                        beta_var,
-                        axes=-1,
-                        epsilon=float(np.float32(1e-4)),
-                    )
-                )
-                gv = bb.emit_output(
-                    relax.Tuple([output, relax.const(0, "float32"), relax.const(0, "float32")])
-                )
-            bb.emit_func_output(gv)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 5)
-
+        epsilon = float(np.float32(1e-4))
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class Expected:
+                @R.function
+                def main(
+                    input: R.Tensor(input_shape, dtype="float32"),
+                    skip: R.Tensor(skip_shape, dtype="float32"),
+                    gamma: R.Tensor(gamma_shape, dtype="float32"),
+                    beta: R.Tensor(beta_shape, dtype="float32"),
+                    bias: R.Tensor(bias_shape, dtype="float32"),
+                ) -> R.Tuple(
+                    R.Tensor(output_shape, dtype="float32"),
+                    R.Tensor((), dtype="float32"),
+                    R.Tensor((), dtype="float32"),
+                ):
+                    R.func_attr({"num_input": 5})
+                    with R.dataflow():
+                        lv: R.Tensor(output_shape, dtype="float32") = R.add(input, skip)
+                        lv1: R.Tensor(output_shape, dtype="float32") = R.add(lv, bias)
+                        lv2: R.Tensor(output_shape, dtype="float32") = R.nn.layer_norm(
+                            lv1, gamma, beta, axes=-1, epsilon=epsilon
+                        )
+                        gv: R.Tuple(
+                            R.Tensor(output_shape, dtype="float32"),
+                            R.Tensor((), dtype="float32"),
+                            R.Tensor((), dtype="float32"),
+                        ) = (lv2, R.const(0, "float32"), R.const(0, "float32"))
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
     hidden_size = 384
@@ -3970,63 +4370,105 @@ def test_embedlayernormalization():
 
         tvm_model = from_onnx(model, keep_params_in_input=True)
 
-        input_ids_var = relax.Var("input_ids", relax.TensorType(list(input_ids.shape), "int32"))
-        segment_ids_var = relax.Var("segment_ids", relax.TensorType(segment_ids_shape, "int32"))
-        word_embedding_var = relax.Var(
-            "word_embedding", relax.TensorType(list(word_embedding.shape), "float32")
-        )
-        position_embedding_var = relax.Var(
-            "position_embedding", relax.TensorType(list(position_embedding.shape), "float32")
-        )
-        segment_embedding_var = relax.Var(
-            "segment_embedding", relax.TensorType(segment_embedding_shape, "float32")
-        )
-        gamma_var = relax.Var("gamma", relax.TensorType(list(gamma.shape), "float32"))
-        beta_var = relax.Var("beta", relax.TensorType(list(beta.shape), "float32"))
+        input_ids_shape = list(input_ids.shape)
+        word_embedding_shape = list(word_embedding.shape)
+        position_embedding_shape = list(position_embedding.shape)
+        gamma_shape = list(gamma.shape)
+        beta_shape = list(beta.shape)
+        pos_ids = [list(range(sequence_length))] * batch_size
+        mask_index_value = np.zeros((batch_size,), dtype="int32")
+        output_shape = [batch_size, sequence_length, hidden_size]
+        epsilon = float(np.float32(1e-4))
 
-        bb = relax.BlockBuilder()
-        with bb.function(
-            "main",
-            [
-                input_ids_var,
-                segment_ids_var,
-                word_embedding_var,
-                position_embedding_var,
-                segment_embedding_var,
-                gamma_var,
-                beta_var,
-            ],
-        ):
-            with bb.dataflow():
-                word_vec = bb.emit(relax.op.take(word_embedding_var, input_ids_var, axis=0))
-                pos_ids = relax.const([list(range(sequence_length))] * batch_size, dtype="int64")
-                pos_vec = bb.emit(relax.op.take(position_embedding_var, pos_ids, axis=0))
-                vec_sum = bb.emit(relax.op.add(word_vec, pos_vec))
-                if segment_ids is not None:
-                    segment_vec = bb.emit(
-                        relax.op.take(segment_embedding_var, segment_ids_var, axis=0)
-                    )
-                    vec_sum = bb.emit(relax.op.add(vec_sum, segment_vec))
-                output = bb.emit(
-                    relax.op.nn.layer_norm(
-                        vec_sum,
-                        gamma_var,
-                        beta_var,
-                        axes=-1,
-                        epsilon=float(np.float32(1e-4)),
-                    )
-                )
-                gv = bb.emit_output(
-                    relax.Tuple(
-                        [
-                            output,
-                            relax.const(np.zeros((batch_size,), dtype="int64")),
-                        ]
-                    )
-                )
-            bb.emit_func_output(gv)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 7)
+        if segment_ids is None:
+            expected = _parse_expected_source(
+                """
+                @I.ir_module
+                class ExpectedNoSegment:
+                    @R.function
+                    def main(
+                        input_ids: R.Tensor(input_ids_shape, dtype="int32"),
+                        segment_ids: R.Tensor(segment_ids_shape, dtype="int32"),
+                        word_embedding: R.Tensor(word_embedding_shape, dtype="float32"),
+                        position_embedding: R.Tensor(position_embedding_shape, dtype="float32"),
+                        segment_embedding: R.Tensor(segment_embedding_shape, dtype="float32"),
+                        gamma: R.Tensor(gamma_shape, dtype="float32"),
+                        beta: R.Tensor(beta_shape, dtype="float32"),
+                    ) -> R.Tuple(
+                        R.Tensor(output_shape, dtype="float32"),
+                        R.Tensor((batch_size,), dtype="int32"),
+                    ):
+                        R.func_attr({"num_input": 7})
+                        with R.dataflow():
+                            lv: R.Tensor(output_shape, dtype="float32") = R.take(
+                                word_embedding, input_ids, axis=0, mode="fast"
+                            )
+                            lv1: R.Tensor(output_shape, dtype="float32") = R.take(
+                                position_embedding,
+                                R.const(pos_ids, "int64"),
+                                axis=0,
+                                mode="fast",
+                            )
+                            lv2: R.Tensor(output_shape, dtype="float32") = R.add(lv, lv1)
+                            lv3: R.Tensor(output_shape, dtype="float32") = R.nn.layer_norm(
+                                lv2, gamma, beta, axes=-1, epsilon=epsilon
+                            )
+                            gv: R.Tuple(
+                                R.Tensor(output_shape, dtype="float32"),
+                                R.Tensor((batch_size,), dtype="int32"),
+                            ) = (lv3, R.const(mask_index_value, "int32"))
+                            R.output(gv)
+                        return gv
+                """,
+                locals(),
+            )
+
+        else:
+            expected = _parse_expected_source(
+                """
+                @I.ir_module
+                class ExpectedWithSegment:
+                    @R.function
+                    def main(
+                        input_ids: R.Tensor(input_ids_shape, dtype="int32"),
+                        segment_ids: R.Tensor(segment_ids_shape, dtype="int32"),
+                        word_embedding: R.Tensor(word_embedding_shape, dtype="float32"),
+                        position_embedding: R.Tensor(position_embedding_shape, dtype="float32"),
+                        segment_embedding: R.Tensor(segment_embedding_shape, dtype="float32"),
+                        gamma: R.Tensor(gamma_shape, dtype="float32"),
+                        beta: R.Tensor(beta_shape, dtype="float32"),
+                    ) -> R.Tuple(
+                        R.Tensor(output_shape, dtype="float32"),
+                        R.Tensor((batch_size,), dtype="int32"),
+                    ):
+                        R.func_attr({"num_input": 7})
+                        with R.dataflow():
+                            lv: R.Tensor(output_shape, dtype="float32") = R.take(
+                                word_embedding, input_ids, axis=0, mode="fast"
+                            )
+                            lv1: R.Tensor(output_shape, dtype="float32") = R.take(
+                                position_embedding,
+                                R.const(pos_ids, "int64"),
+                                axis=0,
+                                mode="fast",
+                            )
+                            lv2: R.Tensor(output_shape, dtype="float32") = R.add(lv, lv1)
+                            lv3: R.Tensor(output_shape, dtype="float32") = R.take(
+                                segment_embedding, segment_ids, axis=0, mode="fast"
+                            )
+                            lv4: R.Tensor(output_shape, dtype="float32") = R.add(lv2, lv3)
+                            lv5: R.Tensor(output_shape, dtype="float32") = R.nn.layer_norm(
+                                lv4, gamma, beta, axes=-1, epsilon=epsilon
+                            )
+                            gv: R.Tuple(
+                                R.Tensor(output_shape, dtype="float32"),
+                                R.Tensor((batch_size,), dtype="int32"),
+                            ) = (lv5, R.const(mask_index_value, "int32"))
+                            R.output(gv)
+                        return gv
+                """,
+                locals(),
+            )
 
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
@@ -4181,48 +4623,142 @@ def _make_composite_reduce_expected(
     noop_with_empty_axes: bool = False,
 ):
     if dynamic:
-        expected_input_shape = [
-            tvm.tirx.SizeVar(f"reduce_dim_{i}", "int64") for i in range(len(input_shape))
-        ]
-    else:
-        expected_input_shape = input_shape
+        expected_input_shape = _shape_with_size_vars(["?"] * len(input_shape), "reduce_dim")
+        params = ['x: R.Tensor(expected_input_shape, dtype="float32")']
+        if axes_input_shape is not None:
+            params.append('reduce_axes: R.Tensor(axes_input_shape, dtype="int64")')
+        params_text = ",\n                ".join(params)
 
-    x = relax.Var("x", relax.TensorType(expected_input_shape, "float32"))
-    params = [x]
+        if noop_with_empty_axes and not axes:
+            body = ["gv = x"]
+        elif func == "ReduceLogSumExp" and keepdims:
+            body = [
+                "lv = R.max(x, axis=axes, keepdims=True)",
+                "lv1 = R.subtract(x, lv)",
+                "lv2 = R.exp(lv1)",
+                "lv3 = R.sum(lv2, axis=axes, keepdims=True)",
+                "lv4 = R.log(lv3)",
+                "gv = R.add(lv4, lv)",
+            ]
+        elif func == "ReduceLogSumExp":
+            body = [
+                "lv = R.max(x, axis=axes, keepdims=True)",
+                "lv1 = R.subtract(x, lv)",
+                "lv2 = R.exp(lv1)",
+                "lv3 = R.sum(lv2, axis=axes, keepdims=True)",
+                "lv4 = R.log(lv3)",
+                "lv5 = R.add(lv4, lv)",
+                "gv = R.squeeze(lv5, axis=axes)",
+            ]
+        elif func == "ReduceLogSum":
+            body = [
+                "lv = R.sum(x, axis=axes, keepdims=keepdims)",
+                "gv = R.log(lv)",
+            ]
+        elif func == "ReduceSumSquare":
+            body = [
+                "lv = R.multiply(x, x)",
+                "gv = R.sum(lv, axis=axes, keepdims=keepdims)",
+            ]
+        elif func == "ReduceL1":
+            body = [
+                "lv = R.abs(x)",
+                "gv = R.sum(lv, axis=axes, keepdims=keepdims)",
+            ]
+        else:
+            body = [
+                "lv = R.multiply(x, x)",
+                "lv1 = R.sum(lv, axis=axes, keepdims=keepdims)",
+                "gv = R.sqrt(lv1)",
+            ]
+        body_text = "\n".join(f"                        {line}" for line in body)
+
+        return _parse_expected_source(
+            f"""
+            @I.ir_module
+            class ExpectedDynamicReduce:
+                @R.function
+                def main({params_text}):
+                    R.func_attr({{"num_input": 1}})
+                    with R.dataflow():
+{body_text}
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
+
+    expected_input_shape = input_shape
+
+    params = [f'x: R.Tensor({_shape_to_tvmscript(expected_input_shape)}, dtype="float32")']
     if axes_input_shape is not None:
-        params.append(relax.Var("reduce_axes", relax.TensorType(axes_input_shape, "int64")))
+        params.append(
+            f'reduce_axes: R.Tensor({_shape_to_tvmscript(axes_input_shape)}, dtype="int64")'
+        )
+    params_text = ",\n                ".join(params)
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            if noop_with_empty_axes and not axes:
-                out = bb.emit_output(x)
-            elif func == "ReduceLogSumExp":
-                max_x = bb.emit(relax.op.max(x, axes, True))
-                exp_x = bb.emit(relax.op.exp(relax.op.subtract(x, max_x)))
-                sum_x = bb.emit(relax.op.sum(exp_x, axes, True))
-                if keepdims:
-                    out = bb.emit_output(relax.op.add(relax.op.log(sum_x), max_x))
-                else:
-                    out_x = bb.emit(relax.op.add(relax.op.log(sum_x), max_x))
-                    out = bb.emit_output(relax.op.squeeze(out_x, axes))
-            elif func == "ReduceLogSum":
-                sum_x = bb.emit(relax.op.sum(x, axes, keepdims))
-                out = bb.emit_output(relax.op.log(sum_x))
-            elif func == "ReduceSumSquare":
-                square_x = bb.emit(relax.op.multiply(x, x))
-                out = bb.emit_output(relax.op.sum(square_x, axes, keepdims))
-            elif func == "ReduceL1":
-                abs_x = bb.emit(relax.op.abs(x))
-                out = bb.emit_output(relax.op.sum(abs_x, axes, keepdims))
-            else:
-                square_x = bb.emit(relax.op.multiply(x, x))
-                sum_x = bb.emit(relax.op.sum(square_x, axes, keepdims))
-                out = bb.emit_output(relax.op.sqrt(sum_x))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-    return expected
+    if noop_with_empty_axes and not axes:
+        body = "                    gv = x"
+    elif func == "ReduceLogSumExp":
+        if keepdims:
+            body = f"""
+                    lv = R.max(x, axis={axes}, keepdims=True)
+                    lv1 = R.subtract(x, lv)
+                    lv2 = R.exp(lv1)
+                    lv3 = R.sum(lv2, axis={axes}, keepdims=True)
+                    lv4 = R.log(lv3)
+                    gv = R.add(lv4, lv)
+            """.rstrip()
+        else:
+            body = f"""
+                    lv = R.max(x, axis={axes}, keepdims=True)
+                    lv1 = R.subtract(x, lv)
+                    lv2 = R.exp(lv1)
+                    lv3 = R.sum(lv2, axis={axes}, keepdims=True)
+                    lv4 = R.log(lv3)
+                    lv5 = R.add(lv4, lv)
+                    gv = R.squeeze(lv5, axis={axes})
+            """.rstrip()
+    elif func == "ReduceLogSum":
+        body = f"""
+                    lv = R.sum(x, axis={axes}, keepdims={keepdims})
+                    gv = R.log(lv)
+        """.rstrip()
+    elif func == "ReduceSumSquare":
+        body = f"""
+                    lv = R.multiply(x, x)
+                    gv = R.sum(lv, axis={axes}, keepdims={keepdims})
+        """.rstrip()
+    elif func == "ReduceL1":
+        body = f"""
+                    lv = R.abs(x)
+                    gv = R.sum(lv, axis={axes}, keepdims={keepdims})
+        """.rstrip()
+    else:
+        body = f"""
+                    lv = R.multiply(x, x)
+                    lv1 = R.sum(lv, axis={axes}, keepdims={keepdims})
+                    gv = R.sqrt(lv1)
+        """.rstrip()
+
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                {params_text},
+            ):
+                R.func_attr({{"num_input": 1}})
+                with R.dataflow():
+{body}
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 def create_reduce_test_parameters_axes_attr():
@@ -4341,6 +4877,7 @@ def test_composite_reduce_funcs_axes_attr_ir(func, dynamic, opset, keepdims, inp
     tvm.ir.assert_structural_equal(
         tvm_model,
         _make_composite_reduce_expected(func, input_shape, axes, keepdims, dynamic),
+        map_free_vars=dynamic,
     )
 
 
@@ -4539,6 +5076,7 @@ def test_composite_reduce_funcs_axes_input_ir(
             axes_input_shape=axes_input_shape,
             noop_with_empty_axes=noop_with_empty_axes,
         ),
+        map_free_vars=dynamic,
     )
 
 
@@ -4633,16 +5171,24 @@ def test_expand(dynamic):
 
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-
-        x = relax.Var("in", relax.TensorType(input_shape, "float32"))
-        bb = relax.BlockBuilder()
-        with bb.function("main", [x]):
-            with bb.dataflow():
-                out = bb.emit_output(relax.op.broadcast_to(x, relax.ShapeExpr(output_shape)))
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 1)
-
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class Expected:
+                @R.function
+                def main(in_: R.Tensor(input_shape, dtype="float32")) -> R.Tensor(
+                    output_shape, dtype="float32"
+                ):
+                    R.func_attr({"num_input": 1})
+                    with R.dataflow():
+                        gv: R.Tensor(output_shape, dtype="float32") = R.broadcast_to(
+                            in_, R.shape(output_shape)
+                        )
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
     def _assert_expand_dynamic_shapeexpr_ir(name, input_shape, shape_input_shape):
@@ -4660,21 +5206,26 @@ def test_expand(dynamic):
 
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-
-        shape = [
-            tvm.tirx.SizeVar(dim, "int64") if isinstance(dim, str) else dim
-            for dim in shape_input_shape
-        ]
-        x = relax.Var("in", relax.TensorType(input_shape, "float32"))
-        shape_source = relax.Var("in_2", relax.TensorType(shape, "float32"))
-        bb = relax.BlockBuilder()
-        with bb.function("main", [x, shape_source]):
-            with bb.dataflow():
-                out = bb.emit_output(relax.op.broadcast_to(x, relax.ShapeExpr(shape)))
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 2)
-
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class Expected:
+                @R.function
+                def main(
+                    in_: R.Tensor(input_shape, dtype="float32"),
+                    in_2: R.Tensor(shape_input_shape, dtype="float32"),
+                ) -> R.Tensor(shape_input_shape, dtype="float32"):
+                    batch = T.int64(is_size_var=True)
+                    R.func_attr({"num_input": 2})
+                    with R.dataflow():
+                        gv: R.Tensor((batch, 32, 32), dtype="float32") = R.broadcast_to(
+                            in_, R.shape([batch, 32, 32])
+                        )
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
     if not dynamic:
@@ -4899,38 +5450,50 @@ def test_slice():
         model = helper.make_model(graph, producer_name="slice_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-
-        data = relax.Var("x", relax.TensorType(data_shape, "float32"))
-        params = [
-            data,
-            relax.Var("starts", relax.TensorType(list(starts.shape), "int64")),
-            relax.Var("ends", relax.TensorType(list(ends.shape), "int64")),
-        ]
+        expected_output_shape = [int(dim) for dim in tvm_model["main"].ret_ty.shape.values]
 
         axes_list = axes.tolist() if axes is not None else list(range(len(starts)))
         steps_list = steps.tolist() if steps is not None else [1] * len(axes_list)
+        starts_shape = tuple(starts.shape)
+        ends_shape = tuple(ends.shape)
+        starts_list = starts.tolist()
+        ends_list = ends.tolist()
+
+        params = [
+            'x: R.Tensor(data_shape, dtype="float32")',
+            'starts: R.Tensor(starts_shape, dtype="int64")',
+            'ends: R.Tensor(ends_shape, dtype="int64")',
+        ]
         if axes is not None:
-            params.append(relax.Var("axes", relax.TensorType(list(axes.shape), "int64")))
+            axes_shape = tuple(axes.shape)
+            params.append('axes: R.Tensor(axes_shape, dtype="int64")')
         if steps is not None:
-            params.append(relax.Var("steps", relax.TensorType(list(steps.shape), "int64")))
-
-        bb = relax.BlockBuilder()
-        with bb.function("main", params):
-            with bb.dataflow():
-                out = bb.emit_output(
-                    relax.op.strided_slice(
-                        data,
-                        axes_list,
-                        starts.tolist(),
-                        ends.tolist(),
-                        steps_list,
-                        assume_inbound=False,
-                    )
-                )
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 1)
-
+            steps_shape = tuple(steps.shape)
+            params.append('steps: R.Tensor(steps_shape, dtype="int64")')
+        params_text = ",\n                    ".join(params)
+        expected = _parse_expected_source(
+            f"""
+            @I.ir_module
+            class ExpectedSlice:
+                @R.function
+                def main(
+                    {params_text},
+                ) -> R.Tensor(expected_output_shape, dtype="float32"):
+                    R.func_attr({{"num_input": 1}})
+                    with R.dataflow():
+                        gv: R.Tensor(expected_output_shape, dtype="float32") = R.strided_slice(
+                            x,
+                            axes=axes_list,
+                            begin=starts_list,
+                            end=ends_list,
+                            strides=steps_list,
+                            assume_inbound=False,
+                        )
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
     # Test with all parameters set.
@@ -5077,28 +5640,71 @@ def test_slice_zero_step_validation():
 
 def test_slice_dynamic_shape():
     def make_shape_slice_expected(data_shape, starts, ends, axes):
-        shape_vars = [
-            tvm.tirx.SizeVar(dim, "int64") if isinstance(dim, str) else dim for dim in data_shape
-        ]
-        x = relax.Var("x", relax.TensorType(shape_vars, "float32"))
-        starts_var = relax.Var("starts", relax.TensorType([len(starts)], "int64"))
-        ends_var = relax.Var("ends", relax.TensorType([len(ends)], "int64"))
-        axes_var = relax.Var("axes", relax.TensorType([len(axes)], "int64"))
-
         # These test cases slice the 1-D result of Shape(x), so axes=[0].
         assert axes == [0]
-        sliced_shape = shape_vars[starts[0] : ends[0]]
+        sliced_shape = data_shape[starts[0] : ends[0]]
+        size_vars = {}
 
-        bb = relax.BlockBuilder()
-        with bb.function("main", [x, starts_var, ends_var, axes_var]):
-            with bb.dataflow():
-                if all(isinstance(dim, int) for dim in sliced_shape):
-                    out = bb.emit_output(relax.const(sliced_shape, "int64"))
+        def shape_with_shared_size_vars(shape, prefix):
+            result = []
+            for i, dim in enumerate(shape):
+                if isinstance(dim, str):
+                    name = f"{prefix}_{i}" if dim == "?" else dim
+                    result.append(size_vars.setdefault(name, tvm.tirx.SizeVar(name, "int64")))
                 else:
-                    out = bb.emit_output(relax.ShapeExpr(sliced_shape))
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 1)
+                    result.append(dim)
+            return result
+
+        expected_data_shape = shape_with_shared_size_vars(data_shape, "slice_data_dim")
+        expected_sliced_shape = shape_with_shared_size_vars(sliced_shape, "slice_out_dim")
+        starts_len = len(starts)
+        ends_len = len(ends)
+        axes_len = len(axes)
+
+        if all(isinstance(dim, int) for dim in sliced_shape):
+            expected = _parse_expected_source(
+                """
+                @I.ir_module
+                class ExpectedStaticShapeSlice:
+                    @R.function
+                    def main(
+                        x: R.Tensor(expected_data_shape, dtype="float32"),
+                        starts: R.Tensor((starts_len,), dtype="int64"),
+                        ends: R.Tensor((ends_len,), dtype="int64"),
+                        axes: R.Tensor((axes_len,), dtype="int64"),
+                    ) -> R.Tensor((len(sliced_shape),), dtype="int64"):
+                        R.func_attr({"num_input": 1})
+                        with R.dataflow():
+                            gv: R.Tensor((len(sliced_shape),), dtype="int64") = R.const(
+                                sliced_shape, "int64"
+                            )
+                            R.output(gv)
+                        return gv
+                """,
+                locals(),
+            )
+
+        else:
+            expected = _parse_expected_source(
+                """
+                @I.ir_module
+                class ExpectedDynamicShapeSlice:
+                    @R.function
+                    def main(
+                        x: R.Tensor(expected_data_shape, dtype="float32"),
+                        starts: R.Tensor((starts_len,), dtype="int64"),
+                        ends: R.Tensor((ends_len,), dtype="int64"),
+                        axes: R.Tensor((axes_len,), dtype="int64"),
+                    ) -> R.Shape(expected_sliced_shape):
+                        R.func_attr({"num_input": 1})
+                        with R.dataflow():
+                            gv: R.Shape(expected_sliced_shape) = R.shape(expected_sliced_shape)
+                            R.output(gv)
+                        return gv
+                """,
+                locals(),
+            )
+
         return expected
 
     def verify_slice(
@@ -5229,54 +5835,79 @@ def test_attention(dynamic):
         head_size = hidden_size // num_heads
         head_size_v = hidden_size_v // num_heads
 
-        input_var = relax.Var("input", relax.TensorType(input_shape, "float32"))
-        weight_var = relax.Var("weight", relax.TensorType(weight_shape, "float32"))
-        bias_var = relax.Var("bias", relax.TensorType(bias_shape, "float32"))
-        mask_index_var = relax.Var("mask_index", relax.TensorType(mask_shape, "int32"))
-        relative_position_bias_var = relax.Var(
-            "relative_position_bias",
-            relax.TensorType(relative_position_bias_shape, "float32"),
+        qkv_shape = [batch_size, seq_len, sum(qkv_hidden_sizes)]
+        q_shape = [batch_size, seq_len, hidden_size]
+        k_shape = [batch_size, seq_len, hidden_size]
+        v_shape = [batch_size, seq_len, hidden_size_v]
+        query_shape = [batch_size, seq_len, num_heads, head_size]
+        key_shape = [batch_size, seq_len, num_heads, head_size]
+        value_shape = [batch_size, seq_len, num_heads, head_size_v]
+        output_shape = [batch_size, seq_len, num_heads * head_size_v]
+
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class Expected:
+                @R.function
+                def main(
+                    input: R.Tensor(input_shape, dtype="float32"),
+                    weight: R.Tensor(weight_shape, dtype="float32"),
+                    bias: R.Tensor(bias_shape, dtype="float32"),
+                    mask_index: R.Tensor(mask_shape, dtype="int32"),
+                    relative_position_bias: R.Tensor(
+                        relative_position_bias_shape, dtype="float32"
+                    ),
+                ) -> R.Tensor(output_shape, dtype="float32"):
+                    R.func_attr({"num_input": 5})
+                    with R.dataflow():
+                        lv: R.Tensor(mask_shape, dtype="int32") = R.subtract(
+                            R.const(1, "int32"), mask_index
+                        )
+                        lv1: R.Tensor(mask_shape, dtype="float32") = R.astype(lv, dtype="float32")
+                        lv2: R.Tensor(mask_shape, dtype="float32") = R.multiply(
+                            lv1, R.const(-10000.0, "float32")
+                        )
+                        lv3: R.Tensor((batch_size, 1, 1, seq_len), dtype="float32") = R.reshape(
+                            lv2, R.shape([batch_size, 1, 1, seq_len])
+                        )
+                        lv4: R.Tensor(qkv_shape, dtype="float32") = R.matmul(
+                            input, weight, out_dtype="void"
+                        )
+                        lv5: R.Tensor(qkv_shape, dtype="float32") = R.add(lv4, bias)
+                        lv6: R.Tuple(
+                            R.Tensor(q_shape, dtype="float32"),
+                            R.Tensor(k_shape, dtype="float32"),
+                            R.Tensor(v_shape, dtype="float32"),
+                        ) = R.split(
+                            lv5, indices_or_sections=[hidden_size, hidden_size * 2], axis=2
+                        )
+                        lv7: R.Tensor(q_shape, dtype="float32") = lv6[0]
+                        lv8: R.Tensor(k_shape, dtype="float32") = lv6[1]
+                        lv9: R.Tensor(v_shape, dtype="float32") = lv6[2]
+                        lv10: R.Tensor(query_shape, dtype="float32") = R.reshape(
+                            lv7, R.shape(query_shape)
+                        )
+                        lv11: R.Tensor(key_shape, dtype="float32") = R.reshape(
+                            lv8, R.shape(key_shape)
+                        )
+                        lv12: R.Tensor(value_shape, dtype="float32") = R.reshape(
+                            lv9, R.shape(value_shape)
+                        )
+                        lv13: R.Tensor(relative_position_bias_shape, dtype="float32") = R.add(
+                            relative_position_bias, lv3
+                        )
+                        lv14: R.Tensor(value_shape, dtype="float32") = R.nn.attention(
+                            lv10, lv11, lv12, lv13
+                        )
+                        lv15: R.Tensor(output_shape, dtype="float32") = R.reshape(
+                            lv14, R.shape(output_shape)
+                        )
+                        gv: R.Tensor(output_shape, dtype="float32") = lv15
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
         )
-
-        bb = relax.BlockBuilder()
-        with bb.function(
-            "main",
-            [
-                input_var,
-                weight_var,
-                bias_var,
-                mask_index_var,
-                relative_position_bias_var,
-            ],
-        ):
-            with bb.dataflow():
-                inverted_mask = bb.emit(relax.op.subtract(relax.const(1, "int32"), mask_index_var))
-                mask_bias = bb.emit(relax.op.astype(inverted_mask, "float32"))
-                mask_bias = bb.emit(relax.op.multiply(mask_bias, relax.const(-10000.0, "float32")))
-                mask_bias = bb.emit(relax.op.reshape(mask_bias, [batch_size, 1, 1, seq_len]))
-                qkv = bb.emit(relax.op.matmul(input_var, weight_var))
-                qkv = bb.emit(relax.op.add(qkv, bias_var))
-                qkv_split = bb.emit(relax.op.split(qkv, [hidden_size, hidden_size * 2], axis=2))
-                query = bb.emit(qkv_split[0])
-                key = bb.emit(qkv_split[1])
-                value = bb.emit(qkv_split[2])
-                query = bb.emit(
-                    relax.op.reshape(query, [batch_size, seq_len, num_heads, head_size])
-                )
-                key = bb.emit(relax.op.reshape(key, [batch_size, seq_len, num_heads, head_size]))
-                value = bb.emit(
-                    relax.op.reshape(value, [batch_size, seq_len, num_heads, head_size_v])
-                )
-                qk_bias = bb.emit(relax.op.add(relative_position_bias_var, mask_bias))
-                attention = bb.emit(relax.op.nn.attention(query, key, value, qk_bias))
-                output = bb.emit(
-                    relax.op.reshape(attention, [batch_size, seq_len, num_heads * head_size_v])
-                )
-                gv = bb.emit_output(output)
-            bb.emit_func_output(gv)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 5)
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
         # "present" output should be nullptr when the "past" input isn't included,
         # but ort requires an output shape to be specified?
@@ -5319,30 +5950,58 @@ def test_attention(dynamic):
 
 
 def make_pad_expected(input_shape, pads, mode, value, has_pad_inputs):
-    data = relax.Var("input", relax.TensorType(list(input_shape), "float32"))
-    params = [data]
-    if has_pad_inputs:
-        params.append(relax.Var("pads", relax.TensorType([len(pads)], "int64")))
-        if mode == "constant":
-            params.append(relax.Var("constant_value", relax.TensorType([1], "float32")))
-
     len_dim = len(pads) // 2
     pad_before = list(pads[:len_dim])
     pad_after = list(pads[len_dim:])
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            if mode == "constant":
-                out = bb.emit_te(topi.nn.pad, data, pad_before, pad_after, value)
-            elif mode == "reflect":
-                out = bb.emit_te(topi.nn.mirror_pad, data, pad_before, pad_after, "REFLECT")
-            else:
-                out = bb.emit_te(topi.nn.replicate_pad, data, pad_before, pad_after)
-            out = bb.emit_output(out)
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-    return expected
+    output_shape = [
+        int(dim) + before + after for dim, before, after in zip(input_shape, pad_before, pad_after)
+    ]
+    if mode == "constant":
+        prim_func_name = "pad"
+        prim_param_name = "PadInput"
+    elif mode == "reflect":
+        prim_func_name = "mirror_pad"
+        prim_param_name = "MirrorPadInput"
+    else:
+        prim_func_name = "replicate_pad"
+        prim_param_name = "ReplicatePadInput"
+
+    params = [f'input: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32")']
+    if has_pad_inputs:
+        params.append(f'pads: R.Tensor(({len(pads)},), dtype="int64")')
+        if mode == "constant":
+            params.append('constant_value: R.Tensor((1,), dtype="float32")')
+    params_text = ",\n                ".join(params)
+
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+        # from tvm.script import tirx as T
+
+        @I.ir_module
+        class Expected:
+            @T.prim_func(private=True, s_tir=True)
+            def {prim_func_name}(input: T.handle, {prim_param_name}: T.handle):
+                T.evaluate(0)
+
+            @R.function
+            def main(
+                {params_text},
+            ) -> R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32"):
+                R.func_attr({{"num_input": 1}})
+                cls = Expected
+                with R.dataflow():
+                    lv = R.call_tir(
+                        cls.{prim_func_name},
+                        (input,),
+                        out_ty=R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32"),
+                    )
+                    gv: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32") = lv
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -5400,9 +6059,9 @@ def test_pad(dynamic):
         model.opset_import[0].version = 14
         tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-        tvm.ir.assert_structural_equal(
-            tvm_model, make_pad_expected(input_shape, pads.tolist(), mode, value, True)
-        )
+        expected = make_pad_expected(input_shape, pads.tolist(), mode, value, True)
+        expected = _replace_dummy_primfuncs_with_actual(expected, tvm_model)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
     verify_pad((2, 2), [0, 1, 0, 0], "constant", 0.0)
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
@@ -5465,9 +6124,9 @@ def test_pad_v2(dynamic):
         model = helper.make_model(graph, producer_name="pad_test")
         model.opset_import[0].version = 10
         tvm_model = from_onnx(model, opset=10, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(
-            tvm_model, make_pad_expected(input_shape, pads.tolist(), mode, value, False)
-        )
+        expected = make_pad_expected(input_shape, pads.tolist(), mode, value, False)
+        expected = _replace_dummy_primfuncs_with_actual(expected, tvm_model)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
     verify_pad((2, 2), [0, 1, 0, 0], "constant", 0.0)
     verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
@@ -5542,28 +6201,48 @@ def test_split(fp_arith, dynamic):
 
         dtype = str(indata.dtype)
         expected_input_shape = (
-            _shape_with_size_vars(indata_shape, "split_input_dim") if dynamic else indata_shape
+            _shape_with_size_vars(["?"] * len(indata_shape), "split_input_dim")
+            if dynamic
+            else indata_shape
         )
-        data = relax.Var("input", relax.TensorType(expected_input_shape, dtype))
 
         if pass_split and split and len(split) > 1:
             indices_or_sections = np.cumsum(split[:-1]).astype("int64").tolist()
         else:
             indices_or_sections = len(split_index)
 
-        bb = relax.BlockBuilder()
-        with bb.function("main", [data]):
-            with bb.dataflow():
-                if len(split_index) == 1:
-                    out = bb.emit_output(relax.op.split(data, indices_or_sections, axis=axis))
-                else:
-                    split_outputs = bb.emit(relax.op.split(data, indices_or_sections, axis=axis))
-                    outputs = [bb.emit(split_outputs[i]) for i in split_index]
-                    out = bb.emit_output(relax.Tuple(outputs))
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 1)
-
+        if len(split_index) == 1:
+            body = ["gv = R.split(input, indices_or_sections=indices_or_sections, axis=axis)"]
+        elif len(split_index) == 2:
+            body = [
+                "lv = R.split(input, indices_or_sections=indices_or_sections, axis=axis)",
+                "lv1 = lv[0]",
+                "lv2 = lv[1]",
+                "gv = (lv1, lv2)",
+            ]
+        else:
+            body = [
+                "lv = R.split(input, indices_or_sections=indices_or_sections, axis=axis)",
+                "lv1 = lv[0]",
+                "lv2 = lv[1]",
+                "lv3 = lv[2]",
+                "gv = (lv1, lv2, lv3)",
+            ]
+        body_text = "\n".join(f"                        {line}" for line in body)
+        expected = _parse_expected_source(
+            f"""
+            @I.ir_module
+            class ExpectedSplit:
+                @R.function
+                def main(input: R.Tensor(expected_input_shape, dtype=dtype)):
+                    R.func_attr({{"num_input": 1}})
+                    with R.dataflow():
+{body_text}
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
     # 1D
@@ -5624,23 +6303,49 @@ def test_tile(dynamic):
         tvm_model["main"] = tvm_model["main"].without_attr("params")
 
         if dynamic:
-            expected_input_shape = [
-                tvm.tirx.SizeVar(f"tile_input_dim_{i}", "int64") for i in range(len(model_in_shape))
-            ]
+            expected_input_shape = _shape_with_size_vars(
+                ["?"] * len(model_in_shape), "tile_input_dim"
+            )
         else:
             expected_input_shape = list(in_shape)
-        data = relax.Var("input", relax.TensorType(expected_input_shape, "float32"))
-        repeats_param = relax.Var("repeats", relax.TensorType([len(repeats)], "int64"))
-        bb = relax.BlockBuilder()
-        with bb.function("main", [data, repeats_param]):
-            with bb.dataflow():
-                out = bb.emit_te(topi.tile, data, repeats.tolist())
-                out = bb.emit_output(out)
-            bb.emit_func_output(out)
-        expected = bb.get()
-        expected["main"] = expected["main"].with_attr("num_input", 1)
+        if dynamic:
+            expected_output_shape = [
+                expected_input_shape[i] * int(repeats[i]) for i in range(len(repeats))
+            ]
+        else:
+            expected_output_shape = list(model_out_shape)
 
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        repeats_len = len(repeats)
+        expected = _parse_expected_source(
+            """
+            @I.ir_module
+            class Expected:
+                @T.prim_func(private=True, s_tir=True)
+                def tile(input: T.handle, T_tile: T.handle):
+                    T.evaluate(0)
+
+                @R.function
+                def main(
+                    input: R.Tensor(expected_input_shape, dtype="float32"),
+                    repeats: R.Tensor((repeats_len,), dtype="int64"),
+                ) -> R.Tensor(expected_output_shape, dtype="float32"):
+                    R.func_attr({"num_input": 1})
+                    cls = Expected
+                    with R.dataflow():
+                        lv = R.call_tir(
+                            cls.tile,
+                            (input,),
+                            out_ty=R.Tensor(expected_output_shape, dtype="float32"),
+                        )
+                        gv: R.Tensor(expected_output_shape, dtype="float32") = lv
+                        R.output(gv)
+                    return gv
+            """,
+            locals(),
+        )
+        tvm.ir.assert_structural_equal(
+            tvm_model, _replace_dummy_primfuncs_with_actual(expected, tvm_model)
+        )
 
     x = np.random.rand(2, 3, 4, 5).astype(np.float32)
     repeats = np.random.randint(low=1, high=10, size=(np.ndim(x),)).astype(np.int64)
@@ -5682,51 +6387,54 @@ def test_tile_dynamic_repeats(dynamic_input, in_shape, repeats):
     tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
 
     if dynamic_input:
-        expected_input_shape = [
-            tvm.tirx.SizeVar(f"tile_data_dim_{i}", "int64") for i in range(len(in_shape))
-        ]
+        expected_input_shape = _shape_with_size_vars(["?"] * len(in_shape), "tile_data_dim")
     else:
         expected_input_shape = list(in_shape)
-    data = relax.Var("input", relax.TensorType(expected_input_shape, "float32"))
-    repeats_param = relax.Var("repeats", relax.TensorType([len(repeats)], "int64"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data, repeats_param]):
-        with bb.dataflow():
-            data_shape = bb.normalize(relax.op.shape_of(data))
-            data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
-            output_shape_tensor = repeats_param
-            data_ndim = len(in_shape)
-            repeats_len = len(repeats)
-            if data_ndim > repeats_len:
-                repeats_prefix = relax.const(
-                    np.ones((data_ndim - repeats_len,), dtype="int64"), "int64"
-                )
-                output_shape_tensor = bb.normalize(
-                    relax.op.concat([repeats_prefix, output_shape_tensor], axis=0)
-                )
-            elif repeats_len > data_ndim:
-                data_prefix = relax.const(
-                    np.ones((repeats_len - data_ndim,), dtype="int64"), "int64"
-                )
-                data_shape_tensor = bb.normalize(
-                    relax.op.concat([data_prefix, data_shape_tensor], axis=0)
-                )
+    assert len(in_shape) == len(repeats)
 
-            output_shape_tensor = bb.normalize(
-                relax.op.multiply(output_shape_tensor, data_shape_tensor)
-            )
-            output_shape_expr = bb.normalize(relax.op.tensor_to_shape(output_shape_tensor))
-            output_shape_vars = [
-                tvm.tirx.Var(f"tile_dim_{i}", "int64") for i in range(max(data_ndim, repeats_len))
-            ]
-            bb.match_cast(output_shape_expr, relax.ShapeType(output_shape_vars))
-            out = bb.emit_te(topi.dyn_tile, data, output_shape_vars, repeats_len)
-            out = bb.emit_output(out)
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
+    rank = len(in_shape)
+    repeats_len = len(repeats)
+    tile_dims = [f"tile_dim_{i}" for i in range(rank)]
+    tile_dim_defs = "\n".join(f"                {dim} = T.int64()" for dim in tile_dims)
+    tile_shape = "(" + ", ".join(tile_dims) + ("," if rank == 1 else "") + ")"
+    tile_shape_list = "[" + ", ".join(tile_dims) + "]"
+    expected = _parse_expected_source(
+        f"""
+        @I.ir_module
+        class ExpectedTile:
+            @T.prim_func(private=True, s_tir=True)
+            def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+            @R.function
+            def main(
+                input: R.Tensor(expected_input_shape, dtype="float32"),
+                repeats: R.Tensor((repeats_len,), dtype="int64"),
+            ) -> R.Tensor(dtype="float32", ndim={rank}):
+{tile_dim_defs}
+                R.func_attr({{"num_input": 2}})
+                cls = ExpectedTile
+                with R.dataflow():
+                    lv = R.shape_of(input)
+                    lv1: R.Tensor(({rank},), dtype="int64") = R.shape_to_tensor(lv)
+                    lv2: R.Tensor(({rank},), dtype="int64") = R.multiply(repeats, lv1)
+                    lv3: R.Shape({tile_shape_list}) = R.match_cast(
+                        R.tensor_to_shape(lv2), R.Shape({tile_shape_list})
+                    )
+                    lv4 = R.call_tir(
+                        cls.dyn_tile,
+                        (input,),
+                        out_ty=R.Tensor({tile_shape}, dtype="float32"),
+                    )
+                    gv: R.Tensor({tile_shape}, dtype="float32") = lv4
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
+    tvm.ir.assert_structural_equal(
+        tvm_model, _replace_dummy_primfuncs_with_actual(expected, tvm_model)
+    )
 
 
 def _generate_roi_cases():
@@ -5980,17 +6688,25 @@ def test_einsum():
     model = helper.make_model(graph, producer_name="einsum_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    x = relax.Var("x", relax.TensorType([3, 4], "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            out = bb.emit_te(topi.einsum, eqn, x)
-            out = bb.emit_output(out)
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True, s_tir=True)
+        def einsum(x: T.handle, T_einsum: T.handle):
+            T.evaluate(0)
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+        @R.function
+        def main(x: R.Tensor((3, 4), dtype="float32")) -> R.Tensor((3,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = Expected
+            with R.dataflow():
+                lv = R.call_tir(cls.einsum, (x,), out_ty=R.Tensor((3,), dtype="float32"))
+                gv: R.Tensor((3,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(
+        tvm_model, _replace_dummy_primfuncs_with_actual(Expected, tvm_model)
+    )
 
 
 def test_range():
@@ -6018,18 +6734,23 @@ def test_range():
     tvm_model = from_onnx(model, keep_params_in_input=True)
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    start = relax.Var("start", relax.TensorType([], "int64"))
-    limit = relax.Var("limit", relax.TensorType([], "int64"))
-    delta = relax.Var("delta", relax.TensorType([], "int64"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [start, limit, delta]):
-        with bb.dataflow():
-            out = bb.emit_output(relax.const(np.array([1, 3], dtype=np.int64), "int64"))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 0)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            start: R.Tensor((), dtype="int64"),
+            limit: R.Tensor((), dtype="int64"),
+            delta: R.Tensor((), dtype="int64"),
+        ) -> R.Tensor((2,), dtype="int64"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const(
+                    np.array([1, 3], dtype=np.int64), "int64"
+                )
+                R.output(gv)
+            return gv
 
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 def test_batch_norm():
@@ -6111,45 +6832,81 @@ def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
 
 
 def make_pool_expected(pool_name, shape, auto_pad, kernel_shape, strides, pads):
-    data = relax.Var("x", relax.TensorType(shape, "float32"))
     strides = strides or [1] * (len(shape) - 2)
     dilations = [1] * (len(shape) - 2)
     padding = get_pool_padding(shape, auto_pad, kernel_shape, strides, pads)
+    rank = len(kernel_shape)
     pool_kind = "max" if pool_name == "MaxPool" else "avg"
-    pool_op = getattr(relax.op.nn, pool_kind + "_pool" + str(len(kernel_shape)) + "d")
+    pool_op = f"R.nn.{pool_kind}_pool{rank}d"
+    layout = {1: "NCW", 2: "NCHW", 3: "NCDHW"}[rank]
+    count_include_pad = (
+        "" if pool_name == "MaxPool" else "count_include_pad=False,\n                        "
+    )
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data]):
-        with bb.dataflow():
-            output = bb.emit_output(
-                pool_op(data, kernel_shape, strides, padding, dilations, False, False)
-            )
-        bb.emit_func_output(output)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-    return expected
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(x: R.Tensor({_shape_to_tvmscript(shape)}, dtype="float32")):
+                R.func_attr({{"num_input": 1}})
+                with R.dataflow():
+                    gv = {pool_op}(
+                        x,
+                        pool_size={kernel_shape},
+                        strides={strides},
+                        dilation={dilations},
+                        padding={padding},
+                        ceil_mode=False,
+                        {count_include_pad}layout="{layout}",
+                        out_layout="{layout}",
+                    )
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 def make_lppool_expected(shape, auto_pad, kernel_shape, strides, pads):
-    data = relax.Var("x", relax.TensorType(shape, "float32"))
     strides = strides or [1] * (len(shape) - 2)
     dilations = [1] * (len(shape) - 2)
     padding = get_pool_padding(shape, auto_pad, kernel_shape, strides, pads)
-    pool_op = getattr(relax.op.nn, "avg_pool" + str(len(kernel_shape)) + "d")
+    scale = float(np.prod(kernel_shape))
+    rank = len(kernel_shape)
+    layout = {1: "NCW", 2: "NCHW", 3: "NCDHW"}[rank]
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data]):
-        with bb.dataflow():
-            powered = bb.emit(relax.op.power(data, relax.const(2.0, dtype="float32")))
-            pooled = bb.emit(pool_op(powered, kernel_shape, strides, padding, dilations, 0, True))
-            scaled = bb.emit(
-                relax.op.multiply(pooled, relax.const(float(np.prod(kernel_shape)), "float32"))
-            )
-            output = bb.emit_output(relax.op.power(scaled, relax.const(0.5, dtype="float32")))
-        bb.emit_func_output(output)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-    return expected
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(x: R.Tensor({_shape_to_tvmscript(shape)}, dtype="float32")):
+                R.func_attr({{"num_input": 1}})
+                with R.dataflow():
+                    lv = R.power(x, R.const(2.0, "float32"))
+                    lv1 = R.nn.avg_pool{rank}d(
+                        lv,
+                        pool_size={kernel_shape},
+                        strides={strides},
+                        dilation={dilations},
+                        padding={padding},
+                        ceil_mode=False,
+                        count_include_pad=True,
+                        layout="{layout}",
+                        out_layout="{layout}",
+                    )
+                    lv2 = R.multiply(lv1, R.const({scale}, "float32"))
+                    gv = R.power(lv2, R.const(0.5, "float32"))
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 def verify_pool_ir(pool_name, shape, auto_pad, kernel_shape, strides, pads):
@@ -6343,18 +7100,33 @@ def make_global_lp_pool_expected(input_shape: list[int], p: int):
     output_shape = input_shape[:2] + [1] * (len(input_shape) - 2)
     axes = list(range(2, len(input_shape)))
 
-    x = relax.Var("x", relax.TensorType(input_shape, "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            abs_x = bb.emit(relax.op.abs(x))
-            powered = bb.emit(relax.op.power(abs_x, relax.const(float(p), "float32")))
-            summed = bb.emit(relax.op.sum(powered, axes, keepdims=True))
-            out = bb.emit_output(relax.op.power(summed, relax.const(float(1 / p), "float32")))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-    return expected
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                x: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32")
+            ) -> R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32"):
+                R.func_attr({{"num_input": 1}})
+                with R.dataflow():
+                    lv: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32") = R.abs(x)
+                    lv1: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32") = R.power(
+                        lv, R.const({float(p)}, "float32")
+                    )
+                    lv2: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32") = R.sum(
+                        lv1, axis={axes}, keepdims=True
+                    )
+                    gv: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32") = R.power(
+                        lv2, R.const({float(1 / p)}, "float32")
+                    )
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 @pytest.mark.parametrize("p", [1, 2, 3])
@@ -6374,8 +7146,6 @@ def test_global_lp_pool(p: int):
 
 
 def make_maxunpool_expected(input_shape, kernel_shape, pads, strides):
-    data = relax.Var("X", relax.TensorType(input_shape, "float32"))
-    indices = relax.Var("I_1", relax.TensorType(input_shape, "int64"))
     strides = strides or [1] * len(kernel_shape)
 
     output_shape = np.concatenate([[1, 1], list(strides)]) * np.array(input_shape)
@@ -6387,23 +7157,45 @@ def make_maxunpool_expected(input_shape, kernel_shape, pads, strides):
         output_shape -= np.sum(pads_by_axis, axis=-1)
 
     output_shape = [int(dim) for dim in output_shape.tolist()]
-    output_shape_expr = relax.ShapeExpr(output_shape)
+    flat_size = int(np.prod(output_shape))
+    input_size = int(np.prod(input_shape))
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data, indices]):
-        with bb.dataflow():
-            zeros = bb.emit(relax.op.zeros(output_shape_expr, data.ty.dtype))
-            flat_zeros = bb.emit(relax.op.reshape(zeros, [-1]))
-            flat_indices = bb.emit(relax.op.reshape(indices, [-1]))
-            flat_data = bb.emit(relax.op.reshape(data, [-1]))
-            scattered = bb.emit(
-                relax.op.scatter_elements(flat_zeros, flat_indices, flat_data, axis=0)
-            )
-            output = bb.emit_output(relax.op.reshape(scattered, output_shape_expr))
-        bb.emit_func_output(output)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
-    return expected
+    return _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
+
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                X: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="float32"),
+                I_1: R.Tensor({_shape_to_tvmscript(input_shape)}, dtype="int64"),
+            ) -> R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32"):
+                R.func_attr({{"num_input": 2}})
+                with R.dataflow():
+                    lv: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32") = R.zeros(
+                        R.shape({_shape_to_tvmscript(output_shape)}), dtype="float32"
+                    )
+                    lv1: R.Tensor(({flat_size},), dtype="float32") = R.reshape(
+                        lv, R.shape([{flat_size}])
+                    )
+                    lv2: R.Tensor(({input_size},), dtype="int64") = R.reshape(
+                        I_1, R.shape([{input_size}])
+                    )
+                    lv3: R.Tensor(({input_size},), dtype="float32") = R.reshape(
+                        X, R.shape([{input_size}])
+                    )
+                    lv4: R.Tensor(({flat_size},), dtype="float32") = R.scatter_elements(
+                        lv1, lv2, lv3, axis=0, reduction="update"
+                    )
+                    gv: R.Tensor({_shape_to_tvmscript(output_shape)}, dtype="float32") = R.reshape(
+                        lv4, R.shape({_shape_to_tvmscript(output_shape)})
+                    )
+                    R.output(gv)
+                return gv
+        """
+    )
 
 
 @pytest.mark.parametrize("kernel_shape", [[2, 2], [3, 3]])
@@ -6698,20 +7490,24 @@ def test_nonzero(shape):
     model = helper.make_model(graph, producer_name="nonzero_structural_test")
     tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    nonzero_numbers = tvm.tirx.Var("nonzero_numbers", "int64")
-    x = relax.Var("x", relax.TensorType(shape, "bool"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [x]):
-        with bb.dataflow():
-            nonzero = bb.match_cast(
-                relax.op.nonzero(x),
-                relax.TensorType([ndim, nonzero_numbers], "int64"),
-            )
-            out = bb.emit_output(nonzero)
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-
+    expected = _parse_expected_source(
+        """
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(x: R.Tensor(shape, dtype="bool")):
+                nonzero_numbers = T.int64()
+                R.func_attr({"num_input": 1})
+                with R.dataflow():
+                    lv: R.Tensor((ndim, nonzero_numbers), dtype="int64") = R.match_cast(
+                        R.nonzero(x), R.Tensor((ndim, nonzero_numbers), dtype="int64")
+                    )
+                    gv: R.Tensor((ndim, nonzero_numbers), dtype="int64") = lv
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -7957,11 +8753,7 @@ def _make_nms_expected(
     center_point_box=0,
     nms_params=None,
 ):
-    boxes = relax.Var("boxes", relax.TensorType(boxes_shape, "float32"))
-    scores = relax.Var("scores", relax.TensorType(scores_shape, "float32"))
-    params = [boxes, scores]
-    for name, shape, dtype, _ in nms_params or []:
-        params.append(relax.Var(name, relax.TensorType(shape, dtype)))
+    assert center_point_box == 0
 
     def param_value(name, default, dtype):
         for param_name, _, _, value in nms_params or []:
@@ -7972,41 +8764,51 @@ def _make_nms_expected(
             return np.float32(default).item()
         return int(default)
 
-    bb = relax.BlockBuilder()
-    with bb.function("main", params):
-        with bb.dataflow():
-            nms_boxes = boxes
-            if center_point_box != 0:
-                split_result = bb.emit(relax.op.split(boxes, 4, axis=2))
-                xc = bb.emit(split_result[0])
-                yc = bb.emit(split_result[1])
-                w = bb.emit(split_result[2])
-                h = bb.emit(split_result[3])
-                half_w = bb.emit(relax.op.divide(w, relax.const(2.0, "float32")))
-                half_h = bb.emit(relax.op.divide(h, relax.const(2.0, "float32")))
-                x1 = bb.emit(relax.op.subtract(xc, half_w))
-                x2 = bb.emit(relax.op.add(xc, half_w))
-                y1 = bb.emit(relax.op.subtract(yc, half_h))
-                y2 = bb.emit(relax.op.add(yc, half_h))
-                nms_boxes = bb.emit(relax.op.concat([y1, x1, y2, x2], axis=2))
+    max_output_boxes_value = param_value("max_output_boxes_per_class", 0, "int64")
+    iou_threshold_value = param_value("iou_threshold", 0.5, "float32")
+    score_threshold_value = param_value("score_threshold", 0.0, "float32")
+    nms_params = nms_params or []
 
-            nms_out = bb.emit(
-                relax.op.vision.all_class_non_max_suppression(
-                    nms_boxes,
-                    scores,
-                    relax.const(param_value("max_output_boxes_per_class", 0, "int64"), "int64"),
-                    relax.const(param_value("iou_threshold", 0.5, "float32"), "float32"),
-                    relax.const(param_value("score_threshold", 0.0, "float32"), "float32"),
-                    output_format="onnx",
-                )
-            )
-            selected_indices = bb.emit(nms_out[0])
-            gv = bb.emit_output(selected_indices)
-        bb.emit_func_output(gv)
-
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
-    return expected
+    params = [
+        'boxes: R.Tensor(boxes_shape, dtype="float32")',
+        'scores: R.Tensor(scores_shape, dtype="float32")',
+    ]
+    if len(nms_params) == 3:
+        params.extend(
+            [
+                'max_output_boxes_per_class: R.Tensor((1,), dtype="int64")',
+                'iou_threshold: R.Tensor((1,), dtype="float32")',
+                'score_threshold: R.Tensor((1,), dtype="float32")',
+            ]
+        )
+    elif len(nms_params) == 1:
+        params.append('max_output_boxes_per_class: R.Tensor((1,), dtype="int64")')
+    params_text = ",\n                ".join(params)
+    return _parse_expected_source(
+        f"""
+        @I.ir_module
+        class ExpectedNMS:
+            @R.function
+            def main(
+                {params_text},
+            ):
+                R.func_attr({{"num_input": 2}})
+                with R.dataflow():
+                    lv = R.vision.all_class_non_max_suppression(
+                        boxes,
+                        scores,
+                        R.const(max_output_boxes_value, "int64"),
+                        R.const(iou_threshold_value, "float32"),
+                        R.const(score_threshold_value, "float32"),
+                        "onnx",
+                    )
+                    lv1 = lv[0]
+                    gv = lv1
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
 
 
 def _assert_nms_import(
@@ -8431,27 +9233,35 @@ def test_grid_sample(mode, padding_mode, align_corners):
         graph, producer_name="grid_sample_test", opset_imports=[helper.make_opsetid("", 16)]
     )
     tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
+    permuted_grid_shape = [grid_shape[0], grid_shape[3], grid_shape[1], grid_shape[2]]
 
-    X = relax.Var("X", relax.TensorType(x_shape, "float32"))
-    grid = relax.Var("grid", relax.TensorType(grid_shape, "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [X, grid]):
-        with bb.dataflow():
-            relax_grid = bb.emit(relax.op.permute_dims(grid, axes=[0, 3, 1, 2]))
-            out = bb.emit_output(
-                relax.op.image.grid_sample(
-                    X,
-                    relax_grid,
-                    method=mode,
-                    layout="NCHW",
-                    padding_mode=padding_mode,
-                    align_corners=bool(align_corners),
-                )
-            )
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
-
+    expected = _parse_expected_source(
+        """
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                X: R.Tensor(x_shape, dtype="float32"),
+                grid: R.Tensor(grid_shape, dtype="float32"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 2})
+                with R.dataflow():
+                    lv: R.Tensor(permuted_grid_shape, dtype="float32") = R.permute_dims(
+                        grid, axes=[0, 3, 1, 2]
+                    )
+                    gv: R.Tensor(out_shape, dtype="float32") = R.image.grid_sample(
+                        X,
+                        lv,
+                        method=mode,
+                        layout="NCHW",
+                        padding_mode=padding_mode,
+                        align_corners=bool(align_corners),
+                    )
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -8489,26 +9299,33 @@ def test_grid_sample_5d(mode, padding_mode, align_corners):
     )
     tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
 
-    X = relax.Var("X", relax.TensorType(x_shape, "float32"))
-    grid = relax.Var("grid", relax.TensorType(grid_shape, "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [X, grid]):
-        with bb.dataflow():
-            relax_grid = bb.emit(relax.op.permute_dims(grid, axes=[0, 4, 1, 2, 3]))
-            out = bb.emit_output(
-                relax.op.image.grid_sample(
-                    X,
-                    relax_grid,
-                    method=mode,
-                    layout="NCDHW",
-                    padding_mode=padding_mode,
-                    align_corners=bool(align_corners),
-                )
-            )
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
-
+    expected = _parse_expected_source(
+        """
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                X: R.Tensor(x_shape, dtype="float32"),
+                grid: R.Tensor(grid_shape, dtype="float32"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 2})
+                with R.dataflow():
+                    lv: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.permute_dims(
+                        grid, axes=[0, 4, 1, 2, 3]
+                    )
+                    gv: R.Tensor(out_shape, dtype="float32") = R.image.grid_sample(
+                        X,
+                        lv,
+                        method=mode,
+                        layout="NCDHW",
+                        padding_mode=padding_mode,
+                        align_corners=bool(align_corners),
+                    )
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -9204,44 +10021,72 @@ def _make_matmulinteger_expected(
     def _dtype(dtype):
         return np.dtype(dtype).name
 
-    A = relax.Var("A", relax.TensorType(A_shape, _dtype(A_dtype)))
-    B = relax.Var("B", relax.TensorType(B_shape, _dtype(B_dtype)))
-    params = [A, B]
-
-    bb = relax.BlockBuilder()
+    A_dtype = _dtype(A_dtype)
+    B_dtype = _dtype(B_dtype)
+    params = [
+        f'A: R.Tensor({_shape_to_tvmscript(A_shape)}, dtype="{A_dtype}")',
+        f'B: R.Tensor({_shape_to_tvmscript(B_shape)}, dtype="{B_dtype}")',
+    ]
     if a_zp_shape is not None:
-        a_zero_point = relax.Var("a_zero_point", relax.TensorType(a_zp_shape, _dtype(A_dtype)))
-        params.append(a_zero_point)
-    else:
-        a_zero_point = None
-
+        params.append(
+            f'a_zero_point: R.Tensor({_shape_to_tvmscript(a_zp_shape)}, dtype="{A_dtype}")'
+        )
     if b_zp_shape is not None:
-        b_zero_point = relax.Var("b_zero_point", relax.TensorType(b_zp_shape, _dtype(B_dtype)))
-        params.append(b_zero_point)
-    else:
-        b_zero_point = None
+        params.append(
+            f'b_zero_point: R.Tensor({_shape_to_tvmscript(b_zp_shape)}, dtype="{B_dtype}")'
+        )
 
-    with bb.function("main", params):
-        with bb.dataflow():
-            a = bb.emit(relax.op.astype(A, "int32"))
-            if a_zero_point is not None:
-                a_zp = bb.emit(relax.op.astype(a_zero_point, "int32"))
-                if len(a_zp_shape) == 1:
-                    a_zp = bb.emit(relax.op.expand_dims(a_zp, axis=-1))
-                a = bb.emit(relax.op.subtract(a, a_zp))
+    lines = ['lv = R.astype(A, dtype="int32")']
+    a_input = "lv"
+    next_var = 1
+    if a_zp_shape is not None:
+        lines.append(f'lv{next_var} = R.astype(a_zero_point, dtype="int32")')
+        a_zp = f"lv{next_var}"
+        next_var += 1
+        if len(a_zp_shape) == 1:
+            lines.append(f"lv{next_var} = R.expand_dims({a_zp}, axis=-1)")
+            a_zp = f"lv{next_var}"
+            next_var += 1
+        lines.append(f"lv{next_var} = R.subtract(lv, {a_zp})")
+        a_input = f"lv{next_var}"
+        next_var += 1
 
-            b = bb.emit(relax.op.astype(B, "int32"))
-            if b_zero_point is not None:
-                b_zp = bb.emit(relax.op.astype(b_zero_point, "int32"))
-                if len(b_zp_shape) == 1:
-                    b_zp = bb.emit(relax.op.expand_dims(b_zp, axis=0))
-                b = bb.emit(relax.op.subtract(b, b_zp))
+    lines.append(f'lv{next_var} = R.astype(B, dtype="int32")')
+    b_input = f"lv{next_var}"
+    next_var += 1
+    if b_zp_shape is not None:
+        lines.append(f'lv{next_var} = R.astype(b_zero_point, dtype="int32")')
+        b_zp = f"lv{next_var}"
+        next_var += 1
+        if len(b_zp_shape) == 1:
+            lines.append(f"lv{next_var} = R.expand_dims({b_zp}, axis=0)")
+            b_zp = f"lv{next_var}"
+            next_var += 1
+        lines.append(f"lv{next_var} = R.subtract({b_input}, {b_zp})")
+        b_input = f"lv{next_var}"
 
-            out = bb.emit_output(relax.op.matmul(a, b, out_dtype="int32"))
-        bb.emit_func_output(out)
+    body = "\n".join(f"                    {line}" for line in lines)
+    params_text = ",\n                ".join(params)
+    expected = _parse_expected_source(
+        f"""
+        # from tvm.script import ir as I
+        # from tvm.script import relax as R
 
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 2)
+        @I.ir_module
+        class Expected:
+            @R.function
+            def main(
+                {params_text},
+            ):
+                R.func_attr({{"num_input": 2}})
+                with R.dataflow():
+{body}
+                    gv = R.matmul({a_input}, {b_input}, out_dtype="int32")
+                    R.output(gv)
+                return gv
+        """
+    )
+
     return expected
 
 
@@ -9420,20 +10265,27 @@ def test_arg_min_max_select_last_index(op_name, axis, keepdims):
     model = helper.make_model(graph, producer_name="arg_select_last_index_test")
     tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
 
-    data = relax.Var("data", relax.TensorType(shape, "float32"))
-    bb = relax.BlockBuilder()
-    with bb.function("main", [data]):
-        with bb.dataflow():
-            flipped = bb.emit(relax.op.flip(data, axis=axis))
-            if op_name == "ArgMax":
-                reduced = bb.emit(relax.op.argmax(flipped, axis=axis, keepdims=keepdims))
-            else:
-                reduced = bb.emit(relax.op.argmin(flipped, axis=axis, keepdims=keepdims))
-            out = bb.emit_output(relax.op.subtract(relax.const(shape[axis] - 1, "int64"), reduced))
-        bb.emit_func_output(out)
-    expected = bb.get()
-    expected["main"] = expected["main"].with_attr("num_input", 1)
-
+    reduce_op = "R.argmax" if op_name == "ArgMax" else "R.argmin"
+    expected = _parse_expected_source(
+        f"""
+        @I.ir_module
+        class ExpectedSelectLastIndex:
+            @R.function
+            def main(data: R.Tensor(shape, dtype="float32")) -> R.Tensor(out_shape, dtype="int64"):
+                R.func_attr({{"num_input": 1}})
+                with R.dataflow():
+                    lv = R.flip(data, axis=axis)
+                    lv1: R.Tensor(out_shape, dtype="int64") = {reduce_op}(
+                        lv, axis=axis, keepdims=keepdims
+                    )
+                    gv: R.Tensor(out_shape, dtype="int64") = R.subtract(
+                        R.const(shape[axis] - 1, "int64"), lv1
+                    )
+                    R.output(gv)
+                return gv
+        """,
+        locals(),
+    )
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
