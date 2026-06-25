@@ -2490,24 +2490,12 @@ def test_eye_like(k: int):
     node = helper.make_node("EyeLike", ["x"], ["y"], k=k)
     graph = helper.make_graph(
         [node],
-        "eye_like_structural_test",
+        "eye_like_test",
         inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32])],
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
     )
-    model = helper.make_model(graph, producer_name="eye_like_structural_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((32, 32), dtype="float32")) -> R.Tensor((32, 32), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((32, 32), dtype="float32") = R.eye_like(x, k=k, dtype="float32")
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    model = helper.make_model(graph, producer_name="eye_like_test")
+    check_correctness(model)
 
 
 def test_gemm():
@@ -2806,26 +2794,12 @@ def test_transpose():
     node = helper.make_node("Transpose", ["x"], ["y"], perm=[1, 2, 0])
     graph = helper.make_graph(
         [node],
-        "transpose_structural_test",
+        "transpose_test",
         inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32, 32])],
         outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32, 32])],
     )
-    model = helper.make_model(graph, producer_name="transpose_structural_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((32, 32, 32), dtype="float32")) -> R.Tensor(
-            (32, 32, 32), dtype="float32"
-        ):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((32, 32, 32), dtype="float32") = R.permute_dims(x, axes=[1, 2, 0])
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    model = helper.make_model(graph, producer_name="transpose_test")
+    check_correctness(model)
 
 
 def test_transpose_scalar():
@@ -3611,40 +3585,19 @@ def test_shape():
 
 
 def test_trilu():
-    def verify_trilu(upper: bool, expected):
+    def verify_trilu(upper: bool):
         node = helper.make_node("Trilu", ["x"], ["y"], upper=upper)
         graph = helper.make_graph(
             [node],
-            "trilu_structural_test",
+            "trilu_test",
             inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [3, 5, 5])],
             outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 5, 5])],
         )
-        model = helper.make_model(graph, producer_name="trilu_structural_test")
-        tvm_model = from_onnx(model, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
+        model = helper.make_model(graph, producer_name="trilu_test")
+        check_correctness(model)
 
-    @I.ir_module
-    class ExpectedTriluUpper:
-        @R.function
-        def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor((3, 5, 5), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((3, 5, 5), dtype="float32") = R.triu(x, 0)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class ExpectedTriluLower:
-        @R.function
-        def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor((3, 5, 5), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((3, 5, 5), dtype="float32") = R.tril(x, 0)
-                R.output(gv)
-            return gv
-
-    verify_trilu(True, ExpectedTriluUpper)
-    verify_trilu(False, ExpectedTriluLower)
+    verify_trilu(True)
+    verify_trilu(False)
 
 
 @pytest.mark.parametrize("k_value", [-1, 0, 1])
@@ -3666,19 +3619,7 @@ def test_trilu_with_const_k(k_value: int):
     )
 
     model = helper.make_model(graph, producer_name="trilu_graph")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 3, 3), dtype="float64")) -> R.Tensor((2, 3, 3), dtype="float64"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((2, 3, 3), dtype="float64") = R.triu(x, k_value)
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    check_correctness(model)
 
 
 def test_selu():
