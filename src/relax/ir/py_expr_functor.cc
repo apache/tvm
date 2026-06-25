@@ -102,14 +102,6 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
       f_visit_expr(expr);
     } else {
       // Need to init the overwrite VTable
-      if (const auto* prim_expr = expr.as<PrimExprNode>()) {
-        if (f_visit_prim_expr_ != nullptr) {
-          f_visit_prim_expr_(expr);
-        } else {
-          ExprVisitor::VisitExpr_(prim_expr);
-        }
-        return;
-      }
       static FType vtable = InitVTable();
       vtable(expr, this);
     }
@@ -172,7 +164,7 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
     PY_EXPR_VISITOR_DISPATCH(IfNode, f_visit_if_);
     PY_EXPR_VISITOR_DISPATCH(OpNode, f_visit_op_);
     PY_EXPR_VISITOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_);
-    PY_EXPR_VISITOR_DISPATCH(PrimExprNode, f_visit_prim_expr_);
+    RELAX_PRIM_EXPR_NODE_DISPATCH_LIST(PY_EXPR_VISITOR_DISPATCH_PRIM_EXPR);
     PY_EXPR_VISITOR_DISPATCH(StringImmNode, f_visit_string_imm_);
     PY_EXPR_VISITOR_DISPATCH(DataTypeImmNode, f_visit_data_type_imm_);
     vtable.Finalize();
@@ -347,13 +339,6 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     if (f_visit_expr != nullptr) {
       return builder_->Normalize(f_visit_expr(expr).cast<Expr>());
     } else {
-      if (const auto* prim_expr = expr.as<PrimExprNode>()) {
-        if (f_visit_prim_expr_ != nullptr) {
-          return builder_->Normalize(f_visit_prim_expr_(expr).cast<Expr>());
-        } else {
-          return builder_->Normalize(ExprMutator::VisitExpr_(prim_expr));
-        }
-      }
       static FType vtable = InitVTable();
       return builder_->Normalize(vtable(expr, this));
     }
@@ -442,7 +427,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     PY_EXPR_MUTATOR_DISPATCH(IfNode, f_visit_if_);
     PY_EXPR_MUTATOR_DISPATCH(OpNode, f_visit_op_);
     PY_EXPR_MUTATOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_);
-    PY_EXPR_MUTATOR_DISPATCH(PrimExprNode, f_visit_prim_expr_);
+    RELAX_PRIM_EXPR_NODE_DISPATCH_LIST(PY_EXPR_MUTATOR_DISPATCH_PRIM_EXPR);
     PY_EXPR_MUTATOR_DISPATCH(StringImmNode, f_visit_string_imm_);
     PY_EXPR_MUTATOR_DISPATCH(DataTypeImmNode, f_visit_data_type_imm_);
     vtable.Finalize();
@@ -466,7 +451,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(IfNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OpNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(TupleGetItemNode);
-    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(PrimExprNode);
+    RELAX_PRIM_EXPR_NODE_DISPATCH_LIST(PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(StringImmNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(DataTypeImmNode);
     post_order_vtable.Finalize();

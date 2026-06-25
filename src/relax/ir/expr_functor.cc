@@ -54,7 +54,7 @@
     RELAX_VISIT_BINDING_DISPATCH(IfNode);                                               \
     RELAX_VISIT_BINDING_DISPATCH(OpNode);                                               \
     RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                     \
-    RELAX_VISIT_BINDING_DISPATCH(PrimExprNode);                                        \
+    RELAX_PRIM_EXPR_NODE_DISPATCH_LIST(RELAX_VISIT_BINDING_DISPATCH);                  \
     RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                        \
     RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                      \
     return vtable;                                                                      \
@@ -63,10 +63,6 @@
     static VisitBindingVTable vtable = InitVisitBindingVTable();                        \
     const Expr& value = binding->value;                                                 \
     TVM_FFI_ICHECK(value.defined()) << "Found null pointer node while traversing AST."; \
-    if (const auto* prim_expr = value.as<PrimExprNode>()) {                              \
-      this->VisitBinding_(binding, prim_expr);                                          \
-      return;                                                                           \
-    }                                                                                   \
     TVM_FFI_ICHECK(vtable.can_dispatch(value))                                          \
         << "VisitVarBinding do not allow binding value type" << value->GetTypeKey();    \
     vtable(value, this, binding);                                                       \

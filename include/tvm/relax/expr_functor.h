@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_EXPR_FUNCTOR_H_
 #define TVM_RELAX_EXPR_FUNCTOR_H_
 
+#include <tvm/arith/iter_affine_map.h>
 #include <tvm/ir/node_functor.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -62,6 +63,43 @@ class ExprFunctor;
     return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
   });
 
+#define RELAX_PRIM_EXPR_NODE_DISPATCH_LIST(V) \
+  V(::tvm::IntImmNode)                        \
+  V(::tvm::FloatImmNode)                      \
+  V(::tvm::tirx::VarNode)                     \
+  V(::tvm::tirx::SizeVarNode)                 \
+  V(::tvm::tirx::StringImmNode)               \
+  V(::tvm::tirx::CastNode)                    \
+  V(::tvm::tirx::AddNode)                     \
+  V(::tvm::tirx::SubNode)                     \
+  V(::tvm::tirx::MulNode)                     \
+  V(::tvm::tirx::DivNode)                     \
+  V(::tvm::tirx::ModNode)                     \
+  V(::tvm::tirx::FloorDivNode)                \
+  V(::tvm::tirx::FloorModNode)                \
+  V(::tvm::tirx::MinNode)                     \
+  V(::tvm::tirx::MaxNode)                     \
+  V(::tvm::tirx::EQNode)                      \
+  V(::tvm::tirx::NENode)                      \
+  V(::tvm::tirx::LTNode)                      \
+  V(::tvm::tirx::LENode)                      \
+  V(::tvm::tirx::GTNode)                      \
+  V(::tvm::tirx::GENode)                      \
+  V(::tvm::tirx::AndNode)                     \
+  V(::tvm::tirx::OrNode)                      \
+  V(::tvm::tirx::NotNode)                     \
+  V(::tvm::tirx::SelectNode)                  \
+  V(::tvm::tirx::BufferLoadNode)              \
+  V(::tvm::tirx::ProducerLoadNode)            \
+  V(::tvm::tirx::RampNode)                    \
+  V(::tvm::tirx::BroadcastNode)               \
+  V(::tvm::tirx::LetNode)                     \
+  V(::tvm::tirx::CallNode)                    \
+  V(::tvm::tirx::ShuffleNode)                 \
+  V(::tvm::tirx::ReduceNode)                  \
+  V(::tvm::arith::IterSplitExprNode)          \
+  V(::tvm::arith::IterSumExprNode)
+
 #define PY_EXPR_VISITOR_DEFAULT(N, PY_FUNC, DEFAULT_FUNC) \
   {                                                       \
     if (PY_FUNC != nullptr)                               \
@@ -88,6 +126,8 @@ class ExprFunctor;
       self->VisitExpr_(static_cast<const OP*>(n.get()));                      \
   });
 
+#define PY_EXPR_VISITOR_DISPATCH_PRIM_EXPR(OP) PY_EXPR_VISITOR_DISPATCH(OP, f_visit_prim_expr_)
+
 #define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                                 \
   vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
     if (self->PY_FUNC != nullptr) {                                           \
@@ -97,6 +137,8 @@ class ExprFunctor;
       return self->VisitExpr_(static_cast<const OP*>(n.get()));               \
     }                                                                         \
   });
+
+#define PY_EXPR_MUTATOR_DISPATCH_PRIM_EXPR(OP) PY_EXPR_MUTATOR_DISPATCH(OP, f_visit_prim_expr_)
 
 #define PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OP)                               \
   post_order_vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self) { \
@@ -131,9 +173,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     TVM_FFI_ICHECK(n.defined())
         << "Found null pointer node while traversing AST. The previous pass may "
            "have generated invalid data.";
-    if (const auto* prim_expr = n.as<PrimExprNode>()) {
-      return this->VisitExpr_(prim_expr, std::forward<Args>(args)...);
-    }
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -179,7 +218,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(IfNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(OpNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
-    RELAX_EXPR_FUNCTOR_DISPATCH(PrimExprNode);
+    RELAX_PRIM_EXPR_NODE_DISPATCH_LIST(RELAX_EXPR_FUNCTOR_DISPATCH);
     RELAX_EXPR_FUNCTOR_DISPATCH(StringImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(DataTypeImmNode);
     vtable.Finalize();
