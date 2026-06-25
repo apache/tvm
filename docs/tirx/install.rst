@@ -39,7 +39,7 @@ Install the Apache TVM wheel (the TIRx compiler is the ``tvm.tirx`` module):
 
 .. code-block:: bash
 
-   pip install apache-tvm==0.25.0
+   pip install apache-tvm
 
 Verify:
 
