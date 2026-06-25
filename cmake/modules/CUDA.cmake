@@ -62,6 +62,13 @@ endif(USE_CUDA)
 if(USE_CUDA)
   message(STATUS "Build cuda device runtime")
 
+  # tvm_runtime_cuda links libcuda; without it the .so silently drops its
+  # libcuda.so.1 dependency, so fail configure instead.
+  if(NOT CUDA_CUDA_LIBRARY)
+    message(FATAL_ERROR "USE_CUDA is on but libcuda was not found. "
+      "Set -DCUDA_CUDA_LIBRARY=<path to libcuda.so> or make the driver stub discoverable.")
+  endif()
+
   tvm_file_glob(GLOB RUNTIME_CUDA_SRCS src/backend/cuda/runtime/*.cc)
   tvm_file_glob(GLOB VM_CUDA_BUILTIN_SRC_CC src/runtime/vm/cuda/*.cc)
 
