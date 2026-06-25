@@ -28,12 +28,15 @@ from .expr import Expr, ShapeExpr, Type
 from .ty import PackedFuncType
 
 
-@tvm_ffi.register_object("relax.ObjectType")
-class ObjectType(Type):
-    """Type of an Object."""
+@tvm_ffi.register_object("relax.AnyType")
+class AnyType(Type):
+    """Type of any Relax value."""
 
     def __init__(self, span: Span = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.ObjectType, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.AnyType, span)  # type: ignore
+
+
+ObjectType = AnyType
 
 
 @tvm_ffi.register_object("relax.ShapeType")

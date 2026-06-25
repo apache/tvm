@@ -208,10 +208,10 @@ template <typename PrimType = PrimExpr,
 ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> ty) {
   if (!ty) return std::nullopt;
 
-  // An ObjectType may contain a tuple of the desired type, but
+  // An AnyType may contain a tuple of the desired type, but
   // it isn't yet known whether it does.  Return early, as we cannot
   // provide a known `ffi::Array<PrimType>` to the caller.
-  if (ty.as<ObjectTypeNode>()) return std::nullopt;
+  if (ty.as<AnyTypeNode>()) return std::nullopt;
 
   auto tuple = ty.as<TupleTypeNode>();
   TVM_FFI_CHECK(tuple, TypeError) << "The type " << ty
@@ -222,7 +222,7 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> t
   for (size_t i = 0; i < tuple->fields.size(); i++) {
     auto field = tuple->fields[i];
 
-    if (field.as<ObjectTypeNode>()) return std::nullopt;
+    if (field.as<AnyTypeNode>()) return std::nullopt;
 
     auto prim_ty = field.as<PrimTypeNode>();
     TVM_FFI_CHECK(prim_ty, TypeError)
@@ -321,7 +321,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
   // so will require a way to represent a `relax::TupleType` of
   // unknown length, where each element has the same `Type`.
   auto is_base_of_tuple_of_int64 = [&](const Type& ty) -> bool {
-    if (ty.as<ObjectTypeNode>()) {
+    if (ty.as<AnyTypeNode>()) {
       return true;
     }
 

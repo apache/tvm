@@ -241,7 +241,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 self._expr,
                 rx.PrimValue(layer_id),  # type: ignore[arg-type]
                 kv._expr,
-                ty_args=rx.ObjectType(),
+                ty_args=rx.AnyType(),
             ),
             _name="paged_kv_cache",
         )
@@ -505,7 +505,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             _expr=rx.call_pure_packed(
                 "vm.builtin.paged_attention_kv_cache_create",
                 *args,
-                ty_args=rx.ObjectType(),
+                ty_args=rx.AnyType(),
             ),
             _name=name,
         )
@@ -680,7 +680,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             _expr=rx.call_pure_packed(
                 "vm.builtin.paged_attention_kv_cache_create",
                 *args,
-                ty_args=rx.ObjectType(),
+                ty_args=rx.AnyType(),
             ),
             _name=name,
         )

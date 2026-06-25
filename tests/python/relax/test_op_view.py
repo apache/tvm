@@ -293,12 +293,12 @@ def test_infer_dtype_of_view_with_unknown_dtype():
     """
 
     @R.function(private=True)
-    def explicit_ty(A: R.Tensor("float32"), dtype: R.Object) -> R.Tensor:
+    def explicit_ty(A: R.Tensor("float32"), dtype: R.Any) -> R.Tensor:
         B: R.Tensor = R.memory.view(A, dtype=dtype)
         return B
 
     @R.function(private=True)
-    def inferred_ty(A: R.Tensor("float32"), dtype: R.Object):
+    def inferred_ty(A: R.Tensor("float32"), dtype: R.Any):
         B = R.memory.view(A, dtype=dtype)
         return B
 

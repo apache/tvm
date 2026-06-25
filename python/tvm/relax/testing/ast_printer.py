@@ -240,8 +240,8 @@ class ASTPrinter(ExprFunctor):
         """
         if isinstance(type_node, relax.ShapeType):
             return self.build_ast_node("ShapeType", ndim=str(type_node.ndim))
-        if isinstance(type_node, relax.ObjectType):
-            return self.build_ast_node("ObjectType")
+        if isinstance(type_node, relax.AnyType):
+            return self.build_ast_node("AnyType")
         if isinstance(type_node, relax.PackedFuncType):
             return self.build_ast_node("PackedFuncType")
         if isinstance(type_node, tvm.ir.PrimType):
@@ -279,8 +279,8 @@ class ASTPrinter(ExprFunctor):
             if ty_node.values is not None:
                 fields["values"] = self.build_list(map(self.visit_prim_expr_, ty_node.values))
             return self.build_ast_node("ShapeType", **fields)
-        elif isinstance(ty_node, relax.ObjectType):
-            return self.build_ast_node("ObjectType")
+        elif isinstance(ty_node, relax.AnyType):
+            return self.build_ast_node("AnyType")
         elif isinstance(ty_node, tvm.ir.PrimType):
             return self.build_ast_node("PrimType", dtype=ty_node.dtype)
         elif isinstance(ty_node, relax.TensorType):

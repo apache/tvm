@@ -31,21 +31,23 @@ namespace tvm {
 namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ObjectTypeNode::RegisterReflection();
+  AnyTypeNode::RegisterReflection();
   ShapeTypeNode::RegisterReflection();
   TensorTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
 }
 
-ObjectType::ObjectType(Span span) {
-  ffi::ObjectPtr<ObjectTypeNode> n = ffi::make_object<ObjectTypeNode>();
+AnyType::AnyType(Span span) {
+  ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
   n->span = span;
   data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ObjectType", [](Span span) { return ObjectType(span); });
+  refl::GlobalDef()
+      .def("relax.AnyType", [](Span span) { return AnyType(span); })
+      .def("relax.ObjectType", [](Span span) { return AnyType(span); });
 }
 
 // Shape
@@ -141,7 +143,7 @@ FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, Span span) {
 FuncType FuncType::OpaqueFunc(TypeDeriveFunc derive_func, bool purity, Span span) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->derive_func = std::move(derive_func);
-  n->ret = ObjectType();
+  n->ret = AnyType();
   n->purity = std::move(purity);
   n->span = span;
   return FuncType(n);
@@ -167,7 +169,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           TVM_FFI_CHECK(!ret.defined(), ValueError) << "Cannot specify both ret and derive_func";
           return FuncType::OpaqueFunc(derive_func.value(), purity, span);
         } else {
-          return FuncType::OpaqueFunc(ret.value_or(ObjectType()), purity, span);
+          return FuncType::OpaqueFunc(ret.value_or(AnyType()), purity, span);
         }
       });
 }

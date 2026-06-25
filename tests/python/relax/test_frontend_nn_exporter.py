@@ -95,7 +95,7 @@ def test_debug_effect():
         @R.function
         def forward(
             x: R.Tensor([3, 3], dtype="float32"),
-            _io: R.Object,
+            _io: R.Any,
         ):
             R.func_attr({"num_input": 2})
             with R.dataflow():
@@ -462,17 +462,17 @@ def test_linear_dynamic_shape():
     @R.function
     def forward(
         x: R.Tensor((1, 4), dtype="float32"),
-        _io: R.Object,
+        _io: R.Any,
         weight: R.Tensor(("n", 4), dtype="float32"),
         bias: R.Tensor(("n",), dtype="float32"),
-    ) -> R.Tuple(R.Tensor((1, "n"), dtype="float32"), R.Tuple(R.Object)):
+    ) -> R.Tuple(R.Tensor((1, "n"), dtype="float32"), R.Tuple(R.Any)):
         n = T.int64()
         R.func_attr({"num_input": 2})
         with R.dataflow():
             permute_dims: R.Tensor((4, n), dtype="float32") = R.permute_dims(weight, axes=None)
             matmul: R.Tensor((1, n), dtype="float32") = R.matmul(x, permute_dims, out_dtype="void")
             add: R.Tensor((1, n), dtype="float32") = R.add(matmul, bias)
-            gv1: R.Tuple(R.Tensor((1, n), dtype="float32"), R.Tuple(R.Object)) = add, (_io,)
+            gv1: R.Tuple(R.Tensor((1, n), dtype="float32"), R.Tuple(R.Any)) = add, (_io,)
             R.output(gv1)
         return gv1
 

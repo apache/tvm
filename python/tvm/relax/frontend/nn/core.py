@@ -46,7 +46,7 @@ from tvm.target import Target
 from .... import relax as rx
 from ...block_builder import BlockBuilder
 from ...type import (
-    ObjectType,
+    AnyType,
     ShapeType,
     TensorType,
     TupleType,
@@ -311,7 +311,7 @@ class Parameter(Tensor):
 
 class Object:
     """A wrapper on top of relax.Expr whose ty is the base
-    ObjectType (rather than any its subclass). Object effectively
+    AnyType, rather than a more specific subtype. Object effectively
     represents non-tensor frontend components such as KV caches.
     """
 
@@ -322,7 +322,7 @@ class Object:
         if not isinstance(_expr, rx.Var):
             _expr = BlockBuilder.current().emit(_expr, _name)
         self._expr = _expr
-        assert isinstance(self._expr.ty, ObjectType)
+        assert isinstance(self._expr.ty, AnyType)
 
 
 class Effect:

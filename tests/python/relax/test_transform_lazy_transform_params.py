@@ -82,14 +82,14 @@ def test_lazy_transform_params():
         @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
             cls = Expected
-            lv: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
+            lv: R.Any = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Any,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 lv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv_m: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv_m, ty_args=(R.Object,))
+            _: R.Any = R.call_packed("set_item", R.prim_value(0), lv_m, ty_args=(R.Any,))
             _1: R.Tuple = R.vm.kill_object(lv_m)
-            lv1: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
+            lv1: R.Any = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Any,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 lv1, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -100,7 +100,7 @@ def test_lazy_transform_params():
                 out_ty=R.Tensor((16, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1_m)
-            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Object,))
+            _3: R.Any = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Any,))
             gv: R.Tuple = R.tuple()
             return gv
 
@@ -166,12 +166,12 @@ def test_get_item_only():
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
             cls = Expected
-            gv: R.Object = R.call_packed("get_item_0", R.prim_value(1), ty_args=(R.Object,))
+            gv: R.Any = R.call_packed("get_item_0", R.prim_value(1), ty_args=(R.Any,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            gv2: R.Object = R.call_packed("get_item_0", R.prim_value(0), ty_args=(R.Object,))
+            gv2: R.Any = R.call_packed("get_item_0", R.prim_value(0), ty_args=(R.Any,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -245,16 +245,16 @@ def test_extra_get_item_params():
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
-        def main_transform_params(loader: R.Object) -> R.Tuple:
+        def main_transform_params(loader: R.Any) -> R.Tuple:
             cls = Expected
-            gv: R.Object = R.call_packed("get_item", loader, R.prim_value(1), ty_args=(R.Object,))
+            gv: R.Any = R.call_packed("get_item", loader, R.prim_value(1), ty_args=(R.Any,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, ty_args=(R.Object,))
+            _: R.Any = R.call_packed("set_item", R.prim_value(0), lv, ty_args=(R.Any,))
             _1: R.Tuple = R.vm.kill_object(lv)
-            gv2: R.Object = R.call_packed("get_item", loader, R.prim_value(0), ty_args=(R.Object,))
+            gv2: R.Any = R.call_packed("get_item", loader, R.prim_value(0), ty_args=(R.Any,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -266,11 +266,11 @@ def test_extra_get_item_params():
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
-            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv3, ty_args=(R.Object,))
+            _3: R.Any = R.call_packed("set_item", R.prim_value(1), lv3, ty_args=(R.Any,))
             gv_1: R.Tuple = R.tuple()
             return gv_1
 
-    after = LazyTransformParams(extra_get_item_params=[relax.Var("loader", relax.ObjectType())])(
+    after = LazyTransformParams(extra_get_item_params=[relax.Var("loader", relax.AnyType())])(
         Before
     )
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
@@ -330,18 +330,16 @@ def test_extra_set_item_params():
                     out[o, i, h, w] = w1[i, o, h, w]
 
         @R.function(pure=False)
-        def main_transform_params(setter: R.Object) -> R.Tuple:
+        def main_transform_params(setter: R.Any) -> R.Tuple:
             cls = Expected
-            gv: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
+            gv: R.Any = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Any,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            _: R.Object = R.call_packed(
-                "set_item", setter, R.prim_value(0), lv, ty_args=(R.Object,)
-            )
+            _: R.Any = R.call_packed("set_item", setter, R.prim_value(0), lv, ty_args=(R.Any,))
             _1: R.Tuple = R.vm.kill_object(lv)
-            gv2: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
+            gv2: R.Any = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Any,))
             gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, 16, 3, 3), dtype="float32")
             )
@@ -353,13 +351,11 @@ def test_extra_set_item_params():
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
             lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
-            _3: R.Object = R.call_packed(
-                "set_item", setter, R.prim_value(1), lv3, ty_args=(R.Object,)
-            )
+            _3: R.Any = R.call_packed("set_item", setter, R.prim_value(1), lv3, ty_args=(R.Any,))
             gv_1: R.Tuple = R.tuple()
             return gv_1
 
-    after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.ObjectType())])(
+    after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.AnyType())])(
         Before
     )
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
@@ -382,25 +378,25 @@ def test_extra_set_item_params_with_const_output():
     @I.ir_module(s_tir=True)
     class Expected:
         @R.function(pure=False)
-        def main_transform_params(setter: R.Object) -> R.Tuple:
+        def main_transform_params(setter: R.Any) -> R.Tuple:
             output = R.tuple()
             _ = R.call_packed(
                 "set_item",
                 setter,
                 R.prim_value(0),
                 R.const(np.array([1, 2]).astype("float32")),
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
             _ = R.call_packed(
                 "set_item",
                 setter,
                 R.prim_value(1),
                 R.const(np.array([3, 4]).astype("float32")),
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
             return output
 
-    after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.ObjectType())])(
+    after = LazyTransformParams(extra_set_item_params=[relax.Var("setter", relax.AnyType())])(
         Before
     )
     tvm.ir.assert_structural_equal(after, Expected)
@@ -453,7 +449,7 @@ def test_lazy_transform_params_with_symbolic_vars():
 
             slice_index = T.int64()
 
-            param = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
+            param = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Any,))
             gv: R.Tensor((16, 16), dtype="float32") = R.match_cast(
                 param, R.Tensor((16, 16), dtype="float32")
             )
@@ -465,7 +461,7 @@ def test_lazy_transform_params_with_symbolic_vars():
                 out_ty=R.Tensor((16,), dtype="float32"),
             )
             unused_1_ = R.vm.kill_object(param_m)
-            unused_2_ = R.call_packed("set_item", R.prim_value(0), transformed, ty_args=(R.Object,))
+            unused_2_ = R.call_packed("set_item", R.prim_value(0), transformed, ty_args=(R.Any,))
 
             output = R.tuple()
             return output
@@ -544,14 +540,14 @@ def test_param_shape_symbolic():
         def main_transform_params() -> R.Tuple:
             ic = T.int64()
             cls = Expected
-            gv: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
+            gv: R.Any = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Any,))
             gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
                 gv, R.Tensor((16, 16, 3, 3), dtype="float32")
             )
             lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
-            _: R.Object = R.call_packed("set_item", R.prim_value(0), lv, ty_args=(R.Object,))
+            _: R.Any = R.call_packed("set_item", R.prim_value(0), lv, ty_args=(R.Any,))
             _1: R.Tuple = R.vm.kill_object(lv)
-            gv2: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
+            gv2: R.Any = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Any,))
             gv3: R.Tensor((3, ic, 3, 3), dtype="float32") = R.match_cast(
                 gv2, R.Tensor((3, ic, 3, 3), dtype="float32")
             )
@@ -562,7 +558,7 @@ def test_param_shape_symbolic():
                 out_ty=R.Tensor((ic, 3, 3, 3), dtype="float32"),
             )
             _2: R.Tuple = R.vm.kill_object(lv1)
-            _3: R.Object = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Object,))
+            _3: R.Any = R.call_packed("set_item", R.prim_value(1), lv2, ty_args=(R.Any,))
             gv4: R.Tuple = R.tuple()
             return gv4
 
@@ -605,14 +601,14 @@ def test_output_with_use_site():
         @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
             cls = Expected
-            x: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
+            x: R.Any = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Any,))
             gv: R.Tensor((), dtype="float32") = R.match_cast(x, R.Tensor((), dtype="float32"))
             x_m: R.Tensor((), dtype="float32") = gv
             y = R.call_tir(cls.copy, (x_m,), out_ty=R.Tensor((), dtype="float32"))
             _: R.Tuple = R.vm.kill_object(x_m)
             z = R.call_tir(cls.copy, (y,), out_ty=R.Tensor((), dtype="float32"))
-            _1: R.Object = R.call_packed("set_item", R.prim_value(0), y, ty_args=(R.Object,))
-            _2: R.Object = R.call_packed("set_item", R.prim_value(1), z, ty_args=(R.Object,))
+            _1: R.Any = R.call_packed("set_item", R.prim_value(0), y, ty_args=(R.Any,))
+            _2: R.Any = R.call_packed("set_item", R.prim_value(1), z, ty_args=(R.Any,))
             gv: R.Tuple = R.tuple()
             return gv
 
@@ -699,26 +695,22 @@ def test_duplicate_outputs():
     class Expected:
         @R.function(pure=False)
         def main_transform_params() -> R.Tuple:
-            gv: R.Object = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Object,))
+            gv: R.Any = R.call_packed("get_item", R.prim_value(0), ty_args=(R.Any,))
             gv1: R.Tensor((16,), dtype="int32") = R.match_cast(gv, R.Tensor((16,), dtype="int32"))
             param0: R.Tensor((16,), dtype="int32") = gv1
 
-            gv2: R.Object = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Object,))
+            gv2: R.Any = R.call_packed("get_item", R.prim_value(1), ty_args=(R.Any,))
             gv3: R.Tensor((16,), dtype="int32") = R.match_cast(gv2, R.Tensor((16,), dtype="int32"))
             param1: R.Tensor((16,), dtype="int32") = gv3
 
             transformed0: R.Tensor((16,), dtype="int32") = R.add(param0, R.const(1, "int32"))
             _: R.Tuple = R.vm.kill_object(param0)
-            _: R.Object = R.call_packed(
-                "set_item", R.prim_value(0), transformed0, ty_args=(R.Object,)
-            )
-            _: R.Object = R.call_packed(
-                "set_item", R.prim_value(2), transformed0, ty_args=(R.Object,)
-            )
+            _: R.Any = R.call_packed("set_item", R.prim_value(0), transformed0, ty_args=(R.Any,))
+            _: R.Any = R.call_packed("set_item", R.prim_value(2), transformed0, ty_args=(R.Any,))
 
             transformed1: R.Tensor((16,), dtype="int32") = R.add(param1, R.const(2, "int32"))
             _ = R.vm.kill_object(param1)
-            _ = R.call_packed("set_item", R.prim_value(1), transformed1, ty_args=(R.Object,))
+            _ = R.call_packed("set_item", R.prim_value(1), transformed1, ty_args=(R.Any,))
             output = R.tuple()
             return output
 
@@ -739,11 +731,11 @@ def test_params_without_tuple():
     class Expected:
         @R.function(pure=False)
         def transform_params():
-            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Object])
+            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Any])
             A = R.match_cast(A, R.Tensor([16, 16], "float32"))
             C = R.multiply(A, R.const(2, "float32"))
 
-            B = R.call_packed("get_item", R.prim_value(1), ty_args=[R.Object])
+            B = R.call_packed("get_item", R.prim_value(1), ty_args=[R.Any])
             B = R.match_cast(B, R.Tensor([16, 16], "float32"))
             D = R.add(C, B)
             return (D, B)
@@ -781,13 +773,13 @@ def test_retain_before_num_input():
             R.func_attr({"num_input": 1})
             rank = T.int64()
 
-            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Object])
+            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Any])
             A = R.match_cast(A, R.Tensor([16, 16], "float32"))
             A_sharded = R.strided_slice(
                 A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
             )
 
-            B = R.call_packed("get_item", R.prim_value(1), ty_args=[R.Object])
+            B = R.call_packed("get_item", R.prim_value(1), ty_args=[R.Any])
             B = R.match_cast(B, R.Tensor([16, 16], "float32"))
             B_sharded = R.strided_slice(
                 B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
@@ -803,15 +795,15 @@ def test_params_without_tuple_with_symbolic_var():
     @I.ir_module(s_tir=True)
     class Before:
         @R.function
-        def transform_params(A: R.Object):
+        def transform_params(A: R.Any):
             return (A,)
 
     @I.ir_module(s_tir=True)
     class Expected:
         @R.function(pure=False)
         def transform_params():
-            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Object])
-            A = R.match_cast(A, R.Object)
+            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Any])
+            A = R.match_cast(A, R.Any)
 
             return (A,)
 
@@ -831,7 +823,7 @@ def test_get_item_callback():
     @I.ir_module(s_tir=True)
     class Expected:
         @R.function
-        def transform_params(fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object)):
+        def transform_params(fget_param: R.Callable([R.Prim("int64"), R.Any], R.Any)):
             R.func_attr({"num_input": 1})
             A = fget_param(R.prim_value(0), R.str("A"))
             A = R.match_cast(A, R.Tensor([16, 16], "float32"))
@@ -898,7 +890,7 @@ def test_get_item_callback_num_attrs():
         def transform_params(
             rank_arg: R.Prim(value="rank"),
             world_size_arg: R.Prim(value="world_size"),
-            fget_item: R.Callable([R.Prim("int64"), R.Object], R.Object),
+            fget_item: R.Callable([R.Prim("int64"), R.Any], R.Any),
         ):
             R.func_attr({"num_input": 3})
 
@@ -958,7 +950,7 @@ def test_get_item_callback_dynamic_shape():
     class Expected:
         @R.function
         def transform_params(
-            fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object),
+            fget_param: R.Callable([R.Prim("int64"), R.Any], R.Any),
         ) -> R.Tuple(R.Tensor(ndim=2, dtype="float32"), R.Tensor(ndim=2, dtype="float32")):
             R.func_attr({"num_input": 1})
             m = T.int64()
@@ -998,7 +990,7 @@ def test_set_output_callback():
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+            fset_output: R.Callable([R.Prim("int64"), R.Any], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             fset_output(R.prim_value(1), C)
@@ -1032,7 +1024,7 @@ def test_set_output_callback_of_param():
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+            fset_output: R.Callable([R.Prim("int64"), R.Any], R.Tuple([]), purity=False),
         ):
             fset_output(R.prim_value(1), B)
             C = R.multiply(A, R.const(2, "float32"))
@@ -1065,7 +1057,7 @@ def test_set_output_callback_num_input():
         @R.function(pure=False)
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+            fset_output: R.Callable([R.Prim("int64"), R.Any], R.Tuple([]), purity=False),
             B: R.Tensor([16, 16], "float32"),
         ):
             R.func_attr({"num_input": 2})
@@ -1101,7 +1093,7 @@ def test_set_output_callback_with_duplicate_output():
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+            fset_output: R.Callable([R.Prim("int64"), R.Any], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             D = R.add(C, B)
@@ -1136,7 +1128,7 @@ def test_set_output_callback_with_inline_const():
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+            fset_output: R.Callable([R.Prim("int64"), R.Any], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             fset_output(R.prim_value(0), C)
@@ -1167,7 +1159,7 @@ def test_set_output_callback_with_non_tuple_output():
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+            fset_output: R.Callable([R.Prim("int64"), R.Any], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             D = R.add(C, B)

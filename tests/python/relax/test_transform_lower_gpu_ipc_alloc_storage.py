@@ -30,7 +30,7 @@ def test_alloc_storage():
         def main(shape: R.Shape(["m", "n"])):  # type: ignore
             m = T.int64()
             n = T.int64()
-            storage: R.Object = R.memory.alloc_storage(
+            storage: R.Any = R.memory.alloc_storage(
                 R.shape([m, n]), R.prim_value(0), R.str("ipc_memory"), R.dtype("float16")
             )
             alloc: R.Tensor((m, n), dtype="float16") = R.memory.alloc_tensor(  # type: ignore
@@ -44,11 +44,11 @@ def test_alloc_storage():
         def main(shape: R.Shape(["m", "n"])):  # type: ignore
             m = T.int64()
             n = T.int64()
-            storage: R.Object = R.call_packed(
+            storage: R.Any = R.call_packed(
                 "runtime.disco.cuda_ipc.alloc_storage",
                 R.shape([m, n]),
                 R.dtype("float16"),
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
             alloc: R.Tensor((m, n), dtype="float16") = R.memory.alloc_tensor(  # type: ignore
                 storage, R.prim_value(0), R.shape([m, n]), R.dtype("float16")
@@ -66,7 +66,7 @@ def test_builtin_alloc_tensor():
         def main(shape: R.Shape(["m", "n"])):  # type: ignore
             m = T.int64()
             n = T.int64()
-            tensor: R.Object = R.builtin.alloc_tensor(
+            tensor: R.Any = R.builtin.alloc_tensor(
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("ipc_memory")
             )
             return tensor
@@ -77,11 +77,11 @@ def test_builtin_alloc_tensor():
         def main(shape: R.Shape(["m", "n"])):  # type: ignore
             m = T.int64()
             n = T.int64()
-            gv: R.Object = R.call_packed(
+            gv: R.Any = R.call_packed(
                 "runtime.disco.cuda_ipc.alloc_storage",
                 R.shape([m, n]),
                 R.dtype("float16"),
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
             tensor: R.Tensor((m, n), dtype="float16") = R.memory.alloc_tensor(  # type: ignore
                 gv, R.prim_value(0), R.shape([m, n]), R.dtype("float16")

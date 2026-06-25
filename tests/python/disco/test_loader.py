@@ -260,7 +260,7 @@ def test_load_shard_in_relax():
     class Module:  # pylint: disable=too-few-public-methods
         @R.function
         def main(
-            loader: R.Object,
+            loader: R.Any,
         ) -> R.Tuple(R.Tensor((64, 64), "float32"), R.Tensor((16, 128), "float32")):
             R.func_attr({"global_symbol": "main"})
             with R.dataflow():

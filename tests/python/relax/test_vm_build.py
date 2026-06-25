@@ -88,7 +88,7 @@ def test_match_check(exec_mode):
     @tvm.script.ir_module
     class TestMatchCheck:
         @R.function
-        def foo(x: R.Tensor(["n", "m"], "int32"), y: R.Object) -> R.Tensor(["m", "n"], dtype=None):
+        def foo(x: R.Tensor(["n", "m"], "int32"), y: R.Any) -> R.Tensor(["m", "n"], dtype=None):
             return y
 
     mod = TestMatchCheck
@@ -798,14 +798,14 @@ def test_sub_func_call(exec_mode):
         @R.function
         def relax_matmul_packed(
             x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
-        ) -> R.Object:
+        ) -> R.Any:
             gv0 = R.call_pure_packed(
                 "test.vm.mul", x, w, ty_args=(R.Tensor(ndim=2, dtype="float32"))
             )
             return gv0
 
         @R.function
-        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Object:
+        def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Any:
             cls = TestVMSubFunction
             gv0 = cls.relax_matmul_tir(x, w)
             gv1 = cls.relax_matmul_packed(gv0, gv0)

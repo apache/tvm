@@ -25,7 +25,7 @@ namespace printer {
 static bool HasDefaultExternFuncType(const relax::ExternFunc& n) {
   const auto* ty = n->ty.as<relax::FuncTypeNode>();
   if (ty == nullptr || ty->params.defined() || ty->purity ||
-      !ty->ret->IsInstance<relax::ObjectTypeNode>()) {
+      !ty->ret->IsInstance<relax::AnyTypeNode>()) {
     return false;
   }
   return true;

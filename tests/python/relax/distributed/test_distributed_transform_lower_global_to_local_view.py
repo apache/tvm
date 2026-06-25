@@ -651,7 +651,7 @@ def test_llama_attention():
             mask: R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R"),
             div_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             maximum_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
-            kv_cache: R.Tuple(R.Object, R.Object),
+            kv_cache: R.Tuple(R.Any, R.Any),
             linear_weight: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
             linear_weight1: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
             linear_weight2: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
@@ -733,19 +733,19 @@ def test_llama_attention():
                 (lv15,),
                 out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
             )
-            lv20: R.Object = kv_cache[0]
-            lv21: R.Object = R.call_packed(
+            lv20: R.Any = kv_cache[0]
+            lv21: R.Any = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
-            lv22: R.Object = kv_cache[1]
-            lv23: R.Object = R.call_packed(
+            lv22: R.Any = kv_cache[1]
+            lv23: R.Any = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",
@@ -1325,7 +1325,7 @@ def test_llama_attention():
             mask: R.DTensor((1, 1, 256, 256), "float16", "mesh[0]", "R"),
             div_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
             maximum_const: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]"),
-            kv_cache: R.Tuple(R.Object, R.Object),
+            kv_cache: R.Tuple(R.Any, R.Any),
             linear_weight: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
             linear_weight1: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
             linear_weight2: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]"),
@@ -1431,19 +1431,19 @@ def test_llama_attention():
                     out_ty=R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]"),
                 )
             )
-            lv20: R.Object = kv_cache[0]
-            lv21: R.Object = R.call_packed(
+            lv20: R.Any = kv_cache[0]
+            lv21: R.Any = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv20,
                 lv18,
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
-            lv22: R.Object = kv_cache[1]
-            lv23: R.Object = R.call_packed(
+            lv22: R.Any = kv_cache[1]
+            lv23: R.Any = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_append",
                 lv22,
                 lv19,
-                ty_args=(R.Object,),
+                ty_args=(R.Any,),
             )
             lv24: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.call_packed(
                 "vm.builtin.distributed.attention_kv_cache_view",

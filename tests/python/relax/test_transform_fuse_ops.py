@@ -1356,7 +1356,7 @@ def test_shape_expr_arg():
     @I.ir_module(s_tir=True)
     class Before:
         @R.function
-        def main(s: R.Shape(["n"]), kv_cache: R.Object):
+        def main(s: R.Shape(["n"]), kv_cache: R.Any):
             n = T.int64()
             with R.dataflow():
                 lv0 = R.emit_te(topi.full, [n, n], "float32", 0)
@@ -1387,7 +1387,7 @@ def test_shape_expr_arg():
             return gv
 
         @R.function
-        def main(s: R.Shape(["n"]), kv_cache: R.Object):
+        def main(s: R.Shape(["n"]), kv_cache: R.Any):
             cls = Expected
             n = T.int64()
             with R.dataflow():

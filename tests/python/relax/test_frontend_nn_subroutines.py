@@ -47,9 +47,9 @@ def test_linear():
         @R.function
         def forward(
             state: R.Tensor(("batch_size", 64), dtype="float32"),
-            _io: R.Object,
+            _io: R.Any,
             weights: R.Tensor((64, 32), dtype="float32"),
-        ) -> R.Tuple(R.Tensor(("batch_size", 32), dtype="float32"), R.Tuple(R.Object)):
+        ) -> R.Tuple(R.Tensor(("batch_size", 32), dtype="float32"), R.Tuple(R.Any)):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 state = Expected.layer(state, weights)
@@ -58,11 +58,11 @@ def test_linear():
             return dataflow_output
 
         @R.function
-        def _initialize_effect() -> R.Tuple(R.Object):
+        def _initialize_effect() -> R.Tuple(R.Any):
             with R.dataflow():
-                _io: R.Object = R.null_value()
-                lv: R.Tuple(R.Object) = (_io,)
-                gv: R.Tuple(R.Object) = lv
+                _io: R.Any = R.null_value()
+                lv: R.Tuple(R.Any) = (_io,)
+                gv: R.Tuple(R.Any) = lv
                 R.output(gv)
 
             return gv

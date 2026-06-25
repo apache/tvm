@@ -197,7 +197,7 @@ class CollectLastUsage : public ExprVisitor {
 
   // Storage objects, eligible for R.vm.kill_object.  This cannot be
   // determined solely from the Type, because the
-  // `R.*.alloc_storage` operators return ObjectType
+  // `R.*.alloc_storage` operators return AnyType
   std::unordered_set<const VarNode*> storage_objects_;
 
   // Constants, which do not have a VM register, and may *not* have

@@ -41,7 +41,7 @@ namespace relax {
 //--------------------------
 class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
  public:
-  Type VisitType_(const ObjectTypeNode* op) final { return ObjectType(op->span); }
+  Type VisitType_(const AnyTypeNode* op) final { return AnyType(op->span); }
 
   Type VisitType_(const PrimTypeNode* op) final { return tvm::PrimType(op->dtype); }
 
@@ -52,7 +52,7 @@ class StaticTypeDeriver : public TypeFunctor<Type(const Type&)> {
   }
 
   // module: distributed
-  Type VisitType_(const distributed::DTensorTypeNode* op) final { return ObjectType(); }
+  Type VisitType_(const distributed::DTensorTypeNode* op) final { return AnyType(); }
   // end-module: distributed
 
   Type VisitType_(const TupleTypeNode* op) final {
@@ -83,8 +83,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 //--------------------------
 
 Type TypeFromStaticType(const Type& type) {
-  if (type.as<ObjectTypeNode>()) {
-    return ObjectType(type->span);
+  if (type.as<AnyTypeNode>()) {
+    return AnyType(type->span);
   } else if (const PrimTypeNode* prim_type = type.as<PrimTypeNode>()) {
     return tvm::PrimType(prim_type->dtype);
   } else if (const tvm::PrimTypeNode* prim_type = type.as<tvm::PrimTypeNode>()) {
@@ -305,15 +305,15 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
     return TypeFunctor::VisitType(lhs, other);
   }
 
-  // ffi::Object is base of everything
-  BaseCheckResult VisitType_(const ObjectTypeNode* lhs, const Type& other) final {
+  // AnyType is base of every Relax type
+  BaseCheckResult VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return BaseCheckResult::kPass;
   }
 
   BaseCheckResult VisitType_(const PrimTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<PrimTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<AnyTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
 
@@ -327,7 +327,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   BaseCheckResult VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<ShapeTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<AnyTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     // lhs have unknown ndim
@@ -351,7 +351,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   BaseCheckResult VisitType_(const TensorTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TensorTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<AnyTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     // dtype mismatch
@@ -394,7 +394,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   BaseCheckResult VisitType_(const distributed::DTensorTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<distributed::DTensorTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<AnyTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     BaseCheckResult tensor_ty_check_result = this->VisitType(lhs->tensor_ty, rhs->tensor_ty);
@@ -412,7 +412,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   BaseCheckResult VisitType_(const TupleTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TupleTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<AnyTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
     return ArrayCheck(lhs->fields, rhs->fields);
@@ -421,7 +421,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   BaseCheckResult VisitType_(const FuncTypeNode* lhs, const Type& other) override {
     auto* rhs = other.as<FuncTypeNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectTypeNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<AnyTypeNode>()) return BaseCheckResult::kFailL1;
       return BaseCheckResult::kFailL0;
     }
 
@@ -625,7 +625,7 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
     }
   }
 
-  PrimExpr VisitType_(const ObjectTypeNode* lhs, const Type& other) final {
+  PrimExpr VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return IntImm::Bool(true);
   }
 
@@ -977,25 +977,25 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     return TypeFunctor::VisitType(lhs, other);
   }
 
-  // ffi::Object is based of everything, unify to object.
-  Type VisitType_(const ObjectTypeNode* lhs, const Type& other) final {
+  // AnyType is base of every Relax type, unify to Any.
+  Type VisitType_(const AnyTypeNode* lhs, const Type& other) final {
     return ffi::GetRef<Type>(lhs);
   }
 
   Type VisitType_(const PrimTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<PrimTypeNode>();
-    if (rhs == nullptr) return ObjectType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->span);
     if (lhs->dtype != rhs->dtype) {
-      // PrimType will be treated as their boxed(object) values
-      // as a result we can unify to object.
-      return ObjectType(lhs->span);
+      // PrimType will be treated as their boxed Any values
+      // as a result we can unify to Any.
+      return AnyType(lhs->span);
     }
     return ffi::GetRef<Type>(lhs);
   }
 
   Type VisitType_(const ShapeTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<ShapeTypeNode>();
-    if (rhs == nullptr) return ObjectType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->span);
 
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     if (lhs->ndim != rhs->ndim || !lhs->values.defined() || !rhs->values.defined() ||
@@ -1014,7 +1014,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const TensorTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TensorTypeNode>();
-    if (rhs == nullptr) return ObjectType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->span);
 
     // find the target dtype, ndim, and vdevice.
     PrimType dtype = lhs->dtype->dtype == rhs->dtype->dtype
@@ -1049,10 +1049,10 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const TupleTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<TupleTypeNode>();
-    if (rhs == nullptr) return ObjectType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->span);
     ffi::Optional<ffi::Array<Type>> fields = UnifyArray(lhs->fields, rhs->fields);
     // tuple length not the same.
-    if (!fields.defined()) return ObjectType(lhs->span);
+    if (!fields.defined()) return AnyType(lhs->span);
 
     // same length tuple.
     if (!fields.same_as(lhs->fields)) {
@@ -1064,7 +1064,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
   Type VisitType_(const FuncTypeNode* lhs, const Type& other) final {
     auto* rhs = other.as<FuncTypeNode>();
-    if (rhs == nullptr) return ObjectType(lhs->span);
+    if (rhs == nullptr) return AnyType(lhs->span);
 
     // the unified function is pure only if both are pure
     bool purity = lhs->purity && rhs->purity;
@@ -1076,7 +1076,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
           return ffi::GetRef<Type>(lhs);
         } else {
           // Create a new opaque with object return
-          return FuncType::OpaqueFunc(ObjectType(), purity, lhs->span);
+          return FuncType::OpaqueFunc(AnyType(), purity, lhs->span);
         }
       } else {
         // no derivation function, only depends on ret

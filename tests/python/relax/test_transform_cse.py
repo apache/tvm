@@ -441,9 +441,7 @@ def test_do_not_eliminate_dtype():
     class Before:
         @R.function(pure=False)
         def foo() -> R.Tensor((32, 64), "int32"):
-            obj: R.Object = R.vm.alloc_storage(
-                R.shape([24576]), runtime_device_index=0, dtype="uint8"
-            )
+            obj: R.Any = R.vm.alloc_storage(R.shape([24576]), runtime_device_index=0, dtype="uint8")
             a: R.Tensor([32, 64], dtype="int32") = R.vm.alloc_tensor(
                 obj, offset=0, shape=R.shape([32, 64]), dtype="int32"
             )

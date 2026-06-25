@@ -145,7 +145,7 @@ def test_closure():
             return r_1
 
         @R.function(private=True)
-        def main_outer_func(y: R.Tensor((2, 3), "float32")) -> R.Object:
+        def main_outer_func(y: R.Tensor((2, 3), "float32")) -> R.Any:
             inner_func = R.make_closure(Expected.main_inner_func, (y,))
             return inner_func
 

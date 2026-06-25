@@ -43,7 +43,7 @@ class IOEffect(Effect):
 
     def create(self, name_hint: str) -> list[rx.Var]:
         assert self.effect is None
-        effect = rx.Var(f"{name_hint}.io", ty=rx.ObjectType())
+        effect = rx.Var(f"{name_hint}.io", ty=rx.AnyType())
         return [effect]
 
     def set_state(self, state_vars: list[rx.Var]) -> None:
@@ -812,7 +812,7 @@ class KVCache(Effect):
                     rx.op.zeros(init_shape, self.dtype),
                     init_shape,
                     rx.PrimValue(0),
-                    ty_args=rx.ObjectType(),
+                    ty_args=rx.AnyType(),
                 ),
                 name_hint=name_hint,
             )
@@ -832,7 +832,7 @@ class KVCache(Effect):
         ret : List[relax.Var]
             The relax.Var for KVCache.
         """
-        cache = rx.Var(name_hint, ty=rx.ObjectType())
+        cache = rx.Var(name_hint, ty=rx.AnyType())
         return [cache]
 
     def set_state(self, state_vars: list[rx.Var]) -> None:
@@ -908,7 +908,7 @@ class KVCache(Effect):
                 self.cache,
                 new_element._expr,
                 inplace_indices=[0],
-                ty_args=rx.ObjectType(),
+                ty_args=rx.AnyType(),
             )
         )
 

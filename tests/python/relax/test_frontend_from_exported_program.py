@@ -8395,11 +8395,11 @@ def test_tensor_none_tuple():
     class Expected:
         @R.function
         def main(x: R.Tensor((3,), dtype="float32")) -> R.Tuple(
-            R.Tensor((3,), dtype="float32"), R.Object
+            R.Tensor((3,), dtype="float32"), R.Any
         ):
             with R.dataflow():
                 lv: R.Tensor((3,), dtype="float32") = R.add(x, R.const(1.0, "float32"))
-                gv: R.Tuple(R.Tensor((3,), dtype="float32"), R.Object) = (lv, R.null_value())
+                gv: R.Tuple(R.Tensor((3,), dtype="float32"), R.Any) = (lv, R.null_value())
                 R.output(gv)
             return gv
 

@@ -391,7 +391,7 @@ def test_vm_kill_object(exec_mode):
         def main() -> R.Tensor((4,), dtype="float32"):
             R.func_attr({"global_symbol": "main"})
             cls = TestKillObject
-            storage: R.Object = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
+            storage: R.Any = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
             alloc: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )
@@ -404,9 +404,7 @@ def test_vm_kill_object(exec_mode):
             _1: R.Tuple = cls.full(alloc1)
             _1_1: R.Tuple = R.vm.kill_object(alloc1)
             y: R.Tensor((4,), dtype="float32") = alloc1
-            storage_1: R.Object = R.vm.alloc_storage(
-                R.shape([16]), R.prim_value(0), R.dtype("uint8")
-            )
+            storage_1: R.Any = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
             alloc2: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage_1, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )

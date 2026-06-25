@@ -27,7 +27,7 @@
 namespace tvm {
 namespace relax {
 
-void TypeVisitor::VisitType_(const ObjectTypeNode* op) {}
+void TypeVisitor::VisitType_(const AnyTypeNode* op) {}
 
 void TypeVisitor::VisitType_(const PrimTypeNode* op) {}
 
@@ -64,7 +64,7 @@ void TypeVisitor::VisitType_(const FuncTypeNode* op) {
   this->VisitType(op->ret);
 }
 
-Type TypeMutator::VisitType_(const ObjectTypeNode* op) { return ffi::GetRef<Type>(op); }
+Type TypeMutator::VisitType_(const AnyTypeNode* op) { return ffi::GetRef<Type>(op); }
 
 Type TypeMutator::VisitType_(const PrimTypeNode* op) { return ffi::GetRef<Type>(op); }
 

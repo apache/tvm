@@ -217,7 +217,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   }
 
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
-  const Type object_ty_ = ObjectType();
+  const Type object_ty_ = AnyType();
   const Type void_ty_ = TupleType(ffi::Array<Type>({}));
   // object to pattern match.
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");

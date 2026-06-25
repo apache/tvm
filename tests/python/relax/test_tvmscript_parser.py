@@ -853,11 +853,11 @@ def test_call_packed():
 
 def test_call_packed_without_ty_args():
     @R.function(pure=False)
-    def foo(x: R.Object) -> R.Object:
+    def foo(x: R.Any) -> R.Any:
         z = R.call_packed("test", x)
         return z
 
-    x = relax.Var("x", R.Object())
+    x = relax.Var("x", R.Any())
     bb = relax.BlockBuilder()
     with bb.function("foo", (x), pure=False):
         z = bb.emit(
@@ -873,13 +873,21 @@ def test_call_packed_without_ty_args():
     _check(foo, bb.get()["foo"])
 
 
+def test_object_proxy_compat_alias():
+    @R.function
+    def foo(x: R.Object) -> R.Object:
+        return x
+
+    assert isinstance(foo.ret_ty, relax.AnyType)
+
+
 def test_annotation():
     @R.function(pure=False)
     def foo(
         x: R.Tensor((32, "m"), "float32"),
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
-    ) -> R.Object:
+    ) -> R.Any:
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor(ndim=2) = R.multiply(z, z)
@@ -887,7 +895,7 @@ def test_annotation():
         t = R.add(w, z)
         sh: R.Shape = R.call_packed("shape_of", x, ty_args=R.Shape)
         lv: R.Tensor(sh, dtype="float32") = R.reshape(x, sh)
-        o: R.Object = R.call_packed("contrib.tensor_array_stack", x, y, ty_args=R.Object)
+        o: R.Any = R.call_packed("contrib.tensor_array_stack", x, y, ty_args=R.Any)
         return o
 
     def _check_ty(binding, expected_ty):
@@ -896,7 +904,7 @@ def test_annotation():
 
     # Cannot use block builder here because we need to check the annotated type,
     # which may be inconsistent with deduced type.
-    assert isinstance(foo.ret_ty, relax.ObjectType)
+    assert isinstance(foo.ret_ty, relax.AnyType)
     m = relax.get_shape_of(foo.params[0])[1]
     bindings = foo.body.blocks[0].bindings
     sh = bindings[4].var
@@ -907,21 +915,21 @@ def test_annotation():
     _check_ty(bindings[3], relax.TensorType(dtype="", ndim=2))
     _check_ty(bindings[4], relax.ShapeType(ndim=-1))
     _check_ty(bindings[5], relax.TensorType(sh))
-    _check_ty(bindings[6], relax.ObjectType())
+    _check_ty(bindings[6], relax.AnyType())
 
 
 def test_annotate_override():
     @R.function
     def foo(x: R.Tensor):
         y = x
-        # z will be treated as object type even though it's a tensor
-        z: R.Object = R.add(x, y)
+        # z will be treated as Any even though it's a tensor
+        z: R.Any = R.add(x, y)
         return z
 
-    assert isinstance(foo.ret_ty, relax.ObjectType)
+    assert isinstance(foo.ret_ty, relax.AnyType)
     y_bind, z_bind = foo.body.blocks[0].bindings
     assert isinstance(y_bind.var.ty, relax.TensorType)
-    assert isinstance(z_bind.var.ty, relax.ObjectType)
+    assert isinstance(z_bind.var.ty, relax.AnyType)
 
     with pytest.raises(tvm.error.DiagnosticError):
 
@@ -934,7 +942,7 @@ def test_annotate_override():
     @R.function
     def bar(x: R.Tensor):
         # x is of Tensor Type, the annotation of `z` is ignored.
-        z: R.Object = x
+        z: R.Any = x
         return z
 
     assert isinstance(bar.ret_ty, relax.TensorType)
@@ -1728,7 +1736,7 @@ def test_function_void_return_type():
     _check(Foo)
     # Since the return type of function `mul` is not annotated,
     # the function `main` regards it as a generic return type.
-    assert isinstance(Foo["main"].ret_ty, relax.ObjectType)
+    assert isinstance(Foo["main"].ret_ty, relax.AnyType)
     assert isinstance(Foo["mul"].ret_ty, relax.TensorType)
 
     @tvm.script.ir_module
@@ -2024,13 +2032,13 @@ def test_call_pure_packed():
 
 def test_call_pure_packed_returning_object():
     @R.function
-    def foo() -> R.Object:
-        z = R.call_pure_packed("dummy_func", ty_args=R.Object)
+    def foo() -> R.Any:
+        z = R.call_pure_packed("dummy_func", ty_args=R.Any)
         return z
 
     bb = relax.BlockBuilder()
     with bb.function("foo", params=[]):
-        z = bb.emit(R.call_pure_packed("dummy_func", ty_args=[relax.ObjectType()]))
+        z = bb.emit(R.call_pure_packed("dummy_func", ty_args=[relax.AnyType()]))
         bb.emit_func_output(z)
 
     _check(foo, bb.get()["foo"])

@@ -133,18 +133,18 @@ def test_casting():
     @I.ir_module
     class TestCasting:
         @R.function
-        def main(x: R.Tensor) -> R.Object:
+        def main(x: R.Tensor) -> R.Any:
             y = x
-            # z will be treated as object type even though it's a tensor
-            z: R.Object = y
+            # z will be treated as Any even though it's a tensor
+            z: R.Any = y
             return z
 
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor) -> R.Object:
+        def main(x: R.Tensor) -> R.Any:
             # Cannot unify because the cast indicates user intent
-            z: R.Object = x
+            z: R.Any = x
             return z
 
     verify(TestCasting, Expected)

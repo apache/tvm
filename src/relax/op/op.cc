@@ -63,7 +63,7 @@ Type ReturnVoidType(const Call& call, const BlockBuilder& ctx) {
   return TupleType(ffi::Array<Type>());
 }
 
-Type ReturnObjectType(const Call& call, const BlockBuilder& ctx) { return ObjectType(); }
+Type ReturnAnyType(const Call& call, const BlockBuilder& ctx) { return AnyType(); }
 
 Type InferTypeShapeOf(const Call& call, const BlockBuilder& ctx) {
   // use the Type of the argument
@@ -942,7 +942,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_REGISTER_OP("relax.null_value")
     .set_num_inputs(0)
-    .set_attr<FInferType>("FInferType", ReturnObjectType)
+    .set_attr<FInferType>("FInferType", ReturnAnyType)
     .set_attr<bool>("FPurity", true);
 
 Expr MakeCallNullValue() {
@@ -1032,7 +1032,7 @@ TVM_REGISTER_OP("relax.make_closure")
     .set_num_inputs(2)
     .add_argument("func", "Expr", "The closure.")
     .add_argument("args", "Tuple", "The captured variables.")
-    .set_attr<FInferType>("FInferType", ReturnObjectType)
+    .set_attr<FInferType>("FInferType", ReturnAnyType)
     .set_attr<bool>("FPurity", true);
 
 Expr MakeClosure(Expr func, Tuple args) {
@@ -1049,7 +1049,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeInvokeClosure(const Call& call, const BlockBuilder& ctx) {
   if (call->ty_args.empty()) {
-    return ObjectType();
+    return AnyType();
   } else if (call->ty_args.size() == 1) {
     return call->ty_args[0];
   } else {
@@ -1263,7 +1263,7 @@ TVM_REGISTER_OP("relax.memory.alloc_storage")
     .add_argument("storage_scope", "StringImm",
                   "The storage scope of the storage to allocate. Default is global.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .set_attr<FInferType>("FInferType", ReturnObjectType)
+    .set_attr<FInferType>("FInferType", ReturnAnyType)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<bool>("FPurity", true)
     .set_attr<bool>("TAllocator", true);
@@ -1389,7 +1389,7 @@ TVM_REGISTER_OP("relax.vm.alloc_storage")
                   "to be allocated at runtime.")
     .add_argument("storage_scope", "StringImm",
                   "The storage scope of the storage to allocate. Default is global.")
-    .set_attr<FInferType>("FInferType", ReturnObjectType)
+    .set_attr<FInferType>("FInferType", ReturnAnyType)
     // memory allocation isn't considered a "visible effect" as far as purity is concerned
     .set_attr<bool>("FPurity", true)
     .set_attr<bool>("TAllocator", true);
