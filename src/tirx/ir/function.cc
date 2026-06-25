@@ -52,7 +52,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
       if (auto prim_type = param->type_annotation.as<PrimTypeNode>()) {
         const DLDataType& dtype = prim_type->dtype;
         if (dtype.code == kDLOpaqueHandle && (dtype.bits != 0 || dtype.lanes != 0)) {
-          return relax::ObjectType();
+          return relax::AnyType();
         }
       }
 
@@ -67,7 +67,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
     } else if (IsVoidType(prim_func->ret_type)) {
       return relax::TupleType(ffi::Array<tvm::Type>{});
     } else {
-      return relax::ObjectType();
+      return relax::AnyType();
     }
   }();
 
