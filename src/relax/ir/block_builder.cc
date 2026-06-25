@@ -575,7 +575,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
   RELAX_EXPR_NORMALIZER_LEAF(ConstantNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
-  RELAX_EXPR_NORMALIZER_LEAF(PrimValueNode);
+  RELAX_EXPR_NORMALIZER_LEAF(PrimExprNode);
   RELAX_EXPR_NORMALIZER_LEAF(StringImmNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataTypeImmNode);
 

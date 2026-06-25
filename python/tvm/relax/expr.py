@@ -45,6 +45,19 @@ Type = tvm.ir.Type  # pylint: disable=invalid-name
 GlobalVar = tvm.ir.GlobalVar
 
 
+def _to_prim_expr(value: PrimExpr | int | float, dtype: str | None = None) -> PrimExpr:
+    if isinstance(value, PrimExpr):
+        return value
+    if isinstance(value, bool | int):
+        return tvm.tirx.IntImm(dtype or "int64", int(value))
+    if isinstance(value, float):
+        return tvm.tirx.FloatImm(dtype or "float64", value)
+    tvm_value = tvm_ffi.convert(value)
+    if isinstance(tvm_value, PrimExpr):
+        return tvm_value
+    raise TypeError(f"Cannot convert {value} with type {type(value)} to `PrimExpr`")
+
+
 @tvm_ffi.register_object("relax.Id")
 class Id(Object):
     """Unique identifier(name) used in Var.
@@ -290,7 +303,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectConvertible):
     will produce `relax.Call` expressions, representing the field's
     runtime value.  If the datatype of the tensor is known at
     compile-time, the `relax.Call` will be normalized into a
-    `relax.PrimValue`, with no runtime cost.
+    `PrimExpr`, with no runtime cost.
 
     Parameters
     ----------
@@ -369,7 +382,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
     these fields will produce `relax.Call` expressions, representing
     the field's runtime value.  If the datatype of the tensor is known
     at compile-time, the `relax.Call` will be normalized into a
-    `relax.PrimValue`, with no runtime cost.
+    `PrimExpr`, with no runtime cost.
 
     Parameters
     ----------
@@ -417,7 +430,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
         """
 
         if not isinstance(axis, tvm.relax.Expr):
-            axis = tvm.relax.PrimValue(axis)
+            axis = tvm.tirx.IntImm("int64", axis)
 
         if axis.ty is not None and not isinstance(axis.ty, tvm.ir.PrimType):
             raise TypeError(
@@ -437,7 +450,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
     these fields will produce `relax.Call` expressions, representing
     the field's runtime value.  If the datatype of the tensor is known
     at compile-time, the `relax.Call` will be normalized into a
-    `relax.PrimValue`, with no runtime cost.
+    `PrimExpr`, with no runtime cost.
 
     Parameters
     ----------
@@ -485,7 +498,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
         """
 
         if not isinstance(axis, tvm.relax.Expr):
-            axis = tvm.relax.PrimValue(axis)
+            axis = tvm.tirx.IntImm("int64", axis)
 
         if axis.ty is not None and not isinstance(axis.ty, tvm.ir.PrimType):
             raise TypeError(
@@ -820,18 +833,6 @@ class DataflowVar(Var):
             ty,
             span,
         )
-
-
-@tvm_ffi.register_object("relax.expr.PrimValue")
-class PrimValue(Expr, Scriptable):
-    """The prim expr representing the value."""
-
-    value: PrimExpr
-
-    def __init__(self, value: PrimExpr | int, span: Span | None = None) -> None:
-        if isinstance(value, int):
-            value = tvm.tirx.IntImm("int64", value)
-        self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.StringImm")

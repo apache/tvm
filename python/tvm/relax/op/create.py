@@ -20,7 +20,7 @@ from tvm import DataType, DataTypeCode
 from tvm.ir import PrimType
 from tvm.ir.expr import PrimExpr
 
-from ..expr import Expr, PrimValue, ShapeExpr
+from ..expr import Expr, ShapeExpr, _to_prim_expr
 from . import _ffi_api
 
 PrimExprLike = int | PrimExpr
@@ -168,22 +168,22 @@ def zeros_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
 
 
 def eye(
-    n: PrimExprLike | PrimValue,
-    m: PrimExprLike | PrimValue | None = None,
-    k: PrimExprLike | PrimValue = 0,
+    n: PrimExprLike,
+    m: PrimExprLike | None = None,
+    k: PrimExprLike = 0,
     dtype: str | DataType = "float32",
 ) -> Expr:
     """Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
 
     Parameters
     ----------
-    n : PrimExprLike | PrimValue
+    n : PrimExprLike
         Number of rows in the output.
 
-    m : Optional[PrimExprLike | PrimValue]
+    m : Optional[PrimExprLike]
         Number of columns in the output. If None, defaults to n.
 
-    k : PrimExprLike | PrimValue
+    k : PrimExprLike
         Index of the diagonal: 0 (the default) refers to the main diagonal,
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
@@ -197,15 +197,15 @@ def eye(
         The result tensor.
     """
     m = n if m is None else m
-    n = n if isinstance(n, PrimValue) else PrimValue(n)
-    m = m if isinstance(m, PrimValue) else PrimValue(m)
-    k = k if isinstance(k, PrimValue) else PrimValue(k)
+    n = _to_prim_expr(n)
+    m = _to_prim_expr(m)
+    k = _to_prim_expr(k)
     return _ffi_api.eye(n, m, k, _raw_dtype(dtype))  # type: ignore
 
 
 def eye_like(
     x: Expr,
-    k: PrimExprLike | PrimValue = 0,
+    k: PrimExprLike = 0,
     dtype: str | DataType | None = None,
 ) -> Expr:
     """Return a 2-D tensor with ones on the diagonal and zeros elsewhere,
@@ -217,7 +217,7 @@ def eye_like(
         The input tensor, which provides the shape, and dtype
         when the `dtype` field is not specified.
 
-    k : PrimExprLike | PrimValue
+    k : PrimExprLike
         Index of the diagonal: 0 (the default) refers to the main diagonal,
         a positive value refers to an upper diagonal, and a negative value
         to a lower diagonal.
@@ -231,28 +231,28 @@ def eye_like(
     result : relax.Expr
         The result tensor.
     """
-    k = k if isinstance(k, PrimValue) else PrimValue(k)
+    k = _to_prim_expr(k)
     return _ffi_api.eye_like(x, k, _raw_dtype(dtype))  # type: ignore
 
 
 def arange(
-    start: PrimExprLike | PrimValue,
-    end: PrimExprLike | PrimValue | None = None,
-    step: PrimExprLike | PrimValue = 1,
+    start: PrimExprLike,
+    end: PrimExprLike | None = None,
+    step: PrimExprLike = 1,
     dtype: str | DataType | None = None,
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
     Parameters
     ----------
-    start : PrimExprLike | PrimValue
+    start : PrimExprLike
         The start of the interval.
 
-    end : Optional[PrimExprLike | PrimValue]
+    end : Optional[PrimExprLike]
         The end of the interval. If not given, it will be set to start,
         and start will be set to 0.
 
-    step : PrimExprLike | PrimValue
+    step : PrimExprLike
         The step size.
 
     dtype : Optional[str | DataType]
@@ -270,8 +270,6 @@ def arange(
     def is_int(expr):
         if isinstance(expr, int):
             return True
-        if isinstance(expr, PrimValue):
-            expr = expr.value
         if isinstance(expr, PrimExpr):
             return expr.ty.matches_code(DataTypeCode.INT)
         return False
@@ -281,9 +279,9 @@ def arange(
         integer_args = all(is_int(arg) for arg in args)
         dtype = "int64" if integer_args else "float32"
 
-    start = start if isinstance(start, PrimValue) else PrimValue(start)
-    end = end if isinstance(end, PrimValue) else PrimValue(end)
-    step = step if isinstance(step, PrimValue) else PrimValue(step)
+    start = _to_prim_expr(start)
+    end = _to_prim_expr(end)
+    step = _to_prim_expr(step)
     return _ffi_api.arange(start, end, step, dtype)  # type: ignore
 
 
@@ -311,13 +309,13 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
         The result tensor.
     """
     if not isinstance(window_size, Expr):
-        window_size = PrimValue(window_size)
+        window_size = _to_prim_expr(window_size)
     if not isinstance(periodic, Expr):
-        periodic = PrimValue(periodic)
+        periodic = _to_prim_expr(periodic)
     if not isinstance(alpha, Expr):
-        alpha = PrimValue(alpha)
+        alpha = _to_prim_expr(alpha)
     if not isinstance(beta, Expr):
-        beta = PrimValue(beta)
+        beta = _to_prim_expr(beta)
 
     return _ffi_api.hamming_window(window_size, periodic, alpha, beta, dtype)
 
@@ -343,7 +341,7 @@ def tril(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
         The result tensor.
     """
     if not isinstance(k, Expr):
-        k = PrimValue(k)
+        k = _to_prim_expr(k)
 
     return _ffi_api.tril(x, k)  # type: ignore
 
@@ -369,6 +367,6 @@ def triu(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
         The result tensor.
     """
     if not isinstance(k, Expr):
-        k = PrimValue(k)
+        k = _to_prim_expr(k)
 
     return _ffi_api.triu(x, k)  # type: ignore

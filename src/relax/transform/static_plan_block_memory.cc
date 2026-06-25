@@ -652,8 +652,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     StringImm storage_scope = call->args[3].as_or_throw<StringImm>();
 
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call->args[2].as<PrimValueNode>()) {
-      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    if (auto* prim_value_node = call->args[2].as<PrimExprNode>()) {
+      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -932,7 +932,7 @@ class StorageAllocationRewriter : public ExprMutator {
       const auto* ty = call->ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK_NOTNULL(ty);
       TVM_FFI_ICHECK_NOTNULL(ty->shape.as<ShapeExprNode>());
-      PrimValue runtime_device_index = call->args[2].as_or_throw<PrimValue>();
+      PrimExpr runtime_device_index = call->args[2].as_or_throw<PrimExpr>();
 
       // If the token is visited for the first time, create a storage variable using
       // `memory.alloc_storage` for it.
@@ -941,7 +941,7 @@ class StorageAllocationRewriter : public ExprMutator {
       auto it_token = token2storage_var_.find(token.get());
       if (it_token == token2storage_var_.end()) {
         ShapeExpr size({token->bytes});
-        PrimValue virtual_device_index = runtime_device_index;
+        PrimExpr virtual_device_index = runtime_device_index;
         DLDataType dtype = token->dtype;
         Call alloc_storage(mem_alloc_storage,
                            {std::move(size), virtual_device_index, StringImm(token->storage_scope),
@@ -954,7 +954,7 @@ class StorageAllocationRewriter : public ExprMutator {
       }
 
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
-      PrimValue offset = PrimValue::Int64(0);
+      PrimExpr offset = IntImm::Int64(0);
       DLDataType dtype = ty->dtype->dtype;
       return Call(mem_alloc_tensor,
                   {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
@@ -986,12 +986,12 @@ class StorageAllocationRewriter : public ExprMutator {
         bytes *= IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
         Call alloc_storage(mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
-                            /*virtual_device_index=*/call->args[2].as_or_throw<PrimValue>(),
+                            /*virtual_device_index=*/call->args[2].as_or_throw<PrimExpr>(),
                             /*storage_scope=*/call->args[3].as_or_throw<StringImm>(),  //
                             /*dtype=*/DataTypeImm(dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //
-                                       /*offset=*/PrimValue::Int64(0),
+                                       /*offset=*/IntImm::Int64(0),
                                        /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
                                        /*dtype=*/DataTypeImm(dtype),
                                        /*vdevice_index=*/call->args[2]});

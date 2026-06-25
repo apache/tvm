@@ -504,8 +504,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         expr->IsInstance<StringImmNode>() || expr->IsInstance<GlobalVarNode>()) {
       return true;
     }
-    if (const auto* prim_value = expr.as<PrimValueNode>()) {
-      return IsStatic(prim_value->value, vars_collector, tir_vars_collector);
+    if (const auto* prim_value = expr.as<PrimExprNode>()) {
+      return IsStatic(ffi::GetRef<PrimExpr>(prim_value), vars_collector, tir_vars_collector);
     }
     if (const auto* var = expr.as<VarNode>()) {
       if (vars_collector != nullptr) {
@@ -674,7 +674,7 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
       TVM_FFI_ICHECK_EQ(storage_shape->values.size(), 1);
       int64_t size = storage_shape->values[0].as_or_throw<IntImm>()->value;
       int64_t virtual_device_id =
-          alloc_storage->args[1].as_or_throw<PrimValue>()->value.as_or_throw<IntImm>()->value;
+          alloc_storage->args[1].as_or_throw<PrimExpr>().as_or_throw<IntImm>()->value;
       TVM_FFI_ICHECK_EQ(virtual_device_id, 0);
       ffi::String storage_scope = alloc_storage->args[2].as_or_throw<StringImm>()->value;
       auto [it, _] = storage_records.try_emplace(storage_scope, alloc_plans.size());
@@ -785,7 +785,7 @@ class CUDAGraphRewriter : public ExprMutator {
       auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
       launch_subgraph =
           Call(call_builtin_with_ctx_op,
-               {builtin_get_cached_alloc, Tuple({gv_alloc, PrimValue(IntImm::Int64(0))})}, Attrs(),
+               {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})}, Attrs(),
                {ret_ty});
     } else {
       auto gv_func = builder_->AddFunction(
@@ -813,7 +813,7 @@ class CUDAGraphRewriter : public ExprMutator {
       }
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
-                                        PrimValue(IntImm::Int64(index_capture_++))};
+                                        PrimExpr(IntImm::Int64(index_capture_++))};
       if (plan->propogated_tir_vars.defined()) {
         // The shape expr is explicitly passed twice, one as the last argument of the lifted
         // function, one as the last argument of builtin_run_or_capture as the cache key. Explicitly

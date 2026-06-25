@@ -261,26 +261,26 @@ def test_shape_expr():
 
 
 def test_prim_value():
-    pv = rx.PrimValue(tirx.IntImm("int64", 1))
-    assert pv.value.value == 1
-    _check_equal(pv, rx.PrimValue(tirx.IntImm("int64", 1)))
+    pv = tirx.IntImm("int64", 1)
+    assert pv.value == 1
+    _check_equal(pv, tirx.IntImm("int64", 1))
     _check_json_roundtrip(pv)
 
 
 def test_prim_value_with_var():
     n = tirx.Var("n", "int64")
-    pv = rx.PrimValue(n)
-    assert pv.value.same_as(n)
+    pv = n
+    assert pv.same_as(n)
     tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
-    _check_equal(pv, rx.PrimValue(n))
+    _check_equal(pv, n)
     _check_json_roundtrip(pv)
 
 
 def test_prim_value_with_expr():
     n = tirx.Var("n", "int64")
-    pv = rx.PrimValue(n + 1)
+    pv = n + 1
     tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
-    _check_equal(pv, rx.PrimValue(n + 1))
+    _check_equal(pv, n + 1)
     _check_json_roundtrip(pv)
 
 

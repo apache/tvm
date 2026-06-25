@@ -950,7 +950,7 @@ class TestDLPackAndTupleSupport:
         assert torch.allclose(result, expected)
 
     def test_packed_function_with_primvalue_args(self):
-        """Test packed function calls with PrimValue arguments."""
+        """Test packed function calls with PrimExpr arguments."""
 
         # Register a test packed function
         def test_packed_func(x, axis):
@@ -973,7 +973,7 @@ class TestDLPackAndTupleSupport:
         result = converted_ir_mod.pyfuncs["test_dps"](x)
         expected = x  # Identity function
 
-        assert torch.allclose(result, expected), "Packed function with PrimValue args failed"
+        assert torch.allclose(result, expected), "Packed function with PrimExpr args failed"
 
     def test_mixed_tir_and_relax_operations(self):
         """Test mixed TIR and Relax operations in a single function."""

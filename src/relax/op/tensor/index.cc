@@ -64,7 +64,7 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
   TensorType data_ty = GetInputTensorType(call, 0, ctx);
 
-  // Type inference when the index is a PrimValue is equivalent
+  // Type inference when the index is a PrimExpr is equivalent
   // to that of a scalar (0-d) tensor.
   TensorType indices_ty = [&]() {
     auto arg = call->args[1];
@@ -188,7 +188,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * A `relax::Tuple` may be provided to an operator as an in-line
  * expression, as a variable bound to known tuple within the current
  * function, as a function argument, etc.  This overload validates that
- * the Type could contain a tuple of `PrimValue` elements.  Without a
+ * the Type could contain a tuple of `PrimExpr` elements.  Without a
  * concrete tuple expression, the values are not statically known.
  *
  * If the Type cannot contain a tuple of the type specified,
@@ -205,7 +205,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  */
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
-ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> ty) {
+ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimExpr(ffi::Optional<Type> ty) {
   if (!ty) return std::nullopt;
 
   // An AnyType may contain a tuple of the desired type, but
@@ -239,7 +239,7 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> t
  * A `relax::Tuple` may be provided to an operator as an in-line
  * expression, as a variable bound to known tuple within the current
  * function, as a function argument, etc.  This utility extracts
- * `PrimValue` contents only when the concrete tuple expression is
+ * `PrimExpr` contents only when the concrete tuple expression is
  * available.
  *
  * If the Type cannot contain a tuple of the type specified,
@@ -256,7 +256,7 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Type> t
  */
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
-ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Expr> expr) {
+ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimExpr(ffi::Optional<Expr> expr) {
   if (!expr) return std::nullopt;
 
   const Expr& value = expr.value();
@@ -264,22 +264,23 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimValue(ffi::Optional<Expr> e
     ffi::Array<PrimType> output;
     for (size_t i = 0; i < tuple->fields.size(); i++) {
       const Expr& field = tuple->fields[i];
-      auto prim_value = field.as<PrimValueNode>();
+      auto prim_value = field.as<PrimExprNode>();
       TVM_FFI_CHECK(prim_value, TypeError)
           << "The expression " << value << " cannot contain a tuple whose elements are "
           << PrimType::ContainerType::_type_key << ", because element " << i << " is " << field;
 
-      TVM_FFI_CHECK(prim_value->value.template as<typename PrimType::ContainerType>(), TypeError)
+      PrimExpr prim_expr = ffi::GetRef<PrimExpr>(prim_value);
+      TVM_FFI_CHECK(prim_expr.template as<typename PrimType::ContainerType>(), TypeError)
           << "The expression " << value << " cannot contain a tuple whose elements are "
           << PrimType::ContainerType::_type_key << ", because element " << i << " has value "
-          << prim_value->value;
+          << prim_expr;
 
-      output.push_back(prim_value->value.template as_or_throw<PrimType>());
+      output.push_back(prim_expr.template as_or_throw<PrimType>());
     }
     return output;
   }
 
-  return UnpackTupleOfPrimValue<PrimType>(GetType(value));
+  return UnpackTupleOfPrimExpr<PrimType>(GetType(value));
 }
 
 Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
@@ -336,7 +337,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
     TVM_FFI_ICHECK(is_base_of_tuple_of_int64(ty))
         << "Operator " << call->op << " requires the " << name
-        << " argument to be a tuple of int64 PrimValues.  "
+        << " argument to be a tuple of int64 PrimExpr values.  "
         << "However, in expression " << call << ", the " << name << " argument " << expr
         << " has type " << ty;
   };
@@ -362,11 +363,11 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
     if (!data_ty) return std::nullopt;
     if (!data_ty->shape) return std::nullopt;
 
-    auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(axes);
+    auto opt_axes_tuple = UnpackTupleOfPrimExpr<IntImm>(axes);
     if (!opt_axes_tuple) return std::nullopt;
     auto axes_tuple = opt_axes_tuple.value();
 
-    auto opt_begin_tuple = UnpackTupleOfPrimValue(begin);
+    auto opt_begin_tuple = UnpackTupleOfPrimExpr(begin);
     if (!opt_begin_tuple) return std::nullopt;
     auto begin_tuple = opt_begin_tuple.value();
 
@@ -376,7 +377,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
         << "However, there are " << axes_tuple.size() << " axes specified (" << axes_tuple
         << ") and " << begin_tuple.size() << " 'begin' indices specified (" << begin_tuple << ")";
 
-    auto opt_end_tuple = UnpackTupleOfPrimValue(end);
+    auto opt_end_tuple = UnpackTupleOfPrimExpr(end);
     if (!opt_end_tuple) return std::nullopt;
     auto end_tuple = opt_end_tuple.value();
 
@@ -388,7 +389,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
     ffi::Array<PrimExpr> strides_tuple;
     if (strides.defined()) {
-      auto opt_strides_tuple = UnpackTupleOfPrimValue(strides);
+      auto opt_strides_tuple = UnpackTupleOfPrimExpr(strides);
       if (!opt_strides_tuple) return std::nullopt;
 
       strides_tuple = opt_strides_tuple.value();
@@ -467,7 +468,7 @@ InferLayoutOutput InferLayoutStridedSlice(
     existing_layout = LayoutDecision(InitialLayout(tensor_ty->ndim));
   }
 
-  auto opt_axes_tuple = UnpackTupleOfPrimValue<IntImm>(call->args[1]);
+  auto opt_axes_tuple = UnpackTupleOfPrimExpr<IntImm>(call->args[1]);
   TVM_FFI_ICHECK(opt_axes_tuple) << "Layout inference of " << call->op
                                  << " requires slices to be along static axes.  "
                                  << "However, expression " << call
@@ -477,7 +478,7 @@ InferLayoutOutput InferLayoutStridedSlice(
   ffi::Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
     int new_axis = FindAxis(existing_layout->layout, axis->value);
-    new_axes.push_back(relax::PrimValue::Int64(new_axis));
+    new_axes.push_back(IntImm::Int64(new_axis));
   }
 
   return InferLayoutOutput({existing_layout}, {existing_layout}, call->attrs,
@@ -558,7 +559,7 @@ Type InferTypeDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
   // The output shape will depend on the runtime value in begin/end/strides tensors.
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
-  // PrimValue lands.
+  // PrimExpr lands.
   return TensorType(data_ty->dtype, n_axis, data_ty->vdevice);
 }
 

@@ -175,16 +175,15 @@ class Tuple : public Expr {
    * into an array of base type.  This constructor handles the
    * conversion to the base `ffi::Array<relax::Expr>`.
    *
-   * \tparam RelaxExprType The type of relax expression passed in as an argument.
+   * \tparam ExprType The type of relax expression passed in as an argument.
    *
    * \param fields The fields of a tuple.
    *
    * \param span The source span of the expression.
    */
-  template <typename RelaxExprType,
-            typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExprType>>>
-  TVM_DLL explicit Tuple(tvm::ffi::Array<RelaxExprType> fields, Span span = Span())
-      : Tuple(fields.Map([](const RelaxExprType& expr) -> Expr { return expr; }), span) {}
+  template <typename ExprType, typename = std::enable_if_t<std::is_base_of_v<Expr, ExprType>>>
+  TVM_DLL explicit Tuple(tvm::ffi::Array<ExprType> fields, Span span = Span())
+      : Tuple(fields.Map([](const ExprType& expr) -> Expr { return expr; }), span) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
@@ -371,48 +370,6 @@ class Constant : public Expr {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, Expr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
-};
-
-/*!
- * \brief PrimValue.
- *
- * Expression representing a TIR POD expression.
- */
-class PrimValueNode : public ExprNode {
- public:
-  /*! \brief The prim expr representing the value */
-  PrimExpr value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.PrimValue", PrimValueNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to PrimValueNode
- * \sa PrimValeNode
- */
-class PrimValue : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param value The value input.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit PrimValue(PrimExpr value, Span span = Span());
-
-  /*!
-   * \brief Create a int64 prim value.
-   * \param value The input value.
-   * \param span The source span of the expression.
-   * \return The created prim value.
-   */
-  TVM_DLL static PrimValue Int64(int64_t value, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimValue, Expr, PrimValueNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimValueNode);
 };
 
 /*!

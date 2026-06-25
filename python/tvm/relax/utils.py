@@ -37,7 +37,7 @@ from ..te import Tensor as te_Tensor
 from ..te import create_prim_func
 from ..tirx import PrimExpr
 from . import _ffi_api
-from .expr import Expr, Function, PrimValue, ShapeExpr, StringImm, te_tensor
+from .expr import Expr, Function, ShapeExpr, StringImm, te_tensor
 from .expr import Tuple as rx_Tuple
 from .type import ShapeType, TensorType
 
@@ -87,20 +87,20 @@ def metadata_partitioner(rx_txt: str) -> list[str]:
 def convert_to_expr(value: Any) -> Expr:
     """Helper function to convert the input to Expr, which follows the rules:
     1. Return the input itself if it's already a `relax.Expr`;
-    2. Return `relax.PrimValue` if the input is a `PrimExpr`;
+    2. Return `PrimExpr` if the input is a primitive scalar;
     3. Return `relax.StringImm` if the input is `tvm.String` or `str`;
     4. Return `relax.Tuple` if the input is a tuple/list of `Expr`.
 
     Notes
     -----
     1. `tvm.tirx.StringImm` is not allowed because of ambiguity,
-       which can be either `relax.StringImm` or `relax.PrimValue`.
+       which can be either `relax.StringImm` or `PrimExpr`.
     """
     if isinstance(value, int):
-        return PrimValue(tirx.IntImm("int64", value))
+        return tirx.IntImm("int64", value)
 
     if isinstance(value, float):
-        return PrimValue(tirx.FloatImm("float64", value))
+        return tirx.FloatImm("float64", value)
 
     tvm_value = tvm_ffi.convert(value)
     # Case 1
@@ -110,11 +110,11 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(tvm_value, tirx.StringImm):
         raise TypeError(
             "Cannot convert `tirx.StringImm` to `relax.Expr` because of ambiguity,"
-            "which can be either `relax.StringImm` or `relax.PrimValue` "
+            "which can be either `relax.StringImm` or `PrimExpr` "
         )
     # Case 2
     if isinstance(tvm_value, PrimExpr):
-        return PrimValue(value)
+        return tvm_value
     # Case 3
     if isinstance(tvm_value, str):
         return StringImm(value)
@@ -221,6 +221,12 @@ def gen_call_tir_inputs(
         """
 
         def _convert_te_arg_helper(arg):
+            if isinstance(arg, tirx.PrimExpr):
+                _copy_undefined_var(arg)
+                new_arg = tirx.stmt_functor.substitute(arg, tir_var_map)
+                extra_tir_args_list.append(new_arg)
+                return new_arg
+
             if isinstance(arg, Expr):  # type: ignore
                 if isinstance(arg.ty, TensorType):
                     assert isinstance(arg.ty.shape, ShapeExpr), (
@@ -251,9 +257,6 @@ def gen_call_tir_inputs(
                     return [_convert_te_arg_helper(val) for val in arg.values]
 
                 if isinstance(arg.ty, PrimType):
-                    if isinstance(arg, PrimValue):
-                        return _convert_te_arg_helper(arg.value)
-
                     n_args = len(create_primfunc_args)
                     if isinstance(arg, tvm.relax.Var):
                         name = arg.name_hint
@@ -279,11 +282,6 @@ def gen_call_tir_inputs(
                         "emit_te only supports dict with string as the key currently"
                     )
                 return {k: _convert_te_arg_helper(arg[k]) for k in arg}
-            elif isinstance(arg, tirx.PrimExpr):
-                _copy_undefined_var(arg)
-                new_arg = tirx.stmt_functor.substitute(arg, tir_var_map)
-                extra_tir_args_list.append(new_arg)
-                return new_arg
             elif isinstance(arg, int | float | str | Type | Attrs) or arg is None:
                 return arg
             raise TypeError(f"not supported type in emit_te: {type(arg)}")

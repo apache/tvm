@@ -102,7 +102,7 @@ Expr zeros_like(Expr x, ffi::Optional<DLDataType> dtype);
  * \param dtype The data type of the created tensor.
  * \return The result tensor.
  */
-Expr eye(PrimValue n, PrimValue m, PrimValue k, DLDataType dtype);
+Expr eye(PrimExpr n, PrimExpr m, PrimExpr k, DLDataType dtype);
 
 /*!
  * \brief Construct a tensor with ones on the diagonal and zeros elsewhere,
@@ -115,10 +115,10 @@ Expr eye(PrimValue n, PrimValue m, PrimValue k, DLDataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr eye_like(Expr x, PrimValue k, ffi::Optional<DLDataType> dtype);
+Expr eye_like(Expr x, PrimExpr k, ffi::Optional<DLDataType> dtype);
 
 /*! \brief Construct a tensor with evenly spaced elements. */
-Expr arange(PrimValue start, PrimValue stop, PrimValue step, DLDataType dtype);
+Expr arange(PrimExpr start, PrimExpr stop, PrimExpr step, DLDataType dtype);
 
 /*!
  * \brief Hamming window function.
@@ -130,7 +130,7 @@ Expr arange(PrimValue start, PrimValue stop, PrimValue step, DLDataType dtype);
  * \param dtype The data type of the created tensor.
  * \return The result tensor.
  */
-Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
+Expr hamming_window(PrimExpr window_size, PrimExpr periodic, PrimExpr alpha, PrimExpr beta,
                     DLDataType dtype);
 
 /*! \brief Return the lower triangular part of a matrix or a batch of matrices. */

@@ -90,7 +90,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       // Groups for CallNode are created in its visitor.
       if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
           e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
-          e->IsInstance<PrimValueNode>()) {
+          e->IsInstance<PrimExprNode>()) {
         memo_[e] = arena_->make<Group>();
       }
     });

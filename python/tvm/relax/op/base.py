@@ -601,7 +601,7 @@ def assert_op(
         A Call to the Relax assert operation.
     """
     if not isinstance(condition, Expr):
-        condition = tvm.relax.PrimValue(condition)
+        condition = tvm.relax.expr._to_prim_expr(condition)
 
     if format_args is None:
         format_args = []

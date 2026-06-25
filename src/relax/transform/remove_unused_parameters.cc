@@ -129,7 +129,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
       auto tir_binding = InferSymbolicVarMap(old_binding, analyzer);
 
       for (const auto& tir_var : free_tir_vars) {
-        new_args.push_back(PrimValue(tir_binding.at(tir_var)));
+        new_args.push_back(PrimExpr(tir_binding.at(tir_var)));
       }
     }
 

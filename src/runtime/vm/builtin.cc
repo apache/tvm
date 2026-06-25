@@ -97,14 +97,14 @@ void MatchPrimValue(int64_t input_value, DLTensor* heap, int code_value, int64_t
   if (code == MatchShapeCode::kAssertEqualToImm) {
     TVM_FFI_CHECK_EQ(input_value, reg, RuntimeError)
         << err_ctx.value_or("") << " match_cast error, "
-        << " PrimValue mismatch to specified constant.";
+        << " PrimExpr mismatch to specified constant.";
   } else if (code == MatchShapeCode::kStoreToHeap) {
     heap_data[reg] = input_value;
   } else if (code == MatchShapeCode::kNoOp) {
   } else if (code == MatchShapeCode::kAssertEqualToLoad) {
     TVM_FFI_CHECK_EQ(input_value, heap_data[reg], RuntimeError)
         << err_ctx.value_or("") << " match_cast error, "
-        << " PrimValue mismatch to a previous populated value.";
+        << " PrimExpr mismatch to a previous populated value.";
   } else {
     TVM_FFI_THROW(InternalError) << "Unknown match shape code: " << static_cast<int>(code);
   }
@@ -299,9 +299,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /*!
- * \brief Builtin function to check if arg is PrimValue(dtype)
+ * \brief Builtin function to check if arg is PrimExpr(dtype)
  * \param arg The input argument.
- * \param dtype Expected dtype of the PrimValue.  Can be DLDataType{kDLOpaqueHandle, 0, 0} for
+ * \param dtype Expected dtype of the PrimExpr.  Can be DLDataType{kDLOpaqueHandle, 0, 0} for
  * unknown dtype.
  * \param err_ctx Additional context if error occurs.
  */

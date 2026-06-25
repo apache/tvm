@@ -252,14 +252,14 @@ TVM_REGISTER_OP("relax.zeros_like")
     .set_attr<bool>("FPurity", true);
 
 /* relax.eye & relax.eye_like */
-Expr eye(PrimValue n, PrimValue m, PrimValue k, DLDataType dtype) {
+Expr eye(PrimExpr n, PrimExpr m, PrimExpr k, DLDataType dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.eye");
   return Call(op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
 }
 
-Expr eye_like(Expr x, PrimValue k, ffi::Optional<DLDataType> dtype) {
+Expr eye_like(Expr x, PrimExpr k, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
   static const Op& op = Op::Get("relax.eye_like");
@@ -278,11 +278,11 @@ Type InferTypeEye(const Call& call, const BlockBuilder& ctx) {
   }
 
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
-    if (!expr->IsInstance<PrimValueNode>()) {
+    if (!expr->IsInstance<PrimExprNode>()) {
       TVM_FFI_VISIT_THROW(TypeError, expr)
-          << "Eye expects the `" << key << "` to be a PrimValue, but got " << expr->GetTypeKey();
+          << "Eye expects the `" << key << "` to be a PrimExpr, but got " << expr->GetTypeKey();
     }
-    return expr.as<PrimValueNode>()->value;
+    return expr.as_or_throw<PrimExpr>();
   };
 
   PrimExpr n = get_prim_value(call->args[0], "n");
@@ -321,9 +321,9 @@ Type InferTypeEyeLike(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.eye")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(3)
-    .add_argument("n", "PrimValue", "Number of rows in the output.")
-    .add_argument("m", "PrimValue", "Number of columns in the output.")
-    .add_argument("k", "PrimValue", "Index of the diagonal.")
+    .add_argument("n", "PrimExpr", "Number of rows in the output.")
+    .add_argument("m", "PrimExpr", "Number of columns in the output.")
+    .add_argument("k", "PrimExpr", "Index of the diagonal.")
     .set_attr<FInferType>("FInferType", InferTypeEye)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -332,12 +332,12 @@ TVM_REGISTER_OP("relax.eye_like")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("k", "PrimValue", "Index of the diagonal.")
+    .add_argument("k", "PrimExpr", "Index of the diagonal.")
     .set_attr<FInferType>("FInferType", InferTypeEyeLike)
     .set_attr<bool>("FPurity", true);
 
 /* relax.arange */
-Expr arange(PrimValue start, PrimValue stop, PrimValue step, DLDataType dtype) {
+Expr arange(PrimExpr start, PrimExpr stop, PrimExpr step, DLDataType dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.arange");
@@ -357,11 +357,11 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
   }
   // TODO(Siyuan): Support indirect prim_values
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
-    if (!expr->IsInstance<PrimValueNode>()) {
+    if (!expr->IsInstance<PrimExprNode>()) {
       TVM_FFI_VISIT_THROW(TypeError, expr)
-          << "Arange expects the `" << key << "` to be a PrimValue, but got " << expr->GetTypeKey();
+          << "Arange expects the `" << key << "` to be a PrimExpr, but got " << expr->GetTypeKey();
     }
-    return expr.as<PrimValueNode>()->value;
+    return expr.as_or_throw<PrimExpr>();
   };
   PrimExpr start = get_prim_value(call->args[0], "start");
   PrimExpr end = get_prim_value(call->args[1], "end");
@@ -383,15 +383,15 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.arange")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(3)
-    .add_argument("start", "PrimValue", "The starting value for the set of points.")
-    .add_argument("end", "PrimValue", "The ending value for the set of points.")
-    .add_argument("step", "PrimValue", "The gap between each pair of adjacent points.")
+    .add_argument("start", "PrimExpr", "The starting value for the set of points.")
+    .add_argument("end", "PrimExpr", "The ending value for the set of points.")
+    .add_argument("step", "PrimExpr", "The gap between each pair of adjacent points.")
     .set_attr<FInferType>("FInferType", InferTypeArange)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
 
 /* relax.hamming_window */
-Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
+Expr hamming_window(PrimExpr window_size, PrimExpr periodic, PrimExpr alpha, PrimExpr beta,
                     DLDataType dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
@@ -412,11 +412,11 @@ Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
         << "Hamming Window expects the datatype to be float but got " << dtype;
   }
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
-    if (!expr->IsInstance<PrimValueNode>()) {
+    if (!expr->IsInstance<PrimExprNode>()) {
       TVM_FFI_VISIT_THROW(TypeError, expr) << "Hamming_window expects the `" << key
-                                           << "` to be a PrimValue, but got " << expr->GetTypeKey();
+                                           << "` to be a PrimExpr, but got " << expr->GetTypeKey();
     }
-    return expr.as<PrimValueNode>()->value;
+    return expr.as_or_throw<PrimExpr>();
   };
   PrimExpr window_size = get_prim_value(call->args[0], "window_size");
 
@@ -433,12 +433,12 @@ Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.hamming_window")
     .set_attrs_type<InitAttrs>()
     .set_num_inputs(4)
-    .add_argument("window_size", "PrimValue", "The size of the window")
-    .add_argument("periodic", "PrimValue",
+    .add_argument("window_size", "PrimExpr", "The size of the window")
+    .add_argument("periodic", "PrimExpr",
                   "If True, returns a window to be used as periodic function. If False, return a "
                   "symmetric window")
-    .add_argument("alpha", "PrimValue", "The coefficient alpha")
-    .add_argument("beta", "PrimValue", "The coefficient beta")
+    .add_argument("alpha", "PrimExpr", "The coefficient alpha")
+    .add_argument("beta", "PrimExpr", "The coefficient beta")
     .set_attr<FInferType>("FInferType", InferTypeHammingWindow)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<bool>("FPurity", true);
@@ -450,14 +450,14 @@ Expr tril(Expr x, Expr k) {
   return Call(op, {x, k});
 }
 
-Expr tril(Expr x, int k) { return tril(x, relax::PrimValue::Int64(k)); }
+Expr tril(Expr x, int k) { return tril(x, IntImm::Int64(k)); }
 
 Expr triu(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.triu");
   return Call(op, {x, k});
 }
 
-Expr triu(Expr x, int k) { return triu(x, relax::PrimValue::Int64(k)); }
+Expr triu(Expr x, int k) { return triu(x, IntImm::Int64(k)); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -481,14 +481,14 @@ Type InferTypeTrilTriu(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.tril")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("k", "PrimValue", "The offset of the diagonal.")
+    .add_argument("k", "PrimExpr", "The offset of the diagonal.")
     .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
     .set_attr<bool>("FPurity", true);
 
 TVM_REGISTER_OP("relax.triu")
     .set_num_inputs(2)
     .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("k", "PrimValue", "The offset of the diagonal.")
+    .add_argument("k", "PrimExpr", "The offset of the diagonal.")
     .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
     .set_attr<bool>("FPurity", true);
 

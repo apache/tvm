@@ -65,8 +65,8 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
   ffi::Function f_visit_op_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const TupleGetItemNode* op)` function. */
   ffi::Function f_visit_tuple_getitem_{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const PrimValueNode* op)` function. */
-  ffi::Function f_visit_prim_value_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const PrimExprNode* op)` function. */
+  ffi::Function f_visit_prim_expr_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const StringImmNode* op)` function. */
   ffi::Function f_visit_string_imm_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const DataTypeImmNode* op)` function. */
@@ -102,6 +102,14 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
       f_visit_expr(expr);
     } else {
       // Need to init the overwrite VTable
+      if (const auto* prim_expr = expr.as<PrimExprNode>()) {
+        if (f_visit_prim_expr_ != nullptr) {
+          f_visit_prim_expr_(expr);
+        } else {
+          ExprVisitor::VisitExpr_(prim_expr);
+        }
+        return;
+      }
       static FType vtable = InitVTable();
       vtable(expr, this);
     }
@@ -164,7 +172,7 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
     PY_EXPR_VISITOR_DISPATCH(IfNode, f_visit_if_);
     PY_EXPR_VISITOR_DISPATCH(OpNode, f_visit_op_);
     PY_EXPR_VISITOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_);
-    PY_EXPR_VISITOR_DISPATCH(PrimValueNode, f_visit_prim_value_);
+    PY_EXPR_VISITOR_DISPATCH(PrimExprNode, f_visit_prim_expr_);
     PY_EXPR_VISITOR_DISPATCH(StringImmNode, f_visit_string_imm_);
     PY_EXPR_VISITOR_DISPATCH(DataTypeImmNode, f_visit_data_type_imm_);
     vtable.Finalize();
@@ -197,7 +205,7 @@ class PyExprVisitor : public ffi::ObjectRef {
    * \param f_visit_if_ The packed function of `VisitExpr_(const IfNode* op)`.
    * \param f_visit_op_ The packed function of `VisitExpr_(const OpNode* op)`.
    * \param f_visit_tuple_getitem_ The packed function of `VisitExpr_(const TupleGetItemNode* op)`.
-   * \param f_visit_prim_value_ The packed function of `VisitExpr_(const PrimValueNode* op)`.
+   * \param f_visit_prim_expr_ The packed function of `VisitExpr_(const PrimExprNode* op)`.
    * \param f_visit_string_imm_ The packed function of `VisitExpr_(const StringImmNode* op)`.
    * \param f_visit_data_type_imm_ The packed function of `VisitExpr_(const DataTypeImmNode* op)`.
    * \param f_visit_binding The packed function of `VisitBinding(const Binding& binding)`.
@@ -225,7 +233,7 @@ class PyExprVisitor : public ffi::ObjectRef {
       ffi::Function f_visit_global_var_, ffi::Function f_visit_function_,
       ffi::Function f_visit_call_, ffi::Function f_visit_seq_expr_, ffi::Function f_visit_if_,
       ffi::Function f_visit_op_, ffi::Function f_visit_tuple_getitem_,
-      ffi::Function f_visit_prim_value_, ffi::Function f_visit_string_imm_,
+      ffi::Function f_visit_prim_expr_, ffi::Function f_visit_string_imm_,
       ffi::Function f_visit_data_type_imm_, ffi::Function f_visit_binding,
       ffi::Function f_visit_var_binding_, ffi::Function f_visit_match_cast_,
       ffi::Function f_visit_binding_block, ffi::Function f_visit_binding_block_,
@@ -251,7 +259,7 @@ class PyExprVisitor : public ffi::ObjectRef {
     n->f_visit_if_ = f_visit_if_;
     n->f_visit_op_ = f_visit_op_;
     n->f_visit_tuple_getitem_ = f_visit_tuple_getitem_;
-    n->f_visit_prim_value_ = f_visit_prim_value_;
+    n->f_visit_prim_expr_ = f_visit_prim_expr_;
     n->f_visit_string_imm_ = f_visit_string_imm_;
     n->f_visit_data_type_imm_ = f_visit_data_type_imm_;
     n->f_visit_var_binding_ = f_visit_var_binding_;
@@ -303,8 +311,8 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
   ffi::Function f_visit_op_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const TupleGetItemNode* op)` function. */
   ffi::Function f_visit_tuple_getitem_{nullptr};
-  /*! \brief The packed function to the `VisitExpr_(const PrimValueNode* op)` function. */
-  ffi::Function f_visit_prim_value_{nullptr};
+  /*! \brief The packed function to the `VisitExpr_(const PrimExprNode* op)` function. */
+  ffi::Function f_visit_prim_expr_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const StringImmNode* op)` function. */
   ffi::Function f_visit_string_imm_{nullptr};
   /*! \brief The packed function to the `VisitExpr_(const DataTypeImmNode* op)` function. */
@@ -339,6 +347,13 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     if (f_visit_expr != nullptr) {
       return builder_->Normalize(f_visit_expr(expr).cast<Expr>());
     } else {
+      if (const auto* prim_expr = expr.as<PrimExprNode>()) {
+        if (f_visit_prim_expr_ != nullptr) {
+          return builder_->Normalize(f_visit_prim_expr_(expr).cast<Expr>());
+        } else {
+          return builder_->Normalize(ExprMutator::VisitExpr_(prim_expr));
+        }
+      }
       static FType vtable = InitVTable();
       return builder_->Normalize(vtable(expr, this));
     }
@@ -427,7 +442,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     PY_EXPR_MUTATOR_DISPATCH(IfNode, f_visit_if_);
     PY_EXPR_MUTATOR_DISPATCH(OpNode, f_visit_op_);
     PY_EXPR_MUTATOR_DISPATCH(TupleGetItemNode, f_visit_tuple_getitem_);
-    PY_EXPR_MUTATOR_DISPATCH(PrimValueNode, f_visit_prim_value_);
+    PY_EXPR_MUTATOR_DISPATCH(PrimExprNode, f_visit_prim_expr_);
     PY_EXPR_MUTATOR_DISPATCH(StringImmNode, f_visit_string_imm_);
     PY_EXPR_MUTATOR_DISPATCH(DataTypeImmNode, f_visit_data_type_imm_);
     vtable.Finalize();
@@ -451,7 +466,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(IfNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(OpNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(TupleGetItemNode);
-    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(PrimValueNode);
+    PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(PrimExprNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(StringImmNode);
     PY_EXPR_MUTATOR_VISIT_EXPR_POST_ORDER_DISPATCH(DataTypeImmNode);
     post_order_vtable.Finalize();
@@ -484,7 +499,7 @@ class PyExprMutator : public ffi::ObjectRef {
    * \param f_visit_if_ The packed function of `VisitExpr_(const IfNode* op)`.
    * \param f_visit_op_ The packed function of `VisitExpr_(const OpNode* op)`.
    * \param f_visit_tuple_getitem_ The packed function of `VisitExpr_(const TupleGetItemNode* op)`.
-   * \param f_visit_prim_value_ The packed function of `VisitExpr_(const PrimValueNode* op)`.
+   * \param f_visit_prim_expr_ The packed function of `VisitExpr_(const PrimExprNode* op)`.
    * \param f_visit_string_imm_ The packed function of `VisitExpr_(const StringImmNode* op)`.
    * \param f_visit_data_type_imm_ The packed function of `VisitExpr_(const DataTypeImmNode* op)`.
    * \param f_visit_binding The packed function of `VisitBinding(const Binding& binding)`.
@@ -512,7 +527,7 @@ class PyExprMutator : public ffi::ObjectRef {
       ffi::Function f_visit_global_var_, ffi::Function f_visit_function_,
       ffi::Function f_visit_call_, ffi::Function f_visit_seq_expr_, ffi::Function f_visit_if_,
       ffi::Function f_visit_op_, ffi::Function f_visit_tuple_getitem_,
-      ffi::Function f_visit_prim_value_, ffi::Function f_visit_string_imm_,
+      ffi::Function f_visit_prim_expr_, ffi::Function f_visit_string_imm_,
       ffi::Function f_visit_data_type_imm_, ffi::Function f_visit_binding,
       ffi::Function f_visit_var_binding_, ffi::Function f_visit_match_cast_,
       ffi::Function f_visit_binding_block, ffi::Function f_visit_binding_block_,
@@ -535,7 +550,7 @@ class PyExprMutator : public ffi::ObjectRef {
     n->f_visit_if_ = f_visit_if_;
     n->f_visit_op_ = f_visit_op_;
     n->f_visit_tuple_getitem_ = f_visit_tuple_getitem_;
-    n->f_visit_prim_value_ = f_visit_prim_value_;
+    n->f_visit_prim_expr_ = f_visit_prim_expr_;
     n->f_visit_string_imm_ = f_visit_string_imm_;
     n->f_visit_data_type_imm_ = f_visit_data_type_imm_;
     n->f_visit_binding = f_visit_binding;

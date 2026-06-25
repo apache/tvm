@@ -207,9 +207,6 @@ class ASTPrinter(ExprFunctor):
             false_branch=self.visit_expr(op.false_branch),
         )
 
-    def visit_prim_value_(self, op: relax.PrimValue) -> str:
-        return self.build_expr(op, "PrimValue", value=self.visit_prim_expr_(op.value))
-
     def visit_string_imm_(self, op: relax.StringImm) -> str:
         return self.build_expr(op, "StringImm", value=wrap_quotes(op.value))
 

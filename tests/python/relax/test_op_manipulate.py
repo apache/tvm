@@ -246,13 +246,10 @@ def test_reshape_infer_ty_inference_not_deducible():
 
 
 def test_reshape_new_shape_not_tuple():
-    m = tirx.Var("m", "int64")
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
 
     with pytest.raises(TypeError):
         relax.op.reshape(x, 120)
-    with pytest.raises(TypeError):
-        relax.op.reshape(x, m)
 
 
 def test_reshape_infer_ty_new_shape_not_integer():
@@ -3448,7 +3445,7 @@ def test_one_hot_infer_ty():
     i0 = relax.Var("indices", R.Tensor((3,), "int32"))
     _check_inference(
         bb,
-        relax.op.one_hot(i0, relax.PrimValue(1.0), relax.PrimValue(0.0), 5),
+        relax.op.one_hot(i0, tirx.FloatImm("float32", 1.0), tirx.FloatImm("float32", 0.0), 5),
         relax.TensorType((3, 5), "float32"),
     )
 
@@ -3456,7 +3453,7 @@ def test_one_hot_infer_ty():
     i1 = relax.Var("indices", R.Tensor((2, 2), "int32"))
     _check_inference(
         bb,
-        relax.op.one_hot(i1, relax.PrimValue(1), relax.PrimValue(0), 3, axis=1),
+        relax.op.one_hot(i1, tirx.IntImm("int64", 1), tirx.IntImm("int64", 0), 3, axis=1),
         relax.TensorType((2, 3, 2), "int64"),
     )
 
@@ -3465,7 +3462,7 @@ def test_one_hot_infer_ty():
     i2 = relax.Var("indices", R.Tensor((n,), "int32"))
     _check_inference(
         bb,
-        relax.op.one_hot(i2, relax.PrimValue(1.0), relax.PrimValue(0.0), 4),
+        relax.op.one_hot(i2, tirx.FloatImm("float32", 1.0), tirx.FloatImm("float32", 0.0), 4),
         relax.TensorType((n, 4), "float32"),
     )
 
@@ -3473,24 +3470,30 @@ def test_one_hot_infer_ty():
     i3 = relax.Var("indices", R.Tensor("int32"))
     _check_inference(
         bb,
-        relax.op.one_hot(i3, relax.PrimValue(1.0), relax.PrimValue(0.0), 6),
+        relax.op.one_hot(i3, tirx.FloatImm("float32", 1.0), tirx.FloatImm("float32", 0.0), 6),
         relax.TensorType(dtype="float32"),
     )
 
     # Test case 5: With different on_value and off_value dtypes
     i3 = relax.Var("indices", R.Tensor((2, 3), "int32"))
     with pytest.raises(tvm.error.InternalError):
-        bb.normalize(relax.op.one_hot(i3, relax.PrimValue(1.0), relax.PrimValue(0), 5))
+        bb.normalize(
+            relax.op.one_hot(i3, tirx.FloatImm("float32", 1.0), tirx.IntImm("int64", 0), 5)
+        )
 
     # Test case 6: With invalid indices dtype
     i4 = relax.Var("indices", R.Tensor((2, 3), "float32"))
     with pytest.raises(TypeError):
-        bb.normalize(relax.op.one_hot(i4, relax.PrimValue(1.0), relax.PrimValue(0.0), 5))
+        bb.normalize(
+            relax.op.one_hot(i4, tirx.FloatImm("float32", 1.0), tirx.FloatImm("float32", 0.0), 5)
+        )
 
     # Test case 7: With invalid depth
     i5 = relax.Var("indices", R.Tensor((2, 3), "int32"))
     with pytest.raises(tvm.error.InternalError):
-        bb.normalize(relax.op.one_hot(i5, relax.PrimValue(1.0), relax.PrimValue(0.0), -1))
+        bb.normalize(
+            relax.op.one_hot(i5, tirx.FloatImm("float32", 1.0), tirx.FloatImm("float32", 0.0), -1)
+        )
 
 
 if __name__ == "__main__":

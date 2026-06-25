@@ -69,8 +69,8 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
       << "but the second argument " << arg << " in expression " << call << " has type " << axis->ty;
 
   ffi::Optional<int64_t> int_imm_axis = std::nullopt;
-  if (const auto* prim_value = axis.as<PrimValueNode>()) {
-    if (const auto* int_imm = prim_value->value.as<IntImmNode>()) {
+  if (const auto* prim_value = axis.as<PrimExprNode>()) {
+    if (const auto* int_imm = ffi::GetRef<PrimExpr>(prim_value).as<IntImmNode>()) {
       int_imm_axis = int_imm->value;
     }
   }
@@ -108,7 +108,7 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimTyp
   return func;
 }
 
-Expr NormalizeToKnownPrimValue(const BlockBuilder&, Call call) { return call; }
+Expr NormalizeToKnownPrimExpr(const BlockBuilder&, Call call) { return call; }
 
 //// relax.tensor_dtype_code
 
@@ -136,7 +136,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_dtype_code")
     .set_attr<FInferType>("FInferType", InferTypeTensorDtypeCode)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_dtype_bits
@@ -165,7 +165,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_dtype_bits")
     .set_attr<FInferType>("FInferType", InferTypeTensorDtypeBits)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_dtype_lanes
@@ -194,7 +194,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_dtype_lanes")
     .set_attr<FInferType>("FInferType", InferTypeTensorDtypeLanes)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_ndim
@@ -223,7 +223,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_ndim")
     .set_attr<FInferType>("FInferType", InferTypeTensorNDim)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_shape_i
@@ -298,7 +298,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_shape_i")
     .set_attr<FInferType>("FInferType", InferTypeTensorShape)
     .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_stride_i
@@ -345,7 +345,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_stride_i")
     .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
     .set_attr<FInferType>("FInferType", InferTypeTensorStride)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_byte_offset
@@ -376,7 +376,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_byte_offset")
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferType>("FInferType", InferTypeTensorByteOffset)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 //// relax.tensor_elem_offset
@@ -407,7 +407,7 @@ TVM_REGISTER_OP("relax.inspect.tensor_elem_offset")
     .add_argument("tensor", "Tensor", "The tensor to be inspected")
     .set_attr<FInferType>("FInferType", InferTypeTensorElemOffset)
     .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimValue)
+    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace inspect

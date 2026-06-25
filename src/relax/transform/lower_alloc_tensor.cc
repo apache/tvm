@@ -49,7 +49,7 @@ class Mutator : public ExprMutator {
 
       auto shape_arg = op->args[0];
       auto dtype = op->args[1].as_or_throw<DataTypeImm>();
-      PrimValue runtime_device_index = op->args[2].as_or_throw<PrimValue>();
+      PrimExpr runtime_device_index = op->args[2].as_or_throw<PrimExpr>();
       StringImm storage_scope = op->args[3].as_or_throw<StringImm>();
 
       auto shape = [&]() -> ffi::Array<PrimExpr> {
@@ -85,8 +85,8 @@ class Mutator : public ExprMutator {
       ShapeExpr size({nbytes});
 
       int64_t vdevice_index = -1;
-      if (auto* prim_value_node = op->args[2].as<PrimValueNode>()) {
-        vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+      if (auto* prim_value_node = op->args[2].as<PrimExprNode>()) {
+        vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
       }
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -112,7 +112,7 @@ class Mutator : public ExprMutator {
         }
       }
 
-      auto offset = PrimValue::Int64(0);
+      auto offset = IntImm::Int64(0);
 
       Expr storage = relax::Call(mem_alloc_storage_op, {size, runtime_device_index, storage_scope,
                                                         DataTypeImm((DLDataType{kDLUInt, 8, 1}))});

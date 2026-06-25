@@ -265,7 +265,7 @@ def get_prim_expr_list(
 
     Parameters
     ----------
-    inputs : Union[relax.Constant, relax.ShapeExpr, relax.PrimValue]
+    inputs : Union[relax.Constant, relax.ShapeExpr, tvm.tirx.PrimExpr]
         The input value to try to convert to a list of PrimExpr.
 
     Returns
@@ -280,7 +280,7 @@ def get_prim_expr_list(
         return np_value.tolist()
     elif isinstance(inputs, relax.ShapeExpr):
         return inputs.values
-    elif isinstance(inputs, relax.PrimValue):
+    elif isinstance(inputs, tvm.tirx.PrimExpr):
         return [inputs.value.value]
     else:
         raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
@@ -441,7 +441,7 @@ class MatMulInteger16(OnnxOpConverter):
 
 
 def _to_numpy(x):
-    if isinstance(x, relax.PrimValue):
+    if isinstance(x, tvm.tirx.PrimExpr):
         x = x.value
         if isinstance(x, tirx.IntImm | tirx.FloatImm):
             x = x.value
@@ -478,15 +478,15 @@ class BinaryBase(OnnxOpConverter):
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
-            if isinstance(x, relax.PrimValue) and isinstance(y, relax.PrimValue):
-                return relax.PrimValue(output.item())
+            if isinstance(x, tvm.tirx.PrimExpr) and isinstance(y, tvm.tirx.PrimExpr):
+                return relax.expr._to_prim_expr(output.item())
             if x.dtype == y.dtype:
                 # no numpy precision widening
                 output = output.astype(x.dtype)
             if all([isinstance(inp, relax.Constant) for inp in inputs]):
                 return relax.const(output, output.dtype)  # pylint: disable=not-callable
-            if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
-                return relax.PrimValue(output.item())  # pylint: disable=not-callable
+            if any([isinstance(inp, tvm.tirx.PrimExpr) for inp in inputs]):
+                return relax.expr._to_prim_expr(output.item())  # pylint: disable=not-callable
 
         return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
 
@@ -906,8 +906,8 @@ class Hardmax(OnnxOpConverter):
         normalized_axis, axis_extent = _get_axis_extent(data, axis, "Hardmax")
         dtype = data.ty.dtype
         argmax = relax.op.argmax(data, axis=normalized_axis)
-        on_value = relax.PrimValue(tvm.tirx.const(1.0, dtype))
-        off_value = relax.PrimValue(tvm.tirx.const(0.0, dtype))
+        on_value = relax.expr._to_prim_expr(tvm.tirx.const(1.0, dtype))
+        off_value = relax.expr._to_prim_expr(tvm.tirx.const(0.0, dtype))
         return relax.op.one_hot(argmax, on_value, off_value, axis_extent, normalized_axis)
 
     @classmethod
@@ -987,7 +987,7 @@ class Unsqueeze(OnnxOpConverter):
         axes = get_constant(inputs[1], params)
         data_ndim = _get_known_tensor_rank(data)
 
-        if isinstance(data, relax.PrimValue) and isinstance(axes, relax.Constant):
+        if isinstance(data, tvm.tirx.PrimExpr) and isinstance(axes, relax.Constant):
             constant_axes = _normalize_constant_axes(
                 list(map(int, axes.data.numpy().tolist())), 1, "Unsqueeze"
             )
@@ -1106,8 +1106,10 @@ class Cast(OnnxOpConverter):
         if isinstance(inputs[0], relax.Constant):
             output = inputs[0].data.numpy().astype(to_type)
             return relax.const(output, to_type)
-        if isinstance(inputs[0], relax.PrimValue):
-            return relax.PrimValue(inputs[0].value.astype(to_type))
+        if isinstance(inputs[0], tvm.tirx.PrimExpr):
+            if isinstance(inputs[0], tirx.IntImm | tirx.FloatImm):
+                return tvm.tirx.const(inputs[0].value, to_type)
+            return inputs[0].astype(to_type)
 
         try:
             np_dst = _np.dtype(str(to_type))
@@ -1193,7 +1195,7 @@ class Gather(OnnxOpConverter):
                 np_index = np_index[0]
             np_index = int(np_index)
             shape_val = data[np_index]
-            return relax.PrimValue(shape_val)
+            return relax.expr._to_prim_expr(shape_val)
 
         indices_dtype = indices.ty.dtype.dtype
         if not indices_dtype.startswith("uint"):
@@ -1957,11 +1959,11 @@ class Squeeze(OnnxOpConverter):
             shape_tensor_ndim = 1
             if axis is None:
                 if len(data) == 1:
-                    return relax.PrimValue(data[0])
+                    return relax.expr._to_prim_expr(data[0])
                 return data
             normalized_axes = _normalize_constant_axes(list(axis), shape_tensor_ndim, "Squeeze")
             if normalized_axes == [0] and len(data) == 1:
-                return relax.PrimValue(data[0])
+                return relax.expr._to_prim_expr(data[0])
             raise NotImplementedError(
                 "Squeeze on symbolic shape tensors only supports removing the sole axis."
             )
@@ -2141,8 +2143,8 @@ class Neg(OnnxOpConverter):
         if isinstance(inputs[0], relax.Constant):
             data_np = inputs[0].data.numpy()
             return relax.const(_np.negative(data_np), inputs[0].ty.dtype)
-        if isinstance(inputs[0], relax.PrimValue):
-            return relax.PrimValue(-inputs[0].value)
+        if isinstance(inputs[0], tvm.tirx.PrimExpr):
+            return -inputs[0]
         return relax.op.negative(inputs[0])
 
 
@@ -2378,7 +2380,7 @@ def get_prim_value_list(values):
     new_values = []
     for v in list(values):
         if isinstance(v, relax.expr.PrimExpr):
-            new_values.append(relax.PrimValue(v))
+            new_values.append(relax.expr._to_prim_expr(v))
         else:
             new_values.append(v)
     return new_values
@@ -2391,7 +2393,7 @@ def _get_known_tensor_rank(expr: relax.Expr) -> int | None:
         return len(expr.data.numpy().shape)
     if isinstance(expr, relax.ShapeExpr):
         return 1
-    if isinstance(expr, relax.PrimValue):
+    if isinstance(expr, tvm.tirx.PrimExpr):
         return 0
     ty = expr.ty
     if isinstance(ty, relax.TensorType):
@@ -2411,7 +2413,7 @@ def _get_known_tensor_length(expr: relax.Expr | None) -> int | None:
         return int(np_value.shape[0])
     if isinstance(expr, relax.ShapeExpr):
         return len(expr.values)
-    if isinstance(expr, relax.PrimValue):
+    if isinstance(expr, tvm.tirx.PrimExpr):
         return 1
     ty = expr.ty
     if not isinstance(ty, relax.TensorType):
@@ -2450,7 +2452,7 @@ def _as_int64_tensor(bb: relax.BlockBuilder, expr: relax.Expr) -> relax.Expr:
 
     if isinstance(expr, relax.ShapeExpr):
         return bb.normalize(relax.op.shape_to_tensor(expr))
-    if isinstance(expr, relax.PrimValue):
+    if isinstance(expr, tvm.tirx.PrimExpr):
         return bb.normalize(relax.op.full((1,), expr, dtype="int64"))
     if isinstance(expr, relax.Constant):
         if expr.ty.dtype == "int64":
@@ -2556,7 +2558,7 @@ class Slice(OnnxOpConverter):
         axes = get_constant(inputs[3], params)
         steps = get_constant(inputs[4], params)
         all_constant_params = all(
-            isinstance(param, relax.Constant | relax.ShapeExpr | relax.PrimValue) or param is None
+            isinstance(param, relax.Constant | relax.ShapeExpr | tvm.tirx.PrimExpr) or param is None
             for param in [starts, ends, axes, steps]
         )
         if all_constant_params:
@@ -4451,7 +4453,10 @@ class OneHot(OnnxOpConverter):
         assert isinstance(values, relax.Constant), "Only constant values currently supported."
         values = values.data.numpy().tolist()
         off_value, on_value = values
-        off_value, on_value = relax.PrimValue(off_value), relax.PrimValue(on_value)
+        off_value, on_value = (
+            relax.expr._to_prim_expr(off_value),
+            relax.expr._to_prim_expr(on_value),
+        )
         return relax.op.one_hot(indices, on_value, off_value, depth, axis)
 
 

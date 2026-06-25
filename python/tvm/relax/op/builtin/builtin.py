@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm
+from ...expr import Call, DataTypeImm, Expr, StringImm, _to_prim_expr
 from ...utils import convert_to_expr
 from . import _ffi_api
 
@@ -53,7 +53,7 @@ def alloc_tensor(
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
     if isinstance(runtime_device_index, int):
-        runtime_device_index = PrimValue(runtime_device_index)
+        runtime_device_index = _to_prim_expr(runtime_device_index)
     if isinstance(storage_scope, str):
         storage_scope = StringImm(storage_scope)
     if not isinstance(storage_scope, StringImm):

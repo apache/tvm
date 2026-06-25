@@ -36,7 +36,7 @@ namespace tvm {
 namespace relax {
 
 // This pass lowers most ops to VM specific builtins.
-// TODO(relax-team): revisit after PrimValue.
+// TODO(relax-team): revisit after PrimExpr.
 class LowerRuntimeBuiltinMutator : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
@@ -83,7 +83,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   }
 
   Expr MakeMemAllocStorage(const Call& call) {
-    PrimValue runtime_device_index = call->args[1].as_or_throw<PrimValue>();
+    PrimExpr runtime_device_index = call->args[1].as_or_throw<PrimExpr>();
     StringImm storage_scope = call->args[2].as_or_throw<StringImm>();
     DataTypeImm output_dtype = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
     return Call(vm_alloc_storage_op_,
@@ -91,7 +91,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
-    PrimValue offset = call->args[1].as_or_throw<PrimValue>();
+    PrimExpr offset = call->args[1].as_or_throw<PrimExpr>();
     DataTypeImm dtype = call->args[3].as_or_throw<DataTypeImm>();
 
     ffi::Array<Expr> call_args = {call->args[0], offset, call->args[2], dtype};
@@ -175,8 +175,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     int dev_type = vdev->target->GetTargetDeviceType();
     int dev_id = vdev->vdevice_id;
     StringImm storage_scope = StringImm(vdev->memory_scope);
-    args.push_back(PrimValue::Int64(dev_type));
-    args.push_back(PrimValue::Int64(dev_id));
+    args.push_back(IntImm::Int64(dev_type));
+    args.push_back(IntImm::Int64(dev_id));
     args.push_back(storage_scope);
     return Call(builtin_to_device_, args, call_node->attrs, {GetType(call_node)});
   }

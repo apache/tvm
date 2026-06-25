@@ -563,7 +563,7 @@ def test_operators():
         )
     )
     assert 'Op(name="relax.unique")' in foo_str
-    # the sorted argument is true, so it will be a PrimValue of 1
+    # the sorted argument is true, so it will be a PrimExpr of 1
     assert "PrimExpr(value=`T.int64(1)`)" in foo_str
     # axis is -1
     assert "PrimExpr(value=`T.int64(-1)`)" in foo_str
@@ -651,14 +651,11 @@ def test_tuple_get_item():
 
 
 def test_prim_value():
-    prim_value = rx.PrimValue(tirx.IntImm("int64", 1))
+    prim_value = tirx.IntImm("int64", 1)
     prim_str = strip_whitespace(dump_ast(prim_value))
     assert prim_str == strip_whitespace(
         """
-        PrimValue(
-            value=PrimExpr(value=`T.int64(1)`),
-            ty=PrimType(dtype=int64)
-        )
+        PrimExpr(value=`T.int64(1)`)
     """
     )
 

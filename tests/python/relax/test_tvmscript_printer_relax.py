@@ -303,8 +303,24 @@ def test_func_type():
 
 
 def test_prim_value():
-    obj = relax.PrimValue(1)
-    _assert_print(obj, "R.prim_value(1)")
+    obj = tirx.IntImm("int64", 1)
+    _assert_print(obj, "T.int64(1)")
+
+    @R.function
+    def func() -> R.Prim("int64"):
+        return R.prim_value(1)
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import tirx as T
+# from tvm.tirx.layout import Axis
+# from tvm.script import relax as R
+
+@R.function
+def func() -> T.int64:
+    return 1""",
+    )
 
 
 def test_string_imm():

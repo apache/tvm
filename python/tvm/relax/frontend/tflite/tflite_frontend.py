@@ -3135,7 +3135,7 @@ class OperatorConverter:
 
         StableHLO clamp(min, operand, max) → R.minimum(R.maximum(operand, min), max).
         """
-        # NOTE: R.clip is not used here because it only accepts scalar PrimValue
+        # NOTE: R.clip is not used here because it only accepts scalar PrimExpr
         # min/max, not tensor inputs.
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 3, "input tensors length should be 3"
@@ -7838,16 +7838,16 @@ class OperatorConverter:
         one_hot_options.Init(op_options.Bytes, op_options.Pos)
         axis = one_hot_options.Axis()
 
-        # Extract scalar values for on_value and off_value and wrap as PrimValue
+        # Extract scalar values for on_value and off_value as PrimExpr
         dtype = self.get_tensor_type_str(on_value.tensor.Type())
         on_val = self.get_tensor_value(on_value).item()
         off_val = self.get_tensor_value(off_value).item()
         if "float" in dtype:
-            on_prim = relax.PrimValue(tvm.tirx.FloatImm(dtype, float(on_val)))
-            off_prim = relax.PrimValue(tvm.tirx.FloatImm(dtype, float(off_val)))
+            on_prim = relax.expr._to_prim_expr(tvm.tirx.FloatImm(dtype, float(on_val)))
+            off_prim = relax.expr._to_prim_expr(tvm.tirx.FloatImm(dtype, float(off_val)))
         else:
-            on_prim = relax.PrimValue(tvm.tirx.IntImm(dtype, int(on_val)))
-            off_prim = relax.PrimValue(tvm.tirx.IntImm(dtype, int(off_val)))
+            on_prim = relax.expr._to_prim_expr(tvm.tirx.IntImm(dtype, int(on_val)))
+            off_prim = relax.expr._to_prim_expr(tvm.tirx.IntImm(dtype, int(off_val)))
 
         out = relax.op.one_hot(indices_expr, on_prim, off_prim, depth, axis)
 

@@ -2197,13 +2197,13 @@ def extern(
         if isinstance(arg, Tensor):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, int):
-            return rx.PrimValue(_tir.IntImm("int64", arg))
+            return rx.expr._to_prim_expr(_tir.IntImm("int64", arg))
         if isinstance(arg, float):
-            return rx.PrimValue(_tir.FloatImm("float64", arg))
+            return rx.expr._to_prim_expr(_tir.FloatImm("float64", arg))
         if isinstance(arg, str):
             return rx.StringImm(arg)
         if isinstance(arg, _tir.PrimExpr):
-            return rx.PrimValue(arg)
+            return rx.expr._to_prim_expr(arg)
         if isinstance(arg, tuple | list):
             return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])
         raise TypeError(f"Unsupported input type: {type(arg)}")
@@ -2263,11 +2263,11 @@ def debug_func(
         if isinstance(arg, Tensor):
             converted_args.append(arg._expr)  # pylint: disable=protected-access
         elif isinstance(arg, int):
-            converted_args.append(rx.PrimValue(_tir.IntImm("int64", arg)))
+            converted_args.append(rx.expr._to_prim_expr(_tir.IntImm("int64", arg)))
         elif isinstance(arg, float):
-            converted_args.append(rx.PrimValue(_tir.FloatImm("float32", arg)))
+            converted_args.append(rx.expr._to_prim_expr(_tir.FloatImm("float32", arg)))
         elif isinstance(arg, _tir.PrimExpr):
-            converted_args.append(rx.PrimValue(arg))
+            converted_args.append(rx.expr._to_prim_expr(arg))
         elif isinstance(arg, str):
             converted_args.append(rx.StringImm(arg))
         else:

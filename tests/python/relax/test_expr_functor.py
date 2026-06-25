@@ -36,7 +36,7 @@ from tvm.relax.expr import (
     GlobalVar,
     If,
     MatchCast,
-    PrimValue,
+    PrimExpr,
     SeqExpr,
     ShapeExpr,
     StringImm,
@@ -141,8 +141,8 @@ class ASTPrinter(PyExprVisitor):
         self.visit_expr(op.tuple_value)
         self.log.pop_scope()
 
-    def visit_prim_value_(self, op: PrimValue) -> None:
-        self.log.add("PrimValue")
+    def visit_prim_value_(self, op: PrimExpr) -> None:
+        self.log.add("PrimExpr")
 
     def visit_string_imm_(self, op: StringImm) -> None:
         self.log.add("StringImm")
@@ -262,9 +262,9 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("TupleGetItem")
         return op
 
-    def visit_prim_value_(self, op: PrimValue) -> Expr:
+    def visit_prim_value_(self, op: PrimExpr) -> Expr:
         op = self.visit_expr_post_order(op)
-        self.log.add("PrimValue")
+        self.log.add("PrimExpr")
         return op
 
     def visit_string_imm_(self, op: StringImm) -> Expr:

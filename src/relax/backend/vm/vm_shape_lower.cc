@@ -333,7 +333,7 @@ class VMShapeLowerMutator
       Var var("shape_heap", heap_ty);
       // set up the builtin func.
       Call call(call_builtin_with_ctx_op_,
-                {builtin_alloc_shape_heap_, Tuple({PrimValue(heap_size)})}, Attrs(), {heap_ty});
+                {builtin_alloc_shape_heap_, Tuple({PrimExpr(heap_size)})}, Attrs(), {heap_ty});
       UpdateType(call, heap_ty);
       return VarBinding(var, call);
     } else {
@@ -357,35 +357,35 @@ class VMShapeLowerMutator
     using runtime::vm::MakeShapeCode;
 
     if (auto* int_expr = expr.as<IntImmNode>()) {
-      return {PrimValue::Int64(static_cast<int>(MakeShapeCode::kUseImm)),
-              PrimValue::Int64(int_expr->value)};
+      return {IntImm::Int64(static_cast<int>(MakeShapeCode::kUseImm)),
+              IntImm::Int64(int_expr->value)};
     } else {
       auto it = slot_map_.find(expr);
       TVM_FFI_ICHECK(it != slot_map_.end());
       auto* slot = it->second;
       TVM_FFI_ICHECK(slot->value_computed)
           << "PrimExpr " << expr << " in function " << current_gvar_ << " has not been computed";
-      return {PrimValue::Int64(static_cast<int>(MakeShapeCode::kLoadShape)),
-              PrimValue::Int64(slot->index)};
+      return {IntImm::Int64(static_cast<int>(MakeShapeCode::kLoadShape)),
+              IntImm::Int64(slot->index)};
     }
   }
 
-  Expr VisitExpr_(const PrimValueNode* op) final {
+  Expr VisitExpr_(const PrimExprNode* op) final {
     using runtime::vm::MakeShapeCode;
+    PrimExpr value = ffi::GetRef<PrimExpr>(op);
     // Constant shape can be preserved.
-    bool is_const_value =
-        op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>();
+    bool is_const_value = value->IsInstance<IntImmNode>() || value->IsInstance<FloatImmNode>();
     if (is_const_value) {
       return ffi::GetRef<Expr>(op);
     }
 
     ffi::Array<Expr> args = {shape_heap_};
-    auto [code, value_or_index] = MakeSymbolicShapeArg(op->value);
+    auto [code, value_or_index] = MakeSymbolicShapeArg(value);
     args.push_back(code);
     args.push_back(value_or_index);
 
     // make_shape(heap, n, c[0], r[0], c[1], r[1] ..., c[n], r[n])
-    Call call(builtin_make_prim_value_, args, Attrs(), {op->ty.as_or_throw<Type>()});
+    Call call(builtin_make_prim_value_, args, Attrs(), {op->ty()});
     return call;
   }
 
@@ -400,7 +400,7 @@ class VMShapeLowerMutator
     }
 
     ffi::Array<Expr> args = {shape_heap_,
-                             PrimValue::Int64(static_cast<int64_t>(op->values.size()))};
+                             IntImm::Int64(static_cast<int64_t>(op->values.size()))};
     for (PrimExpr expr : op->values) {
       auto [code, value_or_index] = MakeSymbolicShapeArg(expr);
       args.push_back(code);
@@ -450,14 +450,14 @@ class VMShapeLowerMutator
     using runtime::vm::MatchShapeCode;
 
     if (auto* int_expr = expr.as<IntImmNode>()) {
-      return {MatchShapeCode::kAssertEqualToImm, PrimValue::Int64(int_expr->value)};
+      return {MatchShapeCode::kAssertEqualToImm, IntImm::Int64(int_expr->value)};
     }
 
     auto it = slot_map_.find(expr);
     TVM_FFI_ICHECK(it != slot_map_.end());
     auto* slot = it->second;
     if (slot->value_computed) {
-      return {MatchShapeCode::kAssertEqualToLoad, PrimValue::Int64(slot->index)};
+      return {MatchShapeCode::kAssertEqualToLoad, IntImm::Int64(slot->index)};
     }
 
     // the value is not yet computed
@@ -468,11 +468,11 @@ class VMShapeLowerMutator
       slot->value_computed = true;
       ready_vars_.push_back(slot);
 
-      return {MatchShapeCode::kStoreToHeap, PrimValue::Int64(slot->index)};
+      return {MatchShapeCode::kStoreToHeap, IntImm::Int64(slot->index)};
     }
 
     // otherwise, we skip and mark it as outstanding
-    return {MatchShapeCode::kNoOp, PrimValue::Int64(0)};
+    return {MatchShapeCode::kNoOp, IntImm::Int64(0)};
   }
 
   //-------------------------------------------------------
@@ -510,14 +510,14 @@ class VMShapeLowerMutator
         TVM_FFI_ICHECK_EQ(item.pattern.size(), 1);
       } else {
         match_op = builtin_match_shape_;
-        args.push_back(PrimValue::Int64(item.pattern.size()));
+        args.push_back(IntImm::Int64(item.pattern.size()));
       }
 
       for (PrimExpr expr : item.pattern) {
         auto [code, rvalue] = MakeMatchArgs(expr, require_value_computed);
         all_nop = all_nop && code == MatchShapeCode::kNoOp;
         any_nop = any_nop || code == MatchShapeCode::kNoOp;
-        args.push_back(PrimValue::Int64(static_cast<int>(code)));
+        args.push_back(IntImm::Int64(static_cast<int>(code)));
         args.push_back(rvalue);
       }
       if (any_nop) {
@@ -658,7 +658,7 @@ class VMShapeLowerMutator
     if (always_check || !IsBaseOf(ShapeType(op->ndim), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
       Call call(builtin_check_shape_info_,
-                {value, PrimValue::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
+                {value, IntImm::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }
     if (op->values.defined()) {
@@ -683,7 +683,7 @@ class VMShapeLowerMutator
     if (always_check || !IsBaseOf(TensorType(PrimType(op->dtype), op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
       Call call(builtin_check_tensor_info_,
-                {value, PrimValue::Int64(op->ndim), DataTypeImm(op->dtype->dtype),
+                {value, IntImm::Int64(op->ndim), DataTypeImm(op->dtype->dtype),
                  GetErrContext(err_ctx)},
                 Attrs(), {void_ty_});
       builder_->Emit(call, "_");
@@ -716,8 +716,8 @@ class VMShapeLowerMutator
       return TupleGetItem(value, index);
     } else {
       // call runtime tuple get item, and return a object.
-      Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_ty_});
-      UpdateType(call, AnyType());
+      Call call(builtin_tuple_getitem_, {value, IntImm::Int64(index)}, Attrs(), {object_ty_});
+      UpdateType(call, ObjectType());
       return call;
     }
   }
@@ -732,7 +732,7 @@ class VMShapeLowerMutator
     if (always_check || !value_tinfo) {
       // check_tuple_info(value, tuple_size)
       Call call(builtin_check_tuple_info_,
-                {value, PrimValue::Int64(static_cast<int64_t>(op->fields.size())),
+                {value, IntImm::Int64(static_cast<int64_t>(op->fields.size())),
                  GetErrContext(err_ctx)},
                 Attrs(), {void_ty_});
       builder_->Emit(call, "_");

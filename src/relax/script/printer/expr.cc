@@ -29,10 +29,10 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::PrimValue>(  //
-        "", [](relax::PrimValue n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<PrimExpr>(  //
+        "", [](PrimExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
           // TODO(@junrushao): float numbers
-          return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"))});
+          return Relax(d, "prim_value")->Call({d->AsDoc<ExprDoc>(n, n_p)});
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -163,7 +163,7 @@ Doc PrintRelaxVar(relax::Var n, AccessPath p, IRDocsifier d) {
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::Var>("", PrintRelaxVar);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::DataflowVar>("", PrintRelaxVar);
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::PrimValueNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(PrimExprNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::StringImmNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::DataTypeImmNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleNode, ReprPrintRelax);

@@ -52,7 +52,7 @@ using vm::VMFuncInfo;
  * \brief A class to generate VMTIR for Relax functions.
  *
  * \note Skip CallPacked with special attrs for now, as they can be
- *       further simplified with PrimValue.
+ *       further simplified with PrimExpr.
  */
 class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
  public:
@@ -303,7 +303,9 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     return ConstListGet(builder_->ConvertConstant(ffi::Shape(shape)).value());
   }
 
-  ffi::Optional<PrimExpr> VisitExpr_(const PrimValueNode* op) final { return op->value; }
+  ffi::Optional<PrimExpr> VisitExpr_(const PrimExprNode* op) final {
+    return ffi::GetRef<PrimExpr>(op);
+  }
 
   ffi::Optional<PrimExpr> VisitExpr_(const StringImmNode* op) final {
     return ConstListGet(builder_->ConvertConstant(op->value).value());
@@ -414,8 +416,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       args.push_back(this->VisitExpr(call_node->args[i]).value());
     }
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call_node->args[4].as<PrimValueNode>()) {
-      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    if (auto* prim_value_node = call_node->args[4].as<PrimExprNode>()) {
+      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 

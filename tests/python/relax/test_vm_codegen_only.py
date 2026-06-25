@@ -286,14 +286,14 @@ def test_shape_check_builtin(exec_mode):
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_prim_value(exec_mode):
     @tvm.script.ir_module
-    class TestVMPrimValue:
+    class TestVMPrimExpr:
         @R.function
         def main():
             R.func_attr({"global_symbol": "main"})
             ret = R.prim_value(T.int64(1))
             return ret
 
-    mod = TestVMPrimValue
+    mod = TestVMPrimExpr
     target = tvm.target.Target("llvm", host="llvm")
     ex = codegen(mod, target, exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())

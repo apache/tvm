@@ -289,7 +289,7 @@ Pass RemoveUnusedOutputs() {
                   // into the old tuple, but it's simpler to just let
                   // CanonicalizeBindings and DCE handle it.
                   new_results.push_back(
-                      relax::PrimValue(FloatImm(tvm::PrimType::Float(64), std::nan(""))));
+                      PrimExpr(FloatImm(tvm::PrimType::Float(64), std::nan(""))));
                 }
               }
 

@@ -1215,8 +1215,8 @@ Type InferTypeAllocateTensor(const Call& call, const BlockBuilder& ctx) {
     out_dtype = PrimType(dtype_imm->value);
   }
   int64_t vdevice_index = -1;
-  if (auto* prim_value_node = call->args[2].as<PrimValueNode>()) {
-    vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+  if (auto* prim_value_node = call->args[2].as<PrimExprNode>()) {
+    vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
 
@@ -1230,7 +1230,7 @@ TVM_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_num_inputs(4)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
+    .add_argument("runtime_device_index", "PrimExpr",
                   "The device index indicating on which device the tensor is to be "
                   "allocated at runtime. Index -1 is reserved for the host device.")
     .add_argument("storage_scope", "StringImm",
@@ -1240,7 +1240,7 @@ TVM_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_attr<bool>("FPurity", true)
     .set_attr<bool>("TAllocator", true);
 
-Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimExpr runtime_device_index,
                      StringImm storage_scope) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
   return Call(op, {shape, dtype, runtime_device_index, storage_scope}, Attrs(), {});
@@ -1257,7 +1257,7 @@ TVM_REGISTER_OP("relax.memory.alloc_storage")
     .set_num_inputs(4)
     .add_argument("total_space", "Expr", "The total space of the storage to allocate.")
     .add_argument(
-        "virtual_device_index", "PrimValue",
+        "virtual_device_index", "PrimExpr",
         "The virtual device index indicating on which device the storage is to be allocated, "
         "Index -1 is reserved for the host device.")
     .add_argument("storage_scope", "StringImm",
@@ -1268,7 +1268,7 @@ TVM_REGISTER_OP("relax.memory.alloc_storage")
     .set_attr<bool>("FPurity", true)
     .set_attr<bool>("TAllocator", true);
 
-Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm storage_scope,
+Expr MakeAllocStorage(Expr size, PrimExpr virtual_device_index, StringImm storage_scope,
                       DataTypeImm dtype) {
   static const Op& op = Op::Get("relax.memory.alloc_storage");
   return Call(op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {});
@@ -1292,8 +1292,8 @@ Type InferTypeMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
 
   if (call->args.size() == 5) {
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call->args[4].as<PrimValueNode>()) {
-      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    if (auto* prim_value_node = call->args[4].as<PrimExprNode>()) {
+      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
     }
     auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
     if (vdevice.defined()) {
@@ -1307,10 +1307,10 @@ Type InferTypeMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.memory.alloc_tensor")
     .set_num_inputs(5)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
-    .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
+    .add_argument("offset", "PrimExpr", "Storage offset to allocate the tensor.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
+    .add_argument("runtime_device_index", "PrimExpr",
                   "The device index indicating on which device the tensor is to be "
                   "allocated at runtime. Index -1 is reserved for the host device.")
     .set_attr<FInferType>("FInferType", InferTypeMemAllocTensor)
@@ -1318,8 +1318,8 @@ TVM_REGISTER_OP("relax.memory.alloc_tensor")
     .set_attr<bool>("FPurity", true)
     .set_attr<bool>("TAllocator", true);
 
-Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
-                        PrimValue virtual_device_index) {
+Expr MakeMemAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
+                        PrimExpr virtual_device_index) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
   return Call(op, {storage, offset, shape, dtype, virtual_device_index}, Attrs(), {});
 }
@@ -1329,13 +1329,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def_packed(
       "relax.op.memory.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* ret) {
         if (args.size() == 5) {
-          *ret = MakeMemAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(),
+          *ret = MakeMemAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(),
                                     args[2].cast<Expr>(), args[3].cast<DataTypeImm>(),
-                                    args[4].cast<PrimValue>());
+                                    args[4].cast<PrimExpr>());
         } else {
-          *ret = MakeMemAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(),
+          *ret = MakeMemAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(),
                                     args[2].cast<Expr>(), args[3].cast<DataTypeImm>(),
-                                    PrimValue::Int64(0));
+                                    IntImm::Int64(0));
         }
       });
 }
@@ -1384,7 +1384,7 @@ TVM_REGISTER_OP("relax.vm.alloc_storage")
     .set_num_inputs(4)
     .add_argument("size", "Expr", "The size of the storage to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
+    .add_argument("runtime_device_index", "PrimExpr",
                   "The device index indicating on which device the tensor is "
                   "to be allocated at runtime.")
     .add_argument("storage_scope", "StringImm",
@@ -1394,7 +1394,7 @@ TVM_REGISTER_OP("relax.vm.alloc_storage")
     .set_attr<bool>("FPurity", true)
     .set_attr<bool>("TAllocator", true);
 
-Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
+Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope) {
   static const Op& op = Op::Get("relax.vm.alloc_storage");
   return Call(op, {size, runtime_device_index, dtype, storage_scope}, Attrs(), {});
@@ -1414,8 +1414,8 @@ Type InferTypeVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
     out_dtype = PrimType(dtype_imm->value);
   }
   int64_t vdevice_index = -1;
-  if (auto* prim_value_node = call->args[4].as<PrimValueNode>()) {
-    vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+  if (auto* prim_value_node = call->args[4].as<PrimExprNode>()) {
+    vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
 
@@ -1434,10 +1434,10 @@ Type InferTypeVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_OP("relax.vm.alloc_tensor")
     .set_num_inputs(5)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
-    .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
+    .add_argument("offset", "PrimExpr", "Storage offset to allocate the tensor.")
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
-    .add_argument("runtime_device_index", "PrimValue",
+    .add_argument("runtime_device_index", "PrimExpr",
                   "The device index indicating on which device the tensor is "
                   "to be allocated at runtime.")
     .set_attr<FInferType>("FInferType", InferTypeVMAllocTensor)
@@ -1445,8 +1445,8 @@ TVM_REGISTER_OP("relax.vm.alloc_tensor")
     .set_attr<bool>("FPurity", true)
     .set_attr<bool>("TAllocator", true);
 
-Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype,
-                       PrimValue runtime_device_index) {
+Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
+                       PrimExpr runtime_device_index) {
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
   return Call(op, {storage, offset, shape, dtype, runtime_device_index}, Attrs(), {});
 }
@@ -1456,12 +1456,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def_packed("relax.op.vm.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* ret) {
     if (args.size() == 5) {
       *ret =
-          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(), args[2].cast<Expr>(),
-                            args[3].cast<DataTypeImm>(), args[4].cast<PrimValue>());
+          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(), args[2].cast<Expr>(),
+                            args[3].cast<DataTypeImm>(), args[4].cast<PrimExpr>());
     } else {
       *ret =
-          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimValue>(), args[2].cast<Expr>(),
-                            args[3].cast<DataTypeImm>(), PrimValue::Int64(0));
+          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(), args[2].cast<Expr>(),
+                            args[3].cast<DataTypeImm>(), IntImm::Int64(0));
     }
   });
 }

@@ -43,7 +43,6 @@ from .expr import (
     Call,
     If,
     Constant,
-    PrimValue,
     DataTypeImm,
     StringImm,
 )

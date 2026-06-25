@@ -242,15 +242,16 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return builder_->ConvertConstant(ffi::Shape(shape));
   }
 
-  Instruction::Arg VisitExpr_(const PrimValueNode* op) final {
-    if (auto* int_imm = op->value.as<IntImmNode>()) {
+  Instruction::Arg VisitExpr_(const PrimExprNode* op) final {
+    PrimExpr value = ffi::GetRef<PrimExpr>(op);
+    if (auto* int_imm = value.as<IntImmNode>()) {
       return builder_->ConvertConstant(int_imm->value);
-    } else if (auto* float_imm = op->value.as<FloatImmNode>()) {
+    } else if (auto* float_imm = value.as<FloatImmNode>()) {
       return builder_->ConvertConstant(float_imm->value);
     } else {
       TVM_FFI_THROW(InternalError)
-          << "PrimValue should only contain constant after  VMShapeLower, "
-          << "but received " << ffi::GetRef<Expr>(op) << " with type " << op->value->GetTypeKey();
+          << "PrimExpr should only contain constant after  VMShapeLower, "
+          << "but received " << value << " with type " << value->GetTypeKey();
       TVM_FFI_UNREACHABLE();
     }
   }
@@ -353,8 +354,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(this->VisitExpr(call_node->args[i]));
     }
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call_node->args[4].as<PrimValueNode>()) {
-      vdevice_index = prim_value_node->value.as<IntImmNode>()->value;
+    if (auto* prim_value_node = call_node->args[4].as<PrimExprNode>()) {
+      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 

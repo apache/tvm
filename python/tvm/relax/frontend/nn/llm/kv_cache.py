@@ -149,8 +149,8 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                     "vm.builtin.attention_kv_cache_attention_with_fused_qkv",
                     [
                         self._expr,
-                        rx.PrimValue(layer_id),  # type: ignore[arg-type]
-                        rx.PrimValue(sm_scale),
+                        rx.expr._to_prim_expr(layer_id),  # type: ignore[arg-type]
+                        rx.expr._to_prim_expr(sm_scale),
                         qkv._expr,
                     ],
                     out_ty=rx.TensorType((b * s, num_qo_heads, d), qkv.dtype),
@@ -179,8 +179,8 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 "vm.builtin.attention_kv_cache_self_attention",
                 [
                     self._expr,
-                    rx.PrimValue(layer_id),  # type: ignore[arg-type]
-                    rx.PrimValue(sm_scale),
+                    rx.expr._to_prim_expr(layer_id),  # type: ignore[arg-type]
+                    rx.expr._to_prim_expr(sm_scale),
                     q._expr,
                     k._expr,
                     v._expr,
@@ -214,8 +214,8 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 "vm.builtin.attention_kv_cache_cross_attention",
                 [
                     self._expr,
-                    rx.PrimValue(layer_id),  # type: ignore[arg-type]
-                    rx.PrimValue(sm_scale),
+                    rx.expr._to_prim_expr(layer_id),  # type: ignore[arg-type]
+                    rx.expr._to_prim_expr(sm_scale),
                     q._expr,
                 ],
                 out_ty=[
@@ -239,7 +239,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             _expr=rx.call_pure_packed(
                 "vm.builtin.attention_kv_cache_append_mla_kv",
                 self._expr,
-                rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                rx.expr._to_prim_expr(layer_id),  # type: ignore[arg-type]
                 kv._expr,
                 ty_args=rx.AnyType(),
             ),
@@ -455,7 +455,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             if attn_kind_single == "mha"
             else [rx.Tuple([]) for _ in range(6)]
         )
-        ragged_prefill_function = rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_prefill_ragged_run"), rx.ExternFunc("batch_prefill_plan")]) if attn_kind_single == "mha" else rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_prefill_ragged_run"), rx.ExternFunc("batch_prefill_plan"), rx.PrimValue(mla_original_qk_head_dim), rx.PrimValue(mla_original_v_head_dim)])
+        ragged_prefill_function = rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_prefill_ragged_run"), rx.ExternFunc("batch_prefill_plan")]) if attn_kind_single == "mha" else rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_prefill_ragged_run"), rx.ExternFunc("batch_prefill_plan"), rx.expr._to_prim_expr(mla_original_qk_head_dim), rx.expr._to_prim_expr(mla_original_v_head_dim)])
         mla_function = rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_mla_run"), rx.ExternFunc("batch_mla_plan")] if attn_kind_single == "mla" else [])
         attn_merge_functions = [
             bb.add_func(_merge_state_inplace(num_attention_heads, v_head_dim, dtype, target, "tir_attention_merge_state"), "tir_attention_merge_state"),
@@ -479,15 +479,15 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
                 ]
             ),
             layer_partition,
-            rx.PrimValue(num_attention_heads),
-            rx.PrimValue(num_key_value_heads),
-            rx.PrimValue(qk_head_dim),
-            rx.PrimValue(v_head_dim),
+            rx.expr._to_prim_expr(num_attention_heads),
+            rx.expr._to_prim_expr(num_key_value_heads),
+            rx.expr._to_prim_expr(qk_head_dim),
+            rx.expr._to_prim_expr(v_head_dim),
             rx.ShapeExpr(attn_kind),
-            rx.PrimValue(enable_disaggregation),
-            rx.PrimValue(rope_mode),
-            rx.PrimValue(rope_scale),
-            rx.PrimValue(rope_theta),
+            rx.expr._to_prim_expr(enable_disaggregation),
+            rx.expr._to_prim_expr(rope_mode),
+            rx.expr._to_prim_expr(rope_scale),
+            rx.expr._to_prim_expr(rope_theta),
             rope_ext_factors,
             rx.op.zeros((), dtype),
             bb.add_func(_kv_cache_transpose_append(num_key_value_heads, qk_head_dim, dtype), "kv_cache_transpose_append"),
@@ -607,15 +607,15 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
                 ]
             ),
             layer_partition,
-            rx.PrimValue(num_attention_heads),
-            rx.PrimValue(num_key_value_heads),
-            rx.PrimValue(qk_head_dim),
-            rx.PrimValue(v_head_dim),
+            rx.expr._to_prim_expr(num_attention_heads),
+            rx.expr._to_prim_expr(num_key_value_heads),
+            rx.expr._to_prim_expr(qk_head_dim),
+            rx.expr._to_prim_expr(v_head_dim),
             rx.ShapeExpr(attn_kind),
-            rx.PrimValue(enable_disaggregation),
-            rx.PrimValue(rope_mode),
-            rx.PrimValue(rope_scale),
-            rx.PrimValue(rope_theta),
+            rx.expr._to_prim_expr(enable_disaggregation),
+            rx.expr._to_prim_expr(rope_mode),
+            rx.expr._to_prim_expr(rope_scale),
+            rx.expr._to_prim_expr(rope_theta),
             rope_ext_factors,
             rx.op.zeros((), dtype),
             bb.add_func(_kv_cache_transpose_append(num_key_value_heads, qk_head_dim, dtype), "kv_cache_transpose_append"),

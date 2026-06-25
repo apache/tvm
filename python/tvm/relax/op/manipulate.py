@@ -22,7 +22,7 @@ from tvm.ir.expr import PrimExpr
 from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
-from ..expr import Expr, PrimValue, ShapeExpr
+from ..expr import Expr, ShapeExpr, _to_prim_expr
 from ..expr import Tuple as RxTuple
 from . import _ffi_api
 
@@ -115,7 +115,7 @@ def flatten(x: Expr) -> Expr:
 def layout_transform(
     x: Expr,
     index_map: Callable | IndexMap,
-    pad_value: int | float | PrimValue | None = None,
+    pad_value: int | float | PrimExpr | None = None,
     axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
     input_axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
 ):
@@ -129,7 +129,7 @@ def layout_transform(
     index_map : Callable | IndexMap
         The transformation to apply.
 
-    pad_value : Optional[int | float | PrimValue]
+    pad_value : Optional[int | float | PrimExpr]
         The value used for padding if the transformation results in implicit padding.
         If not specified, any value can be used.
 
@@ -151,14 +151,14 @@ def layout_transform(
     # is applied, it would be converted to int32/float32, which may not match the x's type.
     if pad_value is None:
         pass
-    elif not isinstance(pad_value, PrimValue):
+    elif not isinstance(pad_value, PrimExpr):
         if x_dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(pad_value, int):
             pad_value = IntImm(x_dtype.dtype, pad_value)
         elif x_dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT) and (
             isinstance(pad_value, int | float)
         ):
             pad_value = FloatImm(x_dtype.dtype, float(pad_value))
-        pad_value = PrimValue(pad_value)
+        pad_value = _to_prim_expr(pad_value)
 
     if axis_separators is None:
         axis_separators = []
@@ -845,17 +845,21 @@ def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
         The computed result tensor with the same shape as `data`.
 
     """
-    if not isinstance(start, PrimValue):
-        start = PrimValue(start)
-    if not isinstance(end, PrimValue):
-        end = PrimValue(end)
-    if not isinstance(step, PrimValue):
-        step = PrimValue(step)
+    if not isinstance(start, PrimExpr):
+        start = _to_prim_expr(start)
+    if not isinstance(end, PrimExpr):
+        end = _to_prim_expr(end)
+    if not isinstance(step, PrimExpr):
+        step = _to_prim_expr(step)
     return _ffi_api.slice_scatter(input_tensor, src, axis, start, end, step)
 
 
 def one_hot(
-    indices: Expr, on_value: PrimValue, off_value: PrimValue, depth: int, axis: int = -1
+    indices: Expr,
+    on_value: int | float | PrimExpr,
+    off_value: int | float | PrimExpr,
+    depth: int,
+    axis: int = -1,
 ) -> Expr:
     """Returns a one-hot tensor.
 
@@ -864,10 +868,10 @@ def one_hot(
     indices : relax.Expr
         The indices to set to `on_value`.
 
-    on_value : relax.PrimValue
+    on_value : int | float | PrimExpr
         The value to fill at `indices`.
 
-    off_value : relax.PrimValue
+    off_value : int | float | PrimExpr
         The value to fill at other locations.
 
     depth : int
@@ -895,4 +899,6 @@ def one_hot(
              [0, 1, 0],
              [0, 0, 1]]
     """
+    on_value = _to_prim_expr(on_value)
+    off_value = _to_prim_expr(off_value)
     return _ffi_api.one_hot(indices, on_value, off_value, depth, axis)  # type: ignore

@@ -32,7 +32,6 @@ from tvm.relax.expr import (
     Call,
     Constant,
     Function,
-    PrimValue,
     SeqExpr,
     Var,
     VarBinding,
@@ -283,7 +282,7 @@ _convert_map = {
 @visitor
 class CallNodeInfoCollector(PyExprVisitor):
     """
-    Collect PrimValue, Constant and attributes in the inner function
+    Collect PrimExpr, Constant and attributes in the inner function
     """
 
     def __init__(self, op_name):
@@ -295,7 +294,7 @@ class CallNodeInfoCollector(PyExprVisitor):
     def visit_call_(self, call: Call) -> None:
         self.attrs.append(call.attrs)
         for arg in call.args:
-            if isinstance(arg, PrimValue):
+            if isinstance(arg, tvm.tirx.PrimExpr):
                 self.primvals.append(arg)
             if isinstance(arg, Constant):
                 self.consts.append(arg)
