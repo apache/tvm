@@ -252,7 +252,8 @@ TOPI_DEFINE_BCAST_OP(divide, { return div(a, b); });
  * \return The result.
  */
 TOPI_DEFINE_BCAST_OP(floor_divide, {
-  if (a.dtype().is_int() || a.dtype().is_uint()) {
+  PrimType a_ty = a.ty();
+  if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return floordiv(a, b);
   } else {
     return floor(div(a, b));
@@ -287,7 +288,8 @@ TOPI_DEFINE_BCAST_OP(log_add_exp, { return logaddexp(a, b); });
  * \return The result.
  */
 TOPI_DEFINE_BCAST_OP(trunc_divide, {
-  if (a.dtype().is_int() || a.dtype().is_uint()) {
+  PrimType a_ty = a.ty();
+  if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return truncdiv(a, b);
   } else {
     return trunc(div(a, b));
@@ -319,7 +321,8 @@ TOPI_DEFINE_BCAST_OP(mod, { return truncmod(a, b); });
  * \return The result.
  */
 TOPI_DEFINE_BCAST_OP(floor_mod, {
-  if (a.dtype().is_int() || a.dtype().is_uint()) {
+  PrimType a_ty = a.ty();
+  if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return floormod(a, b);
   } else {
     return a - floor_divide(a, b) * b;
@@ -338,7 +341,8 @@ TOPI_DEFINE_BCAST_OP(floor_mod, {
  * \return The result.
  */
 TOPI_DEFINE_BCAST_OP(trunc_mod, {
-  if (a.dtype().is_int() || a.dtype().is_uint()) {
+  PrimType a_ty = a.ty();
+  if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return truncmod(a, b);
   } else {
     return a - trunc_divide(a, b) * b;

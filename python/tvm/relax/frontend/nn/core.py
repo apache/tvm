@@ -174,7 +174,7 @@ class Tensor(_TensorOp):
                 continue
             if not isinstance(expr, tirx.PrimExpr):
                 raise TypeError(f"Invalid shape: {shape}")
-            assert expr.dtype == "int64"
+            assert expr.ty == tvm.ir.PrimType("int64")
             new_shape.append(expr)
         return Tensor(
             _expr=rx.Var(

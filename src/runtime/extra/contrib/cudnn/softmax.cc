@@ -31,8 +31,6 @@
 namespace tvm {
 namespace contrib {
 
-using namespace runtime;
-
 void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* ret) {
   auto x = args[0].cast<DLTensor*>();
   auto y = args[1].cast<DLTensor*>();

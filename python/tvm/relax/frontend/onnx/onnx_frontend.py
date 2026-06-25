@@ -342,7 +342,7 @@ class QuantizeLinear(OnnxOpConverter):
         axis = attr.get("axis", 1)
         if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
             axis = 0
-        out_dtype = "uint8" if zp is None else zp.ty.dtype
+        out_dtype = "uint8" if zp is None else zp.ty.dtype.dtype
         if zp is None:
             zp = relax.const(0, out_dtype)
         return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
@@ -354,7 +354,7 @@ class QuantizeLinear(OnnxOpConverter):
         axis = attr.get("axis", 1)
         if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
             axis = 0
-        out_dtype = "uint8" if zp is None else zp.ty.dtype
+        out_dtype = "uint8" if zp is None else zp.ty.dtype.dtype
         if zp is None:
             zp = relax.const(0, out_dtype)
         return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
@@ -369,7 +369,7 @@ class DequantizeLinear(OnnxOpConverter):
         if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
             axis = 0
         if zp is None:
-            zp = relax.const(0, x.ty.dtype)
+            zp = relax.const(0, x.ty.dtype.dtype)
         return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype="float32")
 
     @classmethod
@@ -380,7 +380,7 @@ class DequantizeLinear(OnnxOpConverter):
         if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
             axis = 0
         if zp is None:
-            zp = relax.const(0, x.ty.dtype)
+            zp = relax.const(0, x.ty.dtype.dtype)
         return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype="float32")
 
 
@@ -388,7 +388,7 @@ class DynamicQuantizeLinear(OnnxOpConverter):
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
         x = inputs[0]
-        x_dtype = x.ty.dtype
+        x_dtype = x.ty.dtype.dtype
         qmin = relax.const(0, x_dtype)
         qmax = relax.const(255, x_dtype)
 
@@ -420,18 +420,20 @@ class MatMulInteger16(OnnxOpConverter):
             raise ValueError(f"MatMulInteger16 expects two inputs, but got {len(inputs)}")
         a, b = inputs
         valid_types = ["int16", "uint16"]
-        if a.ty.dtype not in valid_types:
+        a_dtype = a.ty.dtype.dtype
+        b_dtype = b.ty.dtype.dtype
+        if a_dtype not in valid_types:
             raise ValueError(
                 "MatMulInteger16 expects input A to have int16 or uint16 dtype, "
                 f"but got {a.ty.dtype}"
             )
-        if b.ty.dtype not in valid_types:
+        if b_dtype not in valid_types:
             raise ValueError(
                 "MatMulInteger16 expects input B to have int16 or uint16 dtype, "
                 f"but got {b.ty.dtype}"
             )
 
-        out_dtype = "uint32" if a.ty.dtype == "uint16" and b.ty.dtype == "uint16" else "int32"
+        out_dtype = "uint32" if a_dtype == "uint16" and b_dtype == "uint16" else "int32"
         return relax.op.matmul(
             relax.op.astype(a, out_dtype),
             relax.op.astype(b, out_dtype),
@@ -531,8 +533,8 @@ class Div(BinaryBase):
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
         try:
-            lhs_code = DataType(inputs[0].ty.dtype).type_code
-            rhs_code = DataType(inputs[1].ty.dtype).type_code
+            lhs_code = DataType(inputs[0].ty.dtype.dtype).type_code
+            rhs_code = DataType(inputs[1].ty.dtype.dtype).type_code
         except (AttributeError, ValueError, TypeError, RuntimeError):
             return cls.base_impl(bb, inputs, attr, params)
 
@@ -678,7 +680,7 @@ class BitwiseBase(BinaryBase):
         """Base implementation for bitwise operations."""
         valid_types = ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
         for num, inp in enumerate(inputs):
-            if inp.ty.dtype not in valid_types:
+            if inp.ty.dtype.dtype not in valid_types:
                 raise ValueError(
                     f"Bitwise operations expect all inputs to have integer types, "
                     f"got {inp.ty.dtype} for input {num}"
@@ -1193,7 +1195,7 @@ class Gather(OnnxOpConverter):
             shape_val = data[np_index]
             return relax.PrimValue(shape_val)
 
-        indices_dtype = indices.ty.dtype
+        indices_dtype = indices.ty.dtype.dtype
         if not indices_dtype.startswith("uint"):
             data_shape = bb.normalize(relax.op.shape_of(data))
             data_shape_tensor = bb.normalize(relax.op.shape_to_tensor(data_shape))
@@ -1345,7 +1347,7 @@ class EyeLike(OnnxOpConverter):
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
         k = attr.get("k", 0)
-        input_dtype = inputs[0].ty.dtype
+        input_dtype = inputs[0].ty.dtype.dtype
         if "dtype" in attr and get_type(attr["dtype"]) != input_dtype:
             raise ValueError(
                 f"dtype mismatch between input ({input_dtype}) and attribute ({attr['dtype']})"
@@ -2693,7 +2695,7 @@ class Pad(OnnxOpConverter):
     @classmethod
     def _impl_v2(cls, bb, inputs, attr, params):
         pads = attr.get("pads")
-        pads = relax.const(_np.array(pads), inputs[0].ty.shape[0].dtype)
+        pads = relax.const(_np.array(pads), inputs[0].ty.shape[0].ty)
         constant_value = attr.get("value")
         if constant_value is None:
             constant_value = 0.0
@@ -3018,7 +3020,7 @@ class Attention(OnnxOpConverter):
             ), """mask index should be in shape of (batch_size, seq_len),
             or (batch_size, seq_len, seq_len)"""
             mask_bias = relax.op.subtract(relax.const(1, dtype=mask_index.ty.dtype), mask_index)
-            mask_bias = relax.op.astype(mask_bias, dtype=input_emb.ty.dtype)
+            mask_bias = relax.op.astype(mask_bias, dtype=input_emb.ty.dtype.dtype)
             mask_bias = bb.normalize(
                 relax.op.multiply(
                     mask_bias,
@@ -3782,7 +3784,7 @@ class MaxUnpool(OnnxOpConverter):
 
         # Create a tensor of zeros then scatter our data through it.
         relax_shape = relax.ShapeExpr(total_output_shape.tolist())
-        zeros_tensor = bb.emit(relax.op.zeros(relax_shape, data.ty.dtype))
+        zeros_tensor = bb.emit(relax.op.zeros(relax_shape, data.ty.dtype.dtype))
         # We need to flatten all our tensors before scattering.
         flat_tensor = relax.op.scatter_elements(
             relax.op.reshape(zeros_tensor, [-1]),
@@ -3872,7 +3874,7 @@ class RMSNormalization(OnnxOpConverter):
         axes = list(range(axis, ndim))
 
         # If stash_type requires float32 computation and input is not float32, cast
-        input_dtype = data.ty.dtype
+        input_dtype = data.ty.dtype.dtype
         if stash_type == 1 and input_dtype != "float32":
             data_compute = relax.op.astype(data, "float32")
             scale_compute = relax.op.astype(scale, "float32")

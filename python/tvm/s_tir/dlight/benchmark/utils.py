@@ -24,6 +24,12 @@ from tvm import relax
 INPUT_SHAPE_TYPE = list[tuple[tuple[int, ...], str]]  # pylint: disable=invalid-name
 
 
+def _dtype_str(dtype) -> str:
+    if isinstance(dtype, tvm.ir.PrimType):
+        dtype = dtype.dtype
+    return str(dtype)
+
+
 def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=invalid-name
     """Get function name from a global variable.
 
@@ -97,7 +103,7 @@ def populuate_input_shape(
                     shape.append(dim.value)
                 else:
                     shape.append(dym_var_sample[str(dim)])
-            results.append(((*shape,), tensor_dtype))
+            results.append(((*shape,), _dtype_str(tensor_dtype)))
     return results
 
 

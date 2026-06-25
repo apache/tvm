@@ -60,7 +60,7 @@ std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, ffi::Array<int64_
     if (n == 1) {
       return IntImm::Int32(extents[0]);
     }
-    ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), 1.0 / n));
+    ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), 1.0 / n));
     return sch->SampleCategorical(extents, probs);
   };
 }

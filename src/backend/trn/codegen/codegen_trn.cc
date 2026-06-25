@@ -110,7 +110,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   size_t num_buffer = 0;
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v.dtype().is_handle()) {
+    if (!v.ty().IsHandle()) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
@@ -137,16 +137,16 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   this->EndScope(func_scope);
 }
 
-void CodeGenTrainium::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
+void CodeGenTrainium::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   TVM_FFI_ICHECK(lanes == 1) << "Trainium codegen does not support vector types";
-  TVM_FFI_ICHECK(!t.is_handle()) << "Trainium codegen does not support handle type";
-  TVM_FFI_ICHECK(!t.is_void()) << "Trainium codegen does not support void type";
-  if (t == DataType::Bool()) {
+  TVM_FFI_ICHECK(!t.IsHandle()) << "Trainium codegen does not support handle type";
+  TVM_FFI_ICHECK(!t.IsVoid()) << "Trainium codegen does not support void type";
+  if (t.MatchesCode(DLDataTypeCode::kDLBool)) {
     os << "np.bool";
     return;
   }
-  if (t.is_float()) {
+  if (t.MatchesCode(DLDataTypeCode::kDLFloat)) {
     switch (t.bits()) {
       case 16:
         os << "np.float16";
@@ -160,13 +160,13 @@ void CodeGenTrainium::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
     return;
   }
-  if (t.is_uint() || t.is_int()) {
+  if (t.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
     if (t.bits() == 1) {
       os << "np.bool";
       return;
     }
     os << "np.";
-    if (t.is_uint()) {
+    if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
       os << 'u';
     }
     switch (t.bits()) {
@@ -188,7 +188,7 @@ void CodeGenTrainium::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
     return;
   }
-  if (t.is_bfloat16()) {
+  if (t.MatchesCode(DLDataTypeCode::kDLBfloat) && t.bits() == 16) {
     os << "nl.bfloat16";
     return;
   }
@@ -589,7 +589,7 @@ void CodeGenTrainium::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLI
 }
 
 void CodeGenTrainium::VisitExpr_(const CastNode* op, std::ostream& os) {
-  ctx_.dst_dtype = op->dtype;
+  ctx_.dst_dtype = op->ty();
   CodeGenTrainium::VisitExpr(op->value, os);
 }
 

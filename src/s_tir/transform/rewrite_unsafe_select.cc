@@ -117,10 +117,11 @@ class UnsafeSelectRewriter : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
-    bool cond_is_scalar_bool = op->condition.dtype().is_bool() && op->condition.dtype().is_scalar();
+    PrimType cond_ty = op->condition.ty();
+    bool cond_is_scalar_bool = cond_ty.MatchesCode(DLDataTypeCode::kDLBool) && cond_ty.IsScalar();
     if ((unsafe.VisitExpr(op->true_value) || unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
-      return Call(op->dtype, builtin::if_then_else(),
+      return Call(ffi::GetRef<PrimExpr>(op).ty(), builtin::if_then_else(),
                   {op->condition, op->true_value, op->false_value});
     } else {
       return expr;

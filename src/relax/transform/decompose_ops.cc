@@ -66,7 +66,7 @@ Tuple DecomposeBatchNorm(const Call& call) {
   Expr moving_var = ExpandToMatchInput(call->args[4], ty->ndim, {attrs->axis});
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype);
+  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype->dtype);
   Expr sqrt_var = sqrt(add(moving_var, epsilon));
   Expr out = divide(subtract(data, moving_mean), sqrt_var);
 
@@ -103,8 +103,8 @@ Expr MutateBatchNormForTraining(Call call) {
   Expr data_mean = mean(data, reduce_axes, false);
   Expr data_var = variance(data, reduce_axes, false);
 
-  Expr momentum = MakeConstantScalar(attrs->momentum, ty->dtype);
-  Expr one_minus_mom = MakeConstantScalar(1 - attrs->momentum, ty->dtype);
+  Expr momentum = MakeConstantScalar(attrs->momentum, ty->dtype->dtype);
+  Expr one_minus_mom = MakeConstantScalar(1 - attrs->momentum, ty->dtype->dtype);
 
   Expr new_moving_mean = add(multiply(one_minus_mom, moving_mean), multiply(momentum, data_mean));
   Expr new_moving_var = add(multiply(one_minus_mom, moving_var), multiply(momentum, data_var));
@@ -128,7 +128,7 @@ Expr DecomposeLayerNorm(const Call& call) {
   Expr data_var = variance(data, attrs->axes, true);
 
   // output = (x - mean) / sqrt(var + epsilon) * gamma + beta
-  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype);
+  Expr epsilon = MakeConstantScalar(attrs->epsilon, ty->dtype->dtype);
   Expr sqrt_var = sqrt(add(data_var, epsilon));
   Expr out = divide(subtract(data, data_mean), sqrt_var);
 
@@ -159,7 +159,7 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   // ffi::Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
   ffi::Array<PrimExpr> shape_var;
   for (int i = 0; i < ty->ndim; i++) {
-    shape_var.push_back(tirx::Var("x", DataType::Int(64)));
+    shape_var.push_back(tirx::Var("x", PrimType::Int(64)));
   }
   // bind symbolic variables to the shape tuple
   relax::Var var("y", ShapeType(shape_var));

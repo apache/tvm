@@ -71,14 +71,14 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
           start_idx.push_back(i == static_cast<size_t>(axis) ? indices[i] * 32
                                                              : static_cast<PrimExpr>(indices[i]));
         }
-        PrimExpr packed = IntImm(DataType::UInt(32), 0);
+        PrimExpr packed = IntImm(PrimType::UInt(32), 0);
         for (size_t j = 0; j < 32; ++j) {
           ffi::Array<PrimExpr> idx;
           for (size_t i = 0; i < n; ++i) {
             idx.push_back(i == static_cast<size_t>(axis) ? start_idx[i] + static_cast<int>(j)
                                                          : start_idx[i]);
           }
-          auto sign = tvm::cast(DataType::UInt(32), data(idx) >= 0);
+          auto sign = tvm::cast(PrimType::UInt(32), data(idx) >= 0);
           packed = (packed | sign);
           if (j == 31) {
             return packed;
@@ -101,8 +101,8 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
 inline tvm::te::Tensor binary_dense(const tvm::te::Tensor& data, const tvm::te::Tensor& weight) {
   TVM_FFI_ICHECK_EQ(data->shape.size(), 2) << "binary_dense requires 2-D data";
   TVM_FFI_ICHECK_EQ(weight->shape.size(), 2) << "binary_dense requires 2-D weight";
-  TVM_FFI_ICHECK_EQ(data->dtype, DataType::UInt(32)) << "binary_dense requires uint32 data";
-  TVM_FFI_ICHECK_EQ(weight->dtype, DataType::UInt(32)) << "binary_dense requires uint32 weight";
+  TVM_FFI_ICHECK_EQ(data->dtype, PrimType::UInt(32)) << "binary_dense requires uint32 data";
+  TVM_FFI_ICHECK_EQ(weight->dtype, PrimType::UInt(32)) << "binary_dense requires uint32 weight";
 
   auto batch = data->shape[0];
   auto in_dim = data->shape[1];

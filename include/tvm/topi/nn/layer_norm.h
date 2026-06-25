@@ -57,9 +57,9 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
   TVM_FFI_ICHECK(data_type == gamma_type && data_type == beta_type)
       << "layer_norm: data, gamma and beta must have the same type";
-  TVM_FFI_ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
+  TVM_FFI_ICHECK(data_type == PrimType::Float(32) || data_type == PrimType::Float(16))
       << "layer_norm: only support float32 and float16 for now";
-  bool is_float16 = data_type == DataType::Float(16);
+  bool is_float16 = data_type == PrimType::Float(16);
   // Two-pass algorithm for improved numerical stability:
   //   pass1: mean = E[x]
   //   pass2: var = E[(x - mean)^2]
@@ -69,6 +69,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape =
       MakeReduceTargetShape(real_axis, data, /*keepdims=*/false, /*atleast1d=*/false);
+  PrimType f32_ty = PrimType::Float(32);
 
   auto make_eval_range = [&real_axis, &reduce_axes,
                           ndim](const ffi::Array<Var>& non_reduce_indices) {
@@ -91,17 +92,17 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
 
   Tensor temp_sum = te::compute(
       target_shape,
-      [is_float16, &data, &reduce_axes, &make_eval_range](const ffi::Array<Var>& indices) {
+      [is_float16, &data, &reduce_axes, &make_eval_range, f32_ty](const ffi::Array<Var>& indices) {
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
-          x = Cast(DataType::Float(32), x);
+          x = Cast(f32_ty, x);
         }
         return sum(x, reduce_axes);
       },
       data->op->name + "_sum", kCommReduce);
 
-  DataType reduce_dtype = is_float16 ? DataType::Float(32) : data->dtype;
+  PrimType reduce_dtype = is_float16 ? PrimType::Float(32) : PrimType(data->dtype);
   PrimExpr reduce_extent = MakeConst(reduce_dtype, 1);
   for (int i : real_axis) {
     reduce_extent *= data->shape[i];
@@ -115,12 +116,12 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
 
   Tensor temp_var_sum = te::compute(
       target_shape,
-      [is_float16, &data, &reduce_axes, &make_eval_range,
-       &temp_mean](const ffi::Array<Var>& indices) {
+      [is_float16, &data, &reduce_axes, &make_eval_range, &temp_mean,
+       f32_ty](const ffi::Array<Var>& indices) {
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
-          x = Cast(DataType::Float(32), x);
+          x = Cast(f32_ty, x);
         }
         PrimExpr diff = x - temp_mean(indices);
         return sum(diff * diff, reduce_axes);
@@ -138,9 +139,9 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     }
     auto mean = temp_mean(non_reduce_indices);
     auto var = temp_var_sum(non_reduce_indices) / reduce_extent;
-    auto layer_norm = (data(indices) - mean) * rsqrt(var + MakeConst(var->dtype, epsilon));
+    auto layer_norm = (data(indices) - mean) * rsqrt(var + MakeConst(var.ty(), epsilon));
     if (is_float16) {
-      layer_norm = Cast(DataType::Float(16), layer_norm);
+      layer_norm = Cast(PrimType::Float(16), layer_norm);
     }
     layer_norm = topi::multiply(layer_norm, gamma(reduce_indices));
     if (beta.defined()) {

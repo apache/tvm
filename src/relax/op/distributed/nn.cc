@@ -33,7 +33,9 @@ Type InferDistTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
   if (input_tensor_ty->IsUnknownNdim()) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known ndim";
   }
-  if (!input_tensor_ty->IsUnknownDtype() && !input_tensor_ty->dtype.is_float()) {
+  PrimType input_dtype = input_tensor_ty->dtype;
+  // Softmax validation preserves the old float-kind check; lanes do not affect this policy.
+  if (!input_tensor_ty->IsUnknownDtype() && !input_dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call) << "Softmax requires the input tensor to have float "
                                             "dtype. However, the given input dtype is "
                                          << input_tensor_ty->dtype;

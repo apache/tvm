@@ -24,9 +24,9 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -91,10 +91,12 @@ class NormalizeComparisons : public ExprMutator {
   template <class T>
   PrimExpr Make(const PrimExpr& a, const PrimExpr& b) {
     // rewrite LT to LE for ints
-    if (std::is_same<T, LT>::value && (a.dtype().is_int() || a.dtype().is_uint())) {
-      return LE(analyzer_->Simplify(a - b + 1), IntImm(a.dtype(), 0));
+    PrimType a_ty = a.ty();
+    if (std::is_same<T, LT>::value &&
+        (a_ty.code() == DLDataTypeCode::kDLInt || a_ty.code() == DLDataTypeCode::kDLUInt)) {
+      return LE(analyzer_->Simplify(a - b + 1), IntImm(a.ty(), 0));
     }
-    return T(analyzer_->Simplify(a - b), IntImm(a.dtype(), 0));
+    return T(analyzer_->Simplify(a - b), IntImm(a.ty(), 0));
   }
   arith::Analyzer analyzer_;
 };
@@ -248,11 +250,12 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     for (const auto& pos : coef_pos) {
       for (const auto& neg : coef_neg) {
         auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
-        PrimExpr c_pos = MakeConst(v.dtype(), neg.first / first_gcd);
-        PrimExpr c_neg = MakeConst(v.dtype(), pos.first / first_gcd);
+        PrimType v_ty = v.ty();
+        PrimExpr c_pos = MakeConst(v_ty, neg.first / first_gcd);
+        PrimExpr c_neg = MakeConst(v_ty, pos.first / first_gcd);
         // eliminate the current variable
         PrimExpr new_lhs = c_neg * neg.second - c_pos * pos.second;
-        PrimExpr new_ineq = LE(new_lhs, IntImm(pos.second.dtype(), 0));
+        PrimExpr new_ineq = LE(new_lhs, IntImm(pos.second.ty(), 0));
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
@@ -281,7 +284,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     lower_bounds.reserve(coef_neg.size());
 
     for (const auto& pos : coef_pos) {
-      PrimExpr bound = MakeConst(v.dtype(), -coef_lcm / pos.first) * pos.second;
+      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / pos.first) * pos.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(upper_bounds.begin(), upper_bounds.end(),
@@ -302,7 +305,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       upper_bounds.push_back(bound);
     }
     for (const auto& neg : coef_neg) {
-      PrimExpr bound = MakeConst(v.dtype(), -coef_lcm / neg.first) * neg.second;
+      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / neg.first) * neg.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(lower_bounds.begin(), lower_bounds.end(),
@@ -330,7 +333,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     std::sort(equal_list.begin(), equal_list.end(), ExprLess());
 
     // Write it to the result.
-    IntGroupBounds bnds(MakeConst(v.dtype(), coef_lcm),
+    IntGroupBounds bnds(MakeConst(v.ty(), coef_lcm),
                         ffi::Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
                         ffi::Array<PrimExpr>(equal_list.begin(), equal_list.end()),
                         ffi::Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
@@ -509,7 +512,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
                            analyzer->Simplify(var - Substitute(best_range->min, res_dst_to_src)));
 
         // Add the new var to the resulting axis
-        auto range = Range(IntImm(new_var.dtype(), 0), best_range->extent);
+        auto range = Range(IntImm(new_var.ty(), 0), best_range->extent);
         res_variables.push_back(new_var);
         res_ranges.Set(new_var, range);
 

@@ -140,10 +140,10 @@ class SLayout : public ffi::ObjectRef {
    *        the corresponding lower case with factor size
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
-   * \param dtype The dtype of generated axes vars in the returned layout.
+   * \param index_ty The type of generated axes vars in the returned layout.
    *        It is required to be integer type.
    */
-  TVM_DLL SLayout(const std::string& name, DataType dtype = DataType::Int(32));  // NOLINT(*)
+  TVM_DLL SLayout(const std::string& name, PrimType index_ty = PrimType::Int(32));  // NOLINT(*)
 
   /*!
    * \brief access the internal node container

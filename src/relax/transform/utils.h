@@ -319,39 +319,39 @@ class FunctionCopier : public SymbolicVarRenewMutator {
  * \return A Constant.
  */
 template <typename T>
-inline Constant MakeConstantScalar(T value, DataType dtype) {
+inline Constant MakeConstantScalar(T value, DLDataType dtype) {
   runtime::Tensor arr = runtime::Tensor::Empty({}, dtype, {kDLCPU, 0});
-  if (dtype == DataType::Float(32)) {
+  if (dtype == DLDataType{kDLFloat, 32, 1}) {
     *static_cast<float*>(arr->data) = static_cast<float>(value);
-  } else if (dtype == DataType::Float(64)) {
+  } else if (dtype == DLDataType{kDLFloat, 64, 1}) {
     *static_cast<double*>(arr->data) = static_cast<double>(value);
-  } else if (dtype == DataType::Int(32)) {
+  } else if (dtype == DLDataType{kDLInt, 32, 1}) {
     *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
-  } else if (dtype == DataType::Int(64)) {
+  } else if (dtype == DLDataType{kDLInt, 64, 1}) {
     *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
-  } else if (dtype == DataType::Bool()) {
+  } else if (dtype == DLDataType{kDLBool, 8, 1}) {
     *static_cast<bool*>(arr->data) = static_cast<bool>(value);
-  } else if (dtype == DataType::UInt(8)) {
+  } else if (dtype == DLDataType{kDLUInt, 8, 1}) {
     *static_cast<uint8_t*>(arr->data) = static_cast<uint8_t>(value);
-  } else if (dtype == DataType::UInt(16)) {
+  } else if (dtype == DLDataType{kDLUInt, 16, 1}) {
     *static_cast<uint16_t*>(arr->data) = static_cast<uint16_t>(value);
-  } else if (dtype == DataType::UInt(32)) {
+  } else if (dtype == DLDataType{kDLUInt, 32, 1}) {
     *static_cast<uint32_t*>(arr->data) = static_cast<uint32_t>(value);
-  } else if (dtype == DataType::UInt(64)) {
+  } else if (dtype == DLDataType{kDLUInt, 64, 1}) {
     *static_cast<uint64_t*>(arr->data) = static_cast<uint64_t>(value);
-  } else if (dtype == DataType::Int(8)) {
+  } else if (dtype == DLDataType{kDLInt, 8, 1}) {
     *static_cast<int8_t*>(arr->data) = static_cast<int8_t>(value);
-  } else if (dtype == DataType::Int(16)) {
+  } else if (dtype == DLDataType{kDLInt, 16, 1}) {
     *static_cast<int16_t*>(arr->data) = static_cast<int16_t>(value);
-  } else if (dtype == DataType::Int(32)) {
+  } else if (dtype == DLDataType{kDLInt, 32, 1}) {
     *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
-  } else if (dtype == DataType::Int(64)) {
+  } else if (dtype == DLDataType{kDLInt, 64, 1}) {
     *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
-  } else if (dtype == DataType::Float(16)) {
+  } else if (dtype == DLDataType{kDLFloat, 16, 1}) {
     // convert to float16 storage is uint16_t
     *static_cast<uint16_t*>(arr->data) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
-  } else if (dtype == DataType::BFloat(16)) {
+  } else if (dtype == DLDataType{kDLBfloat, 16, 1}) {
     // convert to bfloat16 storage is uint16_t
     *static_cast<uint16_t*>(arr->data) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));

@@ -165,7 +165,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   ffi::Map<Var, Var> var_map;
   for (size_t i = 0; i < info->loop_vars.size(); ++i) {
     Var original_var = info->loop_vars[i];
-    Var loop_var(original_var->name_hint, original_var.dtype());
+    Var loop_var(original_var->name_hint, original_var.ty());
     var_map.Set(original_var, loop_var);
     loop_vars.push_back(loop_var);
   }
@@ -174,7 +174,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
     PrimExpr original_iter_value = info->block_iter_values[i];
     IterVar block_var = IterVar(
         /*dom=*/original_block_var->dom,
-        /*var=*/Var(original_block_var->var->name_hint, original_block_var->var.dtype()),
+        /*var=*/Var(original_block_var->var->name_hint, original_block_var->var.ty()),
         /*IterVarType=*/kDataPar);
     var_map.Set(original_block_var->var, block_var->var);
     block_vars.push_back(block_var);
@@ -247,7 +247,7 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   std::vector<PrimExpr> iter_values;
   // Create loop vars and block vars' binding_value
   for (const Range& axis_range : cache_region->region) {
-    Var loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.dtype());
+    Var loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.ty());
     loop_vars.push_back(loop_var);
     iter_values.push_back(cache_full_region ? (axis_range->min + loop_var) : loop_var);
   }
@@ -262,35 +262,35 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   // Create block vars, block's accessed region and accessing indices
   for (int i = 0; i < static_cast<int>(cache_region->buffer->shape.size()); ++i) {
     Range axis_range = cache_region->region[i];
-    Var var("v" + std::to_string(read_access_indices.size()), axis_range->extent.dtype());
+    Var var("v" + std::to_string(read_access_indices.size()), axis_range->extent.ty());
     if (cache_full_region) {
       PrimExpr dim = cache_region->buffer->shape[i];
-      block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(IntImm(dim->dtype, 0), dim),
+      block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
       read_access_indices.push_back(var);
       write_access_indices.push_back(var);
-      read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
-      write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
+      read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
+      write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
     } else {
       block_vars.push_back(IterVar(
-          /*dom=*/Range::FromMinExtent(IntImm(axis_range->extent.dtype(), 0), axis_range->extent),
+          /*dom=*/Range::FromMinExtent(IntImm(axis_range->extent.ty(), 0), axis_range->extent),
           /*var=*/var,
           /*IterVarType=*/kDataPar));
       if (cache_region->buffer.same_as(info->read_buffer)) {
         // cache_read
         read_access_indices.push_back(axis_range->min + var);
         read_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, MakeConst(var.dtype(), 1)));
+            Range::FromMinExtent(axis_range->min + var, MakeConst(var.ty(), 1)));
         write_access_indices.push_back(var);
-        write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
+        write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
       } else {
         // cache_write
         write_access_indices.push_back(axis_range->min + var);
         write_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, MakeConst(var.dtype(), 1)));
+            Range::FromMinExtent(axis_range->min + var, MakeConst(var.ty(), 1)));
         read_access_indices.push_back(var);
-        read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.dtype(), 1)));
+        read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
       }
     }
   }
@@ -361,7 +361,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   std::unordered_set<int> skipped_block_iters;
   for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
-    Var var("v" + std::to_string(new_block_iters.size()), iter->var->dtype);
+    Var var("v" + std::to_string(new_block_iters.size()), iter->var.ty());
     bool used = covered.count(iter->var);
     if (used) {
       new_block_iters.push_back(IterVar(/*dom=*/iter->dom,
@@ -415,7 +415,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
     if (skipped_block_iters.count(i)) {
       continue;
     }
-    Var loop_var("ax" + std::to_string(loop_vars.size()), block->iter_vars[i]->var->dtype);
+    Var loop_var("ax" + std::to_string(loop_vars.size()), block->iter_vars[i]->var.ty());
     loop_vars.push_back(loop_var);
     iter_values.push_back(loop_var);
   }
@@ -1620,7 +1620,7 @@ class ReIndexRewriter : public StmtExprMutator {
       for (const IterVar& iter : block->iter_vars) {
         if (covered_.count(iter->var)) {
           indices_.push_back(iter->var);
-          region_.push_back(Range::FromMinExtent(iter->var, IntImm(iter->var->dtype, 1)));
+          region_.push_back(Range::FromMinExtent(iter->var, IntImm(iter->var.ty(), 1)));
         }
       }
       SBlock stmt = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();

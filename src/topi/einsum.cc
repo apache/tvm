@@ -127,7 +127,7 @@ PrimExpr GetIndexForBroadcastedDim(const Var& index, const PrimExpr& extent,
   // Check if current dimension is being broadcasted to `broadcasted_extent` (symbolic shape is
   // handled)
   if (is_one(extent) && !is_one(broadcasted_extent)) {
-    return IntImm(index.dtype(), 0);
+    return IntImm(index.ty(), 0);
   }
   return index;
 }
@@ -219,7 +219,7 @@ class EinsumBuilder {
     PrepareOutputIndicesMapping(indices, &label_to_index, &ellipsis_indices);
     PrepareReductionIndicesMapping(indices, &label_to_index, &ellipsis_indices, &reduce_axes);
 
-    auto zero = MakeConst(inputs[0]->dtype, 0);
+    auto zero = MakeConst(PrimType(inputs[0]->dtype), 0);
 
     PrimExpr result = zero;
     for (int i = 0, n = static_cast<int>(inputs.size()); i < n; ++i) {
@@ -288,9 +288,9 @@ class EinsumBuilder {
         }
       } else {
         // Normal label
-        reduction_axes->push_back(IterVar(
-            Range(0, label_to_extent_[label]),
-            Var(std::string(1, label), label_to_extent_[label].dtype()), IterVarType::kCommReduce));
+        reduction_axes->push_back(IterVar(Range(0, label_to_extent_[label]),
+                                          Var(std::string(1, label), label_to_extent_[label].ty()),
+                                          IterVarType::kCommReduce));
         label_to_index->emplace(label, reduction_axes->back()->var);
       }
     }

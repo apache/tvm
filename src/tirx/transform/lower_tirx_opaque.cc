@@ -146,8 +146,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
       return var;
     } else {
       PrimExpr expr = it->second;
-      if (expr.dtype() != var.dtype()) {
-        expr = tvm::cast(var.dtype(), std::move(expr));
+      if (expr.ty() != var.ty()) {
+        expr = tvm::cast(var.ty(), std::move(expr));
       }
       return expr;
     }

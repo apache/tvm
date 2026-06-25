@@ -269,7 +269,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, smem_offset);
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(5, new_access_ptr);
-      new_call->args.Set(6, IntImm(smem_offset->dtype, 0));
+      new_call->args.Set(6, IntImm(smem_offset.ty(), 0));
       return call;
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet

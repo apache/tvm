@@ -33,6 +33,7 @@
 
 #include <optional>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -184,14 +185,12 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
     tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); \
   }
 
-/************ Utilities ************/
-
 /*!
  * \brief Infer the type for unary elementwise ops.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
  * \param f_compute_out_dtype The function to compute the output dtype, with
- * signature DataType f_compute_out_dtype(const TensorType& input_ty).
+ * signature PrimType f_compute_out_dtype(const TensorType& input_ty).
  * \tparam require_float_dtype whether this op requires the input dtype to be float
  * \tparam Ftype the type of f_compute_out_dtype
  * \return The inferred type.
@@ -199,15 +198,17 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
 template <bool require_float_dtype, typename FType>
 inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
+  PrimType input_dtype = input_ty->dtype;
   if (require_float_dtype && !input_ty->IsUnknownDtype() &&
-      (!input_ty->dtype.is_float() && !input_ty->dtype.is_bfloat())) {
+      !input_dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_ty->dtype;
   }
   auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
-  output_ty->dtype = f_compute_out_dtype(input_ty);
+  PrimType computed_dtype = f_compute_out_dtype(input_ty);
+  output_ty->dtype = computed_dtype;
   if (call->ty_args.size() > 0) {
     auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
     TVM_FFI_ICHECK(defined_ty);
@@ -274,9 +275,9 @@ InferLayoutOutput InferLayoutUnaryEwise(
  * \return The inferred element dtype.
  * \throw Throw exception if the Type doesn't have an element type.
  */
-inline std::optional<DataType> GetElementDType(const Type& ty) {
+inline std::optional<PrimType> GetElementDType(const Type& ty) {
   if (const auto* prim = ty.as<PrimTypeNode>()) {
-    return prim->dtype;
+    return ffi::GetRef<PrimType>(prim);
   } else if (const auto* tensor = ty.as<TensorTypeNode>()) {
     return tensor->dtype;
   } else {
@@ -296,7 +297,7 @@ inline std::optional<DataType> GetElementDType(const Type& ty) {
  * \return The inferred output dtype.
  * \throw Throw exception if the dtype of two input TensorType don’t match
  */
-inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
+inline PrimType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
                                            const Type& lhs_ty, const Type& rhs_ty) {
   auto opt_lhs_dtype = GetElementDType(lhs_ty);
   if (!opt_lhs_dtype) {
@@ -318,9 +319,10 @@ inline DataType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
   }
   auto rhs_dtype = opt_rhs_dtype.value();
 
-  if (lhs_dtype.is_void() || rhs_dtype.is_void()) {
-    return DataType::Void();
-  } else if (lhs_dtype != rhs_dtype && !lhs_dtype.is_bool() && !rhs_dtype.is_bool()) {
+  if (lhs_dtype.IsVoid() || rhs_dtype.IsVoid()) {
+    return PrimType::Void();
+  } else if (lhs_dtype != rhs_dtype && !lhs_dtype.MatchesCode(DLDataTypeCode::kDLBool) &&
+             !rhs_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
         << "However, " << call << " uses datatype " << lhs_dtype << " on the LHS (Type of "
@@ -469,7 +471,7 @@ bool IsIdentityPermutation(const std::vector<int>& permutation);
  */
 inline ffi::Array<IntImm> ConvertIntImmToInt64(const ffi::Array<IntImm>& int_imms) {
   return int_imms.Map(
-      [](const IntImm& i) { return cast(DataType::Int(64), i).as_or_throw<IntImm>(); });
+      [](const IntImm& i) { return cast(PrimType::Int(64), i).as_or_throw<IntImm>(); });
 }
 
 /************ Utilities for NN operators ************/
@@ -560,8 +562,9 @@ inline ffi::Array<int64_t> GetCompletePadding3D(ffi::Array<int64_t> padding) {
 inline std::pair<tirx::SLayout, tirx::SBijectiveLayout> CheckTensorLayout(
     const Call& call, const BlockBuilder& ctx, const ffi::String& tensor_layout,
     const ffi::String& tgt_layout, const ffi::String& tensor_name) {
-  tirx::SLayout _tensor_layout(tensor_layout, DataType::Int(64));
-  tirx::SBijectiveLayout tensor2tgt(_tensor_layout, tirx::SLayout(tgt_layout, DataType::Int(64)));
+  tvm::PrimType i64_ty = tvm::PrimType::Int(64);
+  tirx::SLayout _tensor_layout(tensor_layout, i64_ty);
+  tirx::SBijectiveLayout tensor2tgt(_tensor_layout, tirx::SLayout(tgt_layout, i64_ty));
   if (!tensor2tgt.defined()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << call->op << " requires the given " << tensor_name << " layout to be convertible from "

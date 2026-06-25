@@ -92,7 +92,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       // indices.shape = [outfeatures]
 
       // out_table.shape = [*batch, table_size]
-      auto out_table = matmul(lhs, weights, DataType::Void());
+      auto out_table = matmul(lhs, weights, (DLDataType{kDLOpaqueHandle, 0, 0}));
       // new_output.shape = [*batch, outfeatures]
       auto new_output = take(out_table, indices, matmul_ty->ndim - 1);
 
@@ -116,7 +116,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       auto fused_weight = reshape(reordered_weight,
                                   ShapeExpr({weight_shape[1], weight_shape[0] * weight_shape[2]}));
       // fused_output.shape = [batch1, batch2, table_size * outfeatures]
-      auto fused_output = matmul(lhs, fused_weight, DataType::Void());
+      auto fused_output = matmul(lhs, fused_weight, (DLDataType{kDLOpaqueHandle, 0, 0}));
       // indexed_output.shape = [batch1, batch2, table_size, outfeatures]
       auto indexed_output = reshape(
           fused_output, ShapeExpr({lhs_shape[0], lhs_shape[1], weight_shape[0], weight_shape[2]}));

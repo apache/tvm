@@ -352,7 +352,7 @@ class Buffer(Object, Scriptable):
             shape = args
             assert all(
                 isinstance(arg, int)
-                or (isinstance(arg, PrimExpr) and arg.dtype in ["int32", "int64"])
+                or (isinstance(arg, PrimExpr) and arg.ty.dtype in ["int32", "int64"])
                 for arg in shape
             ), "shape must be a list of integers or PrimExprs with dtype int32 or int64"
             # Safely get optional keyword arguments
@@ -462,7 +462,7 @@ class Buffer(Object, Scriptable):
 
     def __getitem__(self, indices):
         from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
-        from .expr import BufferLoad, Ramp, const  # pylint: disable=import-outside-toplevel
+        from .expr import BufferLoad, Ramp  # pylint: disable=import-outside-toplevel
         from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
 
         if not isinstance(indices, tuple | list):
@@ -483,7 +483,8 @@ class Buffer(Object, Scriptable):
                 else:
                     region.append(
                         Range.from_min_extent(
-                            index, const(1, index.dtype) if isinstance(index, PrimExpr) else 1
+                            index,
+                            tvm.tirx.expr.IntImm(index.ty, 1) if isinstance(index, PrimExpr) else 1,
                         )
                     )
             if has_implicit_slice:
@@ -499,7 +500,7 @@ class Buffer(Object, Scriptable):
                     step = 1 if index.step is None else index.step
                     # We should ensure the dtype of start is the same with that of step.
                     if isinstance(start, tvm.tirx.expr.PrimExpr) and isinstance(step, int):
-                        step = tvm.tirx.expr.IntImm(start.dtype, step)
+                        step = tvm.tirx.expr.IntImm(start.ty, step)
                     lanes = analyzer.simplify((stop - start + step - 1) // step)
                     if lanes == 1:
                         expr_indices.append(start)
@@ -540,11 +541,11 @@ def decl_buffer(
         layout = TileLayout(S[tuple(shape)]) if shape else None
 
     if offset_factor != 0 and elem_offset is None:
-        shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
-        elem_offset = Var(f"{name}_elem_offset", shape_dtype)
+        shape_ty = shape[0].ty if shape and isinstance(shape[0], PrimExpr) else "int32"
+        elem_offset = Var(f"{name}_elem_offset", shape_ty)
     if data is None:
         # Bool is represented as uint1 in the IR, but stored as int8
-        storage_type = PrimType(dtype)
+        storage_type = dtype if isinstance(dtype, PrimType) else PrimType(dtype)
         storage_type = PrimType("int8") if storage_type.dtype == "bool" else storage_type
         data = Var(name, PointerType(storage_type, scope), span)
     return _ffi_api.Buffer(  # type: ignore

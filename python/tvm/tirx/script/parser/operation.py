@@ -17,7 +17,8 @@
 """The tirx expression operation registration"""
 
 from tvm import tirx
-from tvm.runtime import DataType, DataTypeCode
+from tvm.ir import PrimType
+from tvm.runtime import DataTypeCode
 from tvm.script.parser._core import OpMethod, doc, register_op
 from tvm.tirx import IntImm
 from tvm.tirx.expr import FloatImm
@@ -26,12 +27,20 @@ from tvm.tirx.expr import FloatImm
 def _register_expr_op(ty: type):  # pylint: disable=invalid-name
     ty._dispatch_type = ty  # pylint: disable=protected-access
 
+    def _expr_ty(expr):
+        ty = expr.ty if isinstance(expr, tirx.PrimExpr) else None
+        if not isinstance(ty, PrimType):
+            ty = expr.expr_ty()
+        if not isinstance(ty, PrimType):
+            raise TypeError(f"Expected a PrimType expression, but got {ty}")
+        return ty
+
     def _and(a, b):
         if isinstance(a, bool):
             a = IntImm("bool", a)
         if isinstance(b, bool):
             b = IntImm("bool", b)
-        if DataType(a.dtype).lanes > 1 or DataType(b.dtype).lanes > 1:
+        if not _expr_ty(a).is_scalar() or not _expr_ty(b).is_scalar():
             return a & b
         else:
             return tirx.And(a, b)
@@ -41,58 +50,56 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
             a = IntImm("bool", a)
         if isinstance(b, bool):
             b = IntImm("bool", b)
-        if DataType(a.dtype).lanes > 1 or DataType(b.dtype).lanes > 1:
+        if not _expr_ty(a).is_scalar() or not _expr_ty(b).is_scalar():
             return a | b
         else:
             return tirx.Or(a, b)
 
-    def _get_type_str(dtype: str):
-        if DataType(dtype).lanes == 1:
-            return dtype
-        index = dtype.find("x")
-        return dtype[0:index]
+    def _get_type_str(ty: PrimType):
+        dtype_str = str(ty.dtype)
+        if ty.is_scalar():
+            return dtype_str
+        index = dtype_str.find("x")
+        return dtype_str[0:index]
 
     def _auto_broadcast(a, b, op):
         if isinstance(a, int):
-            if hasattr(b, "dtype"):
-                if (
-                    DataType(b.dtype).type_code == DataTypeCode.INT
-                    or DataType(b.dtype).type_code == DataTypeCode.UINT
-                    or DataType(b.dtype).type_code == DataTypeCode.BOOL
-                ):
-                    a = IntImm(_get_type_str(b.dtype), a)
-                elif DataType(b.dtype).type_code == DataTypeCode.FLOAT:
-                    a = FloatImm(_get_type_str(b.dtype), a)
+            if isinstance(b, tirx.PrimExpr) or hasattr(b, "expr_ty"):
+                b_ty = _expr_ty(b)
+                if b_ty.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
+                    a = IntImm(_get_type_str(b_ty), a)
+                elif b_ty.matches_code(DataTypeCode.FLOAT):
+                    a = FloatImm(_get_type_str(b_ty), a)
             elif isinstance(b, float):
                 a = FloatImm("float32", a)
             else:
                 a = IntImm("int32", a)
         elif isinstance(a, float):
-            if DataType(b.dtype).type_code == DataTypeCode.FLOAT:
-                a = FloatImm(_get_type_str(b.dtype), a)
+            b_ty = _expr_ty(b)
+            if b_ty.matches_code(DataTypeCode.FLOAT):
+                a = FloatImm(_get_type_str(b_ty), a)
             else:
                 a = FloatImm("float32", a)
 
         assert isinstance(a, tirx.PrimExpr), "Operand should be a PrimExpr."
         if isinstance(b, int):
-            if (
-                DataType(a.dtype).type_code == DataTypeCode.INT
-                or DataType(a.dtype).type_code == DataTypeCode.UINT
-                or DataType(a.dtype).type_code == DataTypeCode.BOOL
-            ):
-                b = IntImm(_get_type_str(a.dtype), b)
-            elif DataType(a.dtype).type_code == DataTypeCode.FLOAT:
-                b = FloatImm(_get_type_str(a.dtype), b)
+            a_ty = _expr_ty(a)
+            if a_ty.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
+                b = IntImm(_get_type_str(a_ty), b)
+            elif a_ty.matches_code(DataTypeCode.FLOAT):
+                b = FloatImm(_get_type_str(a_ty), b)
         elif isinstance(b, float):
-            b = FloatImm(_get_type_str(a.dtype), b)
+            b = FloatImm(_get_type_str(_expr_ty(a)), b)
 
-        if DataType(a.dtype).lanes == DataType(b.dtype).lanes:
+        a_ty = _expr_ty(a)
+        b_ty = _expr_ty(b)
+        if a_ty.dtype.lanes == b_ty.dtype.lanes:
             return op(a, b)
-        elif DataType(a.dtype).lanes == 1 and DataType(a.dtype).lanes != DataType(b.dtype).lanes:
-            broadcast_a = tirx.Broadcast(a, DataType(b.dtype).lanes)
+        elif a_ty.is_scalar() and a_ty.dtype.lanes != b_ty.dtype.lanes:
+            broadcast_a = tirx.Broadcast(a, b_ty.dtype.lanes)
             return op(broadcast_a, b)
-        elif DataType(b.dtype).lanes == 1 and DataType(a.dtype).lanes != DataType(b.dtype).lanes:
-            broadcast_b = tirx.Broadcast(b, DataType(a.dtype).lanes)
+        elif b_ty.is_scalar() and a_ty.dtype.lanes != b_ty.dtype.lanes:
+            broadcast_b = tirx.Broadcast(b, a_ty.dtype.lanes)
             return op(a, broadcast_b)
         else:
             raise TypeError("do not know how to deal with it.")

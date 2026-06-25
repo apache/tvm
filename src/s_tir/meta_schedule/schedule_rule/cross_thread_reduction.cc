@@ -78,7 +78,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
     // Step 3. Try block fusion.
     int n_candidate = static_cast<int>(thread_extents.size());
-    ffi::Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
+    ffi::Array<FloatImm> probs(n_candidate, FloatImm(PrimType::Float(32), 1.0 / n_candidate));
     s_tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
       TVM_FFI_ICHECK(target_sblock.defined());

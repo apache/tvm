@@ -26,8 +26,8 @@
 #define TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
 
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/data_type.h>
 
 #include <algorithm>
 #include <string>
@@ -37,7 +37,6 @@ namespace contrib {
 
 using ffi::Any;
 using ffi::PackedArgs;
-using runtime::TypeMatch;
 
 inline int ColumnStride(const DLTensor* tensor) {
   // If the tensor itself is transposed then it will have strides
@@ -96,8 +95,8 @@ inline void CallGemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  TVM_FFI_ICHECK((B->dtype == DLDataType{kDLFloat, static_cast<uint8_t>(bit_depth), 1}));
+  TVM_FFI_ICHECK((C->dtype == DLDataType{kDLFloat, static_cast<uint8_t>(bit_depth), 1}));
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
@@ -143,9 +142,9 @@ inline void CallU8S8S32Gemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
 
-  TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLUInt, 8));
-  TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLInt, 8));
-  TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLInt, 32));
+  TVM_FFI_ICHECK((A->dtype == DLDataType{kDLUInt, 8, 1}));
+  TVM_FFI_ICHECK((B->dtype == DLDataType{kDLInt, 8, 1}));
+  TVM_FFI_ICHECK((C->dtype == DLDataType{kDLInt, 32, 1}));
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
@@ -207,8 +206,8 @@ inline void CallBatchGemm(ffi::PackedArgs args, ffi::Any* ret, TBatchGemmOp op) 
   transa = IsInPlaceTransposed3D(A) ? !transa : transa;
   transb = IsInPlaceTransposed3D(B) ? !transb : transb;
 
-  TVM_FFI_ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
-  TVM_FFI_ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
+  TVM_FFI_ICHECK((B->dtype == DLDataType{kDLFloat, static_cast<uint8_t>(bit_depth), 1}));
+  TVM_FFI_ICHECK((C->dtype == DLDataType{kDLFloat, static_cast<uint8_t>(bit_depth), 1}));
 
   double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
   double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;

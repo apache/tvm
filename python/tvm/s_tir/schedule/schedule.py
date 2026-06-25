@@ -24,7 +24,7 @@ from tvm_ffi import register_object as _register_object
 
 from tvm.error import register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
-from tvm.runtime import Object
+from tvm.runtime import DataTypeCode, Object
 from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock
 from tvm.tirx.function import IndexMap
 
@@ -103,10 +103,10 @@ def _parse_seed(seed: int | None) -> int:
 
 def _get_sblock_default_dtype(block: SBlock) -> str:
     for i in block.iter_vars:
-        return i.var.dtype
+        return str(i.var.ty)
     for buffer_region in list(block.reads) + list(block.writes):
         for dom in buffer_region.region:
-            return dom.min.dtype
+            return str(dom.min.ty)
     return "int64"
 
 
@@ -3465,10 +3465,14 @@ class Schedule(Object):
             # buffer's type.  If the default `tvm.runtime.convert`
             # behavior is applied, these would be converted to
             # int32/float32, which may not match the buffer's type.
-            if "int" in buffer_obj.dtype and isinstance(pad_value, int):
-                pad_value = IntImm(buffer_obj.dtype, pad_value)
-            elif "float" in buffer_obj.dtype and isinstance(pad_value, float):
-                pad_value = FloatImm(buffer_obj.dtype, pad_value)
+            if buffer_obj.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
+                pad_value, int
+            ):
+                pad_value = IntImm(buffer_obj.dtype.dtype, pad_value)
+            elif buffer_obj.dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT) and (
+                isinstance(pad_value, float)
+            ):
+                pad_value = FloatImm(buffer_obj.dtype.dtype, pad_value)
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value,
                 ndim=len(index_map.final_indices),

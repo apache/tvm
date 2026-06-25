@@ -85,7 +85,7 @@ Type InferTypeAllGather(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<AllGatherAttrs>();
   int num_workers = attrs->num_workers;
 
-  DataType output_dtype = input_ty->dtype;
+  PrimType output_dtype = input_ty->dtype;
   auto input_shape = input_ty->GetShape();
   if (!input_shape.defined()) {
     return input_ty;
@@ -143,7 +143,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeScatter(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
-  DataType output_dtype = input_ty->dtype;
+  PrimType output_dtype = input_ty->dtype;
 
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;

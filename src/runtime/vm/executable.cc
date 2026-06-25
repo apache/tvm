@@ -101,8 +101,7 @@ std::string VMExecutable::Stats() const {
       oss << opt_int.value();
       oss << ", ";
     } else if (auto opt_dtype = it.as<DLDataType>()) {
-      DataType dtype(opt_dtype.value());
-      oss << dtype;
+      oss << opt_dtype.value();
       oss << ", ";
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported constant pool type " << it.GetTypeKey();

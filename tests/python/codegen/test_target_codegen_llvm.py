@@ -1145,7 +1145,7 @@ def test_call_packed_returning_void():
 
     The LLVM codegen uses the CallNode's dtype to cast the return type
     of the PackedFunc into the appropriate LLVM output type.  However,
-    there is no API type for `DataType::Void()`.  When the return type
+    there is no runtime dtype value for a void return.  When the return type
     of a PackedFunc is void, the generated code should not attempt to
     read the return value.
 

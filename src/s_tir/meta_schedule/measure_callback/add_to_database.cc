@@ -47,7 +47,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
       if (result->run_secs.defined()) {
         run_secs = result->run_secs.value();
       } else {
-        run_secs = ffi::Array<FloatImm>{FloatImm(DataType::Float(32), 1e10)};
+        run_secs = ffi::Array<FloatImm>{FloatImm(PrimType::Float(32), 1e10)};
       }
       database->CommitTuningRecord(TuningRecord(
           /*trace=*/candidate->sch->trace().value(),

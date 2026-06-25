@@ -298,7 +298,7 @@ class DTypeMutator : private ReplaceBufferMutator {
    * \param block_sref_reuse The block sref reuse map to be updated
    * \return The new block after the mutation
    */
-  static SBlock Mutate(const SBlock& allocate_site, const Buffer& old_buffer, const DataType& dtype,
+  static SBlock Mutate(const SBlock& allocate_site, const Buffer& old_buffer, PrimType dtype,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     Buffer new_buffer = WithDType(old_buffer, dtype);
     DTypeMutator mutator(old_buffer, new_buffer, dtype, block_sref_reuse);
@@ -307,7 +307,7 @@ class DTypeMutator : private ReplaceBufferMutator {
   }
 
  private:
-  DTypeMutator(const Buffer& old_buffer, Buffer new_buffer, const DataType& dtype,
+  DTypeMutator(const Buffer& old_buffer, Buffer new_buffer, PrimType dtype,
                ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse),
         src_dtype_(old_buffer->dtype),
@@ -344,7 +344,7 @@ class DTypeMutator : private ReplaceBufferMutator {
     return node;
   }
 
-  DataType src_dtype_, tgt_dtype_;
+  PrimType src_dtype_, tgt_dtype_;
 };
 
 void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
@@ -352,7 +352,7 @@ void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_i
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   Buffer buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, BufferIndexType::kWrite);
-  DataType target_dtype(ffi::StringToDLDataType(dtype));
+  PrimType target_dtype(ffi::StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
   if (buffer->dtype == target_dtype) {

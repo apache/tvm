@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Default legalization function for linear algebra operators."""
 
-from tvm import relax, te, tirx, topi
+from tvm import DataTypeCode, relax, te, tirx, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr, Tuple, TupleGetItem, Var
@@ -26,6 +26,14 @@ from .common import register_legalize
 
 @register_legalize("relax.matmul")
 def _matmul(bb: BlockBuilder, call: Call) -> Expr:
+    def is_known_tensor_dtype(dtype) -> bool:
+        raw_dtype = dtype.dtype
+        return not (
+            raw_dtype.type_code == int(DataTypeCode.HANDLE)
+            and raw_dtype.bits == 0
+            and raw_dtype.lanes == 0
+        )
+
     def te_matmul(a: te.Tensor, b: te.Tensor) -> te.Tensor:
         a_shape = list(a.shape)
         b_shape = list(b.shape)
@@ -100,7 +108,12 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
     lhs, rhs = call.args
     lhs_ty = call.args[0].ty
     rhs_ty = call.args[1].ty
-    assert lhs_ty.dtype and rhs_ty.dtype, (
+    assert (
+        lhs_ty.dtype
+        and rhs_ty.dtype
+        and is_known_tensor_dtype(lhs_ty.dtype)
+        and is_known_tensor_dtype(rhs_ty.dtype)
+    ), (
         f"To legalize R.matmul into R.call_tir, the dtype of both operands must be known.  "
         f"However, the LHS {lhs} has type {lhs_ty} (dtype='{lhs_ty.dtype}') "
         f"and the RHS {rhs} has type {rhs_ty} (dtype='{rhs_ty.dtype}')."

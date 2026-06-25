@@ -339,7 +339,7 @@ del _dtype, _c_type, _ptx_type, _spec
 @register_codegen("ptx_ld_global_acquire")
 def codegen_ptx_ld_global_acquire(res, addr):
     """Dispatch to the dtype-specific helper."""
-    dtype = str(res.dtype)
+    dtype = str(res.ty)
     if dtype not in _LD_GLOBAL_ACQUIRE_DTYPES:
         raise ValueError(f"Unsupported data type for ld.global.acquire: {dtype}")
     result = CODEGEN_REGISTRY[f"tirx.ptx_ld_global_acquire_{dtype}"]([res, addr])
@@ -356,7 +356,7 @@ device_intrinsic(
     body="    return atomicAdd(addr, value);",
     return_type="T",
     templated=True,
-    tvm_return_type=lambda _addr, value: value.dtype,
+    tvm_return_type=lambda _addr, value: value.ty,
 )
 device_intrinsic(
     "cuda_atomic_cas",
@@ -365,7 +365,7 @@ device_intrinsic(
     body="    return atomicCAS(address, compare, val);",
     return_type="T",
     templated=True,
-    tvm_return_type=lambda _p, old, _n: old.dtype,
+    tvm_return_type=lambda _p, old, _n: old.ty,
 )
 
 

@@ -42,10 +42,10 @@ struct BroadcastHelper {
   std::deque<tvm::tirx::Var> vars2;
 };
 
-static inline DataType CommonType(DataType type1, DataType type2) {
-  TVM_FFI_ICHECK(type1.is_scalar() && type2.is_scalar());
+static inline PrimType CommonType(const PrimType& type1, const PrimType& type2) {
+  TVM_FFI_ICHECK(type1.IsScalar() && type2.IsScalar());
   TVM_FFI_ICHECK(type1.code() == type2.code());
-  return DataType(type1.code(), std::max(type1.bits(), type2.bits()), /*lanes=*/1);
+  return type1.bits() < type2.bits() ? type1.WithBits(type2.bits()) : type1;
 }
 
 inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shape1,
@@ -56,15 +56,15 @@ inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shap
   tvm::PrimExpr one(1);
   int i;
 
-  auto cast_if_needed = [](DataType to_type, PrimExpr expr) {
-    return to_type != expr.dtype() ? cast(to_type, expr) : expr;
+  auto cast_if_needed = [](PrimType to_type, PrimExpr expr) {
+    return to_type == expr.ty() ? expr : cast(to_type, expr);
   };
 
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {
     // TODO(@icemelon9): Need to revisit this part
     const IntImmNode* static_size1 = shape1[s1_size - i].as<IntImmNode>();
     const IntImmNode* static_size2 = shape2[s2_size - i].as<IntImmNode>();
-    DataType common_type = CommonType(shape1[s1_size - i].dtype(), shape2[s2_size - i].dtype());
+    PrimType common_type = CommonType(shape1[s1_size - i].ty(), shape2[s2_size - i].ty());
 
     bh.all_vars.push_front(tvm::tirx::Var("dim", common_type));
     if (topi::detail::EqualCheck(shape1[s1_size - i], shape2[s2_size - i])) {
@@ -104,7 +104,7 @@ inline BroadcastHelper BroadcastShape(const tvm::ffi::Array<tvm::PrimExpr>& shap
   auto& shape = (s1_size > s2_size) ? shape1 : shape2;
   auto& vars = (s1_size > s2_size) ? bh.vars1 : bh.vars2;
   for (; i <= max_size; ++i) {
-    bh.all_vars.push_front(tvm::tirx::Var("v", shape[max_size - 1].dtype()));
+    bh.all_vars.push_front(tvm::tirx::Var("v", shape[max_size - 1].ty()));
     bh.common_shape.push_front(shape[max_size - i]);
     vars.push_front(bh.all_vars[0]);
   }
@@ -130,7 +130,7 @@ inline tvm::ffi::Array<tvm::PrimExpr> InputIndexFromBroadcast(
     // Only inject 0 here if we have not yet reached the dimension of I
     // (i.e. this must be a 1)
     if (!found && (ovars.size() - i) <= expected_dims) {
-      ivars.push_back(tvm::IntImm(ovars[i].dtype(), 0));
+      ivars.push_back(tvm::IntImm(ovars[i].ty(), 0));
     }
   }
   TVM_FFI_ICHECK(expected_dims == ivars.size());

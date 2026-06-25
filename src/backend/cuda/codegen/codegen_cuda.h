@@ -56,16 +56,19 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitStmt_(const WhileNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
-  void PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
-                        std::ostream& os) final;       // NOLINT(*)
-  void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
-  void PrintVecConstructor(DataType t, std::ostream& os) final;
-  void PrintVecElemLoad(const std::string& vec, DataType t, int i,
+  using CodeGenC::PrintType;
+  void PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs, PrimExpr rhs,
+                        std::ostream& os) final;              // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
+  void PrintVecConstructor(const PrimType& t, std::ostream& os) final;
+  void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                         std::ostream& os) final;  // NOLINT(*)
-  void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
+  void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
+                         const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
-  void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os) final;
-  std::string CastFromTo(std::string value, DataType from, DataType target) final;
+  void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
+                            std::ostream& os) final;
+  std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target) final;
   void AddUtilFunction(const std::string& name, const std::string& code);
   // overload visitor
   void VisitExpr_(const RampNode* op, std::ostream& os) final;       // NOLINT(*)
@@ -129,7 +132,7 @@ class CodeGenCUDA final : public CodeGenC {
   std::unordered_map<const VarNode*, std::string> fragment_shapes;
   std::unordered_map<const VarNode*, std::string> fragment_layouts;
   friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p);
-  void PrintWmmaScope(const std::string& scope, DataType t, const VarNode* variable,
+  void PrintWmmaScope(const std::string& scope, const PrimType& t, const VarNode* variable,
                       std::ostream& os);
   int32_t GetWmmaFragmentSize(const std::string& scope, const VarNode* variable, int32_t size);
 };

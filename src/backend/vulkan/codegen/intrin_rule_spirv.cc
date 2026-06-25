@@ -39,12 +39,12 @@ PrimExpr CallGLSLIntrin(PrimExpr e, const ffi::Array<PrimExpr>& args) {
   TVM_FFI_ICHECK(call != nullptr);
   ffi::Array<PrimExpr> cargs;
   // intrin id.
-  cargs.push_back(IntImm(DataType::UInt(32), id));
+  cargs.push_back(IntImm(PrimType::UInt(32), id));
 
   for (PrimExpr arg : args) {
     cargs.push_back(arg);
   }
-  return tirx::Call(call->dtype, tirx::builtin::call_spirv_pure_glsl450(), cargs);
+  return tirx::Call(call->ty(), tirx::builtin::call_spirv_pure_glsl450(), cargs);
 }
 
 template <unsigned id>
@@ -166,21 +166,22 @@ TVM_REGISTER_OP("tirx.clz")
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 1);
       PrimExpr arg = call->args[0];
+      PrimType arg_ty = arg.ty();
       PrimExpr msb;
-      if (arg.dtype().bits() == 64) {
+      if (arg_ty.bits() == 64) {
         // SPIR-V FindUMsb intrinsic only supports 32 bit input
-        auto int32 = DataType::Int(32);
+        auto int32 = PrimType::Int(32);
         PrimExpr arg_hi32 = tvm::tirx::Cast(int32, arg >> 32);
         PrimExpr arg_lo32 = tvm::tirx::Cast(int32, arg);
         PrimExpr msb_hi = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_hi32});
         PrimExpr msb_lo = CallGLSLIntrin<GLSLstd450FindUMsb>(e, {arg_lo32});
         msb = tvm::if_then_else(arg_hi32 == 0, msb_lo, msb_hi + 32);
-      } else if (arg.dtype().bits() == 32) {
+      } else if (arg_ty.bits() == 32) {
         msb = CallGLSLIntrin<GLSLstd450FindUMsb>(e);
       } else {
         TVM_FFI_THROW(InternalError) << "SPIR-V clz only supports a 32 bit or 64 bit integer.";
       }
-      return PrimExpr(arg.dtype().bits() - 1) - msb;
+      return PrimExpr(arg_ty.bits() - 1) - msb;
     });
   // clang-format on
 }

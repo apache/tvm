@@ -86,7 +86,7 @@ class SortScanDispatcher(BackendDispatcher):
                 if self.is_gpu_target(tgt):
                     te_func = topi.gpu.searchsorted
             return self.builder_.call_te(
-                te_func, boundaries, input_tensor, right, input_tensor.ty.dtype
+                te_func, boundaries, input_tensor, right, input_tensor.ty.dtype.dtype
             )
         if call.op.name == "relax.sort":
             tgt = self._get_target(call.ty)
@@ -215,7 +215,7 @@ class SortScanDispatcher(BackendDispatcher):
         Estimate the workspace size for thrust sort/argsort/topk/cumsum
         """
         input_shape = call.args[0].ty.shape
-        input_byte_per_elem = DataType(call.args[0].ty.dtype).bits // 8
+        input_byte_per_elem = DataType(call.args[0].ty.dtype.dtype).bits // 8
         int64_byte_per_elem = DataType("int64").bits // 8
         int32_byte_per_elem = DataType("int32").bits // 8
         num_elem = reduce(mul, input_shape, 1)

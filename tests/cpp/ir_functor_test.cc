@@ -152,8 +152,8 @@ TEST(IRF, StmtVisitor) {
   auto fmaketest = [&]() {
     auto z = x + 1;
     Stmt eval_body = Evaluate(z);
-    DataType dtype = DataType::Float(32);
-    Var data_var("b", PointerType(PrimType(dtype)));
+    PrimType dtype = PrimType::Float(32);
+    Var data_var("b", PointerType(dtype));
     Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
     // AllocBuffer is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({AllocBuffer(buf), eval_body});
@@ -166,8 +166,8 @@ TEST(IRF, StmtVisitor) {
   {
     // tests for block and block_realize
     Stmt body = fmaketest();
-    DataType dtype = DataType::Float(32);
-    Var buf_var("b", PointerType(PrimType(dtype)));
+    PrimType dtype = PrimType::Float(32);
+    Var buf_var("b", PointerType(dtype));
     Buffer buffer = decl_buffer({16});
     body = SeqStmt({DeclBuffer(buffer), std::move(body)});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
@@ -206,8 +206,8 @@ TEST(IRF, StmtMutator) {
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;
-    DataType dtype = DataType::Float(32);
-    Var data_var("b", PointerType(PrimType(dtype)));
+    PrimType dtype = PrimType::Float(32);
+    Var data_var("b", PointerType(dtype));
     Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
     return AllocBuffer(buf);
   };
@@ -258,7 +258,7 @@ TEST(IRF, StmtMutator) {
 
   {
     auto body =
-        Evaluate(Call(DataType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
+        Evaluate(Call(PrimType::Int(32), builtin::call_extern(), {StringImm("xyz"), x + 1}));
     auto res = v(std::move(body));
     TVM_FFI_ICHECK(res.as<EvaluateNode>()->value.as<CallNode>()->args[1].same_as(x));
   }
@@ -330,13 +330,13 @@ TEST(IRF, StmtMutator) {
 TEST(IRF, Substitute) {
   using namespace tvm;
   using namespace tvm::tirx;
-  DataType dtype = DataType::Float(32);
-  Var x("x", PointerType(PrimType(dtype), ""));
-  Var n("n", DataType::Int(32));
+  PrimType dtype = PrimType::Float(32);
+  Var x("x", PointerType(dtype, ""));
+  Var n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {
     return Buffer{/*data=*/x,
-                  /*dtype=*/DataType::Float(32),
+                  /*dtype=*/PrimType::Float(32),
                   /*shape=*/{n},
                   /*strides=*/{},
                   /*elem_offset=*/PrimExpr(),
@@ -349,7 +349,7 @@ TEST(IRF, Substitute) {
   {
     // test substitute buffer data var and shape var via DeclBuffer
     Var y = x.copy_with_suffix("subst");
-    Var m("m", DataType::Int(32));
+    Var m("m", PrimType::Int(32));
     Buffer buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer), store});

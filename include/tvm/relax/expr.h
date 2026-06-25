@@ -471,7 +471,7 @@ class StringImm : public LeafExpr {
 class DataTypeImmNode : public LeafExprNode {
  public:
   /*! \brief The data value. */
-  DataType value;
+  DLDataType value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -491,7 +491,7 @@ class DataTypeImm : public LeafExpr {
    * \param value The value input.
    * \param span The source span of the expression.
    */
-  TVM_DLL explicit DataTypeImm(DataType value, Span span = Span());
+  TVM_DLL explicit DataTypeImm(DLDataType value, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, LeafExpr, DataTypeImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);

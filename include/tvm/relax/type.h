@@ -124,7 +124,7 @@ class ShapeTypeNode : public TypeNode {
    * \brief The number of dimension of the shape, can be unknown.
    * \sa kUnknownNDim
    */
-  int ndim;
+  int ndim{kUnknownNDim};
 
   /*! \return Whether the type contains unknown ndim. */
   bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
@@ -174,19 +174,19 @@ class TensorTypeNode : public TypeNode {
    *  is expected to be executed.
    */
   ffi::Optional<VDevice> vdevice;
-  /*! \brief The content data type, use void to denote the dtype is unknown. */
-  DataType dtype;
+  /*! \brief The content dtype, use void to denote the dtype is unknown. */
+  tvm::PrimType dtype{DLDataType{kDLOpaqueHandle, 0, 0}};
   /*!
    * \brief The number of dimension of the tensor, can be unknown.
    * \sa kUnknownNDim
    */
-  int ndim;
+  int ndim{kUnknownNDim};
 
   /*! \return Whether the type contains unknown ndim. */
   bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   /*! \return Whether the type contains unknown dtype. */
-  bool IsUnknownDtype() const { return dtype.is_void(); }
+  bool IsUnknownDtype() const { return dtype->dtype == DLDataType{kDLOpaqueHandle, 0, 0}; }
 
   /*! \return Shape if it is known. */
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
@@ -230,7 +230,7 @@ class TensorType : public Type {
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorType(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevice = std::nullopt,
+  TVM_DLL TensorType(Expr shape, tvm::PrimType dtype, ffi::Optional<VDevice> vdevice = std::nullopt,
                      Span span = Span());
 
   /*!
@@ -240,7 +240,7 @@ class TensorType : public Type {
    * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorType(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
+  TVM_DLL TensorType(tvm::PrimType dtype, int ndim, ffi::Optional<VDevice> vdevice = std::nullopt,
                      Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);

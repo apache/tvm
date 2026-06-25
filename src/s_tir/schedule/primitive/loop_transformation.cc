@@ -58,7 +58,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     if (ffi::Optional<PrimExpr> ret = vmap_(var)) {
-      return tvm::cast(var.dtype(), ret.value());
+      return tvm::cast(var.ty(), ret.value());
     } else {
       return var;
     }
@@ -411,13 +411,13 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   CheckLoopStartsWithZero(self, loop_sref, analyzer.get());
 
   // Find the most common dtype
-  DataType dtype;
+  PrimType dtype = PrimType::Int(32);
   {
-    int bits = loop->loop_var.dtype().bits();
+    int bits = loop->loop_var.ty().bits();
     for (const PrimExpr& factor : factors) {
-      bits = std::max(bits, factor.dtype().bits());
+      bits = std::max(bits, factor.ty().bits());
     }
-    dtype = DataType::Int(bits);
+    dtype = PrimType::Int(bits);
   }
   int n = factors.size();
   PrimExpr substitute_value = IntImm(dtype, 0);
@@ -556,9 +556,9 @@ class BlockMutator : public StmtExprMutator {
     // As we are working on cloned block, we need to create new instances of iter_var
     ffi::Array<IterVar> new_iter_vars =
         MutateArray(new_block->iter_vars, [this, &iter_var_](const IterVar& iter) {
-          auto dtype = iter->var.dtype();
+          auto dtype = iter->var.ty();
           // Create new Var instance for each IterVar
-          Var new_var = Var(iter->var->name_hint, iter->var.dtype());
+          Var new_var = Var(iter->var->name_hint, iter->var.ty());
           IterVar new_iter = iter;
           new_iter.CopyOnWrite()->var = new_var;
           // Change the domain of IterVar corresponding to partitioned loop_var
@@ -623,7 +623,7 @@ class BlockMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
-    Var new_var = Var(op->loop_var->name_hint, op->loop_var.dtype());
+    Var new_var = Var(op->loop_var->name_hint, op->loop_var.ty());
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
@@ -655,13 +655,13 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
 
   arith::Analyzer analyzer;
   // Find the most common dtype
-  DataType dtype;
+  PrimType dtype = PrimType::Int(32);
   {
-    int bits = loop->loop_var.dtype().bits();
+    int bits = loop->loop_var.ty().bits();
     for (const PrimExpr& factor : factors) {
-      bits = std::max(bits, factor.dtype().bits());
+      bits = std::max(bits, factor.ty().bits());
     }
-    dtype = DataType::Int(bits);
+    dtype = PrimType::Int(bits);
   }
 
   ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name_hint;
@@ -921,14 +921,14 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   // Step 2. Create fused loop var and replace the original loop vars
   std::string suffix;
   int n = loops.size();
-  int bits = loops[0]->loop_var.dtype().bits();
+  int bits = loops[0]->loop_var.ty().bits();
   for (int i = 1; i < n; i++) {
     suffix += "_" + loops[i]->loop_var->name_hint;
-    bits = std::max(bits, loops[i]->loop_var.dtype().bits());
+    bits = std::max(bits, loops[i]->loop_var.ty().bits());
   }
   suffix += "_fused";
 
-  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(DataType::Int(bits));
+  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(PrimType::Int(bits));
   ffi::Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
@@ -1144,7 +1144,7 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
 StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
   if (sref->stmt->IsInstance<ForNode>()) {
     For new_loop =
-        For(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial, ffi::GetRef<Stmt>(sref->stmt));
+        For(Var("u", PrimType::Int(32)), 0, 1, ForKind::kSerial, ffi::GetRef<Stmt>(sref->stmt));
     self->Replace(sref, new_loop, {});
     return self->stmt2ref.at(new_loop.get());
   }
@@ -1154,7 +1154,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
 
     Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
       if (realize->block.get() == src_block_) {
-        new_loop_ = For(Var("u", DataType::Int(32)), 0, 1, ForKind::kSerial,
+        new_loop_ = For(Var("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_;
       }

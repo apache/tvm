@@ -74,10 +74,10 @@ void IRBuilder::InitHeader() {
 
 void IRBuilder::InitPreDefs() {
   ext_glsl450_ = ExtInstImport("GLSL.std.450");
-  t_int32_ = DeclareType(DataType::Int(32));
-  t_uint32_ = DeclareType(DataType::UInt(32));
-  t_bool_ = DeclareType(DataType::Bool());
-  t_fp32_ = DeclareType(DataType::Float(32));
+  t_int32_ = DeclareType(PrimType::Int(32));
+  t_uint32_ = DeclareType(PrimType::UInt(32));
+  t_bool_ = DeclareType(PrimType::Bool());
+  t_fp32_ = DeclareType(PrimType::Float(32));
   const_i32_zero_ = IntImm(t_int32_, 0);
 
   // declare void, and void functions
@@ -112,14 +112,14 @@ std::vector<uint32_t> IRBuilder::Finalize() {
   return data;
 }
 
-SType IRBuilder::GetSType(const DataType& dtype, uint32_t row, uint32_t col) {
-  if (dtype == DataType::Int(32)) {
+SType IRBuilder::GetSType(const PrimType& dtype, uint32_t row, uint32_t col) {
+  if (dtype == PrimType::Int(32)) {
     return t_int32_;
-  } else if (dtype == DataType::Bool()) {
+  } else if (dtype == PrimType::Bool()) {
     return t_bool_;
-  } else if (dtype == DataType::Float(32)) {
+  } else if (dtype == PrimType::Float(32)) {
     return t_fp32_;
-  } else if (dtype == DataType::UInt(32)) {
+  } else if (dtype == PrimType::UInt(32)) {
     return t_uint32_;
   }
   uint64_t type_key;
@@ -151,7 +151,7 @@ SType IRBuilder::GetPointerType(const SType& value_type, spv::StorageClass stora
   }
   SType t;
   t.id = id_counter_++;
-  t.type = DataType::Handle();
+  t.type = PrimType::Handle();
   t.element_type_id = value_type.id;
   t.storage_class = storage_class;
   ib_.Begin(spv::OpTypePointer).AddSeq(t, storage_class, value_type).Commit(&global_);
@@ -169,11 +169,11 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
 
   SType arr_type;
   arr_type.id = id_counter_++;
-  arr_type.type = DataType::Handle();
+  arr_type.type = PrimType::Handle();
   arr_type.element_type_id = value_type.id;
 
   if (num_elems != 0) {
-    Value length = UIntImm(GetSType(DataType::UInt(32)), num_elems);
+    Value length = UIntImm(GetSType(PrimType::UInt(32)), num_elems);
     ib_.Begin(spv::OpTypeArray).AddSeq(arr_type, value_type, length).Commit(&global_);
   } else {
     ib_.Begin(spv::OpTypeRuntimeArray).AddSeq(arr_type, value_type).Commit(&global_);
@@ -188,7 +188,7 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
   // declare struct of array
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = DataType::Handle();
+  struct_type.type = PrimType::Handle();
   struct_type.element_type_id = value_type.id;
   ib_.Begin(spv::OpTypeStruct).AddSeq(struct_type, arr_type).Commit(&global_);
 
@@ -241,7 +241,7 @@ Value IRBuilder::FloatImm(const SType& dtype, double value) {
     if (data == 0)
       return GetConst_(dtype, &data);
     else
-      return Cast(dtype, FloatImm(GetSType(DataType::Float(32)), value));
+      return Cast(dtype, FloatImm(GetSType(PrimType::Float(32)), value));
   }
 }
 
@@ -270,7 +270,7 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
                                         spv::StorageClass storage_class, ValueKind kind) {
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = DataType::Handle();
+  struct_type.type = PrimType::Handle();
   ib_.Begin(spv::OpTypeStruct).Add(struct_type);
   for (const SType& vtype : value_types) {
     ib_.Add(vtype);
@@ -282,7 +282,7 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
     ib_.Begin(spv::OpMemberDecorate)
         .AddSeq(struct_type, i, spv::DecorationOffset, offset)
         .Commit(&decorate_);
-    DataType t = value_types[i].type;
+    PrimType t = value_types[i].type;
     uint32_t nbits = t.bits() * t.lanes();
     TVM_FFI_ICHECK_EQ(nbits % 8, 0);
     uint32_t bytes = (nbits / 8);
@@ -394,13 +394,11 @@ Value IRBuilder::GetBuiltInValue(spv::BuiltIn built_in, uint32_t index, const st
     }
   }
 
-  DataType data_type;
-  DataType global_arr_type;
+  PrimType data_type = PrimType::Int(32);
+  PrimType global_arr_type = data_type.WithLanes(3);
   switch (built_in) {
     case spv::BuiltInLocalInvocationId:
     case spv::BuiltInWorkgroupId:
-      data_type = DataType::Int(32);
-      global_arr_type = data_type.with_lanes(3);
       break;
 
     default:
@@ -468,7 +466,7 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   }
   TVM_FFI_ICHECK_LE(dtype.type.bits(), 64);
   Value ret = NewValue(dtype, kConstant);
-  if (dtype.type == DataType::Bool()) {
+  if (dtype.type == PrimType::Bool()) {
     // bool types.
     if (*pvalue) {
       ib_.Begin(spv::OpConstantTrue).AddSeq(dtype, ret);
@@ -481,7 +479,7 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
     uint64_t mask = 0xFFFFFFFFUL;
     ib_.Add(static_cast<uint32_t>(pvalue[0] & mask));
     if (dtype.type.bits() > 32) {
-      if (dtype.type.is_int()) {
+      if (dtype.type.MatchesCode(DLDataTypeCode::kDLInt)) {
         int64_t sign_mask = 0xFFFFFFFFL;
         const int64_t* sign_ptr = reinterpret_cast<const int64_t*>(pvalue);
         ib_.Add(static_cast<uint32_t>((sign_ptr[0] >> 32L) & sign_mask));
@@ -495,20 +493,20 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
   return ret;
 }
 
-SType IRBuilder::DeclareType(const DataType& dtype, uint32_t row, uint32_t col) {
+SType IRBuilder::DeclareType(const PrimType& dtype, uint32_t row, uint32_t col) {
   AddCapabilityFor(dtype);
 
   if (dtype.lanes() == 1) {
     SType t;
     t.id = id_counter_++;
     t.type = dtype;
-    if (dtype.is_bool()) {
+    if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
       ib_.Begin(spv::OpTypeBool).Add(t).Commit(&global_);
-    } else if (dtype.is_int()) {
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
       ib_.Begin(spv::OpTypeInt).AddSeq(t, dtype.bits(), 1).Commit(&global_);
-    } else if (dtype.is_uint()) {
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
       ib_.Begin(spv::OpTypeInt).AddSeq(t, dtype.bits(), 0).Commit(&global_);
-    } else if (dtype.is_float()) {
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
       ib_.Begin(spv::OpTypeFloat).AddSeq(t, dtype.bits()).Commit(&global_);
     } else {
       TVM_FFI_THROW(InternalError) << "declare type do not support handle";
@@ -518,15 +516,15 @@ SType IRBuilder::DeclareType(const DataType& dtype, uint32_t row, uint32_t col) 
     SType t;
     t.id = id_counter_++;
     t.type = dtype;
-    SType base_type = GetSType(dtype.element_of());
+    SType base_type = GetSType(dtype.WithLanes(1));
 
     if (row * col == 0) {
       TVM_FFI_ICHECK((row == 0) && (col == 0));
       ib_.Begin(spv::OpTypeVector).AddSeq(t, base_type, dtype.lanes()).Commit(&global_);
     } else {
-      Value v_row = GetSpecConst(GetSType(DataType::UInt(32)), row);
-      Value v_col = GetSpecConst(GetSType(DataType::UInt(32)), col);
-      Value scope = UIntImm(GetSType(DataType::UInt(32)), spv::ScopeSubgroup);
+      Value v_row = GetSpecConst(GetSType(PrimType::UInt(32)), row);
+      Value v_col = GetSpecConst(GetSType(PrimType::UInt(32)), col);
+      Value scope = UIntImm(GetSType(PrimType::UInt(32)), spv::ScopeSubgroup);
       ib_.Begin(spv::OpTypeCooperativeMatrixNV)
           .AddSeq(t, base_type, scope, v_row, v_col)
           .Commit(&global_);
@@ -535,9 +533,9 @@ SType IRBuilder::DeclareType(const DataType& dtype, uint32_t row, uint32_t col) 
   }
 }
 
-void IRBuilder::AddCapabilityFor(const DataType& dtype) {
+void IRBuilder::AddCapabilityFor(const PrimType& dtype) {
   // Declare appropriate capabilities for int/float types
-  if (dtype.is_int() || dtype.is_uint()) {
+  if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     if (dtype.bits() == 8) {
       TVM_FFI_ICHECK(spirv_support_.supports_int8)
           << "Vulkan target does not support Int8 capability.  "
@@ -561,7 +559,7 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
       capabilities_used_.insert(spv::CapabilityInt64);
     }
 
-  } else if (dtype.is_float()) {
+  } else if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
     if (dtype.bits() == 16) {
       TVM_FFI_ICHECK(spirv_support_.supports_float16)
           << "Vulkan target does not support Float16 capability.  "
@@ -584,7 +582,7 @@ void IRBuilder::AddCapabilityFor(const DataType& dtype) {
   // future.  Requiring StorageBuffer8BitAccess in order to declare an
   // Int8 prevents use of an 8-bit loop iterator on a device that
   // supports Int8 but doesn't support 8-bit buffer access.
-  if (dtype.bits() == 8 && !dtype.is_bool()) {
+  if (dtype.bits() == 8 && !dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_ICHECK(spirv_support_.supports_storage_buffer_8bit_access)
         << "Vulkan target does not support StorageBuffer8BitAccess.  "
         << "If your device supports 8-bit buffer access, "
@@ -642,7 +640,7 @@ Value IRBuilder::CallGLSL450(const SType& ret_type, uint32_t inst_id,
 }
 
 Value IRBuilder::CallKHRIntegerDotProduct(const SType& ret_type, const std::vector<Value>& args,
-                                          const DataType& dtype) {
+                                          const PrimType& dtype) {
   if (args.size() != 3) {
     TVM_FFI_THROW(InternalError) << "Unresolved arguments in SPIRV_KHR_integer_dot_product";
   }
@@ -653,9 +651,9 @@ Value IRBuilder::CallKHRIntegerDotProduct(const SType& ret_type, const std::vect
       << "If your device supports integer dot product operations, "
       << "please either add -mattr=+dotprod to the target, "
       << "or query all device parameters by adding -from_device=0.";
-  if (dtype.is_int()) {
+  if (dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
     ib_.Begin(spv::OpSDotAccSatKHR).AddSeq(ret_type, val);
-  } else if (dtype.is_uint()) {
+  } else if (dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
     ib_.Begin(spv::OpUDotAccSatKHR).AddSeq(ret_type, val);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type";
@@ -674,15 +672,15 @@ Value IRBuilder::CallKHRIntegerDotProduct(const SType& ret_type, const std::vect
 
 Value IRBuilder::Concat(const std::vector<Value>& vec) {
   bool is_const = vec[0].flag == kConstant;
-  DataType etype = vec[0].stype.type;
+  PrimType etype = vec[0].stype.type;
   int lanes = etype.lanes();
   for (size_t i = 1; i < vec.size(); ++i) {
-    TVM_FFI_ICHECK_EQ(etype, vec[i].stype.type.element_of())
+    TVM_FFI_ICHECK_EQ(etype, vec[i].stype.type.WithLanes(1))
         << "Cannot concat vector of different element type";
     lanes += vec[i].stype.type.lanes();
     is_const = is_const && (vec[i].flag == kConstant);
   }
-  Value ret = NewValue(GetSType(etype.with_lanes(lanes)), kNormal);
+  Value ret = NewValue(GetSType(etype.WithLanes(lanes)), kNormal);
   if (is_const && vec.size() == static_cast<size_t>(lanes)) {
     ib_.Begin(spv::OpConstantComposite);
     ib_.AddSeq(ret.stype, ret);
@@ -704,53 +702,56 @@ Value IRBuilder::Concat(const std::vector<Value>& vec) {
 Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
   TVM_FFI_ICHECK_NE(value.stype.id, 0U);
   if (value.stype.id == dst_type.id) return value;
-  const tvm::DataType& from = value.stype.type;
-  const tvm::DataType& to = dst_type.type;
+  const tvm::PrimType& from = value.stype.type;
+  const tvm::PrimType& to = dst_type.type;
   TVM_FFI_ICHECK_EQ(from.lanes(), to.lanes());
-  if (from == DataType::Bool()) {
-    if (to.is_int()) {
+  if (from == PrimType::Bool()) {
+    if (to.MatchesCode(DLDataTypeCode::kDLInt)) {
       return Select(value, IntImm(dst_type, 1), IntImm(dst_type, 0));
-    } else if (to.is_uint()) {
+    } else if (to.MatchesCode(DLDataTypeCode::kDLUInt)) {
       return Select(value, UIntImm(dst_type, 1), UIntImm(dst_type, 0));
-    } else if (to.is_float()) {
+    } else if (to.MatchesCode(DLDataTypeCode::kDLFloat)) {
       return MakeValue(spv::OpConvertUToF, dst_type,
                        Select(value, UIntImm(t_uint32_, 1), UIntImm(t_uint32_, 0)));
     } else {
       TVM_FFI_THROW(InternalError) << "cannot cast from " << from << " to " << to;
       return Value();
     }
-  } else if (to == DataType::Bool()) {
-    if (from.is_int()) {
+  } else if (to == PrimType::Bool()) {
+    if (from.MatchesCode(DLDataTypeCode::kDLInt)) {
       return NE(value, IntImm(value.stype, 0));
-    } else if (to.is_uint()) {
+    } else if (from.MatchesCode(DLDataTypeCode::kDLUInt)) {
       return NE(value, UIntImm(value.stype, 0));
     } else {
       TVM_FFI_THROW(InternalError) << "cannot cast from " << from << " to " << to;
       return Value();
     }
-  } else if (from.is_int() && to.is_int()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLInt) && to.MatchesCode(DLDataTypeCode::kDLInt)) {
     return MakeValue(spv::OpSConvert, dst_type, value);
-  } else if (from.is_uint() && to.is_uint()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLUInt) && to.MatchesCode(DLDataTypeCode::kDLUInt)) {
     return MakeValue(spv::OpUConvert, dst_type, value);
-  } else if (from.is_uint() && to.is_int()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLUInt) && to.MatchesCode(DLDataTypeCode::kDLInt)) {
     if (from.bits() != to.bits()) {
-      value = MakeValue(spv::OpUConvert, GetSType(from.with_bits(to.bits())), value);
+      value = MakeValue(spv::OpUConvert, GetSType(from.WithBits(to.bits())), value);
     }
     return MakeValue(spv::OpBitcast, dst_type, value);
-  } else if (from.is_int() && to.is_uint()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLInt) && to.MatchesCode(DLDataTypeCode::kDLUInt)) {
     if (from.bits() != to.bits()) {
-      value = MakeValue(spv::OpSConvert, GetSType(from.with_bits(to.bits())), value);
+      value = MakeValue(spv::OpSConvert, GetSType(from.WithBits(to.bits())), value);
     }
     return MakeValue(spv::OpBitcast, dst_type, value);
-  } else if (from.is_float() && to.is_int()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLFloat) && to.MatchesCode(DLDataTypeCode::kDLInt)) {
     return MakeValue(spv::OpConvertFToS, dst_type, value);
-  } else if (from.is_float() && to.is_uint()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLFloat) &&
+             to.MatchesCode(DLDataTypeCode::kDLUInt)) {
     return MakeValue(spv::OpConvertFToU, dst_type, value);
-  } else if (from.is_int() && to.is_float()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLInt) && to.MatchesCode(DLDataTypeCode::kDLFloat)) {
     return MakeValue(spv::OpConvertSToF, dst_type, value);
-  } else if (from.is_uint() && to.is_float()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLUInt) &&
+             to.MatchesCode(DLDataTypeCode::kDLFloat)) {
     return MakeValue(spv::OpConvertUToF, dst_type, value);
-  } else if (from.is_float() && to.is_float()) {
+  } else if (from.MatchesCode(DLDataTypeCode::kDLFloat) &&
+             to.MatchesCode(DLDataTypeCode::kDLFloat)) {
     return MakeValue(spv::OpFConvert, dst_type, value);
   } else {
     TVM_FFI_THROW(InternalError) << "do not support type cast from " << from << " to " << to;
@@ -782,28 +783,28 @@ Value IRBuilder::GetSpecConst(const SType& dtype, uint64_t value) {
   return ret;
 }
 
-#define DEFINE_BUILDER_BINARY_USIGN_OP(_OpName, _Op)       \
-  Value IRBuilder::_OpName(Value a, Value b) {             \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);             \
-    if (a.stype.type.is_int() || a.stype.type.is_uint()) { \
-      return MakeValue(spv::OpI##_Op, a.stype, a, b);      \
-    } else {                                               \
-      TVM_FFI_ICHECK(a.stype.type.is_float());             \
-      return MakeValue(spv::OpF##_Op, a.stype, a, b);      \
-    }                                                      \
+#define DEFINE_BUILDER_BINARY_USIGN_OP(_OpName, _Op)                                 \
+  Value IRBuilder::_OpName(Value a, Value b) {                                       \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                       \
+    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) { \
+      return MakeValue(spv::OpI##_Op, a.stype, a, b);                                \
+    } else {                                                                         \
+      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));            \
+      return MakeValue(spv::OpF##_Op, a.stype, a, b);                                \
+    }                                                                                \
   }
 
-#define DEFINE_BUILDER_BINARY_SIGN_OP(_OpName, _Op)   \
-  Value IRBuilder::_OpName(Value a, Value b) {        \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);        \
-    if (a.stype.type.is_int()) {                      \
-      return MakeValue(spv::OpS##_Op, a.stype, a, b); \
-    } else if (a.stype.type.is_uint()) {              \
-      return MakeValue(spv::OpU##_Op, a.stype, a, b); \
-    } else {                                          \
-      TVM_FFI_ICHECK(a.stype.type.is_float());        \
-      return MakeValue(spv::OpF##_Op, a.stype, a, b); \
-    }                                                 \
+#define DEFINE_BUILDER_BINARY_SIGN_OP(_OpName, _Op)                       \
+  Value IRBuilder::_OpName(Value a, Value b) {                            \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                            \
+    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt)) {               \
+      return MakeValue(spv::OpS##_Op, a.stype, a, b);                     \
+    } else if (a.stype.type.MatchesCode(DLDataTypeCode::kDLUInt)) {       \
+      return MakeValue(spv::OpU##_Op, a.stype, a, b);                     \
+    } else {                                                              \
+      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat)); \
+      return MakeValue(spv::OpF##_Op, a.stype, a, b);                     \
+    }                                                                     \
   }
 
 DEFINE_BUILDER_BINARY_USIGN_OP(Add, Add);
@@ -813,29 +814,29 @@ DEFINE_BUILDER_BINARY_SIGN_OP(Div, Div);
 
 Value IRBuilder::Mod(Value a, Value b) {
   TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);
-  if (a.stype.type.is_int()) {
+  if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt)) {
     return MakeValue(spv::OpSRem, a.stype, a, b);
-  } else if (a.stype.type.is_uint()) {
+  } else if (a.stype.type.MatchesCode(DLDataTypeCode::kDLUInt)) {
     return MakeValue(spv::OpUMod, a.stype, a, b);
   } else {
-    TVM_FFI_ICHECK(a.stype.type.is_float());
+    TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));
     return MakeValue(spv::OpFRem, a.stype, a, b);
   }
 }
 
-#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                                                    \
-  Value IRBuilder::_OpName(Value a, Value b) {                                                 \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                                 \
-    TVM_FFI_ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                             \
-    const auto& bool_type = this->GetSType(DataType::Bool().with_lanes(a.stype.type.lanes())); \
-    if (a.stype.type.is_int()) {                                                               \
-      return MakeValue(spv::OpS##_Op, bool_type, a, b);                                        \
-    } else if (a.stype.type.is_uint()) {                                                       \
-      return MakeValue(spv::OpU##_Op, bool_type, a, b);                                        \
-    } else {                                                                                   \
-      TVM_FFI_ICHECK(a.stype.type.is_float());                                                 \
-      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                     \
-    }                                                                                          \
+#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                                                   \
+  Value IRBuilder::_OpName(Value a, Value b) {                                                \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                                \
+    TVM_FFI_ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                            \
+    const auto& bool_type = this->GetSType(PrimType::Bool().WithLanes(a.stype.type.lanes())); \
+    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt)) {                                   \
+      return MakeValue(spv::OpS##_Op, bool_type, a, b);                                       \
+    } else if (a.stype.type.MatchesCode(DLDataTypeCode::kDLUInt)) {                           \
+      return MakeValue(spv::OpU##_Op, bool_type, a, b);                                       \
+    } else {                                                                                  \
+      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));                     \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                    \
+    }                                                                                         \
   }
 
 DEFINE_BUILDER_CMP_OP(LT, LessThan);
@@ -843,17 +844,17 @@ DEFINE_BUILDER_CMP_OP(LE, LessThanEqual);
 DEFINE_BUILDER_CMP_OP(GT, GreaterThan);
 DEFINE_BUILDER_CMP_OP(GE, GreaterThanEqual);
 
-#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                                                   \
-  Value IRBuilder::_OpName(Value a, Value b) {                                                 \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                                 \
-    TVM_FFI_ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                             \
-    const auto& bool_type = this->GetSType(DataType::Bool().with_lanes(a.stype.type.lanes())); \
-    if (a.stype.type.is_int() || a.stype.type.is_uint()) {                                     \
-      return MakeValue(spv::OpI##_Op, bool_type, a, b);                                        \
-    } else {                                                                                   \
-      TVM_FFI_ICHECK(a.stype.type.is_float());                                                 \
-      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                     \
-    }                                                                                          \
+#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                                                  \
+  Value IRBuilder::_OpName(Value a, Value b) {                                                \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                                \
+    TVM_FFI_ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                            \
+    const auto& bool_type = this->GetSType(PrimType::Bool().WithLanes(a.stype.type.lanes())); \
+    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {          \
+      return MakeValue(spv::OpI##_Op, bool_type, a, b);                                       \
+    } else {                                                                                  \
+      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));                     \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                    \
+    }                                                                                         \
   }
 
 DEFINE_BUILDER_CMP_UOP(EQ, Equal);
@@ -861,7 +862,7 @@ DEFINE_BUILDER_CMP_UOP(NE, NotEqual);
 
 Value IRBuilder::Select(Value cond, Value a, Value b) {
   TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);
-  TVM_FFI_ICHECK_EQ(cond.stype.type.element_of(), DataType::Bool());
+  TVM_FFI_ICHECK_EQ(cond.stype.type.WithLanes(1), PrimType::Bool());
   return MakeValue(spv::OpSelect, a.stype, cond, a, b);
 }
 

@@ -75,7 +75,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
-      ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), prob));
+      ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
         sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_explicit, max_step);

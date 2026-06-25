@@ -86,11 +86,11 @@ class CublasJSONSerializer : public JSONSerializer {
         const auto* const_expr = dequantize_call->args[1].as<ConstantNode>();
         auto ty = const_expr->ty.as_or_throw<TensorType>();
         float alpha = 1.0;
-        if (ty->dtype == DataType::Float(16)) {
+        if (ty->dtype == PrimType::Float(16)) {
           alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
               static_cast<uint16_t*>(const_expr->data->data)[0]);
         } else {
-          TVM_FFI_ICHECK(ty->dtype == DataType::Float(32));
+          TVM_FFI_ICHECK(ty->dtype == PrimType::Float(32));
           alpha = static_cast<float*>(const_expr->data->data)[0];
         }
 

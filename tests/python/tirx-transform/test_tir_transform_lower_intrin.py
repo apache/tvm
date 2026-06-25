@@ -50,9 +50,9 @@ def check_value(expr, variables, data, fref):
 
     # Build input and output buffers
     input_bufs = [
-        tvm.tirx.decl_buffer((n,), dtype=variables[i].dtype, name=f"v{i}") for i in range(num_vars)
+        tvm.tirx.decl_buffer((n,), dtype=variables[i].ty, name=f"v{i}") for i in range(num_vars)
     ]
-    out_buf = tvm.tirx.decl_buffer((n,), dtype=expr.dtype, name="C")
+    out_buf = tvm.tirx.decl_buffer((n,), dtype=expr.ty, name="C")
 
     # Build loop body: for each i, bind variables[j] = input_bufs[j][i], then store expr to out
     loop_var = tvm.tirx.Var("i", "int32")
@@ -77,10 +77,10 @@ def check_value(expr, variables, data, fref):
     f = tvm.compile(prim_func, "llvm")
 
     arrays = [
-        tvm.runtime.tensor(np.array([row[j] for row in data], dtype=variables[j].dtype))
+        tvm.runtime.tensor(np.array([row[j] for row in data], dtype=str(variables[j].ty)))
         for j in range(num_vars)
     ]
-    c = tvm.runtime.tensor(np.zeros(n, dtype=expr.dtype))
+    c = tvm.runtime.tensor(np.zeros(n, dtype=str(expr.ty)))
     f(*arrays, c)
     cref = np.array([fref(*row) for row in data])
     np.testing.assert_equal(c.numpy(), cref)

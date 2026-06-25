@@ -19,8 +19,8 @@
 #ifndef TVM_RUNTIME_DISCO_BUILTIN_H_
 #define TVM_RUNTIME_DISCO_BUILTIN_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/module.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/tensor.h>
 
 #include <string>
@@ -70,7 +70,7 @@ TVM_RUNTIME_DLL ffi::Module LoadVMModule(std::string path, ffi::Optional<Device>
  * \param device The device the Tensor is created on. If None, use the thread local default device
  * \return The Tensor created
  */
-TVM_RUNTIME_DLL Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype,
+TVM_RUNTIME_DLL Tensor DiscoEmptyTensor(ffi::Shape shape, DLDataType dtype,
                                         ffi::Optional<Device> device);
 /*!
  * \brief Perform an allreduce operation using the underlying communication library

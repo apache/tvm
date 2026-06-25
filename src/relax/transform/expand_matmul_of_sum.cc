@@ -88,7 +88,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       rhs_b = permute_dims(rhs_b, axes);
     }
 
-    return add(matmul(lhs, rhs_a, DataType::Void()), matmul(lhs, rhs_b, DataType::Void()));
+    return add(matmul(lhs, rhs_a, (DLDataType{kDLOpaqueHandle, 0, 0})),
+               matmul(lhs, rhs_b, (DLDataType{kDLOpaqueHandle, 0, 0})));
   };
 
   return {pat_matmul, rewriter};

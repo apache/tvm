@@ -30,17 +30,16 @@
 namespace tvm {
 namespace tirx {
 
-#define DEFINE_DEEP_EQUAL_BIN_EXPR(OpNode)                              \
-  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final {      \
-    const auto* prhs = rhs.as<OpNode>();                                \
-    return plhs->dtype == prhs->dtype && VisitExpr(plhs->a, prhs->a) && \
-           VisitExpr(plhs->b, prhs->b);                                 \
+#define DEFINE_DEEP_EQUAL_BIN_EXPR(OpNode)                                                         \
+  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final {                                 \
+    const auto* prhs = rhs.as<OpNode>();                                                           \
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->a, prhs->a) && VisitExpr(plhs->b, prhs->b); \
   }
 
-#define DEFINE_DEEP_EQUAL_IMM_EXPR(OpNode)                           \
-  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final {   \
-    const auto* prhs = rhs.as<OpNode>();                             \
-    return plhs->dtype == prhs->dtype && plhs->value == prhs->value; \
+#define DEFINE_DEEP_EQUAL_IMM_EXPR(OpNode)                         \
+  bool VisitExpr_(const OpNode* plhs, const PrimExpr& rhs) final { \
+    const auto* prhs = rhs.as<OpNode>();                           \
+    return plhs->ty() == prhs->ty() && plhs->value == prhs->value; \
   }
 
 class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const PrimExpr&)> {
@@ -53,7 +52,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
     if (lhs->type_index() != rhs->type_index()) return false;
     if (auto* plhs = lhs.as<IntImmNode>()) {
       auto* prhs = rhs.as<IntImmNode>();
-      return plhs->dtype == prhs->dtype && plhs->value == prhs->value;
+      return plhs->ty() == prhs->ty() && plhs->value == prhs->value;
     }
     return ExprDeepEqualChecker().VisitExpr(lhs, rhs);
   }
@@ -104,7 +103,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
   bool VisitExpr_(const BufferLoadNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<BufferLoadNode>();
     // we run pointer comparison of the buffer
-    return plhs->dtype == prhs->dtype && plhs->buffer.same_as(prhs->buffer) &&
+    return plhs->ty() == prhs->ty() && plhs->buffer.same_as(prhs->buffer) &&
            ArrayDeepEqual(plhs->indices, prhs->indices) &&
            OptionalDeepEqual(plhs->predicate, prhs->predicate);
   }
@@ -112,26 +111,26 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
   bool VisitExpr_(const ProducerLoadNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<ProducerLoadNode>();
     // run shallow pointer comparison of the producer
-    return plhs->dtype == prhs->dtype && plhs->producer.same_as(prhs->producer) &&
+    return plhs->ty() == prhs->ty() && plhs->producer.same_as(prhs->producer) &&
            ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
   bool VisitExpr_(const LetNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<LetNode>();
-    return plhs->dtype == prhs->dtype && VisitExpr(plhs->var, prhs->var) &&
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->var, prhs->var) &&
            VisitExpr(plhs->value, prhs->value) && VisitExpr(plhs->body, prhs->body);
   }
 
   bool VisitExpr_(const CallNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<CallNode>();
-    return plhs->dtype == prhs->dtype && plhs->op.same_as(prhs->op) &&
+    return plhs->ty() == prhs->ty() && plhs->op.same_as(prhs->op) &&
            ArrayDeepEqual(plhs->args, prhs->args) &&
            ffi::StructuralEqual()(plhs->attrs, prhs->attrs);
   }
 
   bool VisitExpr_(const ReduceNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<ReduceNode>();
-    return plhs->dtype == prhs->dtype && plhs->combiner.same_as(prhs->combiner) &&
+    return plhs->ty() == prhs->ty() && plhs->combiner.same_as(prhs->combiner) &&
            ArrayDeepEqual(plhs->source, prhs->source) && ArrayDeepEqual(plhs->init, prhs->init) &&
            ArrayDeepEqual(plhs->axis, prhs->axis) && VisitExpr(plhs->condition, prhs->condition) &&
            plhs->value_index == prhs->value_index;
@@ -139,36 +138,36 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
 
   bool VisitExpr_(const CastNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<CastNode>();
-    return plhs->dtype == prhs->dtype && VisitExpr(plhs->value, prhs->value);
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->value, prhs->value);
   }
 
   bool VisitExpr_(const NotNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<NotNode>();
-    return plhs->dtype == prhs->dtype && VisitExpr(plhs->a, prhs->a);
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->a, prhs->a);
   }
 
   bool VisitExpr_(const SelectNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<SelectNode>();
-    return plhs->dtype == prhs->dtype && VisitExpr(plhs->condition, prhs->condition) &&
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->condition, prhs->condition) &&
            VisitExpr(plhs->true_value, prhs->true_value) &&
            VisitExpr(plhs->false_value, prhs->false_value);
   }
 
   bool VisitExpr_(const RampNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<RampNode>();
-    return plhs->dtype == prhs->dtype && VisitExpr(plhs->base, prhs->base) &&
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->base, prhs->base) &&
            VisitExpr(plhs->stride, prhs->stride) && VisitExpr(plhs->lanes, prhs->lanes);
   }
 
   bool VisitExpr_(const ShuffleNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<ShuffleNode>();
-    return plhs->dtype == prhs->dtype && ArrayDeepEqual(plhs->vectors, prhs->vectors) &&
+    return plhs->ty() == prhs->ty() && ArrayDeepEqual(plhs->vectors, prhs->vectors) &&
            ArrayDeepEqual(plhs->indices, prhs->indices);
   }
 
   bool VisitExpr_(const BroadcastNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<BroadcastNode>();
-    return plhs->dtype == prhs->dtype && VisitExpr(plhs->value, prhs->value) &&
+    return plhs->ty() == prhs->ty() && VisitExpr(plhs->value, prhs->value) &&
            VisitExpr(plhs->lanes, prhs->lanes);
   }
 

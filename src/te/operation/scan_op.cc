@@ -36,7 +36,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
 
-DataType ScanOpNode::output_dtype(size_t i) const { return update[i]->dtype; }
+PrimType ScanOpNode::output_dtype(size_t i) const { return update[i]->GetDataType(); }
 
 ffi::Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   TVM_FFI_ICHECK_LT(i, state_placeholder.size());

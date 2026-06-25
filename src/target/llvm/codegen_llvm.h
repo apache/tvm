@@ -351,7 +351,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   void BufferAccessHelper(
       Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
-      DataType value_dtype,
+      PrimType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
@@ -400,7 +400,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \return LLVM type of dtype
    */
-  llvm::Type* DTypeToLLVMType(const DataType& dtype) const;
+  llvm::Type* DTypeToLLVMType(const PrimType& dtype) const;
   /*!
    * \brief Get the LLVM Type for a given type.
    * \param dtype The runtime dtype.
@@ -450,28 +450,28 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.
-  void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
+  void GetAlignment(PrimType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
   // Returns whether the LLVM type has padding for alignment
-  bool HasAlignmentPadding(DataType dtype);
+  bool HasAlignmentPadding(PrimType dtype);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
   // handle module import
   void HandleImport(const std::string& code);
   // cast operatpr
-  llvm::Value* CreateCast(DataType from, DataType to, llvm::Value* value);
+  llvm::Value* CreateCast(PrimType from, PrimType to, llvm::Value* value);
   // comparison op
   llvm::Value* GetVarValue(const VarNode* v) const;
-  llvm::Value* CreateLT(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateLE(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGT(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGE(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateAdd(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
-  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
-                                       llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
+  llvm::Value* CreateLT(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateLE(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGT(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGE(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateAdd(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateSub(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateMul(PrimType t, llvm::Value* a, llvm::Value* b);
+  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, PrimType buffer_element_dtype,
+                                       llvm::ArrayRef<llvm::Value*> indices, PrimType value_dtype);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -482,9 +482,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
-                    DataType access_dtype);
+                    PrimType access_dtype);
 
-  llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
+  llvm::GlobalVariable* AllocateSharedMemory(PrimType dtype, size_t size,
                                              unsigned int shared_address_space, int alignment,
                                              llvm::GlobalValue::LinkageTypes linkage);
 

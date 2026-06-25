@@ -39,11 +39,20 @@ TEST(Expr, Basic) {
 TEST(Expr, VarTypeAnnotation) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x", DataType::Float(32));
-  Var y("y", PrimType(DataType::Float(32)));
+  Var x("x", PrimType::Float(32));
+  Var y("y", PrimType::Float(32));
   tvm::ffi::StructuralEqual checker;
-  TVM_FFI_ICHECK(checker(x->dtype, y->dtype));
+  TVM_FFI_ICHECK(checker(x.ty(), y.ty()));
   TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
+}
+
+TEST(Expr, PrimTypeBoolLanes) {
+  using namespace tvm;
+  PrimType boolx4 = PrimType::Bool(4);
+  TVM_FFI_ICHECK(boolx4.IsFixedLengthVector());
+  TVM_FFI_ICHECK(boolx4.MatchesCode(DLDataTypeCode::kDLBool));
+  TVM_FFI_ICHECK_EQ(boolx4.lanes(), 4);
+  TVM_FFI_ICHECK(boolx4.MatchesElementType(DLDataTypeCode::kDLBool, 8));
 }
 
 TEST(ExprNodeRef, Basic) {

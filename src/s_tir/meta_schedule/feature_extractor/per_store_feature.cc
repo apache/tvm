@@ -273,12 +273,12 @@ Pass SimplifyForFeatureExtraction() {
           HasBufferLoad(node->condition)) {
         return ffi::GetRef<Select>(node);
       }
-      return MakeConst(node->dtype, 1.0);
+      return MakeConst(node->ty(), 1.0);
     }
 
     PrimExpr VisitExpr_(const VarNode* var) final {
       if (unit_vars_.count(ffi::GetRef<Var>(var))) {
-        return MakeConst(var->dtype, 0.0);
+        return MakeConst(var->ty(), 0.0);
       }
       return ffi::GetRef<Var>(var);
     }
@@ -553,7 +553,7 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
   }
 #define TVM_FEATURE_BINARY(Type, FloatCounter, IntCounter) \
   void VisitExpr_(const Type* op) final {                  \
-    if (op->dtype.is_float()) {                            \
+    if (op->ty().MatchesCode(DLDataTypeCode::kDLFloat)) {  \
       result_.FloatCounter += this->prod_loop_extent_;     \
     } else {                                               \
       result_.IntCounter += this->prod_loop_extent_;       \
@@ -589,13 +589,13 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
       bool is_pure =
           effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
       if (is_pure) {
-        if (op->dtype.is_float()) {
+        if (op->ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
           result_.float_math_func += prod_loop_extent_;
         } else {
           result_.int_math_func += prod_loop_extent_;
         }
       } else {
-        if (op->dtype.is_float()) {
+        if (op->ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
           result_.float_other_func += prod_loop_extent_;
         } else {
           result_.int_other_func += prod_loop_extent_;
@@ -852,7 +852,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
       feature.access_shape = utils::RelaxAndUnion(feature.multi_indices, &numel, analyzer);
       numel = std::max<int64_t>(0, numel);
       feature.loop_accessed_numel[i][buffer] = numel;
-      touched_bytes += numel * buffer->dtype.bytes();
+      touched_bytes += numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
       (*buffer_touched_under_loop)[loop][buffer].push_back(numel);
     }
   }
@@ -880,7 +880,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::AnalyzerOb
     TVM_FFI_ICHECK_EQ(access_shape.size(), buffer_shape.size());
     for (int i = ndim - 1; i >= 0; --i) {
       if (access_shape[i] == buffer_shape[i]) {
-        num_continuous_bytes = buffer_shape[i] * buffer->dtype.bytes();
+        num_continuous_bytes = buffer_shape[i] * static_cast<int64_t>(buffer->dtype.StorageBytes());
         break;
       }
     }
@@ -953,7 +953,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
           const BufferNode* buffer = iter.first;
           const IntVec& numels = iter.second;
           int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
-          reuse_dis_bytes += numel * buffer->dtype.bytes();
+          reuse_dis_bytes += numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
         }
       }
       break;
@@ -973,7 +973,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
         const BufferNode* buffer = iter.first;
         const IntVec& numels = iter.second;
         int64_t numel = std::accumulate(numels.begin(), numels.end(), int64_t(0));
-        reuse_dis_bytes += numel * buffer->dtype.bytes();
+        reuse_dis_bytes += numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
       }
       reuse_dis_iter /= extent;
       reuse_dis_bytes /= extent;
@@ -983,7 +983,7 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
 }
 
 void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_line_bytes) {
-  int64_t dtype_bytes = this->buffer->dtype.bytes();
+  int64_t dtype_bytes = static_cast<int64_t>(this->buffer->dtype.StorageBytes());
   this->stride = this->innermost_stride;
   this->bytes = dtype_bytes * loop_nest.prod;
   if (loop_nest.loops.empty()) {
@@ -1023,7 +1023,7 @@ Feature::Feature(const BufferStoreNode* store, const LoopNest& loop_nest, int64_
   int64_t top_loop_touch_bytes = 0.0;
   if (n_loops > 0) {
     for (const SubFeature& feature : sub_features) {
-      int64_t bytes = feature.buffer->dtype.bytes();
+      int64_t bytes = static_cast<int64_t>(feature.buffer->dtype.StorageBytes());
       int64_t n_buffer = feature.loop_accessed_numel[0].size();
       top_loop_touch_bytes += bytes * n_buffer;
     }
@@ -1161,7 +1161,7 @@ struct Feature {
     for (int64_t x : shape) {
       numel *= x;
     }
-    alloc_size = numel * buffer->dtype.bytes();
+    alloc_size = numel * static_cast<int64_t>(buffer->dtype.StorageBytes());
     alloc_prod = numel * loop_nest.prod;
     alloc_outer_prod = loop_nest.prod;
   }

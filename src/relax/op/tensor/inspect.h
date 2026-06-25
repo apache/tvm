@@ -36,7 +36,7 @@ namespace inspect {
  * `TensorType`.
  *
  * \returns The uint8_t value of the type_code, with
- * `PrimType(DataType::UInt(8))`
+ * `PrimType::UInt(8)`
  */
 Expr tensor_dtype_code(Expr expr);
 
@@ -46,7 +46,7 @@ Expr tensor_dtype_code(Expr expr);
  * `TensorType`.
  *
  * \returns The uint8_t value of the number of bits, with
- * `PrimType(DataType::UInt(8))`.  For vectorized types, returns
+ * `PrimType::UInt(8)`.  For vectorized types, returns
  * the bit width of the underlying scalar type (e.g. 32 for
  * "float32x4", not 128).
  */
@@ -58,7 +58,7 @@ Expr tensor_dtype_bits(Expr expr);
  * `TensorType`.
  *
  * \returns The uint16_t value of the number of lanes, with
- * `PrimType(DataType::UInt(16))`
+ * `PrimType::UInt(16)`
  */
 Expr tensor_dtype_lanes(Expr expr);
 
@@ -68,7 +68,7 @@ Expr tensor_dtype_lanes(Expr expr);
  * `TensorType`.
  *
  * \returns The int32_t value of the dimensionality, with
- * `PrimType(DataType::Int(32))`.
+ * `PrimType::Int(32)`.
  */
 Expr tensor_ndim(Expr expr);
 
@@ -81,7 +81,7 @@ Expr tensor_ndim(Expr expr);
  *     axis < tensor_ndim(expr)`, or else the results are undefined.
  *
  * \returns The int64_t extent of the specified tensor axis, with
- * `PrimType(DataType::Int(64))`.
+ * `PrimType::Int(64)`.
  */
 Expr tensor_shape_i(Expr expr, Expr axis);
 
@@ -98,7 +98,7 @@ Expr tensor_shape_i(Expr expr, Expr axis);
  *     axis < tensor_ndim(expr)`, or else the results are undefined.
  *
  * \returns The int64_t extent of the specified tensor axis, with
- * `PrimType(DataType::Int(64))`.
+ * `PrimType::Int(64)`.
  */
 Expr tensor_stride_i(Expr expr, Expr axis);
 
@@ -107,7 +107,7 @@ Expr tensor_stride_i(Expr expr, Expr axis);
  * \param expr The relax expression to be inspected.  Must have
  * `TensorType`.
  *
- * \returns The uint64_t byte offset, with `PrimType(DataType::UInt(64))`.
+ * \returns The uint64_t byte offset, with `PrimType::UInt(64)`.
  */
 Expr tensor_byte_offset(Expr expr);
 
@@ -120,7 +120,7 @@ Expr tensor_byte_offset(Expr expr);
  * \param expr The relax expression to be inspected.  Must have
  * `TensorType`.
  *
- * \returns The uint64_t element offset, with `PrimType(DataType::UInt(64))`.
+ * \returns The uint64_t element offset, with `PrimType::UInt(64)`.
  */
 Expr tensor_elem_offset(Expr expr);
 

@@ -148,7 +148,7 @@ def make_iter_fusion_index_map(
     fused_iters: dict[IterKind, PrimExpr] = {}
     input_iters: list[tirx.Var] = []
     for i, trait in enumerate(traits):
-        v_i = tirx.Var(f"i{i}", trait.extent.dtype)
+        v_i = tirx.Var(f"i{i}", trait.extent.ty)
         input_iters.append(v_i)
         if trait.kind == IterKind.kIter_T:
             continue
@@ -160,7 +160,7 @@ def make_iter_fusion_index_map(
             fused_iters[trait.kind] = v_i
 
     final_indices: list[tirx.PrimExpr] = [
-        fused_iters.get(kind, tirx.IntImm(traits[0].extent.dtype, 0)) for kind in kind_order
+        fused_iters.get(kind, tirx.IntImm(traits[0].extent.ty, 0)) for kind in kind_order
     ]
 
     return tirx.IndexMap(input_iters, final_indices, None)

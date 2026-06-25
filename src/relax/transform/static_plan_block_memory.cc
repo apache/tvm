@@ -106,7 +106,7 @@ class StorageTokenNode : public ffi::Object {
   /*! \brief Number of bytes that this token requires. */
   PrimExpr bytes;
   /*! \brief The dtype of this token. */
-  DataType dtype;
+  DLDataType dtype;
   /*! \brief The memory scope of the token. */
   std::string storage_scope;
   /*! \brief The VDevice information. */
@@ -135,10 +135,13 @@ class StorageTokenNode : public ffi::Object {
  */
 class StorageToken : public ffi::ObjectRef {
  public:
-  explicit StorageToken(ffi::Array<PrimExpr> shape, DataType dtype, std::string storage_scope,
+  explicit StorageToken(ffi::Array<PrimExpr> shape, DLDataType dtype, std::string storage_scope,
                         ffi::Optional<VDevice> vdevice = std::nullopt) {
     // Compute the tensor size from the shape.
-    int64_t const_coeff = dtype.bytes() * dtype.lanes();
+    PrimType dtype_ty(dtype);
+    TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
+        << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
+    int64_t const_coeff = static_cast<int64_t>(dtype_ty.StorageBytes());
     PrimExpr size = IntImm::Int64(1);
     bool size_computed = false;
 
@@ -303,13 +306,16 @@ class TokenAllocatorMixed {
   }
 
  private:
-  /*! \brief The hash class to enable std::pair as map key class. */
-  struct PairHash {
-    template <class T1, class T2>
-    std::size_t operator()(const std::pair<T1, T2>& p) const {
-      auto h1 = std::hash<T1>{}(p.first);
-      auto h2 = std::hash<T2>{}(p.second);
-      return h1 ^ h2;
+  using PoolKey = std::pair<std::string, DLDataType>;
+
+  /*! \brief The hash class to enable storage scope and raw dtype as map key class. */
+  struct PoolKeyHash {
+    std::size_t operator()(const PoolKey& p) const {
+      std::size_t h = std::hash<std::string>{}(p.first);
+      h ^= static_cast<std::size_t>(p.second.code) + 0x9e3779b9 + (h << 6) + (h >> 2);
+      h ^= static_cast<std::size_t>(p.second.bits) + 0x9e3779b9 + (h << 6) + (h >> 2);
+      h ^= static_cast<std::size_t>(p.second.lanes) + 0x9e3779b9 + (h << 6) + (h >> 2);
+      return h;
     }
   };
 
@@ -318,9 +324,7 @@ class TokenAllocatorMixed {
   /*! \brief A constant scale representing the token search range. */
   const int match_range_{16};
   /*! \brief The pool of available storage tokens for each storage scope and dtype. */
-  std::unordered_map<std::pair<std::string, DataType>, std::multimap<int64_t, StorageToken>,
-                     PairHash>
-      available_pool_;
+  std::unordered_map<PoolKey, std::multimap<int64_t, StorageToken>, PoolKeyHash> available_pool_;
   /*! \brief All the storage tokens that have been allocated with actual storage. */
   std::vector<StorageToken> full_pool_;
 };
@@ -636,7 +640,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK_NOTNULL(shape);
     TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-    TVM_FFI_ICHECK(ty->dtype == call->args[1].as_or_throw<DataTypeImm>()->value);
+    TVM_FFI_ICHECK(ty->dtype->dtype == call->args[1].as_or_throw<DataTypeImm>()->value);
     TVM_FFI_ICHECK(!token_map_.count(call));
 
     // Use the upper bounds of TIR vars as their values. The upper bound shape can still be dynamic
@@ -653,7 +657,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-    StorageToken token(upper_bounded_shape, ty->dtype, storage_scope->value, vdevice);
+    StorageToken token(upper_bounded_shape, ty->dtype->dtype, storage_scope->value, vdevice);
 
     Tokens tokens(token);
     SetTokens(call, tokens);
@@ -938,7 +942,7 @@ class StorageAllocationRewriter : public ExprMutator {
       if (it_token == token2storage_var_.end()) {
         ShapeExpr size({token->bytes});
         PrimValue virtual_device_index = runtime_device_index;
-        DataType dtype = token->dtype;
+        DLDataType dtype = token->dtype;
         Call alloc_storage(mem_alloc_storage,
                            {std::move(size), virtual_device_index, StringImm(token->storage_scope),
                             DataTypeImm(dtype)},
@@ -951,7 +955,7 @@ class StorageAllocationRewriter : public ExprMutator {
 
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimValue offset = PrimValue::Int64(0);
-      DataType dtype = ty->dtype;
+      DLDataType dtype = ty->dtype->dtype;
       return Call(mem_alloc_tensor,
                   {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
                   Attrs());
@@ -970,22 +974,26 @@ class StorageAllocationRewriter : public ExprMutator {
           GetUpperBoundShape(shape->values, ana_.get(), dom_map_);
       if (!IsStaticShape(shape->values)) {
         TVM_FFI_ICHECK(!ty->IsUnknownDtype());
-        TVM_FFI_ICHECK_EQ(ty->dtype, call->args[1].as_or_throw<DataTypeImm>()->value);
+        TVM_FFI_ICHECK_EQ(ty->dtype->dtype, call->args[1].as_or_throw<DataTypeImm>()->value);
         PrimExpr bytes = upper_bounded_shape[0];
         for (int i = 1; i < static_cast<int>(upper_bounded_shape.size()); ++i) {
           bytes *= upper_bounded_shape[i];
         }
-        bytes *= ty->dtype.bytes() * ty->dtype.lanes();
+        DLDataType dtype = ty->dtype->dtype;
+        PrimType dtype_ty(dtype);
+        TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
+            << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
+        bytes *= IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
         Call alloc_storage(mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/call->args[2].as_or_throw<PrimValue>(),
                             /*storage_scope=*/call->args[3].as_or_throw<StringImm>(),  //
-                            /*dtype=*/DataTypeImm(ty->dtype)});
+                            /*dtype=*/DataTypeImm(dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
         return Call(mem_alloc_tensor, {storage,  //
                                        /*offset=*/PrimValue::Int64(0),
                                        /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                                       /*dtype=*/DataTypeImm(ty->dtype),
+                                       /*dtype=*/DataTypeImm(dtype),
                                        /*vdevice_index=*/call->args[2]});
       }
     }
@@ -1040,7 +1048,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.transform.StaticPlanBlockMemory", StaticPlanBlockMemory);
 }
 
-PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType dtype,
+PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DLDataType dtype,
                                          VDevice vdevice) {
   int image_row_align = static_cast<int>(
       vdevice->target->GetAttr<int64_t>("image_base_address_alignment").value_or(64));
@@ -1056,7 +1064,9 @@ PrimExpr GetTextureMemorySizeFromVDevice(ffi::Array<PrimExpr> pshape, DataType d
   };
   auto shape = Shape{pshape};
 
-  size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bytes() * 8, dtype.lanes(),
+  int lanes = static_cast<int16_t>(dtype.lanes);
+  TVM_FFI_ICHECK_GE(lanes, 0) << "Can't fetch the bytes of a scalable vector at a compile time.";
+  size_t size = runtime::GetTextureMemorySize<Shape>(shape, dtype.bits, lanes,
                                                      vdevice->memory_scope, image_row_align);
   return IntImm::Int64(size);
 }

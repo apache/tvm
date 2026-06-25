@@ -19,7 +19,7 @@
 """Default legalization function for manipulate operators."""
 
 import tvm
-from tvm import relax, s_tir, te, tirx, topi
+from tvm import DataTypeCode, relax, s_tir, te, tirx, topi
 from tvm.relax.op.base import call_tir
 from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
@@ -303,7 +303,7 @@ def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     if not (isinstance(on_value, relax.PrimValue) and isinstance(off_value, relax.PrimValue)):
         raise ValueError("on_value and off_value must be PrimValue")
     on_value, off_value = on_value.value, off_value.value
-    if on_value.dtype != off_value.dtype:
+    if on_value.ty != off_value.ty:
         raise ValueError("on_value and off_value must have the same dtype")
     return bb.call_te(
         topi.one_hot,
@@ -312,7 +312,7 @@ def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
         off_value,
         call.attrs.depth,
         call.attrs.axis,
-        on_value.dtype,
+        on_value.ty,
     )
 
 
@@ -337,7 +337,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     if pad_value is not None:
         pad_value = pad_value.value
     else:
-        if "int" in call.args[0].ty.dtype:
+        if call.args[0].ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT):
             pad_value = 0
         else:
             pad_value = 0.0

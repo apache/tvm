@@ -457,9 +457,9 @@ class WellFormedChecker : public relax::ExprVisitor,
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
       tirx::ExprVisitor::VisitExpr(expr);
-      if (!expr.dtype().is_int()) {
+      if (expr.ty().code() != DLDataTypeCode::kDLInt) {
         TVM_FFI_VISIT_THROW(TypeError, expr)
-            << "Shape expressions must be of integer type, but got " << expr.dtype();
+            << "Shape expressions must be of integer type, but got " << expr.ty()->dtype;
       }
     }
     CheckType(op);

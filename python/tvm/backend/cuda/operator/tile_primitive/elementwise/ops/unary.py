@@ -97,13 +97,13 @@ def _compute_fill(src_vals, extras, dt):
 
 def _compute_reciprocal(src_vals, extras, dt):
     x = src_vals[0]
-    return T.FloatImm(x.dtype, 1.0) / x
+    return T.FloatImm(x.ty, 1.0) / x
 
 
 def _compute_silu(src_vals, extras, dt):
     # Legacy: silu doesn't apply bias/scale.
     x = src_vals[0]
-    return x / (T.FloatImm(x.dtype, 1.0) + T.exp(T.FloatImm(x.dtype, 0.0) - x))
+    return x / (T.FloatImm(x.ty, 1.0) + T.exp(T.FloatImm(x.ty, 0.0) - x))
 
 
 UNARY_OPS: dict[str, OpSpec] = {

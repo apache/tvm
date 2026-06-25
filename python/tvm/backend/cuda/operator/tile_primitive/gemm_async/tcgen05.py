@@ -779,7 +779,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # when accum is a Python bool).
     if isinstance(accum, bool):
         accum_expr = tvm.tirx.const(int(accum), "bool")
-    elif isinstance(accum, tvm.tirx.PrimExpr) and accum.dtype != "bool":
+    elif isinstance(accum, tvm.tirx.PrimExpr) and accum.ty.dtype != "bool":
         accum_expr = tvm.tirx.Cast("bool", accum)
     else:
         accum_expr = accum

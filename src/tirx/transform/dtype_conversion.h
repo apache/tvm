@@ -98,12 +98,18 @@ class FloatConfig {
    * \param dtype The data type, must be a floating point.
    * \return The FloatConfig class containing internal floating point representation.
    */
-  static FloatConfig FromDataType(DataType dtype) {
-    TVM_FFI_ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() ||
-                   dtype.is_float6() || dtype.is_float4())
+  static FloatConfig FromDataType(PrimType dtype) {
+    DLDataTypeCode code = dtype.code();
+    TVM_FFI_ICHECK(dtype.MatchesCode(
+        DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat, DLDataTypeCode::kDLFloat8_e3m4,
+        DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
+        DLDataTypeCode::kDLFloat8_e4m3fn, DLDataTypeCode::kDLFloat8_e4m3fnuz,
+        DLDataTypeCode::kDLFloat8_e5m2, DLDataTypeCode::kDLFloat8_e5m2fnuz,
+        DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
+        DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn))
         << "FloatConfig is only applicable to floating point data types, got " << dtype
         << " instead.";
-    if (dtype.is_float()) {
+    if (code == DLDataTypeCode::kDLFloat) {
       // IEEE 754 binary formats
       // Reference: https://en.wikipedia.org/wiki/Floating-point_arithmetic
       switch (dtype.bits()) {
@@ -115,46 +121,52 @@ class FloatConfig {
           // float64
           return FloatConfig(11, 52, 1023, InftyStyle::kIEEE, NaNStyle::kIEEE);
       }
-    } else if (dtype.is_bfloat16()) {
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLBfloat)) {
       // bfloat16,
       return FloatConfig(8, 7, 127, InftyStyle::kIEEE, NaNStyle::kIEEE);
-    } else if (dtype.is_float8()) {  // float8
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLFloat8_e3m4, DLDataTypeCode::kDLFloat8_e4m3,
+                                 DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
+                                 DLDataTypeCode::kDLFloat8_e4m3fn,
+                                 DLDataTypeCode::kDLFloat8_e4m3fnuz, DLDataTypeCode::kDLFloat8_e5m2,
+                                 DLDataTypeCode::kDLFloat8_e5m2fnuz,
+                                 DLDataTypeCode::kDLFloat8_e8m0fnu)) {  // float8
       // NVIDIA/Arm/Intel's FP8 formats for Deep Learning
       // Reference: https://arxiv.org/abs/2209.05433
-      switch (dtype.code()) {
-        case DataType::kFloat8_e3m4:
+      switch (code) {
+        case DLDataTypeCode::kDLFloat8_e3m4:
           // E3M4 format, not consistent with IEEE-754
           return FloatConfig(3, 4, 3, InftyStyle::kNone, NaNStyle::kAllOnes);
-        case DataType::kFloat8_e4m3:
+        case DLDataTypeCode::kDLFloat8_e4m3:
           // E4M3 format, not consistent with IEEE-754
           return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kAllOnes);
-        case DataType::kFloat8_e4m3b11fnuz:
+        case DLDataTypeCode::kDLFloat8_e4m3b11fnuz:
           // E4M3 variant with b11 encoding, not consistent with IEEE-754
           return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kAllOnes);
-        case DataType::kFloat8_e4m3fn:
+        case DLDataTypeCode::kDLFloat8_e4m3fn:
           // E4M3 format, not consistent with IEEE-754
           return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kAllOnes);
-        case DataType::kFloat8_e4m3fnuz:
+        case DLDataTypeCode::kDLFloat8_e4m3fnuz:
           // UE4M3 format, not consistent with IEEE-754
           return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kAllOnes);
-        case DataType::kFloat8_e5m2:
+        case DLDataTypeCode::kDLFloat8_e5m2:
           // UE5M2 format, consistent with IEEE-754
           return FloatConfig(5, 2, 15, InftyStyle::kIEEE, NaNStyle::kIEEE);
-        case DataType::kFloat8_e5m2fnuz:
+        case DLDataTypeCode::kDLFloat8_e5m2fnuz:
           // UE5M2 format, not consistent with IEEE-754
           return FloatConfig(5, 2, 15, InftyStyle::kNone, NaNStyle::kAllOnes);
-        case DataType::kFloat8_e8m0fnu:
+        case DLDataTypeCode::kDLFloat8_e8m0fnu:
           // UE8M0 format, not consistent with IEEE-754
           return FloatConfig(8, 0, 127, InftyStyle::kNone, NaNStyle::kAllOnes);
         default:
           TVM_FFI_THROW(InternalError) << "Unknown float8 variant: " << dtype;
       }
-    } else if (dtype.is_float6()) {  // float6
-      switch (dtype.code()) {
-        case DataType::kFloat6_e2m3fn:
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLFloat6_e2m3fn,
+                                 DLDataTypeCode::kDLFloat6_e3m2fn)) {  // float6
+      switch (code) {
+        case DLDataTypeCode::kDLFloat6_e2m3fn:
           // E2M3 format, not consistent with IEEE-754
           return FloatConfig(2, 3, 1, InftyStyle::kNone, NaNStyle::kNone);
-        case DataType::kFloat6_e3m2fn:
+        case DLDataTypeCode::kDLFloat6_e3m2fn:
           // E3M2 format, not consistent with IEEE-754
           return FloatConfig(3, 2, 3, InftyStyle::kNone, NaNStyle::kNone);
         default:
@@ -182,7 +194,7 @@ PrimExpr ReinterpretAsUInt(PrimExpr value);
  * \return The uint data type, the number of bits is
  *   the same as input dtype.
  */
-DataType GetStorageUIntDType(DataType dtype);
+PrimType GetStorageUIntDType(PrimType dtype);
 
 /*!
  * \brief Conversion routine from value stored in one floating point data type to another floating
@@ -193,7 +205,7 @@ DataType GetStorageUIntDType(DataType dtype);
  * \return The converted value in target floating point data type.
  * \note Used when there is no native data type conversion implementation.
  */
-PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype,
+PrimExpr DTypeConversion(PrimExpr src_value, PrimType tgt_dtype,
                          RoundingMode round_mode = RoundingMode::kHalfToEven);
 
 }  // namespace tirx

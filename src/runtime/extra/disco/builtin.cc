@@ -71,7 +71,7 @@ ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device) {
   return mod;
 }
 
-Tensor DiscoEmptyTensor(ffi::Shape shape, DataType dtype, ffi::Optional<Device> device) {
+Tensor DiscoEmptyTensor(ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device) {
   return Tensor::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
@@ -131,7 +131,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("runtime.disco.load_vm_module", LoadVMModule)
       .def("runtime.disco.empty",
-           [](ffi::Shape shape, DataType dtype, ffi::Optional<Device> device, bool worker0_only,
+           [](ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device, bool worker0_only,
               bool in_group) -> ffi::Optional<Tensor> {
              int worker_id = WorkerId();
              int group_size =

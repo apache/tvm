@@ -66,7 +66,7 @@ class SamplingDispatcher(BackendDispatcher):
                     out_ty=call.ty,
                 )
             else:
-                cumsum_prob = relax.op.cumsum(prob, axis=1, dtype=prob_dtype, exclusive=False)
+                cumsum_prob = relax.op.cumsum(prob, axis=1, dtype=prob_dtype.dtype, exclusive=False)
                 gv = self.builder_.add_func(
                     generic_get_sample_index(prob_dtype, sample_dtype, sample_indices_dtype, dtype),
                     "get_sample_index",

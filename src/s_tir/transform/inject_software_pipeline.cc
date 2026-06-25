@@ -120,7 +120,7 @@ class PipelineOpaqueAccessRewriter {
         ffi::Array<PrimExpr> new_args = call->args;
         const Buffer& new_buffer = (*it).second;
         new_args.Set(4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4]));
-        return Call(call->dtype, call->op, new_args, call->attrs, call->span);
+        return Call(call.ty(), call->op, new_args, call->attrs, call->span);
       }
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<PrimExpr> new_args = call->args;
@@ -134,7 +134,7 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call->dtype, call->op, new_args, call->attrs, call->span);
+      return Call(call.ty(), call->op, new_args, call->attrs, call->span);
     } else if (call->op.same_as(access_ptr)) {
       return RewriteBufferAccess(call, {1});
     } else if (call->op.same_as(ptx_mma_legacy)) {
@@ -197,7 +197,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call->dtype, call->op, new_args, call->attrs, call->span);
+    return Call(call.ty(), call->op, new_args, call->attrs, call->span);
   }
 
   const ffi::Map<Var, Buffer>& buffer_data_to_buffer_;
@@ -767,7 +767,7 @@ class PipelineRewriter : public StmtExprMutator {
           // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
-          auto wait_count = Call(DataType::Int(32), builtin::if_then_else(),
+          auto wait_count = Call(PrimType::Int(32), builtin::if_then_else(),
                                  {state.predicate.value(), state.pending_wait.wait_count, 0});
           attach_wait_scope(state.pending_wait.insert_before, stage_id, wait_count);
         } else {

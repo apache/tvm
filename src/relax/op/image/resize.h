@@ -36,13 +36,13 @@ namespace relax {
 Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
-              double extrapolation_value, ffi::Optional<DataType> out_dtype);
+              double extrapolation_value, ffi::Optional<DLDataType> out_dtype);
 
 /*! \brief Image resize3d operator. */
 Expr resize3d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout,
               ffi::String method, ffi::String coordinate_transformation_mode,
               ffi::String rounding_method, double cubic_alpha, int cubic_exclude,
-              double extrapolation_value, ffi::Optional<DataType> out_dtype);
+              double extrapolation_value, ffi::Optional<DLDataType> out_dtype);
 
 /*! \brief Image grid_sample operator. */
 Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,

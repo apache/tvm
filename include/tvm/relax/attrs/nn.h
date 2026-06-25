@@ -38,7 +38,7 @@ struct Conv1DAttrs : public AttrsNode {
   ffi::String data_layout;
   ffi::String kernel_layout;
   ffi::String out_layout;
-  DataType out_dtype;
+  DLDataType out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -82,7 +82,7 @@ struct Conv2DAttrs : public AttrsNode {
   ffi::String data_layout;
   ffi::String kernel_layout;
   ffi::String out_layout;
-  DataType out_dtype;
+  DLDataType out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -128,7 +128,7 @@ struct Conv3DAttrs : public AttrsNode {
   ffi::String data_layout;
   ffi::String kernel_layout;
   ffi::String out_layout;
-  DataType out_dtype;
+  DLDataType out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -177,7 +177,7 @@ struct Conv1DTransposeAttrs : public AttrsNode {
   ffi::String data_layout;
   ffi::String kernel_layout;
   ffi::String out_layout;
-  DataType out_dtype;
+  DLDataType out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -226,7 +226,7 @@ struct Conv2DTransposeAttrs : public AttrsNode {
   ffi::String data_layout;
   ffi::String kernel_layout;
   ffi::String out_layout;
-  DataType out_dtype;
+  DLDataType out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -277,7 +277,7 @@ struct Conv3DTransposeAttrs : public AttrsNode {
   ffi::String data_layout;
   ffi::String kernel_layout;
   ffi::String out_layout;
-  DataType out_dtype;
+  DLDataType out_dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

@@ -387,7 +387,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
       const PrimExpr& right = analyzer->Simplify(f_transform_and_remap(reduce->source[i]));
       lhs.push_back(left);
       rhs.push_back(right);
-      TVM_FFI_ICHECK_EQ(left->dtype, right->dtype);
+      TVM_FFI_ICHECK_EQ(left.ty()->dtype, right.ty()->dtype);
     }
 
     ffi::Array<Var> temp_vars;
@@ -404,7 +404,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
       const Buffer& buffer = buffers[i];
       PrimExpr value{nullptr};
       if (n_buffers > 1) {
-        temp_vars.push_back(Var("v_" + buffer->name, PrimType(lhs[i].dtype())));
+        temp_vars.push_back(Var("v_" + buffer->name, lhs[i].ty()));
         value = temp_vars.back();
       } else {
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
@@ -493,8 +493,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     NestedScopeInfo cur_scope;
     for (size_t j = 0; j < axes.size(); ++j) {
       const IterVar& axis = axes[j];
-      DataType index_type =
-          DataType::Int(std::max(axis->dom->min.dtype().bits(), axis->dom->extent.dtype().bits()));
+      PrimType index_type =
+          PrimType::Int(std::max(axis->dom->min.ty().bits(), axis->dom->extent.ty().bits()));
       bool first_times_define =
           std::find(axes_levels[i].begin(), axes_levels[i].end(), axis) != axes_levels[i].end();
       if (first_times_define) {
@@ -524,7 +524,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     if (i == axes_levels.size() - 1 && cur_scope.block_iters.empty()) {
       // for the leaf scope, we ensure at least one block var exists
-      IterVar dummy(Range::FromMinExtent(0, 1), Var("vi", DataType::Int(32)),
+      IterVar dummy(Range::FromMinExtent(0, 1), Var("vi", PrimType::Int(32)),
                     IterVarType::kDataPar);
       cur_scope.AddBlockIter(std::nullopt, dummy, 0);
     }
@@ -740,8 +740,9 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   ffi::Map<Var, Buffer> buffer_map;
+  PrimType handle_ty = PrimType::Handle();
   for (const te::Tensor& tensor : arg_list) {
-    Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
+    Var arg("var_" + tensor->GetNameHint(), handle_ty);
     parameters.push_back(arg);
     auto it = info->tensor2buffers.find(tensor);
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
@@ -760,7 +761,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
 }
 
 PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
-                        std::optional<DataType> index_dtype_override) {
+                        std::optional<PrimType> index_dtype_override) {
   // Information used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
@@ -792,10 +793,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
     ffi::Array<ffi::ObjectRef> arg_list = args[0].cast<ffi::Array<ffi::ObjectRef>>();
-    std::optional<DataType> index_dtype_override{std::nullopt};
+    std::optional<PrimType> index_dtype_override{std::nullopt};
     // Add conversion to make std::optional compatible with FFI.
     if (args[1] != nullptr) {
-      index_dtype_override = args[1].cast<DataType>();
+      index_dtype_override = args[1].cast<PrimType>();
     }
     *ret = CreatePrimFunc(arg_list, index_dtype_override);
   });
@@ -806,10 +807,11 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   ffi::Map<Var, Buffer> buffer_map;
+  PrimType handle_ty = PrimType::Handle();
   for (const ffi::ObjectRef& arg : arg_tir_var_list) {
     if (auto opt_tensor = arg.as<te::Tensor>()) {
       te::Tensor tensor = opt_tensor.value();
-      Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
+      Var arg("var_" + tensor->GetNameHint(), handle_ty);
       parameters.push_back(arg);
       auto it = info->tensor2buffers.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2buffers.end());
@@ -831,7 +833,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
 }
 
 PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
-                        std::optional<DataType> index_dtype_override) {
+                        std::optional<PrimType> index_dtype_override) {
   ffi::Array<te::Tensor> tensor_arg_list;
   for (const ffi::ObjectRef& x : arg_list) {
     if (auto tensor_node = x.as<te::TensorNode>()) {

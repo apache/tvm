@@ -19,6 +19,7 @@
 from collections.abc import Callable
 
 from tvm.ir.expr import PrimExpr
+from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
 from ..expr import Expr, PrimValue, ShapeExpr
@@ -151,10 +152,12 @@ def layout_transform(
     if pad_value is None:
         pass
     elif not isinstance(pad_value, PrimValue):
-        if "int" in x_dtype and isinstance(pad_value, int):
-            pad_value = IntImm(x_dtype, pad_value)
-        elif "float" in x_dtype and (isinstance(pad_value, int | float)):
-            pad_value = FloatImm(x_dtype, float(pad_value))
+        if x_dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(pad_value, int):
+            pad_value = IntImm(x_dtype.dtype, pad_value)
+        elif x_dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT) and (
+            isinstance(pad_value, int | float)
+        ):
+            pad_value = FloatImm(x_dtype.dtype, float(pad_value))
         pad_value = PrimValue(pad_value)
 
     if axis_separators is None:

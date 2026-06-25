@@ -145,7 +145,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
 
         // those headers are guaranteed to be available
         #include <dlpack/dlpack.h>
-        #include <tvm/runtime/data_type.h>
+        #include <tvm/ffi/dtype.h>
         #include <tvm/ffi/function.h>
 
         namespace {

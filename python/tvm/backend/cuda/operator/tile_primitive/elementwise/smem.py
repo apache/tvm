@@ -100,10 +100,10 @@ def is_smem_ewise(spec):
 def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
     """Widest vec_chunk dividing all operands' innermost extents AND
     ``total / thread_cnt``, within dtype-bit candidates ``{128,64,32,16,8}``."""
-    max_bits = DataType(plan.dst.buffer.dtype).bits
+    max_bits = DataType(plan.dst.buffer.dtype.dtype).bits
     for s in plan.srcs:
         if s.buf_region is not None:
-            max_bits = max(max_bits, DataType(s.buf_region.buffer.dtype).bits)
+            max_bits = max(max_bits, DataType(s.buf_region.buffer.dtype.dtype).bits)
     per_thread = total // thread_cnt if thread_cnt > 0 else total
     if total % thread_cnt != 0:
         return 1

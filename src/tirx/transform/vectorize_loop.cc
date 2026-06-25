@@ -39,13 +39,20 @@
 #include <vector>
 
 #include "../../tirx/analysis/check_contains.h"
-#include "tvm/runtime/data_type.h"
+#include "tvm/ffi/dtype.h"
 #include "tvm/tirx/buffer.h"
 
 namespace tvm {
 namespace tirx {
 
 namespace {
+int GetLanesOrVScaleFactor(const PrimType& ty) {
+  if (ty.IsScalableVector()) {
+    return ty.VScaleFactor();
+  }
+  return ty.lanes();
+}
+
 // File-local helper: true if `expr` is a call to tirx::builtin::vscale().
 bool IsVScaleCall(const PrimExpr& expr) {
   if (const auto* call = expr.as<CallNode>()) {
@@ -56,9 +63,8 @@ bool IsVScaleCall(const PrimExpr& expr) {
 
 bool TargetHasRVV(Target target) {
   if (!target.defined()) return false;
-  static auto target_has_feature_fn =
-      tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
-  return target_has_feature_fn("v", target).cast<bool>();
+  static auto target_has_feature_fn = tvm::ffi::Function::GetGlobal("target.target_has_feature");
+  return target_has_feature_fn.has_value() && (*target_has_feature_fn)("v", target).cast<bool>();
 }
 
 // File-local helper: true if the target supports Variable-Length Array extensions
@@ -66,6 +72,16 @@ bool TargetHasRVV(Target target) {
 bool TargetHasVLA(Target target) {
   if (!target.defined()) return false;
   bool has_vla = target->GetAttr<bool>("feature.has_sve").value_or(false);
+  if (!has_vla) {
+    if (auto mattr = target->GetAttr<ffi::Array<ffi::String>>("mattr")) {
+      for (const ffi::String& attr : mattr.value()) {
+        if (attr == "+sve") {
+          has_vla = true;
+          break;
+        }
+      }
+    }
+  }
   has_vla |= TargetHasRVV(target);
   return has_vla;
 }
@@ -78,7 +94,7 @@ bool ContainsCallNode(const Stmt& stmt) {
 
 inline PrimExpr CreateNewLanes(bool is_scalable, int lanes_or_vscale_factor) {
   if (is_scalable) {
-    return Mul(Call(DataType::Int(32), builtin::vscale(), {}), lanes_or_vscale_factor);
+    return Mul(Call(PrimType::Int(32), builtin::vscale(), {}), lanes_or_vscale_factor);
   } else {
     return lanes_or_vscale_factor;
   }
@@ -86,23 +102,21 @@ inline PrimExpr CreateNewLanes(bool is_scalable, int lanes_or_vscale_factor) {
 
 inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
   // Check if e is already in the expected form
-  if (e.dtype().get_lanes_or_vscale_factor() == lanes &&
-      e.dtype().is_scalable_vector() == is_scalable)
-    return e;
+  if (GetLanesOrVScaleFactor(e.ty()) == lanes && e.ty().IsScalableVector() == is_scalable) return e;
 
   if (const BroadcastNode* op = e.as<BroadcastNode>()) {
-    TVM_FFI_ICHECK(op->dtype.is_scalable_vector() == is_scalable)
+    TVM_FFI_ICHECK(op->ty().IsScalableVector() == is_scalable)
         << "Can't broadcast between scalable and fixed length vectors.";
-    int e_lanes = op->dtype.get_lanes_or_vscale_factor();
+    int e_lanes = GetLanesOrVScaleFactor(op->ty());
 
     if (lanes % e_lanes == 0) {
       return Broadcast(op->value, CreateNewLanes(is_scalable, lanes));
     }
   }
 
-  TVM_FFI_ICHECK(e.dtype().is_scalar())
-      << "Cannot broadcast lanes=" << e.dtype().get_lanes_or_vscale_factor()
-      << " is_scalable=" << e.dtype().is_scalable_vector() << " to " << lanes;
+  TVM_FFI_ICHECK(e.ty().IsScalar())
+      << "Cannot broadcast lanes=" << GetLanesOrVScaleFactor(e.ty())
+      << " is_scalable=" << e.ty().IsScalableVector() << " to " << lanes;
 
   return Broadcast(e, CreateNewLanes(is_scalable, lanes));
 }
@@ -219,9 +233,10 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
       }
     }
 
-    DataType buf_predicate_dtype =
-        DataType(DataType::kUInt, 1, ramp->dtype.get_lanes_or_vscale_factor(),
-                 ramp->dtype.is_scalable_vector());
+    PrimType buf_predicate_dtype =
+        ramp->ty().IsScalableVector() ? PrimType::ScalableVector(DLDataTypeCode::kDLUInt, 1,
+                                                                 GetLanesOrVScaleFactor(ramp->ty()))
+                                      : PrimType::UInt(1, GetLanesOrVScaleFactor(ramp->ty()));
     Call lane_mask = Call(buf_predicate_dtype, builtin::get_active_lane_mask(), {base_, limit_});
 
     num_accesses_rewritten_ += 1;
@@ -354,7 +369,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
   Vectorizer(Var var, PrimExpr var_lanes, Target target)
       : var_(var), var_lanes_(var_lanes), target_(target) {
-    ramp_ = Ramp(IntImm(var->dtype, 0), IntImm(var->dtype, 1), var_lanes);
+    ramp_ = Ramp(IntImm(var.ty(), 0), IntImm(var.ty(), 1), var_lanes);
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {
@@ -384,28 +399,28 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (a.same_as(op->a) && b.same_as(op->b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      bool is_vec_a = a.dtype().is_scalable_or_fixed_length_vector();
-      bool is_vec_b = b.dtype().is_scalable_or_fixed_length_vector();
+      bool is_vec_a = a.ty().IsScalableVector() || a.ty().IsFixedLengthVector();
+      bool is_vec_b = b.ty().IsScalableVector() || b.ty().IsFixedLengthVector();
       if (is_vec_a && is_vec_b) {
         // Let's not multiply scalable and fixed length vectors
-        TVM_FFI_ICHECK(a.dtype().is_scalable_vector() == b.dtype().is_scalable_vector())
+        TVM_FFI_ICHECK(a.ty().IsScalableVector() == b.ty().IsScalableVector())
             << "Fixed length and scalable vectors can't be mixed in multiplication.";
       }
       if (is_vec_a || is_vec_b) {
         const RampNode* b_ramp = b.as<RampNode>();
         const RampNode* a_ramp = a.as<RampNode>();
-        if (a_ramp && b.dtype().is_scalar() && analyzer_->CanProve(b > 0)) {
+        if (a_ramp && b.ty().IsScalar() && analyzer_->CanProve(b > 0)) {
           PrimExpr lanes = a_ramp->lanes;
           return Ramp(a_ramp->base * b, a_ramp->stride * b, lanes);
         }
-        if (b_ramp && a.dtype().is_scalar() && analyzer_->CanProve(a > 0)) {
+        if (b_ramp && a.ty().IsScalar() && analyzer_->CanProve(a > 0)) {
           PrimExpr lanes = b_ramp->lanes;
           return Ramp(b_ramp->base * a, b_ramp->stride * a, lanes);
         }
-        int a_lanes = a.dtype().get_lanes_or_vscale_factor();
-        int b_lanes = b.dtype().get_lanes_or_vscale_factor();
+        int a_lanes = GetLanesOrVScaleFactor(a.ty());
+        int b_lanes = GetLanesOrVScaleFactor(b.ty());
         int max_lanes = std::max(a_lanes, b_lanes);
-        bool is_scalable = a.dtype().is_scalable_vector() || b.dtype().is_scalable_vector();
+        bool is_scalable = a.ty().IsScalableVector() || b.ty().IsScalableVector();
         return Mul(BroadcastTo(a, max_lanes, is_scalable), BroadcastTo(b, max_lanes, is_scalable));
       }
     }
@@ -438,22 +453,22 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   PrimExpr VisitExpr_(const RampNode* op) final {
     PrimExpr base = this->VisitExpr(op->base);
     PrimExpr stride = this->VisitExpr(op->stride);
-    TVM_FFI_ICHECK(!base.dtype().is_scalable_vector())
+    TVM_FFI_ICHECK(!base.ty().IsScalableVector())
         << "Creating scalable vectors from existing vectors is not supported.";
-    TVM_FFI_ICHECK(!stride.dtype().is_scalable_vector())
+    TVM_FFI_ICHECK(!stride.ty().IsScalableVector())
         << "Ramp stride with scalable dtype is not supported";
-    if (base.dtype().is_fixed_length_vector() && stride.dtype().is_scalar()) {
+    if (base.ty().IsFixedLengthVector() && stride.ty().IsScalar()) {
       TVM_FFI_ICHECK(op->lanes->IsInstance<IntImmNode>())
           << "Vectorizing over existing scalable vectors is not supported.";
       const RampNode* base_ramp = base.as<RampNode>();
       int op_lanes = static_cast<int>(op->lanes.as_or_throw<IntImm>()->value);
       int base_ramp_lanes = static_cast<int>(base_ramp->lanes.as_or_throw<IntImm>()->value);
       if (analyzer_->CanProve(base_ramp->stride ==
-                              stride * MakeConst(stride.dtype(), base_ramp_lanes))) {
+                              stride * MakeConst(stride.ty(), base_ramp_lanes))) {
         return Ramp(base_ramp->base, stride, op_lanes * base_ramp_lanes);
       }
     }
-    int lanes = std::max(base.dtype().lanes(), stride.dtype().lanes());
+    int lanes = std::max(base.ty().lanes(), stride.ty().lanes());
     base = BroadcastTo(base, lanes, false);
     stride = BroadcastTo(stride, lanes, false);
     ffi::Array<PrimExpr> elems;
@@ -466,7 +481,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
   PrimExpr VisitExpr_(const BroadcastNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
-    if (value.dtype().is_scalable_or_fixed_length_vector()) {
+    if (value.ty().IsScalableVector() || value.ty().IsFixedLengthVector()) {
       need_scalarize_ = true;
       return ffi::GetRef<PrimExpr>(op);
     }
@@ -484,12 +499,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (cond.same_as(op->condition) && t.same_as(op->true_value) && f.same_as(op->false_value)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      int cond_lanes = cond.dtype().get_lanes_or_vscale_factor();
-      int t_lanes = t.dtype().get_lanes_or_vscale_factor();
-      int f_lanes = f.dtype().get_lanes_or_vscale_factor();
+      int cond_lanes = GetLanesOrVScaleFactor(cond.ty());
+      int t_lanes = GetLanesOrVScaleFactor(t.ty());
+      int f_lanes = GetLanesOrVScaleFactor(f.ty());
       int lanes = std::max(std::max(cond_lanes, t_lanes), f_lanes);
-      bool is_scalable = cond.dtype().is_scalable_vector() || t.dtype().is_scalable_vector() ||
-                         f.dtype().is_scalable_vector();
+      bool is_scalable =
+          cond.ty().IsScalableVector() || t.ty().IsScalableVector() || f.ty().IsScalableVector();
       return Select(BroadcastTo(cond, lanes, is_scalable), BroadcastTo(t, lanes, is_scalable),
                     BroadcastTo(f, lanes, is_scalable));
     }
@@ -500,10 +515,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (value.same_as(op->value)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      if (value.dtype().is_scalable_vector()) {
-        return Cast(op->dtype.with_scalable_vscale_factor(value.dtype().vscale_factor()), value);
+      if (value.ty().IsScalableVector()) {
+        return Cast(
+            PrimType::ScalableVector(op->ty().code(), op->ty().bits(), value.ty().VScaleFactor()),
+            value);
       } else {
-        return Cast(op->dtype.with_lanes(value.dtype().lanes()), value);
+        return Cast(op->ty().WithLanes(value.ty().lanes()), value);
       }
     }
   }
@@ -531,7 +548,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // IfThenElse expr
   PrimExpr MutateIfThenElseExpr_(const CallNode* op) {
     PrimExpr cond = this->VisitExpr(op->args[0]);
-    if (cond.dtype().is_scalable_or_fixed_length_vector()) {
+    if (cond.ty().IsScalableVector() || cond.ty().IsFixedLengthVector()) {
       need_scalarize_ = true;
       return ffi::GetRef<PrimExpr>(op);
     }
@@ -540,17 +557,17 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (cond.same_as(op->args[0]) && t.same_as(op->args[1]) && f.same_as(op->args[2])) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      int t_lanes = t.dtype().get_lanes_or_vscale_factor();
-      int f_lanes = f.dtype().get_lanes_or_vscale_factor();
+      int t_lanes = GetLanesOrVScaleFactor(t.ty());
+      int f_lanes = GetLanesOrVScaleFactor(f.ty());
       int lanes = std::max(t_lanes, f_lanes);
-      bool is_scalable = t.dtype().is_scalable_vector() || f.dtype().is_scalable_vector();
+      bool is_scalable = t.ty().IsScalableVector() || f.ty().IsScalableVector();
       t = BroadcastTo(t, lanes, is_scalable);
       f = BroadcastTo(f, lanes, is_scalable);
       if (is_scalable) {
-        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {cond, t, f}, op->attrs,
-                    op->span);
+        return Call(PrimType::ScalableVector(op->ty().code(), op->ty().bits(), lanes), op->op,
+                    {cond, t, f}, op->attrs, op->span);
       } else {
-        return Call(op->dtype.with_lanes(lanes), op->op, {cond, t, f}, op->attrs, op->span);
+        return Call(op->ty().WithLanes(lanes), op->op, {cond, t, f}, op->attrs, op->span);
       }
     }
   }
@@ -561,16 +578,16 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (value.same_as(op->args[0])) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      int lanes = value.dtype().get_lanes_or_vscale_factor();
-      if (value.dtype().is_scalable_vector()) {
-        return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {value}, op->attrs,
-                    op->span);
+      int lanes = GetLanesOrVScaleFactor(value.ty());
+      if (value.ty().IsScalableVector()) {
+        return Call(PrimType::ScalableVector(op->ty().code(), op->ty().bits(), lanes), op->op,
+                    {value}, op->attrs, op->span);
       } else {
-        int new_lanes = (op->dtype != DataType::Float4E2M1FN() &&
-                         op->args[0].dtype() != DataType::Float4E2M1FN())
-                            ? (value.dtype().bits() * value.dtype().lanes()) / op->dtype.bits()
-                            : value.dtype().lanes();
-        return Call(op->dtype.with_lanes(new_lanes), op->op, {value}, op->attrs, op->span);
+        int new_lanes = (op->ty().code() != DLDataTypeCode::kDLFloat4_e2m1fn &&
+                         op->args[0].ty().code() != DLDataTypeCode::kDLFloat4_e2m1fn)
+                            ? (value.ty().bits() * value.ty().lanes()) / op->ty().bits()
+                            : value.ty().lanes();
+        return Call(op->ty().WithLanes(new_lanes), op->op, {value}, op->attrs, op->span);
       }
     }
   }
@@ -581,46 +598,46 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     } else if (op->op.same_as(builtin::texture2d_load())) {
       int lane = 0;
       ffi::Array<PrimExpr> fcd = MutateArray({op->args.back()}, &lane);
-      auto dtype = op->args[0]
-                       .as<VarNode>()
-                       ->type_annotation.as<PointerTypeNode>()
-                       ->element_type.as<PrimTypeNode>()
-                       ->dtype;
-      TVM_FFI_ICHECK(lane * dtype.bits() <= op->args[4].as<IntImmNode>()->value)
+      DLDataType dtype = op->args[0]
+                             .as<VarNode>()
+                             ->type_annotation.as<PointerTypeNode>()
+                             ->element_type.as<PrimTypeNode>()
+                             ->dtype;
+      TVM_FFI_ICHECK(lane * dtype.bits <= op->args[4].as<IntImmNode>()->value)
           << "Expected Data to be Read is lesser than or equal to Texture Load length";
 
       auto new_args = op->args;
       new_args.pop_back();
       new_args.push_back(fcd[0]);
-      return Call(op->dtype.with_lanes(lane), op->op, new_args, op->attrs, op->span);
+      return Call(op->ty().WithLanes(lane), op->op, new_args, op->attrs, op->span);
     } else if (op->op.same_as(builtin::texture2d_store())) {
       int lane = 0;
       // Vectorize the value to store
       ffi::Array<PrimExpr> value{op->args.back()};
       ffi::Array<PrimExpr> mutated_value = MutateArray(value, &lane);
-      auto dtype = op->args[0]
-                       .as<VarNode>()
-                       ->type_annotation.as<PointerTypeNode>()
-                       ->element_type.as<PrimTypeNode>()
-                       ->dtype;
-      TVM_FFI_ICHECK(lane * dtype.bits() == op->args[4].as<IntImmNode>()->value)
+      DLDataType dtype = op->args[0]
+                             .as<VarNode>()
+                             ->type_annotation.as<PointerTypeNode>()
+                             ->element_type.as<PrimTypeNode>()
+                             ->dtype;
+      TVM_FFI_ICHECK(lane * dtype.bits == op->args[4].as<IntImmNode>()->value)
           << "Expected Data to be Written equal to Texture Store length";
       ffi::Array<PrimExpr> new_args{op->args[0], op->args[1], op->args[2],
                                     op->args[3], op->args[4], mutated_value[0]};
-      return Call(op->dtype.with_lanes(lane), op->op, new_args, op->attrs, op->span);
+      return Call(op->ty().WithLanes(lane), op->op, new_args, op->attrs, op->span);
     } else if (op->op.same_as(builtin::reinterpret())) {
       return MutateReinterpretExpr_(op);
     }
     auto optional_op = op->op.as<Op>();
     bool vectorizable = optional_op && op_vectorizable_.get(optional_op.value(), false) &&
-                        !op->dtype.is_scalable_vector();
+                        !op->ty().IsScalableVector();
 
     if (!vectorizable) {
       // Cannot vectorize this op
       ffi::Array<PrimExpr> new_args;
       for (auto arg : op->args) {
         auto new_arg = this->VisitExpr(arg);
-        if (new_arg.dtype().is_scalable_or_fixed_length_vector()) {
+        if (new_arg.ty().IsScalableVector() || new_arg.ty().IsFixedLengthVector()) {
           need_scalarize_ = true;
           return ffi::GetRef<PrimExpr>(op);
         }
@@ -629,7 +646,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (op->args.same_as(new_args)) {
         return ffi::GetRef<PrimExpr>(op);
       } else {
-        return Call(op->dtype, op->op, new_args, op->attrs, op->span);
+        return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op, new_args, op->attrs, op->span);
       }
     } else {
       int lane = 0;
@@ -655,7 +672,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (op->args.same_as(new_args)) {
         return ffi::GetRef<PrimExpr>(op);
       } else {
-        return Call(op->dtype.with_lanes(lane), op->op, new_args, op->attrs, op->span);
+        return Call(op->ty().WithLanes(lane), op->op, new_args, op->attrs, op->span);
       }
     }
   }
@@ -688,9 +705,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       TVM_FFI_ICHECK(deep_equal_(it->second, value))
           << "Let cannot bind the same var to two different values";
     }
-    if (value.dtype().get_lanes_or_vscale_factor() !=
-        op->value.dtype().get_lanes_or_vscale_factor()) {
-      Var new_var(op->var->name_hint, value.dtype());
+    if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(op->value.ty())) {
+      Var new_var(op->var->name_hint, value.ty());
       let_binding_[op->var] = new_var;
       return Let(new_var, value, this->VisitExpr(op->body));
     } else {
@@ -715,7 +731,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       return ffi::GetRef<PrimExpr>(op);
     }
 
-    int new_vec_length = var_lanes_.as_or_throw<IntImm>()->value / op->vectors[0].dtype().lanes();
+    int new_vec_length = var_lanes_.as_or_throw<IntImm>()->value / op->vectors[0].ty().lanes();
     PrimExpr updated_index = indices[0];
     // Check that the indices satisfy the specific patterns.
     auto f_check_index = [this, op](const PrimExpr& index) {
@@ -741,7 +757,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
                 ramp->lanes.as_or_throw<IntImm>()->value ==
                     var_lanes_.as_or_throw<IntImm>()->value &&
                 broadcast->value->IsInstance<IntImmNode>() &&
-                broadcast->value.as_or_throw<IntImm>()->value == op->vectors[0]->dtype.lanes() &&
+                broadcast->value.as_or_throw<IntImm>()->value == op->vectors[0].ty().lanes() &&
                 broadcast->lanes->IsInstance<IntImmNode>() &&
                 broadcast->lanes.as_or_throw<IntImm>()->value ==
                     var_lanes_.as_or_throw<IntImm>()->value) {
@@ -756,12 +772,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     TVM_FFI_ICHECK(f_check_index(updated_index));
 
     if (new_vec_length == 1) {
-      return tirx::Substitute(op->vectors[0], {{var_, tvm::IntImm(var_->dtype, 0)}});
+      return tirx::Substitute(op->vectors[0], {{var_, tvm::IntImm(var_.ty(), 0)}});
     } else {
       PrimExpr prev_ramp = ramp_;
       PrimExpr prev_var_lanes = var_lanes_;
-      ramp_ = Ramp(IntImm(var_->dtype, 0), IntImm(var_->dtype, 2), new_vec_length);
-      var_lanes_ = tvm::IntImm(var_lanes_.dtype(), new_vec_length);
+      ramp_ = Ramp(IntImm(var_.ty(), 0), IntImm(var_.ty(), 2), new_vec_length);
+      var_lanes_ = tvm::IntImm(var_lanes_.ty(), new_vec_length);
       lane_vectors = 0;
       vectors = MutateArray(op->vectors, &lane_vectors);
       ramp_ = prev_ramp;
@@ -779,28 +795,28 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr value = this->VisitExpr(op->value);
 
     if (!indices.same_as(op->indices) || !value.same_as(op->value)) {
-      TVM_FFI_ICHECK(!op->buffer->dtype.is_scalable_vector())
+      TVM_FFI_ICHECK(!op->buffer->dtype.IsScalableVector())
           << "Vectorizing over scalable buffer elements is not supported in vectorizer.";
       // How many lanes of indexing are present in the index and
       // buffer element type, excluding the last index.
       int other_index_lanes = op->buffer->dtype.lanes();
       for (size_t i = 0; i < indices.size() - 1; i++) {
-        other_index_lanes *= indices[i].dtype().lanes();
+        other_index_lanes *= indices[i].ty().lanes();
         // Only allow the last index to be scalable
-        TVM_FFI_ICHECK(!indices[i].dtype().is_scalable_vector())
+        TVM_FFI_ICHECK(!indices[i].ty().IsScalableVector())
             << "Only the last index can be scalable.";
       }
 
       // The total number of lanes of indexing, including the last index.
-      auto last_index_dtype = indices[indices.size() - 1].dtype();
-      int lanes_in_last_index = last_index_dtype.get_lanes_or_vscale_factor();
+      PrimType last_index_dtype = indices[indices.size() - 1].ty();
+      int lanes_in_last_index = GetLanesOrVScaleFactor(last_index_dtype);
       int index_lanes = other_index_lanes * lanes_in_last_index;
 
       // The total number of lanes in this store operation.  Either
       // the index or the value will be broadcast out to this number
       // of lanes, depending on which has more lanes.
-      int value_dtype_lanes = value.dtype().get_lanes_or_vscale_factor();
-      bool is_last_index_scalable = last_index_dtype.is_scalable_vector();
+      int value_dtype_lanes = GetLanesOrVScaleFactor(value.ty());
+      bool is_last_index_scalable = last_index_dtype.IsScalableVector();
       int total_lanes = std::max(index_lanes, value_dtype_lanes);
 
       TVM_FFI_ICHECK_EQ(total_lanes % other_index_lanes, 0)
@@ -826,9 +842,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
     TVM_FFI_ICHECK(is_zero(op->min));
-    TVM_FFI_ICHECK(!op->extent.dtype().is_scalable_or_fixed_length_vector());
+    TVM_FFI_ICHECK(!op->extent.ty().IsScalableVector() && !op->extent.ty().IsFixedLengthVector());
     PrimExpr extent = this->VisitExpr(op->extent);
-    if (extent.dtype().is_scalable_or_fixed_length_vector()) {
+    if (extent.ty().IsScalableVector() || extent.ty().IsFixedLengthVector()) {
       return Scalarize(ffi::GetRef<Stmt>(op));
     }
     Stmt body = this->VisitStmt(op->body);
@@ -843,7 +859,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // IfThenElse
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    TVM_FFI_ICHECK(!op->condition.dtype().is_scalable_or_fixed_length_vector());
+    TVM_FFI_ICHECK(!op->condition.ty().IsScalableVector() &&
+                   !op->condition.ty().IsFixedLengthVector());
     PrimExpr condition = this->VisitExpr(op->condition);
     // need scalarize can be marked as true during visit of condition
     bool cond_need_scalarize = false;
@@ -857,7 +874,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     }
     // Check if we can rewrite the condition with predicated buffers
     if (EnableBufferLevelPredication(target_) &&
-        condition.dtype().is_scalable_or_fixed_length_vector() && !else_case.defined()) {
+        (condition.ty().IsScalableVector() || condition.ty().IsFixedLengthVector()) &&
+        !else_case.defined()) {
       std::pair<bool, Stmt> success_stmt_pair =
           TryPredicateBufferAccesses(TargetHasRVV(target_)).Run(then_case, condition);
       bool can_remove_if_then_else = success_stmt_pair.first;
@@ -866,7 +884,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     }
 
-    if (cond_need_scalarize || condition.dtype().is_scalable_or_fixed_length_vector()) {
+    if (cond_need_scalarize || condition.ty().IsScalableVector() ||
+        condition.ty().IsFixedLengthVector()) {
       return Scalarize(ffi::GetRef<Stmt>(op));
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
@@ -893,9 +912,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     TVM_FFI_ICHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
     let_binding_[op->var] = value;
 
-    if (value.dtype().get_lanes_or_vscale_factor() !=
-        op->value.dtype().get_lanes_or_vscale_factor()) {
-      Var new_var(op->var->name_hint, value.dtype());
+    if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(op->value.ty())) {
+      Var new_var(op->var->name_hint, value.ty());
       let_binding_[op->var] = new_var;
       return Bind(new_var, value);
     } else {
@@ -912,9 +930,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
-    Var idx(var_->name_hint + ".s", var_->dtype);
+    Var idx(var_->name_hint + ".s", var_.ty());
     stmt = Substitute(stmt, {{var_, idx}});
-    return For(idx, IntImm(var_->dtype, 0), var_lanes_, ForKind::kSerial, stmt);
+    return For(idx, IntImm(var_.ty(), 0), var_lanes_, ForKind::kSerial, stmt);
   }
 
  private:
@@ -949,11 +967,11 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       PrimExpr new_elem = this->VisitExpr(old_elem);
       if (!new_elem.same_as(old_elem)) changed = true;
       new_arr[i] = new_elem;
-      lanes = std::max(lanes, new_elem.dtype().lanes());
+      lanes = std::max(lanes, new_elem.ty().lanes());
     }
 
     for (size_t i = 0; i < arr.size(); ++i) {
-      if (new_arr[i].dtype().lanes() != lanes) {
+      if (new_arr[i].ty().lanes() != lanes) {
         new_arr[i] = BroadcastTo(new_arr[i], lanes, false);
         changed = true;
       }
@@ -969,10 +987,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (a.same_as(op->a) && b.same_as(op->b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      int a_lanes = a.dtype().get_lanes_or_vscale_factor();
-      int b_lanes = b.dtype().get_lanes_or_vscale_factor();
+      int a_lanes = GetLanesOrVScaleFactor(a.ty());
+      int b_lanes = GetLanesOrVScaleFactor(b.ty());
       int lanes = std::max(a_lanes, b_lanes);
-      bool is_scalable = a.dtype().is_scalable_vector() || b.dtype().is_scalable_vector();
+      bool is_scalable = a.ty().IsScalableVector() || b.ty().IsScalableVector();
       return TOp(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable));
     }
   }
@@ -983,21 +1001,21 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (a.same_as(op->a) && b.same_as(op->b)) {
       return ffi::GetRef<PrimExpr>(op);
     } else {
-      int a_lanes = a.dtype().get_lanes_or_vscale_factor();
-      int b_lanes = b.dtype().get_lanes_or_vscale_factor();
+      int a_lanes = GetLanesOrVScaleFactor(a.ty());
+      int b_lanes = GetLanesOrVScaleFactor(b.ty());
       int lanes = std::max(a_lanes, b_lanes);
       if (lanes != 1) {
         const RampNode* b_ramp = b.as<RampNode>();
         const RampNode* a_ramp = a.as<RampNode>();
-        if (a.dtype().is_scalar() && b_ramp) {
+        if (a.ty().IsScalar() && b_ramp) {
           return Ramp(fcompute(a, b_ramp->base),
-                      fcompute(IntImm(b_ramp->stride.dtype(), 0), b_ramp->stride), b_ramp->lanes);
+                      fcompute(IntImm(b_ramp->stride.ty(), 0), b_ramp->stride), b_ramp->lanes);
         }
-        if (b.dtype().is_scalar() && a_ramp) {
+        if (b.ty().IsScalar() && a_ramp) {
           return Ramp(fcompute(a_ramp->base, b), a_ramp->stride, a_ramp->lanes);
         }
       }
-      bool is_scalable = a.dtype().is_scalable_vector() || b.dtype().is_scalable_vector();
+      bool is_scalable = a.ty().IsScalableVector() || b.ty().IsScalableVector();
       return fcompute(BroadcastTo(a, lanes, is_scalable), BroadcastTo(b, lanes, is_scalable));
     }
   }
@@ -1050,13 +1068,13 @@ class LoopVectorizer : public StmtMutator {
     // Match the existing TIRx scalable-vector convention.  LLVM/RVV still
     // selects the runtime vector length with vsetvli.
     static constexpr int kDefaultVScaleFactor = 4;
-    DataType index_dtype = op->loop_var->dtype;
+    PrimType index_dtype = op->loop_var.ty();
     PrimExpr zero = IntImm(index_dtype, 0);
     PrimExpr fixed_extent = IntImm(index_dtype, extent);
     PrimExpr scalable_lanes = CreateNewLanes(/*is_scalable=*/true, kDefaultVScaleFactor);
-    DataType lane_dtype = scalable_lanes.dtype();
+    PrimType lane_dtype = scalable_lanes.ty();
     PrimExpr scalable_lanes_index = scalable_lanes;
-    if (scalable_lanes_index.dtype() != index_dtype) {
+    if (scalable_lanes_index.ty() != index_dtype) {
       scalable_lanes_index = Cast(index_dtype, scalable_lanes_index);
     }
     PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
@@ -1064,7 +1082,7 @@ class LoopVectorizer : public StmtMutator {
     Var outer(op->loop_var->name_hint + ".vla.o", index_dtype);
     Var inner(op->loop_var->name_hint + ".vla.i", lane_dtype);
     PrimExpr inner_index = inner;
-    if (inner_index.dtype() != index_dtype) {
+    if (inner_index.ty() != index_dtype) {
       inner_index = Cast(index_dtype, inner_index);
     }
     PrimExpr index = outer * scalable_lanes_index + inner_index;

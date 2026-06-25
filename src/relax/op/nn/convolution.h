@@ -39,7 +39,7 @@ template <typename T>
 inline Expr MakeConv(Expr data, Expr weight, ffi::Array<int64_t> strides,
                      ffi::Array<int64_t> padding, ffi::Array<int64_t> dilation, int groups,
                      ffi::String data_layout, ffi::String kernel_layout, ffi::String out_layout,
-                     DataType out_dtype, std::string op_name) {
+                     DLDataType out_dtype, std::string op_name) {
   auto attrs = ffi::make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -48,7 +48,7 @@ inline Expr MakeConv(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->data_layout = std::move(data_layout);
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
+  attrs->out_dtype = out_dtype;
   const Op& op = Op::Get(op_name);
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
@@ -57,19 +57,19 @@ inline Expr MakeConv(Expr data, Expr weight, ffi::Array<int64_t> strides,
 Expr conv1d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
             ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
-            ffi::Optional<DataType> out_dtype);
+            ffi::Optional<DLDataType> out_dtype);
 
 /*! \brief 2D convolution */
 Expr conv2d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
             ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
-            ffi::Optional<DataType> out_dtype);
+            ffi::Optional<DLDataType> out_dtype);
 
 /*! \brief 3D convolution */
 Expr conv3d(Expr data, Expr weight, ffi::Array<int64_t> strides, ffi::Array<int64_t> padding,
             ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
             ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
-            ffi::Optional<DataType> out_dtype);
+            ffi::Optional<DLDataType> out_dtype);
 
 /*!
  * \brief One dimensional transposed convolution operator.
@@ -81,7 +81,7 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
                       ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
                       ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
-                      ffi::Optional<DataType> out_dtype);
+                      ffi::Optional<DLDataType> out_dtype);
 
 /*!
  * \brief Two dimensional transposed convolution operator.
@@ -93,7 +93,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
                       ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
                       ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
-                      ffi::Optional<DataType> out_dtype);
+                      ffi::Optional<DLDataType> out_dtype);
 
 /*!
  * \brief Three dimensional transposed convolution operator.
@@ -105,7 +105,7 @@ Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
                       ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
                       ffi::Array<int64_t> dilation, int groups, ffi::String data_layout,
                       ffi::String kernel_layout, ffi::Optional<ffi::String> out_layout,
-                      ffi::Optional<DataType> out_dtype);
+                      ffi::Optional<DLDataType> out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

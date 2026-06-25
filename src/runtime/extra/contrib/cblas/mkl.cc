@@ -21,10 +21,10 @@
  * \file Use external mkl library call.
  */
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 
 extern "C" {
 #include <mkl_cblas.h>
@@ -35,7 +35,6 @@ extern "C" {
 namespace tvm {
 namespace contrib {
 
-using namespace runtime;
 inline CBLAS_TRANSPOSE MKLBooleanToTranspose(bool trans) {
   return trans ? CblasTrans : CblasNoTrans;
 }
@@ -160,9 +159,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("tvm.contrib.mkl.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
     auto A = args[0].cast<DLTensor*>();
-    TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+    TVM_FFI_ICHECK(
+        (A->dtype == DLDataType{kDLFloat, 32, 1} || A->dtype == DLDataType{kDLFloat, 64, 1}));
 
-    if (TypeMatch(A->dtype, kDLFloat, 32))
+    if (A->dtype == DLDataType{kDLFloat, 32, 1})
       CallGemm(args, ret, MKLSgemmOp());
     else
       CallGemm(args, ret, MKLDgemmOp());
@@ -178,33 +178,34 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     auto A = args[0].cast<DLTensor*>();
                     auto B = args[1].cast<DLTensor*>();
                     auto C = args[2].cast<DLTensor*>();
-                    TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLUInt, 8) &&
-                                   TypeMatch(B->dtype, kDLInt, 8) &&
-                                   TypeMatch(C->dtype, kDLInt, 32));
+                    TVM_FFI_ICHECK((A->dtype == DLDataType{kDLUInt, 8, 1} &&
+                                    B->dtype == DLDataType{kDLInt, 8, 1} &&
+                                    C->dtype == DLDataType{kDLInt, 32, 1}));
 
                     CallU8S8S32Gemm(args, ret, MKLGemmU8S8S32Op());
                   })
-      .def_packed(
-          "tvm.contrib.mkl.batch_matmul",
-          [](ffi::PackedArgs args, ffi::Any* ret) {
-            auto A = args[0].cast<DLTensor*>();
-            TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
-            if (TypeMatch(A->dtype, kDLFloat, 32)) {
-              CallBatchGemm(args, ret, MKLSgemmBatchOp());
-            } else {
-              CallBatchGemm(args, ret, MKLDgemmBatchOp());
-            }
-          })
-      .def_packed(
-          "tvm.contrib.mkl.batch_matmul_iterative", [](ffi::PackedArgs args, ffi::Any* ret) {
-            auto A = args[0].cast<DLTensor*>();
-            TVM_FFI_ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
-            if (TypeMatch(A->dtype, kDLFloat, 32)) {
-              CallBatchGemm(args, ret, MKLSgemmBatchIterativeOp());
-            } else {
-              CallBatchGemm(args, ret, MKLDgemmBatchIterativeOp());
-            }
-          });
+      .def_packed("tvm.contrib.mkl.batch_matmul",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    auto A = args[0].cast<DLTensor*>();
+                    TVM_FFI_ICHECK((A->dtype == DLDataType{kDLFloat, 32, 1} ||
+                                    A->dtype == DLDataType{kDLFloat, 64, 1}));
+                    if (A->dtype == DLDataType{kDLFloat, 32, 1}) {
+                      CallBatchGemm(args, ret, MKLSgemmBatchOp());
+                    } else {
+                      CallBatchGemm(args, ret, MKLDgemmBatchOp());
+                    }
+                  })
+      .def_packed("tvm.contrib.mkl.batch_matmul_iterative",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    auto A = args[0].cast<DLTensor*>();
+                    TVM_FFI_ICHECK((A->dtype == DLDataType{kDLFloat, 32, 1} ||
+                                    A->dtype == DLDataType{kDLFloat, 64, 1}));
+                    if (A->dtype == DLDataType{kDLFloat, 32, 1}) {
+                      CallBatchGemm(args, ret, MKLSgemmBatchIterativeOp());
+                    } else {
+                      CallBatchGemm(args, ret, MKLDgemmBatchIterativeOp());
+                    }
+                  });
 }
 }  // namespace contrib
 }  // namespace tvm

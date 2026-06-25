@@ -97,7 +97,7 @@ def cuda_warp_reduce(value, op, width=32):
     call : PrimExpr
         The reduced value (same dtype as *value*).
     """
-    return call_intrin(value.dtype, "tirx.cuda.warp_reduce", value, op, width)
+    return call_intrin(value.ty, "tirx.cuda.warp_reduce", value, op, width)
 
 
 def cuda_warp_sum(value, width=32):
@@ -141,7 +141,7 @@ def cuda_cta_reduce(value, op, num_warps, scratch):
     call : PrimExpr
         The reduced value broadcast to all threads (same dtype as *value*).
     """
-    return call_intrin(value.dtype, "tirx.cuda.cta_reduce", value, op, num_warps, scratch)
+    return call_intrin(value.ty, "tirx.cuda.cta_reduce", value, op, num_warps, scratch)
 
 
 def cuda_cta_sum(value, num_warps, scratch):
@@ -3100,7 +3100,7 @@ def cuda_atomic_add(res_addr, value):
         The call expression.
     """
     value = tir.convert(value)
-    return call_intrin(value.dtype, "tirx.cuda.atomic_add", res_addr, value)
+    return call_intrin(value.ty, "tirx.cuda.atomic_add", res_addr, value)
 
 
 def cuda_thread_fence():
@@ -3964,7 +3964,7 @@ def cuda_atomic_cas(ptr, old_val, new_val):
         The call expression.
     """
     old_val = tir.convert(old_val)
-    return call_intrin(old_val.dtype, "tirx.cuda.atomic_cas", ptr, old_val, new_val)
+    return call_intrin(old_val.ty, "tirx.cuda.atomic_cas", ptr, old_val, new_val)
 
 
 ########################################################

@@ -59,9 +59,7 @@ inline std::vector<int64_t> GetIntShape(const ffi::Array<PrimExpr>& shape) {
  * \param typ
  * \return std::string string format of type
  */
-inline std::string DType2String(const tvm::DataType dtype) {
-  return tvm::ffi::DLDataTypeToString(dtype);
-}
+inline std::string DType2String(DLDataType dtype) { return tvm::ffi::DLDataTypeToString(dtype); }
 
 /*!
  * \brief Check if a call node is calling an op with the given name

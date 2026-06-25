@@ -25,7 +25,7 @@ namespace distributed {
 
 Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
   return InferDistTypeUnary<false>(call, ctx,
-                                   [](const TensorType& input_ty) { return DataType::Bool(); });
+                                   [](const TensorType& input_ty) { return PrimType::Bool(); });
 }
 
 RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(abs, /*require_float_dtype=*/false);

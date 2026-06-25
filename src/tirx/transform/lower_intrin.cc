@@ -117,8 +117,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     op = ret.as<FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
-    const DataType& dtype = op->dtype;
-    TVM_FFI_ICHECK(dtype.is_int() || dtype.is_uint());
+    PrimType dtype = op->ty();
+    TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to right shift if possible.
@@ -145,7 +145,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // condition on b >= 0.
       // truncmod(a, b) < 0 will implies ceildiv,
       // So we need to correct these cases.
-      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+      if ((dtype == PrimType::Int(32) || dtype == PrimType::Int(64)) && support_bitwise_op_) {
         // equivalent to rdiv + (rmod >= 0 ? 0: -1);
         return rdiv + (rmod >> MakeConst(dtype, dtype.bits() - 1));
       } else {
@@ -153,7 +153,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       }
 
     } else {
-      if (dtype.is_float()) {
+      if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // floor(a / b)
         return VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>());
       } else {
@@ -178,8 +178,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
-    const DataType& dtype = op->dtype;
-    TVM_FFI_ICHECK(dtype.is_int() || dtype.is_uint());
+    PrimType dtype = op->ty();
+    TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
       // lower to masking if possible.
@@ -205,7 +205,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       // mod(a, b) < 0 will imply we are doing ceildiv,
       // So we need to correct these cases.
       PrimExpr rmod = truncmod(op->a, op->b);
-      if ((dtype == DataType::Int(32) || dtype == DataType::Int(64)) && support_bitwise_op_) {
+      if ((dtype == PrimType::Int(32) || dtype == PrimType::Int(64)) && support_bitwise_op_) {
         // (rmod >> shift) & b
         // -> (rmod >= 0 ? 0: -1) & b
         // -> rmod >= 0 ? 0 : b
@@ -215,7 +215,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       }
 
     } else {
-      if (dtype.is_float()) {
+      if (dtype.code() == DLDataTypeCode::kDLFloat) {
         // a - floor(a / b) * b
         return op->a - (VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>()) * op->b);
       } else {
@@ -274,24 +274,28 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     if (const BroadcastNode* bcast = e.as<BroadcastNode>()) {
       if (const CastNode* cast = bcast->value.as<CastNode>()) {
         auto should_swap = [&]() {
+          PrimType cast_ty = cast->ty();
+          PrimType value_ty = cast->value.ty();
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
-          if (cast->dtype.bits() == cast->value.dtype().bits() * 2) {
+          if (cast_ty.bits() == value_ty.bits() * 2) {
             return true;
           }
           // Check both operands are integer-like.
-          if (!cast->dtype.is_uint() && !cast->dtype.is_int()) {
+          if (cast_ty.code() != DLDataTypeCode::kDLUInt &&
+              cast_ty.code() != DLDataTypeCode::kDLInt) {
             return false;
           }
-          if (!cast->value.dtype().is_uint() && !cast->value.dtype().is_int()) {
+          if (value_ty.code() != DLDataTypeCode::kDLUInt &&
+              value_ty.code() != DLDataTypeCode::kDLInt) {
             return false;
           }
           // If both are integer-like, swap if we have a widening cast.
-          return cast->dtype.bits() > cast->value.dtype().bits();
+          return cast_ty.bits() > value_ty.bits();
         };
 
         if (should_swap()) {
           PrimExpr new_bcast = Broadcast(cast->value, bcast->lanes);
-          return Cast(bcast->dtype, new_bcast);
+          return Cast(ffi::GetRef<PrimExpr>(bcast).ty(), new_bcast);
         }
       }
     }
@@ -303,8 +307,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr lhs = SwapBroadcastCast(a);
     PrimExpr rhs = SwapBroadcastCast(b);
 
-    if (fma_ != nullptr && op->dtype.is_float()) {
-      PrimExpr r = fma_(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
+    if (fma_ != nullptr && op->ty().code() == DLDataTypeCode::kDLFloat) {
+      PrimExpr r = fma_(Call(ffi::GetRef<PrimExpr>(op).ty(), builtin::fma(), {lhs, rhs, c}));
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {
@@ -334,8 +338,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     if (const_int_bound_a->min_value >= 0) {
       return std::nullopt;
     }
+    PrimType a_ty = a.ty();
+    // This overflow check is scalar element based. Lane count is intentionally ignored.
     const int64_t max_value_of_dtype =
-        tvm::max_value(a->dtype.element_of()).as_or_throw<IntImm>()->value;
+        tvm::max_value(PrimType(a_ty.code(), a_ty.bits())).as_or_throw<IntImm>()->value;
 
     // NOTE: ensures that (b-1) - a_min does not overflow
     // also note: max_value_of_dtype + const_int_bound_a->min_value won't overflow

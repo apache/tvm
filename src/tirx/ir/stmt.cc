@@ -21,6 +21,7 @@
  * \file tvm/tirx/stmt.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
@@ -59,12 +60,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Bind
 Bind::Bind(Var var, PrimExpr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
-  auto vdtype = value.dtype();
+  PrimType value_ty = value.ty();
   // It is still valid to bind a pointer type var to a value that is of type handle.
   if (var->type_annotation.as<PointerTypeNode>()) {
-    TVM_FFI_ICHECK(vdtype.is_handle());
+    TVM_FFI_ICHECK(value_ty.IsHandle());
   } else {
-    TVM_FFI_ICHECK_EQ(value.dtype(), var.dtype());
+    TVM_FFI_ICHECK(value.ty() == var.ty());
   }
 
   ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
@@ -108,9 +109,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
                        ffi::Array<StringImm> message_parts, Span span) {
   TVM_FFI_ICHECK(condition.defined());
-  TVM_FFI_ICHECK(condition.dtype().is_predicate_dtype())
+  PrimType condition_ty = condition.ty();
+  TVM_FFI_ICHECK(condition_ty.MatchesCode(DLDataTypeCode::kDLBool))
       << "AssertStmt should have boolean condition, "
-      << "but received " << condition << " with dtype " << condition.dtype();
+      << "but received " << condition << " with dtype " << condition_ty;
   TVM_FFI_ICHECK(error_kind.defined());
 
   ffi::ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
@@ -139,8 +141,9 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   TVM_FFI_ICHECK(body.defined());
 
   auto require_scalar_int_dtype = [&](PrimExpr expr, const char* field_name) {
-    auto dtype = expr.dtype();
-    TVM_FFI_ICHECK(dtype.is_scalar() && (dtype.is_int() || dtype.is_uint()))
+    PrimType dtype = expr.ty();
+    TVM_FFI_ICHECK(dtype.IsScalar() &&
+                   (dtype.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)))
         << "TIR For nodes require a scalar integer as the " << field_name << ", but received "
         << expr << " with dtype " << dtype;
   };
@@ -151,12 +154,14 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   // When extent, min or step is an IntImm but has narrower dtype than loop_var
   // we directly promote them without raising errors.
   auto try_promote_imm_dtype = [&](const PrimExpr& e) {
-    TVM_FFI_ICHECK(e.dtype().bits() <= loop_var.dtype().bits())
-        << " Loop variable's dtype (" << loop_var.dtype()
-        << ") is narrower than that of `min` or `extent` (" << e.dtype() << ")";
+    PrimType e_ty = e.ty();
+    PrimType loop_var_ty = loop_var.ty();
+    TVM_FFI_ICHECK(e_ty.bits() <= loop_var_ty.bits())
+        << " Loop variable's dtype (" << loop_var_ty
+        << ") is narrower than that of `min` or `extent` (" << e_ty << ")";
     const IntImmNode* a = e.as<IntImmNode>();
-    if (a && e.dtype().bits() < loop_var.dtype().bits()) {
-      return MakeConst(loop_var.dtype(), a->value);
+    if (a && e_ty.bits() < loop_var_ty.bits()) {
+      return MakeConst(loop_var_ty, a->value);
     } else {
       return e;
     }
@@ -165,15 +170,14 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   min = try_promote_imm_dtype(min);
   extent = try_promote_imm_dtype(extent);
 
-  TVM_FFI_ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
-  TVM_FFI_ICHECK(loop_var.dtype() == extent.dtype())
-      << loop_var.dtype() << " vs " << extent.dtype();
+  TVM_FFI_ICHECK(loop_var.ty() == min.ty()) << loop_var.ty() << " vs " << min.ty();
+  TVM_FFI_ICHECK(loop_var.ty() == extent.ty()) << loop_var.ty() << " vs " << extent.ty();
 
   if (step.has_value()) {
     require_scalar_int_dtype(*step, "step");
     step = try_promote_imm_dtype(*step);
-    TVM_FFI_ICHECK(loop_var.dtype() == (*step).dtype())
-        << loop_var.dtype() << " vs " << (*step).dtype();
+    TVM_FFI_ICHECK(loop_var.ty() == step.value().ty())
+        << loop_var.ty() << " vs " << step.value().ty();
   }
 
   ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>();
@@ -226,7 +230,7 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 // While
 While::While(PrimExpr condition, Stmt body, Span span) {
   TVM_FFI_ICHECK(condition.defined());
-  TVM_FFI_ICHECK(condition.dtype().is_scalar());
+  TVM_FFI_ICHECK(condition.ty().IsScalar());
   TVM_FFI_ICHECK(body.defined());
 
   ffi::ObjectPtr<WhileNode> node = ffi::make_object<WhileNode>();
@@ -385,6 +389,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BufferStore
+TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
+  return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
+}
+
 BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                          ffi::Optional<PrimExpr> predicate, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
@@ -393,19 +401,21 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
       << "-dimensional indices provided.";
 
   for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
-    TVM_FFI_ICHECK(indices[i].dtype().is_scalar())
+    TVM_FFI_ICHECK(indices[i].ty().IsScalar())
         << "Only the last index of a buffer access may be a vector type.";
   }
 
-  bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
-  bool is_buffer_dtype_scalable = buffer->dtype.is_scalable_vector();
-  bool is_value_dtype_scalable = value.dtype().is_scalable_vector();
+  bool is_index_scalable = indices.empty() ? false : indices.back().ty().IsScalableVector();
+  int16_t buffer_encoded_lanes = static_cast<int16_t>(buffer->dtype->dtype.lanes);
+  bool is_buffer_dtype_scalable = buffer_encoded_lanes < -1;
+  PrimType value_ty = value.ty();
+  bool is_value_dtype_scalable = value_ty.IsScalableVector();
 
   TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
       << "Index dtype and buffer dtype can't both be scalable.";
 
   if (predicate.defined()) {
-    bool is_predicate_dtype_scalable = predicate.value().dtype().is_scalable_vector();
+    bool is_predicate_dtype_scalable = predicate.value().ty().IsScalableVector();
     TVM_FFI_ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
         << "Predicate mask dtype and value dtype must both be scalable.";
   }
@@ -414,9 +424,9 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
     TVM_FFI_ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
   }
 
-  int index_lanes = indices.empty() ? 1 : indices.back().dtype().get_lanes_or_vscale_factor();
-  int buffer_lanes = buffer->dtype.get_lanes_or_vscale_factor();
-  int value_dtype_lanes = value.dtype().get_lanes_or_vscale_factor();
+  int index_lanes = indices.empty() ? 1 : GetLanesOrVScaleFactor(indices.back().ty());
+  int buffer_lanes = is_buffer_dtype_scalable ? -buffer_encoded_lanes : buffer_encoded_lanes;
+  int value_dtype_lanes = GetLanesOrVScaleFactor(value_ty);
 
   TVM_FFI_ICHECK_EQ(index_lanes * buffer_lanes, value_dtype_lanes)
       << "Cannot store value with " << value_dtype_lanes << ", expected value with "
@@ -424,31 +434,33 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
       << " buffer element lanes)";
 
   if (predicate.defined()) {
-    DataType predicate_dtype = predicate.value().dtype();
-    int predicate_dtype_lanes = predicate_dtype.get_lanes_or_vscale_factor();
+    PrimType predicate_ty = predicate.value().ty();
+    int predicate_dtype_lanes = GetLanesOrVScaleFactor(predicate_ty);
     TVM_FFI_ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)
         << "Got a predicate mask with " << predicate_dtype_lanes
         << " lanes, but trying to store a value with " << value_dtype_lanes
         << " lanes. The number of lanes must match.";
 
-    DataType predicate_element_dtype = predicate_dtype.element_of();
-    TVM_FFI_ICHECK(predicate_element_dtype.is_predicate_dtype())
-        << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
-        << ".";
+    PrimType predicate_element_ty = predicate_ty.WithLanes(1);
+    TVM_FFI_ICHECK(predicate_element_ty.MatchesCode(DLDataTypeCode::kDLBool) ||
+                   predicate_element_ty.MatchesElementType(DLDataTypeCode::kDLUInt, 1))
+        << "Predicate mask elements must be boolean values, but got "
+        << ffi::DLDataTypeToString(predicate_element_ty->dtype) << ".";
   }
 
-  runtime::DataType buffer_dtype;
+  PrimType buffer_dtype = PrimType::Void();
   if (is_index_scalable || is_buffer_dtype_scalable) {
-    buffer_dtype = buffer->dtype.with_scalable_vscale_factor(buffer_lanes * index_lanes);
+    buffer_dtype = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
+                                            buffer_lanes * index_lanes);
   } else {
-    buffer_dtype = buffer->dtype.with_lanes(buffer_lanes * index_lanes);
+    buffer_dtype = buffer->dtype.WithLanes(buffer_lanes * index_lanes);
   }
-  if (buffer_dtype != value.dtype()) {
+  if (buffer_dtype != value_ty) {
     TVM_FFI_THROW(TypeError) << "dtype mismatch on BufferStore: "                 //
                              << "buffer's dtype is `" << buffer->dtype            //
                              << "`, the lanes of indexing are: `" << index_lanes  //
-                             << "`, the scalability is: `" << buffer_dtype.is_scalable_vector()
-                             << "`, but RHS's dtype is `" << value.dtype() << "`";
+                             << "`, the scalability is: `" << buffer_dtype.IsScalableVector()
+                             << "`, but RHS's dtype is `" << value_ty << "`";
   }
 
   ffi::ObjectPtr<BufferStoreNode> node = ffi::make_object<BufferStoreNode>();
@@ -478,7 +490,7 @@ PrimExpr BufferRegionNode::ToPrimExpr() const {
     if (tvm::tirx::is_one(r->extent)) {
       indices.push_back(r->min);
     } else if (r->extent.as<IntImmNode>()) {
-      indices.push_back(tirx::Ramp(r->min, tvm::tirx::MakeConst(r->min->dtype, 1), r->extent));
+      indices.push_back(tirx::Ramp(r->min, tvm::tirx::MakeConst(r->min.ty(), 1), r->extent));
     } else {
       TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
                                 << ffi::GetRef<BufferRegion>(this);
@@ -512,7 +524,7 @@ BufferRegion BufferRegion::FromPoint(Buffer buffer, ffi::Array<PrimExpr> indices
       region.push_back(
           Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
     } else {
-      region.push_back(Range::FromMinExtent(index, MakeConst(index.dtype(), 1)));
+      region.push_back(Range::FromMinExtent(index, MakeConst(index.ty(), 1)));
     }
   }
   return BufferRegion(buffer, region);
@@ -652,7 +664,8 @@ SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SB
                              Span span) {
   TVM_FFI_CHECK_EQ(block->iter_vars.size(), values.size(), ValueError)
       << "BlockRealize needs to have the same number of iter_vars and binding values";
-  TVM_FFI_CHECK(predicate.dtype().is_bool() || predicate.dtype() == DataType::UInt(1), TypeError)
+  PrimType predicate_ty = predicate.ty();
+  TVM_FFI_CHECK(predicate_ty.MatchesCode(DLDataTypeCode::kDLBool), TypeError)
       << "Expect Block.predicate to be a bool expression";
   ffi::ObjectPtr<SBlockRealizeNode> node = ffi::make_object<SBlockRealizeNode>();
   node->iter_values = std::move(values);
@@ -670,7 +683,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-PrimExpr TypeAnnotation(DataType dtype, Span span) {
+PrimExpr TypeAnnotation(PrimType dtype, Span span) {
   static const Op& type_annotation_op = Op::Get("tirx.type_annotation");
   return tirx::Call(dtype, type_annotation_op, {}, {}, span);
 }

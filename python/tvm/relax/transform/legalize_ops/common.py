@@ -20,6 +20,7 @@ from collections.abc import Callable
 
 import tvm
 from tvm import te
+from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IntImm
 
 from ...block_builder import BlockBuilder
@@ -36,9 +37,6 @@ TEFunc = Callable[..., te.Tensor]
 # BlockBuilder and the Call to be legalized, and outputs the legalization
 # result Expr.
 LegalizeFunc = Callable[[BlockBuilder, Call], Expr]
-
-
-##################### Utilities #####################
 
 
 def _try_convert_to_scalar_const(
@@ -69,13 +67,14 @@ def _try_convert_to_scalar_const(
         # get the value of the scalar constant
         value = expr.data.numpy()[()].item()
         dtype = expr.ty.dtype
+        dtype_str = str(dtype.dtype)
         if python_native:
             return value
         # preserve the data type of the constant
-        if dtype.startswith("float"):
-            return tvm.tirx.FloatImm(dtype, value)
-        elif dtype.startswith("int") or dtype.startswith("uint") or dtype.startswith("bool"):
-            return tvm.tirx.IntImm(dtype, value)
+        if dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
+            return tvm.tirx.FloatImm(dtype_str, value)
+        elif dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
+            return tvm.tirx.IntImm(dtype_str, value)
     return expr
 
 

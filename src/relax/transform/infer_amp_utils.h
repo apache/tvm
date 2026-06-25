@@ -58,10 +58,10 @@ struct NTypeEqual {
 };
 
 // Construct a NType from an Type
-NType NTypeFrom(const Type& ty, DataType dtype = DataType::Void());
+NType NTypeFrom(const Type& ty, DLDataType dtype = DLDataType{kDLOpaqueHandle, 0, 0});
 
 // Construct a NType from an Expr
-NType NTypeFrom(const Expr& expr, DataType dtype = DataType::Void());
+NType NTypeFrom(const Expr& expr, DLDataType dtype = DLDataType{kDLOpaqueHandle, 0, 0});
 
 // Merge two messages, we keep the higher precision type for each leaf tensor
 NType NTypeMerge(const NType& a, const NType& b);
@@ -70,12 +70,11 @@ NType NTypeMerge(const NType& a, const NType& b);
 using VarDTypeMap = std::unordered_map<Var, NType>;
 
 // Call is a call node, out_dtype is the expected output_dtype
-using FInferMixedPrecision =
-    ffi::TypedFunction<Call(const Call& call_node, const DataType& out_dtype)>;
+using FInferMixedPrecision = ffi::TypedFunction<Call(const Call& call_node, DLDataType out_dtype)>;
 
-ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, DLDataType out_dtype);
 
-ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype);
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, DLDataType out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

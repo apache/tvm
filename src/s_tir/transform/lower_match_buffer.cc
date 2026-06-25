@@ -42,7 +42,7 @@ class MatchBufferLower : public StmtExprMutator {
   explicit MatchBufferLower(const PrimFunc& func) {
     for (const Var& param : func->params) {
       // Mark input var as const variable.
-      if (!param.dtype().is_handle()) var_map_.Set(param, param);
+      if (!param.ty().IsHandle()) var_map_.Set(param, param);
     }
   }
 
@@ -212,7 +212,7 @@ class MatchBufferLower : public StmtExprMutator {
         // Non-zero elem_offset is ill-defined for non-flat memory.
         // If needed in the future, will require `ffi::Array<PrimExpr>
         // elem_offsets`, with one offset for each flattened index.
-        Bind(buffer->elem_offset, IntImm(buffer->elem_offset.dtype(), 0));
+        Bind(buffer->elem_offset, IntImm(buffer->elem_offset.ty(), 0));
       }
     }
 
@@ -223,7 +223,7 @@ class MatchBufferLower : public StmtExprMutator {
     if (!buffer->strides.empty()) {
       TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
       if (source_buffer->strides.empty()) {
-        PrimExpr stride = MakeConst(buffer->strides.back().dtype(), 1);
+        PrimExpr stride = MakeConst(buffer->strides.back().ty(), 1);
         for (size_t i = buffer->shape.size(); i > 0; --i) {
           const PrimExpr& shape = source_buffer->shape[i - 1 + offset];
           Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));
@@ -246,13 +246,16 @@ class MatchBufferLower : public StmtExprMutator {
   }
 
   void Bind(const PrimExpr& arg, PrimExpr value, const std::string& arg_name = "argument") {
-    if (arg.dtype() != value.dtype()) {
-      if (arg.dtype().is_int() && value.dtype().is_int() &&
-          arg.dtype().lanes() == value.dtype().lanes()) {
-        value = cast(arg.dtype(), value);
+    PrimType arg_ty = arg.ty();
+    PrimType value_ty = value.ty();
+    if (arg_ty->dtype != value_ty->dtype) {
+      bool same_lanes = arg_ty.lanes() == value_ty.lanes();
+      if (arg_ty.MatchesCode(DLDataTypeCode::kDLInt) &&
+          value_ty.MatchesCode(DLDataTypeCode::kDLInt) && same_lanes) {
+        value = cast(arg_ty, value);
       } else {
-        TVM_FFI_ICHECK_EQ(arg.dtype(), value.dtype())
-            << "The data type mismatched: " << arg->dtype << " vs. " << value->dtype;
+        TVM_FFI_ICHECK_EQ(arg_ty->dtype, value_ty->dtype)
+            << "The data type mismatched: " << arg_ty->dtype << " vs. " << value_ty->dtype;
       }
     }
     // Handle recursive case

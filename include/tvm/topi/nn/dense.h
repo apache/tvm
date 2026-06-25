@@ -46,7 +46,7 @@ using namespace tvm::te;
  * \return Tensor with shape [batch, out_dim]
  */
 inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor& weight,
-                             const tvm::te::Tensor& bias, const DataType& out_dtype) {
+                             const tvm::te::Tensor& bias, const PrimType& out_dtype) {
   TVM_FFI_ICHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   TVM_FFI_ICHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {

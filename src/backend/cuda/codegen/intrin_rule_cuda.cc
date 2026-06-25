@@ -34,9 +34,9 @@ namespace intrin {
 using tirx::FLowerIntrinsic;
 
 struct CUDAMath {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_float()) {
-      switch (t.bits()) {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (ty.MatchesCode(DLDataTypeCode::kDLFloat)) {
+      switch (ty.bits()) {
         case 64:
           // Use nearbyint (ties-to-even) for round to match constant-folding semantics.
           if (name == "round") return "nearbyint";
@@ -56,7 +56,7 @@ struct CUDAMath {
         default:
           return "";
       }
-    } else if (t.is_bfloat16()) {
+    } else if (ty.MatchesCode(DLDataTypeCode::kDLBfloat) && ty.bits() == 16) {
       if (name == "fabs") {
         return "__habs";
       } else if (name == "round") {
@@ -64,8 +64,8 @@ struct CUDAMath {
       } else {
         return "h" + name;
       }
-    } else if (t.is_int() || t.is_uint()) {
-      switch (t.bits()) {
+    } else if (ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+      switch (ty.bits()) {
         case 32:
           return "__" + name;
         case 64:
@@ -79,20 +79,20 @@ struct CUDAMath {
 };
 
 struct CUDAFastMath : public CUDAMath {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_float() && t.bits() == 32) {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (ty.MatchesCode(DLDataTypeCode::kDLFloat) && ty.bits() == 32) {
       return "__" + name + 'f';
     } else {
-      return CUDAMath::operator()(t, name);
+      return CUDAMath::operator()(ty, name);
     }
     return "";
   }
 };
 
 struct CUDAFastMathTan : public CUDAMath {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_float()) {
-      switch (t.bits()) {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (ty.MatchesCode(DLDataTypeCode::kDLFloat)) {
+      switch (ty.bits()) {
         case 64:
           return name;
         // `__tanf` seems to produce some values too deviant from numpy tan version.
@@ -110,9 +110,9 @@ struct CUDAFastMathTan : public CUDAMath {
 };
 
 struct CUDAPopcount {
-  std::string operator()(DataType t, std::string name) const {
-    if (t.is_uint()) {
-      switch (t.bits()) {
+  std::string operator()(const PrimType& ty, std::string name) const {
+    if (ty.MatchesCode(DLDataTypeCode::kDLUInt)) {
+      switch (ty.bits()) {
         case 32:
           return "__popc";
         case 64:
@@ -126,7 +126,7 @@ struct CUDAPopcount {
 };
 
 struct CUDAWarpIntrinsic {
-  const Op operator()(DataType t, const Op& orig_op) const {
+  const Op operator()(const PrimType& ty, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
       static const Op& cuda_shfl_sync_op = Op::Get("tirx.cuda.__shfl_sync");
       return cuda_shfl_sync_op;
@@ -147,7 +147,7 @@ struct CUDAWarpIntrinsic {
 static PrimExpr DispatchCUDAWarpActiveMask(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   static const Op& cuda_active_mask_op = Op::Get("tirx.cuda.__activemask");
-  return Call(call->dtype, cuda_active_mask_op, call->args);
+  return Call(e.ty(), cuda_active_mask_op, call->args);
 }
 
 template <typename T>
@@ -156,7 +156,7 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   ffi::Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
-  return Call(call->dtype, T()(call->dtype, call->op.as_or_throw<Op>()), cuda_args);
+  return Call(e.ty(), T()(e.ty(), call->op.as_or_throw<Op>()), cuda_args);
 }
 
 void RegisterCudaIntrinRules() {

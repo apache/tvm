@@ -18,11 +18,11 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr.h>
 
@@ -39,6 +39,17 @@
 
 using namespace tvm;
 using namespace tvm::relax;
+
+namespace {
+
+TensorType ScalarTensorType(PrimType dtype) {
+  auto n = tvm::ffi::make_object<TensorTypeNode>();
+  n->dtype = std::move(dtype);
+  n->ndim = 0;
+  return TensorType(n);
+}
+
+}  // namespace
 
 TEST(NestedMsg, Basic) {
   // start with no annotation
@@ -145,9 +156,9 @@ TEST(NestedMsg, Equal) {
 }
 
 TEST(NestedMsg, MapAndDecompose) {
-  relax::Var x("x", PrimType(runtime::DataType::Int(16)));
-  relax::Var y("y", PrimType(runtime::DataType::Int(32)));
-  relax::Var z("z", PrimType(runtime::DataType::Int(64)));
+  relax::Var x("x", PrimType::Int(16));
+  relax::Var y("y", PrimType::Int(32));
+  relax::Var z("z", PrimType::Int(64));
 
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
@@ -171,7 +182,7 @@ TEST(NestedMsg, MapAndDecompose) {
   auto output2 = MapToNestedMsg<IntImm>(GetType(t1), [&](Type ty) -> NestedMsg<IntImm> {
     const auto* prim_ty = ty.as<PrimTypeNode>();
     if (prim_ty == nullptr) return std::nullopt;
-    int bits = prim_ty->dtype.bits();
+    int bits = prim_ty->dtype.bits;
     if (bits == 16) return c0;
     if (bits == 32) return c1;
     if (bits == 64) return c2;
@@ -201,7 +212,7 @@ TEST(NestedMsg, MapAndDecompose) {
 }
 
 TEST(NestedMsg, MapToNestedMsgByType) {
-  auto sf0 = TensorType(DataType::Float(32), /*ndim=*/0);
+  auto sf0 = ScalarTensorType(PrimType::Float(32));
   auto sf1 = TupleType({sf0, sf0});
   auto sf2 = TupleType({sf0, sf0});
   auto x = relax::Var("x", TupleType({sf1, sf2, sf0}));
@@ -223,7 +234,7 @@ TEST(NestedMsg, MapToNestedMsgByType) {
 }
 
 TEST(NestedMsg, NestedMsgToExpr) {
-  auto sf0 = TensorType(DataType::Float(32), /*ndim=*/0);
+  auto sf0 = ScalarTensorType(PrimType::Float(32));
   auto sf1 = TupleType({sf0, sf0});
 
   auto c0 = IntImm::Int32(0);
@@ -306,7 +317,7 @@ TEST(NestedMsg, TransformTupleLeaf) {
   NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
   NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
 
-  PrimType s = PrimType(runtime::DataType::Int(32));
+  PrimType s = PrimType::Int(32);
   relax::Var x("x", s), y("y", s), z("z", s);
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));

@@ -354,7 +354,7 @@ class LowBatchGEMV(GPUScheduleRule):
             shared_mem_usage = 0
             for buf in vector_input_buffers:
                 buf_size = reduce(
-                    lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].dtype, 1)
+                    lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].ty, 1)
                 ) * get_bytes(buf.dtype)
                 shared_mem_usage += buf_size
             max_smem = get_max_shared_memory_per_block(target)

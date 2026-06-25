@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_VM_BYTECODE_H_
 #define TVM_RUNTIME_VM_BYTECODE_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
-#include <tvm/runtime/data_type.h>
 
 #include <iostream>
 #include <vector>

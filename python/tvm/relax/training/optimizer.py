@@ -149,7 +149,7 @@ class Optimizer:
                     f"Optimizers only support Tensor parameters, but parameter {x.name_hint} has "
                     f"type {x.ty}"
                 )
-            data_type = tvm.DataType(x.ty.dtype)
+            data_type = tvm.DataType(x.ty.dtype.dtype)
             if data_type.type_code not in (tvm.DataTypeCode.BFLOAT, tvm.DataTypeCode.FLOAT):
                 raise ValueError(
                     f"Optimizers only support Tensor parameters of floating point dtype, but dtype "
@@ -443,7 +443,7 @@ class MomentumSGD(Optimizer):
             tvm.runtime.tensor(np.zeros((), "int64")),
             # v_{param} is initialized to all zeros
             *(
-                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype.dtype))
                 for p in self.param_list
             ),
         )
@@ -618,12 +618,12 @@ class Adam(Optimizer):
             tvm.runtime.tensor(np.ones((), self.dtype)),
             # first_momentum
             *(
-                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype.dtype))
                 for p in self.param_list
             ),
             # second_momentum
             *(
-                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype))
+                tvm.runtime.tensor(np.zeros(_get_shape_as_int_list(p), p.ty.dtype.dtype))
                 for p in self.param_list
             ),
         )

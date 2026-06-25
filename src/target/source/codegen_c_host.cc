@@ -120,24 +120,25 @@ void CodeGenCHost::PrintFuncPrefix(std::ostream& os) {  // NOLINT(*)
      << "TVM_DLL ";
 }
 
-void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  int lanes = t.lanes();
-  if (t.is_handle()) {
+void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLINT(*)
+  const DLDataType& t = type->dtype;
+  int lanes = static_cast<int16_t>(t.lanes);
+  if (t.code == kDLOpaqueHandle && !(t.bits == 0 && lanes == 0)) {
     TVM_FFI_ICHECK_EQ(lanes, 1) << "does not support vector types";
     os << "void*";
     return;
   }
-  if (t.is_void()) {
+  if (t.code == kDLOpaqueHandle && t.bits == 0 && lanes == 0) {
     os << "void";
     return;
   }
-  if (t == DataType::Bool()) {
+  if (t.code == kDLBool && lanes == 1) {
     os << "bool";
     return;
   }
   bool fail = false;
-  if (t.is_float()) {
-    switch (t.bits()) {
+  if (t.code == kDLFloat) {
+    switch (t.bits) {
       case 16:
         os << "half";
         break;
@@ -156,11 +157,11 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << lanes;
       return;
     }
-  } else if (t.is_uint() || t.is_int()) {
-    if (t.is_uint()) {
+  } else if (t.code == kDLUInt || t.code == kDLInt) {
+    if (t.code == kDLUInt) {
       os << 'u';
     }
-    switch (t.bits()) {
+    switch (t.bits) {
       case 8:
         os << "int8_t";
         break;
@@ -191,9 +192,9 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
 void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = op->dtype.lanes();
+  int lanes = static_cast<int16_t>(op->ty()->dtype.lanes);
   os << "((";
-  PrintType(op->dtype, os);
+  PrintType(op->ty()->dtype, os);
   os << ")(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -356,10 +357,10 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
                                                std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp_a;
   VisitExpr(op->a, temp_a);
-  std::string a_id = SSAGetID(temp_a.str(), op->a.dtype());
+  std::string a_id = SSAGetID(temp_a.str(), op->a.ty()->dtype);
   std::ostringstream temp_b;
   VisitExpr(op->b, temp_b);
-  std::string b_id = SSAGetID(temp_b.str(), op->b.dtype());
+  std::string b_id = SSAGetID(temp_b.str(), op->b.ty()->dtype);
 
   os << "((" << a_id << ") " << compare << " (" << b_id << ") "
      << "? (" << a_id << ") : (" << b_id << "))";

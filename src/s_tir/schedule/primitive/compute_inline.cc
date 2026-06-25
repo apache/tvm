@@ -513,7 +513,7 @@ class ComputeInliner : public BaseInliner {
     }
     idx_vars_.resize(buffer_ndim);
     for (size_t i = 0; i < idx_vars_.size(); ++i) {
-      idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].dtype());
+      idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].ty());
     }
     auto inverse_iter_map = arith::InverseAffineIterMap(
         res->indices, ffi::Array<PrimExpr>(idx_vars_.begin(), idx_vars_.end()));
@@ -726,7 +726,7 @@ class ReverseComputeInliner : public BaseInliner {
     if (producer_block->annotations.count(s_tir::attr::auto_copy) != 0) {
       auto bind = [&](const ForNode* loop) {
         analyzer_->Bind(loop->loop_var,
-                        Range::FromMinExtent(IntImm(loop->extent->dtype, 0), loop->extent));
+                        Range::FromMinExtent(IntImm(loop->extent.ty(), 0), loop->extent));
       };
       const ForNode* producer_inner_loop = producer_block->body.as<ForNode>();
       while (producer_inner_loop->body.as<ForNode>()) {

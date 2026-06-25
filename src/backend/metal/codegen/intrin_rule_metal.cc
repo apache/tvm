@@ -31,7 +31,7 @@ namespace intrin {
 using tirx::FLowerIntrinsic;
 
 struct MetalWarpIntrinsic {
-  const Op operator()(DataType t, const Op& orig_op) const {
+  const Op operator()(PrimType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
       static const Op& metal_simd_shuffle_op = Op::Get("tirx.metal.simd_shuffle");
       return metal_simd_shuffle_op;
@@ -52,7 +52,7 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   ffi::Array<PrimExpr> metal_args{{call->args[1], call->args[2]}};
-  return Call(call->dtype, T()(call->dtype, call->op.as_or_throw<Op>()), metal_args);
+  return Call(e.ty(), T()(e.ty(), call->op.as_or_throw<Op>()), metal_args);
 }
 
 void RegisterMetalIntrinRules() {
@@ -81,7 +81,7 @@ TVM_REGISTER_OP("tirx.round")
       for (auto arg : call->args) {
         new_args.push_back(arg);
       }
-      return tirx::Call(call->dtype, tirx::builtin::call_pure_extern(), new_args);
+      return tirx::Call(e.ty(), tirx::builtin::call_pure_extern(), new_args);
     });
 
 TVM_REGISTER_OP("tirx.nearbyint")

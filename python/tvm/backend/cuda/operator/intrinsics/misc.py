@@ -210,7 +210,7 @@ def codegen_cuda_printf(fmt, *args):
     if not isinstance(fmt, str):
         raise ValueError("T.cuda.printf format must be a string literal")
     fmt_literal = json.dumps(fmt)
-    arg_dtypes = [str(arg.dtype) for arg in args]
+    arg_dtypes = [str(arg.ty) for arg in args]
     signature = "|".join([fmt, *arg_dtypes])
     digest = hashlib.sha1(signature.encode("utf-8")).hexdigest()
     func_name = f"tvm_builtin_cuda_printf_{len(args)}_{digest}"

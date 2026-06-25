@@ -84,8 +84,8 @@ Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
     ShapeExpr oshape(oshape_values);
     tvm::ffi::Array<PrimExpr> counts_values = {1};
     ShapeExpr counts_shape(counts_values);
-    tvm::ffi::Array<Type> fields = {TensorType(oshape, DataType::Int(64), vdev),
-                                    TensorType(counts_shape, DataType::Int(64), vdev)};
+    tvm::ffi::Array<Type> fields = {TensorType(oshape, PrimType::Int(64), vdev),
+                                    TensorType(counts_shape, PrimType::Int(64), vdev)};
     return TupleType(fields);
   }
 
@@ -96,9 +96,9 @@ Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
   ShapeExpr scores_shape(scores_values);
   tvm::ffi::Array<PrimExpr> counts_values = {batch};
   ShapeExpr counts_shape(counts_values);
-  tvm::ffi::Array<Type> fields = {TensorType(indices_shape, DataType::Int(64), vdev),
-                                  TensorType(scores_shape, DataType::Float(32), vdev),
-                                  TensorType(counts_shape, DataType::Int(64), vdev)};
+  tvm::ffi::Array<Type> fields = {TensorType(indices_shape, PrimType::Int(64), vdev),
+                                  TensorType(scores_shape, PrimType::Float(32), vdev),
+                                  TensorType(counts_shape, PrimType::Int(64), vdev)};
   return TupleType(fields);
 }
 
@@ -153,9 +153,9 @@ Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
   auto vdev = data_ty->vdevice;
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    tvm::ffi::Array<Type> fields = {TensorType(DataType::Int(32), /*ndim=*/1, vdev),
+    tvm::ffi::Array<Type> fields = {TensorType(PrimType::Int(32), /*ndim=*/1, vdev),
                                     TensorType(data_ty->dtype, /*ndim=*/3, vdev),
-                                    TensorType(DataType::Int(32), /*ndim=*/2, vdev)};
+                                    TensorType(PrimType::Int(32), /*ndim=*/2, vdev)};
     return TupleType(fields);
   }
 
@@ -177,9 +177,9 @@ Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
   }
 
   tvm::ffi::Array<Type> fields = {
-      TensorType(ShapeExpr({batch}), DataType::Int(32), vdev),
+      TensorType(ShapeExpr({batch}), PrimType::Int(32), vdev),
       TensorType(ShapeExpr({batch, num_anchors, elem_length}), data_ty->dtype, vdev),
-      TensorType(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev)};
+      TensorType(ShapeExpr({batch, num_anchors}), PrimType::Int(32), vdev)};
   return TupleType(fields);
 }
 
@@ -251,12 +251,12 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "non_max_suppression expects indices to be 2-D, got ndim " << indices_ty->ndim;
   }
-  if (!valid_count_ty->IsUnknownDtype() && valid_count_ty->dtype != DataType::Int(32)) {
+  if (!valid_count_ty->IsUnknownDtype() && valid_count_ty->dtype != PrimType::Int(32)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "non_max_suppression expects valid_count to have dtype int32, got "
         << valid_count_ty->dtype;
   }
-  if (!indices_ty->IsUnknownDtype() && indices_ty->dtype != DataType::Int(32)) {
+  if (!indices_ty->IsUnknownDtype() && indices_ty->dtype != PrimType::Int(32)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "non_max_suppression expects indices to have dtype int32, got " << indices_ty->dtype;
   }
@@ -319,30 +319,30 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
       //                   valid_box_count[batch, 1])
       if (data_shape == nullptr) {
         tvm::ffi::Array<Type> fields = {TensorType(data_ty->dtype, /*ndim=*/3, vdev),
-                                        TensorType(DataType::Int(32), /*ndim=*/2, vdev),
-                                        TensorType(DataType::Int(32), /*ndim=*/2, vdev)};
+                                        TensorType(PrimType::Int(32), /*ndim=*/2, vdev),
+                                        TensorType(PrimType::Int(32), /*ndim=*/2, vdev)};
         return TupleType(fields);
       }
       auto batch = data_shape->values[0];
       auto num_anchors = data_shape->values[1];
       tvm::ffi::Array<Type> fields = {
           TensorType(ffi::GetRef<ShapeExpr>(data_shape), data_ty->dtype, vdev),
-          TensorType(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev),
-          TensorType(ShapeExpr({batch, IntImm::Int64(1)}), DataType::Int(32), vdev)};
+          TensorType(ShapeExpr({batch, num_anchors}), PrimType::Int(32), vdev),
+          TensorType(ShapeExpr({batch, IntImm::Int64(1)}), PrimType::Int(32), vdev)};
       return TupleType(fields);
     }
 
     // Hard NMS returns (box_indices[batch, num_anchors], valid_box_count[batch, 1])
     if (data_shape == nullptr) {
-      tvm::ffi::Array<Type> fields = {TensorType(DataType::Int(32), /*ndim=*/2, vdev),
-                                      TensorType(DataType::Int(32), /*ndim=*/2, vdev)};
+      tvm::ffi::Array<Type> fields = {TensorType(PrimType::Int(32), /*ndim=*/2, vdev),
+                                      TensorType(PrimType::Int(32), /*ndim=*/2, vdev)};
       return TupleType(fields);
     }
     auto batch = data_shape->values[0];
     auto num_anchors = data_shape->values[1];
     tvm::ffi::Array<Type> fields = {
-        TensorType(ShapeExpr({batch, num_anchors}), DataType::Int(32), vdev),
-        TensorType(ShapeExpr({batch, IntImm::Int64(1)}), DataType::Int(32), vdev)};
+        TensorType(ShapeExpr({batch, num_anchors}), PrimType::Int(32), vdev),
+        TensorType(ShapeExpr({batch, IntImm::Int64(1)}), PrimType::Int(32), vdev)};
     return TupleType(fields);
   }
 

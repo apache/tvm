@@ -25,11 +25,11 @@
 
 TEST(SimplePasses, SideEffect) {
   using namespace tvm;
-  auto buf = tirx::decl_buffer({16}, DataType::Float(32));
-  auto i = tirx::Var("i", DataType::Int(32));
+  auto buf = tirx::decl_buffer({16}, PrimType::Float(32));
+  auto i = tirx::Var("i", PrimType::Int(32));
   TVM_FFI_ICHECK(tirx::SideEffect(tirx::BufferLoad(buf, {i})) == tirx::CallEffectKind::kReadState);
-  TVM_FFI_ICHECK(tirx::SideEffect(exp(tirx::Cast(DataType::Float(32), i + 1))) ==
+  TVM_FFI_ICHECK(tirx::SideEffect(exp(tirx::Cast(PrimType::Float(32), i + 1))) ==
                  tirx::CallEffectKind::kPure);
-  TVM_FFI_ICHECK(tirx::SideEffect(tirx::Call(DataType::Handle(), tirx::builtin::tvm_storage_sync(),
+  TVM_FFI_ICHECK(tirx::SideEffect(tirx::Call(PrimType::Handle(), tirx::builtin::tvm_storage_sync(),
                                              {})) == tirx::CallEffectKind::kUpdateState);
 }

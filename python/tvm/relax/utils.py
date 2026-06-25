@@ -183,7 +183,7 @@ def gen_call_tir_inputs(
     def _copy_undefined_var(expr: tirx.PrimExpr):
         def _visit_expr(e: tirx.PrimExpr):
             if isinstance(e, tirx.Var) and e not in tir_var_map:
-                new_var = tirx.Var(e.name, e.dtype)
+                new_var = tirx.Var(e.name, e.ty)
                 tir_var_map[e] = new_var
 
         tirx.stmt_functor.post_order_visit(expr, _visit_expr)

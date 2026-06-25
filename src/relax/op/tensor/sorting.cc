@@ -66,7 +66,7 @@ TVM_REGISTER_OP("relax.sort")
 
 /* relax.argsort */
 
-Expr argsort(Expr data, int axis, bool descending, DataType dtype) {
+Expr argsort(Expr data, int axis, bool descending, DLDataType dtype) {
   auto attrs = ffi::make_object<ArgsortAttrs>();
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
@@ -84,7 +84,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<ArgsortAttrs>();
-  DataType out_type = attrs->dtype.is_void() ? data_ty->dtype : attrs->dtype;
+  PrimType out_type =
+      attrs->dtype == DLDataType{kDLOpaqueHandle, 0, 0} ? data_ty->dtype : PrimType(attrs->dtype);
   if (data_ty->shape.defined()) {
     return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   }
@@ -100,7 +101,7 @@ TVM_REGISTER_OP("relax.argsort")
 
 /* relax.topk */
 
-Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest, DataType dtype) {
+Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest, DLDataType dtype) {
   auto attrs = ffi::make_object<TopKAttrs>();
   attrs->k = std::move(k);
   attrs->axis = std::move(axis);
@@ -121,7 +122,8 @@ Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* attrs = call->attrs.as<TopKAttrs>();
-  DataType indices_type = attrs->dtype.is_void() ? data_ty->dtype : attrs->dtype;
+  PrimType indices_type =
+      attrs->dtype == DLDataType{kDLOpaqueHandle, 0, 0} ? data_ty->dtype : PrimType(attrs->dtype);
   int ndim = data_ty->ndim;
   int k = attrs->k;
   ffi::String ret_type = attrs->ret_type;

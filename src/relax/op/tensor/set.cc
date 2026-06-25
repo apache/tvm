@@ -106,9 +106,9 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   if (f_convert_to_int64(return_index->value)) {
     if (data_ty->ndim == 0) {
       output_ty.push_back(
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), PrimType::Int(64), data_ty->vdevice));
     } else {
-      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
+      output_ty.push_back(TensorType(PrimType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
   }
 
@@ -116,9 +116,9 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   if (f_convert_to_int64(return_inverse->value)) {
     if (data_ty->ndim == 0) {
       output_ty.push_back(
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), PrimType::Int(64), data_ty->vdevice));
     } else {
-      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
+      output_ty.push_back(TensorType(PrimType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
   }
 
@@ -126,9 +126,9 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   if (f_convert_to_int64(return_counts->value)) {
     if (data_ty->ndim == 0) {
       output_ty.push_back(
-          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), DataType::Int(64), data_ty->vdevice));
+          TensorType(ShapeExpr({IntImm::Int64(/*value=*/1)}), PrimType::Int(64), data_ty->vdevice));
     } else {
-      output_ty.push_back(TensorType(DataType::Int(64), /*ndim=*/1, data_ty->vdevice));
+      output_ty.push_back(TensorType(PrimType::Int(64), /*ndim=*/1, data_ty->vdevice));
     }
   }
 
@@ -175,7 +175,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeNonzero(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetInputTensorType(call, 0, ctx);
-  return TensorType(DataType::Int(64), 2, data_ty->vdevice);
+  return TensorType(PrimType::Int(64), 2, data_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.nonzero")

@@ -49,6 +49,10 @@ class TensorSlice(ObjectConvertible, _expr.ExprOp):
         """Data content of the tensor."""
         return self.tensor.dtype
 
+    def expr_ty(self):
+        """Compile-time element type of the tensor."""
+        return self.tensor.expr_ty()
+
 
 @tvm_ffi.register_object("te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
@@ -85,6 +89,15 @@ class Tensor(DataProducer, _expr.ExprOp):
     def ndim(self):
         """Dimension of the tensor."""
         return len(self.shape)
+
+    @property
+    def dtype(self):
+        """Data content of the tensor."""
+        return _ffi_api.TensorDType(self)
+
+    def expr_ty(self):
+        """Compile-time element type of the tensor."""
+        return self.dtype
 
     @property
     def name(self):

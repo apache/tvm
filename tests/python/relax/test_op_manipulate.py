@@ -2070,9 +2070,9 @@ def test_split_indices_or_sections_int64():
     split0 = relax.op.split(x, [3, 6], axis=1)
     split1 = relax.op.split(x, 4, axis=1)
 
-    assert split0.attrs.indices_or_sections[0].dtype == "int64"
-    assert split0.attrs.indices_or_sections[1].dtype == "int64"
-    assert split1.attrs.indices_or_sections.dtype == "int64"
+    assert split0.attrs.indices_or_sections[0].ty.dtype == "int64"
+    assert split0.attrs.indices_or_sections[1].ty.dtype == "int64"
+    assert split1.attrs.indices_or_sections.ty.dtype == "int64"
 
 
 def test_split_infer_ty():

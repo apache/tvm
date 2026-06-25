@@ -75,9 +75,9 @@ static inline void AssertReduceEqual(const tirx::ReduceNode* a, const tirx::Redu
 
 int ComputeOpNode::num_outputs() const { return body.size(); }
 
-DataType ComputeOpNode::output_dtype(size_t idx) const {
+PrimType ComputeOpNode::output_dtype(size_t idx) const {
   TVM_FFI_ICHECK_LT(idx, num_outputs());
-  return body[idx].dtype();
+  return body[idx].ty();
 }
 
 ffi::Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
@@ -100,8 +100,8 @@ Tensor compute(ffi::Array<PrimExpr> shape, FCompute fcompute, std::string name, 
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVar(Range(IntImm(shape[i]->dtype, 0), shape[i]),
-                              Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(
+        IterVar(Range(IntImm(shape[i].ty(), 0), shape[i]), Var(os.str(), shape[i].ty()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -117,8 +117,8 @@ ffi::Array<Tensor> compute(ffi::Array<PrimExpr> shape, FBatchCompute fcompute, s
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVar(Range(IntImm(shape[i]->dtype, 0), shape[i]),
-                              Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(
+        IterVar(Range(IntImm(shape[i].ty(), 0), shape[i]), Var(os.str(), shape[i].ty()), kDataPar));
     args.push_back(axis.back()->var);
   }
 

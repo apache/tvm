@@ -73,7 +73,8 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
 void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   // decompose value as symbol * scale + offset
   int64_t offset = 0;
-  PrimExpr symbol_scale = tirx::MakeConst(value.dtype(), 0);
+  PrimType value_ty = value.ty();
+  PrimExpr symbol_scale = tirx::MakeConst(value_ty, 0);
 
   auto fcollect_sum = [&](PrimExpr val, int sign) {
     if (const auto* intimm = val.as<IntImmNode>()) {
@@ -90,7 +91,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
 
   // split out the symbol and non-symbolic part
   int64_t cscale = 1;
-  PrimExpr symbol = tirx::MakeConst(value.dtype(), 1);
+  PrimExpr symbol = tirx::MakeConst(value_ty, 1);
   auto fcollect_prod = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
       cscale *= intimm->value;
@@ -110,7 +111,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
     Var var = ffi::GetRef<Var>(var_ptr);
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value
-    if (!IsIndexType(var.dtype())) return;
+    if (!IsIndexTypedExpr(var)) return;
     bool allow_override = true;
     // mark the constant bound is sufficient
     // we cannot mark interval set as that will cause relaxation of the var
@@ -169,7 +170,7 @@ bool AnalyzerObj::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   const auto* clhs = lhs.as<IntImmNode>();
   const auto* crhs = rhs.as<IntImmNode>();
   if (clhs && crhs) return clhs->value == crhs->value;
-  if (lhs->dtype.is_handle() || rhs->dtype.is_handle()) {
+  if (lhs->ty().IsHandle() || rhs->ty().IsHandle()) {
     return lhs.same_as(rhs);
   }
   return CanProve(lhs - rhs == 0);
@@ -189,7 +190,7 @@ bool AnalyzerObj::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs,
     }
   };
   UnpackReduction<tirx::MulNode>(shape, fcollect);
-  PrimExpr const_shape_bound = IntImm(shape.dtype(), std::abs(cscale));
+  PrimExpr const_shape_bound = IntImm(shape.ty(), std::abs(cscale));
   if (this->CanProve(lhs <= const_shape_bound, ProofStrength::kSymbolicBound)) return true;
   return false;
 }

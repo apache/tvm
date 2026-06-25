@@ -31,7 +31,7 @@ Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
   return InferDistTypeBroadcast(
       call, ctx,
       [](const Call& call, const BlockBuilder& ctx, const TensorType& x1_ty,
-         const TensorType& x2_ty) { return DataType::Bool(); });
+         const TensorType& x2_ty) { return PrimType::Bool(); });
 }
 
 /***************** Arithmetic operators *****************/

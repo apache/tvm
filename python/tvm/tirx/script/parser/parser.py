@@ -225,13 +225,13 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
             value = tvm.tirx.const(value)
         if not isinstance(value, tvm.tirx.StringImm):
             # x = expr -> scalar (auto-typed from value)
-            scalar = T.local_scalar(dtype=str(value.dtype))
+            scalar = T.local_scalar(dtype=str(value.ty.dtype))
             IRBuilder.name(var_name, scalar.scalar.buffer)
             T.buffer_store(scalar.scalar.buffer, value, [0])
             return scalar.scalar
         else:
             # StringImm: x = expr -> immutable Bind var
-            ann_var = tvm.tirx.Var(var_name, value.dtype)
+            ann_var = tvm.tirx.Var(var_name, value.ty)
             IRBuilder.name(var_name, ann_var)
             T.Bind(value, var=ann_var)
             return ann_var
@@ -539,7 +539,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         if raw_ann.type_spec is not None:
             ann_var = raw_ann.as_var()
         else:
-            ann_var = raw_ann.as_var(rhs_dtype=rhs.dtype)
+            ann_var = raw_ann.as_var(rhs_dtype=rhs.ty)
         if not isinstance(ann_var, Var):
             self.report_error(node.annotation, "Annotation should resolve to Var")
         self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
@@ -553,13 +553,13 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
                 node.annotation,
                 "Use T.let[...] for non-PrimType annotations (e.g. PointerType, handle)",
             )
-        if str(ann_var.dtype) == "handle":
+        if str(ann_var.ty) == "handle":
             self.report_error(
                 node.annotation,
                 "handle type cannot be used as scalar annotation; use T.let[T.handle] instead",
             )
         # x: T.int32 = expr -> scalar (mutable scalar buffer)
-        scalar = T.local_scalar(dtype=str(ann_var.dtype))
+        scalar = T.local_scalar(dtype=str(ann_var.ty))
         self.eval_assign(target=lhs, source=scalar, bind_value=bind_assign_value)
         if rhs is not None:
             T.buffer_store(scalar.scalar.buffer, rhs, [0])
@@ -619,7 +619,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
             if node.returns is not None:
                 ret_type = self.eval_expr(node.returns)
                 if callable(ret_type):
-                    ret_type = PrimType(ret_type().dtype)
+                    ret_type = ret_type().ty
                 T.func_ret(ret_type)
             with self.with_dispatch_token("tirx"):
                 # TODO: handle different types of arguments:
@@ -888,7 +888,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
         if node.returns is not None:
             ret_type = self.eval_expr(node.returns)
             if callable(ret_type):
-                ret_type = PrimType(ret_type().dtype)
+                ret_type = ret_type().ty
 
         arg_annotations = []
         for arg in node.args.args:

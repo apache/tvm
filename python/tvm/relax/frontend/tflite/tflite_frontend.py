@@ -2081,7 +2081,7 @@ class OperatorConverter:
 
         lhs = self.get_tensor_expr(input_tensors[0])
         rhs = self.get_tensor_expr(input_tensors[1])
-        dtype = lhs.ty.dtype
+        dtype = lhs.ty.dtype.dtype
         if dtype == "bool":
             op_fn = _op.logical_and
         elif dtype.startswith(("int", "uint")):
@@ -2099,7 +2099,7 @@ class OperatorConverter:
 
         lhs = self.get_tensor_expr(input_tensors[0])
         rhs = self.get_tensor_expr(input_tensors[1])
-        dtype = lhs.ty.dtype
+        dtype = lhs.ty.dtype.dtype
         if dtype == "bool":
             op_fn = _op.logical_or
         elif dtype.startswith(("int", "uint")):
@@ -2169,7 +2169,7 @@ class OperatorConverter:
 
     def _ensure_stablehlo_float_dtype(self, expr, op_name):
         """Return expr dtype if the StableHLO subset supports it."""
-        dtype = expr.ty.dtype
+        dtype = expr.ty.dtype.dtype
         if not dtype.startswith("float"):
             raise tvm.error.OpNotImplemented(f"{op_name} with dtype {dtype} is not supported")
         return dtype

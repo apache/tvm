@@ -54,9 +54,9 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) {
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
     if (value->IsInstance<IntImmNode>()) {
-      return tvm::cast(DataType::Int(64), value);
+      return tvm::cast(PrimType::Int(64), value);
     }
-    TVM_FFI_ICHECK(value.dtype() == DataType::Int(64))
+    TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
         << "the value in ShapeType can only have dtype of int64";
     return value;
   });
@@ -86,7 +86,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Tensor
-TensorType::TensorType(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevice, Span span) {
+TensorType::TensorType(Expr shape, PrimType dtype, ffi::Optional<VDevice> vdevice, Span span) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   // assign ndim before move
   TVM_FFI_ICHECK(shape.defined()) << "Must provide a shape in this constructor";
@@ -103,7 +103,7 @@ TensorType::TensorType(Expr shape, DataType dtype, ffi::Optional<VDevice> vdevic
   data_ = std::move(n);
 }
 
-TensorType::TensorType(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice, Span span) {
+TensorType::TensorType(PrimType dtype, int ndim, ffi::Optional<VDevice> vdevice, Span span) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   TVM_FFI_ICHECK(ndim >= -1) << "ndim of TensorType must be >= -1, but got " << ndim;
   n->ndim = ndim;
@@ -116,13 +116,14 @@ TensorType::TensorType(DataType dtype, int ndim, ffi::Optional<VDevice> vdevice,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<DataType> dtype, int ndim,
+      "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<PrimType> dtype, int ndim,
                              VDevice vdevice, Span span) {
+        PrimType resolved_dtype = dtype.value_or(PrimType(DLDataType{kDLOpaqueHandle, 0, 0}));
         if (shape.defined()) {
           TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify shape and ndim";
-          return TensorType(shape.value(), dtype.value_or(DataType::Void()), vdevice, span);
+          return TensorType(shape.value(), resolved_dtype, vdevice, span);
         } else {
-          return TensorType(dtype.value_or(DataType::Void()), ndim, vdevice, span);
+          return TensorType(resolved_dtype, ndim, vdevice, span);
         }
       });
 }

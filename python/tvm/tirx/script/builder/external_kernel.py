@@ -28,6 +28,7 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
+from tvm.ir import PrimExpr
 from tvm.runtime import Module, const
 from tvm.support import nvcc
 
@@ -136,8 +137,10 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             "threadIdx.y",
             "threadIdx.z",
         ][: len(grid[1])]
-        runtime_args = [arg if hasattr(arg, "dtype") else const(arg) for arg in args]
-        kernel_arg_types = [arg.dtype for arg in runtime_args]
+        runtime_args = [arg if isinstance(arg, PrimExpr) else const(arg) for arg in args]
+        kernel_arg_types = [
+            str(arg.ty.dtype) if isinstance(arg, PrimExpr) else arg.dtype for arg in runtime_args
+        ]
         runtime_args = runtime_args + list(grid[0]) + list(grid[1])
 
         # Reuse compilation path from SourceModule

@@ -32,7 +32,9 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     os << "null";
   } else if (auto opt_int_imm = json_obj.try_cast<IntImm>()) {
     IntImm int_imm = *std::move(opt_int_imm);
-    if (int_imm->dtype == DataType::Bool()) {
+    PrimType int_ty = int_imm.ty();
+    if (int_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !int_ty.IsScalableVector() &&
+        !int_ty.IsFixedLengthVector()) {
       if (int_imm->value) {
         os << "true";
       } else {
@@ -154,7 +156,6 @@ class JSONTokenizer {
   bool NextFalse() { return NextLiteral("false", 5); }
 
   bool NextNumber(Token* token) {
-    using runtime::DataType;
     bool is_float = false;
     const char* st = cur_;
     for (; cur_ != end_; ++cur_) {

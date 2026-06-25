@@ -37,7 +37,8 @@ TVM_FFI_STATIC_INIT_BLOCK() { MultinomialFromUniformAttrs::RegisterReflection();
 
 /* relax.multinomial_from_uniform */
 
-Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices, DataType dtype) {
+Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices,
+                              DLDataType dtype) {
   ffi::ObjectPtr<MultinomialFromUniformAttrs> attrs =
       ffi::make_object<MultinomialFromUniformAttrs>();
   attrs->dtype = dtype;
@@ -59,19 +60,22 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
   TensorType sample_indices_ty = GetInputTensorType(call, 2, ctx);
   const auto* attrs = call->attrs.as<MultinomialFromUniformAttrs>();
 
-  if (!prob_ty->dtype.is_float()) {
+  // Only the element kind matters here; shape inference does not depend on vector lanes.
+  if (!prob_ty->dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input prob to have float dtype. "
            "However, the given prob dtype is "
         << prob_ty->dtype;
   }
-  if (!uniform_sample_ty->dtype.is_float()) {
+  // Only the element kind matters here; shape inference does not depend on vector lanes.
+  if (!uniform_sample_ty->dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample to have float "
            "dtype. However, the given uniform_sample dtype is "
         << uniform_sample_ty->dtype;
   }
-  if (!sample_indices_ty->dtype.is_int()) {
+  // Only the element kind matters here; shape inference does not depend on vector lanes.
+  if (!sample_indices_ty->dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial from uniform op requires the input sample_indices to have int "
            "dtype. However, the given sample_indices dtype is "
@@ -79,7 +83,7 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
   }
   if (prob_ty->IsUnknownNdim() || uniform_sample_ty->IsUnknownNdim() ||
       sample_indices_ty->IsUnknownNdim()) {
-    return TensorType(attrs->dtype, kUnknownNDim, prob_ty->vdevice);
+    return TensorType(PrimType(attrs->dtype), kUnknownNDim, prob_ty->vdevice);
   }
   if (prob_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -109,7 +113,7 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
   // The output shape is expected to be `(n, 1)`
 
   if (prob_shape == nullptr || uniform_sample_shape == nullptr || sample_indices_shape == nullptr) {
-    return TensorType(attrs->dtype, 2, prob_ty->vdevice);
+    return TensorType(PrimType(attrs->dtype), 2, prob_ty->vdevice);
   }
 
   PrimExpr batch = prob_shape->values[0];
@@ -132,7 +136,7 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
         << uniform_sample_ty->shape << " and the given sample_indices tensor has shape "
         << sample_indices_ty->shape;
   }
-  return TensorType(ShapeExpr({n, 1}), attrs->dtype, prob_ty->vdevice);
+  return TensorType(ShapeExpr({n, 1}), PrimType(attrs->dtype), prob_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.multinomial_from_uniform")

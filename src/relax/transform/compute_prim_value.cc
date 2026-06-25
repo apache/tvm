@@ -43,11 +43,12 @@ class PrimValueComputeInjector : public ExprMutator {
       return node;
     }
 
-    auto ret_dtype = node->value->dtype;
+    tvm::PrimType ret_ty = node->value.ty();
     auto param_vars = tirx::UndefinedVars(node->value);
-    tirx::Stmt body = tirx::Evaluate(tirx::Call(ret_dtype, tirx::builtin::ret(), {node->value}));
+    tirx::Stmt body =
+        tirx::Evaluate(tirx::Call(node->value.ty(), tirx::builtin::ret(), {node->value}));
 
-    tirx::PrimFunc func(param_vars, body, tvm::PrimType(ret_dtype), {},
+    tirx::PrimFunc func(param_vars, body, ret_ty, {},
                         DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
     func = s_tir::RenewDefs(func);
 

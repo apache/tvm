@@ -573,8 +573,7 @@ bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr
   // no need to jump, as var.dtype == value.dtype
   auto expr_ty = expr.as<ExprNode>()->ty;
   if (const TensorTypeNode* tensor_ty = expr_ty.as<TensorTypeNode>()) {
-    return (ffi::StructuralEqual()(op->dtype, tensor_ty->dtype)) &&
-           VisitDFPattern(op->pattern, expr);
+    return op->dtype == tensor_ty->dtype->dtype && VisitDFPattern(op->pattern, expr);
   }
   return false;
 }

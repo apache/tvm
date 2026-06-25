@@ -261,7 +261,7 @@ class PartitionFinder : public StmtExprVisitor {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       TVM_FFI_ICHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
-      IntSet dom = IntSet::FromRange(Range(IntImm(op->value.dtype(), 0), op->value));
+      IntSet dom = IntSet::FromRange(Range(IntImm(op->value.ty(), 0), op->value));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
       StmtExprVisitor::VisitStmt_(op);
@@ -458,11 +458,11 @@ class LoopPartitioner : public StmtMutator {
     Stmt res;
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
-      relax_map_.insert({var.get(), IntSet::Interval(IntImm(var.dtype(), 0), op->value - 1)});
+      relax_map_.insert({var.get(), IntSet::Interval(IntImm(var.ty(), 0), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       relax_map_.erase(var.get());
     } else {
-      hint_map_.insert({var.get(), IntSet::Interval(IntImm(var.dtype(), 0), op->value - 1)});
+      hint_map_.insert({var.get(), IntSet::Interval(IntImm(var.ty(), 0), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       hint_map_.erase(var.get());
     }
@@ -774,7 +774,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
   } else {
     TVM_FFI_ICHECK(for_node->kind != ForKind::kThreadBinding);
     auto new_loop = ffi::make_object<ForNode>(*for_node);
-    new_loop->min = IntImm(for_node->min.dtype(), 0);
+    new_loop->min = IntImm(for_node->min.ty(), 0);
     new_loop->extent = extent;
     new_loop->body = body;
     return For(new_loop);

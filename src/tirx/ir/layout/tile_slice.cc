@@ -118,7 +118,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
     return TileLayout(new_shard, layout->replica, new_offset);
   }
 
-  PrimExpr two = MakeConst(rem.dtype(), 2);
+  PrimExpr two = MakeConst(rem.ty(), 2);
   PrimExpr c = analyzer->Simplify(floordiv(rem, two));
   bool even = analyzer->CanProveEqual(floormod(rem, two), 0);
   bool mid = analyzer->CanProveEqual(analyzer->Simplify(d0[pivot] + c), Ek);
@@ -131,7 +131,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
       PrimExpr delta =
           analyzer->Simplify((pivot > 0 ? shard[pivot - 1]->stride : PrimExpr(0)) - (Ek - c) * Sk);
       std::vector<Iter> new_shard;
-      new_shard.push_back(Iter(MakeConst(c.dtype(), 2), delta, ak));
+      new_shard.push_back(Iter(MakeConst(c.ty(), 2), delta, ak));
       new_shard.push_back(Iter(c, Sk, ak));
       new_shard.insert(new_shard.end(), peeled_rev.rbegin(), peeled_rev.rend());
       return TileLayout(new_shard, layout->replica, new_offset);

@@ -97,10 +97,12 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
     auto [data_ptr, data_comm_ptrs] =
         AllocIPCMemory(dev, size, alignment, type_hint, /*reset_memory_to_zero=*/false);
     int barrier_ptr_size = sizeof(uint32_t) * (MAX_ALL_REDUCE_BLOCKS + 2) * MAX_RANKS_PER_NODE;
-    auto [barrier_in_ptr, barrier_in_comm_ptrs] = AllocIPCMemory(
-        dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
-    auto [barrier_out_ptr, barrier_out_comm_ptrs] = AllocIPCMemory(
-        dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
+    auto [barrier_in_ptr, barrier_in_comm_ptrs] =
+        AllocIPCMemory(dev, barrier_ptr_size, alignment, DLDataType{kDLUInt, 32, 1},
+                       /*reset_memory_to_zero=*/true);
+    auto [barrier_out_ptr, barrier_out_comm_ptrs] =
+        AllocIPCMemory(dev, barrier_ptr_size, alignment, DLDataType{kDLUInt, 32, 1},
+                       /*reset_memory_to_zero=*/true);
 
     // Create the CUDAIPCMemory object.
     ffi::ObjectPtr<CUDAIPCMemoryObj> ipc_memory = ffi::make_object<CUDAIPCMemoryObj>();

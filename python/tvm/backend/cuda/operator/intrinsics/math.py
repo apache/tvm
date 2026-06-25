@@ -293,7 +293,7 @@ def codegen_cuda_warp_reduce(value, op, width):
 
     func_name = f"tvm_builtin_cuda_warp_reduce_{op_str}_{width_int}"
     source_code = _warp_reduce_source(func_name, width_int, step_expr)
-    return cuda_func_call(func_name, value, source_code=source_code, return_type=value.dtype)
+    return cuda_func_call(func_name, value, source_code=source_code, return_type=value.ty)
 
 
 @register_codegen("cuda_cta_reduce")
@@ -326,7 +326,7 @@ def codegen_cuda_cta_reduce(value, op, num_warps, scratch):
         "    return scratch[0];\n"
         "}\n"
     )
-    return cuda_func_call(func_name, value, scratch, source_code=cta_body, return_type=value.dtype)
+    return cuda_func_call(func_name, value, scratch, source_code=cta_body, return_type=value.ty)
 
 
 # =============================================================================

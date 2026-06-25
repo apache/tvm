@@ -17,12 +17,17 @@
 """Creation operators."""
 
 from tvm import DataType, DataTypeCode
+from tvm.ir import PrimType
 from tvm.ir.expr import PrimExpr
 
 from ..expr import Expr, PrimValue, ShapeExpr
 from . import _ffi_api
 
 PrimExprLike = int | PrimExpr
+
+
+def _raw_dtype(dtype):
+    return dtype.dtype if isinstance(dtype, PrimType) else dtype
 
 
 def full(
@@ -49,7 +54,7 @@ def full(
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.full(shape, fill_value, dtype)  # type: ignore
+    return _ffi_api.full(shape, fill_value, _raw_dtype(dtype))  # type: ignore
 
 
 def full_like(x: Expr, fill_value: Expr, dtype: str | DataType | None = None) -> Expr:
@@ -75,7 +80,7 @@ def full_like(x: Expr, fill_value: Expr, dtype: str | DataType | None = None) ->
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.full_like(x, fill_value, dtype)  # type: ignore
+    return _ffi_api.full_like(x, fill_value, _raw_dtype(dtype))  # type: ignore
 
 
 def ones(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
@@ -96,7 +101,7 @@ def ones(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     """
     if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
-    return _ffi_api.ones(shape, dtype)  # type: ignore
+    return _ffi_api.ones(shape, _raw_dtype(dtype))  # type: ignore
 
 
 def ones_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
@@ -117,7 +122,7 @@ def ones_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.ones_like(x, dtype)  # type: ignore
+    return _ffi_api.ones_like(x, _raw_dtype(dtype))  # type: ignore
 
 
 def zeros(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
@@ -138,7 +143,7 @@ def zeros(shape: tuple[PrimExprLike] | Expr, dtype: str | DataType) -> Expr:
     """
     if isinstance(shape, tuple | list):
         shape = ShapeExpr(shape)
-    return _ffi_api.zeros(shape, dtype)  # type: ignore
+    return _ffi_api.zeros(shape, _raw_dtype(dtype))  # type: ignore
 
 
 def zeros_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
@@ -159,7 +164,7 @@ def zeros_like(x: Expr, dtype: str | DataType | None = None) -> Expr:
     result : relax.Expr
         The result tensor.
     """
-    return _ffi_api.zeros_like(x, dtype)  # type: ignore
+    return _ffi_api.zeros_like(x, _raw_dtype(dtype))  # type: ignore
 
 
 def eye(
@@ -195,7 +200,7 @@ def eye(
     n = n if isinstance(n, PrimValue) else PrimValue(n)
     m = m if isinstance(m, PrimValue) else PrimValue(m)
     k = k if isinstance(k, PrimValue) else PrimValue(k)
-    return _ffi_api.eye(n, m, k, dtype)  # type: ignore
+    return _ffi_api.eye(n, m, k, _raw_dtype(dtype))  # type: ignore
 
 
 def eye_like(
@@ -227,7 +232,7 @@ def eye_like(
         The result tensor.
     """
     k = k if isinstance(k, PrimValue) else PrimValue(k)
-    return _ffi_api.eye_like(x, k, dtype)  # type: ignore
+    return _ffi_api.eye_like(x, k, _raw_dtype(dtype))  # type: ignore
 
 
 def arange(
@@ -267,7 +272,9 @@ def arange(
             return True
         if isinstance(expr, PrimValue):
             expr = expr.value
-        return isinstance(expr, PrimExpr) and DataType(expr.dtype).type_code == DataTypeCode.INT  # type: ignore
+        if isinstance(expr, PrimExpr):
+            return expr.ty.matches_code(DataTypeCode.INT)
+        return False
 
     if dtype is None:
         args = (start, end, step)
