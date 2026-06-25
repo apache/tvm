@@ -124,6 +124,10 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
     // in this case.
     if (auto dtype_imm = arg_value.as<DataTypeImmNode>()) {
       // We know the datatype for the view.
+      TVM_FFI_CHECK(!PrimType(dtype_imm->value).IsVoid(), TypeError)
+          << "Operator " << call->op
+          << " expects the dtype argument to be a concrete tensor datatype, "
+          << "but received void.  Use relax.null_value() if no dtype change is requested.";
       return PrimType(dtype_imm->value);
     } else if (ty.as<AnyTypeNode>()) {
       // The view changes the datatype, but we don't know what it is

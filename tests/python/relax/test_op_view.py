@@ -244,6 +244,15 @@ def test_infer_dtype_of_float32_view():
     tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
+def test_error_if_view_dtype_is_void():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def func(A: R.Tensor("float32")):
+            B = R.memory.view(A, dtype=R.dtype("void"))
+            return B
+
+
 def test_view_without_explicit_dtype_keeps_input_dtype():
     """If R.memory.view only specifies the shape, the dtype is unchanged"""
 
