@@ -36,7 +36,6 @@ from tvm.tirx.layout import Iter, TileLayout
 from tvm.tirx.stmt_functor import StmtExprMutator, StmtMutator
 
 
-# FIXME: this pass does not replace var in the shape/layout of a buffer
 class BufferReplacer(StmtExprMutator):
     """
     Replace buffer with another buffer.
@@ -63,6 +62,10 @@ class BufferReplacer(StmtExprMutator):
         self.buffer_attr_var_mutated = False
         new_data = self.visit_expr(buffer.data)
         new_shape = [self.visit_expr(expr) for expr in buffer.shape]
+        new_strides = [self.visit_expr(expr) for expr in buffer.strides]
+        new_elem_offset = (
+            self.visit_expr(buffer.elem_offset) if buffer.elem_offset is not None else None
+        )
         if isinstance(buffer.layout, TileLayout):
             new_shard = []
             new_replicate = []
@@ -90,8 +93,8 @@ class BufferReplacer(StmtExprMutator):
             buffer.dtype,
             buffer.name,
             new_data,
-            buffer.strides,
-            buffer.elem_offset,
+            new_strides,
+            new_elem_offset,
             buffer.scope(),
             buffer.data_alignment,
             buffer.offset_factor,

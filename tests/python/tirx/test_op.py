@@ -57,6 +57,21 @@ def test_buffer_replacer_no_shared_default():
     assert len(r2.buffer_map) == 0
 
 
+def test_buffer_replacer_replaces_strides_and_elem_offset():
+    """Vars in buffer strides/elem_offset must be replaced, not passed through."""
+    from tvm.tirx import BufferStore, Var
+    from tvm.tirx.transform.common import BufferReplacer
+
+    n = Var("n", "int32")
+    m = Var("m", "int32")
+    A = decl_buffer((64,), "float32", strides=[n], elem_offset=n)
+    store = BufferStore(A, 1.0, [0])
+
+    new = BufferReplacer(var_map={n: m})(store)
+    assert new.buffer.strides[0].same_as(m)
+    assert new.buffer.elem_offset.same_as(m)
+
+
 def test_gemm_async_partial_scale_factor():
     """Regression test for F7: gemm_async must reject partial scale factors."""
     from tvm.tirx.script.builder.tirx import gemm_async
