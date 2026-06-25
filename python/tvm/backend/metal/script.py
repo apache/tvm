@@ -37,19 +37,19 @@ class MetalNamespace:
     def simd_shuffle(var, lane):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.metal.simd_shuffle", var, lane)
+        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle", var, lane)
 
     @staticmethod
     def simd_shuffle_up(var, delta):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.metal.simd_shuffle_up", var, delta)
+        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_up", var, delta)
 
     @staticmethod
     def simd_shuffle_down(var, delta):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.metal.simd_shuffle_down", var, delta)
+        return _tir_op.call_intrin(var.ty, "tirx.metal.simd_shuffle_down", var, delta)
 
 
 __all__ = ["MetalNamespace"]

@@ -21,7 +21,6 @@
  * \file src/ir/type.cc
  * \brief Common type system AST nodes throughout the IR.
  */
-#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
@@ -134,15 +133,6 @@ PrimType PrimType::Void() { return PrimType(DLDataType{kDLOpaqueHandle, 0, 0}); 
 
 PrimType PrimType::ScalableVector(DLDataTypeCode code, int bits, int lanes) {
   return PrimType(ScalableVectorDType(code, bits, lanes));
-}
-
-size_t PrimType::StorageBytes() const {
-  int16_t encoded_lanes = static_cast<int16_t>(get()->dtype.lanes);
-  if (TVM_FFI_PREDICT_FALSE(encoded_lanes < 0)) {
-    TVM_FFI_THROW(InternalError)
-        << "Cannot compute compile-time storage bytes for non-fixed vector type " << get()->dtype;
-  }
-  return ffi::GetDataSize(1, get()->dtype);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
