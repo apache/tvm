@@ -15,27 +15,22 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _installation:
+.. _install-from-pypi:
 
-Installing TVM
-==============
+Install from PyPI
+=================
 
-.. toctree::
-   :maxdepth: 1
+For most Python users, the quickest way to get started is to install the Apache
+TVM wheel from PyPI:
 
-   pypi
-   from_source
-   docker
+.. code-block:: bash
 
-For most Python users, the quickest way to get started is to
-:ref:`install the Apache TVM wheel from PyPI <install-from-pypi>`.
+   pip install apache-tvm
 
-Visit the :ref:`install TVM from source <install-from-source>` page to install
-TVM from the source code. Installing from source gives you the maximum
-flexibility to configure the build effectively from the official source
-releases. If you are interested in deploying to mobile or embedded devices,
-you do not need to install the entire TVM stack on your device. Instead, you
-only need the runtime.
+This installs the Python package, including modules such as ``tvm.tirx``, and
+is suitable for trying tutorials that do not require a custom build.
 
-If you would like to quickly try out TVM or run some demo and tutorials, you
-can :ref:`install from Docker <docker-images>`.
+For more details on installing the TIRx compiler and optional kernel library,
+visit the :doc:`TIRx installation </tirx/install>` page. If you need to
+customize TVM's build configuration, visit the
+:ref:`install TVM from source <install-from-source>` page instead.
