@@ -30,7 +30,6 @@ codegen time. Packed-vec emit requires the innermost dim to have stride 1
 
 from __future__ import annotations
 
-from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext
@@ -100,10 +99,10 @@ def is_smem_ewise(spec):
 def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
     """Widest vec_chunk dividing all operands' innermost extents AND
     ``total / thread_cnt``, within dtype-bit candidates ``{128,64,32,16,8}``."""
-    max_bits = DataType(plan.dst.buffer.dtype.dtype).bits
+    max_bits = plan.dst.buffer.dtype.dtype.bits
     for s in plan.srcs:
         if s.buf_region is not None:
-            max_bits = max(max_bits, DataType(s.buf_region.buffer.dtype.dtype).bits)
+            max_bits = max(max_bits, s.buf_region.buffer.dtype.dtype.bits)
     per_thread = total // thread_cnt if thread_cnt > 0 else total
     if total % thread_cnt != 0:
         return 1

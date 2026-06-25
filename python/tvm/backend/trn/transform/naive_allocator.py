@@ -17,7 +17,6 @@
 
 import functools
 
-from tvm import DataType
 from tvm.tirx import AllocBuffer, IntImm
 from tvm.tirx.buffer import Buffer
 from tvm.tirx.stmt_functor import StmtVisitor
@@ -48,7 +47,7 @@ def get_buffer_size(buffer: Buffer) -> int:
         raise ValueError(
             f"Buffer {buffer.name} has non-constant shape. Do not know how to allocate it."
         )
-    return int(num_elem * DataType(buffer.dtype.dtype).itemsize)
+    return int(num_elem * buffer.dtype.dtype.itemsize)
 
 
 class AllocInfoCollector(StmtVisitor):
