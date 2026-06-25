@@ -31,8 +31,8 @@ from tvm.script import tirx as T
 
 def test_get_static_type_basic():
     # object
-    s0 = rx.ObjectType()
-    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s0), rx.ObjectType())
+    s0 = rx.AnyType()
+    tvm.ir.assert_structural_equal(rx.analysis.get_static_type(s0), rx.AnyType())
 
     # prim
     s1 = tvm.ir.PrimType("float32")
@@ -63,7 +63,7 @@ def test_get_static_type_tensor():
 def test_get_static_type_tuple():
     # tuple
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    s0 = rx.ObjectType()
+    s0 = rx.AnyType()
     s2 = rx.ShapeType([1, n + 1, m])
     s4 = rx.TensorType([1, n + 1, m], "int64")
     t0 = rx.TupleType([s4, s0])
@@ -73,7 +73,7 @@ def test_get_static_type_tuple():
         rx.analysis.get_static_type(t1),
         rx.TupleType(
             [
-                rx.TupleType([rx.TensorType(ndim=3, dtype="int64"), rx.ObjectType()]),
+                rx.TupleType([rx.TensorType(ndim=3, dtype="int64"), rx.AnyType()]),
                 rx.ShapeType(ndim=3),
             ]
         ),
@@ -101,7 +101,7 @@ def test_get_static_type_func():
 
 
 def test_erase_to_well_defined_basic():
-    s0 = rx.ObjectType()
+    s0 = rx.AnyType()
     tvm.ir.assert_structural_equal(rx.analysis.erase_to_well_defined(s0), s0)
 
     # prim
@@ -172,7 +172,7 @@ def test_erase_to_well_defined_tensor():
 
 def test_erase_to_well_defined_tuple():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    s0 = rx.ObjectType()
+    s0 = rx.AnyType()
     s2 = rx.ShapeType([1, m])
     s4 = rx.TensorType([1, n + 1, m], "int64")
     t0 = rx.TupleType([s4, s0])
@@ -182,7 +182,7 @@ def test_erase_to_well_defined_tuple():
         rx.analysis.erase_to_well_defined(t1, {m: m + 1}),
         rx.TupleType(
             [
-                rx.TupleType([rx.TensorType(ndim=3, dtype="int64"), rx.ObjectType()]),
+                rx.TupleType([rx.TensorType(ndim=3, dtype="int64"), rx.AnyType()]),
                 rx.ShapeType([1, m + 1]),
             ]
         ),
@@ -207,7 +207,7 @@ def test_base_check():
     bcheck = rx.analysis.type_base_check
 
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    obj0 = rx.ObjectType()
+    obj0 = rx.AnyType()
     prim0 = tvm.ir.PrimType("int32")
     prim1 = tvm.ir.PrimType("float32")
 
@@ -361,7 +361,7 @@ def _check_derive(ctx, finfo, args_ty, ret):
 
 
 def test_derive_call_ret_type():
-    obj0 = rx.ObjectType()
+    obj0 = rx.AnyType()
     prim0 = tvm.ir.PrimType("float32")
 
     n, m = tirx.Var("n0", "int64"), tirx.Var("m0", "int64")
@@ -516,7 +516,7 @@ def _check_lca(lhs, rhs, target):
 
 def test_type_lca():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-    obj0 = rx.ObjectType()
+    obj0 = rx.AnyType()
     prim0 = tvm.ir.PrimType("int32")
     prim1 = tvm.ir.PrimType("float32")
 
@@ -670,22 +670,22 @@ def _generate_prim_test_cases():
                 # Unlike R.Tensor, R.Prim does not currently support a
                 # value with an unknown datatype.  If the dtype
                 # differs between the two annotations, the next wider
-                # category is R.Object.
-                yield (R.Prim(dtype_a), R.Prim(dtype_b), R.Object)
+                # category is R.Any.
+                yield (R.Prim(dtype_a), R.Prim(dtype_b), R.Any)
 
                 # Because the dtypes are different, even `R.Prim` containing
                 # the same value in different representations (e.g.
-                # `T.float32(0)` vs `T.float16(0)`) fall back to `R.Object`.
+                # `T.float32(0)` vs `T.float16(0)`) fall back to `R.Any`.
                 yield (
                     R.Prim(value=tirx.const(0, dtype_a)),
                     R.Prim(value=tirx.const(0, dtype_b)),
-                    R.Object,
+                    R.Any,
                 )
 
                 # And the same is true for known variable values
                 var_N = tirx.Var("N", dtype_a)
                 var_M = tirx.Var("M", dtype_b)
-                yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Object)
+                yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Any)
 
 
 @pytest.mark.parametrize("test_case", list(_generate_prim_test_cases()))

@@ -91,27 +91,31 @@ class PackedFuncType : public Type {
  * and simplifies assumptions during type deduction.
  */
 /*!
- * \brief Opaque object.
+ * \brief Any Relax value.
  */
-class ObjectTypeNode : public TypeNode {
+class AnyTypeNode : public TypeNode {
  public:
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<ObjectTypeNode>();
+    refl::ObjectDef<AnyTypeNode>();
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.ObjectType", ObjectTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.AnyType", AnyTypeNode, TypeNode);
 };
 
 /*!
- * \brief Managed reference to ObjectTypeNode.
- * \sa ObjectTypeNode
+ * \brief Managed reference to AnyTypeNode.
+ * \sa AnyTypeNode
  */
-class ObjectType : public Type {
+class AnyType : public Type {
  public:
-  TVM_DLL ObjectType(Span span = Span());
+  TVM_DLL AnyType(Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ObjectType, Type, ObjectTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AnyType, Type, AnyTypeNode);
 };
+
+// Compatibility aliases for existing C++ callers.  New code should use AnyType.
+using ObjectTypeNode = AnyTypeNode;
+using ObjectType = AnyType;
 
 /*!
  * \brief Type of shape value.
@@ -275,7 +279,7 @@ class FuncTypeNode : public TypeNode {
   /*!
    * \brief Derivation function of opaque functions that may take any number of parameters.
    * \note When derive_func is not empty, then params should be std::nullopt,
-   *       ret should be ObjectType()
+   *       ret should be AnyType()
    */
   ffi::Optional<TypeDeriveFunc> derive_func;
   /*!
@@ -333,7 +337,7 @@ class FuncType : public Type {
    * \param span The span of the AST.
    *
    * \return The FuncType for opaque packedfunc.
-   * \note Defaults to an derive func that always return ObjectType if not specified.
+   * \note Defaults to an derive func that always return AnyType if not specified.
    */
   TVM_DLL static FuncType OpaqueFunc(TypeDeriveFunc derive_func, bool purity = false,
                                      Span span = Span());
@@ -347,10 +351,9 @@ class FuncType : public Type {
    * \param span The span of the AST.
    *
    * \return The FuncType for opaque packedfunc.
-   * \note Defaults to an derive func that always return ObjectType if not specified.
+   * \note Defaults to an derive func that always return AnyType if not specified.
    */
-  TVM_DLL static FuncType OpaqueFunc(Type ret = ObjectType(), bool purity = false,
-                                     Span span = Span());
+  TVM_DLL static FuncType OpaqueFunc(Type ret = AnyType(), bool purity = false, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
 };

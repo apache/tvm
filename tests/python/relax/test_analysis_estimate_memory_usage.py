@@ -71,7 +71,7 @@ def test_basic():
         @R.function(pure=False)
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
             cls = Module
-            storage: R.Object = R.memory.alloc_storage(
+            storage: R.Any = R.memory.alloc_storage(
                 R.shape([32]), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(
@@ -82,7 +82,7 @@ def test_basic():
             lv1: R.Tensor((8,), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape", lv, R.shape([8]), ty_args=[R.Tensor((8,), dtype="float32")]
             )
-            storage1: R.Object = R.memory.alloc_storage(
+            storage1: R.Any = R.memory.alloc_storage(
                 R.shape([40]), virtual_device_index=0, storage_scope="global", dtype="float32"
             )
             alloc1: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(

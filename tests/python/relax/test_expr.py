@@ -105,16 +105,16 @@ def test_tuple() -> None:
 
 
 def test_tuple_ty_inferred_on_construction():
-    v0 = rx.Var("v0", rx.ObjectType())
-    v1 = rx.Var("v1", rx.ObjectType())
+    v0 = rx.Var("v0", rx.AnyType())
+    v1 = rx.Var("v1", rx.AnyType())
     tup = rx.Tuple((v0, v1))
 
     assert tup.ty is not None
-    tvm.ir.assert_structural_equal(tup.ty, rx.TupleType([rx.ObjectType(), rx.ObjectType()]))
+    tvm.ir.assert_structural_equal(tup.ty, rx.TupleType([rx.AnyType(), rx.AnyType()]))
 
 
 def test_tuple_ty_requires_fields_with_known_ty():
-    v0 = rx.Var("v0", rx.ObjectType())
+    v0 = rx.Var("v0", rx.AnyType())
     v1 = rx.Var("v1")
     tup = rx.Tuple((v0, v1))
 

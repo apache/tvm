@@ -275,7 +275,7 @@ The Relax builder (``ir_builder/relax/ir.py``) provides:
 - ``R.Tensor(shape, dtype)`` — tensor type
 - ``R.Tuple(*fields)`` — tuple type
 - ``R.Shape(values)`` — shape type
-- ``R.Object()`` — opaque object type
+- ``R.Any()`` — any Relax value type
 
 **Calling conventions**:
 
@@ -492,7 +492,7 @@ Function definition
        return result
 
 - ``R.Tensor(shape, dtype)`` — tensor type annotation.
-- ``R.Tuple(...)``, ``R.Shape(...)``, ``R.Object()`` — other Relax type annotations.
+- ``R.Tuple(...)``, ``R.Shape(...)``, ``R.Any()`` — other Relax type annotations.
 - ``R.function(private=True)`` — marks the function as module-private.
 - ``R.function(pure=False)`` — marks the function as having side effects.
 

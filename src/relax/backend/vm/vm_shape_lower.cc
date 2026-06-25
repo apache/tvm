@@ -337,9 +337,9 @@ class VMShapeLowerMutator
       UpdateType(call, heap_ty);
       return VarBinding(var, call);
     } else {
-      Var var("shape_heap", ObjectType());
+      Var var("shape_heap", AnyType());
       Call call(null_value_op_, {});
-      UpdateType(call, ObjectType());
+      UpdateType(call, AnyType());
       return VarBinding(var, call);
     }
   }
@@ -638,7 +638,7 @@ class VMShapeLowerMutator
     return TypeFunctor::VisitType(ty, value, always_check, dynamic_only, err_ctx, match_todos);
   }
 
-  void VisitType_(const ObjectTypeNode* op, Expr value, bool always_check, bool dynamic_only,
+  void VisitType_(const AnyTypeNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {}
 
   void VisitType_(const PrimTypeNode* op, Expr value, bool always_check, bool dynamic_only,
@@ -717,7 +717,7 @@ class VMShapeLowerMutator
     } else {
       // call runtime tuple get item, and return a object.
       Call call(builtin_tuple_getitem_, {value, PrimValue::Int64(index)}, Attrs(), {object_ty_});
-      UpdateType(call, ObjectType());
+      UpdateType(call, AnyType());
       return call;
     }
   }
@@ -776,7 +776,7 @@ class VMShapeLowerMutator
   const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Op& null_value_op_ = Op::Get("relax.null_value");
   // common type
-  const Type object_ty_ = ObjectType();
+  const Type object_ty_ = AnyType();
   const Type void_ty_ = TupleType(ffi::Array<Type>({}));
   // check function
   const ExternFunc builtin_alloc_shape_heap_{"vm.builtin.alloc_shape_heap"};

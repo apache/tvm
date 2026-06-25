@@ -108,12 +108,12 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
     // In general, Type inference should only depend on the
     // Type of the arguments, and not on the arguments
     // themselves.  However, `relax::DataTypeImm` uses
-    // `ObjectType`, so we need to inspect the argument itself
+    // `AnyType`, so we need to inspect the argument itself
     // in this case.
     if (auto dtype_imm = arg_value.as<DataTypeImmNode>()) {
       // We know the datatype for the view.
       return dtype_imm->value;
-    } else if (ty.as<ObjectTypeNode>()) {
+    } else if (ty.as<AnyTypeNode>()) {
       // The view changes the datatype, but we don't know what it is
       // being changed into.
       return DLDataType{kDLOpaqueHandle, 0, 0};

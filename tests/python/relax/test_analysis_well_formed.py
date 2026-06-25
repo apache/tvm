@@ -1254,11 +1254,11 @@ def test_var_binding_may_have_less_constrained_ty():
         def main(
             A: R.Tensor(shape=[128, 32], dtype="float32"),
         ):
-            B: R.Object = R.add(A, A)
+            B: R.Any = R.add(A, A)
             return B
 
-    assert isinstance(Module["main"].body.blocks[0].bindings[0].var.ty, tvm.relax.ObjectType), (
-        "Validity of this test requires a variable with R.Object type"
+    assert isinstance(Module["main"].body.blocks[0].bindings[0].var.ty, tvm.relax.AnyType), (
+        "Validity of this test requires a variable with R.Any type"
     )
 
     rx.analysis.well_formed(Module)
@@ -1353,7 +1353,7 @@ def test_ty_may_be_incomplete():
             A: R.Tensor(shape=[128, 32], dtype="float32"),
             B: R.Tensor(shape=[128, 32], dtype="float32"),
         ):
-            C: R.Object = R.add(A, B)
+            C: R.Any = R.add(A, B)
             return C
 
     rx.analysis.well_formed(Module)

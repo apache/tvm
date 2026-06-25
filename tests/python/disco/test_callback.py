@@ -42,7 +42,7 @@ def test_callback():
     @R.function
     def transform_params(
         rank_arg: R.Prim(value="rank"),
-        fget_item: R.Callable([R.Object, R.Prim("int64")], R.Object),
+        fget_item: R.Callable([R.Any, R.Prim("int64")], R.Any),
     ):
         rank = T.int64()
 

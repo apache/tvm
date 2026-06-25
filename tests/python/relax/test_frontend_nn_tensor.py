@@ -55,7 +55,7 @@ def test_tensor_op_binary_tensor_tensor():
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((2, 1), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32")), R.Tuple(R.Object)):
+    def test(x: R.Tensor((1, 10), dtype="float32"), y: R.Tensor((2, 1), dtype="float32"), _io: R.Any) -> R.Tuple(R.Tuple(R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32")), R.Tuple(R.Any)):
         R.func_attr({"num_input": 3})
         with R.dataflow():
             add: R.Tensor((2, 10), dtype="float32") = R.add(x, y)
@@ -63,7 +63,7 @@ def test_tensor_op_binary_tensor_tensor():
             divide: R.Tensor((2, 10), dtype="float32") = R.divide(x, y)
             maximum: R.Tensor((2, 10), dtype="float32") = R.maximum(x, y)
             minimum: R.Tensor((2, 10), dtype="float32") = R.minimum(x, y)
-            gv1: R.Tuple(R.Tuple(R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32")), R.Tuple(R.Object)) = (add, mul, divide, maximum, minimum), (_io,)
+            gv1: R.Tuple(R.Tuple(R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32"), R.Tensor((2, 10), dtype="float32")), R.Tuple(R.Any)) = (add, mul, divide, maximum, minimum), (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
@@ -91,7 +91,7 @@ def test_tensor_op_binary_tensor_scalar():
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((1, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32")), R.Tuple(R.Object)):
+    def test(x: R.Tensor((1, 10), dtype="float32"), _io: R.Any) -> R.Tuple(R.Tuple(R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32")), R.Tuple(R.Any)):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             add: R.Tensor((1, 10), dtype="float32") = R.add(x, R.const(10, "float32"))
@@ -100,7 +100,7 @@ def test_tensor_op_binary_tensor_scalar():
             divide: R.Tensor((1, 10), dtype="float32") = R.divide(x, R.const(10, "float32"))
             maximum: R.Tensor((1, 10), dtype="float32") = R.maximum(x, R.const(10, "float32"))
             minimum: R.Tensor((1, 10), dtype="float32") = R.minimum(x, R.const(10, "float32"))
-            gv1: R.Tuple(R.Tuple(R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32")), R.Tuple(R.Object)) = (add, add1, mul, divide, maximum, minimum), (_io,)
+            gv1: R.Tuple(R.Tuple(R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32"), R.Tensor((1, 10), dtype="float32")), R.Tuple(R.Any)) = (add, add1, mul, divide, maximum, minimum), (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
@@ -119,11 +119,11 @@ def test_tensor_op_datatype():
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((1, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((1, 10), dtype="float16"), R.Tuple(R.Object)):
+    def test(x: R.Tensor((1, 10), dtype="float32"), _io: R.Any) -> R.Tuple(R.Tensor((1, 10), dtype="float16"), R.Tuple(R.Any)):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             astype: R.Tensor((1, 10), dtype="float16") = R.astype(x, dtype="float16")
-            gv1: R.Tuple(R.Tensor((1, 10), dtype="float16"), R.Tuple(R.Object)) = astype, (_io,)
+            gv1: R.Tuple(R.Tensor((1, 10), dtype="float16"), R.Tuple(R.Any)) = astype, (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
@@ -144,13 +144,13 @@ def test_tensor_op_manipulate():
 
     # fmt: off
     @R.function
-    def test(x: R.Tensor((2, 1, 10), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((10, 1, 2), dtype="float32"), R.Tensor((2, 2, 10), dtype="float32")), R.Tuple(R.Object)):
+    def test(x: R.Tensor((2, 1, 10), dtype="float32"), _io: R.Any) -> R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((10, 1, 2), dtype="float32"), R.Tensor((2, 2, 10), dtype="float32")), R.Tuple(R.Any)):
         R.func_attr({"num_input": 2})
         with R.dataflow():
             reshape: R.Tensor((2, 5, 2), dtype="float32") = R.reshape(x, R.shape([2, 5, 2]))
             permute_dims: R.Tensor((10, 1, 2), dtype="float32") = R.permute_dims(x, axes=[2, 1, 0])
             repeat: R.Tensor((2, 2, 10), dtype="float32") = R.repeat(x, repeats=2, axis=1)
-            gv1: R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((10, 1, 2), dtype="float32"), R.Tensor((2, 2, 10), dtype="float32")), R.Tuple(R.Object)) = (reshape, permute_dims, repeat), (_io,)
+            gv1: R.Tuple(R.Tuple(R.Tensor((2, 5, 2), dtype="float32"), R.Tensor((10, 1, 2), dtype="float32"), R.Tensor((2, 2, 10), dtype="float32")), R.Tuple(R.Any)) = (reshape, permute_dims, repeat), (_io,)
             R.output(gv1)
         return gv1
     # fmt: on

@@ -40,16 +40,24 @@ def _check_json_roundtrip(x):
     return xret
 
 
-def test_object_ty():
-    s0 = rx.ObjectType()
-    s1 = rx.ObjectType()
+def test_any_ty():
+    s0 = rx.AnyType()
+    s1 = rx.AnyType()
 
     # can turn into str
     str(s0)
     _check_equal(s0, s1)
 
-    assert isinstance(s0, rx.ObjectType)
+    assert isinstance(s0, rx.AnyType)
     _check_json_roundtrip(s0)
+
+
+def test_object_ty_compat_alias():
+    s0 = rx.ObjectType()
+
+    assert isinstance(s0, rx.AnyType)
+    assert rx.ObjectType is rx.AnyType
+    _check_equal(s0, rx.AnyType())
 
 
 def test_shape_type():
@@ -181,10 +189,10 @@ def test_tuple_ty():
     n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
 
     s0 = rx.TensorType([1, 2, m + n], "float32")
-    s1 = rx.ObjectType()
+    s1 = rx.AnyType()
 
     t0 = rx.TupleType([s0, s1])
-    t1 = rx.TupleType([s0, rx.ObjectType()])
+    t1 = rx.TupleType([s0, rx.AnyType()])
     t2 = rx.TupleType([s0, s0])
 
     _check_equal(t0, t1)
@@ -229,7 +237,7 @@ def test_func_ty():
     assert f2.derive_func is None
     assert f3.params is None
     assert f3.derive_func is None
-    _check_equal(f3.ret, rx.ObjectType())
+    _check_equal(f3.ret, rx.AnyType())
 
     assert isinstance(f0, rx.FuncType)
     f0 = _check_json_roundtrip(f0)

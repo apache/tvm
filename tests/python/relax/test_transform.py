@@ -152,7 +152,7 @@ def test_transform_remove_purity_checking():
             return res
 
         @R.function(pure=False)
-        def impure_func() -> R.Object:
+        def impure_func() -> R.Any:
             y = R.print(format="I am impure!")
             return y
 
@@ -171,7 +171,7 @@ def test_transform_remove_purity_checking():
         @R.function(pure=False)
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
-            def nested() -> R.Object:
+            def nested() -> R.Any:
                 x = R.print(format="Oops!")
                 return x
 
@@ -203,7 +203,7 @@ def test_transform_remove_purity_checking():
             return res
 
         @R.function(pure=False)
-        def impure_func() -> R.Object:
+        def impure_func() -> R.Any:
             y = R.print(format="I am impure!")
             return y
 
@@ -225,7 +225,7 @@ def test_transform_remove_purity_checking():
         @R.function(pure=False)
         def nested_impure_func() -> R.Tensor((), "int32"):
             @R.function(pure=False)
-            def nested() -> R.Object:
+            def nested() -> R.Any:
                 x = R.print(format="Oops!")
                 return x
 
@@ -557,7 +557,7 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
         @I.ir_module(s_tir=True)
         class Module:
             @R.function
-            def main(A: R.Object):
+            def main(A: R.Any):
                 gv1 = R.call_tir_inplace(
                     Module.multiply_by_two,
                     [A],

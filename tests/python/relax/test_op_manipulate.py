@@ -3073,7 +3073,7 @@ def test_reverse_sequence_infer_ty_wrong_inputs():
     seq_lengths_float = relax.Var("seq_lengths", R.Tensor((2,), "float32"))
     seq_lengths_int16 = relax.Var("seq_lengths", R.Tensor((2,), "int16"))
     seq_lengths_mismatch = relax.Var("seq_lengths", R.Tensor((3,), "int32"))
-    not_tensor = relax.Var("seq_lengths", relax.ObjectType())
+    not_tensor = relax.Var("seq_lengths", relax.AnyType())
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.reverse_sequence(x, not_tensor))

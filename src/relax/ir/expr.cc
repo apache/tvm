@@ -386,7 +386,7 @@ StringImm::StringImm(ffi::String value, Span span) {
   ffi::ObjectPtr<StringImmNode> n = ffi::make_object<StringImmNode>();
   n->value = std::move(value);
   n->span = std::move(span);
-  n->ty = ObjectType();
+  n->ty = AnyType();
   data_ = std::move(n);
 }
 
@@ -400,7 +400,7 @@ DataTypeImm::DataTypeImm(DLDataType value, Span span) {
   ffi::ObjectPtr<DataTypeImmNode> n = ffi::make_object<DataTypeImmNode>();
   n->value = value;
   n->span = std::move(span);
-  n->ty = ObjectType();
+  n->ty = AnyType();
   data_ = std::move(n);
 }
 
@@ -656,7 +656,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   auto infer_by_ty_args = [](const Call& call, const BlockBuilder& ctx) -> Type {
     TVM_FFI_ICHECK(call->ty_args.defined()) << "ty_args field of CallNode should always be defined";
     if (call->ty_args.empty()) {
-      return ObjectType();
+      return AnyType();
     } else if (call->ty_args.size() == 1) {
       return call->ty_args[0];
     } else {

@@ -84,14 +84,14 @@ def test_static_fn_check():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(f: R.Callable([R.Object], R.Object), y: R.Shape([1, 2])):
+        def main(f: R.Callable([R.Any], R.Any), y: R.Shape([1, 2])):
             R.func_attr({"relax.force_pure": True})
             return y
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(f: R.Callable([R.Object], R.Object), y: R.Shape([1, 2])):
+        def main(f: R.Callable([R.Any], R.Any), y: R.Shape([1, 2])):
             R.func_attr({"relax.force_pure": True})
             shape_heap = R.null_value()
             _ = R.call_packed("vm.builtin.check_func_info", f, "", ty_args=[R.Tuple()])
@@ -382,7 +382,7 @@ def test_return_match_check():
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Object) -> R.Tuple(
+        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Any) -> R.Tuple(
             R.Tensor(["n", "m"], "float32")
         ):
             R.func_attr({"relax.force_pure": True})
@@ -397,7 +397,7 @@ def test_return_match_check():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Object) -> R.Tuple(
+        def main(x: R.Tensor(["n", "m"], "float32"), y: R.Any) -> R.Tuple(
             R.Tensor(["n", "m"], "float32")
         ):
             R.func_attr({"relax.force_pure": True})
@@ -423,7 +423,7 @@ def test_return_match_check():
             )
             _ = R.call_packed("vm.builtin.check_tuple_info", y, 1, "", ty_args=[R.Tuple()])
             # emit runtime function call since y do not have the right type.
-            y1 = R.call_packed("vm.builtin.tuple_getitem", y, 0, ty_args=[R.Object])
+            y1 = R.call_packed("vm.builtin.tuple_getitem", y, 0, ty_args=[R.Any])
             # run check
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -469,7 +469,7 @@ def test_return_match_check_with_new_expr():
         @R.function
         def main(x: R.Tensor(["n", "n"], "float32")) -> R.Tensor(["n * n"], "float32"):
             R.func_attr({"relax.force_pure": True})
-            out = R.call_packed("flatten_matrix", x, ty_args=R.Object)
+            out = R.call_packed("flatten_matrix", x, ty_args=R.Any)
             return out
 
     # slot assignment:
@@ -506,7 +506,7 @@ def test_return_match_check_with_new_expr():
 
             _ = Expected.shape_func(shape_heap)
 
-            out = R.call_packed("flatten_matrix", x, ty_args=R.Object)
+            out = R.call_packed("flatten_matrix", x, ty_args=R.Any)
             _ = R.call_packed(
                 "vm.builtin.check_tensor_info",
                 out,
@@ -665,7 +665,7 @@ def test_check_lifted_weights():
             R.Tensor((16, 16), dtype="float32")
         ):
             R.func_attr({"relax.force_pure": True})
-            shape_heap: R.Object = R.null_value()
+            shape_heap: R.Any = R.null_value()
             _: R.Tuple = R.call_packed(
                 "vm.builtin.check_tuple_info",
                 params,
@@ -701,7 +701,7 @@ def test_check_lifted_weights():
             x: R.Tensor((16, 16), dtype="float32"), param_0: R.Tensor((16, 16), dtype="float32")
         ) -> R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")):
             R.func_attr({"num_input": 1, "relax.force_pure": True})
-            shape_heap: R.Object = R.null_value()
+            shape_heap: R.Any = R.null_value()
             _: R.Tuple = R.call_packed(
                 "vm.builtin.check_tensor_info",
                 x,

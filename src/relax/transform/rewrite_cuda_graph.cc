@@ -552,7 +552,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       }
     } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
       return IsStatic(tuple_ty->fields, vars_collector, tir_vars_collector);
-    } else if (ty.as<ObjectTypeNode>() || ty.as<PrimTypeNode>()) {
+    } else if (ty.as<AnyTypeNode>() || ty.as<PrimTypeNode>()) {
       return true;
     }
     return false;

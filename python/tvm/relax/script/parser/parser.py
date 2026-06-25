@@ -269,9 +269,9 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
         collect_symbolic_var_from_params(self, node)
 
         if node.returns is None:
-            # Use ObjectType as unknown return type
+            # Use AnyType as unknown return type
             # NOTE: Cannot use VoidType here because the return type can be refined later.
-            ret_ty = relax.ObjectType()
+            ret_ty = relax.AnyType()
         else:
             ret_ty = eval_ty(self, node.returns, eval_str=True)
         params = []

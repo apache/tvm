@@ -53,6 +53,7 @@ from .expr import const, extern, get_shape_of
 # Type
 from .type import (
     Type,
+    AnyType,
     ObjectType,
     ShapeType,
     TensorType,

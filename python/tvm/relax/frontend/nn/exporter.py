@@ -26,7 +26,7 @@ from tvm.ir import IRModule
 
 from .... import relax as rx
 from ...block_builder import BlockBuilder
-from ...type import ObjectType, ShapeType, TupleType
+from ...type import AnyType, ShapeType, TupleType
 from . import core, extern
 from . import spec as _spec
 from .modules import IOEffect
@@ -311,7 +311,7 @@ def _method_spec_to_inputs(
                 name=arg_name,
             )
         elif isinstance(arg_spec, _spec.Object):
-            arg = arg_spec.object_type(_expr=rx.Var(arg_name, ObjectType()), _name=arg_name)
+            arg = arg_spec.object_type(_expr=rx.Var(arg_name, AnyType()), _name=arg_name)
         elif isinstance(arg_spec, _spec.Tuple):
             elements = type(arg_spec.elements)(
                 [

@@ -1120,7 +1120,7 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
     def before(
         state: R.Tensor([4096], "float32"),
         proj_qkv: R.Tensor([12288, 4096], "float32"),
-        kv_cache: R.Object,
+        kv_cache: R.Any,
     ):
         qkv = R.matmul(proj_qkv, state)
         qkv_tuple = R.split(qkv, 3, axis=0)
@@ -1142,7 +1142,7 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
     def expected(
         state: R.Tensor([4096], "float32"),
         proj_qkv: R.Tensor([12288, 4096], "float32"),
-        kv_cache: R.Object,
+        kv_cache: R.Any,
     ):
         qkv = R.matmul(proj_qkv, state)
         embedded_qkv_tuple = R.call_pure_packed(

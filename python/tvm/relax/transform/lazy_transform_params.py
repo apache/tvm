@@ -177,12 +177,12 @@ class LazyTransformParamsFuncCreator:
             if leaf_outputs:
                 new_bindings = [
                     relax.VarBinding(
-                        relax.Var("_", relax.ObjectType()),
+                        relax.Var("_", relax.AnyType()),
                         relax.Call(
                             relax.ExternFunc(self.fset_item),
                             [*self.extra_set_item_params, index, expr],
                             None,
-                            [relax.ObjectType()],
+                            [relax.AnyType()],
                         ),
                     )
                     for expr, indices in leaf_outputs.items()
@@ -222,7 +222,7 @@ class LazyTransformParamsFuncCreator:
         return relax.Function(
             params,
             new_body,
-            relax.ObjectType(),
+            relax.AnyType(),
             attrs=func.attrs,
             is_pure=False,
         ).without_attr("relax.force_pure")
@@ -268,7 +268,7 @@ class LazyInputMutator(PyExprMutator):
                     relax.ExternFunc(self.func_creator.fget_item),
                     self.func_creator.extra_get_item_params + [relax.PrimValue(index)],
                     None,
-                    [relax.ObjectType()],
+                    [relax.AnyType()],
                 )
             )
             match_cast = relax.MatchCast(var, get_item_result, var.ty)
@@ -289,7 +289,7 @@ class LazyInputMutator(PyExprMutator):
                     relax.ExternFunc(self.func_creator.fget_item),
                     self.func_creator.extra_get_item_params + [relax.PrimValue(node.index)],
                     None,
-                    [relax.ObjectType()],
+                    [relax.AnyType()],
                 )
             )
             return self.builder_.match_cast(get_item_result, ty)
@@ -329,7 +329,7 @@ class LazyOutputMutator(PyExprMutator):
                                 self.func_creator.extra_set_item_params
                                 + [index, super().visit_var_(var)],
                                 None,
-                                [relax.ObjectType()],
+                                [relax.AnyType()],
                             ),
                             name_hint="_",
                         )

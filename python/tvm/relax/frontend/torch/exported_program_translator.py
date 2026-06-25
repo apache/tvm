@@ -1433,7 +1433,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 elif hasattr(operand, "ty"):
                     si = operand.ty
                 else:
-                    si = relax.ObjectType()
+                    si = relax.AnyType()
                 param = relax.Var(ph.name, si)
                 params.append(param)
                 self.env[ph] = param

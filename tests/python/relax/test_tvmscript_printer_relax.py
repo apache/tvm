@@ -169,10 +169,10 @@ class Module:
 
 
 def test_object_ty():
-    obj = relax.ObjectType()
+    obj = relax.AnyType()
     _assert_print(
         obj,
-        "R.Object",
+        "R.Any",
     )
 
 
@@ -224,14 +224,14 @@ def test_tuple_ty():
     obj = relax.TupleType(
         [
             tvm.ir.PrimType("float32"),
-            relax.ObjectType(),
+            relax.AnyType(),
             relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
         ]
     )
     _assert_print(
         obj._relax_script(),  # pylint: disable=protected-access
         """
-R.Tuple(T.float32, R.Object, R.Shape([1, a, 3]))
+R.Tuple(T.float32, R.Any, R.Shape([1, a, 3]))
 """,
     )
 
@@ -240,7 +240,7 @@ def test_func_ty():
     obj = relax.FuncType(
         params=[
             tvm.ir.PrimType("float32"),
-            relax.ObjectType(),
+            relax.AnyType(),
             relax.ShapeType([1, tirx.Var("a", "int64"), 3]),
             tvm.ir.PrimType("int64"),
         ],
@@ -252,7 +252,7 @@ def test_func_ty():
     _assert_print(
         obj,
         "a = T.int64()\n"
-        "R.Callable((T.float32, R.Object, R.Shape([1, a, 3]), T.int64), "
+        "R.Callable((T.float32, R.Any, R.Shape([1, a, 3]), T.int64), "
         'R.Tensor((1, 2, 3), dtype="float32"), True)',
     )
 
@@ -263,8 +263,8 @@ def test_shape_type():
 
 
 def test_object_type():
-    obj = relax.ObjectType()
-    _assert_print(obj, "R.Object")
+    obj = relax.AnyType()
+    _assert_print(obj, "R.Any")
 
 
 def test_dyn_tensor_type():
@@ -278,17 +278,17 @@ def test_packed_func_type():
 
 
 def test_tuple_type():
-    obj = relax.TupleType([relax.ShapeType(ndim=3), relax.ObjectType()])
+    obj = relax.TupleType([relax.ShapeType(ndim=3), relax.AnyType()])
     _assert_print(
         obj._relax_script(),  # pylint: disable=protected-access
-        "R.Tuple(R.Shape(ndim=3), R.Object)",
+        "R.Tuple(R.Shape(ndim=3), R.Any)",
     )
 
 
 def test_func_type():
     obj = relax.FuncType(
         params=[
-            relax.ObjectType(),
+            relax.AnyType(),
             relax.ShapeType(ndim=3),
         ],
         ret=relax.TensorType(
@@ -298,7 +298,7 @@ def test_func_type():
     )
     _assert_print(
         obj._relax_script(),  # pylint: disable=protected-access
-        'R.Callable((R.Object, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
+        'R.Callable((R.Any, R.Shape(ndim=3)), R.Tensor(dtype="float32", ndim=3), True)',
     )
 
 

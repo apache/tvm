@@ -74,7 +74,7 @@ class _Rewriter(PyExprMutator):
         ipc_alloc_storage = relax.Call(
             relax.ExternFunc("runtime.disco.cuda_ipc.alloc_storage"),
             args=[shape, dtype],
-            ty_args=[relax.ObjectType()],
+            ty_args=[relax.AnyType()],
         )
         return relax.Call(
             self.memory_alloc_tensor_op,

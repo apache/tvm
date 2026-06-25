@@ -22,10 +22,10 @@ from typing import Any, TypeVar
 import tvm
 from tvm.ir import PrimType
 from tvm.relax import (
+    AnyType,
     Expr,
     Function,
     FuncType,
-    ObjectType,
     SeqExpr,
     ShapeExpr,
     ShapeType,
@@ -156,11 +156,11 @@ class TypeProxy(ObjectConvertible):
         return self.as_ty(None)
 
 
-############################### R.Object ################################
+############################### R.Any ################################
 
 
-class ObjectProxy(TypeProxy):
-    """The proxy fo ObjectType.
+class AnyProxy(TypeProxy):
+    """The proxy for AnyType.
 
     Parameters
     ----------
@@ -177,12 +177,19 @@ class ObjectProxy(TypeProxy):
     def get_symbolic_vars(self) -> set[str]:
         return set()
 
-    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> ObjectType:
-        return ObjectType()
+    def as_ty(self, dict_globals: dict[str, Any] | None = None) -> AnyType:
+        return AnyType()
 
 
-def Object() -> ObjectProxy:
-    return ObjectProxy()
+def Any() -> AnyProxy:
+    return AnyProxy()
+
+
+ObjectProxy = AnyProxy
+
+
+def Object() -> AnyProxy:
+    return AnyProxy()
 
 
 ############################### R.Tensor ###############################

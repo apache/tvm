@@ -3230,7 +3230,7 @@ def relax_match_cast_ty_proxy():
     def make_ir_generator(proxy_subclass):
         def inner():
             @R.function
-            def func(A: R.Object):
+            def func(A: R.Any):
                 B = R.match_cast(A, proxy_subclass)
                 return B
 
@@ -3243,7 +3243,7 @@ def relax_match_cast_ty_proxy():
     # This list is a subset of `TypeProxy.__subclasses__()`,
     # excluding `PrimProxy` and `DTensorProxy`.
     subclasses = [
-        tvm.script.parser.relax.entry.ObjectProxy,
+        tvm.script.parser.relax.entry.AnyProxy,
         tvm.script.parser.relax.entry.TensorProxy,
         tvm.script.parser.relax.entry.CallableProxy,
         tvm.script.parser.relax.entry.TupleProxy,

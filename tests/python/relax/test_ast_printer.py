@@ -257,8 +257,8 @@ def test_types():
     printer = ASTPrinter()
     assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=-1))) == "ShapeType(ndim=-1)"
     assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=1))) == "ShapeType(ndim=1)"
-    object_type = rx.ObjectType()
-    assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
+    object_type = rx.AnyType()
+    assert strip_whitespace(printer.visit_type_(object_type)) == "AnyType()"
     packed_type = rx.PackedFuncType()
     assert strip_whitespace(printer.visit_type_(packed_type)) == "PackedFuncType()"
     tensor_type = rx.TensorType(ndim=2, dtype="int32")
@@ -268,7 +268,7 @@ def test_types():
     tuple_type = rx.TupleType([rx.ShapeType(ndim=-1), object_type])
     assert_fields(
         "TupleType",
-        {"fields": "[ShapeType(ndim=-1),ObjectType()]"},
+        {"fields": "[ShapeType(ndim=-1),AnyType()]"},
         strip_whitespace(printer.visit_type_(tuple_type)),
     )
 
@@ -287,7 +287,7 @@ def test_types():
 def test_ty():
     printer = ASTPrinter()
 
-    assert printer.visit_ty_(rx.ObjectType()) == "ObjectType()"
+    assert printer.visit_ty_(rx.AnyType()) == "AnyType()"
 
     assert printer.visit_ty_(tvm.ir.PrimType("int32")) == "PrimType(dtype=int32)"
 
@@ -340,10 +340,10 @@ def test_ty():
         """
     )
 
-    simple_func = rx.FuncType([], rx.ObjectType())
+    simple_func = rx.FuncType([], rx.AnyType())
     assert (
         strip_whitespace(printer.visit_ty_(simple_func))
-        == "FuncType(params=[],ret=ObjectType(),purity=True)"
+        == "FuncType(params=[],ret=AnyType(),purity=True)"
     )
 
 
@@ -354,15 +354,15 @@ def test_call_packed():
         x: R.Tensor((32, "m"), "float32"),
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
-    ) -> R.Object:
+    ) -> R.Any:
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor(ndim=2) = R.multiply(z, z)
         q: R.Tensor = R.add(w, w)
         t = R.add(w, z)
         sh: R.Shape = R.shape_of(t)
-        o: R.Object = R.call_packed(
-            "contrib.tensor_array_stack", x, y, ty_args=R.Object(), test_attr=True
+        o: R.Any = R.call_packed(
+            "contrib.tensor_array_stack", x, y, ty_args=R.Any(), test_attr=True
         )
         return o
 
@@ -376,7 +376,7 @@ def test_call_packed():
     )
 
     # the function has an annotated return type
-    assert "ret_ty=ObjectType()" in f_str
+    assert "ret_ty=AnyType()" in f_str
     # the purity attribute is set to false
     assert "is_pure=False"
 
@@ -393,7 +393,7 @@ def test_call_packed():
         {
             "op": 'ExternFunc(global_symbol="contrib.tensor_array_stack")',
             "args": '[Var(name_hint="x"), Var(name_hint="y")]',
-            "ty_args": "[ObjectType()]",
+            "ty_args": "[AnyType()]",
             "attrs": '{"test_attr": True}',
         },
         extern_call_text,
@@ -670,7 +670,7 @@ def test_string_imm():
         """
         StringImm(
             value="test",
-            ty=ObjectType()
+            ty=AnyType()
         )
     """
     )
@@ -683,7 +683,7 @@ def test_datatype_imm():
         """
         DataTypeImm(
             value=int32,
-            ty=ObjectType()
+            ty=AnyType()
         )
     """
     )
