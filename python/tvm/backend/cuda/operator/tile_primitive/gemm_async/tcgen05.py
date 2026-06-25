@@ -387,6 +387,11 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     C_type, A_type, B_type = C_buffer.dtype, A_buffer.dtype, B_buffer.dtype
     assert C_type == "float32", f"tcgen05 schedule expected C_type=float32, got {C_type}"
 
+    # fp32/bf16 storage may still use tf32 MMA semantics via is_AB_tf32.
+    is_AB_tf32 = op_call.config.get("is_AB_tf32", False)
+    A_sem = "tf32" if is_AB_tf32 else A_type
+    B_sem = "tf32" if is_AB_tf32 else B_type
+
     # Valid A/B dtypes for block-scaled MMA (low-precision with per-block scale factors)
     _BLOCK_SCALED_DTYPES = ["float4_e2m1fn", "float8_e4m3fn"]
 
@@ -400,14 +405,22 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
             f"tcgen05 block-scaled schedule expected B_type in {_BLOCK_SCALED_DTYPES}, got {B_type}"
         )
     else:
-        assert A_type in ["float16", "bfloat16"], (
-            f"tcgen05 schedule expected A_type=float16 or bfloat16, got {A_type}"
+        _DENSE_DTYPES = [
+            "float16",
+            "bfloat16",
+            "float8_e4m3fn",
+            "float8_e5m2",
+            "tensor_float32",
+            "tf32",
+        ]
+        assert A_sem in _DENSE_DTYPES, (
+            f"tcgen05 schedule expected A dtype in {_DENSE_DTYPES}, got {A_sem}"
         )
-        assert B_type in ["float16", "bfloat16"], (
-            f"tcgen05 schedule expected B_type=float16 or bfloat16, got {B_type}"
+        assert B_sem in _DENSE_DTYPES, (
+            f"tcgen05 schedule expected B dtype in {_DENSE_DTYPES}, got {B_sem}"
         )
-    assert A_type == B_type, (
-        f"tcgen05 schedule expect A_type and B_type to be the same, got A_type={A_type}, B_type={B_type}"  # noqa: E501
+    assert A_sem == B_sem, (
+        f"tcgen05 schedule expect A and B MMA dtype to be the same, got A={A_sem}, B={B_sem}"
     )
 
     # Parse SFA/SFB and transA/transB/accum based on arg layout
@@ -686,12 +699,13 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # transA=False [M, K]: K = dim[-1]; transA=True [K, M]: K = dim[-2]
     K = A_dim2 if transA else A_dim1
 
-    # tcgen05 MMA hardware constraints
-    # K dimension per MMA iteration depends on A/B dtype
-    if A_type == "float4_e2m1fn":
+    # tcgen05 MMA hardware constraints (MMA_K keyed on semantic dtype A_sem).
+    if A_sem == "float4_e2m1fn":
         MMA_K = 64
-    elif A_type in ["float8_e4m3fn", "float8_e5m2"]:
+    elif A_sem in ["float8_e4m3fn", "float8_e5m2"]:
         MMA_K = 32
+    elif A_sem in ["tensor_float32", "tf32"]:
+        MMA_K = 8
     else:  # float16, bfloat16
         MMA_K = 16
     MMA_N_MIN = 8 if cta_group == 1 else 16  # Minimum N dimension
@@ -961,7 +975,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
                         T.ptx.tcgen05.mma(
                             T.cuda.get_tmem_addr(tmem_addr, mi * M_mma, tmem_col),
                             a_val, descB_val, descI_in,
-                            d_dtype="float32", a_dtype=A_type, b_dtype=B_type,
+                            d_dtype="float32", a_dtype=A_sem, b_dtype=B_sem,
                             use_a_tmem=a_is_tmem, cta_group=cta_group,
                             enable_input_d=should_accum,
                         )
@@ -990,8 +1004,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
             M=M_mma * cta_group,
             N=N_mma,
             d_dtype="float32",
-            a_dtype=A_type,
-            b_dtype=B_type,
+            a_dtype=A_sem,
+            b_dtype=B_sem,
             trans_a=a_mn_major,
             trans_b=b_mn_major,
         )
