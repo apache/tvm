@@ -419,109 +419,99 @@ def test_matmul(dynamic):
     check_correctness(model, inputs)
 
 
-@pytest.mark.parametrize(
-    ("a_dtype", "b_dtype", "a_shape", "b_shape"),
-    [
-        (np.int16, np.int16, [2, 3], [3, 4]),
-        (np.uint16, np.uint16, [2, 3], [3, 4]),
-        (np.int16, np.uint16, [2, 1, 3, 5], [1, 2, 5, 4]),
-    ],
-)
-def test_matmulinteger16(a_dtype, b_dtype, a_shape, b_shape):
-    out_dtype = np.uint32 if a_dtype == np.uint16 and b_dtype == np.uint16 else np.int32
-    output_shape = [
-        *np.broadcast_shapes(tuple(a_shape[:-2]), tuple(b_shape[:-2])),
-        a_shape[-2],
-        b_shape[-1],
-    ]
+def test_matmulinteger16():
+    def verify_matmulinteger16(a_dtype, b_dtype, a_shape, b_shape, expected):
+        out_dtype = np.uint32 if a_dtype == np.uint16 and b_dtype == np.uint16 else np.int32
+        output_shape = [
+            *np.broadcast_shapes(tuple(a_shape[:-2]), tuple(b_shape[:-2])),
+            a_shape[-2],
+            b_shape[-1],
+        ]
 
-    node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
-    graph = helper.make_graph(
-        [node],
-        "matmulinteger16_test",
-        inputs=[
-            helper.make_tensor_value_info(
-                "a", helper.np_dtype_to_tensor_dtype(np.dtype(a_dtype)), a_shape
-            ),
-            helper.make_tensor_value_info(
-                "b", helper.np_dtype_to_tensor_dtype(np.dtype(b_dtype)), b_shape
-            ),
-        ],
-        outputs=[
-            helper.make_tensor_value_info(
-                "y",
-                helper.np_dtype_to_tensor_dtype(np.dtype(out_dtype)),
-                output_shape,
-            )
-        ],
+        node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
+        graph = helper.make_graph(
+            [node],
+            "matmulinteger16_test",
+            inputs=[
+                helper.make_tensor_value_info(
+                    "a", helper.np_dtype_to_tensor_dtype(np.dtype(a_dtype)), a_shape
+                ),
+                helper.make_tensor_value_info(
+                    "b", helper.np_dtype_to_tensor_dtype(np.dtype(b_dtype)), b_shape
+                ),
+            ],
+            outputs=[
+                helper.make_tensor_value_info(
+                    "y",
+                    helper.np_dtype_to_tensor_dtype(np.dtype(out_dtype)),
+                    output_shape,
+                )
+            ],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="matmulinteger16_test",
+            opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
+        )
+        model.ir_version = 11
+
+        tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedInt16:
+        @R.function
+        def main(
+            a: R.Tensor((2, 3), dtype="int16"),
+            b: R.Tensor((3, 4), dtype="int16"),
+        ) -> R.Tensor((2, 4), dtype="int32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="int32") = R.astype(a, dtype="int32")
+                lv1: R.Tensor((3, 4), dtype="int32") = R.astype(b, dtype="int32")
+                gv: R.Tensor((2, 4), dtype="int32") = R.matmul(lv, lv1, out_dtype="void")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedUInt16:
+        @R.function
+        def main(
+            a: R.Tensor((2, 3), dtype="uint16"),
+            b: R.Tensor((3, 4), dtype="uint16"),
+        ) -> R.Tensor((2, 4), dtype="uint32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="uint32") = R.astype(a, dtype="uint32")
+                lv1: R.Tensor((3, 4), dtype="uint32") = R.astype(b, dtype="uint32")
+                gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1, out_dtype="void")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedMixedBatched:
+        @R.function
+        def main(
+            a: R.Tensor((2, 1, 3, 5), dtype="int16"),
+            b: R.Tensor((1, 2, 5, 4), dtype="uint16"),
+        ) -> R.Tensor((2, 2, 3, 4), dtype="int32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((2, 1, 3, 5), dtype="int32") = R.astype(a, dtype="int32")
+                lv1: R.Tensor((1, 2, 5, 4), dtype="int32") = R.astype(b, dtype="int32")
+                gv: R.Tensor((2, 2, 3, 4), dtype="int32") = R.matmul(lv, lv1, out_dtype="void")
+                R.output(gv)
+            return gv
+
+    verify_matmulinteger16(np.int16, np.int16, [2, 3], [3, 4], ExpectedInt16)
+    verify_matmulinteger16(np.uint16, np.uint16, [2, 3], [3, 4], ExpectedUInt16)
+    verify_matmulinteger16(
+        np.int16,
+        np.uint16,
+        [2, 1, 3, 5],
+        [1, 2, 5, 4],
+        ExpectedMixedBatched,
     )
-    model = helper.make_model(
-        graph,
-        producer_name="matmulinteger16_test",
-        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
-    )
-    model.ir_version = 11
-
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-
-    if a_dtype == np.int16 and b_dtype == np.int16:
-
-        @I.ir_module
-        class ExpectedInt16:
-            @R.function
-            def main(
-                a: R.Tensor((2, 3), dtype="int16"),
-                b: R.Tensor((3, 4), dtype="int16"),
-            ) -> R.Tensor((2, 4), dtype="int32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((2, 3), dtype="int32") = R.astype(a, dtype="int32")
-                    lv1: R.Tensor((3, 4), dtype="int32") = R.astype(b, dtype="int32")
-                    gv: R.Tensor((2, 4), dtype="int32") = R.matmul(lv, lv1, out_dtype="void")
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedInt16
-
-    elif a_dtype == np.uint16 and b_dtype == np.uint16:
-
-        @I.ir_module
-        class ExpectedUInt16:
-            @R.function
-            def main(
-                a: R.Tensor((2, 3), dtype="uint16"),
-                b: R.Tensor((3, 4), dtype="uint16"),
-            ) -> R.Tensor((2, 4), dtype="uint32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((2, 3), dtype="uint32") = R.astype(a, dtype="uint32")
-                    lv1: R.Tensor((3, 4), dtype="uint32") = R.astype(b, dtype="uint32")
-                    gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1, out_dtype="void")
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedUInt16
-
-    else:
-
-        @I.ir_module
-        class ExpectedMixedBatched:
-            @R.function
-            def main(
-                a: R.Tensor((2, 1, 3, 5), dtype="int16"),
-                b: R.Tensor((1, 2, 5, 4), dtype="uint16"),
-            ) -> R.Tensor((2, 2, 3, 4), dtype="int32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((2, 1, 3, 5), dtype="int32") = R.astype(a, dtype="int32")
-                    lv1: R.Tensor((1, 2, 5, 4), dtype="int32") = R.astype(b, dtype="int32")
-                    gv: R.Tensor((2, 2, 3, 4), dtype="int32") = R.matmul(lv, lv1, out_dtype="void")
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedMixedBatched
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
 def test_matmulinteger16_ir():
@@ -1591,82 +1581,75 @@ def test_hardmax_opset13_default_axis_ir():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-@pytest.mark.parametrize("op_name", ["Softmax", "LogSoftmax", "Hardmax"])
-def test_legacy_softmax_family_opset1_ir_semantics(op_name: str):
-    node = helper.make_node(op_name, ["x"], ["y"])
-    graph = helper.make_graph(
-        [node],
-        "legacy_softmax_family_opset1_ir_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="legacy_softmax_family_opset1_ir_test",
-        opset_imports=[helper.make_opsetid("", 1)],
-    )
-    tvm_model = from_onnx(model, opset=1, keep_params_in_input=True)
+def test_legacy_softmax_family_opset1_ir_semantics():
+    def verify_legacy_softmax_family_opset1_ir(op_name: str, expected):
+        node = helper.make_node(op_name, ["x"], ["y"])
+        graph = helper.make_graph(
+            [node],
+            "legacy_softmax_family_opset1_ir_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3, 4])],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3, 4])],
+        )
+        model = helper.make_model(
+            graph,
+            producer_name="legacy_softmax_family_opset1_ir_test",
+            opset_imports=[helper.make_opsetid("", 1)],
+        )
+        tvm_model = from_onnx(model, opset=1, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if op_name == "Softmax":
+    @I.ir_module
+    class ExpectedSoftmax:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
+                lv1: R.Tensor((2, 12), dtype="float32") = R.nn.softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedSoftmax:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
-                    lv1: R.Tensor((2, 12), dtype="float32") = R.nn.softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedLogSoftmax:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
+                lv1: R.Tensor((2, 12), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedSoftmax)
+    @I.ir_module
+    class ExpectedHardmax:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((2, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
+                lv1: R.Tensor((2,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
+                lv2: R.Tensor((2, 12), dtype="float32") = R.one_hot(
+                    lv1,
+                    R.prim_value(T.float32(1.0)),
+                    R.prim_value(T.float32(0.0)),
+                    depth=12,
+                    axis=1,
+                )
+                gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
+                R.output(gv)
+            return gv
 
-    elif op_name == "LogSoftmax":
-
-        @I.ir_module
-        class ExpectedLogSoftmax:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
-                    lv1: R.Tensor((2, 12), dtype="float32") = R.nn.log_softmax(lv, axis=-1)
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv1, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedLogSoftmax)
-
-    else:
-
-        @I.ir_module
-        class ExpectedHardmax:
-            @R.function
-            def main(
-                x: R.Tensor((2, 3, 4), dtype="float32"),
-            ) -> R.Tensor((2, 3, 4), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, R.shape([2, 12]))
-                    lv1: R.Tensor((2,), dtype="int64") = R.argmax(lv, axis=1, keepdims=False)
-                    lv2: R.Tensor((2, 12), dtype="float32") = R.one_hot(
-                        lv1,
-                        R.prim_value(T.float32(1.0)),
-                        R.prim_value(T.float32(0.0)),
-                        depth=12,
-                        axis=1,
-                    )
-                    gv: R.Tensor((2, 3, 4), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 4]))
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedHardmax)
+    verify_legacy_softmax_family_opset1_ir("Softmax", ExpectedSoftmax)
+    verify_legacy_softmax_family_opset1_ir("LogSoftmax", ExpectedLogSoftmax)
+    verify_legacy_softmax_family_opset1_ir("Hardmax", ExpectedHardmax)
 
 
 def test_round_ties_to_even():
@@ -1740,7 +1723,7 @@ def test_cast_nan_inf_to_int8():
 
 
 def test_gather():
-    def _verify_gather(data_shape, indices, out_shape, axis=0):
+    def _verify_gather(data_shape, indices, out_shape, expected, axis=0):
         gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
 
         if isinstance(indices, list | tuple):
@@ -1762,355 +1745,302 @@ def test_gather():
             graph, producer_name="gather_test", opset_imports=[helper.make_opsetid("", 14)]
         )
         tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
-        if data_shape == [5, 4, 3, 2]:
-
-            @I.ir_module
-            class ExpectedRank4Axis0:
-                @R.function
-                def main(
-                    data: R.Tensor((5, 4, 3, 2), dtype="float32"),
-                    indices: R.Tensor((3,), dtype="int64"),
-                ) -> R.Tensor((3, 4, 3, 2), dtype="float32"):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv: R.Shape([5, 4, 3, 2]) = R.shape_of(data)
-                        lv1: R.Tensor((4,), dtype="int64") = R.shape_to_tensor(lv)
-                        lv2: R.Tensor((3,), dtype="bool") = R.less(indices, R.const(0, "int64"))
-                        lv3: R.Tensor((), dtype="int64") = R.take(
-                            lv1, R.const(0, "int64"), axis=0, mode="wrap"
-                        )
-                        lv4: R.Tensor((3,), dtype="int64") = R.add(indices, lv3)
-                        lv5: R.Tensor((3,), dtype="int64") = R.where(lv2, lv4, indices)
-                        gv: R.Tensor((3, 4, 3, 2), dtype="float32") = R.take(
-                            data, lv5, axis=0, mode="fast"
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedRank4Axis0
-
-        elif data_shape == [3]:
-
-            @I.ir_module
-            class ExpectedScalarIndex:
-                @R.function
-                def main(
-                    data: R.Tensor((3,), dtype="float32"),
-                    indices: R.Tensor((), dtype="int64"),
-                ) -> R.Tensor((), dtype="float32"):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv: R.Shape([3]) = R.shape_of(data)
-                        lv1: R.Tensor((1,), dtype="int64") = R.shape_to_tensor(lv)
-                        lv2: R.Tensor((), dtype="bool") = R.less(indices, R.const(0, "int64"))
-                        lv3: R.Tensor((), dtype="int64") = R.take(
-                            lv1, R.const(0, "int64"), axis=0, mode="wrap"
-                        )
-                        lv4: R.Tensor((), dtype="int64") = R.add(indices, lv3)
-                        lv5: R.Tensor((), dtype="int64") = R.where(lv2, lv4, indices)
-                        gv: R.Tensor((), dtype="float32") = R.take(data, lv5, axis=0, mode="fast")
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedScalarIndex
-
-        else:
-
-            @I.ir_module
-            class ExpectedRank2Axis1:
-                @R.function
-                def main(
-                    data: R.Tensor((3, 3), dtype="float32"),
-                    indices: R.Tensor((1, 2), dtype="int64"),
-                ) -> R.Tensor((3, 1, 2), dtype="float32"):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv: R.Shape([3, 3]) = R.shape_of(data)
-                        lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                        lv2: R.Tensor((1, 2), dtype="bool") = R.less(indices, R.const(0, "int64"))
-                        lv3: R.Tensor((), dtype="int64") = R.take(
-                            lv1, R.const(1, "int64"), axis=0, mode="wrap"
-                        )
-                        lv4: R.Tensor((1, 2), dtype="int64") = R.add(indices, lv3)
-                        lv5: R.Tensor((1, 2), dtype="int64") = R.where(lv2, lv4, indices)
-                        gv: R.Tensor((3, 1, 2), dtype="float32") = R.take(
-                            data, lv5, axis=1, mode="fast"
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedRank2Axis1
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    _verify_gather([5, 4, 3, 2], [0, 1, 3], [3, 4, 3, 2])
-    _verify_gather([3], 0, [])
-    _verify_gather([3, 3], [[0, 2]], [3, 1, 2], 1)
+    @I.ir_module
+    class ExpectedRank4Axis0:
+        @R.function
+        def main(
+            data: R.Tensor((5, 4, 3, 2), dtype="float32"),
+            indices: R.Tensor((3,), dtype="int64"),
+        ) -> R.Tensor((3, 4, 3, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([5, 4, 3, 2]) = R.shape_of(data)
+                lv1: R.Tensor((4,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((3,), dtype="bool") = R.less(indices, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(0, "int64"), axis=0, mode="wrap"
+                )
+                lv4: R.Tensor((3,), dtype="int64") = R.add(indices, lv3)
+                lv5: R.Tensor((3,), dtype="int64") = R.where(lv2, lv4, indices)
+                gv: R.Tensor((3, 4, 3, 2), dtype="float32") = R.take(data, lv5, axis=0, mode="fast")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedScalarIndex:
+        @R.function
+        def main(
+            data: R.Tensor((3,), dtype="float32"),
+            indices: R.Tensor((), dtype="int64"),
+        ) -> R.Tensor((), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3]) = R.shape_of(data)
+                lv1: R.Tensor((1,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((), dtype="bool") = R.less(indices, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(0, "int64"), axis=0, mode="wrap"
+                )
+                lv4: R.Tensor((), dtype="int64") = R.add(indices, lv3)
+                lv5: R.Tensor((), dtype="int64") = R.where(lv2, lv4, indices)
+                gv: R.Tensor((), dtype="float32") = R.take(data, lv5, axis=0, mode="fast")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedRank2Axis1:
+        @R.function
+        def main(
+            data: R.Tensor((3, 3), dtype="float32"),
+            indices: R.Tensor((1, 2), dtype="int64"),
+        ) -> R.Tensor((3, 1, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 3]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((1, 2), dtype="bool") = R.less(indices, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(1, "int64"), axis=0, mode="wrap"
+                )
+                lv4: R.Tensor((1, 2), dtype="int64") = R.add(indices, lv3)
+                lv5: R.Tensor((1, 2), dtype="int64") = R.where(lv2, lv4, indices)
+                gv: R.Tensor((3, 1, 2), dtype="float32") = R.take(data, lv5, axis=1, mode="fast")
+                R.output(gv)
+            return gv
+
+    _verify_gather([5, 4, 3, 2], [0, 1, 3], [3, 4, 3, 2], ExpectedRank4Axis0)
+    _verify_gather([3], 0, [], ExpectedScalarIndex)
+    _verify_gather([3, 3], [[0, 2]], [3, 1, 2], ExpectedRank2Axis1, 1)
 
 
-@pytest.mark.parametrize(
-    "axis, indices, out_shape",
-    [
-        (0, [-1, 0], [2, 4]),
-        (1, [-1, 0], [3, 2]),
-        (
-            1,
-            [[-1, 0], [1, -2]],
-            [3, 2, 2],
-        ),
-    ],
-)
-@pytest.mark.parametrize("indices_type", [TensorProto.INT64, TensorProto.INT32])
-def test_gather_negative_indices(axis, indices, out_shape, indices_type):
-    gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
-    indices_shape = np.asarray(indices).shape
+def test_gather_negative_indices():
+    def verify_gather_negative_indices(axis, indices, out_shape, indices_type, expected):
+        gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
+        indices_shape = np.asarray(indices).shape
 
-    graph = helper.make_graph(
-        [gather_node],
-        "gather_negative_indices_test",
-        inputs=[
-            helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4]),
-            helper.make_tensor_value_info("indices", indices_type, indices_shape),
-        ],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_shape)],
+        graph = helper.make_graph(
+            [gather_node],
+            "gather_negative_indices_test",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4]),
+                helper.make_tensor_value_info("indices", indices_type, indices_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_shape)],
+        )
+
+        model = helper.make_model(
+            graph,
+            producer_name="gather_negative_indices_test",
+            opset_imports=[helper.make_opsetid("", 14)],
+        )
+        tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedInt64Axis0:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(0, "int64"), axis=0, mode="wrap"
+                )
+                lv4: R.Tensor((2,), dtype="int64") = R.add(indices, lv3)
+                lv5: R.Tensor((2,), dtype="int64") = R.where(lv2, lv4, indices)
+                gv: R.Tensor((2, 4), dtype="float32") = R.take(data, lv5, axis=0, mode="fast")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedInt64Axis1Vector:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(1, "int64"), axis=0, mode="wrap"
+                )
+                lv4: R.Tensor((2,), dtype="int64") = R.add(indices, lv3)
+                lv5: R.Tensor((2,), dtype="int64") = R.where(lv2, lv4, indices)
+                gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv5, axis=1, mode="fast")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedInt64Axis1Matrix:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2, 2), dtype="int64"),
+        ) -> R.Tensor((3, 2, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((2, 2), dtype="bool") = R.less(indices, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(1, "int64"), axis=0, mode="wrap"
+                )
+                lv4: R.Tensor((2, 2), dtype="int64") = R.add(indices, lv3)
+                lv5: R.Tensor((2, 2), dtype="int64") = R.where(lv2, lv4, indices)
+                gv: R.Tensor((3, 2, 2), dtype="float32") = R.take(data, lv5, axis=1, mode="fast")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedInt32Axis0:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2,), dtype="int32"),
+        ) -> R.Tensor((2, 4), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(0, "int64"), axis=0, mode="wrap"
+                )
+                lv3: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int32"))
+                lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
+                lv5: R.Tensor((2,), dtype="int32") = R.add(indices, lv4)
+                lv6: R.Tensor((2,), dtype="int32") = R.where(lv3, lv5, indices)
+                gv: R.Tensor((2, 4), dtype="float32") = R.take(data, lv6, axis=0, mode="fast")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedInt32Axis1Vector:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2,), dtype="int32"),
+        ) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(1, "int64"), axis=0, mode="wrap"
+                )
+                lv3: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int32"))
+                lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
+                lv5: R.Tensor((2,), dtype="int32") = R.add(indices, lv4)
+                lv6: R.Tensor((2,), dtype="int32") = R.where(lv3, lv5, indices)
+                gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv6, axis=1, mode="fast")
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedInt32Axis1Matrix:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2, 2), dtype="int32"),
+        ) -> R.Tensor((3, 2, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(1, "int64"), axis=0, mode="wrap"
+                )
+                lv3: R.Tensor((2, 2), dtype="bool") = R.less(indices, R.const(0, "int32"))
+                lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
+                lv5: R.Tensor((2, 2), dtype="int32") = R.add(indices, lv4)
+                lv6: R.Tensor((2, 2), dtype="int32") = R.where(lv3, lv5, indices)
+                gv: R.Tensor((3, 2, 2), dtype="float32") = R.take(data, lv6, axis=1, mode="fast")
+                R.output(gv)
+            return gv
+
+    verify_gather_negative_indices(0, [-1, 0], [2, 4], TensorProto.INT64, ExpectedInt64Axis0)
+    verify_gather_negative_indices(1, [-1, 0], [3, 2], TensorProto.INT64, ExpectedInt64Axis1Vector)
+    verify_gather_negative_indices(
+        1, [[-1, 0], [1, -2]], [3, 2, 2], TensorProto.INT64, ExpectedInt64Axis1Matrix
+    )
+    verify_gather_negative_indices(0, [-1, 0], [2, 4], TensorProto.INT32, ExpectedInt32Axis0)
+    verify_gather_negative_indices(1, [-1, 0], [3, 2], TensorProto.INT32, ExpectedInt32Axis1Vector)
+    verify_gather_negative_indices(
+        1, [[-1, 0], [1, -2]], [3, 2, 2], TensorProto.INT32, ExpectedInt32Axis1Matrix
     )
 
-    model = helper.make_model(
-        graph,
-        producer_name="gather_negative_indices_test",
-        opset_imports=[helper.make_opsetid("", 14)],
-    )
-    indices_np_dtype = {
-        TensorProto.INT64: np.int64,
-        TensorProto.INT32: np.int32,
-    }[indices_type]
-    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
-    if indices_type == TensorProto.INT64 and axis == 0:
 
-        @I.ir_module
-        class ExpectedInt64Axis0:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((2, 4), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int64"))
-                    lv3: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(0, "int64"), axis=0, mode="wrap"
-                    )
-                    lv4: R.Tensor((2,), dtype="int64") = R.add(indices, lv3)
-                    lv5: R.Tensor((2,), dtype="int64") = R.where(lv2, lv4, indices)
-                    gv: R.Tensor((2, 4), dtype="float32") = R.take(data, lv5, axis=0, mode="fast")
-                    R.output(gv)
-                return gv
+def test_gather_negative_indices_ir_normalization():
+    def verify_gather_negative_indices_ir_normalization(indices_type, expected):
+        gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=1)
+        graph = helper.make_graph(
+            [gather_node],
+            "gather_negative_indices_ir_test",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4]),
+                helper.make_tensor_value_info("indices", indices_type, [2]),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 2])],
+        )
 
-        expected = ExpectedInt64Axis0
+        model = helper.make_model(graph, producer_name="gather_negative_indices_ir_test")
+        tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    elif indices_type == TensorProto.INT64 and tuple(indices_shape) == (2,):
+    @I.ir_module
+    class ExpectedInt32:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2,), dtype="int32"),
+        ) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(1, "int64"), axis=0, mode="wrap"
+                )
+                lv3: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int32"))
+                lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
+                lv5: R.Tensor((2,), dtype="int32") = R.add(indices, lv4)
+                lv6: R.Tensor((2,), dtype="int32") = R.where(lv3, lv5, indices)
+                gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv6, axis=1, mode="fast")
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedInt64Axis1Vector:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((3, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int64"))
-                    lv3: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(1, "int64"), axis=0, mode="wrap"
-                    )
-                    lv4: R.Tensor((2,), dtype="int64") = R.add(indices, lv3)
-                    lv5: R.Tensor((2,), dtype="int64") = R.where(lv2, lv4, indices)
-                    gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv5, axis=1, mode="fast")
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedInt64:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4), dtype="float32"),
+            indices: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((3, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Shape([3, 4]) = R.shape_of(data)
+                lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
+                lv2: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.take(
+                    lv1, R.const(1, "int64"), axis=0, mode="wrap"
+                )
+                lv4: R.Tensor((2,), dtype="int64") = R.add(indices, lv3)
+                lv5: R.Tensor((2,), dtype="int64") = R.where(lv2, lv4, indices)
+                gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv5, axis=1, mode="fast")
+                R.output(gv)
+            return gv
 
-        expected = ExpectedInt64Axis1Vector
-
-    elif indices_type == TensorProto.INT64:
-
-        @I.ir_module
-        class ExpectedInt64Axis1Matrix:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2, 2), dtype="int64"),
-            ) -> R.Tensor((3, 2, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((2, 2), dtype="bool") = R.less(indices, R.const(0, "int64"))
-                    lv3: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(1, "int64"), axis=0, mode="wrap"
-                    )
-                    lv4: R.Tensor((2, 2), dtype="int64") = R.add(indices, lv3)
-                    lv5: R.Tensor((2, 2), dtype="int64") = R.where(lv2, lv4, indices)
-                    gv: R.Tensor((3, 2, 2), dtype="float32") = R.take(
-                        data, lv5, axis=1, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedInt64Axis1Matrix
-
-    elif axis == 0:
-
-        @I.ir_module
-        class ExpectedInt32Axis0:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2,), dtype="int32"),
-            ) -> R.Tensor((2, 4), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(0, "int64"), axis=0, mode="wrap"
-                    )
-                    lv3: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int32"))
-                    lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
-                    lv5: R.Tensor((2,), dtype="int32") = R.add(indices, lv4)
-                    lv6: R.Tensor((2,), dtype="int32") = R.where(lv3, lv5, indices)
-                    gv: R.Tensor((2, 4), dtype="float32") = R.take(data, lv6, axis=0, mode="fast")
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedInt32Axis0
-
-    elif tuple(indices_shape) == (2,):
-
-        @I.ir_module
-        class ExpectedInt32Axis1Vector:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2,), dtype="int32"),
-            ) -> R.Tensor((3, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(1, "int64"), axis=0, mode="wrap"
-                    )
-                    lv3: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int32"))
-                    lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
-                    lv5: R.Tensor((2,), dtype="int32") = R.add(indices, lv4)
-                    lv6: R.Tensor((2,), dtype="int32") = R.where(lv3, lv5, indices)
-                    gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv6, axis=1, mode="fast")
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedInt32Axis1Vector
-
-    else:
-
-        @I.ir_module
-        class ExpectedInt32Axis1Matrix:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2, 2), dtype="int32"),
-            ) -> R.Tensor((3, 2, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(1, "int64"), axis=0, mode="wrap"
-                    )
-                    lv3: R.Tensor((2, 2), dtype="bool") = R.less(indices, R.const(0, "int32"))
-                    lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
-                    lv5: R.Tensor((2, 2), dtype="int32") = R.add(indices, lv4)
-                    lv6: R.Tensor((2, 2), dtype="int32") = R.where(lv3, lv5, indices)
-                    gv: R.Tensor((3, 2, 2), dtype="float32") = R.take(
-                        data, lv6, axis=1, mode="fast"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedInt32Axis1Matrix
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
-
-
-@pytest.mark.parametrize("indices_type", [TensorProto.INT64, TensorProto.INT32])
-def test_gather_negative_indices_ir_normalization(indices_type):
-    gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=1)
-    graph = helper.make_graph(
-        [gather_node],
-        "gather_negative_indices_ir_test",
-        inputs=[
-            helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4]),
-            helper.make_tensor_value_info("indices", indices_type, [2]),
-        ],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 2])],
-    )
-
-    model = helper.make_model(graph, producer_name="gather_negative_indices_ir_test")
-    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
-
-    if indices_type == TensorProto.INT32:
-
-        @I.ir_module
-        class ExpectedInt32:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2,), dtype="int32"),
-            ) -> R.Tensor((3, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(1, "int64"), axis=0, mode="wrap"
-                    )
-                    lv3: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int32"))
-                    lv4: R.Tensor((), dtype="int32") = R.astype(lv2, dtype="int32")
-                    lv5: R.Tensor((2,), dtype="int32") = R.add(indices, lv4)
-                    lv6: R.Tensor((2,), dtype="int32") = R.where(lv3, lv5, indices)
-                    gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv6, axis=1, mode="fast")
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedInt32)
-
-    else:
-
-        @I.ir_module
-        class ExpectedInt64:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4), dtype="float32"),
-                indices: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((3, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Shape([3, 4]) = R.shape_of(data)
-                    lv1: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
-                    lv2: R.Tensor((2,), dtype="bool") = R.less(indices, R.const(0, "int64"))
-                    lv3: R.Tensor((), dtype="int64") = R.take(
-                        lv1, R.const(1, "int64"), axis=0, mode="wrap"
-                    )
-                    lv4: R.Tensor((2,), dtype="int64") = R.add(indices, lv3)
-                    lv5: R.Tensor((2,), dtype="int64") = R.where(lv2, lv4, indices)
-                    gv: R.Tensor((3, 2), dtype="float32") = R.take(data, lv5, axis=1, mode="fast")
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedInt64)
+    verify_gather_negative_indices_ir_normalization(TensorProto.INT64, ExpectedInt64)
+    verify_gather_negative_indices_ir_normalization(TensorProto.INT32, ExpectedInt32)
 
 
 @pytest.mark.parametrize(
@@ -2736,170 +2666,140 @@ def test_gemm():
     verify_gemm(0.25, 1.0, True, ExpectedGemmWithCScaledA)
 
 
-@pytest.mark.parametrize(
-    "in_shape, shape, out_shape",
-    [
-        ([7, 32, 32, 8], [224, 256], [224, 256]),
-        ([7, 32, 32, 8], [-1, 8192], [7, 8192]),
-        ([7, 32, 32, 8], [0, 32, 32, 8], [7, 32, 32, 8]),
-    ],
-)
-def test_reshape(in_shape, shape, out_shape):
-    reshape_node = helper.make_node("Reshape", ["data", "shape"], ["reshaped"])
+def test_reshape():
+    def verify_reshape(in_shape, shape, out_shape, expected):
+        reshape_node = helper.make_node("Reshape", ["data", "shape"], ["reshaped"])
 
-    graph = helper.make_graph(
-        [reshape_node],
-        "reshape_test",
-        inputs=[
-            helper.make_tensor_value_info("data", TensorProto.FLOAT, in_shape),
-        ],
-        initializer=[helper.make_tensor("shape", TensorProto.INT64, [len(shape)], shape)],
-        outputs=[helper.make_tensor_value_info("reshaped", TensorProto.FLOAT, out_shape)],
-    )
-    model = helper.make_model(graph, producer_name="reshape_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
-    tvm_model["main"] = tvm_model["main"].without_attr("params")
+        graph = helper.make_graph(
+            [reshape_node],
+            "reshape_test",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, in_shape),
+            ],
+            initializer=[helper.make_tensor("shape", TensorProto.INT64, [len(shape)], shape)],
+            outputs=[helper.make_tensor_value_info("reshaped", TensorProto.FLOAT, out_shape)],
+        )
+        model = helper.make_model(graph, producer_name="reshape_test")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm_model["main"] = tvm_model["main"].without_attr("params")
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if shape == [224, 256]:
+    @I.ir_module
+    class ExpectedStaticShape:
+        @R.function
+        def main(
+            data: R.Tensor((7, 32, 32, 8), dtype="float32"),
+            shape: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((224, 256), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((224, 256), dtype="float32") = R.reshape(data, R.shape([224, 256]))
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedStaticShape:
-            @R.function
-            def main(
-                data: R.Tensor((7, 32, 32, 8), dtype="float32"),
-                shape: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((224, 256), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((224, 256), dtype="float32") = R.reshape(data, R.shape([224, 256]))
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedInferDim:
+        @R.function
+        def main(
+            data: R.Tensor((7, 32, 32, 8), dtype="float32"),
+            shape: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((7, 8192), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((7, 8192), dtype="float32") = R.reshape(data, R.shape([7, 8192]))
+                R.output(gv)
+            return gv
 
-        expected = ExpectedStaticShape
+    @I.ir_module
+    class ExpectedCopyInputDim:
+        @R.function
+        def main(
+            data: R.Tensor((7, 32, 32, 8), dtype="float32"),
+            shape: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor((7, 32, 32, 8), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((7, 32, 32, 8), dtype="float32") = R.reshape(
+                    data, R.shape([7, 32, 32, 8])
+                )
+                R.output(gv)
+            return gv
 
-    elif shape == [-1, 8192]:
-
-        @I.ir_module
-        class ExpectedInferDim:
-            @R.function
-            def main(
-                data: R.Tensor((7, 32, 32, 8), dtype="float32"),
-                shape: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((7, 8192), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((7, 8192), dtype="float32") = R.reshape(data, R.shape([7, 8192]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedInferDim
-
-    else:
-
-        @I.ir_module
-        class ExpectedCopyInputDim:
-            @R.function
-            def main(
-                data: R.Tensor((7, 32, 32, 8), dtype="float32"),
-                shape: R.Tensor((4,), dtype="int64"),
-            ) -> R.Tensor((7, 32, 32, 8), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((7, 32, 32, 8), dtype="float32") = R.reshape(
-                        data, R.shape([7, 32, 32, 8])
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedCopyInputDim
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_reshape([7, 32, 32, 8], [224, 256], [224, 256], ExpectedStaticShape)
+    verify_reshape([7, 32, 32, 8], [-1, 8192], [7, 8192], ExpectedInferDim)
+    verify_reshape([7, 32, 32, 8], [0, 32, 32, 8], [7, 32, 32, 8], ExpectedCopyInputDim)
 
 
-@pytest.mark.parametrize(
-    "target_shape, output_shape",
-    [
-        ([-1], [3]),
-        ([1, 3], [1, 3]),
-        ([3, 1], [3, 1]),
-    ],
-)
-def test_reshape_shape_output(target_shape, output_shape):
-    shape_node = helper.make_node("Shape", ["data"], ["shape_out"])
-    reshape_node = helper.make_node("Reshape", ["shape_out", "target_shape"], ["reshaped"])
+def test_reshape_shape_output():
+    def verify_reshape_shape_output(target_shape, output_shape, expected):
+        shape_node = helper.make_node("Shape", ["data"], ["shape_out"])
+        reshape_node = helper.make_node("Reshape", ["shape_out", "target_shape"], ["reshaped"])
 
-    data_shape = [2, 3, 4]
+        data_shape = [2, 3, 4]
 
-    graph = helper.make_graph(
-        [shape_node, reshape_node],
-        "reshape_shape_output",
-        inputs=[
-            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
-        ],
-        initializer=[
-            helper.make_tensor("target_shape", TensorProto.INT64, [len(target_shape)], target_shape)
-        ],
-        outputs=[helper.make_tensor_value_info("reshaped", TensorProto.INT64, output_shape)],
-    )
-    model = helper.make_model(graph, producer_name="reshape_shape_output")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
-    assert len(tvm_model["main"].attrs["params"]) == 1
-    tvm_model["main"] = tvm_model["main"].without_attr("params")
+        graph = helper.make_graph(
+            [shape_node, reshape_node],
+            "reshape_shape_output",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            ],
+            initializer=[
+                helper.make_tensor(
+                    "target_shape", TensorProto.INT64, [len(target_shape)], target_shape
+                )
+            ],
+            outputs=[helper.make_tensor_value_info("reshaped", TensorProto.INT64, output_shape)],
+        )
+        model = helper.make_model(graph, producer_name="reshape_shape_output")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        assert len(tvm_model["main"].attrs["params"]) == 1
+        tvm_model["main"] = tvm_model["main"].without_attr("params")
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if target_shape == [-1]:
+    @I.ir_module
+    class ExpectedFlattenShape:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3, 4), dtype="float32"),
+            target_shape: R.Tensor((1,), dtype="int64"),
+        ) -> R.Shape([2, 3, 4]):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([2, 3, 4]) = R.shape([2, 3, 4])
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedFlattenShape:
-            @R.function
-            def main(
-                data: R.Tensor((2, 3, 4), dtype="float32"),
-                target_shape: R.Tensor((1,), dtype="int64"),
-            ) -> R.Shape([2, 3, 4]):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Shape([2, 3, 4]) = R.shape([2, 3, 4])
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedRank2Shape:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3, 4), dtype="float32"),
+            target_shape: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((1, 3), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(R.shape([2, 3, 4]))
+                gv: R.Tensor((1, 3), dtype="int64") = R.reshape(lv, R.shape([1, 3]))
+                R.output(gv)
+            return gv
 
-        expected = ExpectedFlattenShape
+    @I.ir_module
+    class ExpectedRank2ColumnShape:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3, 4), dtype="float32"),
+            target_shape: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((3, 1), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(R.shape([2, 3, 4]))
+                gv: R.Tensor((3, 1), dtype="int64") = R.reshape(lv, R.shape([3, 1]))
+                R.output(gv)
+            return gv
 
-    elif target_shape == [1, 3]:
-
-        @I.ir_module
-        class ExpectedRank2Shape:
-            @R.function
-            def main(
-                data: R.Tensor((2, 3, 4), dtype="float32"),
-                target_shape: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((1, 3), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(R.shape([2, 3, 4]))
-                    gv: R.Tensor((1, 3), dtype="int64") = R.reshape(lv, R.shape([1, 3]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedRank2Shape
-
-    else:
-
-        @I.ir_module
-        class ExpectedRank2ColumnShape:
-            @R.function
-            def main(
-                data: R.Tensor((2, 3, 4), dtype="float32"),
-                target_shape: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((3, 1), dtype="int64"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3,), dtype="int64") = R.shape_to_tensor(R.shape([2, 3, 4]))
-                    gv: R.Tensor((3, 1), dtype="int64") = R.reshape(lv, R.shape([3, 1]))
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedRank2ColumnShape
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_reshape_shape_output([-1], [3], ExpectedFlattenShape)
+    verify_reshape_shape_output([1, 3], [1, 3], ExpectedRank2Shape)
+    verify_reshape_shape_output([3, 1], [3, 1], ExpectedRank2ColumnShape)
 
 
 def test_transpose():
@@ -2985,7 +2885,7 @@ def test_transpose_scalar():
 def test_transpose_axes_validation():
     """Test Transpose validation - perm axes count must match tensor dimensions"""
 
-    def assert_transpose_ir(input_shape, axes, output_shape, name):
+    def assert_transpose_ir(input_shape, axes, output_shape, name, expected):
         transpose_node = helper.make_node("Transpose", ["x"], ["y"], perm=axes)
         graph = helper.make_graph(
             [transpose_node],
@@ -2995,134 +2895,61 @@ def test_transpose_axes_validation():
         )
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-
-        if input_shape == [10]:
-
-            @I.ir_module
-            class ExpectedTranspose1D:
-                @R.function
-                def main(
-                    x: R.Tensor((10,), dtype="float32"),
-                ) -> R.Tensor((10,), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((10,), dtype="float32") = R.permute_dims(x, axes=[0])
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedTranspose1D
-
-        elif input_shape == [3, 4]:
-
-            @I.ir_module
-            class ExpectedTranspose2D:
-                @R.function
-                def main(
-                    x: R.Tensor((3, 4), dtype="float32"),
-                ) -> R.Tensor((4, 3), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((4, 3), dtype="float32") = R.permute_dims(x, axes=[1, 0])
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedTranspose2D
-
-        else:
-
-            @I.ir_module
-            class ExpectedTranspose3D:
-                @R.function
-                def main(
-                    x: R.Tensor((2, 3, 4), dtype="float32"),
-                ) -> R.Tensor((4, 2, 3), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((4, 2, 3), dtype="float32") = R.permute_dims(x, axes=[2, 0, 1])
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedTranspose3D
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    # Test 1D tensor with correct perm
-    assert_transpose_ir([10], [0], [10], "transpose_1d_valid_test")
+    @I.ir_module
+    class ExpectedTranspose1D:
+        @R.function
+        def main(
+            x: R.Tensor((10,), dtype="float32"),
+        ) -> R.Tensor((10,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((10,), dtype="float32") = R.permute_dims(x, axes=[0])
+                R.output(gv)
+            return gv
 
-    # Test 2D tensor with correct perm
-    assert_transpose_ir([3, 4], [1, 0], [4, 3], "transpose_2d_valid_test")
+    @I.ir_module
+    class ExpectedTranspose2D:
+        @R.function
+        def main(
+            x: R.Tensor((3, 4), dtype="float32"),
+        ) -> R.Tensor((4, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 3), dtype="float32") = R.permute_dims(x, axes=[1, 0])
+                R.output(gv)
+            return gv
 
-    # Test 3D tensor with correct perm
-    assert_transpose_ir([2, 3, 4], [2, 0, 1], [4, 2, 3], "transpose_3d_valid_test")
+    @I.ir_module
+    class ExpectedTranspose3D:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((4, 2, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 2, 3), dtype="float32") = R.permute_dims(x, axes=[2, 0, 1])
+                R.output(gv)
+            return gv
+
+    assert_transpose_ir([10], [0], [10], "transpose_1d_valid_test", ExpectedTranspose1D)
+    assert_transpose_ir([3, 4], [1, 0], [4, 3], "transpose_2d_valid_test", ExpectedTranspose2D)
+    assert_transpose_ir(
+        [2, 3, 4], [2, 0, 1], [4, 2, 3], "transpose_3d_valid_test", ExpectedTranspose3D
+    )
 
 
 def assert_static_unsqueeze_ir(
     model: ModelProto,
-    input_shape: list[int],
-    axes: list[int],
     *,
     opset: int,
     axes_as_param: bool,
+    expected,
 ):
     tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
     if axes_as_param:
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-
-    if input_shape == []:
-
-        @I.ir_module
-        class ExpectedScalar:
-            @R.function
-            def main(
-                a: R.Tensor((), dtype="float32"),
-                axes_param: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((1, 1), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv0: R.Tensor((1,), dtype="float32") = R.expand_dims(a, axis=0)
-                    gv: R.Tensor((1, 1), dtype="float32") = R.expand_dims(lv0, axis=1)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedScalar
-
-    elif axes_as_param:
-
-        @I.ir_module
-        class ExpectedAxesParam:
-            @R.function
-            def main(
-                a: R.Tensor((32, 32), dtype="float32"),
-                axes_param: R.Tensor((3,), dtype="int64"),
-            ) -> R.Tensor((1, 32, 1, 1, 32), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv0: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(a, axis=0)
-                    lv1: R.Tensor((1, 32, 1, 32), dtype="float32") = R.expand_dims(lv0, axis=2)
-                    gv: R.Tensor((1, 32, 1, 1, 32), dtype="float32") = R.expand_dims(lv1, axis=3)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAxesParam
-
-    else:
-
-        @I.ir_module
-        class ExpectedAxesAttr:
-            @R.function
-            def main(
-                a: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((1, 32, 1, 1, 32), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv0: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(a, axis=0)
-                    lv1: R.Tensor((1, 32, 1, 32), dtype="float32") = R.expand_dims(lv0, axis=2)
-                    gv: R.Tensor((1, 32, 1, 1, 32), dtype="float32") = R.expand_dims(lv1, axis=3)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedAxesAttr
-
     tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
@@ -3140,12 +2967,27 @@ def test_unsqueeze():
     model = helper.make_model(
         graph, producer_name="unsqueeze_test", opset_imports=[helper.make_opsetid("", 13)]
     )
+
+    @I.ir_module
+    class ExpectedAxesParam:
+        @R.function
+        def main(
+            a: R.Tensor((32, 32), dtype="float32"),
+            axes_param: R.Tensor((3,), dtype="int64"),
+        ) -> R.Tensor((1, 32, 1, 1, 32), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv0: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(a, axis=0)
+                lv1: R.Tensor((1, 32, 1, 32), dtype="float32") = R.expand_dims(lv0, axis=2)
+                gv: R.Tensor((1, 32, 1, 1, 32), dtype="float32") = R.expand_dims(lv1, axis=3)
+                R.output(gv)
+            return gv
+
     assert_static_unsqueeze_ir(
         model,
-        [32, 32],
-        axes,
         opset=13,
         axes_as_param=True,
+        expected=ExpectedAxesParam,
     )
 
 
@@ -3166,7 +3008,27 @@ def test_unsqueeze_scalar_input():
         producer_name="unsqueeze_scalar_input_test",
         opset_imports=[helper.make_opsetid("", 13)],
     )
-    assert_static_unsqueeze_ir(model, [], axes, opset=13, axes_as_param=True)
+
+    @I.ir_module
+    class ExpectedScalar:
+        @R.function
+        def main(
+            a: R.Tensor((), dtype="float32"),
+            axes_param: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((1, 1), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv0: R.Tensor((1,), dtype="float32") = R.expand_dims(a, axis=0)
+                gv: R.Tensor((1, 1), dtype="float32") = R.expand_dims(lv0, axis=1)
+                R.output(gv)
+            return gv
+
+    assert_static_unsqueeze_ir(
+        model,
+        opset=13,
+        axes_as_param=True,
+        expected=ExpectedScalar,
+    )
 
 
 def test_unsqueeze_dynamic_axes_ir():
@@ -3291,12 +3153,26 @@ def test_unsqueeze_v1():
     model = helper.make_model(
         graph, producer_name="unsqueeze_v1_test", opset_imports=[helper.make_opsetid("", 6)]
     )
+
+    @I.ir_module
+    class ExpectedAxesAttr:
+        @R.function
+        def main(
+            a: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((1, 32, 1, 1, 32), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv0: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(a, axis=0)
+                lv1: R.Tensor((1, 32, 1, 32), dtype="float32") = R.expand_dims(lv0, axis=2)
+                gv: R.Tensor((1, 32, 1, 1, 32), dtype="float32") = R.expand_dims(lv1, axis=3)
+                R.output(gv)
+            return gv
+
     assert_static_unsqueeze_ir(
         model,
-        [32, 32],
-        axes,
         opset=10,
         axes_as_param=False,
+        expected=ExpectedAxesAttr,
     )
 
 
@@ -3445,163 +3321,142 @@ def test_where():
     check_correctness(model)
 
 
-@pytest.mark.parametrize("min", [True, False])
-@pytest.mark.parametrize("max", [True, False])
-def test_clip(min, max):
-    if min and max:
-        clip_node = helper.make_node("Clip", ["input", "min", "max"], ["output"])
-    elif min:
-        clip_node = helper.make_node("Clip", ["input", "min"], ["output"])
-    elif max:
-        clip_node = helper.make_node("Clip", ["input", "max"], ["output"])
-    else:
-        clip_node = helper.make_node("Clip", ["input"], ["output"])
+def test_clip():
+    def verify_clip(input_names, extra_inputs, expected, tir_func_names=()):
+        clip_node = helper.make_node("Clip", input_names, ["output"])
+        inputs = [helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 64])]
+        inputs.extend(extra_inputs)
+        graph = helper.make_graph(
+            [clip_node],
+            "clip_test",
+            inputs=inputs,
+            outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [32, 64])],
+        )
 
-    inputs = [helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 64])]
-    if min:
-        inputs.append(helper.make_tensor_value_info("min", TensorProto.FLOAT, ()))
-    if max:
-        inputs.append(helper.make_tensor_value_info("max", TensorProto.FLOAT, ()))
+        model = helper.make_model(graph, producer_name="clip_test")
+        model.opset_import[0].version = 14
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        if tir_func_names:
+            expected = tvm.IRModule(expected.functions)
+            for name in tir_func_names:
+                expected.update_func(expected.get_global_var(name), tvm_model[name])
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    graph = helper.make_graph(
-        [clip_node],
-        "clip_test",
-        inputs=inputs,
-        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [32, 64])],
+    @I.ir_module
+    class ExpectedClipMinMax:
+        @T.prim_func(private=True, s_tir=True)
+        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+            T.evaluate(0)
+
+        @T.prim_func(private=True, s_tir=True)
+        def minimum(var_input: T.handle, var_max: T.handle, var_output: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((32, 64), dtype="float32"),
+            min: R.Tensor((), dtype="float32"),
+            max: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((32, 64), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            cls = ExpectedClipMinMax
+            with R.dataflow():
+                lv: R.Tensor((), dtype="bool") = R.isnan(min)
+                lv1: R.Tensor((), dtype="float32") = R.where(
+                    lv, R.const(float("-inf"), "float32"), min
+                )
+                lv2 = R.call_tir(
+                    cls.maximum,
+                    (input, lv1),
+                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                )
+                lv3: R.Tensor((), dtype="bool") = R.isnan(max)
+                lv4: R.Tensor((), dtype="float32") = R.where(
+                    lv3, R.const(float("inf"), "float32"), max
+                )
+                lv5 = R.call_tir(
+                    cls.minimum,
+                    (lv2, lv4),
+                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                )
+                gv: R.Tensor((32, 64), dtype="float32") = lv5
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedClipMin:
+        @T.prim_func(private=True, s_tir=True)
+        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((32, 64), dtype="float32"),
+            min: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((32, 64), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            cls = ExpectedClipMin
+            with R.dataflow():
+                lv: R.Tensor((), dtype="bool") = R.isnan(min)
+                lv1: R.Tensor((), dtype="float32") = R.where(
+                    lv, R.const(float("-inf"), "float32"), min
+                )
+                lv2 = R.call_tir(
+                    cls.maximum,
+                    (input, lv1),
+                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                )
+                gv: R.Tensor((32, 64), dtype="float32") = lv2
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedClipMaxOnlyInput:
+        @T.prim_func(private=True, s_tir=True)
+        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((32, 64), dtype="float32"),
+            max: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((32, 64), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            cls = ExpectedClipMaxOnlyInput
+            with R.dataflow():
+                lv: R.Tensor((), dtype="bool") = R.isnan(max)
+                lv1: R.Tensor((), dtype="float32") = R.where(
+                    lv, R.const(float("-inf"), "float32"), max
+                )
+                lv2 = R.call_tir(
+                    cls.maximum,
+                    (input, lv1),
+                    out_ty=R.Tensor((32, 64), dtype="float32"),
+                )
+                gv: R.Tensor((32, 64), dtype="float32") = lv2
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedClipIdentity:
+        @R.function
+        def main(
+            input: R.Tensor((32, 64), dtype="float32"),
+        ) -> R.Tensor((32, 64), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((32, 64), dtype="float32") = input
+                R.output(gv)
+            return gv
+
+    min_info = helper.make_tensor_value_info("min", TensorProto.FLOAT, ())
+    max_info = helper.make_tensor_value_info("max", TensorProto.FLOAT, ())
+    verify_clip(
+        ["input", "min", "max"], [min_info, max_info], ExpectedClipMinMax, ("maximum", "minimum")
     )
-
-    model = helper.make_model(graph, producer_name="clip_test")
-    model.opset_import[0].version = 14
-    tvm_model = from_onnx(model, keep_params_in_input=True)
-
-    if min and max:
-
-        @I.ir_module
-        class ExpectedClipMinMax:
-            @T.prim_func(private=True, s_tir=True)
-            def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
-                T.evaluate(0)
-
-            @T.prim_func(private=True, s_tir=True)
-            def minimum(var_input: T.handle, var_max: T.handle, var_output: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((32, 64), dtype="float32"),
-                min: R.Tensor((), dtype="float32"),
-                max: R.Tensor((), dtype="float32"),
-            ) -> R.Tensor((32, 64), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                cls = ExpectedClipMinMax
-                with R.dataflow():
-                    lv: R.Tensor((), dtype="bool") = R.isnan(min)
-                    lv1: R.Tensor((), dtype="float32") = R.where(
-                        lv, R.const(float("-inf"), "float32"), min
-                    )
-                    lv2 = R.call_tir(
-                        cls.maximum,
-                        (input, lv1),
-                        out_ty=R.Tensor((32, 64), dtype="float32"),
-                    )
-                    lv3: R.Tensor((), dtype="bool") = R.isnan(max)
-                    lv4: R.Tensor((), dtype="float32") = R.where(
-                        lv3, R.const(float("inf"), "float32"), max
-                    )
-                    lv5 = R.call_tir(
-                        cls.minimum,
-                        (lv2, lv4),
-                        out_ty=R.Tensor((32, 64), dtype="float32"),
-                    )
-                    gv: R.Tensor((32, 64), dtype="float32") = lv5
-                    R.output(gv)
-                return gv
-
-        expected = tvm.IRModule(ExpectedClipMinMax.functions)
-        expected.update_func(expected.get_global_var("maximum"), tvm_model["maximum"])
-        expected.update_func(expected.get_global_var("minimum"), tvm_model["minimum"])
-
-    elif min:
-
-        @I.ir_module
-        class ExpectedClipMin:
-            @T.prim_func(private=True, s_tir=True)
-            def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((32, 64), dtype="float32"),
-                min: R.Tensor((), dtype="float32"),
-            ) -> R.Tensor((32, 64), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                cls = ExpectedClipMin
-                with R.dataflow():
-                    lv: R.Tensor((), dtype="bool") = R.isnan(min)
-                    lv1: R.Tensor((), dtype="float32") = R.where(
-                        lv, R.const(float("-inf"), "float32"), min
-                    )
-                    lv2 = R.call_tir(
-                        cls.maximum,
-                        (input, lv1),
-                        out_ty=R.Tensor((32, 64), dtype="float32"),
-                    )
-                    gv: R.Tensor((32, 64), dtype="float32") = lv2
-                    R.output(gv)
-                return gv
-
-        expected = tvm.IRModule(ExpectedClipMin.functions)
-        expected.update_func(expected.get_global_var("maximum"), tvm_model["maximum"])
-
-    elif max:
-
-        @I.ir_module
-        class ExpectedClipMaxOnlyInput:
-            @T.prim_func(private=True, s_tir=True)
-            def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
-                T.evaluate(0)
-
-            @R.function
-            def main(
-                input: R.Tensor((32, 64), dtype="float32"),
-                max: R.Tensor((), dtype="float32"),
-            ) -> R.Tensor((32, 64), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                cls = ExpectedClipMaxOnlyInput
-                with R.dataflow():
-                    lv: R.Tensor((), dtype="bool") = R.isnan(max)
-                    lv1: R.Tensor((), dtype="float32") = R.where(
-                        lv, R.const(float("-inf"), "float32"), max
-                    )
-                    lv2 = R.call_tir(
-                        cls.maximum,
-                        (input, lv1),
-                        out_ty=R.Tensor((32, 64), dtype="float32"),
-                    )
-                    gv: R.Tensor((32, 64), dtype="float32") = lv2
-                    R.output(gv)
-                return gv
-
-        expected = tvm.IRModule(ExpectedClipMaxOnlyInput.functions)
-        expected.update_func(expected.get_global_var("maximum"), tvm_model["maximum"])
-
-    else:
-
-        @I.ir_module
-        class ExpectedClipIdentity:
-            @R.function
-            def main(
-                input: R.Tensor((32, 64), dtype="float32"),
-            ) -> R.Tensor((32, 64), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((32, 64), dtype="float32") = input
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedClipIdentity
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_clip(["input", "min"], [min_info], ExpectedClipMin, ("maximum",))
+    verify_clip(["input", "max"], [max_info], ExpectedClipMaxOnlyInput, ("maximum",))
+    verify_clip(["input"], [], ExpectedClipIdentity)
 
 
 @pytest.mark.parametrize("min", [-6.0, 0.0])
@@ -3755,51 +3610,41 @@ def test_shape():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-@pytest.mark.parametrize("upper", [True, False])
-def test_trilu(upper: bool):
-    node = helper.make_node("Trilu", ["x"], ["y"], upper=upper)
-    graph = helper.make_graph(
-        [node],
-        "trilu_structural_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [3, 5, 5])],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 5, 5])],
-    )
-    model = helper.make_model(graph, producer_name="trilu_structural_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+def test_trilu():
+    def verify_trilu(upper: bool, expected):
+        node = helper.make_node("Trilu", ["x"], ["y"], upper=upper)
+        graph = helper.make_graph(
+            [node],
+            "trilu_structural_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [3, 5, 5])],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 5, 5])],
+        )
+        model = helper.make_model(graph, producer_name="trilu_structural_test")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if upper:
+    @I.ir_module
+    class ExpectedTriluUpper:
+        @R.function
+        def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor((3, 5, 5), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 5, 5), dtype="float32") = R.triu(x, 0)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedTriluUpper:
-            @R.function
-            def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor(
-                (3, 5, 5), dtype="float32"
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((3, 5, 5), dtype="float32") = R.triu(x, 0)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedTriluLower:
+        @R.function
+        def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor((3, 5, 5), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 5, 5), dtype="float32") = R.tril(x, 0)
+                R.output(gv)
+            return gv
 
-        expected = ExpectedTriluUpper
-
-    else:
-
-        @I.ir_module
-        class ExpectedTriluLower:
-            @R.function
-            def main(x: R.Tensor((3, 5, 5), dtype="float32")) -> R.Tensor(
-                (3, 5, 5), dtype="float32"
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((3, 5, 5), dtype="float32") = R.tril(x, 0)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedTriluLower
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_trilu(True, ExpectedTriluUpper)
+    verify_trilu(False, ExpectedTriluLower)
 
 
 @pytest.mark.parametrize("k_value", [-1, 0, 1])
@@ -3908,7 +3753,7 @@ def test_mish():
 
 
 def test_prelu():
-    def _assert_prelu_ir(slope_shape):
+    def _assert_prelu_ir(slope_shape, expected):
         prelu_node = helper.make_node("PRelu", ["a", "b"], ["c"])
         graph = helper.make_graph(
             [prelu_node],
@@ -3921,85 +3766,68 @@ def test_prelu():
         )
         model = helper.make_model(graph, producer_name="prelu_structural_test")
         tvm_model = from_onnx(model, keep_params_in_input=True)
-
-        if slope_shape == [1]:
-
-            @I.ir_module
-            class ExpectedScalarSlope:
-                @R.function
-                def main(
-                    a: R.Tensor((3, 32, 32), dtype="float32"),
-                    b: R.Tensor((1,), dtype="float32"),
-                ) -> R.Tensor((3, 32, 32), dtype="float32"):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv: R.Tensor((1,), dtype="float32") = R.reshape(b, R.shape([1]))
-                        gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedScalarSlope
-
-        elif slope_shape == [1, 1]:
-
-            @I.ir_module
-            class ExpectedTwoDimScalarSlope:
-                @R.function
-                def main(
-                    a: R.Tensor((3, 32, 32), dtype="float32"),
-                    b: R.Tensor((1, 1), dtype="float32"),
-                ) -> R.Tensor((3, 32, 32), dtype="float32"):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv: R.Tensor((1,), dtype="float32") = R.reshape(b, R.shape([1]))
-                        gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedTwoDimScalarSlope
-
-        elif slope_shape == [32]:
-
-            @I.ir_module
-            class ExpectedChannelSlope:
-                @R.function
-                def main(
-                    a: R.Tensor((3, 32, 32), dtype="float32"),
-                    b: R.Tensor((32,), dtype="float32"),
-                ) -> R.Tensor((3, 32, 32), dtype="float32"):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv: R.Tensor((32,), dtype="float32") = R.reshape(b, R.shape([32]))
-                        gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedChannelSlope
-
-        else:
-
-            @I.ir_module
-            class ExpectedBatchSlope:
-                @R.function
-                def main(
-                    a: R.Tensor((3, 32, 32), dtype="float32"),
-                    b: R.Tensor((3, 1, 1), dtype="float32"),
-                ) -> R.Tensor((3, 32, 32), dtype="float32"):
-                    R.func_attr({"num_input": 2})
-                    with R.dataflow():
-                        lv: R.Tensor((3,), dtype="float32") = R.reshape(b, R.shape([3]))
-                        gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=0)
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedBatchSlope
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    _assert_prelu_ir([1])
-    _assert_prelu_ir([1, 1])
-    _assert_prelu_ir([32])
-    _assert_prelu_ir([3, 1, 1])
+    @I.ir_module
+    class ExpectedScalarSlope:
+        @R.function
+        def main(
+            a: R.Tensor((3, 32, 32), dtype="float32"),
+            b: R.Tensor((1,), dtype="float32"),
+        ) -> R.Tensor((3, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1,), dtype="float32") = R.reshape(b, R.shape([1]))
+                gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedTwoDimScalarSlope:
+        @R.function
+        def main(
+            a: R.Tensor((3, 32, 32), dtype="float32"),
+            b: R.Tensor((1, 1), dtype="float32"),
+        ) -> R.Tensor((3, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1,), dtype="float32") = R.reshape(b, R.shape([1]))
+                gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedChannelSlope:
+        @R.function
+        def main(
+            a: R.Tensor((3, 32, 32), dtype="float32"),
+            b: R.Tensor((32,), dtype="float32"),
+        ) -> R.Tensor((3, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32,), dtype="float32") = R.reshape(b, R.shape([32]))
+                gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=2)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedBatchSlope:
+        @R.function
+        def main(
+            a: R.Tensor((3, 32, 32), dtype="float32"),
+            b: R.Tensor((3, 1, 1), dtype="float32"),
+        ) -> R.Tensor((3, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.reshape(b, R.shape([3]))
+                gv: R.Tensor((3, 32, 32), dtype="float32") = R.nn.prelu(a, lv, axis=0)
+                R.output(gv)
+            return gv
+
+    _assert_prelu_ir([1], ExpectedScalarSlope)
+    _assert_prelu_ir([1, 1], ExpectedTwoDimScalarSlope)
+    _assert_prelu_ir([32], ExpectedChannelSlope)
+    _assert_prelu_ir([3, 1, 1], ExpectedBatchSlope)
 
 
 def test_thresholded_relu():
@@ -4424,132 +4252,121 @@ def test_cumsum_axis_shape_validation():
         from_onnx(model, opset=14, keep_params_in_input=True)
 
 
-@pytest.mark.parametrize("axis", [[0, 2], None])
-def test_squeeze(axis):
-    if axis:
-        squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
-    else:
-        squeeze_node = helper.make_node("Squeeze", ["x"], ["y"])
-    shape = [1, 32, 1, 32]
+def test_squeeze():
+    def verify_squeeze(axis, expected):
+        if axis:
+            squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+        else:
+            squeeze_node = helper.make_node("Squeeze", ["x"], ["y"])
+        shape = [1, 32, 1, 32]
 
-    initializer = (
-        [helper.make_tensor("axes", TensorProto.INT64, [len(axis)], axis)] if axis else None
-    )
+        initializer = (
+            [helper.make_tensor("axes", TensorProto.INT64, [len(axis)], axis)] if axis else None
+        )
 
-    graph = helper.make_graph(
-        [squeeze_node],
-        "squeeze_test",
-        inputs=[
-            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
-        ],
-        initializer=initializer,
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
-    )
+        graph = helper.make_graph(
+            [squeeze_node],
+            "squeeze_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+            ],
+            initializer=initializer,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+        )
 
-    model = helper.make_model(
-        graph, producer_name="squeeze_test", opset_imports=[helper.make_opsetid("", 13)]
-    )
-    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
-    if axis:
-        tvm_model["main"] = tvm_model["main"].without_attr("params")
-    if axis:
+        model = helper.make_model(
+            graph, producer_name="squeeze_test", opset_imports=[helper.make_opsetid("", 13)]
+        )
+        tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+        if axis:
+            tvm_model["main"] = tvm_model["main"].without_attr("params")
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-        @I.ir_module
-        class ExpectedSqueezeAxes:
-            @R.function
-            def main(
-                x: R.Tensor((1, 32, 1, 32), dtype="float32"),
-                axes: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((32, 32), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=[0, 2])
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedSqueezeAxes:
+        @R.function
+        def main(
+            x: R.Tensor((1, 32, 1, 32), dtype="float32"),
+            axes: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((32, 32), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=[0, 2])
+                R.output(gv)
+            return gv
 
-        expected = ExpectedSqueezeAxes
+    @I.ir_module
+    class ExpectedSqueezeAll:
+        @R.function
+        def main(x: R.Tensor((1, 32, 1, 32), dtype="float32")) -> R.Tensor(
+            (32, 32), dtype="float32"
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=None)
+                R.output(gv)
+            return gv
 
-    else:
-
-        @I.ir_module
-        class ExpectedSqueezeAll:
-            @R.function
-            def main(x: R.Tensor((1, 32, 1, 32), dtype="float32")) -> R.Tensor(
-                (32, 32), dtype="float32"
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=None)
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedSqueezeAll
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_squeeze([0, 2], ExpectedSqueezeAxes)
+    verify_squeeze(None, ExpectedSqueezeAll)
 
 
-@pytest.mark.parametrize("axis", [[0, 2], None])
-def test_squeeze_constant(axis):
-    shape = [1, 2, 1, 3]
-    data = np.arange(6, dtype="float32").reshape(shape)
-    constant = make_constant_node("x", onnx.TensorProto.FLOAT, shape, data.flatten().tolist())
-    if axis:
-        squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
-    else:
-        squeeze_node = helper.make_node("Squeeze", ["x"], ["y"])
+def test_squeeze_constant():
+    def verify_squeeze_constant(axis, expected):
+        shape = [1, 2, 1, 3]
+        data = np.arange(6, dtype="float32").reshape(shape)
+        constant = make_constant_node("x", onnx.TensorProto.FLOAT, shape, data.flatten().tolist())
+        if axis:
+            squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
+        else:
+            squeeze_node = helper.make_node("Squeeze", ["x"], ["y"])
 
-    initializer = (
-        [helper.make_tensor("axes", TensorProto.INT64, [len(axis)], axis)] if axis else None
-    )
+        initializer = (
+            [helper.make_tensor("axes", TensorProto.INT64, [len(axis)], axis)] if axis else None
+        )
 
-    graph = helper.make_graph(
-        [constant, squeeze_node],
-        "squeeze_test",
-        inputs=[],
-        initializer=initializer,
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
-    )
+        graph = helper.make_graph(
+            [constant, squeeze_node],
+            "squeeze_test",
+            inputs=[],
+            initializer=initializer,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
+        )
 
-    model = helper.make_model(
-        graph, producer_name="squeeze_test", opset_imports=[helper.make_opsetid("", 13)]
-    )
-    tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
-    if axis:
-        tvm_model["main"] = tvm_model["main"].without_attr("params")
+        model = helper.make_model(
+            graph, producer_name="squeeze_test", opset_imports=[helper.make_opsetid("", 13)]
+        )
+        tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
+        if axis:
+            tvm_model["main"] = tvm_model["main"].without_attr("params")
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if axis:
+    @I.ir_module
+    class ExpectedSqueezeConstantAxes:
+        @R.function
+        def main(axes: R.Tensor((2,), dtype="int64")) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.const(
+                    [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], "float32"
+                )
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedSqueezeConstantAxes:
-            @R.function
-            def main(axes: R.Tensor((2,), dtype="int64")) -> R.Tensor((2, 3), dtype="float32"):
-                R.func_attr({"num_input": 0})
-                with R.dataflow():
-                    gv: R.Tensor((2, 3), dtype="float32") = R.const(
-                        [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], "float32"
-                    )
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedSqueezeConstantAll:
+        @R.function
+        def main() -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.const(
+                    [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], "float32"
+                )
+                R.output(gv)
+            return gv
 
-        expected = ExpectedSqueezeConstantAxes
-
-    else:
-
-        @I.ir_module
-        class ExpectedSqueezeConstantAll:
-            @R.function
-            def main() -> R.Tensor((2, 3), dtype="float32"):
-                R.func_attr({"num_input": 0})
-                with R.dataflow():
-                    gv: R.Tensor((2, 3), dtype="float32") = R.const(
-                        [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], "float32"
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedSqueezeConstantAll
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_squeeze_constant([0, 2], ExpectedSqueezeConstantAxes)
+    verify_squeeze_constant(None, ExpectedSqueezeConstantAll)
 
 
 @pytest.mark.parametrize("axis", [[0]])
@@ -5238,6 +5055,7 @@ def test_embedlayernormalization():
         segment_embedding,
         gamma,
         beta,
+        expected,
     ):
         node = onnx.helper.make_node(
             "EmbedLayerNormalization",
@@ -5291,92 +5109,6 @@ def test_embedlayernormalization():
 
         tvm_model = from_onnx(model, keep_params_in_input=True)
 
-        if segment_ids is None:
-
-            @I.ir_module
-            class ExpectedNoSegment:
-                @R.function
-                def main(
-                    input_ids: R.Tensor((4, 3), dtype="int32"),
-                    segment_ids: R.Tensor((), dtype="int32"),
-                    word_embedding: R.Tensor((5, 384), dtype="float32"),
-                    position_embedding: R.Tensor((3, 384), dtype="float32"),
-                    segment_embedding: R.Tensor((), dtype="float32"),
-                    gamma: R.Tensor((384,), dtype="float32"),
-                    beta: R.Tensor((384,), dtype="float32"),
-                ) -> R.Tuple(
-                    R.Tensor((4, 3, 384), dtype="float32"),
-                    R.Tensor((4,), dtype="int32"),
-                ):
-                    R.func_attr({"num_input": 7})
-                    with R.dataflow():
-                        lv: R.Tensor((4, 3, 384), dtype="float32") = R.take(
-                            word_embedding, input_ids, axis=0, mode="fast"
-                        )
-                        lv1: R.Tensor((4, 3, 384), dtype="float32") = R.take(
-                            position_embedding,
-                            R.const([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]], "int64"),
-                            axis=0,
-                            mode="fast",
-                        )
-                        lv2: R.Tensor((4, 3, 384), dtype="float32") = R.add(lv, lv1)
-                        lv3: R.Tensor((4, 3, 384), dtype="float32") = R.nn.layer_norm(
-                            lv2, gamma, beta, axes=-1, epsilon=9.999999747378752e-05
-                        )
-                        gv: R.Tuple(
-                            R.Tensor((4, 3, 384), dtype="float32"),
-                            R.Tensor((4,), dtype="int32"),
-                        ) = (lv3, R.const([0, 0, 0, 0], "int32"))
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedNoSegment
-
-        else:
-
-            @I.ir_module
-            class ExpectedWithSegment:
-                @R.function
-                def main(
-                    input_ids: R.Tensor((4, 3), dtype="int32"),
-                    segment_ids: R.Tensor((4, 3), dtype="int32"),
-                    word_embedding: R.Tensor((5, 384), dtype="float32"),
-                    position_embedding: R.Tensor((3, 384), dtype="float32"),
-                    segment_embedding: R.Tensor((5, 384), dtype="float32"),
-                    gamma: R.Tensor((384,), dtype="float32"),
-                    beta: R.Tensor((384,), dtype="float32"),
-                ) -> R.Tuple(
-                    R.Tensor((4, 3, 384), dtype="float32"),
-                    R.Tensor((4,), dtype="int32"),
-                ):
-                    R.func_attr({"num_input": 7})
-                    with R.dataflow():
-                        lv: R.Tensor((4, 3, 384), dtype="float32") = R.take(
-                            word_embedding, input_ids, axis=0, mode="fast"
-                        )
-                        lv1: R.Tensor((4, 3, 384), dtype="float32") = R.take(
-                            position_embedding,
-                            R.const([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]], "int64"),
-                            axis=0,
-                            mode="fast",
-                        )
-                        lv2: R.Tensor((4, 3, 384), dtype="float32") = R.add(lv, lv1)
-                        lv3: R.Tensor((4, 3, 384), dtype="float32") = R.take(
-                            segment_embedding, segment_ids, axis=0, mode="fast"
-                        )
-                        lv4: R.Tensor((4, 3, 384), dtype="float32") = R.add(lv2, lv3)
-                        lv5: R.Tensor((4, 3, 384), dtype="float32") = R.nn.layer_norm(
-                            lv4, gamma, beta, axes=-1, epsilon=9.999999747378752e-05
-                        )
-                        gv: R.Tuple(
-                            R.Tensor((4, 3, 384), dtype="float32"),
-                            R.Tensor((4,), dtype="int32"),
-                        ) = (lv5, R.const([0, 0, 0, 0], "int32"))
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedWithSegment
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
         # TODO(@anwang2009): onnxruntime v1.9.0 requires empty list for optional argument,
@@ -5416,13 +5148,105 @@ def test_embedlayernormalization():
     gamma = np.random.uniform(0.5, 0.7, hidden_size).astype("float32")
     beta = np.random.randn(hidden_size).astype("float32") * 0.1
 
+    @I.ir_module
+    class ExpectedNoSegment:
+        @R.function
+        def main(
+            input_ids: R.Tensor((4, 3), dtype="int32"),
+            segment_ids: R.Tensor((), dtype="int32"),
+            word_embedding: R.Tensor((5, 384), dtype="float32"),
+            position_embedding: R.Tensor((3, 384), dtype="float32"),
+            segment_embedding: R.Tensor((), dtype="float32"),
+            gamma: R.Tensor((384,), dtype="float32"),
+            beta: R.Tensor((384,), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((4, 3, 384), dtype="float32"),
+            R.Tensor((4,), dtype="int32"),
+        ):
+            R.func_attr({"num_input": 7})
+            with R.dataflow():
+                lv: R.Tensor((4, 3, 384), dtype="float32") = R.take(
+                    word_embedding, input_ids, axis=0, mode="fast"
+                )
+                lv1: R.Tensor((4, 3, 384), dtype="float32") = R.take(
+                    position_embedding,
+                    R.const([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]], "int64"),
+                    axis=0,
+                    mode="fast",
+                )
+                lv2: R.Tensor((4, 3, 384), dtype="float32") = R.add(lv, lv1)
+                lv3: R.Tensor((4, 3, 384), dtype="float32") = R.nn.layer_norm(
+                    lv2, gamma, beta, axes=-1, epsilon=9.999999747378752e-05
+                )
+                gv: R.Tuple(
+                    R.Tensor((4, 3, 384), dtype="float32"),
+                    R.Tensor((4,), dtype="int32"),
+                ) = (lv3, R.const([0, 0, 0, 0], "int32"))
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedWithSegment:
+        @R.function
+        def main(
+            input_ids: R.Tensor((4, 3), dtype="int32"),
+            segment_ids: R.Tensor((4, 3), dtype="int32"),
+            word_embedding: R.Tensor((5, 384), dtype="float32"),
+            position_embedding: R.Tensor((3, 384), dtype="float32"),
+            segment_embedding: R.Tensor((5, 384), dtype="float32"),
+            gamma: R.Tensor((384,), dtype="float32"),
+            beta: R.Tensor((384,), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((4, 3, 384), dtype="float32"),
+            R.Tensor((4,), dtype="int32"),
+        ):
+            R.func_attr({"num_input": 7})
+            with R.dataflow():
+                lv: R.Tensor((4, 3, 384), dtype="float32") = R.take(
+                    word_embedding, input_ids, axis=0, mode="fast"
+                )
+                lv1: R.Tensor((4, 3, 384), dtype="float32") = R.take(
+                    position_embedding,
+                    R.const([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]], "int64"),
+                    axis=0,
+                    mode="fast",
+                )
+                lv2: R.Tensor((4, 3, 384), dtype="float32") = R.add(lv, lv1)
+                lv3: R.Tensor((4, 3, 384), dtype="float32") = R.take(
+                    segment_embedding, segment_ids, axis=0, mode="fast"
+                )
+                lv4: R.Tensor((4, 3, 384), dtype="float32") = R.add(lv2, lv3)
+                lv5: R.Tensor((4, 3, 384), dtype="float32") = R.nn.layer_norm(
+                    lv4, gamma, beta, axes=-1, epsilon=9.999999747378752e-05
+                )
+                gv: R.Tuple(
+                    R.Tensor((4, 3, 384), dtype="float32"),
+                    R.Tensor((4,), dtype="int32"),
+                ) = (lv5, R.const([0, 0, 0, 0], "int32"))
+                R.output(gv)
+            return gv
+
     verify_embedlayernormalization(
-        input_ids, segment_ids, word_embedding, position_embedding, segment_embedding, gamma, beta
+        input_ids,
+        segment_ids,
+        word_embedding,
+        position_embedding,
+        segment_embedding,
+        gamma,
+        beta,
+        ExpectedWithSegment,
     )
 
     # Test with undefined segment embedding
     verify_embedlayernormalization(
-        input_ids, None, word_embedding, position_embedding, None, gamma, beta
+        input_ids,
+        None,
+        word_embedding,
+        position_embedding,
+        None,
+        gamma,
+        beta,
+        ExpectedNoSegment,
     )
 
 
@@ -10367,9 +10191,8 @@ def test_topk(axis: int, largest: int):
     check_correctness(model)
 
 
-@pytest.mark.parametrize("dynamic", [False, True])
-def test_expand(dynamic):
-    def _assert_expand_ir(name, input_shape, target_shape, output_shape):
+def test_expand():
+    def _assert_expand_ir(name, input_shape, target_shape, output_shape, expected):
         shape_array = np.array(target_shape)
         shape_node = onnx.helper.make_node(
             "Constant",
@@ -10393,61 +10216,9 @@ def test_expand(dynamic):
 
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
-        if output_shape == [3, 4]:
-
-            @I.ir_module
-            class ExpectedSameRank:
-                @R.function
-                def main(in_: R.Tensor((3, 1), dtype="float32")) -> R.Tensor(
-                    (3, 4), dtype="float32"
-                ):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((3, 4), dtype="float32") = R.broadcast_to(in_, R.shape([3, 4]))
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSameRank
-
-        elif output_shape == [1, 3, 4]:
-
-            @I.ir_module
-            class ExpectedHigherRank:
-                @R.function
-                def main(in_: R.Tensor((3, 1), dtype="float32")) -> R.Tensor(
-                    (1, 3, 4), dtype="float32"
-                ):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((1, 3, 4), dtype="float32") = R.broadcast_to(
-                            in_, R.shape([1, 3, 4])
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedHigherRank
-
-        else:
-
-            @I.ir_module
-            class ExpectedSameSuffix:
-                @R.function
-                def main(in_: R.Tensor((3, 1), dtype="float32")) -> R.Tensor(
-                    (1, 1, 3, 1), dtype="float32"
-                ):
-                    R.func_attr({"num_input": 1})
-                    with R.dataflow():
-                        gv: R.Tensor((1, 1, 3, 1), dtype="float32") = R.broadcast_to(
-                            in_, R.shape([1, 1, 3, 1])
-                        )
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedSameSuffix
-
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    def _assert_expand_dynamic_shapeexpr_ir(name, input_shape, shape_input_shape):
+    def _assert_expand_dynamic_shapeexpr_ir(name, input_shape, shape_input_shape, expected):
         shape_node = onnx.helper.make_node("Shape", inputs=["in_2"], outputs=["shape"])
         expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
         graph = helper.make_graph(
@@ -10462,33 +10233,64 @@ def test_expand(dynamic):
 
         model = helper.make_model(graph, producer_name=name)
         tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-        @I.ir_module
-        class ExpectedDynamicShape:
-            @R.function
-            def main(
-                in_: R.Tensor((1, 32, 32), dtype="float32"),
-                in_2: R.Tensor(("batch", 32, 32), dtype="float32"),
-            ) -> R.Tensor(("batch", 32, 32), dtype="float32"):
-                batch = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    gv: R.Tensor((batch, 32, 32), dtype="float32") = R.broadcast_to(
-                        in_, R.shape([batch, 32, 32])
-                    )
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedSameRank:
+        @R.function
+        def main(in_: R.Tensor((3, 1), dtype="float32")) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 4), dtype="float32") = R.broadcast_to(in_, R.shape([3, 4]))
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedDynamicShape)
+    @I.ir_module
+    class ExpectedHigherRank:
+        @R.function
+        def main(in_: R.Tensor((3, 1), dtype="float32")) -> R.Tensor((1, 3, 4), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 3, 4), dtype="float32") = R.broadcast_to(in_, R.shape([1, 3, 4]))
+                R.output(gv)
+            return gv
 
-    if not dynamic:
-        _assert_expand_ir("expand_with_dim_unchanged_test", [3, 1], [3, 4], [3, 4])
-        _assert_expand_ir("expand_with_diff_dim", [3, 1], [1, 3, 4], [1, 3, 4])
-        _assert_expand_ir("expand_with_the_same_suffix_dims", [3, 1], [1, 1, 3, 1], [1, 1, 3, 1])
-    else:
-        _assert_expand_dynamic_shapeexpr_ir(
-            "expand_with_dynamic_dim", [1, 32, 32], ["batch", 32, 32]
-        )
+    @I.ir_module
+    class ExpectedSameSuffix:
+        @R.function
+        def main(in_: R.Tensor((3, 1), dtype="float32")) -> R.Tensor((1, 1, 3, 1), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((1, 1, 3, 1), dtype="float32") = R.broadcast_to(
+                    in_, R.shape([1, 1, 3, 1])
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedDynamicShape:
+        @R.function
+        def main(
+            in_: R.Tensor((1, 32, 32), dtype="float32"),
+            in_2: R.Tensor(("batch", 32, 32), dtype="float32"),
+        ) -> R.Tensor(("batch", 32, 32), dtype="float32"):
+            batch = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((batch, 32, 32), dtype="float32") = R.broadcast_to(
+                    in_, R.shape([batch, 32, 32])
+                )
+                R.output(gv)
+            return gv
+
+    _assert_expand_ir("expand_with_dim_unchanged_test", [3, 1], [3, 4], [3, 4], ExpectedSameRank)
+    _assert_expand_ir("expand_with_diff_dim", [3, 1], [1, 3, 4], [1, 3, 4], ExpectedHigherRank)
+    _assert_expand_ir(
+        "expand_with_the_same_suffix_dims", [3, 1], [1, 1, 3, 1], [1, 1, 3, 1], ExpectedSameSuffix
+    )
+    _assert_expand_dynamic_shapeexpr_ir(
+        "expand_with_dynamic_dim", [1, 32, 32], ["batch", 32, 32], ExpectedDynamicShape
+    )
 
 
 def test_expand_incompatible_broadcasting():
@@ -12510,9 +12312,8 @@ def test_split():
     verify_split(np.float32, False, (1, 2), [[2]], [1], ExpectedSplit39)
 
 
-@pytest.mark.parametrize("dynamic", [True, False])
-def test_tile(dynamic):
-    def verify_tile(in_shape, repeats, out_shape):
+def test_tile():
+    def verify_tile(dynamic, in_shape, repeats, out_shape, expected):
         node = helper.make_node("Tile", inputs=["input", "repeats"], outputs=["out"])
 
         model_in_shape = list(in_shape)
@@ -12537,106 +12338,99 @@ def test_tile(dynamic):
             graph, producer_name="tile_test", opset_imports=[helper.make_opsetid("", 14)]
         )
         tvm_model = from_onnx(model, keep_params_in_input=True)
+        assert len(tvm_model["main"].attrs["params"]) == 1
         tvm_model["main"] = tvm_model["main"].without_attr("params")
-
-        if dynamic:
-
-            @I.ir_module
-            class ExpectedTileDynamicInput:
-                @T.prim_func(private=True, s_tir=True)
-                def tile(input: T.handle, T_tile: T.handle):
-                    T.evaluate(0)
-
-                @R.function
-                def main(
-                    input: R.Tensor(
-                        (
-                            "tile_input_dim_0",
-                            "tile_input_dim_1",
-                            "tile_input_dim_2",
-                            "tile_input_dim_3",
-                        ),
-                        dtype="float32",
-                    ),
-                    repeats: R.Tensor((4,), dtype="int64"),
-                ) -> R.Tensor(
-                    (
-                        "tile_input_dim_0 * 2",
-                        "tile_input_dim_1",
-                        "tile_input_dim_2 * 3",
-                        "tile_input_dim_3 * 2",
-                    ),
-                    dtype="float32",
-                ):
-                    tile_input_dim_0 = T.int64(is_size_var=True)
-                    tile_input_dim_1 = T.int64(is_size_var=True)
-                    tile_input_dim_2 = T.int64(is_size_var=True)
-                    tile_input_dim_3 = T.int64(is_size_var=True)
-                    R.func_attr({"num_input": 1})
-                    cls = ExpectedTileDynamicInput
-                    with R.dataflow():
-                        lv = R.call_tir(
-                            cls.tile,
-                            (input,),
-                            out_ty=R.Tensor(
-                                (
-                                    tile_input_dim_0 * 2,
-                                    tile_input_dim_1,
-                                    tile_input_dim_2 * 3,
-                                    tile_input_dim_3 * 2,
-                                ),
-                                dtype="float32",
-                            ),
-                        )
-                        gv: R.Tensor(
-                            (
-                                tile_input_dim_0 * 2,
-                                tile_input_dim_1,
-                                tile_input_dim_2 * 3,
-                                tile_input_dim_3 * 2,
-                            ),
-                            dtype="float32",
-                        ) = lv
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedTileDynamicInput
-
-        else:
-
-            @I.ir_module
-            class ExpectedTileStaticInput:
-                @T.prim_func(private=True, s_tir=True)
-                def tile(input: T.handle, T_tile: T.handle):
-                    T.evaluate(0)
-
-                @R.function
-                def main(
-                    input: R.Tensor((2, 3, 4, 5), dtype="float32"),
-                    repeats: R.Tensor((4,), dtype="int64"),
-                ) -> R.Tensor((4, 3, 12, 10), dtype="float32"):
-                    R.func_attr({"num_input": 1})
-                    cls = ExpectedTileStaticInput
-                    with R.dataflow():
-                        lv = R.call_tir(
-                            cls.tile,
-                            (input,),
-                            out_ty=R.Tensor((4, 3, 12, 10), dtype="float32"),
-                        )
-                        gv: R.Tensor((4, 3, 12, 10), dtype="float32") = lv
-                        R.output(gv)
-                    return gv
-
-            expected = ExpectedTileStaticInput
-
         expected = tvm.IRModule(expected.functions)
         expected.update_func(expected.get_global_var("tile"), tvm_model["tile"])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
+    @I.ir_module
+    class ExpectedTileDynamicInput:
+        @T.prim_func(private=True, s_tir=True)
+        def tile(input: T.handle, T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor(
+                (
+                    "tile_input_dim_0",
+                    "tile_input_dim_1",
+                    "tile_input_dim_2",
+                    "tile_input_dim_3",
+                ),
+                dtype="float32",
+            ),
+            repeats: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor(
+            (
+                "tile_input_dim_0 * 2",
+                "tile_input_dim_1",
+                "tile_input_dim_2 * 3",
+                "tile_input_dim_3 * 2",
+            ),
+            dtype="float32",
+        ):
+            tile_input_dim_0 = T.int64(is_size_var=True)
+            tile_input_dim_1 = T.int64(is_size_var=True)
+            tile_input_dim_2 = T.int64(is_size_var=True)
+            tile_input_dim_3 = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            cls = ExpectedTileDynamicInput
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.tile,
+                    (input,),
+                    out_ty=R.Tensor(
+                        (
+                            tile_input_dim_0 * 2,
+                            tile_input_dim_1,
+                            tile_input_dim_2 * 3,
+                            tile_input_dim_3 * 2,
+                        ),
+                        dtype="float32",
+                    ),
+                )
+                gv: R.Tensor(
+                    (
+                        tile_input_dim_0 * 2,
+                        tile_input_dim_1,
+                        tile_input_dim_2 * 3,
+                        tile_input_dim_3 * 2,
+                    ),
+                    dtype="float32",
+                ) = lv
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedTileStaticInput:
+        @T.prim_func(private=True, s_tir=True)
+        def tile(input: T.handle, T_tile: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            input: R.Tensor((2, 3, 4, 5), dtype="float32"),
+            repeats: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor((4, 3, 12, 10), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = ExpectedTileStaticInput
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.tile,
+                    (input,),
+                    out_ty=R.Tensor((4, 3, 12, 10), dtype="float32"),
+                )
+                gv: R.Tensor((4, 3, 12, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
     x = np.random.rand(2, 3, 4, 5).astype(np.float32)
     repeats = np.array([2, 1, 3, 2], dtype=np.int64)
     z_array = np.tile(x, repeats)
-    verify_tile(x.shape, repeats, z_array.shape)
+    verify_tile(True, x.shape, repeats, z_array.shape, ExpectedTileDynamicInput)
+    verify_tile(False, x.shape, repeats, z_array.shape, ExpectedTileStaticInput)
 
 
 def test_tile_dynamic_repeats():
@@ -15295,176 +15089,153 @@ def test_unique(axis: int | None, sorted: int, num_outputs: int):
     check_correctness(model)
 
 
-@pytest.mark.parametrize("shape", [(), (1,), (2, 3), (4, 5, 6), (7, 8, 9, 10)])
-def test_nonzero(shape):
-    ndim = max(len(shape), 1)
-    node = helper.make_node("NonZero", ["x"], ["y"])
-    graph = helper.make_graph(
-        [node],
-        "nonzero_structural_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.BOOL, shape)],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [ndim, None])],
-    )
-    model = helper.make_model(graph, producer_name="nonzero_structural_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+def test_nonzero():
+    def verify_nonzero(shape, expected):
+        ndim = max(len(shape), 1)
+        node = helper.make_node("NonZero", ["x"], ["y"])
+        graph = helper.make_graph(
+            [node],
+            "nonzero_structural_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.BOOL, shape)],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [ndim, None])],
+        )
+        model = helper.make_model(graph, producer_name="nonzero_structural_test")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if shape == ():
+    @I.ir_module
+    class ExpectedScalar:
+        @R.function
+        def main(x: R.Tensor((), dtype="bool")):
+            nonzero_numbers = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, nonzero_numbers), dtype="int64") = R.match_cast(
+                    R.nonzero(x), R.Tensor((1, nonzero_numbers), dtype="int64")
+                )
+                gv: R.Tensor((1, nonzero_numbers), dtype="int64") = lv
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedScalar:
-            @R.function
-            def main(x: R.Tensor((), dtype="bool")):
-                nonzero_numbers = T.int64()
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, nonzero_numbers), dtype="int64") = R.match_cast(
-                        R.nonzero(x), R.Tensor((1, nonzero_numbers), dtype="int64")
-                    )
-                    gv: R.Tensor((1, nonzero_numbers), dtype="int64") = lv
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedRank1:
+        @R.function
+        def main(x: R.Tensor((1,), dtype="bool")):
+            nonzero_numbers = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, nonzero_numbers), dtype="int64") = R.match_cast(
+                    R.nonzero(x), R.Tensor((1, nonzero_numbers), dtype="int64")
+                )
+                gv: R.Tensor((1, nonzero_numbers), dtype="int64") = lv
+                R.output(gv)
+            return gv
 
-        expected = ExpectedScalar
+    @I.ir_module
+    class ExpectedRank2:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="bool")):
+            nonzero_numbers = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, nonzero_numbers), dtype="int64") = R.match_cast(
+                    R.nonzero(x), R.Tensor((2, nonzero_numbers), dtype="int64")
+                )
+                gv: R.Tensor((2, nonzero_numbers), dtype="int64") = lv
+                R.output(gv)
+            return gv
 
-    elif shape == (1,):
+    @I.ir_module
+    class ExpectedRank3:
+        @R.function
+        def main(x: R.Tensor((4, 5, 6), dtype="bool")):
+            nonzero_numbers = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((3, nonzero_numbers), dtype="int64") = R.match_cast(
+                    R.nonzero(x), R.Tensor((3, nonzero_numbers), dtype="int64")
+                )
+                gv: R.Tensor((3, nonzero_numbers), dtype="int64") = lv
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedRank1:
-            @R.function
-            def main(x: R.Tensor((1,), dtype="bool")):
-                nonzero_numbers = T.int64()
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, nonzero_numbers), dtype="int64") = R.match_cast(
-                        R.nonzero(x), R.Tensor((1, nonzero_numbers), dtype="int64")
-                    )
-                    gv: R.Tensor((1, nonzero_numbers), dtype="int64") = lv
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedRank4:
+        @R.function
+        def main(x: R.Tensor((7, 8, 9, 10), dtype="bool")):
+            nonzero_numbers = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((4, nonzero_numbers), dtype="int64") = R.match_cast(
+                    R.nonzero(x), R.Tensor((4, nonzero_numbers), dtype="int64")
+                )
+                gv: R.Tensor((4, nonzero_numbers), dtype="int64") = lv
+                R.output(gv)
+            return gv
 
-        expected = ExpectedRank1
-
-    elif shape == (2, 3):
-
-        @I.ir_module
-        class ExpectedRank2:
-            @R.function
-            def main(x: R.Tensor((2, 3), dtype="bool")):
-                nonzero_numbers = T.int64()
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, nonzero_numbers), dtype="int64") = R.match_cast(
-                        R.nonzero(x), R.Tensor((2, nonzero_numbers), dtype="int64")
-                    )
-                    gv: R.Tensor((2, nonzero_numbers), dtype="int64") = lv
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedRank2
-
-    elif shape == (4, 5, 6):
-
-        @I.ir_module
-        class ExpectedRank3:
-            @R.function
-            def main(x: R.Tensor((4, 5, 6), dtype="bool")):
-                nonzero_numbers = T.int64()
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((3, nonzero_numbers), dtype="int64") = R.match_cast(
-                        R.nonzero(x), R.Tensor((3, nonzero_numbers), dtype="int64")
-                    )
-                    gv: R.Tensor((3, nonzero_numbers), dtype="int64") = lv
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedRank3
-
-    else:
-
-        @I.ir_module
-        class ExpectedRank4:
-            @R.function
-            def main(x: R.Tensor((7, 8, 9, 10), dtype="bool")):
-                nonzero_numbers = T.int64()
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((4, nonzero_numbers), dtype="int64") = R.match_cast(
-                        R.nonzero(x), R.Tensor((4, nonzero_numbers), dtype="int64")
-                    )
-                    gv: R.Tensor((4, nonzero_numbers), dtype="int64") = lv
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedRank4
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_nonzero((), ExpectedScalar)
+    verify_nonzero((1,), ExpectedRank1)
+    verify_nonzero((2, 3), ExpectedRank2)
+    verify_nonzero((4, 5, 6), ExpectedRank3)
+    verify_nonzero((7, 8, 9, 10), ExpectedRank4)
 
 
-@pytest.mark.parametrize("mode", ["DCR", "CRD"])
-def test_depth_to_space(mode: Literal["DCR", "CRD"]):
-    in_shape = [1, 8, 2, 3]
-    out_shape = [1, 2, 4, 6]
-    blocksize = 2
-    node = onnx.helper.make_node(
-        "DepthToSpace", inputs=["x"], outputs=["y"], blocksize=blocksize, mode=mode
-    )
-    graph = helper.make_graph(
-        [node],
-        "depth_to_space_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_shape)],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_shape)],
-    )
-    model = helper.make_model(graph, producer_name="depth_to_space_test")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+def test_depth_to_space():
+    def verify_depth_to_space(mode: Literal["DCR", "CRD"], expected):
+        in_shape = [1, 8, 2, 3]
+        out_shape = [1, 2, 4, 6]
+        blocksize = 2
+        node = onnx.helper.make_node(
+            "DepthToSpace", inputs=["x"], outputs=["y"], blocksize=blocksize, mode=mode
+        )
+        graph = helper.make_graph(
+            [node],
+            "depth_to_space_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_shape)],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_shape)],
+        )
+        model = helper.make_model(graph, producer_name="depth_to_space_test")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if mode == "DCR":
+    @I.ir_module
+    class ExpectedDCR:
+        @R.function
+        def main(
+            x: R.Tensor((1, 8, 2, 3), dtype="float32"),
+        ) -> R.Tensor((1, 2, 4, 6), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 2, 2, 2, 3), dtype="float32") = R.reshape(
+                    x, R.shape([1, 2, 2, 2, 2, 3])
+                )
+                lv1: R.Tensor((1, 2, 2, 2, 3, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 3, 4, 1, 5, 2]
+                )
+                gv: R.Tensor((1, 2, 4, 6), dtype="float32") = R.reshape(lv1, R.shape([1, 2, 4, 6]))
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedDCR:
-            @R.function
-            def main(
-                x: R.Tensor((1, 8, 2, 3), dtype="float32"),
-            ) -> R.Tensor((1, 2, 4, 6), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 2, 2, 2, 2, 3), dtype="float32") = R.reshape(
-                        x, R.shape([1, 2, 2, 2, 2, 3])
-                    )
-                    lv1: R.Tensor((1, 2, 2, 2, 3, 2), dtype="float32") = R.permute_dims(
-                        lv, axes=[0, 3, 4, 1, 5, 2]
-                    )
-                    gv: R.Tensor((1, 2, 4, 6), dtype="float32") = R.reshape(
-                        lv1, R.shape([1, 2, 4, 6])
-                    )
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedCRD:
+        @R.function
+        def main(
+            x: R.Tensor((1, 8, 2, 3), dtype="float32"),
+        ) -> R.Tensor((1, 2, 4, 6), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 2, 2, 2, 3), dtype="float32") = R.reshape(
+                    x, R.shape([1, 2, 2, 2, 2, 3])
+                )
+                lv1: R.Tensor((1, 2, 2, 2, 3, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 1, 4, 2, 5, 3]
+                )
+                gv: R.Tensor((1, 2, 4, 6), dtype="float32") = R.reshape(lv1, R.shape([1, 2, 4, 6]))
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedDCR)
-
-    else:
-
-        @I.ir_module
-        class ExpectedCRD:
-            @R.function
-            def main(
-                x: R.Tensor((1, 8, 2, 3), dtype="float32"),
-            ) -> R.Tensor((1, 2, 4, 6), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((1, 2, 2, 2, 2, 3), dtype="float32") = R.reshape(
-                        x, R.shape([1, 2, 2, 2, 2, 3])
-                    )
-                    lv1: R.Tensor((1, 2, 2, 2, 3, 2), dtype="float32") = R.permute_dims(
-                        lv, axes=[0, 1, 4, 2, 5, 3]
-                    )
-                    gv: R.Tensor((1, 2, 4, 6), dtype="float32") = R.reshape(
-                        lv1, R.shape([1, 2, 4, 6])
-                    )
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedCRD)
+    verify_depth_to_space("DCR", ExpectedDCR)
+    verify_depth_to_space("CRD", ExpectedCRD)
 
 
 def test_space_to_depth():
@@ -15590,266 +15361,243 @@ def test_sequence_empty():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-@pytest.mark.parametrize("explicit_position", [True, False])
-def test_sequence_erase(explicit_position: bool):
-    seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
-    index = make_constant_node("index", TensorProto.INT64, (), [1])
-    node_input = ["sequence", "index"] if explicit_position else ["sequence"]
-    sequence_erase_node = helper.make_node("SequenceErase", node_input, ["output"])
-    graph = helper.make_graph(
-        [index, seq_node, sequence_erase_node],
-        "test_sequence_erase",
-        inputs=graph_inputs,
-        outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, [32, 32])],
-    )
-    model = helper.make_model(graph, producer_name="test_sequence_erase")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+def test_sequence_erase():
+    def verify_sequence_erase(explicit_position: bool, expected):
+        seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
+        index = make_constant_node("index", TensorProto.INT64, (), [1])
+        node_input = ["sequence", "index"] if explicit_position else ["sequence"]
+        sequence_erase_node = helper.make_node("SequenceErase", node_input, ["output"])
+        graph = helper.make_graph(
+            [index, seq_node, sequence_erase_node],
+            "test_sequence_erase",
+            inputs=graph_inputs,
+            outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, [32, 32])],
+        )
+        model = helper.make_model(graph, producer_name="test_sequence_erase")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if explicit_position:
+    @I.ir_module
+    class ExpectedEraseExplicit:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+            data2: R.Tensor((32, 32), dtype="float32"),
+            data3: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 4})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                ) = data0, data2, data3
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedEraseExplicit:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-                data2: R.Tensor((32, 32), dtype="float32"),
-                data3: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 4})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                    ) = data0, data2, data3
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedEraseDefault:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+            data2: R.Tensor((32, 32), dtype="float32"),
+            data3: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 4})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                ) = data0, data1, data2
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedEraseExplicit)
-
-    else:
-
-        @I.ir_module
-        class ExpectedEraseDefault:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-                data2: R.Tensor((32, 32), dtype="float32"),
-                data3: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 4})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                    ) = data0, data1, data2
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedEraseDefault)
+    verify_sequence_erase(True, ExpectedEraseExplicit)
+    verify_sequence_erase(False, ExpectedEraseDefault)
 
 
-@pytest.mark.parametrize("explicit_position", [True, False])
-def test_sequence_insert(explicit_position: bool):
-    seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
-    index = make_constant_node("index", TensorProto.INT64, (), [0])
-    node_input = ["sequence", "value", "index"] if explicit_position else ["sequence", "value"]
-    sequence_insert_node = helper.make_node("SequenceInsert", node_input, ["output"])
-    graph = helper.make_graph(
-        [index, seq_node, sequence_insert_node],
-        "test_sequence_insert",
-        inputs=[*graph_inputs, helper.make_tensor_value_info("value", TensorProto.FLOAT, [32, 32])],
-        outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, [32, 32])],
-    )
-    model = helper.make_model(graph, producer_name="test_sequence_insert")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+def test_sequence_insert():
+    def verify_sequence_insert(explicit_position: bool, expected):
+        seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
+        index = make_constant_node("index", TensorProto.INT64, (), [0])
+        node_input = ["sequence", "value", "index"] if explicit_position else ["sequence", "value"]
+        sequence_insert_node = helper.make_node("SequenceInsert", node_input, ["output"])
+        graph = helper.make_graph(
+            [index, seq_node, sequence_insert_node],
+            "test_sequence_insert",
+            inputs=[
+                *graph_inputs,
+                helper.make_tensor_value_info("value", TensorProto.FLOAT, [32, 32]),
+            ],
+            outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, [32, 32])],
+        )
+        model = helper.make_model(graph, producer_name="test_sequence_insert")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if explicit_position:
+    @I.ir_module
+    class ExpectedInsertExplicit:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+            data2: R.Tensor((32, 32), dtype="float32"),
+            data3: R.Tensor((32, 32), dtype="float32"),
+            value: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 5})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                ) = value, data0, data1, data2, data3
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedInsertExplicit:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-                data2: R.Tensor((32, 32), dtype="float32"),
-                data3: R.Tensor((32, 32), dtype="float32"),
-                value: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 5})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                    ) = value, data0, data1, data2, data3
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedInsertDefault:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+            data2: R.Tensor((32, 32), dtype="float32"),
+            data3: R.Tensor((32, 32), dtype="float32"),
+            value: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+            R.Tensor((32, 32), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 5})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                    R.Tensor((32, 32), dtype="float32"),
+                ) = data0, data1, data2, data3, value
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedInsertExplicit)
-
-    else:
-
-        @I.ir_module
-        class ExpectedInsertDefault:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-                data2: R.Tensor((32, 32), dtype="float32"),
-                data3: R.Tensor((32, 32), dtype="float32"),
-                value: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-                R.Tensor((32, 32), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 5})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                        R.Tensor((32, 32), dtype="float32"),
-                    ) = data0, data1, data2, data3, value
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedInsertDefault)
+    verify_sequence_insert(True, ExpectedInsertExplicit)
+    verify_sequence_insert(False, ExpectedInsertDefault)
 
 
-@pytest.mark.parametrize(
-    "new_axis,axis,expected_shape",
-    [
-        (0, 0, [64, 32]),
-        (0, 1, [32, 64]),
-        (1, 0, [2, 32, 32]),
-        (1, 1, [32, 2, 32]),
-        (1, -1, [32, 32, 2]),
-    ],
-)
-def test_concat_from_sequence(new_axis: int, axis: int, expected_shape: list[int]):
-    seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=2)
-    concat_from_sequence_node = helper.make_node(
-        "ConcatFromSequence", ["sequence"], ["output"], axis=axis, new_axis=new_axis
-    )
-    graph = helper.make_graph(
-        [seq_node, concat_from_sequence_node],
-        "test_concat_from_sequence",
-        inputs=graph_inputs,
-        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, expected_shape)],
-    )
-    model = helper.make_model(graph, producer_name="test_concat_from_sequence")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+def test_concat_from_sequence():
+    def verify_concat_from_sequence(new_axis: int, axis: int, expected_shape: list[int], expected):
+        seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=2)
+        concat_from_sequence_node = helper.make_node(
+            "ConcatFromSequence", ["sequence"], ["output"], axis=axis, new_axis=new_axis
+        )
+        graph = helper.make_graph(
+            [seq_node, concat_from_sequence_node],
+            "test_concat_from_sequence",
+            inputs=graph_inputs,
+            outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, expected_shape)],
+        )
+        model = helper.make_model(graph, producer_name="test_concat_from_sequence")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if new_axis == 0 and axis == 0:
+    @I.ir_module
+    class ExpectedConcatAxis0:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((64, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((64, 32), dtype="float32") = R.concat((data0, data1), axis=0)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedConcatAxis0:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((64, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    gv: R.Tensor((64, 32), dtype="float32") = R.concat((data0, data1), axis=0)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedConcatAxis1:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 64), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((32, 64), dtype="float32") = R.concat((data0, data1), axis=1)
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedConcatAxis0)
-    elif new_axis == 0 and axis == 1:
+    @I.ir_module
+    class ExpectedStackAxis0:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((2, 32, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(data0, axis=[0])
+                lv1: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(data1, axis=[0])
+                gv: R.Tensor((2, 32, 32), dtype="float32") = R.concat((lv, lv1), axis=0)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedConcatAxis1:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 64), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    gv: R.Tensor((32, 64), dtype="float32") = R.concat((data0, data1), axis=1)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedStackAxis1:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 2, 32), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 1, 32), dtype="float32") = R.expand_dims(data0, axis=[1])
+                lv1: R.Tensor((32, 1, 32), dtype="float32") = R.expand_dims(data1, axis=[1])
+                gv: R.Tensor((32, 2, 32), dtype="float32") = R.concat((lv, lv1), axis=1)
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedConcatAxis1)
-    elif new_axis == 1 and axis == 0:
+    @I.ir_module
+    class ExpectedStackAxisMinusOne:
+        @R.function
+        def main(
+            data0: R.Tensor((32, 32), dtype="float32"),
+            data1: R.Tensor((32, 32), dtype="float32"),
+        ) -> R.Tensor((32, 32, 2), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((32, 32, 1), dtype="float32") = R.expand_dims(data0, axis=[-1])
+                lv1: R.Tensor((32, 32, 1), dtype="float32") = R.expand_dims(data1, axis=[-1])
+                gv: R.Tensor((32, 32, 2), dtype="float32") = R.concat((lv, lv1), axis=-1)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedStackAxis0:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((2, 32, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(data0, axis=[0])
-                    lv1: R.Tensor((1, 32, 32), dtype="float32") = R.expand_dims(data1, axis=[0])
-                    gv: R.Tensor((2, 32, 32), dtype="float32") = R.concat((lv, lv1), axis=0)
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedStackAxis0)
-    elif new_axis == 1 and axis == 1:
-
-        @I.ir_module
-        class ExpectedStackAxis1:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 2, 32), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 1, 32), dtype="float32") = R.expand_dims(data0, axis=[1])
-                    lv1: R.Tensor((32, 1, 32), dtype="float32") = R.expand_dims(data1, axis=[1])
-                    gv: R.Tensor((32, 2, 32), dtype="float32") = R.concat((lv, lv1), axis=1)
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedStackAxis1)
-    else:
-
-        @I.ir_module
-        class ExpectedStackAxisMinusOne:
-            @R.function
-            def main(
-                data0: R.Tensor((32, 32), dtype="float32"),
-                data1: R.Tensor((32, 32), dtype="float32"),
-            ) -> R.Tensor((32, 32, 2), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                with R.dataflow():
-                    lv: R.Tensor((32, 32, 1), dtype="float32") = R.expand_dims(data0, axis=[-1])
-                    lv1: R.Tensor((32, 32, 1), dtype="float32") = R.expand_dims(data1, axis=[-1])
-                    gv: R.Tensor((32, 32, 2), dtype="float32") = R.concat((lv, lv1), axis=-1)
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedStackAxisMinusOne)
+    verify_concat_from_sequence(0, 0, [64, 32], ExpectedConcatAxis0)
+    verify_concat_from_sequence(0, 1, [32, 64], ExpectedConcatAxis1)
+    verify_concat_from_sequence(1, 0, [2, 32, 32], ExpectedStackAxis0)
+    verify_concat_from_sequence(1, 1, [32, 2, 32], ExpectedStackAxis1)
+    verify_concat_from_sequence(1, -1, [32, 32, 2], ExpectedStackAxisMinusOne)
 
 
 def test_concat_from_sequence_new_axis_three_tensors():
@@ -15905,78 +15653,70 @@ def test_concat_from_sequence_invalid_new_axis():
         from_onnx(model, opset=11)
 
 
-@pytest.mark.parametrize(
-    "split,data_shape,output_shape",
-    [
-        (2, [6, 32], [2, 32]),
-        ([16, 48], [64, 32], [32, 32]),
-    ],
-)
-def test_split_to_sequence(split, data_shape: list[int], output_shape: list[int]):
-    split_to_sequence_node = helper.make_node(
-        "SplitToSequence",
-        ["data", "split"],
-        ["output"],
-        axis=0,
-    )
-    split_shape = [len(split)] if isinstance(split, list) else ()
-    split_node = make_constant_node(
-        "split", TensorProto.INT64, split_shape, [split] if isinstance(split, int) else split
-    )
-    graph = helper.make_graph(
-        [split_node, split_to_sequence_node],
-        "test_split_to_sequence",
-        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape)],
-        outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, output_shape)],
-    )
-    model = helper.make_model(graph, producer_name="test_split_to_sequence")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+def test_split_to_sequence():
+    def verify_split_to_sequence(split, data_shape: list[int], output_shape: list[int], expected):
+        split_to_sequence_node = helper.make_node(
+            "SplitToSequence",
+            ["data", "split"],
+            ["output"],
+            axis=0,
+        )
+        split_shape = [len(split)] if isinstance(split, list) else ()
+        split_node = make_constant_node(
+            "split", TensorProto.INT64, split_shape, [split] if isinstance(split, int) else split
+        )
+        graph = helper.make_graph(
+            [split_node, split_to_sequence_node],
+            "test_split_to_sequence",
+            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape)],
+            outputs=[
+                helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, output_shape)
+            ],
+        )
+        model = helper.make_model(graph, producer_name="test_split_to_sequence")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if isinstance(split, int):
+    @I.ir_module
+    class ExpectedScalarSplit:
+        @R.function
+        def main(
+            data: R.Tensor((6, 32), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((2, 32), dtype="float32"),
+            R.Tensor((2, 32), dtype="float32"),
+            R.Tensor((2, 32), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((2, 32), dtype="float32"),
+                    R.Tensor((2, 32), dtype="float32"),
+                    R.Tensor((2, 32), dtype="float32"),
+                ) = R.split(data, indices_or_sections=3, axis=0)
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedScalarSplit:
-            @R.function
-            def main(
-                data: R.Tensor((6, 32), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((2, 32), dtype="float32"),
-                R.Tensor((2, 32), dtype="float32"),
-                R.Tensor((2, 32), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((2, 32), dtype="float32"),
-                        R.Tensor((2, 32), dtype="float32"),
-                        R.Tensor((2, 32), dtype="float32"),
-                    ) = R.split(data, indices_or_sections=3, axis=0)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedSectionsSplit:
+        @R.function
+        def main(
+            data: R.Tensor((64, 32), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((16, 32), dtype="float32"),
+            R.Tensor((48, 32), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((16, 32), dtype="float32"),
+                    R.Tensor((48, 32), dtype="float32"),
+                ) = R.split(data, indices_or_sections=[16], axis=0)
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedScalarSplit)
-
-    else:
-
-        @I.ir_module
-        class ExpectedSectionsSplit:
-            @R.function
-            def main(
-                data: R.Tensor((64, 32), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((16, 32), dtype="float32"),
-                R.Tensor((48, 32), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((16, 32), dtype="float32"),
-                        R.Tensor((48, 32), dtype="float32"),
-                    ) = R.split(data, indices_or_sections=[16], axis=0)
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedSectionsSplit)
+    verify_split_to_sequence(2, [6, 32], [2, 32], ExpectedScalarSplit)
+    verify_split_to_sequence([16, 48], [64, 32], [32, 32], ExpectedSectionsSplit)
 
 
 def test_sequence_at():
@@ -16264,95 +16004,93 @@ def test_optional_get_element_empty_raises():
         from_onnx(model, opset=18, keep_params_in_input=True)
 
 
-@pytest.mark.parametrize("with_reshape_flatten", [False, True])
-def test_symbolic_shape_deduction(with_reshape_flatten):
-    index_node = helper.make_node(
-        "Constant",
-        inputs=[],
-        outputs=["indices"],
-        value=helper.make_tensor("indices", TensorProto.INT64, [], [0]),
-    )
-    shape_node = helper.make_node("Shape", ["data"], ["shape_output"])
-    nodes = [index_node, shape_node]
-    gather_input = "shape_output"
-
-    if with_reshape_flatten:
-        reshape_node = helper.make_node(
-            "Reshape", ["shape_output", "target_shape"], ["reshaped_shape"]
+def test_symbolic_shape_deduction():
+    def verify_symbolic_shape_deduction(with_reshape_flatten, expected):
+        index_node = helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["indices"],
+            value=helper.make_tensor("indices", TensorProto.INT64, [], [0]),
         )
-        nodes.append(reshape_node)
-        gather_input = "reshaped_shape"
+        shape_node = helper.make_node("Shape", ["data"], ["shape_output"])
+        nodes = [index_node, shape_node]
+        gather_input = "shape_output"
 
-    gather_node = helper.make_node("Gather", [gather_input, "indices"], ["gather_output"])
-    unsqueeze_node = helper.make_node("Unsqueeze", ["gather_output", "axes"], ["unsqueeze_output"])
-    constant_of_shape_node = helper.make_node(
-        "ConstantOfShape",
-        ["unsqueeze_output"],
-        ["output"],
-        value=helper.make_tensor("value", TensorProto.FLOAT, [], [1]),
-    )
-    nodes.extend([gather_node, unsqueeze_node, constant_of_shape_node])
+        if with_reshape_flatten:
+            reshape_node = helper.make_node(
+                "Reshape", ["shape_output", "target_shape"], ["reshaped_shape"]
+            )
+            nodes.append(reshape_node)
+            gather_input = "reshaped_shape"
 
-    initializers = [helper.make_tensor("axes", TensorProto.INT64, [1], vals=[0])]
-    if with_reshape_flatten:
-        initializers.append(helper.make_tensor("target_shape", TensorProto.INT64, [1], vals=[-1]))
+        gather_node = helper.make_node("Gather", [gather_input, "indices"], ["gather_output"])
+        unsqueeze_node = helper.make_node(
+            "Unsqueeze", ["gather_output", "axes"], ["unsqueeze_output"]
+        )
+        constant_of_shape_node = helper.make_node(
+            "ConstantOfShape",
+            ["unsqueeze_output"],
+            ["output"],
+            value=helper.make_tensor("value", TensorProto.FLOAT, [], [1]),
+        )
+        nodes.extend([gather_node, unsqueeze_node, constant_of_shape_node])
 
-    graph = helper.make_graph(
-        nodes,
-        "test_shape_deduction",
-        inputs=[
-            helper.make_tensor_value_info("data", TensorProto.FLOAT, ["batch", "seq"]),
-        ],
-        initializer=initializers,
-        outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [1])],
-    )
-    model = helper.make_model(graph, producer_name="test_shape_deduction")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+        initializers = [helper.make_tensor("axes", TensorProto.INT64, [1], vals=[0])]
+        if with_reshape_flatten:
+            initializers.append(
+                helper.make_tensor("target_shape", TensorProto.INT64, [1], vals=[-1])
+            )
 
-    if with_reshape_flatten:
+        graph = helper.make_graph(
+            nodes,
+            "test_shape_deduction",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, ["batch", "seq"]),
+            ],
+            initializer=initializers,
+            outputs=[helper.make_tensor_value_info("output", TensorProto.INT64, [1])],
+        )
+        model = helper.make_model(graph, producer_name="test_shape_deduction")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model["main"].without_attr("params"), expected["main"])
 
-        @I.ir_module
-        class ExpectedWithReshapeFlatten:
-            @R.function
-            def main(
-                data: R.Tensor(("batch", "seq"), dtype="float32"),
-                axes: R.Tensor((1,), dtype="int64"),
-                target_shape: R.Tensor((1,), dtype="int64"),
-            ) -> R.Tensor(("batch",), dtype="float32"):
-                batch = T.int64(is_size_var=True)
-                seq = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
-                        R.const(1, "float32"), R.shape([batch])
-                    )
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedWithReshapeFlatten:
+        @R.function
+        def main(
+            data: R.Tensor(("batch", "seq"), dtype="float32"),
+            axes: R.Tensor((1,), dtype="int64"),
+            target_shape: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor(("batch",), dtype="float32"):
+            batch = T.int64(is_size_var=True)
+            seq = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
+                    R.const(1, "float32"), R.shape([batch])
+                )
+                R.output(gv)
+            return gv
 
-        expected = ExpectedWithReshapeFlatten
+    @I.ir_module
+    class ExpectedWithoutReshapeFlatten:
+        @R.function
+        def main(
+            data: R.Tensor(("batch", "seq"), dtype="float32"),
+            axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor(("batch",), dtype="float32"):
+            batch = T.int64(is_size_var=True)
+            seq = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
+                    R.const(1, "float32"), R.shape([batch])
+                )
+                R.output(gv)
+            return gv
 
-    else:
-
-        @I.ir_module
-        class ExpectedWithoutReshapeFlatten:
-            @R.function
-            def main(
-                data: R.Tensor(("batch", "seq"), dtype="float32"),
-                axes: R.Tensor((1,), dtype="int64"),
-            ) -> R.Tensor(("batch",), dtype="float32"):
-                batch = T.int64(is_size_var=True)
-                seq = T.int64(is_size_var=True)
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
-                        R.const(1, "float32"), R.shape([batch])
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedWithoutReshapeFlatten
-
-    tvm.ir.assert_structural_equal(tvm_model["main"].without_attr("params"), expected["main"])
+    verify_symbolic_shape_deduction(False, ExpectedWithoutReshapeFlatten)
+    verify_symbolic_shape_deduction(True, ExpectedWithReshapeFlatten)
 
 
 def test_multi_inputs_with_same_symbolic_shape():
@@ -17134,79 +16872,74 @@ def test_nms_score_threshold():
 
 
 # align_corners=None omits the attribute, exercising the ONNX default of 0.
-@pytest.mark.parametrize("align_corners", [None, 0, 1])
-def test_affine_grid(align_corners):
-    attrs = {} if align_corners is None else {"align_corners": align_corners}
-    affine_grid_node = helper.make_node("AffineGrid", ["theta", "size"], ["grid"], **attrs)
+def test_affine_grid():
+    def verify_affine_grid(align_corners, expected):
+        attrs = {} if align_corners is None else {"align_corners": align_corners}
+        affine_grid_node = helper.make_node("AffineGrid", ["theta", "size"], ["grid"], **attrs)
 
-    graph = helper.make_graph(
-        [affine_grid_node],
-        "affine_grid_test",
-        inputs=[
-            helper.make_tensor_value_info("theta", TensorProto.FLOAT, [2, 2, 3]),
-        ],
-        initializer=[
-            helper.make_tensor("size", TensorProto.INT64, [4], [2, 3, 16, 16]),
-        ],
-        outputs=[
-            helper.make_tensor_value_info("grid", TensorProto.FLOAT, [2, 16, 16, 2]),
-        ],
-    )
+        graph = helper.make_graph(
+            [affine_grid_node],
+            "affine_grid_test",
+            inputs=[
+                helper.make_tensor_value_info("theta", TensorProto.FLOAT, [2, 2, 3]),
+            ],
+            initializer=[
+                helper.make_tensor("size", TensorProto.INT64, [4], [2, 3, 16, 16]),
+            ],
+            outputs=[
+                helper.make_tensor_value_info("grid", TensorProto.FLOAT, [2, 16, 16, 2]),
+            ],
+        )
 
-    model = helper.make_model(
-        graph, producer_name="affine_grid_test", opset_imports=[helper.make_opsetid("", 20)]
-    )
-    tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
-    assert len(tvm_model["main"].attrs["params"]) == 1
-    tvm_model["main"] = tvm_model["main"].without_attr("params")
+        model = helper.make_model(
+            graph, producer_name="affine_grid_test", opset_imports=[helper.make_opsetid("", 20)]
+        )
+        tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
+        assert len(tvm_model["main"].attrs["params"]) == 1
+        tvm_model["main"] = tvm_model["main"].without_attr("params")
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if align_corners:
+    @I.ir_module
+    class ExpectedAlignCorners:
+        @R.function
+        def main(
+            theta: R.Tensor((2, 2, 3), dtype="float32"),
+            size: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor((2, 16, 16, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 2, 16, 16), dtype="float32") = R.image.affine_grid(
+                    theta, size=(16, 16), align_corners=True
+                )
+                lv1: R.Tensor((2, 16, 16, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 2, 3, 1]
+                )
+                gv: R.Tensor((2, 16, 16, 2), dtype="float32") = lv1
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedAlignCorners:
-            @R.function
-            def main(
-                theta: R.Tensor((2, 2, 3), dtype="float32"),
-                size: R.Tensor((4,), dtype="int64"),
-            ) -> R.Tensor((2, 16, 16, 2), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 2, 16, 16), dtype="float32") = R.image.affine_grid(
-                        theta, size=(16, 16), align_corners=True
-                    )
-                    lv1: R.Tensor((2, 16, 16, 2), dtype="float32") = R.permute_dims(
-                        lv, axes=[0, 2, 3, 1]
-                    )
-                    gv: R.Tensor((2, 16, 16, 2), dtype="float32") = lv1
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedDefaultAlignCorners:
+        @R.function
+        def main(
+            theta: R.Tensor((2, 2, 3), dtype="float32"),
+            size: R.Tensor((4,), dtype="int64"),
+        ) -> R.Tensor((2, 16, 16, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 2, 16, 16), dtype="float32") = R.image.affine_grid(
+                    theta, size=(16, 16), align_corners=False
+                )
+                lv1: R.Tensor((2, 16, 16, 2), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 2, 3, 1]
+                )
+                gv: R.Tensor((2, 16, 16, 2), dtype="float32") = lv1
+                R.output(gv)
+            return gv
 
-        expected = ExpectedAlignCorners
-
-    else:
-
-        @I.ir_module
-        class ExpectedDefaultAlignCorners:
-            @R.function
-            def main(
-                theta: R.Tensor((2, 2, 3), dtype="float32"),
-                size: R.Tensor((4,), dtype="int64"),
-            ) -> R.Tensor((2, 16, 16, 2), dtype="float32"):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tensor((2, 2, 16, 16), dtype="float32") = R.image.affine_grid(
-                        theta, size=(16, 16), align_corners=False
-                    )
-                    lv1: R.Tensor((2, 16, 16, 2), dtype="float32") = R.permute_dims(
-                        lv, axes=[0, 2, 3, 1]
-                    )
-                    gv: R.Tensor((2, 16, 16, 2), dtype="float32") = lv1
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedDefaultAlignCorners
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
+    verify_affine_grid(None, ExpectedDefaultAlignCorners)
+    verify_affine_grid(0, ExpectedDefaultAlignCorners)
+    verify_affine_grid(1, ExpectedAlignCorners)
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
@@ -17563,200 +17296,176 @@ def test_grid_sample_cubic_mode_translation():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-@pytest.mark.parametrize(
-    ("coordinate_transformation_mode", "rois"),
-    [
-        (
-            "output_half_pixel",
-            np.array([[1.0, 1.0, 6.0, 6.0], [2.0, 0.5, 7.0, 7.0]], dtype="float32"),
-        ),
-        ("half_pixel", np.array([[1.0, 1.0, 1.2, 1.2], [2.0, 0.5, 1.1, 1.1]], dtype="float32")),
-    ],
-)
-def test_roi_align(coordinate_transformation_mode, rois):
-    x_shape = [1, 4, 8, 8]
-    rois_shape = [2, 4]
-    batch_indices_shape = [2]
-    out_shape = [2, 4, 3, 3]
+def test_roi_align():
+    def verify_roi_align(coordinate_transformation_mode, rois, expected):
+        x_shape = [1, 4, 8, 8]
+        rois_shape = list(rois.shape)
+        batch_indices_shape = [2]
+        out_shape = [2, 4, 3, 3]
 
-    node = helper.make_node(
-        "RoiAlign",
-        inputs=["X", "rois", "batch_indices"],
-        outputs=["Y"],
-        output_height=3,
-        output_width=3,
-        sampling_ratio=2,
-        spatial_scale=1.0,
-        mode="avg",
-        coordinate_transformation_mode=coordinate_transformation_mode,
+        node = helper.make_node(
+            "RoiAlign",
+            inputs=["X", "rois", "batch_indices"],
+            outputs=["Y"],
+            output_height=3,
+            output_width=3,
+            sampling_ratio=2,
+            spatial_scale=1.0,
+            mode="avg",
+            coordinate_transformation_mode=coordinate_transformation_mode,
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "roi_align_test",
+            inputs=[
+                helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
+                helper.make_tensor_value_info("rois", TensorProto.FLOAT, rois_shape),
+                helper.make_tensor_value_info(
+                    "batch_indices", TensorProto.INT64, batch_indices_shape
+                ),
+            ],
+            outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape)],
+        )
+
+        model = helper.make_model(graph, producer_name="roi_align_test")
+        tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    @I.ir_module
+    class ExpectedRoiAlignHalfPixel:
+        @R.function
+        def main(
+            X: R.Tensor((1, 4, 8, 8), dtype="float32"),
+            rois: R.Tensor((2, 4), dtype="float32"),
+            batch_indices: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((2, 4, 3, 3), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((2, 1), dtype="int64") = R.expand_dims(batch_indices, axis=1)
+                lv1: R.Tensor((2, 1), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 4), dtype="float32") = R.add(
+                    rois, R.const([-0.5, -0.5, -0.5, -0.5], "float32")
+                )
+                lv3: R.Tensor((2, 5), dtype="float32") = R.concat((lv1, lv2), axis=1)
+                gv: R.Tensor((2, 4, 3, 3), dtype="float32") = R.vision.roi_align(
+                    X,
+                    lv3,
+                    pooled_size=(3, 3),
+                    spatial_scale=1.0,
+                    sample_ratio=2,
+                    aligned=True,
+                    layout="NCHW",
+                    mode="avg",
+                )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedRoiAlignOutputHalfPixel:
+        @R.function
+        def main(
+            X: R.Tensor((1, 4, 8, 8), dtype="float32"),
+            rois: R.Tensor((2, 4), dtype="float32"),
+            batch_indices: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((2, 4, 3, 3), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                lv: R.Tensor((2, 1), dtype="int64") = R.expand_dims(batch_indices, axis=1)
+                lv1: R.Tensor((2, 1), dtype="float32") = R.astype(lv, dtype="float32")
+                lv2: R.Tensor((2, 5), dtype="float32") = R.concat((lv1, rois), axis=1)
+                gv: R.Tensor((2, 4, 3, 3), dtype="float32") = R.vision.roi_align(
+                    X,
+                    lv2,
+                    pooled_size=(3, 3),
+                    spatial_scale=1.0,
+                    sample_ratio=2,
+                    aligned=False,
+                    layout="NCHW",
+                    mode="avg",
+                )
+                R.output(gv)
+            return gv
+
+    verify_roi_align(
+        "output_half_pixel",
+        np.array([[1.0, 1.0, 6.0, 6.0], [2.0, 0.5, 7.0, 7.0]], dtype="float32"),
+        ExpectedRoiAlignOutputHalfPixel,
+    )
+    verify_roi_align(
+        "half_pixel",
+        np.array([[1.0, 1.0, 1.2, 1.2], [2.0, 0.5, 1.1, 1.1]], dtype="float32"),
+        ExpectedRoiAlignHalfPixel,
     )
 
-    graph = helper.make_graph(
-        [node],
-        "roi_align_test",
-        inputs=[
-            helper.make_tensor_value_info("X", TensorProto.FLOAT, x_shape),
-            helper.make_tensor_value_info("rois", TensorProto.FLOAT, rois_shape),
-            helper.make_tensor_value_info("batch_indices", TensorProto.INT64, batch_indices_shape),
-        ],
-        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, out_shape)],
-    )
 
-    model = helper.make_model(graph, producer_name="roi_align_test")
-    tvm_model = from_onnx(model, opset=16, keep_params_in_input=True)
-
-    if coordinate_transformation_mode == "half_pixel":
-
-        @I.ir_module
-        class ExpectedRoiAlignHalfPixel:
-            @R.function
-            def main(
-                X: R.Tensor((1, 4, 8, 8), dtype="float32"),
-                rois: R.Tensor((2, 4), dtype="float32"),
-                batch_indices: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((2, 4, 3, 3), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((2, 1), dtype="int64") = R.expand_dims(batch_indices, axis=1)
-                    lv1: R.Tensor((2, 1), dtype="float32") = R.astype(lv, dtype="float32")
-                    lv2: R.Tensor((2, 4), dtype="float32") = R.add(
-                        rois, R.const([-0.5, -0.5, -0.5, -0.5], "float32")
-                    )
-                    lv3: R.Tensor((2, 5), dtype="float32") = R.concat((lv1, lv2), axis=1)
-                    gv: R.Tensor((2, 4, 3, 3), dtype="float32") = R.vision.roi_align(
-                        X,
-                        lv3,
-                        pooled_size=(3, 3),
-                        spatial_scale=1.0,
-                        sample_ratio=2,
-                        aligned=True,
-                        layout="NCHW",
-                        mode="avg",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedRoiAlignHalfPixel
-
-    else:
-
-        @I.ir_module
-        class ExpectedRoiAlignOutputHalfPixel:
-            @R.function
-            def main(
-                X: R.Tensor((1, 4, 8, 8), dtype="float32"),
-                rois: R.Tensor((2, 4), dtype="float32"),
-                batch_indices: R.Tensor((2,), dtype="int64"),
-            ) -> R.Tensor((2, 4, 3, 3), dtype="float32"):
-                R.func_attr({"num_input": 3})
-                with R.dataflow():
-                    lv: R.Tensor((2, 1), dtype="int64") = R.expand_dims(batch_indices, axis=1)
-                    lv1: R.Tensor((2, 1), dtype="float32") = R.astype(lv, dtype="float32")
-                    lv2: R.Tensor((2, 5), dtype="float32") = R.concat((lv1, rois), axis=1)
-                    gv: R.Tensor((2, 4, 3, 3), dtype="float32") = R.vision.roi_align(
-                        X,
-                        lv2,
-                        pooled_size=(3, 3),
-                        spatial_scale=1.0,
-                        sample_ratio=2,
-                        aligned=False,
-                        layout="NCHW",
-                        mode="avg",
-                    )
-                    R.output(gv)
-                return gv
-
-        expected = ExpectedRoiAlignOutputHalfPixel
-
-    tvm.ir.assert_structural_equal(tvm_model, expected)
-
-
-@pytest.mark.parametrize(
-    "cond_info, cond_true, cond_false",
-    [
-        (
-            helper.make_tensor_value_info("cond", TensorProto.BOOL, []),
-            np.array(True),
-            np.array(False),
-        ),
-        (
-            helper.make_tensor_value_info("cond", TensorProto.BOOL, [1]),
-            np.array([True]),
-            np.array([False]),
-        ),
-    ],
-    ids=["scalar_condition", "tensor_condition"],
-)
-def test_if(cond_info, cond_true, cond_false):
+def test_if():
     """Test ONNX If operator with scalar and tensor bool conditions."""
 
-    x_info = helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])
-    result_info = helper.make_tensor_value_info("result", TensorProto.FLOAT, [3])
+    def verify_if(cond_info, expected):
+        x_info = helper.make_tensor_value_info("x", TensorProto.FLOAT, [3])
+        result_info = helper.make_tensor_value_info("result", TensorProto.FLOAT, [3])
 
-    # then branch: x * 2.0
-    two = helper.make_tensor("two", TensorProto.FLOAT, [1], [2.0])
-    then_mul = helper.make_node("Mul", ["x", "two"], ["then_out"])
-    then_out_info = helper.make_tensor_value_info("then_out", TensorProto.FLOAT, [3])
-    then_graph = helper.make_graph([then_mul], "then_graph", [], [then_out_info], initializer=[two])
+        two = helper.make_tensor("two", TensorProto.FLOAT, [1], [2.0])
+        then_mul = helper.make_node("Mul", ["x", "two"], ["then_out"])
+        then_out_info = helper.make_tensor_value_info("then_out", TensorProto.FLOAT, [3])
+        then_graph = helper.make_graph(
+            [then_mul], "then_graph", [], [then_out_info], initializer=[two]
+        )
 
-    # else branch: x * 3.0
-    three = helper.make_tensor("three", TensorProto.FLOAT, [1], [3.0])
-    else_mul = helper.make_node("Mul", ["x", "three"], ["else_out"])
-    else_out_info = helper.make_tensor_value_info("else_out", TensorProto.FLOAT, [3])
-    else_graph = helper.make_graph(
-        [else_mul], "else_graph", [], [else_out_info], initializer=[three]
-    )
+        three = helper.make_tensor("three", TensorProto.FLOAT, [1], [3.0])
+        else_mul = helper.make_node("Mul", ["x", "three"], ["else_out"])
+        else_out_info = helper.make_tensor_value_info("else_out", TensorProto.FLOAT, [3])
+        else_graph = helper.make_graph(
+            [else_mul], "else_graph", [], [else_out_info], initializer=[three]
+        )
 
-    if_node = helper.make_node(
-        "If",
-        inputs=["cond"],
-        outputs=["result"],
-        then_branch=then_graph,
-        else_branch=else_graph,
-    )
-    main_graph = helper.make_graph([if_node], "if_test", [cond_info, x_info], [result_info])
-    model = helper.make_model(main_graph, opset_imports=[helper.make_opsetid("", 13)])
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+        if_node = helper.make_node(
+            "If",
+            inputs=["cond"],
+            outputs=["result"],
+            then_branch=then_graph,
+            else_branch=else_graph,
+        )
+        main_graph = helper.make_graph([if_node], "if_test", [cond_info, x_info], [result_info])
+        model = helper.make_model(main_graph, opset_imports=[helper.make_opsetid("", 13)])
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    if cond_true.shape == ():
+    @I.ir_module
+    class ExpectedScalarCondition:
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"),
+            x: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tensor((3,), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            if cond:
+                gv: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([2.0], "float32"))
+                gv2: R.Tensor((3,), dtype="float32") = gv
+            else:
+                gv1: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([3.0], "float32"))
+                gv2: R.Tensor((3,), dtype="float32") = gv1
+            return gv2
 
-        @I.ir_module
-        class ExpectedScalarCondition:
-            @R.function
-            def main(
-                cond: R.Tensor((), dtype="bool"),
-                x: R.Tensor((3,), dtype="float32"),
-            ) -> R.Tensor((3,), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                if cond:
-                    gv: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([2.0], "float32"))
-                    gv2: R.Tensor((3,), dtype="float32") = gv
-                else:
-                    gv1: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([3.0], "float32"))
-                    gv2: R.Tensor((3,), dtype="float32") = gv1
-                return gv2
+    @I.ir_module
+    class ExpectedTensorCondition:
+        @R.function
+        def main(
+            cond: R.Tensor((1,), dtype="bool"),
+            x: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tensor((3,), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            if cond:
+                gv: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([2.0], "float32"))
+                gv2: R.Tensor((3,), dtype="float32") = gv
+            else:
+                gv1: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([3.0], "float32"))
+                gv2: R.Tensor((3,), dtype="float32") = gv1
+            return gv2
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedScalarCondition)
-
-    else:
-
-        @I.ir_module
-        class ExpectedTensorCondition:
-            @R.function
-            def main(
-                cond: R.Tensor((1,), dtype="bool"),
-                x: R.Tensor((3,), dtype="float32"),
-            ) -> R.Tensor((3,), dtype="float32"):
-                R.func_attr({"num_input": 2})
-                if cond:
-                    gv: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([2.0], "float32"))
-                    gv2: R.Tensor((3,), dtype="float32") = gv
-                else:
-                    gv1: R.Tensor((3,), dtype="float32") = R.multiply(x, R.const([3.0], "float32"))
-                    gv2: R.Tensor((3,), dtype="float32") = gv1
-                return gv2
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedTensorCondition)
+    verify_if(helper.make_tensor_value_info("cond", TensorProto.BOOL, []), ExpectedScalarCondition)
+    verify_if(helper.make_tensor_value_info("cond", TensorProto.BOOL, [1]), ExpectedTensorCondition)
 
 
 def test_if_computed_condition():
@@ -18619,147 +18328,143 @@ def test_arg_min_max_select_last_index_ir():
     verify_select_last_index_ir("ArgMin", ExpectedArgMin)
 
 
-@pytest.mark.parametrize("axis", [0, 1, 2])
-def test_split_to_sequence_keepdims_0(axis: int):
+def test_split_to_sequence_keepdims_0():
     """keepdims=0, no split input: each chunk of size 1 has the split axis squeezed out."""
-    shape = [3, 4, 5]
-    out_shape = [s for i, s in enumerate(shape) if i != axis]
 
-    split_to_seq_node = helper.make_node(
-        "SplitToSequence",
-        ["data"],  # no split input — keepdims applies here
-        ["output"],
-        axis=axis,
-        keepdims=0,
-    )
-    graph = helper.make_graph(
-        [split_to_seq_node],
-        f"test_split_to_sequence_keepdims_0_axis{axis}",
-        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
-        outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, out_shape)],
-    )
-    model = helper.make_model(graph, producer_name="test_split_to_sequence_keepdims_0")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
+    def verify_split_to_sequence_keepdims_0(axis: int, expected):
+        shape = [3, 4, 5]
+        out_shape = [s for i, s in enumerate(shape) if i != axis]
 
-    if axis == 0:
+        split_to_seq_node = helper.make_node(
+            "SplitToSequence",
+            ["data"],
+            ["output"],
+            axis=axis,
+            keepdims=0,
+        )
+        graph = helper.make_graph(
+            [split_to_seq_node],
+            f"test_split_to_sequence_keepdims_0_axis{axis}",
+            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+            outputs=[
+                helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, out_shape)
+            ],
+        )
+        model = helper.make_model(graph, producer_name="test_split_to_sequence_keepdims_0")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-        @I.ir_module
-        class ExpectedKeepdims0Axis0:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((4, 5), dtype="float32"),
-                R.Tensor((4, 5), dtype="float32"),
-                R.Tensor((4, 5), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tuple(
-                        R.Tensor((1, 4, 5), dtype="float32"),
-                        R.Tensor((1, 4, 5), dtype="float32"),
-                        R.Tensor((1, 4, 5), dtype="float32"),
-                    ) = R.split(data, indices_or_sections=3, axis=0)
-                    lv1: R.Tensor((1, 4, 5), dtype="float32") = lv[0]
-                    lv2: R.Tensor((1, 4, 5), dtype="float32") = lv[1]
-                    lv3: R.Tensor((1, 4, 5), dtype="float32") = lv[2]
-                    lv4: R.Tensor((4, 5), dtype="float32") = R.squeeze(lv1, axis=[0])
-                    lv5: R.Tensor((4, 5), dtype="float32") = R.squeeze(lv2, axis=[0])
-                    lv6: R.Tensor((4, 5), dtype="float32") = R.squeeze(lv3, axis=[0])
-                    gv: R.Tuple(
-                        R.Tensor((4, 5), dtype="float32"),
-                        R.Tensor((4, 5), dtype="float32"),
-                        R.Tensor((4, 5), dtype="float32"),
-                    ) = lv4, lv5, lv6
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedKeepdims0Axis0:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((4, 5), dtype="float32"),
+            R.Tensor((4, 5), dtype="float32"),
+            R.Tensor((4, 5), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((1, 4, 5), dtype="float32"),
+                    R.Tensor((1, 4, 5), dtype="float32"),
+                    R.Tensor((1, 4, 5), dtype="float32"),
+                ) = R.split(data, indices_or_sections=3, axis=0)
+                lv1: R.Tensor((1, 4, 5), dtype="float32") = lv[0]
+                lv2: R.Tensor((1, 4, 5), dtype="float32") = lv[1]
+                lv3: R.Tensor((1, 4, 5), dtype="float32") = lv[2]
+                lv4: R.Tensor((4, 5), dtype="float32") = R.squeeze(lv1, axis=[0])
+                lv5: R.Tensor((4, 5), dtype="float32") = R.squeeze(lv2, axis=[0])
+                lv6: R.Tensor((4, 5), dtype="float32") = R.squeeze(lv3, axis=[0])
+                gv: R.Tuple(
+                    R.Tensor((4, 5), dtype="float32"),
+                    R.Tensor((4, 5), dtype="float32"),
+                    R.Tensor((4, 5), dtype="float32"),
+                ) = lv4, lv5, lv6
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedKeepdims0Axis0)
+    @I.ir_module
+    class ExpectedKeepdims0Axis1:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((3, 5), dtype="float32"),
+            R.Tensor((3, 5), dtype="float32"),
+            R.Tensor((3, 5), dtype="float32"),
+            R.Tensor((3, 5), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((3, 1, 5), dtype="float32"),
+                    R.Tensor((3, 1, 5), dtype="float32"),
+                    R.Tensor((3, 1, 5), dtype="float32"),
+                    R.Tensor((3, 1, 5), dtype="float32"),
+                ) = R.split(data, indices_or_sections=4, axis=1)
+                lv1: R.Tensor((3, 1, 5), dtype="float32") = lv[0]
+                lv2: R.Tensor((3, 1, 5), dtype="float32") = lv[1]
+                lv3: R.Tensor((3, 1, 5), dtype="float32") = lv[2]
+                lv4: R.Tensor((3, 1, 5), dtype="float32") = lv[3]
+                lv5: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv1, axis=[1])
+                lv6: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv2, axis=[1])
+                lv7: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv3, axis=[1])
+                lv8: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv4, axis=[1])
+                gv: R.Tuple(
+                    R.Tensor((3, 5), dtype="float32"),
+                    R.Tensor((3, 5), dtype="float32"),
+                    R.Tensor((3, 5), dtype="float32"),
+                    R.Tensor((3, 5), dtype="float32"),
+                ) = lv5, lv6, lv7, lv8
+                R.output(gv)
+            return gv
 
-    elif axis == 1:
+    @I.ir_module
+    class ExpectedKeepdims0Axis2:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((3, 4), dtype="float32"),
+            R.Tensor((3, 4), dtype="float32"),
+            R.Tensor((3, 4), dtype="float32"),
+            R.Tensor((3, 4), dtype="float32"),
+            R.Tensor((3, 4), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((3, 4, 1), dtype="float32"),
+                    R.Tensor((3, 4, 1), dtype="float32"),
+                    R.Tensor((3, 4, 1), dtype="float32"),
+                    R.Tensor((3, 4, 1), dtype="float32"),
+                    R.Tensor((3, 4, 1), dtype="float32"),
+                ) = R.split(data, indices_or_sections=5, axis=2)
+                lv1: R.Tensor((3, 4, 1), dtype="float32") = lv[0]
+                lv2: R.Tensor((3, 4, 1), dtype="float32") = lv[1]
+                lv3: R.Tensor((3, 4, 1), dtype="float32") = lv[2]
+                lv4: R.Tensor((3, 4, 1), dtype="float32") = lv[3]
+                lv5: R.Tensor((3, 4, 1), dtype="float32") = lv[4]
+                lv6: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv1, axis=[2])
+                lv7: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv2, axis=[2])
+                lv8: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv3, axis=[2])
+                lv9: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv4, axis=[2])
+                lv10: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv5, axis=[2])
+                gv: R.Tuple(
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                    R.Tensor((3, 4), dtype="float32"),
+                ) = lv6, lv7, lv8, lv9, lv10
+                R.output(gv)
+            return gv
 
-        @I.ir_module
-        class ExpectedKeepdims0Axis1:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((3, 5), dtype="float32"),
-                R.Tensor((3, 5), dtype="float32"),
-                R.Tensor((3, 5), dtype="float32"),
-                R.Tensor((3, 5), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tuple(
-                        R.Tensor((3, 1, 5), dtype="float32"),
-                        R.Tensor((3, 1, 5), dtype="float32"),
-                        R.Tensor((3, 1, 5), dtype="float32"),
-                        R.Tensor((3, 1, 5), dtype="float32"),
-                    ) = R.split(data, indices_or_sections=4, axis=1)
-                    lv1: R.Tensor((3, 1, 5), dtype="float32") = lv[0]
-                    lv2: R.Tensor((3, 1, 5), dtype="float32") = lv[1]
-                    lv3: R.Tensor((3, 1, 5), dtype="float32") = lv[2]
-                    lv4: R.Tensor((3, 1, 5), dtype="float32") = lv[3]
-                    lv5: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv1, axis=[1])
-                    lv6: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv2, axis=[1])
-                    lv7: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv3, axis=[1])
-                    lv8: R.Tensor((3, 5), dtype="float32") = R.squeeze(lv4, axis=[1])
-                    gv: R.Tuple(
-                        R.Tensor((3, 5), dtype="float32"),
-                        R.Tensor((3, 5), dtype="float32"),
-                        R.Tensor((3, 5), dtype="float32"),
-                        R.Tensor((3, 5), dtype="float32"),
-                    ) = lv5, lv6, lv7, lv8
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedKeepdims0Axis1)
-
-    else:
-
-        @I.ir_module
-        class ExpectedKeepdims0Axis2:
-            @R.function
-            def main(
-                data: R.Tensor((3, 4, 5), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((3, 4), dtype="float32"),
-                R.Tensor((3, 4), dtype="float32"),
-                R.Tensor((3, 4), dtype="float32"),
-                R.Tensor((3, 4), dtype="float32"),
-                R.Tensor((3, 4), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    lv: R.Tuple(
-                        R.Tensor((3, 4, 1), dtype="float32"),
-                        R.Tensor((3, 4, 1), dtype="float32"),
-                        R.Tensor((3, 4, 1), dtype="float32"),
-                        R.Tensor((3, 4, 1), dtype="float32"),
-                        R.Tensor((3, 4, 1), dtype="float32"),
-                    ) = R.split(data, indices_or_sections=5, axis=2)
-                    lv1: R.Tensor((3, 4, 1), dtype="float32") = lv[0]
-                    lv2: R.Tensor((3, 4, 1), dtype="float32") = lv[1]
-                    lv3: R.Tensor((3, 4, 1), dtype="float32") = lv[2]
-                    lv4: R.Tensor((3, 4, 1), dtype="float32") = lv[3]
-                    lv5: R.Tensor((3, 4, 1), dtype="float32") = lv[4]
-                    lv6: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv1, axis=[2])
-                    lv7: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv2, axis=[2])
-                    lv8: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv3, axis=[2])
-                    lv9: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv4, axis=[2])
-                    lv10: R.Tensor((3, 4), dtype="float32") = R.squeeze(lv5, axis=[2])
-                    gv: R.Tuple(
-                        R.Tensor((3, 4), dtype="float32"),
-                        R.Tensor((3, 4), dtype="float32"),
-                        R.Tensor((3, 4), dtype="float32"),
-                        R.Tensor((3, 4), dtype="float32"),
-                        R.Tensor((3, 4), dtype="float32"),
-                    ) = lv6, lv7, lv8, lv9, lv10
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedKeepdims0Axis2)
+    verify_split_to_sequence_keepdims_0(0, ExpectedKeepdims0Axis0)
+    verify_split_to_sequence_keepdims_0(1, ExpectedKeepdims0Axis1)
+    verify_split_to_sequence_keepdims_0(2, ExpectedKeepdims0Axis2)
 
 
 def test_split_to_sequence_keepdims_ignored_when_split_provided():
@@ -18812,70 +18517,66 @@ def test_split_to_sequence_keepdims_ignored_when_split_provided():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-@pytest.mark.parametrize("axis", [0, 1])
-def test_split_to_sequence_uneven_last_chunk(axis: int):
+def test_split_to_sequence_uneven_last_chunk():
     """Spec: last chunk may be smaller if dim is not divisible by scalar split."""
-    shape = [5, 4] if axis == 0 else [3, 5]
-    split_node = make_constant_node("split", TensorProto.INT64, (), [2])
-    split_to_seq_node = helper.make_node(
-        "SplitToSequence", ["data", "split"], ["output"], axis=axis, keepdims=1
-    )
-    graph = helper.make_graph(
-        [split_node, split_to_seq_node],
-        f"test_split_to_sequence_uneven_axis{axis}",
-        inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
-        outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, None)],
-    )
-    model = helper.make_model(graph, producer_name="test_split_to_sequence_uneven")
-    tvm_model = from_onnx(model, keep_params_in_input=True)
 
-    if axis == 0:
+    def verify_split_to_sequence_uneven_last_chunk(axis: int, shape: list[int], expected):
+        split_node = make_constant_node("split", TensorProto.INT64, (), [2])
+        split_to_seq_node = helper.make_node(
+            "SplitToSequence", ["data", "split"], ["output"], axis=axis, keepdims=1
+        )
+        graph = helper.make_graph(
+            [split_node, split_to_seq_node],
+            f"test_split_to_sequence_uneven_axis{axis}",
+            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
+            outputs=[helper.make_tensor_sequence_value_info("output", TensorProto.FLOAT, None)],
+        )
+        model = helper.make_model(graph, producer_name="test_split_to_sequence_uneven")
+        tvm_model = from_onnx(model, keep_params_in_input=True)
+        tvm.ir.assert_structural_equal(tvm_model, expected)
 
-        @I.ir_module
-        class ExpectedUnevenAxis0:
-            @R.function
-            def main(
-                data: R.Tensor((5, 4), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((2, 4), dtype="float32"),
-                R.Tensor((2, 4), dtype="float32"),
-                R.Tensor((1, 4), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((2, 4), dtype="float32"),
-                        R.Tensor((2, 4), dtype="float32"),
-                        R.Tensor((1, 4), dtype="float32"),
-                    ) = R.split(data, indices_or_sections=3, axis=0)
-                    R.output(gv)
-                return gv
+    @I.ir_module
+    class ExpectedUnevenAxis0:
+        @R.function
+        def main(
+            data: R.Tensor((5, 4), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((2, 4), dtype="float32"),
+            R.Tensor((2, 4), dtype="float32"),
+            R.Tensor((1, 4), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((2, 4), dtype="float32"),
+                    R.Tensor((2, 4), dtype="float32"),
+                    R.Tensor((1, 4), dtype="float32"),
+                ) = R.split(data, indices_or_sections=3, axis=0)
+                R.output(gv)
+            return gv
 
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedUnevenAxis0)
+    @I.ir_module
+    class ExpectedUnevenAxis1:
+        @R.function
+        def main(
+            data: R.Tensor((3, 5), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((3, 2), dtype="float32"),
+            R.Tensor((3, 2), dtype="float32"),
+            R.Tensor((3, 1), dtype="float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((3, 2), dtype="float32"),
+                    R.Tensor((3, 2), dtype="float32"),
+                    R.Tensor((3, 1), dtype="float32"),
+                ) = R.split(data, indices_or_sections=3, axis=1)
+                R.output(gv)
+            return gv
 
-    else:
-
-        @I.ir_module
-        class ExpectedUnevenAxis1:
-            @R.function
-            def main(
-                data: R.Tensor((3, 5), dtype="float32"),
-            ) -> R.Tuple(
-                R.Tensor((3, 2), dtype="float32"),
-                R.Tensor((3, 2), dtype="float32"),
-                R.Tensor((3, 1), dtype="float32"),
-            ):
-                R.func_attr({"num_input": 1})
-                with R.dataflow():
-                    gv: R.Tuple(
-                        R.Tensor((3, 2), dtype="float32"),
-                        R.Tensor((3, 2), dtype="float32"),
-                        R.Tensor((3, 1), dtype="float32"),
-                    ) = R.split(data, indices_or_sections=3, axis=1)
-                    R.output(gv)
-                return gv
-
-        tvm.ir.assert_structural_equal(tvm_model, ExpectedUnevenAxis1)
+    verify_split_to_sequence_uneven_last_chunk(0, [5, 4], ExpectedUnevenAxis0)
+    verify_split_to_sequence_uneven_last_chunk(1, [3, 5], ExpectedUnevenAxis1)
 
 
 def test_quantizelinear_singleton_qparams_opset10():
