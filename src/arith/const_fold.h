@@ -272,8 +272,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tirx::Mod>(PrimExpr a, PrimExpr b) {
       if (pa->value == 0) return a;
     }
     if (pb) {
-      // MakeConst can handle both vector and scalar types.
-      if (pb->value == 1) return tirx::MakeConst(result_ty, 0);
+      if (pb->value == 1) return IntImm(result_ty, 0);
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
@@ -329,8 +328,7 @@ inline ffi::Optional<PrimExpr> TryConstFold<tirx::FloorMod>(PrimExpr a, PrimExpr
       if (pa->value == 0) return a;
     }
     if (pb) {
-      // MakeConst can handle both vector and scalar types.
-      if (pb->value == 1) return tirx::MakeConst(result_ty, 0);
+      if (pb->value == 1) return IntImm(result_ty, 0);
       TVM_FFI_ICHECK_NE(pb->value, 0) << "Divide by zero";
     }
   });
