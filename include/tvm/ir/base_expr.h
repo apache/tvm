@@ -221,9 +221,6 @@ class PrimType final : public Type {
       TVM_FFI_THROW(InternalError)
           << "Cannot compute compile-time storage bytes for non-fixed vector type " << dtype;
     }
-    if (dtype.code == kDLUInt && dtype.bits == 1 && dtype.lanes == 1) {
-      return 1;
-    }
     return static_cast<size_t>(
         (static_cast<uint64_t>(dtype.bits) * static_cast<uint64_t>(dtype.lanes) + 7) / 8);
   }
