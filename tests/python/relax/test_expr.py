@@ -260,28 +260,32 @@ def test_shape_expr():
         rx.ShapeExpr([m, 3])
 
 
-def test_prim_value():
-    pv = tirx.IntImm("int64", 1)
-    assert pv.value == 1
-    _check_equal(pv, tirx.IntImm("int64", 1))
-    _check_json_roundtrip(pv)
+def test_prim_value_helper_from_python_scalar():
+    int_value = rx.prim_value(1)
+    assert isinstance(int_value, tirx.IntImm)
+    tvm.ir.assert_structural_equal(int_value.ty, tvm.ir.PrimType("int64"))
+    assert int_value.value == 1
+
+    float_value = rx.prim_value(1.0)
+    assert isinstance(float_value, tirx.FloatImm)
+    tvm.ir.assert_structural_equal(float_value.ty, tvm.ir.PrimType("float64"))
+    assert float_value.value == 1.0
 
 
-def test_prim_value_with_var():
+def test_prim_value_helper_preserves_prim_expr():
+    float_imm = tirx.FloatImm("float32", 1.0)
+    assert rx.prim_value(float_imm).same_as(float_imm)
+    assert R.prim_value(float_imm).same_as(float_imm)
+
     n = tirx.Var("n", "int64")
-    pv = n
-    assert pv.same_as(n)
-    tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
-    _check_equal(pv, n)
-    _check_json_roundtrip(pv)
+    expr = n + 1
+    assert rx.prim_value(n).same_as(n)
+    assert rx.prim_value(expr).same_as(expr)
 
 
-def test_prim_value_with_expr():
-    n = tirx.Var("n", "int64")
-    pv = n + 1
-    tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
-    _check_equal(pv, n + 1)
-    _check_json_roundtrip(pv)
+def test_prim_value_helper_rejects_relax_expr():
+    with pytest.raises(TypeError, match="Cannot convert"):
+        rx.prim_value(rx.Var("x"))
 
 
 def test_string_imm():

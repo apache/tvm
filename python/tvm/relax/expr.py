@@ -58,6 +58,26 @@ def _to_prim_expr(value: PrimExpr | int | float, dtype: str | None = None) -> Pr
     raise TypeError(f"Cannot convert {value} with type {type(value)} to `PrimExpr`")
 
 
+def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimExpr:
+    """Convert a Python scalar or primitive expression to ``PrimExpr``.
+
+    Parameters
+    ----------
+    value : PrimExpr | int | float
+        The value to convert.
+
+    dtype : Optional[str]
+        The dtype to use when converting Python numeric values.
+
+    Returns
+    -------
+    result : PrimExpr
+        The converted primitive expression.  Existing ``PrimExpr`` inputs are
+        returned unchanged.
+    """
+    return _to_prim_expr(value, dtype)
+
+
 @tvm_ffi.register_object("relax.Id")
 class Id(Object):
     """Unique identifier(name) used in Var.

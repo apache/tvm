@@ -322,6 +322,15 @@ def func() -> T.int64:
     return 1""",
     )
 
+    @R.function
+    def float_func() -> R.Prim("float32"):
+        return R.prim_value(T.float32(1.0))
+
+    float_script = float_func.script(verbose_expr=True)
+    assert "R.prim_value" not in float_script
+    assert "return T.float32(" in float_script
+    tvm.ir.assert_structural_equal(tvm.script.from_source(float_script), float_func)
+
 
 def test_string_imm():
     obj = relax.StringImm("hello")
