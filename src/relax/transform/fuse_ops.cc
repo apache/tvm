@@ -271,7 +271,9 @@ class GraphCreator : public ExprVisitor {
       return;
     }
 
-    if (!leaf_expr->IsInstance<LeafExprNode>()) {
+    if (!leaf_expr.as<ShapeExprNode>() && !leaf_expr.as<VarNode>() &&
+        !leaf_expr.as<ConstantNode>() && !leaf_expr.as<PrimValueNode>() &&
+        !leaf_expr.as<StringImmNode>() && !leaf_expr.as<DataTypeImmNode>()) {
       // Skip GlobalVar, ExternFunc, OpNode.
       return;
     }
