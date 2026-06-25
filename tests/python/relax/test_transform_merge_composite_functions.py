@@ -234,7 +234,7 @@ class Diamond_merged:
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="",
+                    out_dtype=None,
                 )
                 R.output(gv4)
             return gv4

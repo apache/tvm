@@ -85,7 +85,7 @@ def test_binary():
             add: R.Tensor((10, 10), dtype="float32") = R.add(x, y)
             mul: R.Tensor((10, 10), dtype="float32") = R.multiply(x, y)
             divide: R.Tensor((10, 10), dtype="float32") = R.divide(x, y)
-            matmul: R.Tensor((1, 1), dtype="float32") = R.matmul(x, y, out_dtype="void")
+            matmul: R.Tensor((1, 1), dtype="float32") = R.matmul(x, y, out_dtype=None)
             maximum: R.Tensor((10, 10), dtype="float32") = R.maximum(x, y)
             minimum: R.Tensor((10, 10), dtype="float32") = R.minimum(x, y)
             subtract: R.Tensor((10, 10), dtype="float32") = R.subtract(x, y)
@@ -297,7 +297,7 @@ def test_image():
                 data_layout="NCHW",
                 kernel_layout="OIHW",
                 out_layout="NCHW",
-                out_dtype="void",
+                out_dtype=None,
             )
             lv2: R.Tensor((1, 32, 1, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1, 1]))
             conv2d: R.Tensor((1, 32, 32, 32), dtype="float32") = R.add(lv1, lv2)
@@ -312,7 +312,7 @@ def test_image():
                 cubic_alpha=-0.75,
                 cubic_exclude=0,
                 extrapolation_value=0,
-                out_dtype="void",
+                out_dtype=None,
             )
             gv1: R.Tuple(
                 R.Tuple(
@@ -1086,7 +1086,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
             R.func_attr({"num_input": 7})
             cls = Expected
             with R.dataflow():
-                cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=None)
+                cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(prob, axis=1, dtype=None, exclusive=None)
                 lv1 = R.call_tir(cls.get_renorm_prob, (cumsum, top_p, top_k), out_ty=R.Tensor((2, 1), dtype="float32"))
                 lv2 = R.call_tir(cls.get_index_from_sorted, (cumsum, index, lv1, uniform_sample, sample_indices), out_ty=R.Tensor((3, 1), dtype="int64"))
                 gv1: R.Tuple(R.Tensor((3, 1), dtype="int64"), R.Tuple(R.Any)) = lv2, (_io,)
@@ -1204,7 +1204,7 @@ def test_renormalize_top_p_top_k_prob():
             R.func_attr({"num_input": 5})
             cls = Expected
             with R.dataflow():
-                cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(sorted_prob, axis=1, dtype="void", exclusive=None)
+                cumsum: R.Tensor((2, 3), dtype="float32") = R.cumsum(sorted_prob, axis=1, dtype=None, exclusive=None)
                 lv1 = R.call_tir(cls.get_renorm_cutoff, (sorted_prob, cumsum, top_p, top_k), out_ty=R.Tensor((2, 1), dtype="float32"))
                 lv2 = R.call_tir(cls.filter_with_top_p_top_k, (prob, lv1), out_ty=R.Tensor((2, 3), dtype="float32"))
                 sum: R.Tensor((2, 1), dtype="float32") = R.sum(lv2, axis=[1], keepdims=True)
