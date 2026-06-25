@@ -73,27 +73,27 @@ def test_take_infer_ty():
     _check_inference(bb, relax.op.take(x0, idx0, axis=-1), relax.TensorType((4, 6), "float32"))
     _check_inference(bb, relax.op.take(x1, idx0, axis=1), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(x2, idx0, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx0, axis=1), relax.TensorType((4, 6), dtype=""))
-    _check_inference(bb, relax.op.take(x4, idx0, axis=1), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(x5, idx0, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx0, axis=1), relax.TensorType((4, 6), dtype=None))
+    _check_inference(bb, relax.op.take(x4, idx0, axis=1), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(x5, idx0, axis=1), relax.TensorType(dtype=None))
     _check_inference(bb, relax.op.take(x0, idx1, axis=1), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(x1, idx1, axis=1), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(x2, idx1, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx1, axis=1), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(x4, idx1, axis=1), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(x5, idx1, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx1, axis=1), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(x4, idx1, axis=1), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(x5, idx1, axis=1), relax.TensorType(dtype=None))
     _check_inference(bb, relax.op.take(x0, idx2, axis=1), relax.TensorType((4, 6), "float32"))
     _check_inference(bb, relax.op.take(x1, idx2, axis=1), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(x2, idx2, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx2, axis=1), relax.TensorType((4, 6), dtype=""))
-    _check_inference(bb, relax.op.take(x4, idx2, axis=1), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(x5, idx2, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx2, axis=1), relax.TensorType((4, 6), dtype=None))
+    _check_inference(bb, relax.op.take(x4, idx2, axis=1), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(x5, idx2, axis=1), relax.TensorType(dtype=None))
     _check_inference(bb, relax.op.take(x0, idx3, axis=1), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(x1, idx3, axis=1), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(x2, idx3, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx3, axis=1), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(x4, idx3, axis=1), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(x5, idx3, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx3, axis=1), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(x4, idx3, axis=1), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(x5, idx3, axis=1), relax.TensorType(dtype=None))
     _check_inference(
         bb, relax.op.take(x0, idx4, axis=0), relax.TensorType((6, 4, 10), dtype="float32")
     )
@@ -102,16 +102,16 @@ def test_take_infer_ty():
     )
     _check_inference(bb, relax.op.take(x1, idx4, axis=1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x2, idx4, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx4, axis=1), relax.TensorType((4, 6, 4), dtype=""))
-    _check_inference(bb, relax.op.take(x4, idx4, axis=1), relax.TensorType(dtype="", ndim=3))
-    _check_inference(bb, relax.op.take(x5, idx4, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx4, axis=1), relax.TensorType((4, 6, 4), dtype=None))
+    _check_inference(bb, relax.op.take(x4, idx4, axis=1), relax.TensorType(dtype=None, ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx4, axis=1), relax.TensorType(dtype=None))
     _check_inference(bb, relax.op.take(x0, idx5, axis=0), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x0, idx5, axis=1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x1, idx5, axis=1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x2, idx5, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx5, axis=1), relax.TensorType(dtype="", ndim=3))
-    _check_inference(bb, relax.op.take(x4, idx5, axis=1), relax.TensorType(dtype="", ndim=3))
-    _check_inference(bb, relax.op.take(x5, idx5, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx5, axis=1), relax.TensorType(dtype=None, ndim=3))
+    _check_inference(bb, relax.op.take(x4, idx5, axis=1), relax.TensorType(dtype=None, ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx5, axis=1), relax.TensorType(dtype=None))
     _check_inference(
         bb, relax.op.take(x0, idx6, axis=0), relax.TensorType((6, 4, 10), dtype="float32")
     )
@@ -120,48 +120,48 @@ def test_take_infer_ty():
     )
     _check_inference(bb, relax.op.take(x1, idx6, axis=1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x2, idx6, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx6, axis=1), relax.TensorType((4, 6, 4), dtype=""))
-    _check_inference(bb, relax.op.take(x4, idx6, axis=1), relax.TensorType(dtype="", ndim=3))
-    _check_inference(bb, relax.op.take(x5, idx6, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx6, axis=1), relax.TensorType((4, 6, 4), dtype=None))
+    _check_inference(bb, relax.op.take(x4, idx6, axis=1), relax.TensorType(dtype=None, ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx6, axis=1), relax.TensorType(dtype=None))
     _check_inference(bb, relax.op.take(x0, idx7, axis=0), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x0, idx7, axis=1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x1, idx7, axis=1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.take(x2, idx7, axis=1), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.take(x3, idx7, axis=1), relax.TensorType(dtype="", ndim=3))
-    _check_inference(bb, relax.op.take(x4, idx7, axis=1), relax.TensorType(dtype="", ndim=3))
-    _check_inference(bb, relax.op.take(x5, idx7, axis=1), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.take(x3, idx7, axis=1), relax.TensorType(dtype=None, ndim=3))
+    _check_inference(bb, relax.op.take(x4, idx7, axis=1), relax.TensorType(dtype=None, ndim=3))
+    _check_inference(bb, relax.op.take(x5, idx7, axis=1), relax.TensorType(dtype=None))
     _check_inference(bb, relax.op.take(y0, idx0), relax.TensorType((6,), "float32"))
     _check_inference(bb, relax.op.take(y1, idx0), relax.TensorType(dtype="float32", ndim=1))
-    _check_inference(bb, relax.op.take(y2, idx0), relax.TensorType((6,), dtype=""))
-    _check_inference(bb, relax.op.take(y3, idx0), relax.TensorType(dtype="", ndim=1))
+    _check_inference(bb, relax.op.take(y2, idx0), relax.TensorType((6,), dtype=None))
+    _check_inference(bb, relax.op.take(y3, idx0), relax.TensorType(dtype=None, ndim=1))
     _check_inference(bb, relax.op.take(y0, idx1), relax.TensorType(dtype="float32", ndim=1))
     _check_inference(bb, relax.op.take(y1, idx1), relax.TensorType(dtype="float32", ndim=1))
-    _check_inference(bb, relax.op.take(y2, idx1), relax.TensorType(dtype="", ndim=1))
-    _check_inference(bb, relax.op.take(y3, idx1), relax.TensorType(dtype="", ndim=1))
+    _check_inference(bb, relax.op.take(y2, idx1), relax.TensorType(dtype=None, ndim=1))
+    _check_inference(bb, relax.op.take(y3, idx1), relax.TensorType(dtype=None, ndim=1))
     _check_inference(bb, relax.op.take(y0, idx2), relax.TensorType((6,), "float32"))
     _check_inference(bb, relax.op.take(y1, idx2), relax.TensorType(dtype="float32", ndim=1))
-    _check_inference(bb, relax.op.take(y2, idx2), relax.TensorType((6,), dtype=""))
-    _check_inference(bb, relax.op.take(y3, idx2), relax.TensorType(dtype="", ndim=1))
+    _check_inference(bb, relax.op.take(y2, idx2), relax.TensorType((6,), dtype=None))
+    _check_inference(bb, relax.op.take(y3, idx2), relax.TensorType(dtype=None, ndim=1))
     _check_inference(bb, relax.op.take(y0, idx3), relax.TensorType(dtype="float32", ndim=1))
     _check_inference(bb, relax.op.take(y1, idx3), relax.TensorType(dtype="float32", ndim=1))
-    _check_inference(bb, relax.op.take(y2, idx3), relax.TensorType(dtype="", ndim=1))
-    _check_inference(bb, relax.op.take(y3, idx3), relax.TensorType(dtype="", ndim=1))
+    _check_inference(bb, relax.op.take(y2, idx3), relax.TensorType(dtype=None, ndim=1))
+    _check_inference(bb, relax.op.take(y3, idx3), relax.TensorType(dtype=None, ndim=1))
     _check_inference(bb, relax.op.take(y0, idx4), relax.TensorType((6, 4), "float32"))
     _check_inference(bb, relax.op.take(y1, idx4), relax.TensorType(dtype="float32", ndim=2))
-    _check_inference(bb, relax.op.take(y2, idx4), relax.TensorType((6, 4), dtype=""))
-    _check_inference(bb, relax.op.take(y3, idx4), relax.TensorType(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx4), relax.TensorType((6, 4), dtype=None))
+    _check_inference(bb, relax.op.take(y3, idx4), relax.TensorType(dtype=None, ndim=2))
     _check_inference(bb, relax.op.take(y0, idx5), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(y1, idx5), relax.TensorType(dtype="float32", ndim=2))
-    _check_inference(bb, relax.op.take(y2, idx5), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(y3, idx5), relax.TensorType(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx5), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(y3, idx5), relax.TensorType(dtype=None, ndim=2))
     _check_inference(bb, relax.op.take(y0, idx6), relax.TensorType((6, 4), "float32"))
     _check_inference(bb, relax.op.take(y1, idx6), relax.TensorType(dtype="float32", ndim=2))
-    _check_inference(bb, relax.op.take(y2, idx6), relax.TensorType((6, 4), dtype=""))
-    _check_inference(bb, relax.op.take(y3, idx6), relax.TensorType(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx6), relax.TensorType((6, 4), dtype=None))
+    _check_inference(bb, relax.op.take(y3, idx6), relax.TensorType(dtype=None, ndim=2))
     _check_inference(bb, relax.op.take(y0, idx7), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.take(y1, idx7), relax.TensorType(dtype="float32", ndim=2))
-    _check_inference(bb, relax.op.take(y2, idx7), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.take(y3, idx7), relax.TensorType(dtype="", ndim=2))
+    _check_inference(bb, relax.op.take(y2, idx7), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.take(y3, idx7), relax.TensorType(dtype=None, ndim=2))
 
 
 def test_take_infer_ty_scalar_tensor_index():
@@ -208,17 +208,21 @@ def test_take_infer_ty_shape_symbolic():
     )
 
     _check_inference(bb, relax.op.take(x0, idx0, axis=1), relax.TensorType((m, i), "float32"))
-    _check_inference(bb, relax.op.take(x1, idx0, axis=1), relax.TensorType((m, i), dtype=""))
+    _check_inference(bb, relax.op.take(x1, idx0, axis=1), relax.TensorType((m, i), dtype=None))
     _check_inference(bb, relax.op.take(x0, idx1, axis=1), relax.TensorType((m, i), "float32"))
-    _check_inference(bb, relax.op.take(x1, idx1, axis=1), relax.TensorType((m, i), dtype=""))
-    _check_inference(bb, relax.op.take(x1, idx2, axis=1), relax.TensorType((m, i, j, k), dtype=""))
-    _check_inference(bb, relax.op.take(x1, idx2, axis=1), relax.TensorType((m, i, j, k), dtype=""))
+    _check_inference(bb, relax.op.take(x1, idx1, axis=1), relax.TensorType((m, i), dtype=None))
+    _check_inference(
+        bb, relax.op.take(x1, idx2, axis=1), relax.TensorType((m, i, j, k), dtype=None)
+    )
+    _check_inference(
+        bb, relax.op.take(x1, idx2, axis=1), relax.TensorType((m, i, j, k), dtype=None)
+    )
     _check_inference(bb, relax.op.take(y0, idx0), relax.TensorType((i,), "float32"))
-    _check_inference(bb, relax.op.take(y1, idx0), relax.TensorType((i,), dtype=""))
+    _check_inference(bb, relax.op.take(y1, idx0), relax.TensorType((i,), dtype=None))
     _check_inference(bb, relax.op.take(y0, idx1), relax.TensorType((i,), "float32"))
-    _check_inference(bb, relax.op.take(y1, idx1), relax.TensorType((i,), dtype=""))
+    _check_inference(bb, relax.op.take(y1, idx1), relax.TensorType((i,), dtype=None))
     _check_inference(bb, relax.op.take(y0, idx2), relax.TensorType((i, j, k), "float32"))
-    _check_inference(bb, relax.op.take(y1, idx2), relax.TensorType((i, j, k), dtype=""))
+    _check_inference(bb, relax.op.take(y1, idx2), relax.TensorType((i, j, k), dtype=None))
 
 
 def test_take_infer_ty_shape_var():
@@ -371,21 +375,21 @@ def test_strided_slice_infer_ty():
         relax.op.strided_slice(
             x3, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
         ),
-        relax.TensorType((4, 9, 10, 3), dtype=""),
+        relax.TensorType((4, 9, 10, 3), dtype=None),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
             x4, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
         ),
-        relax.TensorType(dtype="", ndim=4),
+        relax.TensorType(dtype=None, ndim=4),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(
             x5, axes=[0, 1, 3], begin=[1, 0, 8], end=[8, 9, 0], strides=[2, 1, -3]
         ),
-        relax.TensorType(dtype=""),
+        relax.TensorType(dtype=None),
     )
     _check_inference(
         bb,
@@ -454,12 +458,12 @@ def test_strided_slice_infer_ty_shape_symbolic():
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[3]),
-        relax.TensorType((tirx.min(3, m) - tirx.min(1, m), n), dtype=""),
+        relax.TensorType((tirx.min(3, m) - tirx.min(1, m), n), dtype=None),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x1, axes=[0], begin=[1], end=[8], strides=[3]),
-        relax.TensorType(((tirx.min(8, m) + 2 - tirx.min(1, m)) // 3, n), dtype=""),
+        relax.TensorType(((tirx.min(8, m) + 2 - tirx.min(1, m)) // 3, n), dtype=None),
     )
 
 
@@ -471,9 +475,9 @@ def test_strided_slice_infer_ty_shape_var():
     x0 = relax.Var("x", relax.TensorType(s0, "float32"))
     x1 = relax.Var("x", relax.TensorType(s1, "float32"))
     x2 = relax.Var("x", relax.TensorType(s2, "float32"))
-    x3 = relax.Var("x", relax.TensorType(s0, dtype=""))
-    x4 = relax.Var("x", relax.TensorType(s1, dtype=""))
-    x5 = relax.Var("x", relax.TensorType(s2, dtype=""))
+    x3 = relax.Var("x", relax.TensorType(s0, dtype=None))
+    x4 = relax.Var("x", relax.TensorType(s1, dtype=None))
+    x5 = relax.Var("x", relax.TensorType(s2, dtype=None))
 
     _check_inference(
         bb,
@@ -493,17 +497,17 @@ def test_strided_slice_infer_ty_shape_var():
     _check_inference(
         bb,
         relax.op.strided_slice(x3, axes=[0], begin=[0], end=[8]),
-        relax.TensorType(shape=[8, 10], dtype=""),
+        relax.TensorType(shape=[8, 10], dtype=None),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x4, axes=[0], begin=[0], end=[8]),
-        relax.TensorType(dtype="", ndim=2),
+        relax.TensorType(dtype=None, ndim=2),
     )
     _check_inference(
         bb,
         relax.op.strided_slice(x5, axes=[0], begin=[0], end=[8]),
-        relax.TensorType(dtype=""),
+        relax.TensorType(dtype=None),
     )
 
 
