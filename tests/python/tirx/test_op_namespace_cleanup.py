@@ -295,17 +295,23 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
         T.cuda.copy_bytes(dst, src, 16)
         T.ptx.ldg32(R[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
+        T.metal.simd_shuffle_up(A[0], 1)
+        T.metal.simd_shuffle_down(A[0], 1)
 
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
         "tirx.cuda.copy_bytes",
         "tirx.ptx.ldg32",
         "tirx.metal.simd_shuffle",
+        "tirx.metal.simd_shuffle_up",
+        "tirx.metal.simd_shuffle_down",
     ]
     for op_name, namespace in [
         ("tirx.cuda.copy_bytes", "cuda"),
         ("tirx.ptx.ldg32", "ptx"),
         ("tirx.metal.simd_shuffle", "metal"),
+        ("tirx.metal.simd_shuffle_up", "metal"),
+        ("tirx.metal.simd_shuffle_down", "metal"),
     ]:
         assert _op_attr(op_name, "TIRxOpCategory") == "device_intrin"
         assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
@@ -315,6 +321,8 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     assert "T.cuda.copy_bytes(" in code
     assert "T.ptx.ldg32(" in code
     assert "T.metal.simd_shuffle(" in code
+    assert "T.metal.simd_shuffle_up(" in code
+    assert "T.metal.simd_shuffle_down(" in code
     assert "T.tirx." not in code
     reparsed = tvm.script.from_source(code)
     assert reparsed.script() == code

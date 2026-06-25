@@ -214,7 +214,16 @@ class PrimType final : public Type {
    * This uses the same packed sub-byte dtype sizing rule as runtime tensors.
    * Scalable vector types have no compile-time storage size and are rejected.
    */
-  TVM_DLL size_t StorageBytes() const;
+  TVM_FFI_INLINE size_t StorageBytes() const {
+    DLDataType dtype = get()->dtype;
+    int16_t encoded_lanes = static_cast<int16_t>(dtype.lanes);
+    if (TVM_FFI_PREDICT_FALSE(encoded_lanes < 0)) {
+      TVM_FFI_THROW(InternalError)
+          << "Cannot compute compile-time storage bytes for non-fixed vector type " << dtype;
+    }
+    return static_cast<size_t>(
+        (static_cast<uint64_t>(dtype.bits) * static_cast<uint64_t>(dtype.lanes) + 7) / 8);
+  }
 
   /*! \brief Return the same type with a different dtype code, preserving bits and lanes. */
   TVM_FFI_INLINE PrimType WithCode(DLDataTypeCode code) const {
