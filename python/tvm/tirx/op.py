@@ -31,7 +31,7 @@ from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import BufferLoad, Call, CommReducer, IntImm, PrimExprWithOp, Var
+from .expr import BufferLoad, Call, CommReducer, ExprOp, IntImm, PrimExprWithOp, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
@@ -55,6 +55,24 @@ def _canonical_device_intrin_name(func_name: str) -> str:
         if basename.startswith(prefix):
             return f"tirx.{namespace}.{basename[len(prefix) :]}"
     return func_name
+
+
+def _primexpr_ty(expr):
+    """Return the runtime primitive type of an expression."""
+    ty = getattr(expr, "ty", None)
+    if isinstance(ty, tvm.ir.PrimType):
+        return ty
+    if isinstance(expr, ExprOp):
+        return expr.expr_ty()
+    raise TypeError(f"Cannot determine PrimExpr type for {type(expr).__name__}")
+
+
+def _primexpr_dtype(expr):
+    """Return the runtime dtype of a primitive expression without using PrimExpr.dtype."""
+    ty = _primexpr_ty(expr)
+    if not isinstance(ty, tvm.ir.PrimType):
+        raise TypeError(f"Expected PrimType for {type(expr).__name__}, but got {ty}")
+    return ty.dtype
 
 
 def _pack_buffer(buf, span=None):
@@ -187,7 +205,7 @@ def call_cpacked(*args, span=None):
     return Call("int32", Op.get("tirx.tvm_call_cpacked"), call_args, span=span)
 
 
-def call_intrin(dtype, func_name, *args, attrs=None, span=None):
+def call_intrin(dtype: str | tvm.ir.PrimType, func_name, *args, attrs=None, span=None):
     """Build expression by calling an intrinsic function.
 
     Intrinsics can be overloaded with multiple data types via
@@ -272,8 +290,9 @@ def call_extern(dtype, func_name, *args, span=None):
 
 def _require_float_arg(op_name, x):
     x = tirx.convert(x)
-    if "float" not in x.dtype and "bfloat" not in x.dtype:
-        raise TypeError(f"tirx.{op_name} only supports floating-point inputs, but got {x.dtype}")
+    dtype = _primexpr_dtype(x)
+    if "float" not in dtype and "bfloat" not in dtype:
+        raise TypeError(f"tirx.{op_name} only supports floating-point inputs, but got {dtype}")
     return x
 
 
@@ -476,8 +495,8 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
     dtype = "void"
     if global_var.ty is not None:
         ret_ty = global_var.ty.ret
-        if hasattr(ret_ty, "dtype"):
-            dtype = ret_ty.dtype
+        if isinstance(ret_ty, tvm.ir.PrimType):
+            dtype = ret_ty
 
     return Call(dtype=dtype, op=global_var, args=args)
 
@@ -680,7 +699,7 @@ def tvm_thread_invariant(cond):
         The call expression.
     """
     assert isinstance(cond, PrimExpr)
-    return call_intrin(cond.dtype, "tirx.tvm_thread_invariant", cond)
+    return call_intrin(_primexpr_ty(cond), "tirx.tvm_thread_invariant", cond)
 
 
 def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
@@ -742,7 +761,9 @@ def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin(value.dtype, "tirx.tvm_warp_shuffle", mask, value, warp_id, width, warp_size)
+    return call_intrin(
+        _primexpr_ty(value), "tirx.tvm_warp_shuffle", mask, value, warp_id, width, warp_size
+    )
 
 
 def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
@@ -768,7 +789,7 @@ def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
         The call expression.
     """
     return call_intrin(
-        value.dtype, "tirx.tvm_warp_shuffle_up", mask, value, offset, width, warp_size
+        _primexpr_ty(value), "tirx.tvm_warp_shuffle_up", mask, value, offset, width, warp_size
     )
 
 
@@ -795,7 +816,7 @@ def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
         The call expression.
     """
     return call_intrin(
-        value.dtype, "tirx.tvm_warp_shuffle_down", mask, value, offset, width, warp_size
+        _primexpr_ty(value), "tirx.tvm_warp_shuffle_down", mask, value, offset, width, warp_size
     )
 
 
@@ -821,7 +842,7 @@ def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size):
         The call expression.
     """
     return call_intrin(
-        value.dtype, "tirx.tvm_warp_shuffle_xor", mask, value, lane_mask, width, warp_size
+        _primexpr_ty(value), "tirx.tvm_warp_shuffle_xor", mask, value, lane_mask, width, warp_size
     )
 
 
@@ -1208,7 +1229,8 @@ def trace(args, trace_action="tvm.default_trace_action"):
         raise Exception("tvm.tirx.trace consumes the args as list type")
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     call_args.insert(0, trace_action)
-    return tvm.tirx.Call(args[-1].dtype, Op.get("tirx.tvm_call_trace_packed"), call_args)
+    dtype = _primexpr_ty(args[-1]) if isinstance(args[-1], PrimExpr) else args[-1].dtype
+    return tvm.tirx.Call(dtype, Op.get("tirx.tvm_call_trace_packed"), call_args)
 
 
 def min_value(dtype, span=None):
@@ -1304,7 +1326,7 @@ def exp(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.exp", x)
+    return call_intrin(_primexpr_ty(x), "tirx.exp", x)
 
 
 def exp2(x):
@@ -1321,7 +1343,7 @@ def exp2(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.exp2", x)
+    return call_intrin(_primexpr_ty(x), "tirx.exp2", x)
 
 
 def exp10(x):
@@ -1338,7 +1360,7 @@ def exp10(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.exp10", x)
+    return call_intrin(_primexpr_ty(x), "tirx.exp10", x)
 
 
 def fma(x, y, z):
@@ -1363,7 +1385,7 @@ def fma(x, y, z):
     x = tir.convert(x)
     y = tir.convert(y)
     z = tir.convert(z)
-    return call_intrin(x.dtype, "tirx.fma", x, y, z)
+    return call_intrin(_primexpr_ty(x), "tirx.fma", x, y, z)
 
 
 def erf(x):
@@ -1380,7 +1402,7 @@ def erf(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.erf", x)
+    return call_intrin(_primexpr_ty(x), "tirx.erf", x)
 
 
 def tanh(x):
@@ -1397,7 +1419,7 @@ def tanh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.tanh", x)
+    return call_intrin(_primexpr_ty(x), "tirx.tanh", x)
 
 
 def sigmoid(x):
@@ -1414,7 +1436,7 @@ def sigmoid(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.sigmoid", x)
+    return call_intrin(_primexpr_ty(x), "tirx.sigmoid", x)
 
 
 def log(x):
@@ -1431,7 +1453,7 @@ def log(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.log", x)
+    return call_intrin(_primexpr_ty(x), "tirx.log", x)
 
 
 def log2(x):
@@ -1448,7 +1470,7 @@ def log2(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.log2", x)
+    return call_intrin(_primexpr_ty(x), "tirx.log2", x)
 
 
 def log10(x):
@@ -1465,7 +1487,7 @@ def log10(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.log10", x)
+    return call_intrin(_primexpr_ty(x), "tirx.log10", x)
 
 
 def log1p(x):
@@ -1482,7 +1504,7 @@ def log1p(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.log1p", x)
+    return call_intrin(_primexpr_ty(x), "tirx.log1p", x)
 
 
 def tan(x):
@@ -1499,7 +1521,7 @@ def tan(x):
         The result.
     """
     x = _require_float_arg("tan", x)
-    return call_intrin(x.dtype, "tirx.tan", x)
+    return call_intrin(_primexpr_ty(x), "tirx.tan", x)
 
 
 def cos(x):
@@ -1516,7 +1538,7 @@ def cos(x):
         The result.
     """
     x = _require_float_arg("cos", x)
-    return call_intrin(x.dtype, "tirx.cos", x)
+    return call_intrin(_primexpr_ty(x), "tirx.cos", x)
 
 
 def cosh(x):
@@ -1533,7 +1555,7 @@ def cosh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.cosh", x)
+    return call_intrin(_primexpr_ty(x), "tirx.cosh", x)
 
 
 def acos(x):
@@ -1550,7 +1572,7 @@ def acos(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.acos", x)
+    return call_intrin(_primexpr_ty(x), "tirx.acos", x)
 
 
 def acosh(x):
@@ -1567,7 +1589,7 @@ def acosh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.acosh", x)
+    return call_intrin(_primexpr_ty(x), "tirx.acosh", x)
 
 
 def sin(x):
@@ -1584,7 +1606,7 @@ def sin(x):
         The result.
     """
     x = _require_float_arg("sin", x)
-    return call_intrin(x.dtype, "tirx.sin", x)
+    return call_intrin(_primexpr_ty(x), "tirx.sin", x)
 
 
 def sinh(x):
@@ -1601,7 +1623,7 @@ def sinh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.sinh", x)
+    return call_intrin(_primexpr_ty(x), "tirx.sinh", x)
 
 
 def asin(x):
@@ -1618,7 +1640,7 @@ def asin(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.asin", x)
+    return call_intrin(_primexpr_ty(x), "tirx.asin", x)
 
 
 def asinh(x):
@@ -1635,7 +1657,7 @@ def asinh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.asinh", x)
+    return call_intrin(_primexpr_ty(x), "tirx.asinh", x)
 
 
 def atan(x):
@@ -1652,7 +1674,7 @@ def atan(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.atan", x)
+    return call_intrin(_primexpr_ty(x), "tirx.atan", x)
 
 
 def atanh(x):
@@ -1669,7 +1691,7 @@ def atanh(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.atanh", x)
+    return call_intrin(_primexpr_ty(x), "tirx.atanh", x)
 
 
 def atan2(x1, x2):
@@ -1690,7 +1712,7 @@ def atan2(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(x1.dtype, "tirx.atan2", x1, x2)
+    return call_intrin(_primexpr_ty(x1), "tirx.atan2", x1, x2)
 
 
 def sqrt(x):
@@ -1707,7 +1729,7 @@ def sqrt(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.sqrt", x)
+    return call_intrin(_primexpr_ty(x), "tirx.sqrt", x)
 
 
 def rsqrt(x):
@@ -1724,7 +1746,7 @@ def rsqrt(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.rsqrt", x)
+    return call_intrin(_primexpr_ty(x), "tirx.rsqrt", x)
 
 
 def clz(x):
@@ -1971,7 +1993,7 @@ def nextafter(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(x1.dtype, "tirx.nextafter", x1, x2)  # type: ignore
+    return call_intrin(_primexpr_ty(x1), "tirx.nextafter", x1, x2)  # type: ignore
 
 
 def hypot(x1, x2):
@@ -1992,7 +2014,7 @@ def hypot(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(x1.dtype, "tirx.hypot", x1, x2)  # type: ignore
+    return call_intrin(_primexpr_ty(x1), "tirx.hypot", x1, x2)  # type: ignore
 
 
 def copysign(x1, x2):
@@ -2013,7 +2035,7 @@ def copysign(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(x1.dtype, "tirx.copysign", x1, x2)  # type: ignore
+    return call_intrin(_primexpr_ty(x1), "tirx.copysign", x1, x2)  # type: ignore
 
 
 def ldexp(x1, x2):
@@ -2034,7 +2056,7 @@ def ldexp(x1, x2):
     """
     x1 = tir.convert(x1)
     x2 = tir.convert(x2)
-    return call_intrin(x1.dtype, "tirx.ldexp", x1, x2)  # type: ignore
+    return call_intrin(_primexpr_ty(x1), "tirx.ldexp", x1, x2)  # type: ignore
 
 
 def likely(cond, span=None):
@@ -2086,7 +2108,7 @@ def selector(var, pred, span=None):
     active domain for which ``pred`` is true. It is intended for compiler
     metadata and should not survive to executable codegen.
     """
-    return call_intrin(var.dtype, "tirx.selector", var, pred, span=span)
+    return call_intrin(_primexpr_ty(var), "tirx.selector", var, pred, span=span)
 
 
 def isnan(x, span=None):
@@ -2223,7 +2245,7 @@ def popcount(x):
         The result.
     """
     x = tir.convert(x)
-    return call_intrin(x.dtype, "tirx.popcount", x)
+    return call_intrin(_primexpr_ty(x), "tirx.popcount", x)
 
 
 def q_multiply_shift(x, y, q, s):
@@ -2356,7 +2378,7 @@ def fmod(x, y):
     """
     x = tir.convert(x)
     y = tir.convert(y)
-    return call_intrin(x.dtype, "tirx.fmod", x, y)
+    return call_intrin(_primexpr_ty(x), "tirx.fmod", x, y)
 
 
 def if_then_else(cond, t, f, span=None):
@@ -2667,7 +2689,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             rhs = []
             dtypes = []
             for i in range(size):
-                dtype = expr[i].dtype
+                dtype = _primexpr_dtype(expr[i])
                 dtypes.append(dtype)
                 lname = code.co_varnames[0] + "_" + str(i)
                 lhs.append(Var(lname, dtype))
@@ -2680,7 +2702,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         else:
             assert isinstance(expr, tvm.ir.PrimExpr)
             size = 1
-            dtype = expr.dtype
+            dtype = _primexpr_dtype(expr)
             lvar = Var(code.co_varnames[0], dtype)
             rvar = Var(code.co_varnames[1], dtype)
             result = [fcombine(lvar, rvar)]

@@ -53,9 +53,10 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
   // LLVM does not automatically generate the correct instruction sequences for
   // half -> float conversion (i.e. using AVX2/AVX-512 vectorized variants of
   // vcvtph2ps), so we explicitly generate them ourselves.
-  const auto from = op->value.dtype();
-  const auto to = op->dtype;
-  if (from.is_float() && to.is_float() && from.bits() == 16 && to.bits() == 32) {
+  const auto from = PrimType(op->value.ty()->dtype);
+  const auto to = PrimType(op->ty()->dtype);
+  if (from.MatchesCode(DLDataTypeCode::kDLFloat) && to.MatchesCode(DLDataTypeCode::kDLFloat) &&
+      from.bits() == 16 && to.bits() == 32) {
     TVM_FFI_ICHECK_EQ(from.lanes(), to.lanes());
 
     const auto has_avx512 = llvm_target_->TargetHasCPUFeature("avx512f");
@@ -63,12 +64,12 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
     if (from.lanes() >= 16 && has_avx512) {
       return CallVectorIntrin(
           llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
-          DTypeToLLVMType(DataType::Float(32, from.lanes())),
+          DTypeToLLVMType(PrimType::Float(32, from.lanes())),
           {
-              MakeValue(tirx::Call(DataType::Int(16, from.lanes()), tirx::builtin::reinterpret(),
+              MakeValue(tirx::Call(PrimType::Int(16, from.lanes()), tirx::builtin::reinterpret(),
                                    {op->value})),
-              MakeValue(tirx::Broadcast(FloatImm(DataType::Float(32), 0), from.lanes())),
-              /*mask=*/MakeValue(IntImm(DataType::Int(16), -1)),
+              MakeValue(tirx::Broadcast(FloatImm(PrimType::Float(32), 0), from.lanes())),
+              /*mask=*/MakeValue(IntImm(PrimType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm::Int32(4)),
           });
     }

@@ -32,7 +32,7 @@ from tvm.tirx.script.builder.ir import _dtype_forward, _op_wrapper
 def _ptx_ldg32(reg, guard, addr, local_addr):
     if isinstance(addr, Buffer):
         addr = addr[0]
-    return _tir_op.call_intrin(reg.dtype, "tirx.ptx.ldg32", reg, guard, addr, local_addr)
+    return _tir_op.call_intrin(reg.ty, "tirx.ptx.ldg32", reg, guard, addr, local_addr)
 
 
 _ptx_ldg32.__tir_op_name__ = "ptx.ldg32"
@@ -487,27 +487,25 @@ class CUDANamespace:
     def _shfl_sync(mask, var, lane, width):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.cuda.__shfl_sync", mask, var, lane, width)
+        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
 
     @staticmethod
     def _shfl_up_sync(mask, var, delta, width):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
+        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
 
     @staticmethod
     def _shfl_down_sync(mask, var, delta, width):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
+        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
 
     @staticmethod
     def _shfl_xor_sync(mask, var, lane_mask, width):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(
-            var.dtype, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width
-        )
+        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
 
     @staticmethod
     def _activemask():

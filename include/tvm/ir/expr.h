@@ -24,12 +24,13 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/base_expr.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/source_map.h>
-#include <tvm/runtime/data_type.h>
 
 #include <algorithm>
 #include <functional>
@@ -54,82 +55,6 @@ class VirtualDevice;
  * There are also advanced types to support generic(polymorphic types).
  * \sa Type
  */
-class TypeNode : public ffi::Object {
- public:
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    // span do not participate in structural equal and hash.
-    refl::ObjectDef<TypeNode>().def_ro("span", &TypeNode::span, refl::DefaultValue(Span()),
-                                       refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const uint32_t _type_child_slots = 14;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.Type", TypeNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to TypeNode.
- * \sa TypeNode
- */
-class Type : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Type, ffi::ObjectRef, TypeNode);
-};
-
-/*!
- * \brief Base type of all the expressions.
- * \sa Expr
- */
-class BaseExprNode : public ffi::Object {
- public:
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
-  /*!
-   * \brief The deduced or annotated type of the expression.
-   *
-   * This field is intentionally nullable because type information may
-   * be populated by later analysis passes instead of expression
-   * constructors.
-   */
-  mutable Type ty;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    // span and ty do not participate in structural equal and hash.
-    refl::ObjectDef<BaseExprNode>()
-        .def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
-                refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("ty", &BaseExprNode::ty, refl::DefaultValue(Type()),
-                refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
-  static constexpr const uint32_t _type_child_slots = 64;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to BaseExprNode.
- * \sa BaseExprNode
- */
-class BaseExpr : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ffi::ObjectRef, BaseExprNode);
-};
-
 /*!
  * \brief Base node of all primitive expressions.
  *
@@ -144,25 +69,16 @@ class BaseExpr : public ffi::ObjectRef {
  */
 class PrimExprNode : public BaseExprNode {
  public:
-  /*!
-   * \brief The runtime data type of the primitive expression.
-   *
-   * runtime::DataType(dtype) provides coarse grained type information
-   * during compile time and runtime. It is eagerly built in
-   * PrimExpr expression construction and can be used for
-   * quick type checking.
-   *
-   * dtype is sufficient to decide the Type of the PrimExpr
-   * when it corresponds to POD value types such as i32.
-   *
-   * When dtype is DataType::Handle(), the expression could corresponds to
-   * a more fine-grained Type, and we can get the type by running lazy type inference.
-   */
-  DataType dtype;
+  /*! \return the primitive type of this expression node. */
+  PrimType ty() const {
+    TVM_FFI_DCHECK(this->BaseExprNode::ty.defined());
+    TVM_FFI_DCHECK(this->BaseExprNode::ty->IsInstance<PrimTypeNode>());
+    return ffi::GetRef<PrimType>(static_cast<const PrimTypeNode*>(this->BaseExprNode::ty.get()));
+  }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
+    refl::ObjectDef<PrimExprNode>();
   }
 
   static constexpr const uint32_t _type_child_slots = 40;
@@ -186,8 +102,13 @@ class PrimExpr : public BaseExpr {
    */
   TVM_DLL PrimExpr(float value);  // NOLINT(*)
 
-  /*! \return the data type of this expression. */
-  DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
+  /*! \return the primitive type of this expression. */
+  PrimType ty() const {
+    const auto* node = static_cast<const PrimExprNode*>(get());
+    TVM_FFI_DCHECK(node->BaseExprNode::ty.defined());
+    TVM_FFI_DCHECK(node->BaseExprNode::ty->IsInstance<PrimTypeNode>());
+    return ffi::GetRef<PrimType>(static_cast<const PrimTypeNode*>(node->BaseExprNode::ty.get()));
+  }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExpr, BaseExpr, PrimExprNode);
 
@@ -554,11 +475,11 @@ class IntImm : public PrimExpr {
  public:
   /*!
    * \brief Constructor.
-   * \param dtype The data type of the value.
+   * \param value_ty The primitive type of the value.
    * \param value The internal value.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL IntImm(DataType dtype, int64_t value, Span span = Span());
+  TVM_DLL IntImm(PrimType value_ty, int64_t value, Span span = Span());
 
   /*!
    * \brief Construct a scalar boolean constant.
@@ -566,7 +487,7 @@ class IntImm : public PrimExpr {
    * \param span The location of this object in the source code.
    */
   static IntImm Bool(bool value, Span span = Span()) {
-    return IntImm(DataType::Bool(), value, span);
+    return IntImm(PrimType::Bool(), value, span);
   }
 
   /*!
@@ -575,7 +496,7 @@ class IntImm : public PrimExpr {
    * \param span The location of this object in the source code.
    */
   static IntImm Int32(int64_t value, Span span = Span()) {
-    return IntImm(DataType::Int(32), value, span);
+    return IntImm(PrimType::Int(32), value, span);
   }
 
   /*!
@@ -584,7 +505,7 @@ class IntImm : public PrimExpr {
    * \param span The location of this object in the source code.
    */
   static IntImm Int64(int64_t value, Span span = Span()) {
-    return IntImm(DataType::Int(64), value, span);
+    return IntImm(PrimType::Int(64), value, span);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
@@ -616,11 +537,11 @@ class FloatImm : public PrimExpr {
  public:
   /*!
    * \brief Constructor.
-   * \param dtype The data type of the value.
+   * \param value_ty The primitive type of the value.
    * \param value The internal value.
    * \param span The location in the source code.
    */
-  TVM_DLL FloatImm(DataType dtype, double value, Span span = Span());
+  TVM_DLL FloatImm(PrimType value_ty, double value, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloatImm, PrimExpr, FloatImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
@@ -688,11 +609,11 @@ inline constexpr bool use_default_type_traits_v<IntImm> = false;
 template <>
 struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64_t> {
   TVM_FFI_INLINE static IntImm ConvertFallbackValue(int64_t value) {
-    auto dtype =
+    auto value_ty =
         (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
-            ? DataType::Int(64)
-            : DataType::Int(32);
-    return IntImm(dtype, value);
+            ? PrimType::Int(64)
+            : PrimType::Int(32);
+    return IntImm(value_ty, value);
   }
 };
 
@@ -702,7 +623,7 @@ inline constexpr bool use_default_type_traits_v<FloatImm> = false;
 template <>
 struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
   TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
-    return FloatImm(runtime::DataType::Float(32), value);
+    return FloatImm(PrimType::Float(32), value);
   }
 };
 

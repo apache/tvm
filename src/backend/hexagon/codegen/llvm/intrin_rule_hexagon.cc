@@ -50,7 +50,7 @@ inline PrimExpr TVMExternCall(const tirx::CallNode* call, const std::string& fna
   for (PrimExpr arg : call->args) {
     new_args.push_back(arg);
   }
-  return tirx::Call(call->dtype, tirx::builtin::call_pure_extern(), new_args);
+  return tirx::Call(call->ty(), tirx::builtin::call_pure_extern(), new_args);
 }
 
 template <std::string& tvm_wrapper, unsigned id, int num_sign>
@@ -72,14 +72,16 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
 
   // Enable QHL library for FP16 data type
   const PrimExpr& x = call->args[0];
-  if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
+  PrimType x_ty = x.ty();
+  if (x_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&
+      (x_ty.IsFixedLengthVector() || x_ty.IsScalableVector()) && useqhl) {
     return TVMExternCall(call, tvm_wrapper);
   }
 #endif
-  new_args.push_back(IntImm(DataType::UInt(32), id));
-  new_args.push_back(IntImm(DataType::UInt(32), num_sign));
+  new_args.push_back(IntImm(PrimType::UInt(32), id));
+  new_args.push_back(IntImm(PrimType::UInt(32), num_sign));
   new_args.insert(new_args.end(), call->args.begin(), call->args.end());
-  return tirx::Call(call->dtype, tirx::builtin::call_llvm_pure_intrin(), new_args);
+  return tirx::Call(call->ty(), tirx::builtin::call_llvm_pure_intrin(), new_args);
 }
 
 void RegisterHexagonIntrinRules() {
@@ -117,6 +119,7 @@ TVM_REGISTER_OP("tirx.tanh")
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
+      PrimType x_ty = x.ty();
 
 #if ENABLE_QHL
       // Check target for qfloat enablement
@@ -130,14 +133,15 @@ TVM_REGISTER_OP("tirx.tanh")
       }
 
       // Enable QHL library for FP16 data type
-      if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
+      if (x_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&
+          (x_ty.IsFixedLengthVector() || x_ty.IsScalableVector()) && useqhl) {
         std::string tvm_wrapper("tvm_vect_qhmath_hvx_tanh_ahf");
         return TVMExternCall(call, tvm_wrapper);
       }
 #endif
-      PrimExpr one = tirx::MakeConst(x.dtype(), 1);
-      PrimExpr two = tirx::MakeConst(x.dtype(), 2);
-      PrimExpr neg_two = tirx::MakeConst(x.dtype(), -2);
+      PrimExpr one = tirx::MakeConst(x_ty, 1);
+      PrimExpr two = tirx::MakeConst(x_ty, 2);
+      PrimExpr neg_two = tirx::MakeConst(x_ty, -2);
 
       PrimExpr exp_neg2x = exp(neg_two * x);
       PrimExpr exp_pos2x = exp(two * x);
@@ -145,7 +149,7 @@ TVM_REGISTER_OP("tirx.tanh")
       PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
       PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
       // MakeConst can handle both vector and scalar types.
-      PrimExpr tanh_x = tirx::Select(x >= tirx::MakeConst(x.dtype(), 0), tanh_pos, tanh_neg);
+      PrimExpr tanh_x = tirx::Select(x >= tirx::MakeConst(x_ty, 0), tanh_pos, tanh_neg);
       return tanh_x;
     });
 
@@ -154,6 +158,7 @@ TVM_REGISTER_OP("tirx.tan")
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
+      PrimType x_ty = x.ty();
 #if ENABLE_QHL
       // Check target for qfloat enablement
       const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
@@ -166,7 +171,8 @@ TVM_REGISTER_OP("tirx.tan")
       }
 
       // Enable QHL library for FP16 data type
-      if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
+      if (x_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&
+          (x_ty.IsFixedLengthVector() || x_ty.IsScalableVector()) && useqhl) {
         std::string tvm_wrapper("tvm_vect_qhmath_hvx_tan_ahf");
         return TVMExternCall(call, tvm_wrapper);
       }
@@ -184,6 +190,7 @@ TVM_REGISTER_OP("tirx.sigmoid")
       const tirx::CallNode* call = e.as<tirx::CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       const PrimExpr& x = call->args[0];
+      PrimType x_ty = x.ty();
 #if ENABLE_QHL
       // Check target for qfloat enablement
       const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
@@ -195,21 +202,22 @@ TVM_REGISTER_OP("tirx.sigmoid")
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 
-      PrimExpr MinBound = tirx::MakeConst(x.dtype(), -8);
-      PrimExpr MaxBound = tirx::MakeConst(x.dtype(), 8);
+      PrimExpr MinBound = tirx::MakeConst(x_ty, -8);
+      PrimExpr MaxBound = tirx::MakeConst(x_ty, 8);
       const PrimExpr v1 = tirx::Max(x, MinBound);
       const PrimExpr v2 = tirx::Min(v1, MaxBound);
 
       ffi::Array<tvm::PrimExpr> new_args = {v2};
-      const tirx::Call new_call = tirx::Call(call->dtype, call->op, new_args);
+      const tirx::Call new_call = tirx::Call(call->ty(), call->op, new_args);
 
       // Enable QHL library for FP16 data type
-      if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
+      if (x_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&
+          (x_ty.IsFixedLengthVector() || x_ty.IsScalableVector()) && useqhl) {
         std::string tvm_wrapper("tvm_vect_qhmath_hvx_sigmoid_ahf");
         return TVMExternCall(new_call.get(), tvm_wrapper);
       }
 #endif
-      PrimExpr one = tirx::MakeConst(x.dtype(), 1);
+      PrimExpr one = tirx::MakeConst(x_ty, 1);
       return one / (one + exp(-x));
     });
 

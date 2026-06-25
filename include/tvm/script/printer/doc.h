@@ -19,10 +19,11 @@
 #ifndef TVM_SCRIPT_PRINTER_DOC_H_
 #define TVM_SCRIPT_PRINTER_DOC_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/data_type.h>
+#include <tvm/ir/type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/script/printer/config.h>
 
@@ -293,7 +294,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Float(double v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(FloatImm(DataType::Float(64), v), p);
+    return LiteralDoc(FloatImm(PrimType::Float(64), v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent string.
@@ -308,8 +309,9 @@ class LiteralDoc : public ExprDoc {
    * \param v The string value.
    * \param p The object path
    */
-  static LiteralDoc DataType(const runtime::DataType& v, const ffi::Optional<AccessPath>& p) {
-    std::string dtype = v.is_void() ? "void" : ffi::DLDataTypeToString(v);
+  static LiteralDoc DataType(DLDataType v, const ffi::Optional<AccessPath>& p) {
+    std::string dtype =
+        v == DLDataType{kDLOpaqueHandle, 0, 0} ? "void" : ffi::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
   }
   /*!

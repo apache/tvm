@@ -80,22 +80,22 @@ class ReturnRewriter : public StmtMutator {
     ConvertedInfo info;
 
     // convert val's data type to FFI data type, return type code
-    DataType dtype = val.dtype();
-    if (dtype.is_bool()) {
+    PrimType dtype = val.ty();
+    if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
       info.type_index = ffi::TypeIndex::kTVMFFIBool;
-      info.expr = Cast(DataType::Int(64), val);
+      info.expr = Cast(PrimType::Int(64), val);
 
-    } else if (dtype.is_int() || dtype.is_uint()) {
+    } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       info.type_index = ffi::TypeIndex::kTVMFFIInt;
-      info.expr = Cast(DataType::Int(64), val);
-    } else if (dtype.is_float()) {
+      info.expr = Cast(PrimType::Int(64), val);
+    } else if (dtype.code() == DLDataTypeCode::kDLFloat) {
       info.type_index = ffi::TypeIndex::kTVMFFIFloat;
-      info.expr = Cast(DataType::Float(64), val);
-    } else if (dtype.is_void()) {
+      info.expr = Cast(PrimType::Float(64), val);
+    } else if (dtype.IsVoid()) {
       info.type_index = ffi::TypeIndex::kTVMFFINone;
       info.expr = val;
     } else {
-      TVM_FFI_THROW(InternalError) << "data type " << dtype << " not supported yet";
+      TVM_FFI_THROW(InternalError) << "data type " << dtype->dtype << " not supported yet";
     }
     return info;
   }
@@ -103,15 +103,15 @@ class ReturnRewriter : public StmtMutator {
   Stmt WriteToOut(PrimExpr val) {
     auto info = ConvertForFFI(val);
     Stmt store_tindex = tirx::Evaluate(
-        tirx::Call(DataType::Int(32), tirx::builtin::tvm_struct_set(),
+        tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
                    {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
                     IntImm::Int32(info.type_index)}));
     Stmt store_zero_padding = tirx::Evaluate(
-        tirx::Call(DataType::Int(32), tirx::builtin::tvm_struct_set(),
+        tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
                    {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding),
                     IntImm::Int32(0)}));
     Stmt store_val =
-        tirx::Evaluate(tirx::Call(DataType::Int(32), tirx::builtin::tvm_struct_set(),
+        tirx::Evaluate(tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
                                   {ret_var_, IntImm::Int32(0),
                                    IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr}));
     Stmt ret_zero = Evaluate(tvm::ret(0));
@@ -154,7 +154,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
         // push an empty handle to be compatible with current cpacked convention
         cpacked_args.push_back(tirx::ConstHandle(0));
         made_change_ = true;
-        return tirx::Call(node->dtype, tirx::builtin::tvm_call_cpacked(), cpacked_args);
+        return tirx::Call(node.ty(), tirx::builtin::tvm_call_cpacked(), cpacked_args);
       }
     }
 
@@ -219,14 +219,14 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   const Stmt nop = Evaluate(0);
 
   // Data field definitions
-  Var v_self_handle("self_handle", DataType::Handle());
-  Var v_packed_args("args", DataType::Handle());
-  Var v_num_packed_args("num_args", DataType::Int(32));
-  Var v_result("result", PointerType(PrimType(DataType::Void())));
+  Var v_self_handle("self_handle", PrimType::Handle());
+  Var v_packed_args("args", PrimType::Handle());
+  Var v_num_packed_args("num_args", PrimType::Int(32));
+  Var v_result("result", PointerType(PrimType::Void()));
 
   // The device context
   Var device_id("dev_id");
-  IntImm device_type(DataType::Int(32), target_device_type);
+  IntImm device_type(PrimType::Int(32), target_device_type);
 
   // Create TVMFFIABIBuilder and decode all packed args
   TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
@@ -257,7 +257,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
       Stmt set_device =
-          Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(),
+          Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
                         {StringImm(runtime::symbol::tvm_set_device), device_type, device_id}));
       body = SeqStmt({set_device, body});
     }
@@ -278,7 +278,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = ffi::Map<Var, Buffer>();
-  func_ptr->ret_type = PrimType(DataType::Int(32));
+  func_ptr->ret_type = PrimType::Int(32);
 
   // return the function.
   return func;

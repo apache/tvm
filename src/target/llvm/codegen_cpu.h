@@ -128,7 +128,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* GetPackedFuncHandle(const std::string& str);
   TypedPointer PackClosureData(const ffi::Array<Var>& fields, uint64_t* num_bytes,
                                std::string struct_name = "");
-  TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
+  TypedPointer CreateStructRefPtr(PrimType t, llvm::Value* buffer, llvm::Value* index, int kind);
   void UnpackClosureData(TypedPointer cdata, const ffi::Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
@@ -137,7 +137,7 @@ class CodeGenCPU : public CodeGenLLVM {
     llvm::Value* ret_type_index;
     llvm::BasicBlock* end_block;
   };
-  PackedCall MakeCallPackedLowered(const ffi::Array<PrimExpr>& args, const DataType& r_type,
+  PackedCall MakeCallPackedLowered(const ffi::Array<PrimExpr>& args, const PrimType& r_type,
                                    const int64_t begin, const int64_t end, bool use_string_lookup);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);

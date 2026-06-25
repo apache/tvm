@@ -169,7 +169,7 @@ ffi::Array<Iter> SplitterGen(const Iter& iter, const Axis& axis_outer, const Axi
              analyzer->CanProveEqual(floormod(iter->extent * iter->stride, e_inner), 0)) {
     const auto& d = analyzer->Simplify(floordiv(e_inner, iter->stride));
     const auto& c = analyzer->Simplify(floordiv(iter->extent, d));
-    return {Iter(c, IntImm(e_inner.dtype(), 1), axis_outer), Iter(d, iter->stride, axis_inner)};
+    return {Iter(c, IntImm(e_inner.ty(), 1), axis_outer), Iter(d, iter->stride, axis_inner)};
   } else if (analyzer->CanProveEqual(floormod(iter->stride, e_inner), 0)) {
     const auto& d = analyzer->Simplify(floordiv(iter->stride, e_inner));
     return {Iter(iter->extent, d, axis_outer)};

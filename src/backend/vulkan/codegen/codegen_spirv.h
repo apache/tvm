@@ -142,7 +142,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
      * buffer variable (AllocBufferNode) or of the parameter (shader
      * arguments).
      */
-    DataType element_type{DataType()};
+    PrimType element_type{PrimType::Void()};
 
     /* \brief Check that the access type matches the known type
      *
@@ -156,10 +156,10 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
      * product of the number of lanes of the buffer element type and
      * the number of lanes of the index.
      */
-    void CheckContentType(DataType type, int index_lanes = 1) const {
+    void CheckContentType(PrimType type, int index_lanes = 1) const {
       TVM_FFI_ICHECK(element_type_known) << "Cannot check element type of buffer " << name_hint
                                          << " no previous element type defined";
-      DataType expected_type = element_type.with_lanes(index_lanes * element_type.lanes());
+      PrimType expected_type = element_type.WithLanes(index_lanes * element_type.lanes());
       TVM_FFI_ICHECK_EQ(type, expected_type)
           << "Attempted to access buffer " << name_hint << " as element type " << type
           << " using an index of size " << index_lanes << " when the element type is "
@@ -167,7 +167,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
     }
 
     // Update content type if it hasn't been updated.
-    void SetContentType(DataType type, std::string name_hint) {
+    void SetContentType(PrimType type, std::string name_hint) {
       TVM_FFI_ICHECK(!element_type_known)
           << "Cannot set element type of buffer " << name_hint << " a second time.";
       this->element_type = type;
@@ -191,8 +191,8 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
 
-  spirv::SType GetFragmentSType(const VarNode* buffer, const DataType& dtype);
-  DataType GetElementDataType(const VarNode* buffer);
+  spirv::SType GetFragmentSType(const VarNode* buffer, const PrimType& dtype);
+  PrimType GetElementDataType(const VarNode* buffer);
 
   // SPIRV-related capabilities of the target
   SPIRVSupport spirv_support_;
@@ -213,7 +213,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
    * integer type supported by the device, as not all Vulkan
    * implementations support int8.
    */
-  DataType boolean_storage_type_{DataType::Int(8)};
+  PrimType boolean_storage_type_{PrimType::Int(8)};
 
   // the storage scope of allocation
   std::unordered_map<const VarNode*, StorageInfo> storage_info_;

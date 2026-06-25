@@ -332,10 +332,10 @@ class Layout(Object):
         # produce for int64-shaped buffers (otherwise the last stride stays a
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:
-            if isinstance(t, PrimExpr) and t.dtype != "int32":
+            if isinstance(t, PrimExpr) and t.ty.dtype != "int32":
                 from .expr import IntImm  # pylint: disable=import-outside-toplevel
 
-                stride = IntImm(t.dtype, stride)
+                stride = IntImm(t.ty, stride)
                 break
         res = list()
         for t in reversed(data):

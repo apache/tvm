@@ -42,7 +42,7 @@ static PrimExpr DispatchIntelShuffle(const PrimExpr& e) {
       << "Intel warp shuffle dose not support width != warp_size";
   ffi::Array<PrimExpr> opencl_args{
       {StringImm("intel_sub_group_shuffle"), call->args[1], call->args[2]}};
-  return Call(call->dtype, builtin::call_pure_extern(), opencl_args);
+  return Call(e.ty(), builtin::call_pure_extern(), opencl_args);
 }
 
 void RegisterOpenCLIntrinRules() {
@@ -75,7 +75,7 @@ TVM_REGISTER_OP("tirx.round")
       for (auto arg : call->args) {
         new_args.push_back(arg);
       }
-      return tirx::Call(call->dtype, tirx::builtin::call_pure_extern(), new_args);
+      return tirx::Call(e.ty(), tirx::builtin::call_pure_extern(), new_args);
     });
 
 TVM_REGISTER_OP("tirx.nearbyint")

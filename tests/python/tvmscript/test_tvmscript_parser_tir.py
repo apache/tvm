@@ -29,14 +29,14 @@ def test_tir_buffer_proxy():
     assert (
         isinstance(buffer_0, tirx.Buffer)
         and list(buffer_0.shape) == [128, 128]
-        and buffer_0.dtype == "float32"
+        and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
         isinstance(buffer_1, tirx.Buffer)
         and list(buffer_1.shape) == [64, 64, 64]
-        and buffer_1.dtype == "int32"
+        and buffer_1.dtype == ir.PrimType("int32")
     )
 
 
@@ -44,7 +44,7 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and ptr_0.dtype == "handle"
+        and ptr_0.ty.dtype == "handle"
         and isinstance(ptr_0.type_annotation, ir.PointerType)
         and ptr_0.type_annotation.element_type == ir.PrimType("int32")
         and ptr_0.type_annotation.storage_scope == "global"
@@ -53,7 +53,7 @@ def test_tir_ptr_proxy():
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and ptr_1.dtype == "handle"
+        and ptr_1.ty.dtype == "handle"
         and isinstance(ptr_1.type_annotation, ir.PointerType)
         and ptr_1.type_annotation.element_type == ir.PrimType("float32")
         and ptr_1.type_annotation.storage_scope == "shared"
@@ -398,10 +398,10 @@ def test_thread_binding_dtype():
 
     loop_i = func.body
     loop_j = loop_i.body
-    assert loop_i.loop_var.dtype == "int64"
-    assert loop_i.thread_binding.var.dtype == "int64"
-    assert loop_j.loop_var.dtype == "int32"
-    assert loop_j.thread_binding.var.dtype == "int32"
+    assert loop_i.loop_var.ty.dtype == "int64"
+    assert loop_i.thread_binding.var.ty.dtype == "int64"
+    assert loop_j.loop_var.ty.dtype == "int32"
+    assert loop_j.thread_binding.var.ty.dtype == "int32"
 
 
 def test_inferred_ty_with_prim_args():
@@ -546,8 +546,8 @@ def test_launch_thread_i64():
         else:
             T.evaluate(T.int64(1))
 
-    assert func.body.node.dom.min.dtype == "int64"
-    assert func.body.node.dom.extent.dtype == "int64"
+    assert func.body.node.dom.min.ty.dtype == "int64"
+    assert func.body.node.dom.extent.ty.dtype == "int64"
 
 
 def test_deterministic_branch():

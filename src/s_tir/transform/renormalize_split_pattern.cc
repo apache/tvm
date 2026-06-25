@@ -83,8 +83,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(floordiv(x.Eval() * c1_div + floordiv(y.Eval(), c3), c2_div));
         }
       }
@@ -95,12 +95,12 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
-          return RecursiveRewrite(floordiv(
-              x.Eval() * Broadcast(c1_div, lanes.Eval()) +
-                  floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
-              Broadcast(c2_div, lanes.Eval())));
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
+          return RecursiveRewrite(
+              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+                           floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+                       Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -112,8 +112,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(
               floordiv(x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), c3), c2_div));
         }
@@ -125,12 +125,12 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(
               floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
                            floordiv(y.Eval() + z.Eval(),
-                                    Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
+                                    Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
                        Broadcast(c2_div, lanes.Eval())));
         }
       }

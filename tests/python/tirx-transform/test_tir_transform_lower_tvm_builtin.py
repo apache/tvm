@@ -120,7 +120,7 @@ def test_call_packed_return_non_i32():
 
     def packed_echo(value):
         return tvm.tirx.call_intrin(
-            value.dtype, tvm.ir.Op.get("tirx.tvm_call_packed"), "testing.echo", value
+            value.ty, tvm.ir.Op.get("tirx.tvm_call_packed"), "testing.echo", value
         )
 
     def build_tir():

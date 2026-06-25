@@ -129,7 +129,7 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
 inline tvm::tirx::BufferRegion BufferRegionFromLoad(tvm::tirx::BufferLoad buffer_load) {
   ffi::Array<Range> ranges;
   for (const PrimExpr& index : buffer_load->indices) {
-    ranges.push_back(Range::FromMinExtent(index, IntImm(index->dtype, 1)));
+    ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
   }
   return tvm::tirx::BufferRegion(buffer_load->buffer, ranges);
 }

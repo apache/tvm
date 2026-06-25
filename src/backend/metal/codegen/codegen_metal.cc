@@ -46,7 +46,7 @@ void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg.dtype().is_handle()) {
+    if (arg.ty().IsHandle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -97,7 +97,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   }
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v.dtype().is_handle()) break;
+    if (!v.ty().IsHandle()) break;
     this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
@@ -110,7 +110,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     // type annotation(via a normalizing rewriting).
     if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
-        RegisterHandleType(v.get(), prim->dtype);
+        RegisterHandleType(v.get(), ffi::GetRef<PrimType>(prim));
       }
     }
     this->stream << ' ' << vid << " [[ buffer(" << i << ") ]],\n";
@@ -126,24 +126,24 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     decl_stream << "struct " << arg_buf_type << " {\n";
     for (size_t i = num_buffer; i < func->params.size(); ++i) {
       Var v = func->params[i];
-      TVM_FFI_ICHECK(!v.dtype().is_handle());
+      TVM_FFI_ICHECK(!v.ty().IsHandle());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
-      if (v.dtype().bits() == 32) {
+      if (v.ty().bits() == 32) {
         decl_stream << "  ";
-        PrintType(v.dtype(), decl_stream);
+        PrintType(v.ty()->dtype, decl_stream);
         decl_stream << " " << vid << "[2];\n";
         vref << varg << "." << vid << "[0]";
-      } else if (v.dtype().bits() == 64) {
+      } else if (v.ty().bits() == 64) {
         decl_stream << "  ";
-        PrintType(v.dtype(), decl_stream);
+        PrintType(v.ty()->dtype, decl_stream);
         decl_stream << " " << vid << ";\n";
         vref << varg << "." << vid;
       } else {
         // For non 32bit type, ref through arg union.
         decl_stream << "  __TVMArgUnion " << vid << ";\n";
         vref << varg << "." << vid << ".v_";
-        PrintType(v.dtype(), vref);
+        PrintType(v.ty()->dtype, vref);
       }
       var_idmap_[v.get()] = vref.str();
     }
@@ -165,10 +165,14 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   if (work_dim != 0) {
     // use ushort by default for now
     stream << "  ";
-    PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
+    PrintType(DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_),
+                         static_cast<uint16_t>(work_dim)},
+              stream);
     stream << " blockIdx [[threadgroup_position_in_grid]],\n";
     stream << "  ";
-    PrintType(DataType::UInt(thread_index_bits_, work_dim), stream);
+    PrintType(DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_),
+                         static_cast<uint16_t>(work_dim)},
+              stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
   thread_work_dim_ = work_dim;
@@ -190,28 +194,29 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
   if (thread_work_dim_ <= 1) {
     vname = vname.substr(0, iv->thread_tag.length() - 2);
   }
-  var_idmap_[iv->var.get()] =
-      CastFromTo(vname, DataType::UInt(thread_index_bits_), iv->var.dtype());
+  var_idmap_[iv->var.get()] = CastFromTo(
+      vname, DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_), 1}, iv->var.ty()->dtype);
 }
 
-void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
+  const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
-  if (t.is_handle()) {
+  if (t.IsHandle()) {
     TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
     os << "void*";
     return;
   }
 
-  if (t.is_void()) {
+  if (t.IsVoid()) {
     os << "void";
     return;
   }
-  if (t == DataType::Bool()) {
+  if (raw_t == DLDataType{kDLBool, 8, 1}) {
     os << "bool";
     return;
   }
   bool fail = false;
-  if (t.is_float()) {
+  if (t.code() == DLDataTypeCode::kDLFloat) {
     // Need to care about sizes and alignment of half3/float3 because tirx representation might not
     // be aware of Metal half3/float3 details and can treat them as just three elements,
     // while sizes and alignmnents of half3/float3 are one element more (half3-8 bytes/
@@ -239,8 +244,8 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << lanes;
       return;
     }
-  } else if (t.is_uint() || t.is_int()) {
-    if (t.is_uint()) {
+  } else if (t.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
+    if (t.MatchesCode(DLDataTypeCode::kDLUInt)) {
       os << 'u';
     }
     switch (t.bits()) {
@@ -268,11 +273,12 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << lanes;
       return;
     }
-  } else if (t.is_bfloat16()) {
+  } else if (t.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
     os << "bfloat";
     return;
   }
-  TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to Metal type";
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << ffi::DLDataTypeToString(raw_t)
+                               << " to Metal type";
 }
 
 void CodeGenMetal::PrintStorageSync(const CallNode* op) {
@@ -288,12 +294,12 @@ void CodeGenMetal::PrintStorageSync(const CallNode* op) {
   }
 }
 
-void CodeGenMetal::PrintVecElemLoad(const std::string& vec, DataType t, int i,
+void CodeGenMetal::PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                                     std::ostream& os) {  // NOLINT(*)
   os << vec << "[" << i << "]";
 }
 
-void CodeGenMetal::PrintVecElemStore(const std::string& vec, DataType t, int i,
+void CodeGenMetal::PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                                      const std::string& value) {
   this->PrintIndent();
   stream << vec << "[" << i << "]"
@@ -328,11 +334,14 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
 
   auto scope = GetPtrStorageScope(op->buffer->data);
   alloc_storage_scope_[op->buffer->data.get()] = scope;
-  DataType dtype = op->buffer->dtype;
+  DLDataType dtype = op->buffer->dtype->dtype;
   if (scope == "metal.simdgroup") {
-    TVM_FFI_ICHECK(dtype == DataType::Float(16) || dtype == DataType::Float(32) ||
-                   dtype == DataType::BFloat(16))
-        << "Only float16, float32, and bfloat16 are supported, but got " << dtype;
+    bool supported_simdgroup_dtype = dtype == DLDataType{kDLFloat, 16, 1} ||
+                                     dtype == DLDataType{kDLFloat, 32, 1} ||
+                                     dtype == DLDataType{kDLBfloat, 16, 1};
+    TVM_FFI_ICHECK(supported_simdgroup_dtype)
+        << "Only float16, float32, and bfloat16 are supported, but got "
+        << ffi::DLDataTypeToString(dtype);
     TVM_FFI_ICHECK(constant_size % 64 == 0)
         << "Only 8x8 matrix is supported, but got " << constant_size << " bytes\n";
 
@@ -347,7 +356,7 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer->data.get(), dtype);
+  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
     MarkVolatile(op->buffer->data.get());
   }
@@ -360,8 +369,8 @@ void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLI
 
 void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = op->dtype.lanes();
-  PrintType(op->dtype, os);
+  int lanes = op->ty().lanes();
+  PrintType(op->ty()->dtype, os);
   os << "(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -422,7 +431,7 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   } else if (op->op.same_as(builtin::reinterpret())) {
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
-    this->PrintType(op->dtype, os);
+    this->PrintType(op->ty()->dtype, os);
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << "))";
@@ -442,9 +451,9 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
     temp << "NAN";
   } else {
     temp << std::scientific << op->value;
-    if (op->dtype.bits() == 32)
+    if (op->ty().bits() == 32)
       temp << 'f';
-    else if (op->dtype.bits() == 16)
+    else if (op->ty().bits() == 16)
       temp << 'h';
   }
   MarkConst(temp.str());

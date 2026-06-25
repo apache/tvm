@@ -520,7 +520,7 @@ def match_buffer(
             raise ValueError("Shape must be specified when binding input param")
     shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
     if strides is not None:
-        idx_dtype = shape[0].dtype if isinstance(shape[0], PrimExpr) else "int32"
+        idx_dtype = shape[0].ty if isinstance(shape[0], PrimExpr) else "int32"
         strides = [Var(s, idx_dtype) if isinstance(s, str) else s for s in strides]
     else:
         strides = []
@@ -1012,8 +1012,8 @@ def _as_range(dom: ir.Range | list[PrimExpr]) -> ir.Range:
         if isinstance(extent, tir.IntImm):
             return ir.Range.from_min_extent(dom[0], extent)
         return ir.Range(dom[0], dom[1])
-    if hasattr(dom, "dtype"):
-        return ir.Range(IntImm(dom.dtype, 0), dom)
+    if isinstance(dom, PrimExpr):
+        return ir.Range(IntImm(dom.ty, 0), dom)
     return ir.Range(0, dom)
 
 
@@ -1204,8 +1204,8 @@ def serial(
             annotations["disable_unroll"] = True
     if stop is None:
         stop = start
-        if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+        if isinstance(start, PrimExpr):
+            start = IntImm(start.ty, 0)
         else:
             start = 0
     return _ffi_api.Serial(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -1241,8 +1241,8 @@ def parallel(
     """
     if stop is None:
         stop = start
-        if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+        if isinstance(start, PrimExpr):
+            start = IntImm(start.ty, 0)
         else:
             start = 0
     return _ffi_api.Parallel(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -1278,8 +1278,8 @@ def vectorized(
     """
     if stop is None:
         stop = start
-        if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+        if isinstance(start, PrimExpr):
+            start = IntImm(start.ty, 0)
         else:
             start = 0
     return _ffi_api.Vectorized(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -1315,8 +1315,8 @@ def unroll(
     """
     if stop is None:
         stop = start
-        if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+        if isinstance(start, PrimExpr):
+            start = IntImm(start.ty, 0)
         else:
             start = 0
     return _ffi_api.Unroll(start, stop, annotations, step)  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -1355,14 +1355,14 @@ def thread_binding(
             raise ValueError("Thread cannot be None for thread_binding")
         thread = stop
         stop = start
-        if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+        if isinstance(start, PrimExpr):
+            start = IntImm(start.ty, 0)
         else:
             start = 0
     elif stop is None:
         stop = start
-        if hasattr(start, "dtype"):
-            start = IntImm(start.dtype, 0)
+        if isinstance(start, PrimExpr):
+            start = IntImm(start.ty, 0)
         else:
             start = 0
     return _ffi_api.ThreadBinding(  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -1502,7 +1502,8 @@ class LetAnnotation:
             else:
                 raise TypeError(f"Invalid type for T.let: {self.type_spec}")
         elif rhs_dtype is not None:
-            return Var("", ir.PrimType(rhs_dtype))
+            rhs_ty = rhs_dtype if isinstance(rhs_dtype, Type) else ir.PrimType(rhs_dtype)
+            return Var("", rhs_ty)
         else:
             raise TypeError("T.let requires either a type or an RHS value")
 
@@ -2799,7 +2800,7 @@ def comm_reducer(combiner: Callable, identity: list[PrimExpr]) -> CommReducer:
         if isinstance(i, int):
             args.append(Var(name, "int32"))
         else:
-            args.append(Var(name, i.dtype))
+            args.append(Var(name, i.ty))
     res = combiner(*args)
     if not isinstance(res, tuple):
         res = (res,)
@@ -2986,19 +2987,19 @@ class WebGPUNamespace:
     def subgroup_shuffle(var, lane):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.webgpu.subgroup_shuffle", var, lane)
+        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle", var, lane)
 
     @staticmethod
     def subgroup_shuffle_up(var, delta):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.webgpu.subgroup_shuffle_up", var, delta)
+        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_up", var, delta)
 
     @staticmethod
     def subgroup_shuffle_down(var, delta):
         if isinstance(var, Buffer):
             var = var[0]
-        return _tir_op.call_intrin(var.dtype, "tirx.webgpu.subgroup_shuffle_down", var, delta)
+        return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_down", var, delta)
 
 
 webgpu = WebGPUNamespace()

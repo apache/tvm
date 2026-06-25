@@ -38,7 +38,8 @@ inline PrimExpr DispatchPureExternLibDevice(const PrimExpr& e) {
   using namespace tirx;
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
-  TVM_FFI_ICHECK(call->dtype.bits() == 32 || call->dtype.bits() == 64)
+  PrimType call_ty = call->ty();
+  TVM_FFI_ICHECK(call_ty.bits() == 32 || call_ty.bits() == 64)
       << "Only support float32 or float64.";
 
   const OpNode* op = call->op.as<OpNode>();
@@ -48,13 +49,13 @@ inline PrimExpr DispatchPureExternLibDevice(const PrimExpr& e) {
 
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << name.substr(5);
-  if (call->dtype.bits() == 32) intrinsic_name << "f";
+  if (call_ty.bits() == 32) intrinsic_name << "f";
 
   ffi::Array<PrimExpr> new_args = {StringImm(intrinsic_name.str())};
   for (auto arg : call->args) {
     new_args.push_back(arg);
   }
-  return Call(call->dtype, builtin::call_pure_extern(), new_args);
+  return Call(call->ty(), builtin::call_pure_extern(), new_args);
 }
 
 namespace llvm {
@@ -73,7 +74,7 @@ TVM_REGISTER_OP("tirx.round")
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       static const Op& nearbyint_op = Op::Get("tirx.nearbyint");
-      auto new_call = Call(call->dtype, nearbyint_op, call->args);
+      auto new_call = Call(call->ty(), nearbyint_op, call->args);
       return DispatchPureExternLibDevice(new_call);
     });
 
