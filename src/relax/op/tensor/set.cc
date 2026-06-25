@@ -84,9 +84,8 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
     return val_imm->value;
   };
 
-  int64_t n_int_return =
-      f_convert_to_int64(return_index) + f_convert_to_int64(return_inverse) +
-      f_convert_to_int64(return_counts);
+  int64_t n_int_return = f_convert_to_int64(return_index) + f_convert_to_int64(return_inverse) +
+                         f_convert_to_int64(return_counts);
 
   std::vector<Type> output_ty;
   output_ty.reserve(1 + n_int_return);

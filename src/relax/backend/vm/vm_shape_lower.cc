@@ -399,8 +399,7 @@ class VMShapeLowerMutator
       return ffi::GetRef<Expr>(op);
     }
 
-    ffi::Array<Expr> args = {shape_heap_,
-                             IntImm::Int64(static_cast<int64_t>(op->values.size()))};
+    ffi::Array<Expr> args = {shape_heap_, IntImm::Int64(static_cast<int64_t>(op->values.size()))};
     for (PrimExpr expr : op->values) {
       auto [code, value_or_index] = MakeSymbolicShapeArg(expr);
       args.push_back(code);
@@ -657,8 +656,8 @@ class VMShapeLowerMutator
     // emit runtime check of shape
     if (always_check || !IsBaseOf(ShapeType(op->ndim), GetType(value))) {
       // check_shape_info(value, ndim, err_ctx)
-      Call call(builtin_check_shape_info_,
-                {value, IntImm::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
+      Call call(builtin_check_shape_info_, {value, IntImm::Int64(op->ndim), GetErrContext(err_ctx)},
+                Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }
     if (op->values.defined()) {
@@ -682,10 +681,10 @@ class VMShapeLowerMutator
     }
     if (always_check || !IsBaseOf(TensorType(PrimType(op->dtype), op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
-      Call call(builtin_check_tensor_info_,
-                {value, IntImm::Int64(op->ndim), DataTypeImm(op->dtype->dtype),
-                 GetErrContext(err_ctx)},
-                Attrs(), {void_ty_});
+      Call call(
+          builtin_check_tensor_info_,
+          {value, IntImm::Int64(op->ndim), DataTypeImm(op->dtype->dtype), GetErrContext(err_ctx)},
+          Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }
 
@@ -731,10 +730,10 @@ class VMShapeLowerMutator
     }
     if (always_check || !value_tinfo) {
       // check_tuple_info(value, tuple_size)
-      Call call(builtin_check_tuple_info_,
-                {value, IntImm::Int64(static_cast<int64_t>(op->fields.size())),
-                 GetErrContext(err_ctx)},
-                Attrs(), {void_ty_});
+      Call call(
+          builtin_check_tuple_info_,
+          {value, IntImm::Int64(static_cast<int64_t>(op->fields.size())), GetErrContext(err_ctx)},
+          Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }
     // recursively visit each sub-field and run matching

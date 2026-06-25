@@ -1455,13 +1455,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("relax.op.vm.alloc_tensor", [](ffi::PackedArgs args, ffi::Any* ret) {
     if (args.size() == 5) {
-      *ret =
-          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(), args[2].cast<Expr>(),
-                            args[3].cast<DataTypeImm>(), args[4].cast<PrimExpr>());
+      *ret = MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(), args[2].cast<Expr>(),
+                               args[3].cast<DataTypeImm>(), args[4].cast<PrimExpr>());
     } else {
-      *ret =
-          MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(), args[2].cast<Expr>(),
-                            args[3].cast<DataTypeImm>(), IntImm::Int64(0));
+      *ret = MakeVMAllocTensor(args[0].cast<Expr>(), args[1].cast<PrimExpr>(), args[2].cast<Expr>(),
+                               args[3].cast<DataTypeImm>(), IntImm::Int64(0));
     }
   });
 }

@@ -77,7 +77,7 @@ class GlobalVar(Expr):
         """
         # pylint: disable=import-outside-toplevel
 
-        if all(isinstance(x, Number | PrimExpr) for x in args):
+        if args and all(isinstance(x, Number | PrimExpr) for x in args):
             return tvm.tirx.call_tir(self, *args)
 
         if all(isinstance(x, Expr) for x in args):

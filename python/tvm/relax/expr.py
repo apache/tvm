@@ -64,8 +64,10 @@ def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimE
     """
     if isinstance(value, PrimExpr):
         return value
-    if isinstance(value, bool | int):
-        return tvm.tirx.IntImm(dtype or "int64", int(value))
+    if isinstance(value, bool):
+        return tvm.tirx.IntImm(dtype or "bool", int(value))
+    if isinstance(value, int):
+        return tvm.tirx.IntImm(dtype or "int64", value)
     if isinstance(value, float):
         return tvm.tirx.FloatImm(dtype or "float64", value)
     tvm_value = tvm_ffi.convert(value)

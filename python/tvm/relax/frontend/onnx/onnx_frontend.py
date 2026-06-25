@@ -281,7 +281,7 @@ def get_prim_expr_list(
     elif isinstance(inputs, relax.ShapeExpr):
         return inputs.values
     elif isinstance(inputs, tvm.tirx.PrimExpr):
-        return [inputs.value.value]
+        return [inputs]
     else:
         raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
 
@@ -442,10 +442,9 @@ class MatMulInteger16(OnnxOpConverter):
 
 def _to_numpy(x):
     if isinstance(x, tvm.tirx.PrimExpr):
-        x = x.value
         if isinstance(x, tirx.IntImm | tirx.FloatImm):
-            x = x.value
-        return _np.array(x)
+            return _np.array(x.value)
+        return x
     else:
         return x.data.numpy()
 
@@ -475,18 +474,19 @@ class BinaryBase(OnnxOpConverter):
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
         if all([not isinstance(inp, relax.expr.Call | relax.Var) for inp in inputs]):
+            has_prim_expr = any([isinstance(inp, tvm.tirx.PrimExpr) for inp in inputs])
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
-            if isinstance(x, tvm.tirx.PrimExpr) and isinstance(y, tvm.tirx.PrimExpr):
-                return relax.prim_value(output.item())
+            if has_prim_expr:
+                if hasattr(output, "item"):
+                    output = output.item()
+                return relax.prim_value(output)
             if x.dtype == y.dtype:
                 # no numpy precision widening
                 output = output.astype(x.dtype)
             if all([isinstance(inp, relax.Constant) for inp in inputs]):
                 return relax.const(output, output.dtype)  # pylint: disable=not-callable
-            if any([isinstance(inp, tvm.tirx.PrimExpr) for inp in inputs]):
-                return relax.prim_value(output.item())  # pylint: disable=not-callable
 
         return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
 
@@ -992,7 +992,7 @@ class Unsqueeze(OnnxOpConverter):
                 list(map(int, axes.data.numpy().tolist())), 1, "Unsqueeze"
             )
             if constant_axes == [0]:
-                return relax.ShapeExpr([data.value])
+                return relax.ShapeExpr([data])
             raise NotImplementedError("Unsqueeze with symbolic scalar inputs only supports axis 0.")
         if isinstance(data, relax.Constant) and isinstance(axes, relax.Constant):
             constant_axes = _normalize_constant_axes(

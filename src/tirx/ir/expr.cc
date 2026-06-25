@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                          \
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n"; \
     ffi::ObjectPtr<T> node = ffi::make_object<T>();                               \
-    node->ExprNode::ty = a.get()->ExprNode::ty;                           \
+    node->ExprNode::ty = a.get()->ExprNode::ty;                                   \
     node->a = std::move(a);                                                       \
     node->b = std::move(b);                                                       \
     node->span = std::move(span);                                                 \
@@ -150,7 +150,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                          \
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n"; \
     ffi::ObjectPtr<T> node = ffi::make_object<T>();                               \
-    node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes}); \
+    node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});     \
     node->a = std::move(a);                                                       \
     node->b = std::move(b);                                                       \
     node->span = std::move(span);                                                 \
@@ -893,7 +893,7 @@ void BufferLoadNode::LegalizeDType() {
                                    index_ty.VScaleFactor() * buffer->dtype.lanes());
     } else if (is_buffer_dtype_scalable) {
       this->ExprNode::ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
-                                                        -buffer_encoded_lanes * index_ty.lanes());
+                                                    -buffer_encoded_lanes * index_ty.lanes());
     } else {
       this->ExprNode::ty = buffer->dtype.WithLanes(index_ty.lanes() * buffer->dtype.lanes());
     }

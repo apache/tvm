@@ -2151,7 +2151,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return val
 
             if isinstance(bound, tirx.PrimExpr):
-                value = _adjust(bound.value)
+                value = _adjust(bound)
                 return relax.prim_value(value)
 
             bound = _adjust(bound)
