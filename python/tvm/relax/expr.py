@@ -40,7 +40,7 @@ from . import _ffi_api
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-Expr = tvm.ir.RelaxExpr
+Expr = tvm.ir.Expr
 Type = tvm.ir.Type  # pylint: disable=invalid-name
 GlobalVar = tvm.ir.GlobalVar
 

@@ -30,7 +30,7 @@ from .base import (
     load_json,
     save_json,
 )
-from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelaxExpr
+from .expr import Expr, GlobalVar, PrimExpr, Range
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo, DummyGlobalInfo, VDevice
 from .module import IRModule

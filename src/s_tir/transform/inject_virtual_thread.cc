@@ -228,7 +228,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
 
-      return Call(op->BaseExprNode::ty.as_or_throw<PrimType>(), op->op,
+      return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op,
                   {op->args[0], op->args[1], offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? ffi::GetRef<PrimExpr>(op) : var_;

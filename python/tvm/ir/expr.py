@@ -27,8 +27,8 @@ from . import _ffi_api
 from .base import Node, Span
 
 
-@tvm_ffi.register_object("ir.BaseExpr")
-class BaseExpr(Node):
+@tvm_ffi.register_object("ir.Expr")
+class Expr(Node):
     """Base class of all the expressions."""
 
     span: Span | None
@@ -36,7 +36,7 @@ class BaseExpr(Node):
 
 
 @tvm_ffi.register_object("ir.PrimExpr")
-class PrimExpr(BaseExpr):
+class PrimExpr(Expr):
     """Base class of all primitive expressions.
 
     PrimExpr is used in the low-level code
@@ -44,13 +44,8 @@ class PrimExpr(BaseExpr):
     """
 
 
-@tvm_ffi.register_object("ir.RelaxExpr")
-class RelaxExpr(BaseExpr):
-    """Base class of all non-primitive expressions."""
-
-
 @tvm_ffi.register_object("ir.GlobalVar")
-class GlobalVar(RelaxExpr):
+class GlobalVar(Expr):
     """A global variable in the IR.
 
     GlobalVar is used to refer to the global functions
@@ -67,29 +62,28 @@ class GlobalVar(RelaxExpr):
     def __init__(self, name_hint: str):
         self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint)
 
-    def __call__(self, *args: RelaxExpr) -> BaseExpr:
+    def __call__(self, *args: Expr) -> Expr:
         """Call the global variable.
 
         Parameters
         ----------
-        args: List[RelaxExpr]
+        args: List[Expr]
             The arguments to the call.
 
         Returns
         -------
-        call: BaseExpr
+        call: Expr
             A call taking the variable as a function.
         """
         # pylint: disable=import-outside-toplevel
 
-        # TODO(@relax-team): replace with Relax base class after it's introduced
-        if all(isinstance(x, RelaxExpr) for x in args):
+        if all(isinstance(x, Number | PrimExpr) for x in args):
+            return tvm.tirx.call_tir(self, *args)
+
+        if all(isinstance(x, Expr) for x in args):
             from tvm import relax
 
             return relax.Call(self, args)
-
-        elif all(isinstance(x, Number | PrimExpr) for x in args):
-            return tvm.tirx.call_tir(self, *args)
 
         arg_types = [type(x) for x in args]
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")

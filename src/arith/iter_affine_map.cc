@@ -67,7 +67,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 IterSplitExpr::IterSplitExpr(IterMark source) {
   auto n = ffi::make_object<IterSplitExprNode>();
   auto one = MakeConst(source->source.ty(), 1);
-  n->BaseExprNode::ty = source->source.ty();
+  n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->extent = n->source->extent;
   n->lower_factor = one;
@@ -78,7 +78,7 @@ IterSplitExpr::IterSplitExpr(IterMark source) {
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) {
   auto n = ffi::make_object<IterSplitExprNode>();
   auto one = MakeConst(source->source.ty(), 1);
-  n->BaseExprNode::ty = source->source.ty();
+  n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->extent = n->source->extent;
   n->lower_factor = one;
@@ -89,7 +89,7 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) {
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
                              PrimExpr scale) {
   auto n = ffi::make_object<IterSplitExprNode>();
-  n->BaseExprNode::ty = source->source.ty();
+  n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->lower_factor = std::move(lower_factor);
   n->extent = std::move(extent);
@@ -109,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterSumExpr::IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base) {
   auto n = ffi::make_object<IterSumExprNode>();
-  n->BaseExprNode::ty = base.ty();
+  n->ExprNode::ty = base.ty();
   n->args = std::move(args);
   n->base = std::move(base);
   data_ = std::move(n);

@@ -67,13 +67,13 @@ class VirtualDevice;
  *
  * \sa PrimExpr
  */
-class PrimExprNode : public BaseExprNode {
+class PrimExprNode : public ExprNode {
  public:
   /*! \return the primitive type of this expression node. */
   PrimType ty() const {
-    TVM_FFI_DCHECK(this->BaseExprNode::ty.defined());
-    TVM_FFI_DCHECK(this->BaseExprNode::ty->IsInstance<PrimTypeNode>());
-    return ffi::GetRef<PrimType>(static_cast<const PrimTypeNode*>(this->BaseExprNode::ty.get()));
+    TVM_FFI_DCHECK(this->ExprNode::ty.defined());
+    TVM_FFI_DCHECK(this->ExprNode::ty->IsInstance<PrimTypeNode>());
+    return ffi::GetRef<PrimType>(static_cast<const PrimTypeNode*>(this->ExprNode::ty.get()));
   }
 
   static void RegisterReflection() {
@@ -82,14 +82,14 @@ class PrimExprNode : public BaseExprNode {
   }
 
   static constexpr const uint32_t _type_child_slots = 40;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExpr", PrimExprNode, BaseExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExpr", PrimExprNode, ExprNode);
 };
 
 /*!
  * \brief Reference to PrimExprNode.
  * \sa PrimExprNode
  */
-class PrimExpr : public BaseExpr {
+class PrimExpr : public Expr {
  public:
   /*!
    * \brief construct from integer.
@@ -105,12 +105,12 @@ class PrimExpr : public BaseExpr {
   /*! \return the primitive type of this expression. */
   PrimType ty() const {
     const auto* node = static_cast<const PrimExprNode*>(get());
-    TVM_FFI_DCHECK(node->BaseExprNode::ty.defined());
-    TVM_FFI_DCHECK(node->BaseExprNode::ty->IsInstance<PrimTypeNode>());
-    return ffi::GetRef<PrimType>(static_cast<const PrimTypeNode*>(node->BaseExprNode::ty.get()));
+    TVM_FFI_DCHECK(node->ExprNode::ty.defined());
+    TVM_FFI_DCHECK(node->ExprNode::ty->IsInstance<PrimTypeNode>());
+    return ffi::GetRef<PrimType>(static_cast<const PrimTypeNode*>(node->ExprNode::ty.get()));
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExpr, BaseExpr, PrimExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExpr, Expr, PrimExprNode);
 
   /*!
    * \brief construct from string to form a StringImm.
@@ -377,35 +377,6 @@ TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr operator~(PrimExpr a);
 
-/*!
- * \brief Base node of all non-primitive expressions.
- *
- * RelaxExpr supports tensor and functions as first class citizen.
- * The life-cycle of the corresponding
- * objects are implicitly managed by the language.
- *
- * \sa RelaxExpr
- */
-class RelaxExprNode : public BaseExprNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RelaxExprNode>();
-  }
-
-  static constexpr const uint32_t _type_child_slots = 22;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.RelaxExpr", RelaxExprNode, BaseExprNode);
-};
-
-/*!
- * \brief Managed reference to RelaxExprNode.
- * \sa RelaxExprNode
- */
-class RelaxExpr : public BaseExpr {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RelaxExpr, BaseExpr, RelaxExprNode);
-};
-
 class GlobalVar;
 /*!
  * \brief Global variable that lives in the top-level module.
@@ -415,7 +386,7 @@ class GlobalVar;
  *
  * \sa GlobalVarNode
  */
-class GlobalVarNode : public RelaxExprNode {
+class GlobalVarNode : public ExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
   ffi::String name_hint;
@@ -435,18 +406,18 @@ class GlobalVarNode : public RelaxExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVar", GlobalVarNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GlobalVar", GlobalVarNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to GlobalVarNode.
  * \sa GlobalVarNode
  */
-class GlobalVar : public RelaxExpr {
+class GlobalVar : public Expr {
  public:
   TVM_DLL explicit GlobalVar(ffi::String name_hint, Span span = {});
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalVar, RelaxExpr, GlobalVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalVar, Expr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 

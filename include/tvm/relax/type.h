@@ -38,8 +38,8 @@
 namespace tvm {
 namespace relax {
 
-using Expr = RelaxExpr;
-using ExprNode = RelaxExprNode;
+using Expr = tvm::Expr;
+using ExprNode = tvm::ExprNode;
 
 class BlockBuilder;
 class Call;

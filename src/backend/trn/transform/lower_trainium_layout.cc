@@ -213,7 +213,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     if (load_returns_bool) {
       TVM_FFI_ICHECK_EQ(load->buffer->dtype->dtype, (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
-      load.CopyOnWrite()->BaseExprNode::ty = PrimType::Int(8);
+      load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
       return tvm::cast(PrimType::Bool(), load);
     } else {
       return std::move(load);

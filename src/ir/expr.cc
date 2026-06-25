@@ -37,9 +37,8 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  BaseExprNode::RegisterReflection();
+  ExprNode::RegisterReflection();
   PrimExprNode::RegisterReflection();
-  RelaxExprNode::RegisterReflection();
   BaseFuncNode::RegisterReflection();
   GlobalVarNode::RegisterReflection();
   IntImmNode::RegisterReflection();
@@ -81,7 +80,7 @@ IntImm::IntImm(PrimType value_ty, int64_t value, Span span) {
         << "Literal value " << value << " exceeds maximum of " << runtime_dtype;
   }
   ffi::ObjectPtr<IntImmNode> node = ffi::make_object<IntImmNode>();
-  node->BaseExprNode::ty = std::move(value_ty);
+  node->ExprNode::ty = std::move(value_ty);
   node->value = value;
   node->span = span;
   data_ = std::move(node);
@@ -200,7 +199,7 @@ FloatImm::FloatImm(PrimType value_ty, double value, Span span) {
     }
   }
   ffi::ObjectPtr<FloatImmNode> node = ffi::make_object<FloatImmNode>();
-  node->BaseExprNode::ty = std::move(value_ty);
+  node->ExprNode::ty = std::move(value_ty);
   node->value = value;
   node->span = span;
   data_ = std::move(node);
