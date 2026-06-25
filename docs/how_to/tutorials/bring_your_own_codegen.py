@@ -193,6 +193,9 @@ else:
 #   into the engine it builds, so bind the parameters before partitioning.
 # - **Real values.** TensorRT actually computes, so we build for CUDA, run on
 #   the GPU, and cross-check against a plain CPU build -- not just the shape.
+#
+# The build-and-run cells below execute only when TensorRT and CUDA are
+# available. In CPU-only documentation builds, they produce no output.
 
 trt_mod = relax.transform.BindParams("main", {"weight": weight_np})(ConvReLU)
 trt_mod = partition_for_tensorrt(trt_mod)
@@ -218,8 +221,6 @@ if has_tensorrt and has_cuda:
 
     np.testing.assert_allclose(trt_out, cpu_out, rtol=1e-2, atol=1e-2)
     print("TensorRT output shape:", trt_out.shape, "- matches the CPU reference.")
-else:
-    print("TensorRT/CUDA unavailable; skipping the GPU build and run.")
 
 ######################################################################
 # A real backend also exposes knobs the stub does not.  Setting ``use_fp16``
@@ -244,8 +245,6 @@ if has_tensorrt and has_cuda:
 
     np.testing.assert_allclose(fp16_out, cpu_out, rtol=5e-2, atol=5e-2)
     print("TensorRT FP16 output shape:", fp16_out.shape, "- matches within FP16 tolerance.")
-else:
-    print("TensorRT/CUDA unavailable; skipping the FP16 build.")
 
 ######################################################################
 # Example NPU vs TensorRT at a glance
@@ -322,8 +321,6 @@ if has_torch and has_tensorrt and has_cuda:
 
     np.testing.assert_allclose(deployed, torch_ref, rtol=1e-2, atol=1e-2)
     print("Deployed PyTorch model on TensorRT; output", deployed.shape, "matches PyTorch.")
-else:
-    print("PyTorch / TensorRT / CUDA unavailable; skipping the deployment example.")
 
 ######################################################################
 # Real deployment builds once and reuses the artifact.  Export the compiled
@@ -340,8 +337,6 @@ if has_torch and has_tensorrt and has_cuda:
         )[0].numpy()
         np.testing.assert_allclose(reran, torch_ref, rtol=1e-2, atol=1e-2)
         print("Reloaded the exported library and reran; output", reran.shape, "still matches.")
-else:
-    print("PyTorch / TensorRT / CUDA unavailable; skipping the export/reload step.")
 
 ######################################################################
 # Notes for real deployments
