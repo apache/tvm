@@ -10614,16 +10614,47 @@ def test_stablehlo_dynamic_update_slice():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_stablehlo_dynamic_update_slice_dynamic_starts_unsupported():
-    """TFLite StableHLO DYNAMIC_UPDATE_SLICE with runtime starts is unsupported."""
-    buf = _build_stablehlo_dynamic_update_slice_model([0, 0], dynamic_starts=True)
-    if hasattr(tflite.Model, "Model"):
-        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
-    else:
-        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+def test_stablehlo_dynamic_update_slice_dynamic_starts():
+    """TFLite StableHLO DYNAMIC_UPDATE_SLICE with runtime starts lowers structurally."""
+    mod = _load_model_from_buffer(
+        _build_stablehlo_dynamic_update_slice_model([0, 0], dynamic_starts=True)
+    )
 
-    with pytest.raises(tvm.error.OpNotImplemented, match="dynamic start"):
-        from_tflite(tflite_model)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            operand: R.Tensor((3, 4), dtype="float32"),
+            update: R.Tensor((2, 2), dtype="float32"),
+            s0: R.Tensor((), dtype="int32"),
+            s1: R.Tensor((), dtype="int32"),
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            R.func_attr({"num_input": 4})
+            with R.dataflow():
+                lv: R.Tensor((2,), dtype="int64") = R.arange(0, 2, 1, dtype="int64")
+                lv1: R.Tensor((), dtype="int64") = R.astype(s0, dtype="int64")
+                lv2: R.Tensor((), dtype="int64") = R.maximum(lv1, R.const(0, "int64"))
+                lv3: R.Tensor((), dtype="int64") = R.minimum(lv2, R.const(1, "int64"))
+                lv4: R.Tensor((2,), dtype="int64") = R.add(lv, lv3)
+                lv5: R.Tensor((2, 1), dtype="int64") = R.reshape(lv4, (2, 1))
+                lv6: R.Tensor((2, 2), dtype="int64") = R.broadcast_to(lv5, (2, 2))
+                lv7: R.Tensor((2,), dtype="int64") = R.arange(0, 2, 1, dtype="int64")
+                lv8: R.Tensor((), dtype="int64") = R.astype(s1, dtype="int64")
+                lv9: R.Tensor((), dtype="int64") = R.maximum(lv8, R.const(0, "int64"))
+                lv10: R.Tensor((), dtype="int64") = R.minimum(lv9, R.const(2, "int64"))
+                lv11: R.Tensor((2,), dtype="int64") = R.add(lv7, lv10)
+                lv12: R.Tensor((1, 2), dtype="int64") = R.reshape(lv11, (1, 2))
+                lv13: R.Tensor((2, 2), dtype="int64") = R.broadcast_to(lv12, (2, 2))
+                lv14: R.Tensor((2, 2, 1), dtype="int64") = R.expand_dims(lv6, axis=[-1])
+                lv15: R.Tensor((2, 2, 1), dtype="int64") = R.expand_dims(lv13, axis=[-1])
+                lv16: R.Tensor((2, 2, 2), dtype="int64") = R.concat((lv14, lv15), axis=-1)
+                gv: R.Tensor((3, 4), dtype="float32") = R.scatter_nd(
+                    operand, lv16, update, reduction="update"
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 def test_stablehlo_dynamic_update_slice_out_of_bounds_unsupported():

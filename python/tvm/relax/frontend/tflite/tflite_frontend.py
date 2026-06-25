@@ -3349,7 +3349,13 @@ class OperatorConverter:
         return self.bb.normalize(relax.op.dynamic_strided_slice(operand, begin, end, strides))
 
     def _convert_stablehlo_dynamic_update_slice(self, op):
-        """Convert STABLEHLO_DYNAMIC_UPDATE_SLICE to Relax for static starts."""
+        """Convert STABLEHLO_DYNAMIC_UPDATE_SLICE to Relax.
+
+        Lowers to ``relax.op.scatter_nd``. Constant start indices build the index
+        grid at compile time; runtime (dynamic) start indices build it in-graph
+        with ``arange`` + broadcast, clamping each start to
+        ``[0, operand_dim - update_dim]`` per StableHLO semantics.
+        """
         input_tensors = self.get_input_tensors(op)
         # operand + update + N start-index scalars
         assert len(input_tensors) >= 3, "input tensors length should be >= 3"
@@ -3368,11 +3374,21 @@ class OperatorConverter:
                 "STABLEHLO_DYNAMIC_UPDATE_SLICE requires operand, update, "
                 "and start-index ranks to match"
             )
+        for dim, size in zip(operand_shape, update_shape):
+            if size > dim:
+                raise tvm.error.OpNotImplemented(
+                    "STABLEHLO_DYNAMIC_UPDATE_SLICE update shape must be smaller than "
+                    "or equal to operand shape for all dimensions"
+                )
+
+        operand = self.get_tensor_expr(operand_tensor)
+        update = self.get_tensor_expr(update_tensor)
 
         if any(self.has_expr(t.tensor_idx) for t in start_tensors):
-            raise tvm.error.OpNotImplemented(
-                "STABLEHLO_DYNAMIC_UPDATE_SLICE with dynamic start indices is not supported"
+            indices = self._build_dynamic_update_slice_indices(
+                start_tensors, operand_shape, update_shape, rank
             )
+            return self.bb.normalize(relax.op.scatter_nd(operand, indices, update, "update"))
 
         start_vals = [int(np.asarray(self.get_tensor_value(t)).item()) for t in start_tensors]
         for start, size, dim in zip(start_vals, update_shape, operand_shape):
@@ -3387,10 +3403,36 @@ class OperatorConverter:
             update_indices[axis] += start
         update_indices = np.moveaxis(update_indices, 0, -1)
 
-        operand = self.get_tensor_expr(operand_tensor)
-        update = self.get_tensor_expr(update_tensor)
         indices = self.bb.normalize(relax.const(update_indices, dtype="int64"))
         return self.bb.normalize(relax.op.scatter_nd(operand, indices, update, "update"))
+
+    def _build_dynamic_update_slice_indices(self, start_tensors, operand_shape, update_shape, rank):
+        """Build the scatter_nd index grid for runtime DYNAMIC_UPDATE_SLICE starts.
+
+        Returns an int64 tensor of shape ``(*update_shape, rank)`` where axis ``a``
+        holds ``arange(update_shape[a]) + clamp(start[a], 0, operand_dim - update_dim)``,
+        broadcast over the other axes (StableHLO clamps out-of-range starts).
+        """
+        axis_indices = []
+        for axis in range(rank):
+            start_expr = self.bb.normalize(
+                relax.op.astype(self.get_tensor_expr(start_tensors[axis]), "int64")
+            )
+            max_start = operand_shape[axis] - update_shape[axis]
+            start_expr = relax.op.maximum(start_expr, relax.const(0, "int64"))
+            start_expr = relax.op.minimum(start_expr, relax.const(max_start, "int64"))
+
+            base = relax.op.arange(0, update_shape[axis], 1, "int64")
+            idx = relax.op.add(base, start_expr)
+
+            broadcast_shape = [1] * rank
+            broadcast_shape[axis] = update_shape[axis]
+            idx = self.bb.normalize(relax.op.reshape(idx, broadcast_shape))
+            idx = self.bb.normalize(relax.op.broadcast_to(idx, update_shape))
+            idx = self.bb.normalize(relax.op.expand_dims(idx, axis=-1))
+            axis_indices.append(idx)
+
+        return self.bb.normalize(relax.op.concat(axis_indices, axis=-1))
 
     def _convert_stablehlo_dot_general(self, op):
         """Convert the canonical 2D STABLEHLO_DOT_GENERAL subset to Relax matmul."""
