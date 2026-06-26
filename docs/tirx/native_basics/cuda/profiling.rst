@@ -189,6 +189,78 @@ Constructor arguments:
 2) is reserved in the wire format and understood by the decoder, but there is no
 method that produces one.
 
+Groups and granularity
+----------------------
+
+A block's threads are partitioned into ``num_groups`` logical *groups*, and the
+trace's unit is one ``(block, group)`` lane — each becomes its own track. The
+partition is yours: a group can be a warp-group, a single warp, or any set of
+threads, and it does **not** have to align to a warp (the recording path has no
+warp-collective op — just a predicated per-thread store and a block fence). Two
+rules:
+
+* a thread joins a group by calling ``init(group_id)``, which points *its* write
+  cursor at that group's lane;
+* exactly one thread per group is the leader and actually writes — pick it with a
+  predicate that is true for one thread in the group, and it must be a thread that
+  called ``init`` for that group.
+
+Because each leader has its own cursor, one ``start`` / ``end`` statement records
+into *every* group at once: each leader stamps its own lane.
+
+**Groups as warp-groups.** A 256-thread block is two warp-groups; give each its
+own ``group_id`` and make its first thread the leader. Here the two warp-groups do
+different amounts of compute, so their tracks have different durations:
+
+.. code-block:: python
+
+    NUM_GROUPS = 2
+    p = CudaProfiler(prof, write_stride=NUM_BLOCKS * NUM_GROUPS, num_groups=NUM_GROUPS,
+                     default_leader=(tid % 128 == 0))   # first thread of each warp-group
+    if tid < 128:
+        p.init(0)
+    else:
+        p.init(1)
+    # ... load ...
+    p.start(Ev.Compute)
+    if tid < 128:
+        for _ in range(1000):           # warp-group 0: light
+            acc = acc * T.float32(1.0001) + x
+    else:
+        for _ in range(5000):           # warp-group 1: heavy
+            acc = acc * T.float32(1.0001) + x
+    p.end(Ev.Compute)
+
+::
+
+    block 0 group 0: load=96ns, compute=3040ns,  store=64ns
+    block 0 group 1: load=96ns, compute=10816ns, store=64ns
+    block 1 group 0: load=96ns, compute=3072ns,  store=64ns
+    block 1 group 1: load=128ns, compute=10784ns, store=64ns
+
+**Groups that are not warp multiples.** A 128-thread block split 48 / 48 / 32
+works the same way — the leaders are the base thread of each group, and the
+48-thread groups (1.5 warps, crossing warp boundaries) each record a correct
+track:
+
+.. code-block:: python
+
+    NUM_GROUPS = 3                                  # groups [0, 48) [48, 96) [96, 128)
+    p = CudaProfiler(prof, write_stride=NUM_BLOCKS * NUM_GROUPS, num_groups=NUM_GROUPS,
+                     default_leader=((tid == 0) | (tid == 48) | (tid == 96)))
+    if tid < 48:
+        p.init(0)
+    elif tid < 96:
+        p.init(1)
+    else:
+        p.init(2)
+
+::
+
+    block 0 group 0: load=96ns, compute=4544ns, store=64ns   # 48 threads (1.5 warps)
+    block 0 group 1: load=64ns, compute=4512ns, store=96ns   # 48 threads, crosses warp lines
+    block 0 group 2: load=64ns, compute=4576ns, store=64ns   # 32 threads
+
 What each call wraps
 --------------------
 
