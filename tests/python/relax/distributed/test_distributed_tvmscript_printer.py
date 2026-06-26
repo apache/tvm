@@ -45,7 +45,7 @@ def test_constant():
 
 def test_dtensor_type():
     tensor_ty1 = TensorType((32, 32), "float32")
-    tensor_ty2 = TensorType((32, 32), "void")
+    tensor_ty2 = TensorType((32, 32), None)
     obj0 = DTensorType(tensor_ty1, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj0.__str__()

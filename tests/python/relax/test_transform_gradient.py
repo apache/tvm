@@ -952,10 +952,10 @@ def test_simplify_matmul_pattern():
                 lv3_adjoint: R.Tensor((3, 3), dtype="float32") = R.broadcast_to(gv_adjoint, R.shape([3, 3]))
                 lv: R.Tensor((3, 3), dtype="float32") = R.permute_dims(lv3_adjoint, axes=[1, 0])
                 lv1_1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(x, axes=[1, 0])
-                y_adjoint: R.Tensor((3, 3), dtype="float32") = R.matmul(lv, lv1_1, out_dtype="void")
+                y_adjoint: R.Tensor((3, 3), dtype="float32") = R.matmul(lv, lv1_1)
                 lv2_1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(y, axes=[1, 0])
                 lv3_1: R.Tensor((3, 3), dtype="float32") = R.permute_dims(lv3_adjoint, axes=[1, 0])
-                x_adjoint: R.Tensor((3, 3), dtype="float32") = R.matmul(lv2_1, lv3_1, out_dtype="void")
+                x_adjoint: R.Tensor((3, 3), dtype="float32") = R.matmul(lv2_1, lv3_1)
                 x_adjoint_out: R.Tensor((3, 3), dtype="float32") = x_adjoint
                 y_adjoint_out: R.Tensor((3, 3), dtype="float32") = y_adjoint
                 R.output(gv, x_adjoint_out, y_adjoint_out)
@@ -1290,7 +1290,7 @@ def test_mlp_script():
         @R.function
         def main_adjoint(x: R.Tensor((3, 10), dtype="float32"), w0: R.Tensor((10, 5), dtype="float32"), b0: R.Tensor((5,), dtype="float32"), label: R.Tensor((3, 5), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tuple(R.Tensor((10, 5), dtype="float32"), R.Tensor((5,), dtype="float32"))):
             with R.dataflow():
-                lv0: R.Tensor((3, 5), dtype="float32") = R.matmul(x, w0, out_dtype="void")
+                lv0: R.Tensor((3, 5), dtype="float32") = R.matmul(x, w0)
                 out: R.Tensor((3, 5), dtype="float32") = R.add(lv0, b0)
                 logits: R.Tensor((3, 5), dtype="float32") = R.nn.log_softmax(out, axis=-1)
                 loss: R.Tensor((), dtype="float32") = R.nn.cross_entropy_with_logits(logits, label)
@@ -1305,7 +1305,7 @@ def test_mlp_script():
                 lv0_adjoint: R.Tensor((3, 5), dtype="float32") = out_adjoint
                 b0_adjoint: R.Tensor((5,), dtype="float32") = R.collapse_sum_to(out_adjoint, R.shape([5]))
                 lv7: R.Tensor((10, 3), dtype="float32") = R.permute_dims(x, axes=[1, 0])
-                w0_adjoint: R.Tensor((10, 5), dtype="float32") = R.matmul(lv7, lv0_adjoint, out_dtype="void")
+                w0_adjoint: R.Tensor((10, 5), dtype="float32") = R.matmul(lv7, lv0_adjoint)
                 w0_adjoint_out: R.Tensor((10, 5), dtype="float32") = w0_adjoint
                 b0_adjoint_out: R.Tensor((5,), dtype="float32") = b0_adjoint
                 R.output(loss, w0_adjoint_out, b0_adjoint_out)
@@ -1314,7 +1314,7 @@ def test_mlp_script():
         @R.function
         def main(x: R.Tensor((3, 10), dtype="float32"), w0: R.Tensor((10, 5), dtype="float32"), b0: R.Tensor((5,), dtype="float32"), label: R.Tensor((3, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             with R.dataflow():
-                lv0: R.Tensor((3, 5), dtype="float32") = R.matmul(x, w0, out_dtype="void")
+                lv0: R.Tensor((3, 5), dtype="float32") = R.matmul(x, w0)
                 out: R.Tensor((3, 5), dtype="float32") = R.add(lv0, b0)
                 logits: R.Tensor((3, 5), dtype="float32") = R.nn.log_softmax(out, axis=-1)
                 loss: R.Tensor((), dtype="float32") = R.nn.cross_entropy_with_logits(logits, label)

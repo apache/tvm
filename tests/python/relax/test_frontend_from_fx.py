@@ -3654,7 +3654,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 5, 5), dtype="float32") = lv
                 R.output(gv)
@@ -3691,7 +3690,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 20, 20), dtype="float32") = lv
                 R.output(gv)
@@ -3728,7 +3726,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
                 R.output(gv)
@@ -3765,7 +3762,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
                 R.output(gv)
@@ -3803,7 +3799,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 20, 20), dtype="float32") = lv
                 R.output(gv)
@@ -3839,7 +3834,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
                 R.output(gv)
@@ -3874,7 +3868,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
                 R.output(gv)
@@ -3909,7 +3902,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
                 R.output(gv)
@@ -3945,7 +3937,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 5, 5), dtype="float32") = lv
                 R.output(gv)
@@ -3983,7 +3974,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 5, 5, 3), dtype="float32") = lv
                 R.output(gv)
@@ -4021,7 +4011,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 20, 20, 3), dtype="float32") = lv
                 R.output(gv)
@@ -4062,7 +4051,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
                 R.output(gv)
@@ -4101,7 +4089,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
                 R.output(gv)
@@ -4403,7 +4390,7 @@ def test_masked_fill_inplace():
         ) -> R.Tensor((10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
-                    input, R.const(1.5, "float32"), dtype="void"
+                    input, R.const(1.5, "float32")
                 )
                 lv1: R.Tensor((10, 10), dtype="float32") = R.where(mask, lv, input)
                 gv: R.Tensor((10, 10), dtype="float32") = lv1
@@ -6085,7 +6072,7 @@ def test_ones_like():
             (128, 128), dtype="float32"
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0, dtype="void")
+                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0)
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -6105,7 +6092,7 @@ def test_zero_inplace():
             (128, 128), dtype="float32"
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0)
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -6125,7 +6112,7 @@ def test_zeros_like():
             (128, 128), dtype="float32"
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0)
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv

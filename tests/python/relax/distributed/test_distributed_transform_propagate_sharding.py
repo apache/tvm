@@ -65,13 +65,9 @@ def test_mlp():
             weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
             weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
         ) -> R.DTensor((128, 128), "float32", "mesh[0]", "R"):
-            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(
-                x, weight1, out_dtype="void"
-            )
+            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
-            lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(
-                lv1, weight2, out_dtype="void"
-            )
+            lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(lv1, weight2)
             return lv3
 
     after = relax.distributed.transform.PropagateSharding()(MLP)
@@ -167,9 +163,7 @@ def test_mlp_with_tuple():
         ) -> R.DTensor((64, 128), "float32", "mesh[0]", "R"):
             cls = ShardedMLPWithTuple
             weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = weight_packed[0]
-            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(
-                x, weight1, out_dtype="void"
-            )
+            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
             gv = R.dist.call_tir(
                 cls.split1,
@@ -181,9 +175,7 @@ def test_mlp_with_tuple():
             )
             lv2: R.DTensor((64, 128), "float32", "mesh[0]", "S[1]") = gv[0]
             weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]") = weight_packed[1]
-            lv4: R.DTensor((64, 128), "float32", "mesh[0]", "R") = R.matmul(
-                lv2, weight2, out_dtype="void"
-            )
+            lv4: R.DTensor((64, 128), "float32", "mesh[0]", "R") = R.matmul(lv2, weight2)
             return lv4
 
     after = relax.distributed.transform.PropagateSharding()(MLPWithTuple)
@@ -229,16 +221,12 @@ def test_mlp_const():
             weight1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]"),
             weight2: R.DTensor((128, 128), "float32", "mesh[0]", "S[0]"),
         ) -> R.DTensor((128, 128), "float32", "mesh[0]", "R"):
-            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(
-                x, weight1, out_dtype="void"
-            )
+            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
             lv2: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.add(
                 lv1, R.dist.const(2, R.DTensor((), "float32", "mesh[0]", "R"))
             )
-            lv4: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(
-                lv2, weight2, out_dtype="void"
-            )
+            lv4: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(lv2, weight2)
             return lv4
 
     after = relax.distributed.transform.PropagateSharding()(MLPWithConst)
@@ -287,13 +275,9 @@ def test_mlp_dynamic_shape():
             n = T.int64()
             k0 = T.int64()
             k1 = T.int64()
-            lv0: R.DTensor((m, k1), "float32", "mesh[0]", "S[1]") = R.matmul(
-                x, weight1, out_dtype="void"
-            )
+            lv0: R.DTensor((m, k1), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((m, k1), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
-            lv3: R.DTensor((m, n), "float32", "mesh[0]", "R") = R.matmul(
-                lv1, weight2, out_dtype="void"
-            )
+            lv3: R.DTensor((m, n), "float32", "mesh[0]", "R") = R.matmul(lv1, weight2)
             return lv3
 
     after = relax.distributed.transform.PropagateSharding()(MLPDynamicShape)
@@ -350,23 +334,15 @@ def test_mlp_pipeline_parallelism():
             weight3: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]"),
             weight4: R.DTensor((128, 128), "float32", "mesh[1]", "S[0]"),
         ) -> R.DTensor((128, 128), "float32", "mesh[1]", "R"):
-            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(
-                x, weight1, out_dtype="void"
-            )
+            lv0: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.matmul(x, weight1)
             lv1: R.DTensor((128, 128), "float32", "mesh[0]", "S[1]") = R.nn.gelu(lv0)
-            lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(
-                lv1, weight2, out_dtype="void"
-            )
+            lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.matmul(lv1, weight2)
             lv4: R.DTensor((128, 128), "float32", "mesh[1]", "R") = R.dist.redistribute(
                 lv3, device_mesh="mesh[1]", placement="R"
             )
-            lv5: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]") = R.matmul(
-                lv4, weight3, out_dtype="void"
-            )
+            lv5: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]") = R.matmul(lv4, weight3)
             lv6: R.DTensor((128, 128), "float32", "mesh[1]", "S[1]") = R.nn.gelu(lv5)
-            lv8: R.DTensor((128, 128), "float32", "mesh[1]", "R") = R.matmul(
-                lv6, weight4, out_dtype="void"
-            )
+            lv8: R.DTensor((128, 128), "float32", "mesh[1]", "R") = R.matmul(lv6, weight4)
             return lv8
 
     after = relax.distributed.transform.PropagateSharding()(PipelineMLP)
@@ -479,9 +455,7 @@ def test_decoder_layer():
             lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv7, "mesh[0]", "S[1]"
             )
-            lv8: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(
-                lv6, lv7_copy, out_dtype="void"
-            )
+            lv8: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv6, lv7_copy)
             lv9: R.Tensor((1, 256, 32, 128), dtype="float16") = R.reshape(
                 lv8, R.shape([1, 256, 32, 128])
             )
@@ -491,9 +465,7 @@ def test_decoder_layer():
             lv10_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv10, "mesh[0]", "S[1]"
             )
-            lv11: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(
-                lv6, lv10_copy, out_dtype="void"
-            )
+            lv11: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv6, lv10_copy)
             lv12: R.Tensor((1, 256, 32, 128), dtype="float16") = R.reshape(
                 lv11, R.shape([1, 256, 32, 128])
             )
@@ -503,9 +475,7 @@ def test_decoder_layer():
             lv13_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv13, "mesh[0]", "S[1]"
             )
-            lv14: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(
-                lv6, lv13_copy, out_dtype="void"
-            )
+            lv14: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv6, lv13_copy)
             lv15: R.Tensor((1, 256, 32, 128), dtype="float16") = R.reshape(
                 lv14, R.shape([1, 256, 32, 128])
             )
@@ -563,18 +533,14 @@ def test_decoder_layer():
             lv31: R.Tensor((1, 32, 128, 256), dtype="float16") = R.permute_dims(
                 lv29, axes=[0, 1, 3, 2]
             )
-            lv32: R.Tensor((1, 32, 256, 256), dtype="float16") = R.matmul(
-                lv28, lv31, out_dtype="void"
-            )
+            lv32: R.Tensor((1, 32, 256, 256), dtype="float16") = R.matmul(lv28, lv31)
             lv33: R.Tensor((1, 32, 256, 256), dtype="float16") = R.divide(lv32, div_const)
             lv34: R.Tensor((1, 32, 256, 256), dtype="float16") = R.maximum(lv33, maximum_const)
             lv35: R.Tensor((1, 32, 256, 256), dtype="float16") = R.minimum(lv34, mask)
             # lv36: R.Tensor((1, 32, 256, 256), dtype="float32") = R.astype(lv35, dtype="float32")
             lv37: R.Tensor((1, 32, 256, 256), dtype="float16") = R.nn.softmax(lv35, axis=-1)
             # lv38: R.Tensor((1, 32, 256, 256), dtype="float16") = R.astype(lv37, dtype="float16")
-            lv39: R.Tensor((1, 32, 256, 128), dtype="float16") = R.matmul(
-                lv37, lv30, out_dtype="void"
-            )
+            lv39: R.Tensor((1, 32, 256, 128), dtype="float16") = R.matmul(lv37, lv30)
             lv40: R.Tensor((1, 256, 32, 128), dtype="float16") = R.permute_dims(
                 lv39, axes=[0, 2, 1, 3]
             )
@@ -584,7 +550,7 @@ def test_decoder_layer():
             lv42: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(
                 linear_weight3, axes=None
             )
-            lv43: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv41, lv42, out_dtype="void")
+            lv43: R.Tensor((1, 256, 4096), dtype="float16") = R.matmul(lv41, lv42)
             lv44: R.Tensor((1, 256, 4096), dtype="float16") = R.add(input_tokens, lv43)
             gv = lv44
 
@@ -683,27 +649,21 @@ def test_decoder_layer():
             lv7: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight, axes=None
             )
-            lv8: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(
-                lv6, lv7, out_dtype="void"
-            )
+            lv8: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(lv6, lv7)
             lv9: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv8, R.shape([1, 256, 32, 128])
             )
             lv10: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight1, axes=None
             )
-            lv11: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(
-                lv6, lv10, out_dtype="void"
-            )
+            lv11: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(lv6, lv10)
             lv12: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv11, R.shape([1, 256, 32, 128])
             )
             lv13: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight2, axes=None
             )
-            lv14: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(
-                lv6, lv13, out_dtype="void"
-            )
+            lv14: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(lv6, lv13)
             lv15: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv14, R.shape([1, 256, 32, 128])
             )
@@ -767,9 +727,7 @@ def test_decoder_layer():
             lv31: R.DTensor((1, 32, 128, 256), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 lv29, axes=[0, 1, 3, 2]
             )
-            lv32: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = R.matmul(
-                lv28, lv31, out_dtype="void"
-            )
+            lv32: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = R.matmul(lv28, lv31)
             lv33: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = R.divide(
                 lv32, div_const
             )
@@ -780,9 +738,7 @@ def test_decoder_layer():
             lv37: R.DTensor((1, 32, 256, 256), "float16", "mesh[0]", "S[1]") = R.nn.softmax(
                 lv35, axis=-1
             )
-            lv39: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = R.matmul(
-                lv37, lv30, out_dtype="void"
-            )
+            lv39: R.DTensor((1, 32, 256, 128), "float16", "mesh[0]", "S[1]") = R.matmul(lv37, lv30)
             lv40: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = R.permute_dims(
                 lv39, axes=[0, 2, 1, 3]
             )
@@ -792,9 +748,7 @@ def test_decoder_layer():
             lv42: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]") = R.permute_dims(
                 linear_weight3, axes=None
             )
-            lv43: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.matmul(
-                lv41, lv42, out_dtype="void"
-            )
+            lv43: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.matmul(lv41, lv42)
             lv44: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.add(input_tokens, lv43)
             gv: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = lv44
             return gv
@@ -1693,7 +1647,7 @@ def test_decoder_layer_dynamic_shape():
             lv7_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv7, "mesh[0]", "S[1]"
             )
-            lv8: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv6, lv7_copy, out_dtype="void")
+            lv8: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv6, lv7_copy)
             lv9: R.Tensor((1, n, 32, 128), dtype="float16") = R.reshape(
                 lv8, R.shape([1, n, 32, 128])
             )
@@ -1703,9 +1657,7 @@ def test_decoder_layer_dynamic_shape():
             lv10_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv10, "mesh[0]", "S[1]"
             )
-            lv11: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(
-                lv6, lv10_copy, out_dtype="void"
-            )
+            lv11: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv6, lv10_copy)
             lv12: R.Tensor((1, n, 32, 128), dtype="float16") = R.reshape(
                 lv11, R.shape([1, n, 32, 128])
             )
@@ -1715,9 +1667,7 @@ def test_decoder_layer_dynamic_shape():
             lv13_copy: R.Tensor((4096, 4096), dtype="float16") = R.dist.annotate_sharding(
                 lv13, "mesh[0]", "S[1]"
             )
-            lv14: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(
-                lv6, lv13_copy, out_dtype="void"
-            )
+            lv14: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv6, lv13_copy)
             lv15: R.Tensor((1, n, 32, 128), dtype="float16") = R.reshape(
                 lv14, R.shape([1, n, 32, 128])
             )
@@ -1773,7 +1723,7 @@ def test_decoder_layer_dynamic_shape():
             lv31: R.Tensor((1, 32, 128, m), dtype="float16") = R.permute_dims(
                 lv29, axes=[0, 1, 3, 2]
             )
-            lv32: R.Tensor((1, 32, n, m), dtype="float16") = R.matmul(lv28, lv31, out_dtype="void")
+            lv32: R.Tensor((1, 32, n, m), dtype="float16") = R.matmul(lv28, lv31)
             lv33: R.Tensor((1, 32, n, m), dtype="float16") = R.divide(
                 lv32, R.const(8, dtype="float16")
             )  # just choose some random value
@@ -1784,9 +1734,7 @@ def test_decoder_layer_dynamic_shape():
             # lv36: R.Tensor((1, 32, n, m), dtype="float32") = R.astype(lv35, dtype="float32")
             lv37: R.Tensor((1, 32, n, m), dtype="float16") = R.nn.softmax(lv35, axis=-1)
             # lv38: R.Tensor((1, 32, n, m), dtype="float16") = R.astype(lv37, dtype="float16")
-            lv39: R.Tensor((1, 32, n, 128), dtype="float16") = R.matmul(
-                lv37, lv30, out_dtype="void"
-            )
+            lv39: R.Tensor((1, 32, n, 128), dtype="float16") = R.matmul(lv37, lv30)
             lv40: R.Tensor((1, n, 32, 128), dtype="float16") = R.permute_dims(
                 lv39, axes=[0, 2, 1, 3]
             )
@@ -1794,7 +1742,7 @@ def test_decoder_layer_dynamic_shape():
             lv42: R.Tensor((4096, 4096), dtype="float16") = R.permute_dims(
                 linear_weight3, axes=None
             )
-            lv43: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv41, lv42, out_dtype="void")
+            lv43: R.Tensor((1, n, 4096), dtype="float16") = R.matmul(lv41, lv42)
             lv44: R.Tensor((1, n, 4096), dtype="float16") = R.add(input_tokens, lv43)
             gv = lv44
 
@@ -1900,27 +1848,21 @@ def test_decoder_layer_dynamic_shape():
             lv7: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight, axes=None
             )
-            lv8: R.DTensor((1, n, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(
-                lv6, lv7, out_dtype="void"
-            )
+            lv8: R.DTensor((1, n, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(lv6, lv7)
             lv9: R.DTensor((1, n, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv8, R.shape([1, n, 32, 128])
             )
             lv10: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight1, axes=None
             )
-            lv11: R.DTensor((1, n, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(
-                lv6, lv10, out_dtype="void"
-            )
+            lv11: R.DTensor((1, n, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(lv6, lv10)
             lv12: R.DTensor((1, n, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv11, R.shape([1, n, 32, 128])
             )
             lv13: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 linear_weight2, axes=None
             )
-            lv14: R.DTensor((1, n, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(
-                lv6, lv13, out_dtype="void"
-            )
+            lv14: R.DTensor((1, n, 4096), "float16", "mesh[0]", "S[2]") = R.matmul(lv6, lv13)
             lv15: R.DTensor((1, n, 32, 128), "float16", "mesh[0]", "S[2]") = R.reshape(
                 lv14, R.shape([1, n, 32, 128])
             )
@@ -1986,9 +1928,7 @@ def test_decoder_layer_dynamic_shape():
             lv31: R.DTensor((1, 32, 128, m), "float16", "mesh[0]", "S[1]") = R.permute_dims(
                 lv29, axes=[0, 1, 3, 2]
             )
-            lv32: R.DTensor((1, 32, n, m), "float16", "mesh[0]", "S[1]") = R.matmul(
-                lv28, lv31, out_dtype="void"
-            )
+            lv32: R.DTensor((1, 32, n, m), "float16", "mesh[0]", "S[1]") = R.matmul(lv28, lv31)
             lv33: R.DTensor((1, 32, n, m), "float16", "mesh[0]", "S[1]") = R.divide(
                 lv32, R.dist.const(8, R.DTensor((), "float16", "mesh[0]", "R"))
             )
@@ -1999,9 +1939,7 @@ def test_decoder_layer_dynamic_shape():
             lv37: R.DTensor((1, 32, n, m), "float16", "mesh[0]", "S[1]") = R.nn.softmax(
                 lv35, axis=-1
             )
-            lv39: R.DTensor((1, 32, n, 128), "float16", "mesh[0]", "S[1]") = R.matmul(
-                lv37, lv30, out_dtype="void"
-            )
+            lv39: R.DTensor((1, 32, n, 128), "float16", "mesh[0]", "S[1]") = R.matmul(lv37, lv30)
             lv40: R.DTensor((1, n, 32, 128), "float16", "mesh[0]", "S[2]") = R.permute_dims(
                 lv39, axes=[0, 2, 1, 3]
             )
@@ -2011,9 +1949,7 @@ def test_decoder_layer_dynamic_shape():
             lv42: R.DTensor((4096, 4096), "float16", "mesh[0]", "S[0]") = R.permute_dims(
                 linear_weight3, axes=None
             )
-            lv43: R.DTensor((1, n, 4096), "float16", "mesh[0]", "R") = R.matmul(
-                lv41, lv42, out_dtype="void"
-            )
+            lv43: R.DTensor((1, n, 4096), "float16", "mesh[0]", "R") = R.matmul(lv41, lv42)
             lv44: R.DTensor((1, n, 4096), "float16", "mesh[0]", "R") = R.add(input_tokens, lv43)
             gv: R.DTensor((1, n, 4096), "float16", "mesh[0]", "R") = lv44
             return gv

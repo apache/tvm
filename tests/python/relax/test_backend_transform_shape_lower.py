@@ -220,9 +220,8 @@ def test_symbolic_compute():
                 "",
                 ty_args=[R.Tuple()],
             )
-            _ = R.call_packed(
-                "vm.builtin.check_tensor_info", y, 3, R.dtype(""), "", ty_args=[R.Tuple()]
-            )
+            gv = R.null_value()
+            _ = R.call_packed("vm.builtin.check_tensor_info", y, 3, gv, "", ty_args=[R.Tuple()])
             _ = R.call_packed(
                 "vm.builtin.match_shape",
                 x,

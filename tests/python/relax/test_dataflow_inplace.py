@@ -1003,8 +1003,16 @@ class TestViewOpSharedStorageAndNoInplace:
         params = list(func.params)
 
         alias_sets, _ = dataflow_alias_analysis(block, params)
-        a_var = block.bindings[0].var
-        b_var = block.bindings[1].var
+        view_vars = [
+            binding.var
+            for binding in block.bindings
+            if (
+                isinstance(binding.value, relax.Call)
+                and isinstance(binding.value.op, tvm.ir.Op)
+                and binding.value.op.name == view_op
+            )
+        ]
+        a_var, b_var = view_vars[:2]
         assert alias_sets[a_var] & alias_sets[b_var], (
             f"{view_op}: duplicate views should share alias sets, but got "
             f"{alias_sets[a_var]} and {alias_sets[b_var]}"

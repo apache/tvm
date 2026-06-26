@@ -4430,7 +4430,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0.0,
-                    out_dtype="void",
                 )
                 gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv,)
                 R.output(gv)
@@ -4459,7 +4458,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0.0,
-                    out_dtype="void",
                 )
                 gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv,)
                 R.output(gv)
@@ -4921,7 +4919,6 @@ def test_interpolate_antialiased():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0.0,
-                    out_dtype="void",
                 )
                 gv: R.Tuple(R.Tensor((1, 3, 64, 64), dtype="float32")) = (lv,)
                 R.output(gv)
@@ -6340,7 +6337,7 @@ def test_fill():
         ):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
-                    input, R.const(1.5, "float32"), dtype="void"
+                    input, R.const(1.5, "float32")
                 )
                 gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
@@ -6363,9 +6360,7 @@ def test_fill_inplace():
             R.Tensor((2, 3), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="float32") = R.full_like(
-                    input, R.const(42.0, "float32"), dtype="void"
-                )
+                lv: R.Tensor((2, 3), dtype="float32") = R.full_like(input, R.const(42.0, "float32"))
                 gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -6831,9 +6826,7 @@ def test_ones_like():
             R.Tensor((128, 128), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
-                    input, R.const(1, "int32"), dtype="void"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(input, R.const(1, "int32"))
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -6855,9 +6848,7 @@ def test_zero_inplace():
             R.Tensor((128, 128), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
-                    input, R.const(0, "int32"), dtype="void"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(input, R.const(0, "int32"))
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -6903,9 +6894,7 @@ def test_zeros_like():
             R.Tensor((128, 128), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
-                    input, R.const(0, "int32"), dtype="void"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(input, R.const(0, "int32"))
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -8808,7 +8797,7 @@ def test_exponential():
             R.Tensor((4, 8), dtype="float32")
         ):
             with R.dataflow():
-                lv: R.Tensor((4, 8), dtype="float32") = R.zeros_like(x, dtype="void")
+                lv: R.Tensor((4, 8), dtype="float32") = R.zeros_like(x)
                 gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
