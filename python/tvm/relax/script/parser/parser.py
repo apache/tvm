@@ -52,41 +52,44 @@ def bind_assign_value(
     var_name: str,
     value: Any,
     anno_ty: Type | None = None,
+    emit_prim_expr: bool = False,
 ) -> Any:
     var_table = self.var_table.get()
 
-    if isinstance(value, tirx.PrimExpr):
-        if isinstance(value, tirx.Var):
-            if value.name and var_name != value.name:
+    if isinstance(value, tirx.Var):
+        if value.name and var_name != value.name:
+            self.report_error(
+                node,
+                "Cannot define TIR variables with different names. The LHS of binding should "
+                "has the same name provided in RHS.",
+            )
+        if var_name in var_table:
+            prev_value = var_table[var_name]
+            if not isinstance(prev_value, tirx.Var):
                 self.report_error(
                     node,
-                    "Cannot define TIR variables with different names. The LHS of binding should "
-                    "has the same name provided in RHS.",
+                    "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
+                    "define the TIR variable with another name.",
                 )
-            if var_name in var_table:
-                prev_value = var_table[var_name]
-                if not isinstance(prev_value, tirx.Var):
-                    self.report_error(
-                        node,
-                        "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
-                        "define the TIR variable with another name.",
-                    )
-                if prev_value.ty != value.ty:
-                    self.report_error(
-                        node,
-                        "Expected the same dtype for TIR vars "
-                        f"but got {value.ty} vs {prev_value.ty}",
-                    )
-                if not isinstance(value, type(prev_value)):
-                    self.report_error(
-                        node,
-                        f"Expected the same IR type for TIR vars "
-                        f"but existing value {type(value)} is mismatched "
-                        f"to previous {type(prev_value)}",
-                    )
-                value = prev_value
-            IRBuilder.name(var_name, value)
+            if prev_value.ty != value.ty:
+                self.report_error(
+                    node,
+                    f"Expected the same dtype for TIR vars but got {value.ty} vs {prev_value.ty}",
+                )
+            if not isinstance(value, type(prev_value)):
+                self.report_error(
+                    node,
+                    f"Expected the same IR type for TIR vars "
+                    f"but existing value {type(value)} is mismatched "
+                    f"to previous {type(prev_value)}",
+                )
+            value = prev_value
+        IRBuilder.name(var_name, value)
         return value
+
+    if isinstance(value, tirx.PrimExpr):
+        if not emit_prim_expr:
+            return value
 
     if isinstance(value, tuple):
         value = convert_to_expr(value)
@@ -103,10 +106,13 @@ def bind_assign_value(
         var = R.emit_match_cast(value.value, value.ty)
     else:
         return value
-        # raise TypeError(f"Unsupported type {type(value)} in assignment")
 
     IRBuilder.name(var_name, var)
     return var
+
+
+def is_prim_value_call(node: doc.expr) -> bool:
+    return isinstance(node, doc.Call) and getattr(node.func, "attr", None) == "prim_value"
 
 
 def eval_ty_proxy(self: Parser, node: doc.expr) -> TypeProxy:
@@ -382,7 +388,10 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=bind_assign_value,
+        bind_value=functools.partial(
+            bind_assign_value,
+            emit_prim_expr=is_prim_value_call(node.value),
+        ),
         allow_shadowing=True,
     )
 
@@ -395,7 +404,11 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=functools.partial(bind_assign_value, anno_ty=anno_ty),
+        bind_value=functools.partial(
+            bind_assign_value,
+            anno_ty=anno_ty,
+            emit_prim_expr=is_prim_value_call(node.value),
+        ),
         allow_shadowing=True,
     )
 
