@@ -287,7 +287,7 @@ class IRModule : public ffi::ObjectRef {
    * \brief As for \p FromExprInContext, but assuming \p expr is bound to 'main' and no
    * imports.
    */
-  TVM_DLL static IRModule FromExpr(const RelaxExpr& expr,
+  TVM_DLL static IRModule FromExpr(const Expr& expr,
                                    const ffi::Map<GlobalVar, BaseFunc>& global_funcs = {});
 
   /*!

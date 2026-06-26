@@ -64,8 +64,8 @@ TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
   // Avoid PrimExpr::ty() ObjectRef materialization in expression constructor hot paths.
   const auto* node = expr.get();
   TVM_FFI_DCHECK(node != nullptr);
-  TVM_FFI_DCHECK(node->BaseExprNode::ty.defined());
-  const auto* prim_ty = node->BaseExprNode::ty.as<PrimTypeNode>();
+  TVM_FFI_DCHECK(node->ExprNode::ty.defined());
+  const auto* prim_ty = node->ExprNode::ty.as<PrimTypeNode>();
   TVM_FFI_DCHECK(prim_ty != nullptr);
   return prim_ty;
 }
@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                          \
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n"; \
     ffi::ObjectPtr<T> node = ffi::make_object<T>();                               \
-    node->BaseExprNode::ty = a.get()->BaseExprNode::ty;                           \
+    node->ExprNode::ty = a.get()->ExprNode::ty;                                   \
     node->a = std::move(a);                                                       \
     node->b = std::move(b);                                                       \
     node->span = std::move(span);                                                 \
@@ -150,7 +150,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                          \
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n"; \
     ffi::ObjectPtr<T> node = ffi::make_object<T>();                               \
-    node->BaseExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes}); \
+    node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});     \
     node->a = std::move(a);                                                       \
     node->b = std::move(b);                                                       \
     node->span = std::move(span);                                                 \
@@ -162,7 +162,7 @@ Var::Var(ffi::String name_hint, PrimType dtype, Span span) {
   auto n = ffi::make_object<VarNode>();
   n->name_hint = std::move(name_hint);
   n->type_annotation = dtype;
-  n->BaseExprNode::ty = dtype;
+  n->ExprNode::ty = dtype;
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -172,9 +172,9 @@ Var::Var(ffi::String name_hint, Type type_annotation, Span span) {
   n->name_hint = std::move(name_hint);
   n->type_annotation = std::move(type_annotation);
   if (n->type_annotation.as<PrimTypeNode>()) {
-    n->BaseExprNode::ty = n->type_annotation;
+    n->ExprNode::ty = n->type_annotation;
   } else {
-    n->BaseExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
+    n->ExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
   }
   n->span = std::move(span);
   data_ = std::move(n);
@@ -205,7 +205,7 @@ Var Var::copy_with_dtype(PrimType dtype) const {
     new_ptr = ffi::make_object<VarNode>(*node);
   }
   new_ptr->type_annotation = dtype;
-  new_ptr->BaseExprNode::ty = dtype;
+  new_ptr->ExprNode::ty = dtype;
   return Var(new_ptr);
 }
 
@@ -225,7 +225,7 @@ SizeVar::SizeVar(ffi::String name_hint, PrimType dtype, Span span) {
   auto n = ffi::make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
   n->type_annotation = dtype;
-  n->BaseExprNode::ty = n->type_annotation;
+  n->ExprNode::ty = n->type_annotation;
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -234,7 +234,7 @@ SizeVar::SizeVar(ffi::String name_hint, Type type_annotation, Span span) {
   auto n = ffi::make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
   n->type_annotation = std::move(type_annotation);
-  n->BaseExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
+  n->ExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -278,7 +278,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // StringImm
 StringImm::StringImm(ffi::String value, Span span) {
   ffi::ObjectPtr<StringImmNode> node = ffi::make_object<StringImmNode>();
-  node->BaseExprNode::ty = PrimType::Handle();
+  node->ExprNode::ty = PrimType::Handle();
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -296,7 +296,7 @@ Cast::Cast(PrimType value_ty, PrimExpr value, Span span) {
   PrimType value_expr_ty = value.ty();
   TVM_FFI_ICHECK_EQ(value_ty->dtype.lanes, value_expr_ty->dtype.lanes);
   ffi::ObjectPtr<CastNode> node = ffi::make_object<CastNode>();
-  node->BaseExprNode::ty = std::move(value_ty);
+  node->ExprNode::ty = std::move(value_ty);
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -455,7 +455,7 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_CHECK(a_ty == b_ty, TypeError) << "mismatched types";
 
   ffi::ObjectPtr<AndNode> node = ffi::make_object<AndNode>();
-  node->BaseExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
+  node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
   node->a = std::move(a);
   node->b = std::move(b);
   node->span = std::move(span);
@@ -479,7 +479,7 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_CHECK(a_ty == b_ty, TypeError) << "mismatched types";
 
   ffi::ObjectPtr<OrNode> node = ffi::make_object<OrNode>();
-  node->BaseExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
+  node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
   node->a = std::move(a);
   node->b = std::move(b);
   node->span = std::move(span);
@@ -499,7 +499,7 @@ Not::Not(PrimExpr a, Span span) {
   TVM_FFI_ICHECK(a_ty.MatchesCode(DLDataTypeCode::kDLBool));
 
   ffi::ObjectPtr<NotNode> node = ffi::make_object<NotNode>();
-  node->BaseExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
+  node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
   node->a = std::move(a);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -526,7 +526,7 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
       << "False type: " << false_ty->dtype << "; True type: " << true_ty->dtype;
 
   ffi::ObjectPtr<SelectNode> node = ffi::make_object<SelectNode>();
-  node->BaseExprNode::ty = true_ty;
+  node->ExprNode::ty = true_ty;
   node->condition = std::move(condition);
   node->true_value = std::move(true_value);
   node->false_value = std::move(false_value);
@@ -559,14 +559,14 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
   if (lanes_as_int) {
     int lanes = static_cast<int>(lanes_as_int->value);
     TVM_FFI_ICHECK_GT(lanes, 1);
-    node->BaseExprNode::ty = base_ty.WithLanes(lanes);
+    node->ExprNode::ty = base_ty.WithLanes(lanes);
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
     std::optional<int> vscale_factor = ExtractVscaleFactor(lanes);
     TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
-    node->BaseExprNode::ty =
+    node->ExprNode::ty =
         PrimType::ScalableVector(base_ty.code(), base_ty.bits(), vscale_factor.value());
     lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}), vscale_factor.value());
     node->lanes = lanes;
@@ -595,14 +595,14 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
   if (lanes_int) {
     int lanes = static_cast<int>(lanes_int->value);
     TVM_FFI_ICHECK_GT(lanes, 1);
-    node->BaseExprNode::ty = value_ty.WithLanes(lanes);
+    node->ExprNode::ty = value_ty.WithLanes(lanes);
     // Stick to int32 lanes for fixed length vectors
     node->lanes = lanes;
   } else { /* scalable vector */
     std::optional<int> vscale_factor = ExtractVscaleFactor(lanes);
     TVM_FFI_ICHECK(vscale_factor) << "Invalid expression for scalable lanes " << lanes;
 
-    node->BaseExprNode::ty =
+    node->ExprNode::ty =
         PrimType::ScalableVector(value_ty.code(), value_ty.bits(), vscale_factor.value());
     lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}), vscale_factor.value());
     node->lanes = lanes;
@@ -626,7 +626,7 @@ Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
   TVM_FFI_ICHECK(value.ty() == var.ty());
 
   ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>();
-  node->BaseExprNode::ty = body.ty();
+  node->ExprNode::ty = body.ty();
   node->var = std::move(var);
   node->value = std::move(value);
   node->body = std::move(body);
@@ -675,13 +675,13 @@ static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
   return prim_expr_args;
 }
 
-Call::Call(PrimType ret_ty, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs, Span span) {
+Call::Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Attrs attrs, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     TVM_FFI_ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
 
   ffi::ObjectPtr<CallNode> node = ffi::make_object<CallNode>();
-  node->BaseExprNode::ty = std::move(ret_ty);
+  node->ExprNode::ty = std::move(ret_ty);
   node->op = std::move(op);
   node->args = std::move(args);
   node->attrs = std::move(attrs);
@@ -689,19 +689,19 @@ Call::Call(PrimType ret_ty, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs
   data_ = std::move(node);
 }
 
-Call::Call(PrimType ret_ty, RelaxExpr op, ffi::Array<PrimExpr> args, Span span)
+Call::Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Span span)
     : Call(std::move(ret_ty), std::move(op), std::move(args), Attrs(), std::move(span)) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.Call",
-           [](ffi::Optional<PrimType> dtype, RelaxExpr op, ffi::Array<CallArg> args, Span span) {
+           [](ffi::Optional<PrimType> dtype, tvm::Expr op, ffi::Array<CallArg> args, Span span) {
              return Call(dtype.value_or(PrimType::Void()), op, ConvertCallArgs(args), Attrs(),
                          span);
            })
       .def("tirx.CallWithAttrs",
-           [](ffi::Optional<PrimType> dtype, RelaxExpr op, ffi::Array<CallArg> args,
+           [](ffi::Optional<PrimType> dtype, tvm::Expr op, ffi::Array<CallArg> args,
               ffi::Optional<Attrs> attrs, Span span) {
              return Call(dtype.value_or(PrimType::Void()), op, ConvertCallArgs(args),
                          attrs.value_or(Attrs()), span);
@@ -724,7 +724,7 @@ Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Spa
   TVM_FFI_ICHECK_LE(indices.size(), static_cast<size_t>(total_lanes));
 
   ffi::ObjectPtr<ShuffleNode> node = ffi::make_object<ShuffleNode>();
-  node->BaseExprNode::ty = base_type.WithLanes(static_cast<int>(indices.size()));
+  node->ExprNode::ty = base_type.WithLanes(static_cast<int>(indices.size()));
   node->vectors = std::move(vectors);
   node->indices = std::move(indices);
   node->span = std::move(span);
@@ -849,7 +849,7 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
           << "but received " << init[i] << " of type " << init[i]->GetTypeKey();
     }
   }
-  n->BaseExprNode::ty = source[value_index].ty();
+  n->ExprNode::ty = source[value_index].ty();
   n->combiner = std::move(combiner);
   n->source = std::move(source);
   n->init = std::move(init);
@@ -877,7 +877,7 @@ void BufferLoadNode::LegalizeDType() {
   }
 
   if (indices.empty()) {
-    this->BaseExprNode::ty = buffer->dtype;
+    this->ExprNode::ty = buffer->dtype;
   } else {
     PrimType index_ty = indices.back().ty();
     int16_t buffer_encoded_lanes = static_cast<int16_t>(buffer->dtype->dtype.lanes);
@@ -888,14 +888,14 @@ void BufferLoadNode::LegalizeDType() {
         << "Index dtype and buffer dtype can't both be scalable.";
 
     if (is_index_scalable) {
-      this->BaseExprNode::ty =
+      this->ExprNode::ty =
           PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
                                    index_ty.VScaleFactor() * buffer->dtype.lanes());
     } else if (is_buffer_dtype_scalable) {
-      this->BaseExprNode::ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
-                                                        -buffer_encoded_lanes * index_ty.lanes());
+      this->ExprNode::ty = PrimType::ScalableVector(buffer->dtype.code(), buffer->dtype.bits(),
+                                                    -buffer_encoded_lanes * index_ty.lanes());
     } else {
-      this->BaseExprNode::ty = buffer->dtype.WithLanes(index_ty.lanes() * buffer->dtype.lanes());
+      this->ExprNode::ty = buffer->dtype.WithLanes(index_ty.lanes() * buffer->dtype.lanes());
     }
   }
 }
@@ -948,7 +948,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // ProducerLoad
 ProducerLoad::ProducerLoad(DataProducer producer, ffi::Array<PrimExpr> indices, Span span) {
   ffi::ObjectPtr<ProducerLoadNode> node = ffi::make_object<ProducerLoadNode>();
-  node->BaseExprNode::ty = producer->GetDataType();
+  node->ExprNode::ty = producer->GetDataType();
   node->producer = std::move(producer);
   node->indices = std::move(indices);
   node->span = std::move(span);

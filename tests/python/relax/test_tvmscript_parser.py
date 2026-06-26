@@ -1343,13 +1343,13 @@ def test_computed_prim_value_as_branch_condition():
 
     N = func.params[0].ty.shape[0]
     if_else = func.body.blocks[0].bindings[0].value
-    assert isinstance(if_else.cond, relax.PrimValue)
-    tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond.value)
+    assert isinstance(if_else.cond, tvm.tirx.PrimExpr)
+    tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond)
     tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_branch_condition():
-    """Syntactic sugar, wrap PrimExpr as PrimValue"""
+    """Syntactic sugar, use PrimExpr directly"""
 
     @R.function(private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
@@ -1415,13 +1415,13 @@ def test_computed_prim_value_as_assert_condition():
     N = func.params[0].ty.shape[0]
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
-    assert isinstance(condition, relax.PrimValue)
-    tvm.ir.assert_structural_equal(N % 16 == 0, condition.value)
+    assert isinstance(condition, tvm.tirx.PrimExpr)
+    tvm.ir.assert_structural_equal(N % 16 == 0, condition)
     tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_assert_condition():
-    """Syntactic sugar, wrap PrimExpr as PrimValue"""
+    """Syntactic sugar, use PrimExpr directly"""
 
     @R.function(pure=False, private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
@@ -2294,6 +2294,18 @@ def test_function_symbolic_variables_are_annotated():
         return output
 
     tvm.ir.assert_structural_equal(inferred_ty, expected)
+
+
+def test_constant_prim_expr_alias_is_not_symbolic_declaration():
+    """Constant PrimExpr locals are constants, not declarations."""
+
+    @R.function(private=True)
+    def func(A: R.Tensor([4], "float32")):
+        extent = T.int64(4)
+        output: R.Tensor([extent], "float32") = A
+        return output
+
+    tvm.ir.assert_structural_equal(func.ret_ty.shape.values[0], T.int64(4))
 
 
 def test_conditional_may_use_symbolic_variables_from_function_scope():

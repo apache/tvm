@@ -37,7 +37,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   BindingNode::RegisterReflection();
   DataflowVarNode::RegisterReflection();
   ConstantNode::RegisterReflection();
-  PrimValueNode::RegisterReflection();
   StringImmNode::RegisterReflection();
   DataTypeImmNode::RegisterReflection();
   MatchCastNode::RegisterReflection();
@@ -362,24 +361,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.Constant",
                         [](runtime::Tensor data, ffi::Optional<Type> ty_annotation = std::nullopt,
                            Span span = Span()) { return Constant(data, ty_annotation, span); });
-}
-
-PrimValue::PrimValue(PrimExpr value, Span span) {
-  ffi::ObjectPtr<PrimValueNode> n = ffi::make_object<PrimValueNode>();
-  n->ty = PrimType(value.ty());
-  n->value = std::move(value);
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-PrimValue PrimValue::Int64(int64_t value, Span span) {
-  return PrimValue(IntImm::Int64(value), span);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.PrimValue",
-                        [](PrimExpr value, Span span) { return PrimValue(value, span); });
 }
 
 StringImm::StringImm(ffi::String value, Span span) {

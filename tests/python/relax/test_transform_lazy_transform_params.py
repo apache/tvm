@@ -1109,7 +1109,7 @@ def test_set_output_callback_with_inline_const():
     """fset_output may be called for inline objects
 
     The return tuple may contain inline leaf nodes, such as
-    `relax.PrimValue` or `relax.Constant`.  A call to `fset_output`
+    `PrimExpr` or `relax.Constant`.  A call to `fset_output`
     must be generated, even though they do not have an associated
     `relax.VarBinding`.
     """

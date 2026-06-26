@@ -54,7 +54,7 @@
     RELAX_VISIT_BINDING_DISPATCH(IfNode);                                               \
     RELAX_VISIT_BINDING_DISPATCH(OpNode);                                               \
     RELAX_VISIT_BINDING_DISPATCH(TupleGetItemNode);                                     \
-    RELAX_VISIT_BINDING_DISPATCH(PrimValueNode);                                        \
+    RELAX_PRIM_EXPR_NODE_DISPATCH_LIST(RELAX_VISIT_BINDING_DISPATCH);                   \
     RELAX_VISIT_BINDING_DISPATCH(StringImmNode);                                        \
     RELAX_VISIT_BINDING_DISPATCH(DataTypeImmNode);                                      \
     return vtable;                                                                      \
@@ -214,9 +214,9 @@ void ExprVisitor::VisitExpr_(const SeqExprNode* op) {
   VisitExprDepTypeFieldIfNeeded(this, op->ty);
 }
 
-void ExprVisitor::VisitExpr_(const PrimValueNode* op) {
-  this->VisitPrimExpr(op->value);
-  VisitExprDepTypeFieldIfNeeded(this, op->ty);
+void ExprVisitor::VisitExpr_(const PrimExprNode* op) {
+  this->VisitPrimExpr(ffi::GetRef<PrimExpr>(op));
+  VisitExprDepTypeFieldIfNeeded(this, op->ty());
   this->VisitSpan(op->span);
 }
 
@@ -243,7 +243,7 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(SeqExprNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(IfNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(TupleGetItemNode);
-RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(PrimValueNode);
+RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(PrimExprNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(StringImmNode);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
@@ -457,14 +457,15 @@ Expr ExprMutatorBase::VisitExpr_(const TupleGetItemNode* op) {
   }
 }
 
-Expr ExprMutatorBase::VisitExpr_(const PrimValueNode* op) {
-  auto value = this->VisitPrimExpr(op->value);
-  if (op->value.same_as(value)) {
+Expr ExprMutatorBase::VisitExpr_(const PrimExprNode* op) {
+  PrimExpr prim_expr = ffi::GetRef<PrimExpr>(op);
+  auto value = this->VisitPrimExpr(prim_expr);
+  if (prim_expr.same_as(value)) {
     // type can be deterministically derived by value
     // if value does not change, then type won't change.
     return ffi::GetRef<Expr>(op);
   }
-  return PrimValue(value, op->span);
+  return value;
 }
 
 Expr ExprMutatorBase::VisitExpr_(const StringImmNode* op) { return ffi::GetRef<Expr>(op); }
@@ -646,7 +647,7 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(SeqExprNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(IfNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(OpNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(TupleGetItemNode);
-RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(PrimValueNode);
+RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(PrimExprNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(StringImmNode);
 RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 

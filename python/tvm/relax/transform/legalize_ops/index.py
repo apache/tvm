@@ -21,7 +21,7 @@ from tvm import te, tirx, topi
 from tvm.ir import PrimType
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, PrimValue, Tuple
+from ...expr import Call, Expr, Tuple
 from ...op import tensor_to_shape
 from ...type import ShapeType
 from .common import register_legalize
@@ -40,8 +40,8 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
         if isinstance(relax_tuple, Tuple):
             output = []
             for field in relax_tuple.fields:
-                assert isinstance(field, PrimValue)
-                output.append(field.value)
+                assert isinstance(field, tirx.PrimExpr)
+                output.append(field)
             return output
 
         output = []

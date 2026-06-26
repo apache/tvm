@@ -54,8 +54,8 @@ TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
   // Avoid PrimExpr::ty() ObjectRef materialization on binary operator hot paths.
   const auto* node = expr.get();
   TVM_FFI_DCHECK(node != nullptr);
-  TVM_FFI_DCHECK(node->BaseExprNode::ty.defined());
-  const auto* prim_ty = node->BaseExprNode::ty.as<PrimTypeNode>();
+  TVM_FFI_DCHECK(node->ExprNode::ty.defined());
+  const auto* prim_ty = node->ExprNode::ty.as<PrimTypeNode>();
   TVM_FFI_DCHECK(prim_ty != nullptr);
   return prim_ty;
 }

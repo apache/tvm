@@ -265,7 +265,6 @@ def test_structural_equal_with_distinct_recursive_lambda_function():
         "bindings[0]",
         "value",
         "cond",
-        "value",
         "a",
     ]
 

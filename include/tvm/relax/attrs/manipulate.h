@@ -61,9 +61,9 @@ struct ExpandDimsAttrs : public AttrsNode {
 /*! \brief Attributes used in layout_transform operator */
 struct LayoutTransformAttrs : public AttrsNode {
   tirx::IndexMap index_map;
-  // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
-  // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
-  ffi::Optional<PrimValue> pad_value;
+  // pad_value is chosen to be of PrimExpr type, as it represents constant TIR POD expression. This
+  // needs to be revisited in case PrimExpr is evolved to represent symbolic expression in future.
+  ffi::Optional<PrimExpr> pad_value;
   /*!
    * axis_separators between input axes when generating flattened output axes. For buffers
    * representing flat 1-d memory (e.g. any buffer in RAM), this should be an empty array.

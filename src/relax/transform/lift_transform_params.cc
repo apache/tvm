@@ -676,7 +676,7 @@ class ConsumeBundledParams : public ExprMutator {
       param_remap_[tuple_get_item->index] = new_var;
       builder_->Emit(
           Call(call_pure_packed,
-               {builtin_tuple_reset_item, tuple_get_item->tuple, PrimValue(tuple_get_item->index)},
+               {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
                tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
     } else {
       ExprMutator::VisitBinding_(binding, tuple_get_item);

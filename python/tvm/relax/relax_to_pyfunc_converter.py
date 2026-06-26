@@ -728,11 +728,11 @@ class RelaxExpressionConverter:
         for arg in packed_args:
             converted_arg = self.convert_expr(arg, args)
             if isinstance(converted_arg, str) and converted_arg.startswith("<"):
-                # Handle PrimValue and other special cases
-                if "PrimValue" in converted_arg:
-                    # Extract the value from PrimValue
+                # Handle PrimExpr and other special cases
+                if "PrimExpr" in converted_arg:
+                    # Extract the value from PrimExpr
                     try:
-                        # Try to get the actual value from the PrimValue
+                        # Try to get the actual value from the PrimExpr
                         if hasattr(arg, "value"):
                             converted_arg = arg.value
                         else:

@@ -39,6 +39,12 @@ from .entry import (
     _normalize_ty_proxy,
 )
 
+relax.Expr._dispatch_type = relax.Expr  # pylint: disable=protected-access
+dispatch.register_op(relax.Expr, doc.GtE, 0)(lambda lhs, rhs: lhs >= rhs)
+dispatch.register_op(relax.Expr, doc.Gt, 0)(lambda lhs, rhs: lhs > rhs)
+dispatch.register_op(relax.Expr, doc.LtE, 0)(lambda lhs, rhs: lhs <= rhs)
+dispatch.register_op(relax.Expr, doc.Lt, 0)(lambda lhs, rhs: lhs < rhs)
+
 
 def bind_assign_value(
     self: Parser,
@@ -46,6 +52,7 @@ def bind_assign_value(
     var_name: str,
     value: Any,
     anno_ty: Type | None = None,
+    emit_prim_expr: bool = False,
 ) -> Any:
     var_table = self.var_table.get()
 
@@ -80,6 +87,10 @@ def bind_assign_value(
         IRBuilder.name(var_name, value)
         return value
 
+    if isinstance(value, tirx.PrimExpr):
+        if not emit_prim_expr:
+            return value
+
     if isinstance(value, tuple):
         value = convert_to_expr(value)
     if isinstance(value, numbers.Number):
@@ -95,10 +106,13 @@ def bind_assign_value(
         var = R.emit_match_cast(value.value, value.ty)
     else:
         return value
-        # raise TypeError(f"Unsupported type {type(value)} in assignment")
 
     IRBuilder.name(var_name, var)
     return var
+
+
+def is_prim_value_call(node: doc.expr) -> bool:
+    return isinstance(node, doc.Call) and getattr(node.func, "attr", None) == "prim_value"
 
 
 def eval_ty_proxy(self: Parser, node: doc.expr) -> TypeProxy:
@@ -374,7 +388,10 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=bind_assign_value,
+        bind_value=functools.partial(
+            bind_assign_value,
+            emit_prim_expr=is_prim_value_call(node.value),
+        ),
         allow_shadowing=True,
     )
 
@@ -387,7 +404,11 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=functools.partial(bind_assign_value, anno_ty=anno_ty),
+        bind_value=functools.partial(
+            bind_assign_value,
+            anno_ty=anno_ty,
+            emit_prim_expr=is_prim_value_call(node.value),
+        ),
         allow_shadowing=True,
     )
 

@@ -1990,7 +1990,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         # Replace None with arange for full dimension indexing
                         arange_idx = self.block_builder.emit(
                             relax.op.arange(
-                                relax.PrimValue(0), data_shape[i], relax.PrimValue(1), "int64"
+                                relax.prim_value(0),
+                                data_shape[i],
+                                relax.prim_value(1),
+                                "int64",
                             )
                         )
                         # Reshape to [dim_size, 1, 1, ...] for broadcasting
@@ -2080,7 +2083,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         for i, idx in enumerate(indices):
             if idx is None:
                 arange_idx = self.block_builder.emit(
-                    relax.op.arange(relax.PrimValue(0), data_shape[i], relax.PrimValue(1), "int64")
+                    relax.op.arange(
+                        relax.prim_value(0),
+                        data_shape[i],
+                        relax.prim_value(1),
+                        "int64",
+                    )
                 )
                 # Reshape to [dim_size, 1, 1, ...] for broadcasting
                 arange_idx = self.block_builder.emit(
@@ -2142,19 +2150,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         return input_shape[axis]
                 return val
 
-            if isinstance(bound, relax.PrimValue):
-                value = _adjust(bound.value)
-                return relax.PrimValue(value)
+            if isinstance(bound, tirx.PrimExpr):
+                value = _adjust(bound)
+                return relax.prim_value(value)
 
             bound = _adjust(bound)
-            if not isinstance(bound, relax.PrimValue):
-                bound = relax.PrimValue(bound)
+            if not isinstance(bound, tirx.PrimExpr):
+                bound = relax.prim_value(bound)
             return bound
 
         start = _normalize_bound(start)
         end = _normalize_bound(end)
-        if not isinstance(step, relax.PrimValue):
-            step = relax.PrimValue(step)
+        if not isinstance(step, tirx.PrimExpr):
+            step = relax.prim_value(step)
 
         return self.block_builder.emit(
             relax.op.slice_scatter(input_tensor, src, start, end, step, axis=dim)

@@ -728,7 +728,7 @@ class CallNode : public PrimExprNode {
    *  - It can be tvm::Op which corresponds to the primitive operators(intrinsics).
    *  - It can also be another function in the IRModule (GlobalVar).
    */
-  RelaxExpr op;
+  tvm::Expr op;
 
   /*! \brief The arguments. */
   ffi::Array<PrimExpr> args;
@@ -752,9 +752,9 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(PrimType ret_ty, RelaxExpr op, ffi::Array<PrimExpr> args, Attrs attrs = Attrs(),
+  TVM_DLL Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Attrs attrs = Attrs(),
                Span span = Span());
-  TVM_DLL Call(PrimType ret_ty, RelaxExpr op, ffi::Array<PrimExpr> args, Span span);
+  TVM_DLL Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Span span);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };

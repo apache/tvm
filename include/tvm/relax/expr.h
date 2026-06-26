@@ -175,15 +175,15 @@ class Tuple : public Expr {
    * into an array of base type.  This constructor handles the
    * conversion to the base `ffi::Array<relax::Expr>`.
    *
-   * \tparam RelaxExpr The type of relax expression passed in as an argument.
+   * \tparam ExprType The type of relax expression passed in as an argument.
    *
    * \param fields The fields of a tuple.
    *
    * \param span The source span of the expression.
    */
-  template <typename RelaxExpr, typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExpr>>>
-  TVM_DLL explicit Tuple(tvm::ffi::Array<RelaxExpr> fields, Span span = Span())
-      : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
+  template <typename ExprType, typename = std::enable_if_t<std::is_base_of_v<Expr, ExprType>>>
+  TVM_DLL explicit Tuple(tvm::ffi::Array<ExprType> fields, Span span = Span())
+      : Tuple(fields.Map([](const ExprType& expr) -> Expr { return expr; }), span) {}
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
@@ -239,28 +239,9 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item,
                         ffi::Optional<int64_t> opt_index = ffi::Optional<int64_t>(),
                         ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
-/*!
- * \brief Base type of all (non-function) leaf Exprs.
- * \sa Expr
- */
-class LeafExprNode : public ExprNode {
- public:
-  static constexpr const uint32_t _type_child_slots = 7;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.LeafExpr", LeafExprNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to BaseExprNode.
- * \sa LeafExprNode
- */
-class LeafExpr : public Expr {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LeafExpr, Expr, LeafExprNode);
-};
-
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
-class ShapeExprNode : public LeafExprNode {
+class ShapeExprNode : public ExprNode {
  public:
   /*! The values of the shape expression. */
   ffi::Array<PrimExpr> values;
@@ -269,18 +250,18 @@ class ShapeExprNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ShapeExprNode>().def_ro("values", &ShapeExprNode::values);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ShapeExpr", ShapeExprNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.ShapeExpr", ShapeExprNode, ExprNode);
 };
 
-class ShapeExpr : public LeafExpr {
+class ShapeExpr : public Expr {
  public:
   TVM_DLL explicit ShapeExpr(ffi::Array<PrimExpr> values, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ShapeExpr, LeafExpr, ShapeExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ShapeExpr, Expr, ShapeExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
 /*! \brief The variable class for all Relax bindings. */
-class VarNode : public LeafExprNode {
+class VarNode : public ExprNode {
  public:
   /*! \brief The identifier of the variable, which is used for comparing stable equality across
    * transformations. */
@@ -312,16 +293,16 @@ class VarNode : public LeafExprNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, ExprNode);
 };
 
-class Var : public LeafExpr {
+class Var : public Expr {
  public:
   TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span = Span())
       : Var(Id(name_hint), ty_annotation, span) {}
 
   TVM_DLL explicit Var(Id vid, ffi::Optional<Type> ty_annotation, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, LeafExpr, VarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
 
   VarNode* CopyOnWrite();
 };
@@ -357,7 +338,7 @@ class DataflowVar : public Var {
  *
  * \note Scalar constants are represented by ndim-0 constant tensors.
  */
-class ConstantNode : public LeafExprNode {
+class ConstantNode : public ExprNode {
  public:
   /*! \brief The data of the tensor */
   runtime::Tensor data;
@@ -372,10 +353,10 @@ class ConstantNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Constant", ConstantNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Constant", ConstantNode, ExprNode);
 };
 
-class Constant : public LeafExpr {
+class Constant : public Expr {
  public:
   /*!
    * \brief The constructor
@@ -387,56 +368,14 @@ class Constant : public LeafExpr {
   TVM_DLL explicit Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation = std::nullopt,
                             Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, LeafExpr, ConstantNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, Expr, ConstantNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ConstantNode);
-};
-
-/*!
- * \brief PrimValue.
- *
- * Expression representing a TIR POD expression.
- */
-class PrimValueNode : public LeafExprNode {
- public:
-  /*! \brief The prim expr representing the value */
-  PrimExpr value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.PrimValue", PrimValueNode, LeafExprNode);
-};
-
-/*!
- * \brief Managed reference to PrimValueNode
- * \sa PrimValeNode
- */
-class PrimValue : public LeafExpr {
- public:
-  /*!
-   * \brief The constructor
-   * \param value The value input.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL explicit PrimValue(PrimExpr value, Span span = Span());
-
-  /*!
-   * \brief Create a int64 prim value.
-   * \param value The input value.
-   * \param span The source span of the expression.
-   * \return The created prim value.
-   */
-  TVM_DLL static PrimValue Int64(int64_t value, Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimValue, LeafExpr, PrimValueNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimValueNode);
 };
 
 /*!
  * \brief Represent a string literal constant.
  */
-class StringImmNode : public LeafExprNode {
+class StringImmNode : public ExprNode {
  public:
   /*! \brief The data value. */
   ffi::String value;
@@ -445,14 +384,14 @@ class StringImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.StringImm", StringImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.StringImm", StringImmNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to StringImm
  * \sa StringImmNode
  */
-class StringImm : public LeafExpr {
+class StringImm : public Expr {
  public:
   /*!
    * \brief The constructor
@@ -461,14 +400,14 @@ class StringImm : public LeafExpr {
    */
   TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, LeafExpr, StringImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, Expr, StringImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
 
 /*!
  * \brief Represent a data type constant.
  */
-class DataTypeImmNode : public LeafExprNode {
+class DataTypeImmNode : public ExprNode {
  public:
   /*! \brief The data value. */
   DLDataType value;
@@ -477,14 +416,14 @@ class DataTypeImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataTypeImm", DataTypeImmNode, LeafExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataTypeImm", DataTypeImmNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to DataTypeImm
  * \sa DataTypeImmNode
  */
-class DataTypeImm : public LeafExpr {
+class DataTypeImm : public Expr {
  public:
   /*!
    * \brief The constructor
@@ -493,7 +432,7 @@ class DataTypeImm : public LeafExpr {
    */
   TVM_DLL explicit DataTypeImm(DLDataType value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, LeafExpr, DataTypeImmNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, Expr, DataTypeImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);
 };
 

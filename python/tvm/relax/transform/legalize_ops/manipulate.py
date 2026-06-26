@@ -300,9 +300,8 @@ def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.one_hot")
 def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     indices, on_value, off_value = call.args
-    if not (isinstance(on_value, relax.PrimValue) and isinstance(off_value, relax.PrimValue)):
-        raise ValueError("on_value and off_value must be PrimValue")
-    on_value, off_value = on_value.value, off_value.value
+    if not (isinstance(on_value, tirx.PrimExpr) and isinstance(off_value, tirx.PrimExpr)):
+        raise ValueError("on_value and off_value must be PrimExpr")
     if on_value.ty != off_value.ty:
         raise ValueError("on_value and off_value must have the same dtype")
     return bb.call_te(

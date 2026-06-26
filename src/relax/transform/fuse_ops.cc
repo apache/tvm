@@ -271,7 +271,9 @@ class GraphCreator : public ExprVisitor {
       return;
     }
 
-    if (!leaf_expr->IsInstance<LeafExprNode>()) {
+    if (!leaf_expr.as<ShapeExprNode>() && !leaf_expr.as<VarNode>() &&
+        !leaf_expr.as<ConstantNode>() && !leaf_expr.as<PrimExprNode>() &&
+        !leaf_expr.as<StringImmNode>() && !leaf_expr.as<DataTypeImmNode>()) {
       // Skip GlobalVar, ExternFunc, OpNode.
       return;
     }
@@ -644,14 +646,14 @@ class FunctionCreator : public ExprMutator {
     return ExprMutator::VisitExpr(expr);
   }
 
-  // Check if the expression is constant PrimValue or ShapeExpr or tuple of them that can be
+  // Check if the expression is constant PrimExpr or ShapeExpr or tuple of them that can be
   // inlined in the composite functions and excluded from args/params.
   bool IsInlinableConstants(const Expr& expr) {
     if (const auto* tuple = expr.as<TupleNode>()) {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(),
                          [this](const Expr& e) { return IsInlinableConstants(e); });
-    } else if (const auto* prim_value = expr.as<PrimValueNode>()) {
-      return tvm::tirx::UndefinedVars(prim_value->value).empty();
+    } else if (const auto* prim_value = expr.as<PrimExprNode>()) {
+      return tvm::tirx::UndefinedVars(ffi::GetRef<PrimExpr>(prim_value)).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
       return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
                          [](const PrimExpr& e) { return tvm::tirx::UndefinedVars(e).empty(); });

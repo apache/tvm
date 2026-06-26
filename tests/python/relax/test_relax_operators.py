@@ -538,7 +538,7 @@ def test_scalar_tensor_as_branch_condition(exec_mode):
 
 
 def test_prim_value_as_branch_condition(exec_mode):
-    """The condition may be a PrimValue"""
+    """The condition may be a PrimExpr"""
 
     @R.function
     def func(condition: R.Prim("bool")):

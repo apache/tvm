@@ -200,8 +200,8 @@ bool IsBoolType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dt
 }
 
 bool IsLeafOrTuple(const Expr& expr) {
-  return expr.as<LeafExprNode>() || expr.as<GlobalVarNode>() || expr.as<ExternFuncNode>() ||
-         expr.as<OpNode>() || expr.as<TupleNode>();
+  return !expr.as<CallNode>() && !expr.as<TupleGetItemNode>() && !expr.as<SeqExprNode>() &&
+         !expr.as<IfNode>() && !expr.as<FunctionNode>();
 }
 
 bool IsImpureCall(const Call& call) {

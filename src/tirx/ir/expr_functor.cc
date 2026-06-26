@@ -155,7 +155,7 @@ PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
   if (args.same_as(op->args)) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    return Call(op->BaseExprNode::ty.as_or_throw<PrimType>(), op->op, args, op->attrs, op->span);
+    return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op, args, op->attrs, op->span);
   }
 }
 
@@ -227,7 +227,7 @@ PrimExpr ExprMutator::VisitExpr_(const CastNode* op) {
   if (value.same_as(op->value)) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    return Cast(op->BaseExprNode::ty.as_or_throw<PrimType>(), value);
+    return Cast(op->ExprNode::ty.as_or_throw<PrimType>(), value);
   }
 }
 

@@ -72,7 +72,7 @@ Expr flatten(Expr x);
  * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
-Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value,
                       ffi::Optional<ffi::Array<IntImm>> axis_separators,
                       ffi::Optional<ffi::Array<IntImm>> input_axis_separators = std::nullopt);
 
@@ -293,7 +293,7 @@ Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction);
  * \param step The how many elements to skip in
  * \return  The computed result tensor with the same shape as `data`.
  */
-Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step);
+Expr slice_scatter(Expr input, Expr src, int axis, PrimExpr start, PrimExpr end, PrimExpr step);
 
 /*!
  * \brief Returns a one-hot tensor.
@@ -304,7 +304,7 @@ Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue en
  * \param axis The axis to fill.
  * \return The computed result.
  */
-Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis);
+Expr one_hot(Expr indices, PrimExpr on_value, PrimExpr off_value, int depth, int axis);
 
 }  // namespace relax
 }  // namespace tvm

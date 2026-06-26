@@ -303,8 +303,33 @@ def test_func_type():
 
 
 def test_prim_value():
-    obj = relax.PrimValue(1)
-    _assert_print(obj, "R.prim_value(1)")
+    obj = tirx.IntImm("int64", 1)
+    _assert_print(obj, "T.int64(1)")
+
+    @R.function
+    def func() -> R.Prim("int64"):
+        return R.prim_value(1)
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import tirx as T
+# from tvm.tirx.layout import Axis
+# from tvm.script import relax as R
+
+@R.function
+def func() -> T.int64:
+    return 1""",
+    )
+
+    @R.function
+    def float_func() -> R.Prim("float32"):
+        return R.prim_value(T.float32(1.0))
+
+    float_script = float_func.script(verbose_expr=True)
+    assert "R.prim_value" not in float_script
+    assert "return T.float32(" in float_script
+    tvm.ir.assert_structural_equal(tvm.script.from_source(float_script), float_func)
 
 
 def test_string_imm():

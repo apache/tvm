@@ -479,7 +479,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
    * \param rhs The right hand shape.
    * \return CheckResult.
    */
-  virtual BaseCheckResult PrimValueMatchCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
+  virtual BaseCheckResult PrimExprMatchCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
     // get static shape checking right.
     auto* int_lhs = lhs.as<IntImmNode>();
     auto* int_rhs = rhs.as<IntImmNode>();
@@ -504,7 +504,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
 
     BaseCheckResult ret = BaseCheckResult::kPass;
     for (size_t i = 0; i < lhs.size(); ++i) {
-      auto cmp_ret = PrimValueMatchCheck(lhs[i], rhs[i]);
+      auto cmp_ret = PrimExprMatchCheck(lhs[i], rhs[i]);
       if (ret == BaseCheckResult::kFailL0) return ret;
       ret = CombineCheck(cmp_ret, ret);
     }
@@ -869,9 +869,9 @@ class CallRetTypeDeriver : public TypeBaseChecker {
   using TypeBaseChecker::ShapeMatchCheck;
 
   // Match shape values in between param(lhs) and arg(rhs)
-  BaseCheckResult PrimValueMatchCheck(const PrimExpr& param, const PrimExpr& arg) final {
+  BaseCheckResult PrimExprMatchCheck(const PrimExpr& param, const PrimExpr& arg) final {
     if (!populate_mapping_) {
-      return TypeBaseChecker::PrimValueMatchCheck(param, arg);
+      return TypeBaseChecker::PrimExprMatchCheck(param, arg);
     }
 
     if (auto* ptr = param.as<tirx::VarNode>()) {
@@ -892,7 +892,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       // Do not attempt to do prove when param contains a symbolic expr.
       // such expression might depends on a later defined var in params created by dyn fusion.
       // example: f(a: Tensor[(n+1)], s: Shape[(n,)]), the (n+1) case here.
-      return TypeBaseChecker::PrimValueMatchCheck(param, arg);
+      return TypeBaseChecker::PrimExprMatchCheck(param, arg);
     }
   }
 
@@ -1387,8 +1387,8 @@ class SymbolicVarCollector : public relax::ExprVisitor,
         this->VisitTypeExprField(val);
       }
     }
-    if (auto prim_value = expr.as<relax::PrimValue>()) {
-      this->VisitTypeExprField(prim_value.value()->value);
+    if (auto prim_value = expr.as<PrimExpr>()) {
+      this->VisitTypeExprField(prim_value.value());
     }
   }
 

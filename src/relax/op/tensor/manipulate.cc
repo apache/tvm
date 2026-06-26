@@ -700,7 +700,7 @@ TVM_REGISTER_OP("relax.index_tensor")
 
 /* relax.layout_transform */
 
-Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimValue> pad_value,
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value,
                       ffi::Optional<ffi::Array<IntImm>> axis_separators,
                       ffi::Optional<ffi::Array<IntImm>> input_axis_separators) {
   ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
@@ -722,11 +722,11 @@ Type InferTypeLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<LayoutTransformAttrs>();
   tirx::IndexMap index_map = attrs->index_map;
-  ffi::Optional<PrimValue> optional_pad_value = attrs->pad_value;
+  ffi::Optional<PrimExpr> optional_pad_value = attrs->pad_value;
 
   // Check pad_value has same dtype as input.
   if (optional_pad_value.defined()) {
-    PrimExpr padded_value = optional_pad_value.value()->value;
+    PrimExpr padded_value = optional_pad_value.value();
     PrimType padded_dtype = padded_value.ty();
     if (padded_dtype != data_ty->dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2944,7 +2944,7 @@ TVM_REGISTER_OP("relax.scatter_nd")
 
 /* relax.scatter_nd */
 
-Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step) {
+Expr slice_scatter(Expr input, Expr src, int axis, PrimExpr start, PrimExpr end, PrimExpr step) {
   auto attrs = ffi::make_object<SliceScatterAttrs>();
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.slice_scatter");
@@ -3015,18 +3015,18 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
   }
 
   auto get_prim_expr_from_arg = [&ctx, &call](const Expr& arg_expr, std::string key) -> PrimExpr {
-    const auto* prim_value_node = arg_expr.as<PrimValueNode>();
+    const auto* prim_value_node = arg_expr.as<PrimExprNode>();
     if (prim_value_node == nullptr) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "SliceScatter expects the `" << key << "` argument (" << arg_expr
-          << ") to be a PrimValue, but got " << arg_expr->GetTypeKey();
+          << ") to be a PrimExpr, but got " << arg_expr->GetTypeKey();
     }
-    const PrimExpr& prim_expr = prim_value_node->value;
+    PrimExpr prim_expr = ffi::GetRef<PrimExpr>(prim_value_node);
     tvm::PrimType prim_ty = prim_expr.ty();
     if (prim_ty.code() != DLDataTypeCode::kDLInt && prim_ty.code() != DLDataTypeCode::kDLUInt) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "SliceScatter expects `" << key << "` (" << prim_expr
-          << ") to be an integer PrimValue, but got dtype " << prim_ty;
+          << ") to be an integer PrimExpr, but got dtype " << prim_ty;
     }
     return prim_expr;
   };
@@ -3091,22 +3091,22 @@ TVM_REGISTER_OP("relax.slice_scatter")
     .set_num_inputs(5)
     .add_argument("input", "Tensor", "The input tensor.")
     .add_argument("src", "Tensor", "The source tensor to scatter.")
-    .add_argument("start", "PrimValue", "The starting index of the slice (inclusive).")
-    .add_argument("end", "PrimValue", "The ending index of the slice (exclusive).")
-    .add_argument("step", "PrimValue", "The step of the slice.")
+    .add_argument("start", "PrimExpr", "The starting index of the slice (inclusive).")
+    .add_argument("end", "PrimExpr", "The ending index of the slice (exclusive).")
+    .add_argument("step", "PrimExpr", "The step of the slice.")
     .set_attr<FInferType>("FInferType", InferTypeSliceScatter)
     .set_attr<bool>("FPurity", true);
 
 /* relax.one_hot */
 
-Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis) {
+Expr one_hot(Expr indices, PrimExpr on_value, PrimExpr off_value, int depth, int axis) {
   ffi::ObjectPtr<OneHotAttrs> attrs = ffi::make_object<OneHotAttrs>();
   attrs->depth = depth;
   attrs->axis = axis;
 
   // Check if on_value and off_value have the same dtype
-  PrimType on_dtype = on_value->value.ty();
-  PrimType off_dtype = off_value->value.ty();
+  PrimType on_dtype = on_value.ty();
+  PrimType off_dtype = off_value.ty();
   TVM_FFI_ICHECK(on_dtype == off_dtype)
       << "one_hot: on_value and off_value must have the same dtype, "
       << "but got " << on_dtype << " and " << off_dtype;
@@ -3125,11 +3125,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeOneHot(const Call& call, const BlockBuilder& ctx) {
   TensorType indices_ty = GetInputTensorType(call, 0, ctx);
   const auto* attrs = call->attrs.as<OneHotAttrs>();
-  PrimValue on_value = call->args[1].as_or_throw<PrimValue>();
-  PrimValue off_value = call->args[2].as_or_throw<PrimValue>();
+  PrimExpr on_value = call->args[1].as_or_throw<PrimExpr>();
+  PrimExpr off_value = call->args[2].as_or_throw<PrimExpr>();
   // Check if on_value and off_value have the same dtype
-  PrimType on_dtype = on_value->value.ty();
-  PrimType off_dtype = off_value->value.ty();
+  PrimType on_dtype = on_value.ty();
+  PrimType off_dtype = off_value.ty();
   TVM_FFI_ICHECK(on_dtype == off_dtype)
       << "one_hot: on_value and off_value must have the same dtype, "
       << "but got " << on_dtype << " and " << off_dtype;
@@ -3175,8 +3175,8 @@ TVM_REGISTER_OP("relax.one_hot")
     .set_attrs_type<OneHotAttrs>()
     .set_num_inputs(3)
     .add_argument("indices", "Tensor", "The indices tensor.")
-    .add_argument("on_value", "PrimValue", "The value to fill at specified indices.")
-    .add_argument("off_value", "PrimValue", "The value to fill at other indices.")
+    .add_argument("on_value", "PrimExpr", "The value to fill at specified indices.")
+    .add_argument("off_value", "PrimExpr", "The value to fill at other indices.")
     .set_attr<FInferType>("FInferType", InferTypeOneHot)
     .set_attr<bool>("FPurity", true);
 

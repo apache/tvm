@@ -135,10 +135,10 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
           << "Operator " << call->op
           << " expects the relative_byte_offset to be a 64-bit integer, but received "
           << arg_relative_byte_offset << ", which has type " << ty;
-      if (const auto* prim_value = arg_relative_byte_offset.as<PrimValueNode>()) {
+      if (const auto* prim_value = arg_relative_byte_offset.as<PrimExprNode>()) {
         // An offset of known value is applied.  The known value may
         // be dynamic.
-        return prim_value->value;
+        return ffi::GetRef<PrimExpr>(prim_value);
       } else {
         // An offset of unknown value is applied.
         return std::nullopt;
@@ -146,7 +146,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
     } else {
       TVM_FFI_THROW(TypeError) << "Operator " << call->op
                                << " expects the relative_byte_offset argument "
-                               << "to be a Relax PrimValue.  "
+                               << "to be a Relax PrimExpr.  "
                                << "However, expression " << call
                                << " provides relative_byte_offset of " << arg_relative_byte_offset
                                << ", which has type " << ty;
@@ -340,7 +340,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   }
 
   if (HasVoidType(relative_byte_offset)) {
-    relative_byte_offset = relax::PrimValue::Int64(0);
+    relative_byte_offset = IntImm::Int64(0);
   }
 
   TypeDeriveFunc infer_ty_env_func;

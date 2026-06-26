@@ -686,7 +686,7 @@ def If(condition: Expr | PrimExpr) -> frame.IfFrame:  # pylint: disable=invalid-
 
     """
     if not isinstance(condition, Expr):
-        condition = relax.PrimValue(condition)
+        condition = relax.prim_value(condition)
 
     return _ffi_api.If(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -748,21 +748,23 @@ def shape(value: list[PrimExpr]) -> Expr:
     return relax.ShapeExpr(value)  # pylint: disable=no-member # type: ignore
 
 
-############################### PrimValue ##############################
+############################### PrimExpr ###############################
 
 
-def prim_value(value: PrimExpr) -> Expr:
-    """Create a prim value expression.
+def prim_value(value: PrimExpr | int | float) -> Expr:
+    """Convert a value to a primitive expression.
+
     Parameters
     ----------
-    value : PrimExpr
-        The value of the prim value.
+    value : PrimExpr | int | float
+        The value to convert.
+
     Returns
     -------
     res : Expr
-        The result prim value.
+        The primitive expression.
     """
-    return relax.PrimValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return relax.prim_value(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def str(value: py_str) -> Expr:

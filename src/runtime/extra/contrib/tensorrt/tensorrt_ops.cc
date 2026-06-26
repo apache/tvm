@@ -180,7 +180,7 @@ class ActivationOpConverter : public TensorRTOpConverter {
         params->network->addActivation(*params->inputs.at(0).tensor, it->second);
 #if TRT_VERSION_GE(5, 1, 5)
     if (op_name == "clip") {
-      // Relax clip min/max are PrimValue args (serialized as arg_min/arg_max), not Relay attrs.
+      // Relax clip min/max are PrimExpr args (serialized as arg_min/arg_max), not Relay attrs.
       float a_min = static_cast<float>(params->node.GetAttr<double>("arg_min"));
       float a_max = static_cast<float>(params->node.GetAttr<double>("arg_max"));
       act_layer->setAlpha(a_min);

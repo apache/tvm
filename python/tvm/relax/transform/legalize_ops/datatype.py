@@ -21,13 +21,13 @@ from tvm import relax, topi
 
 from ...block_builder import BlockBuilder
 from ...expr import Call, Expr
-from .common import _try_convert_to_scalar_const, register_legalize
+from .common import _is_relax_expr, _try_convert_to_scalar_const, register_legalize
 
 
 @register_legalize("relax.astype")
 def _astype(bb: BlockBuilder, call: Call) -> Expr:
     arg = _try_convert_to_scalar_const(call.args[0], python_native=True)
-    if isinstance(arg, Expr):  # type: ignore
+    if _is_relax_expr(arg):
         return bb.call_te(topi.cast, arg, call.attrs.dtype)
     else:
         return relax.const(arg, call.attrs.dtype)

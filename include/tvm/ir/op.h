@@ -91,7 +91,7 @@ class ArgumentInfo : public ffi::ObjectRef {
  *
  * \sa Op
  */
-class OpNode : public RelaxExprNode {
+class OpNode : public ExprNode {
  public:
   /*! \brief name of the operator */
   ffi::String name;
@@ -136,7 +136,7 @@ class OpNode : public RelaxExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, ExprNode);
 
  private:
   /*! \return the internal attr registry index. */
@@ -160,9 +160,9 @@ class OpNode : public RelaxExprNode {
  * \brief Managed reference class to OpNode.
  * \sa OpNode
  */
-class Op : public RelaxExpr {
+class Op : public Expr {
  public:
-  explicit Op(ffi::ObjectPtr<OpNode> n) : RelaxExpr(std::move(n)) {
+  explicit Op(ffi::ObjectPtr<OpNode> n) : Expr(std::move(n)) {
     TVM_FFI_CHECK(defined(), ValueError) << "Op expects a defined OpNode";
   }
 
@@ -189,7 +189,7 @@ class Op : public RelaxExpr {
    */
   TVM_DLL static const Op& Get(const ffi::String& op_name);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, RelaxExpr, OpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, Expr, OpNode);
 
  private:
   /*!
@@ -317,7 +317,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
    *         or if expr is not an Op.
    * \return the const reference to the content value.
    */
-  inline ValueType get(const RelaxExpr& expr, ValueType def_value) const;
+  inline ValueType get(const Expr& expr, ValueType def_value) const;
 
   using TParent = AttrRegistryMap<Op, ValueType>;
   using TParent::count;
@@ -410,7 +410,7 @@ inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
 // member functions of OpAttrMap
 
 template <typename ValueType>
-inline ValueType OpAttrMap<ValueType>::get(const RelaxExpr& expr, ValueType def_value) const {
+inline ValueType OpAttrMap<ValueType>::get(const Expr& expr, ValueType def_value) const {
   TVM_FFI_ICHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
     return this->map_.get(ffi::GetRef<Op>(op), def_value);

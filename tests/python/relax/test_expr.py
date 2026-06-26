@@ -260,28 +260,42 @@ def test_shape_expr():
         rx.ShapeExpr([m, 3])
 
 
-def test_prim_value():
-    pv = rx.PrimValue(tirx.IntImm("int64", 1))
-    assert pv.value.value == 1
-    _check_equal(pv, rx.PrimValue(tirx.IntImm("int64", 1)))
-    _check_json_roundtrip(pv)
+def test_prim_value_helper_from_python_scalar():
+    int_value = rx.prim_value(1)
+    assert isinstance(int_value, tirx.IntImm)
+    tvm.ir.assert_structural_equal(int_value.ty, tvm.ir.PrimType("int64"))
+    assert int_value.value == 1
+
+    np_int_value = rx.prim_value(np.int32(2))
+    assert isinstance(np_int_value, tirx.IntImm)
+    tvm.ir.assert_structural_equal(np_int_value.ty, tvm.ir.PrimType("int64"))
+    assert np_int_value.value == 2
+
+    float_value = rx.prim_value(1.0)
+    assert isinstance(float_value, tirx.FloatImm)
+    tvm.ir.assert_structural_equal(float_value.ty, tvm.ir.PrimType("float64"))
+    assert float_value.value == 1.0
+
+    np_float_value = rx.prim_value(np.float32(1.5))
+    assert isinstance(np_float_value, tirx.FloatImm)
+    tvm.ir.assert_structural_equal(np_float_value.ty, tvm.ir.PrimType("float64"))
+    assert np_float_value.value == 1.5
 
 
-def test_prim_value_with_var():
+def test_prim_value_helper_preserves_prim_expr():
+    float_imm = tirx.FloatImm("float32", 1.0)
+    assert rx.prim_value(float_imm).same_as(float_imm)
+    assert R.prim_value(float_imm).same_as(float_imm)
+
     n = tirx.Var("n", "int64")
-    pv = rx.PrimValue(n)
-    assert pv.value.same_as(n)
-    tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
-    _check_equal(pv, rx.PrimValue(n))
-    _check_json_roundtrip(pv)
+    expr = n + 1
+    assert rx.prim_value(n).same_as(n)
+    assert rx.prim_value(expr).same_as(expr)
 
 
-def test_prim_value_with_expr():
-    n = tirx.Var("n", "int64")
-    pv = rx.PrimValue(n + 1)
-    tvm.ir.assert_structural_equal(pv.ty, tvm.ir.PrimType("int64"))
-    _check_equal(pv, rx.PrimValue(n + 1))
-    _check_json_roundtrip(pv)
+def test_prim_value_helper_rejects_relax_expr():
+    with pytest.raises(TypeError, match="Cannot convert"):
+        rx.prim_value(rx.Var("x"))
 
 
 def test_string_imm():

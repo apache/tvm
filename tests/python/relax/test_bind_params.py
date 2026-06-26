@@ -130,7 +130,7 @@ def test_bind_prim_value(prim_value_dtype):
         B = R.prim_value(value)
         return B
 
-    after = before.bind_params({"A": relax.PrimValue(value)})
+    after = before.bind_params({"A": value})
 
     tvm.ir.assert_structural_equal(expected, after)
 
