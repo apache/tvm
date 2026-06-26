@@ -110,6 +110,8 @@ class TensorType(Type):
     ) -> None:
         if isinstance(shape, list | tuple | Array):
             shape = ShapeExpr(shape)
+        if dtype == "":
+            dtype = None
         self.__init_handle_by_constructor__(
             _ffi_api.TensorType,
             shape,
