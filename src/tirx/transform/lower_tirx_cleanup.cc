@@ -169,11 +169,6 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
       flattened = buf.GetFlattenedBuffer();
       writer = flattened.CopyOnWrite();
     }
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (flattened->dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
-      writer->dtype = PrimType::Int(8);
-    }
     // canonicalize shape
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
       writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
@@ -187,40 +182,14 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    PrimType store_value_ty = op->value.ty();
-    bool store_returns_bool = store_value_ty.MatchesCode(DLDataTypeCode::kDLBool);
     store = VisitBufferAccess(store);
-
-    // Handle casts from the value's dtype to the dtype of the
-    // backing array.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (store_returns_bool) {
-      TVM_FFI_ICHECK_EQ(store->buffer->dtype, PrimType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
-      auto writer = store.CopyOnWrite();
-      writer->value = tvm::cast(PrimType::Int(8), store->value);
-      return std::move(store);
-    }
     return std::move(store);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimType load_ty = op->ty();
-    bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
-    // Handle casts from dtype of the backing array to value's dtype.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (load_returns_bool) {
-      TVM_FFI_ICHECK_EQ(load->buffer->dtype, PrimType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
-      load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
-      return tvm::cast(PrimType::Bool(), load);
-    } else {
-      return std::move(load);
-    }
+    return std::move(load);
   }
 
   Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
