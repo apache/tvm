@@ -54,7 +54,7 @@ struct SortAttrs : public AttrsNode {
 struct ArgsortAttrs : public AttrsNode {
   int axis;
   bool descending;
-  DLDataType dtype;
+  ffi::Optional<DLDataType> dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -67,8 +67,7 @@ struct ArgsortAttrs : public AttrsNode {
                 "Whether to argsort in descending order."
                 "If it is not specified, it defaults to the ascending order.",
                 refl::DefaultValue(false))
-        .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.",
-                refl::DefaultValue((DLDataType{kDLOpaqueHandle, 0, 0})));
+        .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ArgsortAttrs", ArgsortAttrs, AttrsNode);
 };  // struct ArgsortAttrs
@@ -79,7 +78,7 @@ struct TopKAttrs : public AttrsNode {
   int axis;
   bool largest;
   ffi::String ret_type;
-  DLDataType dtype;
+  ffi::Optional<DLDataType> dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -97,8 +96,7 @@ struct TopKAttrs : public AttrsNode {
                 "Whether to return largest or smallest elements."
                 "By default, return the largest k elements.",
                 refl::DefaultValue(true))
-        .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.",
-                refl::DefaultValue((DLDataType{kDLOpaqueHandle, 0, 0})));
+        .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.TopKAttrs", TopKAttrs, AttrsNode);
 };  // struct TopKAttrs

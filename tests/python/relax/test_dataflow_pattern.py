@@ -1117,7 +1117,7 @@ def test_combine_matmul_twice():
             lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280])
             lv2 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920])
             lv2_1 = R.concat((w3, w4, w5), axis=1)
-            lv3 = R.matmul(x2, lv2_1, out_dtype="void")
+            lv3 = R.matmul(x2, lv2_1)
             lv3_1 = R.strided_slice(lv3, axes=[2], begin=[0], end=[640])
             lv4 = R.strided_slice(lv3, axes=[2], begin=[640], end=[1280])
             lv5 = R.strided_slice(lv3, axes=[2], begin=[1280], end=[1920])
@@ -1217,7 +1217,7 @@ def test_combine_matmul_emit_order():
             w1_t_t = R.permute_dims(w1_t, axes=None)
             w2_t = R.permute_dims(w2, axes=None)
             lv = R.concat((w0_t, w1_t_t, w2_t), axis=1)
-            lv1 = R.matmul(x1, lv, out_dtype="void")
+            lv1 = R.matmul(x1, lv)
             lv0 = R.strided_slice(lv1, axes=[2], begin=[0], end=[640])
             lv1_1 = R.strided_slice(lv1, axes=[2], begin=[640], end=[1280])
             lv2 = R.strided_slice(lv1, axes=[2], begin=[1280], end=[1920])
@@ -1272,7 +1272,7 @@ def test_combine_transposed_matmul_twice():
         with R.dataflow():
             lv: R.Tensor((1280, 640), dtype="float32") = R.concat((w0, w1), axis=0)
             lv1: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv, axes=None)
-            lv2: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(x1, lv1, out_dtype="void")
+            lv2: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(x1, lv1)
             lv3: R.Tuple(
                 R.Tensor((2, 1024, 640), dtype="float32"),
                 R.Tensor((2, 1024, 640), dtype="float32"),
@@ -1281,9 +1281,7 @@ def test_combine_transposed_matmul_twice():
             lv1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv3[1]
             lv_1: R.Tensor((1280, 640), dtype="float32") = R.concat((w2, w3), axis=0)
             lv1_2: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv_1, axes=None)
-            lv2_1: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(
-                x2, lv1_2, out_dtype="void"
-            )
+            lv2_1: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(x2, lv1_2)
             lv3_1: R.Tuple(
                 R.Tensor((2, 1024, 640), dtype="float32"),
                 R.Tensor((2, 1024, 640), dtype="float32"),

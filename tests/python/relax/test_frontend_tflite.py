@@ -1289,7 +1289,7 @@ def test_fill_dynamic_dims():
                     lv2, R.Shape([fill_dim_0, fill_dim_1])
                 )
                 gv: R.Tensor((fill_dim_0, fill_dim_1), dtype="float32") = R.full(
-                    R.shape([fill_dim_0, fill_dim_1]), value, dtype="void"
+                    R.shape([fill_dim_0, fill_dim_1]), value
                 )
                 R.output(gv)
             return gv
@@ -1876,7 +1876,7 @@ def test_fully_connected():
                 lv: R.Tensor((8, 3), dtype="float32") = R.permute_dims(
                     R.const(np.arange(24, dtype=np.float32).reshape((3, 8))), axes=[1, 0]
                 )
-                lv1: R.Tensor((1, 3), dtype="float32") = R.matmul(x, lv, out_dtype="void")
+                lv1: R.Tensor((1, 3), dtype="float32") = R.matmul(x, lv)
                 gv: R.Tensor((1, 3), dtype="float32") = R.add(
                     lv1, R.const(np.array([0.5, 1.0, -1.0], dtype=np.float32))
                 )
@@ -1925,7 +1925,6 @@ def test_depthwise_conv2d():
                     data_layout="NHWC",
                     kernel_layout="HWOI",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 gv: R.Tensor((1, 8, 8, 2), dtype="float32") = R.add(
                     lv2, R.const(np.zeros((2,), dtype="float32"))
@@ -2386,7 +2385,6 @@ def test_conv2d_same():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 gv: R.Tensor((1, 128, 128, 32), dtype="float32") = R.add(
                     lv2, R.const(np.zeros((32,), dtype="float32"))
@@ -2427,7 +2425,6 @@ def test_conv2d_valid():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 gv: R.Tensor((1, 126, 126, 32), dtype="float32") = R.add(
                     lv2, R.const(np.zeros((32,), dtype="float32"))
@@ -2479,7 +2476,6 @@ def test_conv3d_valid():
                     data_layout="NDHWC",
                     kernel_layout="DHWIO",
                     out_layout="NDHWC",
-                    out_dtype="void",
                 )
                 R.output(gv)
             return gv
@@ -2509,7 +2505,6 @@ def test_conv3d_same():
                     data_layout="NDHWC",
                     kernel_layout="DHWIO",
                     out_layout="NDHWC",
-                    out_dtype="void",
                 )
                 R.output(gv)
             return gv
@@ -2578,7 +2573,6 @@ def test_conv3d_transpose_valid():
                     data_layout="NDHWC",
                     kernel_layout="DHWOI",
                     out_layout="NDHWC",
-                    out_dtype="void",
                 )
                 R.output(gv)
             return gv
@@ -2611,7 +2605,6 @@ def test_conv3d_transpose_same():
                     data_layout="NDHWC",
                     kernel_layout="DHWOI",
                     out_layout="NDHWC",
-                    out_dtype="void",
                 )
                 R.output(gv)
             return gv
@@ -3171,7 +3164,7 @@ def test_batch_matmul():
         ) -> R.Tensor((2, 3, 5), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                lv: R.Tensor((2, 3, 5), dtype="float32") = R.matmul(x, y, out_dtype="void")
+                lv: R.Tensor((2, 3, 5), dtype="float32") = R.matmul(x, y)
                 gv: R.Tensor((2, 3, 5), dtype="float32") = R.reshape(lv, R.shape([2, 3, 5]))
                 R.output(gv)
             return gv
@@ -3201,7 +3194,7 @@ def test_batch_matmul_adj():
             with R.dataflow():
                 lv: R.Tensor((2, 3, 4), dtype="float32") = R.permute_dims(x, axes=[0, 2, 1])
                 lv1: R.Tensor((2, 4, 5), dtype="float32") = R.permute_dims(y, axes=[0, 2, 1])
-                lv2: R.Tensor((2, 3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                lv2: R.Tensor((2, 3, 5), dtype="float32") = R.matmul(lv, lv1)
                 gv: R.Tensor((2, 3, 5), dtype="float32") = R.reshape(lv2, R.shape([2, 3, 5]))
                 R.output(gv)
             return gv
@@ -3935,7 +3928,6 @@ def _make_resize_expected(
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0.0,
-                    out_dtype="void",
                 )
             )
         bb.emit_func_output(gv)
@@ -10750,7 +10742,7 @@ def test_stablehlo_dot_general():
         ) -> R.Tensor((2, 4), dtype="float32"):
             R.func_attr({"num_input": 2})
             with R.dataflow():
-                gv: R.Tensor((2, 4), dtype="float32") = R.matmul(lhs, rhs, out_dtype="void")
+                gv: R.Tensor((2, 4), dtype="float32") = R.matmul(lhs, rhs)
                 R.output(gv)
             return gv
 
@@ -10892,7 +10884,6 @@ def test_stablehlo_convolution():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 R.output(gv)
             return gv
@@ -11301,7 +11292,6 @@ def test_quantized_conv2d_per_tensor_uses_qdq():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 gv: R.Tensor((1, 2, 2, 2), dtype="int8") = R.quantize(
                     lv3,
@@ -11426,7 +11416,6 @@ def test_quantized_conv2d_per_channel_weight_uses_remapped_axis():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 gv: R.Tensor((1, 2, 2, 2), dtype="int8") = R.quantize(
                     lv3,
@@ -11970,7 +11959,6 @@ def test_quantized_conv2d_with_int32_bias_dequantizes_bias():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 lv4: R.Tensor((), dtype="float32") = R.multiply(
                     R.const(0.5, "float32"),
@@ -12092,7 +12080,6 @@ def test_quantized_conv2d_per_channel_weight_with_int32_bias_dequantizes_bias():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 lv4: R.Tensor((2,), dtype="float32") = R.multiply(
                     R.const(0.5, "float32"),
@@ -12501,7 +12488,7 @@ def test_quantized_fully_connected_with_int32_bias_dequantizes_bias():
                     out_dtype="float32",
                     axis=1,
                 )
-                lv3: R.Tensor((1, 2), dtype="float32") = R.matmul(lv, lv2, out_dtype="void")
+                lv3: R.Tensor((1, 2), dtype="float32") = R.matmul(lv, lv2)
                 lv4: R.Tensor((), dtype="float32") = R.multiply(
                     R.const(0.5, "float32"),
                     R.const(0.25, "float32"),
@@ -12865,7 +12852,6 @@ def test_densify_with_conv2d():
                     data_layout="NHWC",
                     kernel_layout="HWIO",
                     out_layout="NHWC",
-                    out_dtype="void",
                 )
                 R.output(gv)
             return gv
@@ -12890,7 +12876,7 @@ def test_densify_with_fully_connected():
                 weight_t: R.Tensor((4, 4), dtype="float32") = R.permute_dims(
                     R.const(_DENSIFY_FC_WEIGHT_DENSE_OI), axes=[1, 0]
                 )
-                gv: R.Tensor((1, 4), dtype="float32") = R.matmul(x, weight_t, out_dtype="void")
+                gv: R.Tensor((1, 4), dtype="float32") = R.matmul(x, weight_t)
                 R.output(gv)
             return gv
 
@@ -13340,15 +13326,11 @@ def test_lstm_none_activation():
                 lv: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_0, lv, out_dtype="void"
-                )
+                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_0, lv)
                 lv2: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv3: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_10, lv2, out_dtype="void"
-                )
+                lv3: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_10, lv2)
                 lv4: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv3)
                 lv5: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv4, R.const(np.zeros(2, dtype=np.float32))
@@ -13357,15 +13339,11 @@ def test_lstm_none_activation():
                 lv7: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv8: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_0, lv7, out_dtype="void"
-                )
+                lv8: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_0, lv7)
                 lv9: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_10, lv9, out_dtype="void"
-                )
+                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_10, lv9)
                 lv11: R.Tensor((2, 2), dtype="float32") = R.add(lv8, lv10)
                 lv12: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv11, R.const(np.zeros(2, dtype=np.float32))
@@ -13376,15 +13354,11 @@ def test_lstm_none_activation():
                 lv16: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv17: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_0, lv16, out_dtype="void"
-                )
+                lv17: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_0, lv16)
                 lv18: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv19: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_10, lv18, out_dtype="void"
-                )
+                lv19: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_10, lv18)
                 lv20: R.Tensor((2, 2), dtype="float32") = R.add(lv17, lv19)
                 lv21: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv20, R.const(np.zeros(2, dtype=np.float32))
@@ -13445,15 +13419,11 @@ def test_lstm_tanh_activation():
                 lv: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_0, lv, out_dtype="void"
-                )
+                lv1: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_0, lv)
                 lv2: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv3: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_10, lv2, out_dtype="void"
-                )
+                lv3: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_10, lv2)
                 lv4: R.Tensor((2, 2), dtype="float32") = R.add(lv1, lv3)
                 lv5: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv4, R.const(np.zeros(2, dtype=np.float32))
@@ -13462,15 +13432,11 @@ def test_lstm_tanh_activation():
                 lv7: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv8: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_0, lv7, out_dtype="void"
-                )
+                lv8: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_0, lv7)
                 lv9: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_10, lv9, out_dtype="void"
-                )
+                lv10: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_10, lv9)
                 lv11: R.Tensor((2, 2), dtype="float32") = R.add(lv8, lv10)
                 lv12: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv11, R.const(np.zeros(2, dtype=np.float32))
@@ -13481,15 +13447,11 @@ def test_lstm_tanh_activation():
                 lv16: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv17: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_0, lv16, out_dtype="void"
-                )
+                lv17: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_0, lv16)
                 lv18: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv19: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    tvmgen_tensor_10, lv18, out_dtype="void"
-                )
+                lv19: R.Tensor((2, 2), dtype="float32") = R.matmul(tvmgen_tensor_10, lv18)
                 lv20: R.Tensor((2, 2), dtype="float32") = R.add(lv17, lv19)
                 lv21: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv20, R.const(np.zeros(2, dtype=np.float32))
@@ -13817,7 +13779,6 @@ def test_svdf_shared_state_updates_exp_tab():
                 lv8: R.Tensor((1, 2), dtype="float32") = R.matmul(
                     tvmgen_tensor_0,
                     lv7,
-                    out_dtype="void",
                 )
                 lv9: R.Tensor((1, 2, 1), dtype="float32") = R.expand_dims(lv8, axis=[-1])
                 lv10: R.Tensor((1, 2, 3), dtype="float32") = R.concat((lv6, lv9), axis=2)
@@ -14342,21 +14303,17 @@ def test_bidirectional_sequence_rnn_none_activation():
             with R.dataflow():
                 x_t: R.Tensor((2, 2), dtype="float32") = R.squeeze(x, axis=[1])
                 fw_w_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(fw_w), axes=None)
-                fw_x: R.Tensor((2, 2), dtype="float32") = R.matmul(x_t, fw_w_t, out_dtype="void")
+                fw_x: R.Tensor((2, 2), dtype="float32") = R.matmul(x_t, fw_w_t)
                 fw_r_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(fw_r), axes=None)
-                fw_h_proj: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    fw_h, fw_r_t, out_dtype="void"
-                )
+                fw_h_proj: R.Tensor((2, 2), dtype="float32") = R.matmul(fw_h, fw_r_t)
                 fw_out: R.Tensor((2, 2), dtype="float32") = R.add(
                     R.add(fw_x, fw_h_proj), R.const(fw_b)
                 )
                 fw_stacked: R.Tensor((2, 1, 2), dtype="float32") = R.stack((fw_out,), axis=1)
                 bw_w_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(bw_w), axes=None)
-                bw_x: R.Tensor((2, 2), dtype="float32") = R.matmul(x_t, bw_w_t, out_dtype="void")
+                bw_x: R.Tensor((2, 2), dtype="float32") = R.matmul(x_t, bw_w_t)
                 bw_r_t: R.Tensor((2, 2), dtype="float32") = R.permute_dims(R.const(bw_r), axes=None)
-                bw_h_proj: R.Tensor((2, 2), dtype="float32") = R.matmul(
-                    bw_h, bw_r_t, out_dtype="void"
-                )
+                bw_h_proj: R.Tensor((2, 2), dtype="float32") = R.matmul(bw_h, bw_r_t)
                 bw_out: R.Tensor((2, 2), dtype="float32") = R.add(
                     R.add(bw_x, bw_h_proj), R.const(bw_b)
                 )
@@ -14879,12 +14836,12 @@ def test_unidirectional_sequence_rnn_none_activation():
                 lv1: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv2: R.Tensor((2, 2), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                lv2: R.Tensor((2, 2), dtype="float32") = R.matmul(lv, lv1)
                 lv3: R.Tensor((2, 2), dtype="float32") = R.zeros(R.shape([2, 2]), dtype="float32")
                 lv4: R.Tensor((2, 2), dtype="float32") = R.permute_dims(
                     R.const(np.eye(2, dtype=np.float32)), axes=None
                 )
-                lv5: R.Tensor((2, 2), dtype="float32") = R.matmul(lv3, lv4, out_dtype="void")
+                lv5: R.Tensor((2, 2), dtype="float32") = R.matmul(lv3, lv4)
                 lv6: R.Tensor((2, 2), dtype="float32") = R.add(lv2, lv5)
                 lv7: R.Tensor((2, 2), dtype="float32") = R.add(
                     lv6, R.const(np.zeros(2, dtype=np.float32))

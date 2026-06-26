@@ -181,7 +181,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv5: R.Tuple(
                     R.Tensor((1, 64, 112, 112), dtype="float32"),
@@ -244,7 +243,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv17: R.Tuple(
                     R.Tensor((1, 64, 56, 56), dtype="float32"),
@@ -276,7 +274,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv23: R.Tensor((1, 64, 56, 56), dtype="float32") = R.add(lv22, lv10)
                 lv24: R.Tuple(
@@ -309,7 +306,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv30: R.Tuple(
                     R.Tensor((1, 64, 56, 56), dtype="float32"),
@@ -341,7 +337,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv36: R.Tensor((1, 64, 56, 56), dtype="float32") = R.add(lv35, lv23)
                 lv37: R.Tuple(
@@ -374,7 +369,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv43: R.Tuple(
                     R.Tensor((1, 128, 28, 28), dtype="float32"),
@@ -406,7 +400,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv49: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.conv2d(
                     lv41,
@@ -418,7 +411,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv50: R.Tensor((1, 128, 28, 28), dtype="float32") = R.add(lv48, lv49)
                 lv51: R.Tuple(
@@ -451,7 +443,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv57: R.Tuple(
                     R.Tensor((1, 128, 28, 28), dtype="float32"),
@@ -483,7 +474,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv63: R.Tensor((1, 128, 28, 28), dtype="float32") = R.add(lv62, lv50)
                 lv64: R.Tuple(
@@ -516,7 +506,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv70: R.Tuple(
                     R.Tensor((1, 256, 14, 14), dtype="float32"),
@@ -548,7 +537,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv76: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.conv2d(
                     lv68,
@@ -560,7 +548,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv77: R.Tensor((1, 256, 14, 14), dtype="float32") = R.add(lv75, lv76)
                 lv78: R.Tuple(
@@ -593,7 +580,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv84: R.Tuple(
                     R.Tensor((1, 256, 14, 14), dtype="float32"),
@@ -625,7 +611,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv90: R.Tensor((1, 256, 14, 14), dtype="float32") = R.add(lv89, lv77)
                 lv91: R.Tuple(
@@ -658,7 +643,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv97: R.Tuple(
                     R.Tensor((1, 512, 7, 7), dtype="float32"),
@@ -690,7 +674,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv103: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.conv2d(
                     lv95,
@@ -702,7 +685,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv104: R.Tensor((1, 512, 7, 7), dtype="float32") = R.add(lv102, lv103)
                 lv105: R.Tuple(
@@ -735,7 +717,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv111: R.Tuple(
                     R.Tensor((1, 512, 7, 7), dtype="float32"),
@@ -767,7 +748,6 @@ def test_network_resnet():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 lv117: R.Tensor((1, 512, 7, 7), dtype="float32") = R.add(lv116, lv104)
                 lv118: R.Tuple(
@@ -797,9 +777,7 @@ def test_network_resnet():
                 lv125: R.Tensor((512, 1000), dtype="float32") = R.permute_dims(
                     resnetv22_dense0_weight, axes=[1, 0]
                 )
-                lv126: R.Tensor((1, 1000), dtype="float32") = R.matmul(
-                    lv124, lv125, out_dtype="void"
-                )
+                lv126: R.Tensor((1, 1000), dtype="float32") = R.matmul(lv124, lv125)
                 gv: R.Tensor((1, 1000), dtype="float32") = R.add(lv126, resnetv22_dense0_bias)
                 R.output(gv)
             return gv

@@ -169,6 +169,20 @@ def test_conv2d_relu():
     _assert_test(Input, Expected, Expected2)
 
 
+def test_unknown_dtype_is_not_rewritten():
+    @I.ir_module(s_tir=True)
+    class Input:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype=None)) -> R.Tensor((2, 3), dtype=None):
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype=None) = R.nn.relu(x)
+                R.output(gv)
+            return gv
+
+    mod = ToMixedPrecision()(Input)
+    tvm.ir.assert_structural_equal(mod, Input)
+
+
 def test_relu_conv2d_relu():
     @I.ir_module(s_tir=True)
     class Input:

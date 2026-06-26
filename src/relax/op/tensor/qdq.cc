@@ -52,6 +52,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.quantize", quantize);
 }
 
+TensorType WithUnknownDtype(const TensorType& input_ty) {
+  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
+  output_ty->dtype = ffi::Optional<PrimType>();
+  return TensorType(output_ty);
+}
+
 Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
   if (attrs->out_dtype != DLDataType{kDLInt, 8, 1} &&
@@ -69,9 +75,12 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetInputTensorType(call, ctx)[0];
   TensorType scale_ty = GetInputTensorType(call, ctx)[1];
   TensorType zp_ty = GetInputTensorType(call, ctx)[2];
-  PrimType input_dtype = input_ty->dtype;
-  PrimType scale_dtype = scale_ty->dtype;
-  PrimType zp_dtype = zp_ty->dtype;
+  if (input_ty->IsUnknownDtype() || scale_ty->IsUnknownDtype() || zp_ty->IsUnknownDtype()) {
+    return WithUnknownDtype(input_ty);
+  }
+  PrimType input_dtype = input_ty->dtype.value();
+  PrimType scale_dtype = scale_ty->dtype.value();
+  PrimType zp_dtype = zp_ty->dtype.value();
 
   // Check input datatype:
   if (input_dtype != PrimType::Float(16) && input_dtype != PrimType::Float(32)) {
@@ -171,9 +180,12 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetInputTensorType(call, ctx)[0];
   TensorType scale_ty = GetInputTensorType(call, ctx)[1];
   TensorType zp_ty = GetInputTensorType(call, ctx)[2];
-  PrimType input_dtype = input_ty->dtype;
-  PrimType scale_dtype = scale_ty->dtype;
-  PrimType zp_dtype = zp_ty->dtype;
+  if (input_ty->IsUnknownDtype() || scale_ty->IsUnknownDtype() || zp_ty->IsUnknownDtype()) {
+    return WithUnknownDtype(input_ty);
+  }
+  PrimType input_dtype = input_ty->dtype.value();
+  PrimType scale_dtype = scale_ty->dtype.value();
+  PrimType zp_dtype = zp_ty->dtype.value();
 
   // Check input datatype:
   if (input_dtype != PrimType::Int(8) && input_dtype != PrimType::UInt(8) &&

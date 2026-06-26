@@ -51,7 +51,7 @@ Expr sort(Expr data, int axis, bool descending);
  * \param dtype The data type of the output indices.
  * \return The computed result.
  */
-Expr argsort(Expr data, int axis, bool descending, DLDataType dtype);
+Expr argsort(Expr data, int axis, bool descending, ffi::Optional<DLDataType> dtype);
 
 /*!
  * \brief Get the top k elements in an input tensor along the given axis.
@@ -63,7 +63,8 @@ Expr argsort(Expr data, int axis, bool descending, DLDataType dtype);
  * \param dtype The data type of the indices output.
  * \return The computed result.
  */
-Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest, DLDataType dtype);
+Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest,
+          ffi::Optional<DLDataType> dtype);
 
 }  // namespace relax
 }  // namespace tvm

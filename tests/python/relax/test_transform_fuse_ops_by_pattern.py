@@ -413,7 +413,7 @@ class Conv2dx2_partitioned:
                     data_layout="NHWC",
                     kernel_layout="OHWI",
                     out_layout="NHWC",
-                    out_dtype="void",
+                    out_dtype=None,
                 )
                 R.output(gv_2)
             return gv_2

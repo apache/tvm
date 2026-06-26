@@ -40,17 +40,16 @@ Type InferDistTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compu
   distributed::DTensorType input_dtensor_ty = input_dtensor_tys[0];
   TensorType input_tensor_ty = input_dtensor_ty->tensor_ty;
 
-  PrimType input_dtype = input_tensor_ty->dtype;
   // Unary op validation preserves the old float-kind check; lanes do not affect this policy.
   if (require_float_dtype && !input_tensor_ty->IsUnknownDtype() &&
-      !input_dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
+      !input_tensor_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_tensor_ty->dtype;
   }
   auto output_ty = ffi::make_object<TensorTypeNode>(*input_tensor_ty.get());
-  PrimType computed_dtype = f_compute_out_dtype(input_tensor_ty);
+  ffi::Optional<PrimType> computed_dtype = f_compute_out_dtype(input_tensor_ty);
   output_ty->dtype = computed_dtype;
   TensorType out_tensor_ty(output_ty);
   return distributed::DTensorType(out_tensor_ty, input_dtensor_ty->device_mesh,

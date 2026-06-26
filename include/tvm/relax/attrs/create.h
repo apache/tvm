@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operators */
 struct InitAttrs : public AttrsNode {
-  DLDataType dtype;
+  ffi::Optional<DLDataType> dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

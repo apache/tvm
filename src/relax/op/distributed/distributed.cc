@@ -154,7 +154,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
-  PrimType output_dtype = input_ty->dtype;
+  ffi::Optional<PrimType> output_dtype = input_ty->dtype;
 
   const auto* attrs = call->attrs.as<ScatterCollectiveAttrs>();
   int num_workers = attrs->num_workers;

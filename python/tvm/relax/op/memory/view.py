@@ -32,6 +32,7 @@ from tvm.relax import DataTypeImm, Expr, ShapeExpr
 from tvm.relax.expr import prim_value
 from tvm.tirx import PrimExpr
 
+from ..base import null_value
 from . import _ffi_api
 
 PrimExprLike = int | PrimExpr
@@ -89,7 +90,7 @@ def view(
             return relax_cls(expr)
 
     shape = _normalize(shape, ShapeExpr)
-    dtype = _normalize(dtype, DataTypeImm)
+    dtype = null_value() if dtype is None else _normalize(dtype, DataTypeImm)
     relative_byte_offset = (
         relative_byte_offset
         if relative_byte_offset is None or isinstance(relative_byte_offset, Expr)

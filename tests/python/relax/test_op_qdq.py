@@ -49,6 +49,34 @@ def test_qdq_op_infer_ty():
     )
 
 
+def test_qdq_op_infer_ty_unknown_dtype():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3), dtype=None))
+    dx = relax.Var("dx", R.Tensor((2, 3), dtype=None))
+    s = relax.Var("s", R.Tensor([3], "float32"))
+    s_unknown = relax.Var("s_unknown", R.Tensor([3], dtype=None))
+    zp = relax.Var("zp", R.Tensor([3], "int8"))
+    zp_unknown = relax.Var("zp_unknown", R.Tensor([3], dtype=None))
+    _check_inference(
+        bb, relax.op.quantize(x, s, zp, 1, "int8"), relax.TensorType((2, 3), dtype=None)
+    )
+    _check_inference(
+        bb,
+        relax.op.quantize(dx, s_unknown, zp, 1, "int8"),
+        relax.TensorType((2, 3), dtype=None),
+    )
+    _check_inference(
+        bb,
+        relax.op.quantize(dx, s, zp_unknown, 1, "int8"),
+        relax.TensorType((2, 3), dtype=None),
+    )
+    _check_inference(
+        bb,
+        relax.op.dequantize(dx, s, zp, 1, "float32"),
+        relax.TensorType((2, 3), dtype=None),
+    )
+
+
 def test_qdq_op_infer_ty_symbolic():
     bb = relax.BlockBuilder()
     n = tirx.Var("n", "int64")

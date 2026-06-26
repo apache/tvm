@@ -59,7 +59,7 @@ Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
   }
 
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
-  attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
+  attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.full");
   return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
@@ -88,8 +88,9 @@ Type InferTypeFull(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
-  PrimType out_dtype = attrs->dtype == DLDataType{kDLOpaqueHandle, 0, 0} ? fill_value_ty->dtype
-                                                                         : PrimType(attrs->dtype);
+  ffi::Optional<PrimType> out_dtype = attrs->dtype.has_value()
+                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
+                                          : fill_value_ty->dtype;
   return TensorType(/*shape=*/call->args[0], out_dtype, fill_value_ty->vdevice);
 }
 
@@ -107,7 +108,7 @@ TVM_REGISTER_OP("relax.full")
 /* relax.full_like */
 Expr full_like(Expr x, Expr fill_value, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
-  attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
+  attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.full_like");
   return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
@@ -128,11 +129,11 @@ Type InferTypeFullLike(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
-  if (attrs->dtype == DLDataType{kDLOpaqueHandle, 0, 0}) {
+  if (!attrs->dtype.has_value()) {
     return data_ty;
   } else {
     auto output_ty = ffi::make_object<TensorTypeNode>(*data_ty.get());
-    output_ty->dtype = PrimType(attrs->dtype);
+    output_ty->dtype = PrimType(attrs->dtype.value());
     return TensorType(output_ty);
   }
 }
@@ -159,18 +160,19 @@ Type InferTypeOnesZeros(const Call& call, const BlockBuilder& ctx) {
         << call->args[0]->ty->GetTypeKey();
   }
   const auto* attrs = call->attrs.as<InitAttrs>();
-  return TensorType(/*shape=*/call->args[0], PrimType(attrs->dtype));
+  TVM_FFI_ICHECK(attrs->dtype.has_value());
+  return TensorType(/*shape=*/call->args[0], PrimType(attrs->dtype.value()));
 }
 
 // Structure info inference for ones_like and zeros_like
 Type InferTypeOnesLikeZerosLike(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<InitAttrs>();
-  if (attrs->dtype == DLDataType{kDLOpaqueHandle, 0, 0}) {
+  if (!attrs->dtype.has_value()) {
     return data_ty;
   } else {
     auto output_ty = ffi::make_object<TensorTypeNode>(*data_ty.get());
-    output_ty->dtype = PrimType(attrs->dtype);
+    output_ty->dtype = PrimType(attrs->dtype.value());
     return TensorType(output_ty);
   }
 }
@@ -188,7 +190,7 @@ Expr ones(Expr shape, DLDataType dtype) {
 
 Expr ones_like(Expr x, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
-  attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
+  attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.ones_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
@@ -226,7 +228,7 @@ Expr zeros(Expr shape, DLDataType dtype) {
 
 Expr zeros_like(Expr x, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
-  attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
+  attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.zeros_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
@@ -261,7 +263,7 @@ Expr eye(PrimExpr n, PrimExpr m, PrimExpr k, DLDataType dtype) {
 
 Expr eye_like(Expr x, PrimExpr k, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
-  attrs->dtype = dtype.value_or((DLDataType{kDLOpaqueHandle, 0, 0}));
+  attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.eye_like");
   return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }
@@ -288,7 +290,9 @@ Type InferTypeEye(const Call& call, const BlockBuilder& ctx) {
   PrimExpr n = get_prim_value(call->args[0], "n");
   PrimExpr m = get_prim_value(call->args[1], "m");
 
-  DLDataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  const auto* attrs = call->attrs.as<InitAttrs>();
+  TVM_FFI_ICHECK(attrs->dtype.has_value());
+  DLDataType dtype = attrs->dtype.value();
   return TensorType(ShapeExpr({n, m}), PrimType(dtype));
 }
 
@@ -312,8 +316,9 @@ Type InferTypeEyeLike(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<InitAttrs>();
-  PrimType out_dtype =
-      attrs->dtype == DLDataType{kDLOpaqueHandle, 0, 0} ? x_ty->dtype : PrimType(attrs->dtype);
+  ffi::Optional<PrimType> out_dtype = attrs->dtype.has_value()
+                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
+                                          : x_ty->dtype;
 
   return TensorType(x_ty->shape.value(), out_dtype, x_ty->vdevice);
 }
@@ -366,7 +371,9 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
   PrimExpr start = get_prim_value(call->args[0], "start");
   PrimExpr end = get_prim_value(call->args[1], "end");
   PrimExpr step = get_prim_value(call->args[2], "step");
-  DLDataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  const auto* attrs = call->attrs.as<InitAttrs>();
+  TVM_FFI_ICHECK(attrs->dtype.has_value());
+  DLDataType dtype = attrs->dtype.value();
   PrimExpr num_elem;
   if (start.ty().code() == DLDataTypeCode::kDLInt && end.ty().code() == DLDataTypeCode::kDLInt &&
       step.ty().code() == DLDataTypeCode::kDLInt) {
@@ -406,7 +413,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
-  DLDataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  const auto* attrs = call->attrs.as<InitAttrs>();
+  TVM_FFI_ICHECK(attrs->dtype.has_value());
+  DLDataType dtype = attrs->dtype.value();
   if (dtype.code == DLDataTypeCode::kDLInt || dtype.code == DLDataTypeCode::kDLUInt) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Hamming Window expects the datatype to be float but got " << dtype;

@@ -54,6 +54,10 @@ def test_var() -> None:
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float32"))
 
 
+def test_tensor_type_empty_dtype_is_unknown() -> None:
+    tvm.ir.assert_structural_equal(rx.TensorType([1, 2], dtype=""), rx.TensorType([1, 2], None))
+
+
 def test_relax_expr_ty_running_example() -> None:
     m = tirx.Var("m", "int64")
     x = rx.Var("x", R.Tensor([m, 16], "float32"))

@@ -910,9 +910,9 @@ def test_annotation():
     sh = bindings[4].var
 
     _check_ty(bindings[0], relax.TensorType([32, m], "float32"))
-    _check_ty(bindings[1], relax.TensorType(dtype="", ndim=2))
-    _check_ty(bindings[2], relax.TensorType(dtype="", ndim=-1))
-    _check_ty(bindings[3], relax.TensorType(dtype="", ndim=2))
+    _check_ty(bindings[1], relax.TensorType(dtype=None, ndim=2))
+    _check_ty(bindings[2], relax.TensorType(dtype=None, ndim=-1))
+    _check_ty(bindings[3], relax.TensorType(dtype=None, ndim=2))
     _check_ty(bindings[4], relax.ShapeType(ndim=-1))
     _check_ty(bindings[5], relax.TensorType(sh))
     _check_ty(bindings[6], relax.AnyType())

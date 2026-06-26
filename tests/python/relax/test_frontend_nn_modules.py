@@ -112,7 +112,7 @@ def test_linear():
         R.func_attr({"num_input": 2})
         with R.dataflow():
             permute_dims: R.Tensor((4, 8), dtype="float32") = R.permute_dims(weight, axes=None)
-            matmul: R.Tensor((1, 8), dtype="float32") = R.matmul(x, permute_dims, out_dtype="void")
+            matmul: R.Tensor((1, 8), dtype="float32") = R.matmul(x, permute_dims)
             add: R.Tensor((1, 8), dtype="float32") = R.add(matmul, bias)
             gv1: R.Tuple(R.Tensor((1, 8), dtype="float32"), R.Tuple(R.Any)) = add, (_io,)
             R.output(gv1)
@@ -143,7 +143,6 @@ def test_conv1d():
                 data_layout="NCW",
                 kernel_layout="OIW",
                 out_layout="NCW",
-                out_dtype="void",
             )
             lv2: R.Tensor((1, 32, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1]))
             conv1d: R.Tensor((1, 32, 30), dtype="float32") = R.add(lv1, lv2)
@@ -169,7 +168,7 @@ def test_conv1d_transpose():
     def forward(x: R.Tensor((1, 3, 30), dtype="float32"), _io: R.Any, weight: R.Tensor((3, 32, 3), dtype="float32"), bias: R.Tensor((32,), dtype="float32")) -> R.Tuple(R.Tensor((1, 32, 32), dtype="float32"), R.Tuple(R.Any)):
         R.func_attr({"num_input": 2})
         with R.dataflow():
-            lv1: R.Tensor((1, 32, 32), dtype="float32") = R.nn.conv1d_transpose(x, weight, strides=[1], padding=[0, 0], output_padding=[0], dilation=[1], groups=1, data_layout="NCW", kernel_layout="IOW", out_layout="NCW", out_dtype="void")
+            lv1: R.Tensor((1, 32, 32), dtype="float32") = R.nn.conv1d_transpose(x, weight, strides=[1], padding=[0, 0], output_padding=[0], dilation=[1], groups=1, data_layout="NCW", kernel_layout="IOW", out_layout="NCW")
             lv2: R.Tensor((1, 32, 1), dtype="float32") = R.reshape(bias, R.shape([1, 32, 1]))
             conv1d_transpose: R.Tensor((1, 32, 32), dtype="float32") = R.add(lv1, lv2)
             gv1: R.Tuple(R.Tensor((1, 32, 32), dtype="float32"), R.Tuple(R.Any)) = conv1d_transpose, (_io,)
@@ -426,24 +425,18 @@ def test_timestep_embedding():
             permute_dims: R.Tensor((16, 32), dtype="float32") = R.permute_dims(
                 cond_proj_weight, axes=None
             )
-            matmul: R.Tensor((32, 32), dtype="float32") = R.matmul(
-                condition, permute_dims, out_dtype="void"
-            )
+            matmul: R.Tensor((32, 32), dtype="float32") = R.matmul(condition, permute_dims)
             add: R.Tensor((32, 32), dtype="float32") = R.add(sample, matmul)
             permute_dims1: R.Tensor((32, 32), dtype="float32") = R.permute_dims(
                 linear_1_weight, axes=None
             )
-            matmul1: R.Tensor((32, 32), dtype="float32") = R.matmul(
-                add, permute_dims1, out_dtype="void"
-            )
+            matmul1: R.Tensor((32, 32), dtype="float32") = R.matmul(add, permute_dims1)
             add1: R.Tensor((32, 32), dtype="float32") = R.add(matmul1, linear_1_bias)
             silu: R.Tensor((32, 32), dtype="float32") = R.nn.silu(add1)
             permute_dims2: R.Tensor((32, 32), dtype="float32") = R.permute_dims(
                 linear_2_weight, axes=None
             )
-            matmul2: R.Tensor((32, 32), dtype="float32") = R.matmul(
-                silu, permute_dims2, out_dtype="void"
-            )
+            matmul2: R.Tensor((32, 32), dtype="float32") = R.matmul(silu, permute_dims2)
             add2: R.Tensor((32, 32), dtype="float32") = R.add(matmul2, linear_2_bias)
             gv1: R.Tuple(R.Tensor((32, 32), dtype="float32"), R.Tuple(R.Any)) = add2, (_io,)
             R.output(gv1)
@@ -591,20 +584,18 @@ def test_attention():
             permute_dims: R.Tensor((640, 640), dtype="float32") = R.permute_dims(
                 to_q_weight, axes=None
             )
-            matmul: R.Tensor((2, 4096, 640), dtype="float32") = R.matmul(
-                group_norm, permute_dims, out_dtype="void"
-            )
+            matmul: R.Tensor((2, 4096, 640), dtype="float32") = R.matmul(group_norm, permute_dims)
             permute_dims1: R.Tensor((2048, 640), dtype="float32") = R.permute_dims(
                 to_k_weight, axes=None
             )
             matmul1: R.Tensor((2, 77, 640), dtype="float32") = R.matmul(
-                encoder_hidden_states, permute_dims1, out_dtype="void"
+                encoder_hidden_states, permute_dims1
             )
             permute_dims2: R.Tensor((2048, 640), dtype="float32") = R.permute_dims(
                 to_v_weight, axes=None
             )
             matmul2: R.Tensor((2, 77, 640), dtype="float32") = R.matmul(
-                encoder_hidden_states, permute_dims2, out_dtype="void"
+                encoder_hidden_states, permute_dims2
             )
             reshape: R.Tensor((2, 4096, 10, 64), dtype="float32") = R.reshape(
                 matmul, R.shape([2, 4096, 10, 64])
@@ -624,9 +615,7 @@ def test_attention():
             permute_dims3: R.Tensor((640, 640), dtype="float32") = R.permute_dims(
                 to_out_0_weight, axes=None
             )
-            matmul3: R.Tensor((2, 4096, 640), dtype="float32") = R.matmul(
-                reshape3, permute_dims3, out_dtype="void"
-            )
+            matmul3: R.Tensor((2, 4096, 640), dtype="float32") = R.matmul(reshape3, permute_dims3)
             add: R.Tensor((2, 4096, 640), dtype="float32") = R.add(matmul3, to_out_0_bias)
             gv1: R.Tuple(R.Tensor((2, 4096, 640), dtype="float32"), R.Tuple(R.Any)) = add, (_io,)
             R.output(gv1)

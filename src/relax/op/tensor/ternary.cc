@@ -57,9 +57,9 @@ Type InferTypeEwiseFMA(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  PrimType output_dtype = PrimType::Void();
+  ffi::Optional<PrimType> output_dtype = std::nullopt;
   if (t1->IsUnknownDtype() || t2->IsUnknownDtype() || t3->IsUnknownDtype()) {
-    output_dtype = PrimType::Void();
+    output_dtype = std::nullopt;
   } else if (t1->dtype != t2->dtype || t2->dtype != t3->dtype) {
     TVM_FFI_VISIT_THROW(TypeError, call) << "Data types " << t1->dtype << ", " << t2->dtype
                                          << ", and " << t3->dtype << " must be equal for EwiseFMA";

@@ -85,7 +85,6 @@ def test_basic(consume_params):
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     conv1,
@@ -97,7 +96,6 @@ def test_basic(consume_params):
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 R.output(conv2)
             return conv2
@@ -158,7 +156,6 @@ def test_basic(consume_params):
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     conv1,
@@ -170,7 +167,6 @@ def test_basic(consume_params):
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 R.output(conv2)
             return conv2
@@ -276,7 +272,6 @@ def test_tuple():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 conv2: R.Tensor((1, 16, 224, 224), dtype="float32") = R.nn.conv2d(
                     conv1,
@@ -288,7 +283,6 @@ def test_tuple():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 R.output(conv2)
             return conv2
@@ -420,7 +414,7 @@ def test_multiple_functions():
         ) -> R.Tensor((256, 256), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, param0, out_dtype="void")
+                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, param0)
                 R.output(y)
             return y
 
@@ -443,7 +437,7 @@ def test_multiple_functions():
         ) -> R.Tensor((256, 128), dtype="float32"):
             R.func_attr({"num_input": 1})
             with R.dataflow():
-                y: R.Tensor((256, 128), dtype="float32") = R.matmul(x, param0, out_dtype="void")
+                y: R.Tensor((256, 128), dtype="float32") = R.matmul(x, param0)
                 R.output(y)
             return y
 
@@ -465,7 +459,7 @@ def test_multiple_functions():
         ) -> R.Tensor((256, 256), dtype="float32"):
             with R.dataflow():
                 w1_t: R.Tensor((256, 256), dtype="float32") = R.permute_dims(w1, axes=[1, 0])
-                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_t, out_dtype="void")
+                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_t)
                 R.output(y)
             return y
 
@@ -1381,7 +1375,7 @@ def test_stop_lifting():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 w1_add: R.Tensor((256, 256), dtype="float32") = R.add(param0, R.const(1, "float32"))
-                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_add, out_dtype="void")
+                y: R.Tensor((256, 256), dtype="float32") = R.matmul(x, w1_add)
                 R.output(y)
             return y
 
@@ -1663,7 +1657,6 @@ def test_symbolic_var_in_param_shape():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 conv2: R.Tensor((1, 16, 224, n), dtype="float32") = R.nn.conv2d(
                     conv1,
@@ -1675,7 +1668,6 @@ def test_symbolic_var_in_param_shape():
                     data_layout="NCHW",
                     kernel_layout="OIHW",
                     out_layout="NCHW",
-                    out_dtype="void",
                 )
                 R.output(conv2)
             return conv2

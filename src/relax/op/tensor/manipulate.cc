@@ -219,7 +219,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
   int output_ndim = attrs->axis.has_value() ? kUnknownNDim : 1;
-  PrimType output_dtype = PrimType::Void();
+  ffi::Optional<PrimType> output_dtype = std::nullopt;
   ffi::Optional<VDevice> vdev = std::nullopt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
@@ -231,7 +231,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
     // Update the output dtype.
     if (ty->IsUnknownDtype()) {
       is_void_dtype = true;
-    } else if (output_dtype.IsVoid()) {
+    } else if (!output_dtype.defined()) {
       output_dtype = ty->dtype;
     } else if (ty->dtype != output_dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -285,7 +285,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (is_void_dtype) {
-    output_dtype = PrimType::Void();
+    output_dtype = std::nullopt;
   }
   if (vdevice_unknown) {
     vdev = std::nullopt;
@@ -573,16 +573,15 @@ Type InferTypeIndexTensor(const Call& call, const BlockBuilder& ctx) {
         << "index_tensor expects a non‑empty tuple of index tensors";
   }
 
-  PrimType output_dtype = data_ty->dtype;
+  ffi::Optional<PrimType> output_dtype = data_ty->dtype;
   int n_indices = static_cast<int>(indices_ty.size());
   ffi::Optional<VDevice> vdev = data_ty->vdevice;
 
   // Indices must be integers
   for (int i = 0; i < n_indices; ++i) {
     const auto& s = indices_ty[i];
-    PrimType index_dtype = s->dtype;
     // Indexing only requires integer element kind; vector lanes do not affect shape inference.
-    if (!s->IsUnknownDtype() && index_dtype.code() != DLDataTypeCode::kDLInt) {
+    if (!s->IsUnknownDtype() && s->dtype.value().code() != DLDataTypeCode::kDLInt) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "index_tensor requires every index tensor to have an integer dtype; "
           << "index " << i << " has dtype " << s->dtype;
@@ -1493,7 +1492,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
 
   // Default axis is 0 if not specified
   int output_ndim = tensor_ty[0]->ndim + 1;  // Stack adds one dimension
-  PrimType output_dtype = PrimType::Void();
+  ffi::Optional<PrimType> output_dtype = std::nullopt;
   ffi::Optional<VDevice> vdev = std::nullopt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
@@ -1505,7 +1504,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
     // Check dtype consistency
     if (ty->IsUnknownDtype()) {
       is_void_dtype = true;
-    } else if (output_dtype.IsVoid()) {
+    } else if (!output_dtype.defined()) {
       output_dtype = ty->dtype;
     } else if (ty->dtype != output_dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -1546,7 +1545,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (is_void_dtype) output_dtype = PrimType::Void();
+  if (is_void_dtype) output_dtype = std::nullopt;
   if (vdevice_unknown) vdev = std::nullopt;
 
   // Normalize axis (default to 0 if not specified)
@@ -1654,7 +1653,7 @@ Type InferTypeCollapseSumLike(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = input_ty[0];
   TensorType collapse_target_ty = input_ty[1];
 
-  PrimType output_dtype = data_ty->dtype;
+  ffi::Optional<PrimType> output_dtype = data_ty->dtype;
 
   ffi::Optional<ffi::Array<PrimExpr>> data_shape_value;
   if (data_ty->shape.defined()) {
@@ -1715,7 +1714,7 @@ Type InferTypeCollapseSumTo(const Call& call, const BlockBuilder& ctx) {
         << call->args[1]->ty->GetTypeKey();
   }
 
-  PrimType output_dtype = data_ty->dtype;
+  ffi::Optional<PrimType> output_dtype = data_ty->dtype;
 
   ffi::Optional<ffi::Array<PrimExpr>> data_shape_value;
   if (data_ty->shape.defined()) {
@@ -2103,15 +2102,17 @@ Type InferTypeReverseSequence(const Call& call, const BlockBuilder& ctx) {
         << "ReverseSequence requires seq_lengths to be 1-D. However, seq_lengths has ndim "
         << seq_lengths_ty->ndim;
   }
-  PrimType seq_lengths_dtype = seq_lengths_ty->dtype;
-  if (!seq_lengths_ty->IsUnknownDtype() && !seq_lengths_dtype.MatchesCode(DLDataTypeCode::kDLInt)) {
+  ffi::Optional<PrimType> seq_lengths_dtype = seq_lengths_ty->dtype;
+  if (!seq_lengths_ty->IsUnknownDtype() &&
+      !seq_lengths_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLInt)) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ReverseSequence requires seq_lengths to have dtype int32 or int64. However, "
            "seq_lengths has dtype "
         << seq_lengths_ty->dtype;
   }
-  if (seq_lengths_dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
-      seq_lengths_dtype->dtype.bits != 32 && seq_lengths_dtype->dtype.bits != 64) {
+  if (seq_lengths_dtype.defined() &&
+      seq_lengths_dtype.value().MatchesCode(DLDataTypeCode::kDLInt) &&
+      seq_lengths_dtype.value()->dtype.bits != 32 && seq_lengths_dtype.value()->dtype.bits != 64) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ReverseSequence requires seq_lengths to have dtype int32 or int64. However, "
            "seq_lengths has dtype "
@@ -2197,9 +2198,8 @@ Type InferTypeGatherElements(const Call& call, const BlockBuilder& ctx) {
         << call->args[1]->ty->GetTypeKey();
   }
 
-  PrimType indices_dtype = indices_ty->dtype;
   // Gather indices only require integer element kind; vector lanes do not affect shape inference.
-  if (!indices_ty->IsUnknownDtype() && indices_dtype.code() != DLDataTypeCode::kDLInt) {
+  if (!indices_ty->IsUnknownDtype() && indices_ty->dtype.value().code() != DLDataTypeCode::kDLInt) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "GatherElements requires the input indices to have int64 dtype. However, the "
         << "given indices dtype is " << indices_ty->dtype;
@@ -2438,7 +2438,7 @@ Type InferTypeIndexPut(const Call& call, const BlockBuilder& ctx) {
       LOG(WARNING) << "Data type of index tensor " << i
                    << " has not been specified. Assume it has an integer type.";
     } else {
-      PrimType index_dtype = tensor_ty->dtype;
+      PrimType index_dtype = tensor_ty->dtype.value();
       if (!index_dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
           !index_dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
         TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2542,7 +2542,7 @@ Type InferTypeMeshgrid(const Call& call, const BlockBuilder& ctx) {
   }
 
   std::vector<PrimExpr> lengths;
-  PrimType common_dtype = PrimType::Void();
+  ffi::Optional<PrimType> common_dtype = std::nullopt;
   bool shape_unknown = false;
   ffi::Optional<VDevice> vdev = std::nullopt;
   bool vdevice_unknown = false;
@@ -2558,7 +2558,7 @@ Type InferTypeMeshgrid(const Call& call, const BlockBuilder& ctx) {
 
     if (ty->IsUnknownDtype()) {
       continue;
-    } else if (common_dtype.IsVoid()) {
+    } else if (!common_dtype.defined()) {
       common_dtype = ty->dtype;
     } else if (ty->dtype != common_dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2695,7 +2695,7 @@ Type InferTypeScatterElements(const Call& call, const BlockBuilder& ctx) {
   if (indices_ty->IsUnknownDtype()) {
     LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else {
-    PrimType indices_dtype = indices_ty->dtype;
+    PrimType indices_dtype = indices_ty->dtype.value();
     if (!indices_dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
         !indices_dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2819,7 +2819,7 @@ Type InferTypeScatterND(const Call& call, const BlockBuilder& ctx) {
   if (indices_ty->IsUnknownDtype()) {
     LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else {
-    PrimType indices_dtype = indices_ty->dtype;
+    PrimType indices_dtype = indices_ty->dtype.value();
     if (!indices_dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
         !indices_dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -3139,7 +3139,7 @@ Type InferTypeOneHot(const Call& call, const BlockBuilder& ctx) {
   if (indices_ty->IsUnknownDtype()) {
     LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
   } else {
-    PrimType indices_dtype = indices_ty->dtype;
+    PrimType indices_dtype = indices_ty->dtype.value();
     if (!indices_dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
         !indices_dtype.MatchesCode(DLDataTypeCode::kDLUInt)) {
       TVM_FFI_VISIT_THROW(TypeError, call)

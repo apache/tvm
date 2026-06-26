@@ -189,7 +189,7 @@ def test_where_infer_ty_more_input_dtype():
 def test_where_infer_ty_cond_not_boolean():
     bb = relax.BlockBuilder()
     cond0 = relax.Var("cond", R.Tensor((2, 3), "float32"))
-    cond1 = relax.Var("cond", R.Tensor((2, 3)))
+    cond1 = relax.Var("cond", relax.TensorType(dtype="int32", ndim=2))
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     y = relax.Var("y", R.Tensor((2, 3), "float32"))
 

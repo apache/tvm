@@ -74,7 +74,7 @@ def test_l1_loss_append():
     ) -> R.Tensor((), "float32"):
         R.func_attr({"global_symbol": "forward_loss"})
         with R.dataflow():
-            lv: R.Tensor((2, 4), "float32") = R.matmul(x, w, out_dtype="")
+            lv: R.Tensor((2, 4), "float32") = R.matmul(x, w)
             out: R.Tensor((2, 4), "float32") = R.add(lv, b)
             lv1: R.Tensor((2, 4), "float32") = R.subtract(out, targets)
             lv11: R.Tensor((2, 4), "float32") = R.abs(lv1)
@@ -123,7 +123,7 @@ def test_mse_loss_append():
     ) -> R.Tensor((), "float32"):
         R.func_attr({"global_symbol": "forward_loss"})
         with R.dataflow():
-            lv: R.Tensor((2, 4), "float32") = R.matmul(x, w, out_dtype="")
+            lv: R.Tensor((2, 4), "float32") = R.matmul(x, w)
             out: R.Tensor((2, 4), "float32") = R.add(lv, b)
             lv1: R.Tensor((2, 4), "float32") = R.subtract(out, targets)
             lv11: R.Tensor((2, 4), "float32") = R.multiply(lv1, lv1)
@@ -204,7 +204,7 @@ def test_cross_entropy_loss_append():
     ) -> R.Tensor((), "float32"):
         R.func_attr({"global_symbol": "forward_loss"})
         with R.dataflow():
-            lv: R.Tensor((2, 4), "float32") = R.matmul(x, w, out_dtype="")
+            lv: R.Tensor((2, 4), "float32") = R.matmul(x, w)
             out: R.Tensor((2, 4), "float32") = R.add(lv, b)
             lv1: R.Tensor((2, 4), "float32") = R.nn.log_softmax(out, axis=-1)
             gv: R.Tensor((), "float32") = R.nn.nll_loss(

@@ -243,14 +243,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 void CheckTensorInfo(ffi::PackedArgs args, ffi::Any* rv) {
   ffi::AnyView arg = args[0];
   int ndim = args[1].cast<int>();
-  DLDataType dtype;
+  ffi::Optional<DLDataType> dtype;
   ffi::Optional<ffi::String> err_ctx;
 
   if (args.size() == 3) {
-    dtype = DLDataType{kDLOpaqueHandle, 0, 0};
+    dtype = std::nullopt;
     err_ctx = args[2].cast<ffi::Optional<ffi::String>>();
   } else {
-    dtype = args[2].cast<DLDataType>();
+    dtype = args[2].cast<ffi::Optional<DLDataType>>();
     err_ctx = args[3].cast<ffi::Optional<ffi::String>>();
   }
 
@@ -264,9 +264,9 @@ void CheckTensorInfo(ffi::PackedArgs args, ffi::Any* rv) {
         << err_ctx.value_or("") << " expect Tensor with ndim " << ndim << " but get " << ptr->ndim;
   }
 
-  if (dtype != DLDataType{kDLOpaqueHandle, 0, 0}) {
-    TVM_FFI_CHECK(ptr->dtype == dtype, ValueError)
-        << err_ctx.value_or("") << " expect Tensor with dtype " << dtype << " but get "
+  if (dtype) {
+    TVM_FFI_CHECK(ptr->dtype == dtype.value(), ValueError)
+        << err_ctx.value_or("") << " expect Tensor with dtype " << dtype.value() << " but get "
         << ptr->dtype;
   }
 }

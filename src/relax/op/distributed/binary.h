@@ -42,7 +42,7 @@ Type InferDistTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_c
   TensorType x2_ty = input_dtensor_tys[1]->tensor_ty;
 
   // Dtype
-  PrimType output_dtype = f_compute_out_dtype(call, ctx, x1_ty, x2_ty);
+  ffi::Optional<PrimType> output_dtype = f_compute_out_dtype(call, ctx, x1_ty, x2_ty);
 
   // ndims
   TVM_FFI_ICHECK(!x1_ty->IsUnknownNdim() && !x2_ty->IsUnknownNdim())

@@ -244,6 +244,15 @@ def test_infer_dtype_of_float32_view():
     tvm.ir.assert_structural_equal(explicit_ty, inferred_ty)
 
 
+def test_error_if_view_dtype_is_void():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def func(A: R.Tensor("float32")):
+            B = R.memory.view(A, dtype=R.dtype("void"))
+            return B
+
+
 def test_view_without_explicit_dtype_keeps_input_dtype():
     """If R.memory.view only specifies the shape, the dtype is unchanged"""
 
@@ -482,6 +491,7 @@ def test_lower_runtime_builtin_shape_change():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "float32")):
+            _ = R.null_value()
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
@@ -514,6 +524,7 @@ def test_lower_runtime_builtin_view_shape_from_unknown():
     class Expected:
         @R.function
         def main(A: R.Tensor(dtype="float32")):
+            _ = R.null_value()
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(
@@ -574,6 +585,7 @@ def test_lower_runtime_builtin_byte_offset():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "float32")):
+            _ = R.null_value()
             B = R.ExternFunc(
                 "runtime.TVMTensorCreateView",
                 R.Callable(

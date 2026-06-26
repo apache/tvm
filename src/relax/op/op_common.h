@@ -198,16 +198,15 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
 template <bool require_float_dtype, typename FType>
 inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
   TensorType input_ty = GetUnaryInputTensorType(call, ctx);
-  PrimType input_dtype = input_ty->dtype;
   if (require_float_dtype && !input_ty->IsUnknownDtype() &&
-      !input_dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
+      !input_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op
         << " requires the input tensor to have float dtype. However, the given input dtype is "
-        << input_ty->dtype;
+        << input_ty->dtype.value();
   }
   auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
-  PrimType computed_dtype = f_compute_out_dtype(input_ty);
+  ffi::Optional<PrimType> computed_dtype = f_compute_out_dtype(input_ty);
   output_ty->dtype = computed_dtype;
   if (call->ty_args.size() > 0) {
     auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
@@ -279,7 +278,11 @@ inline std::optional<PrimType> GetElementDType(const Type& ty) {
   if (const auto* prim = ty.as<PrimTypeNode>()) {
     return ffi::GetRef<PrimType>(prim);
   } else if (const auto* tensor = ty.as<TensorTypeNode>()) {
-    return tensor->dtype;
+    if (tensor->dtype.defined()) {
+      return tensor->dtype.value();
+    } else {
+      return std::nullopt;
+    }
   } else {
     return std::nullopt;
     TVM_FFI_THROW(TypeError) << "Only PrimType and TensorType "
@@ -297,10 +300,13 @@ inline std::optional<PrimType> GetElementDType(const Type& ty) {
  * \return The inferred output dtype.
  * \throw Throw exception if the dtype of two input TensorType don’t match
  */
-inline PrimType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
-                                           const Type& lhs_ty, const Type& rhs_ty) {
+inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder& ctx,
+                                                          const Type& lhs_ty, const Type& rhs_ty) {
   auto opt_lhs_dtype = GetElementDType(lhs_ty);
   if (!opt_lhs_dtype) {
+    if (const auto* lhs_tensor = lhs_ty.as<TensorTypeNode>()) {
+      if (lhs_tensor->IsUnknownDtype()) return std::nullopt;
+    }
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
         << "However, " << call << " has argument " << call->args[0] << " on the LHS, with type "
@@ -311,6 +317,9 @@ inline PrimType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
 
   auto opt_rhs_dtype = GetElementDType(rhs_ty);
   if (!opt_rhs_dtype) {
+    if (const auto* rhs_tensor = rhs_ty.as<TensorTypeNode>()) {
+      if (rhs_tensor->IsUnknownDtype()) return std::nullopt;
+    }
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
         << "However, " << call << " has argument " << call->args[1] << " on the RHS, with type "
@@ -319,10 +328,8 @@ inline PrimType InferBinaryArithOpOutDtype(const Call& call, const BlockBuilder&
   }
   auto rhs_dtype = opt_rhs_dtype.value();
 
-  if (lhs_dtype.IsVoid() || rhs_dtype.IsVoid()) {
-    return PrimType::Void();
-  } else if (lhs_dtype != rhs_dtype && !lhs_dtype.MatchesCode(DLDataTypeCode::kDLBool) &&
-             !rhs_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
+  if (lhs_dtype != rhs_dtype && !lhs_dtype.MatchesCode(DLDataTypeCode::kDLBool) &&
+      !rhs_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
         << "However, " << call << " uses datatype " << lhs_dtype << " on the LHS (Type of "

@@ -548,7 +548,7 @@ def test_cutlass_partition_matmul_tuple_return_blocked():
                 #     R.func_attr({"Composite": "cutlass.matmul_transposed", "Primitive": True})
                 #     with R.dataflow():
                 #         gv: R.Tensor((4, 4), dtype="float32") = R.permute_dims(y, axes=None)
-                #         gv1: R.Tensor((4, 4), dtype="float32") = R.matmul(x, gv, out_dtype="void")
+                #         gv1: R.Tensor((4, 4), dtype="float32") = R.matmul(x, gv)
                 #         R.output(gv, gv1)
                 #     return (gv, gv1)  # Cannot get `gv` if dispatch to cutlass kernel.
                 lv2 = R.matmul(x, lv1)

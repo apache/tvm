@@ -118,15 +118,14 @@ Type InferTypeWhere(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  PrimType cond_dtype = cond_ty->dtype;
   // Where condition validation only checks the boolean element kind; lanes are irrelevant here.
-  if (!cond_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
+  if (!cond_ty->IsUnknownDtype() && !cond_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Where requires the input condition tensor to have boolean dtype. However, "
            "the given condition dtype is "
         << cond_ty->dtype;
   }
-  PrimType output_dtype = InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);
+  ffi::Optional<PrimType> output_dtype = InferBinaryArithOpOutDtype(call, ctx, x1_ty, x2_ty);
 
   int output_ndim;
   if (cond_ty->IsUnknownNdim() || x1_ty->IsUnknownNdim() || x2_ty->IsUnknownNdim()) {

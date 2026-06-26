@@ -470,7 +470,7 @@ def test_linear_dynamic_shape():
         R.func_attr({"num_input": 2})
         with R.dataflow():
             permute_dims: R.Tensor((4, n), dtype="float32") = R.permute_dims(weight, axes=None)
-            matmul: R.Tensor((1, n), dtype="float32") = R.matmul(x, permute_dims, out_dtype="void")
+            matmul: R.Tensor((1, n), dtype="float32") = R.matmul(x, permute_dims)
             add: R.Tensor((1, n), dtype="float32") = R.add(matmul, bias)
             gv1: R.Tuple(R.Tensor((1, n), dtype="float32"), R.Tuple(R.Any)) = add, (_io,)
             R.output(gv1)

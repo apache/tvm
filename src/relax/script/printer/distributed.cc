@@ -61,11 +61,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           if (!n->tensor_ty->IsUnknownDtype()) {
             if (!require_kwargs) {
-              args.push_back(LiteralDoc::DataType(n->tensor_ty->dtype->dtype, n_p->Attr("dtype")));
+              args.push_back(
+                  LiteralDoc::DataType(n->tensor_ty->dtype.value()->dtype, n_p->Attr("dtype")));
             } else {
               kwargs_keys.push_back("dtype");
               kwargs_values.push_back(
-                  LiteralDoc::DataType(n->tensor_ty->dtype->dtype, n_p->Attr("dtype")));
+                  LiteralDoc::DataType(n->tensor_ty->dtype.value()->dtype, n_p->Attr("dtype")));
             }
           } else {
             require_kwargs = true;

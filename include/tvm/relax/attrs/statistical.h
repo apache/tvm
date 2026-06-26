@@ -50,7 +50,7 @@ struct StatisticalAttrs : public AttrsNode {
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
 struct ScanopAttrs : public AttrsNode {
   ffi::Optional<int64_t> axis;
-  DLDataType dtype;
+  ffi::Optional<DLDataType> dtype;
   bool exclusive = false;
 
   static void RegisterReflection() {

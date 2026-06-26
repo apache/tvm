@@ -244,7 +244,7 @@ class ConstantFolder : public ExprMutator {
       auto tensor_ty = tuple_ty->fields[i].as_or_throw<TensorType>();
       if (tensor_ty->IsUnknownDtype()) return std::nullopt;
       ret_tensors.push_back(
-          runtime::Tensor::Empty(shape.value(), tensor_ty->dtype->dtype, cpu_dev));
+          runtime::Tensor::Empty(shape.value(), tensor_ty->dtype.value()->dtype, cpu_dev));
     }
 
     // Pack input args + all output tensors.
@@ -290,7 +290,7 @@ class ConstantFolder : public ExprMutator {
     if (shape) {
       TensorType ret_ty = call->ty.as_or_throw<TensorType>();
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(),
-                                  ret_ty->dtype->dtype)
+                                  ret_ty->dtype.value()->dtype)
           .value_or({});
     }
     return {};

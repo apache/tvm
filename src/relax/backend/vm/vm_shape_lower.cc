@@ -679,12 +679,13 @@ class VMShapeLowerMutator
       // if we only check dynamic shapes, and the shape is static, we can skip.
       return;
     }
-    if (always_check || !IsBaseOf(TensorType(PrimType(op->dtype), op->ndim), GetType(value))) {
+    if (always_check || !IsBaseOf(TensorType(op->dtype, op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
-      Call call(
-          builtin_check_tensor_info_,
-          {value, IntImm::Int64(op->ndim), DataTypeImm(op->dtype->dtype), GetErrContext(err_ctx)},
-          Attrs(), {void_ty_});
+      Expr dtype_arg = op->IsUnknownDtype() ? Expr(Call(null_value_op_, {}))
+                                            : Expr(DataTypeImm(op->dtype.value()->dtype));
+      Call call(builtin_check_tensor_info_,
+                {value, IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, Attrs(),
+                {void_ty_});
       builder_->Emit(call, "_");
     }
 

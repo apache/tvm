@@ -93,7 +93,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
                     b_indices.append(idx_spatial[-1])
 
                 dtype = call.attrs.out_dtype
-                if dtype != "":
+                if dtype is not None and dtype != "":
                     return a(*a_indices).astype(dtype) * b(*b_indices).astype(dtype)
                 return a(*a_indices) * b(*b_indices)
 

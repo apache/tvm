@@ -328,7 +328,7 @@ def test_dynamic_shape():
             ) -> R.Tensor((1, r1), dtype="float16"):
                 R.func_attr({"Composite": "cublas.matmul"})
                 with R.dataflow():
-                    gv_1: R.Tensor((1, r1), dtype="float16") = R.matmul(x_1, w1_1, out_dtype="void")
+                    gv_1: R.Tensor((1, r1), dtype="float16") = R.matmul(x_1, w1_1, out_dtype=None)
                     R.output(gv_1)
                 return gv_1
 

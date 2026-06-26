@@ -78,19 +78,19 @@ def test_full_infer_ty():
     _check_inference(bb, relax.op.full(s3, v1, "float16"), relax.TensorType(s3, "float16"))
     _check_inference(bb, relax.op.full(s3, v1), relax.TensorType(s3, "float32"))
     _check_inference(bb, relax.op.full((2, 3), v2, "float16"), relax.TensorType((2, 3), "float16"))
-    _check_inference(bb, relax.op.full((2, 3), v2), relax.TensorType((2, 3), dtype=""))
+    _check_inference(bb, relax.op.full((2, 3), v2), relax.TensorType((2, 3), dtype=None))
     _check_inference(bb, relax.op.full(s0, v2, "float16"), relax.TensorType((2, 3), "float16"))
-    _check_inference(bb, relax.op.full(s0, v2), relax.TensorType((2, 3), dtype=""))
+    _check_inference(bb, relax.op.full(s0, v2), relax.TensorType((2, 3), dtype=None))
     _check_inference(bb, relax.op.full(s1, v2, "float16"), relax.TensorType(s1, "float16"))
-    _check_inference(bb, relax.op.full(s1, v2), relax.TensorType(s1, dtype=""))
+    _check_inference(bb, relax.op.full(s1, v2), relax.TensorType(s1, dtype=None))
     _check_inference(bb, relax.op.full(s2, v2, "float16"), relax.TensorType(s2, "float16"))
-    _check_inference(bb, relax.op.full(s2, v2), relax.TensorType(s2, dtype=""))
+    _check_inference(bb, relax.op.full(s2, v2), relax.TensorType(s2, dtype=None))
     _check_inference(bb, relax.op.full(s3, v2, "float16"), relax.TensorType(s3, "float16"))
-    _check_inference(bb, relax.op.full(s3, v2), relax.TensorType(s3, dtype=""))
+    _check_inference(bb, relax.op.full(s3, v2), relax.TensorType(s3, dtype=None))
     _check_inference(bb, relax.op.full((2, 3), v3, "float16"), relax.TensorType((2, 3), "float16"))
-    _check_inference(bb, relax.op.full((2, 3), v3), relax.TensorType((2, 3), dtype=""))
+    _check_inference(bb, relax.op.full((2, 3), v3), relax.TensorType((2, 3), dtype=None))
     _check_inference(bb, relax.op.full(s0, v3, "float16"), relax.TensorType((2, 3), "float16"))
-    _check_inference(bb, relax.op.full(s0, v3), relax.TensorType((2, 3), dtype=""))
+    _check_inference(bb, relax.op.full(s0, v3), relax.TensorType((2, 3), dtype=None))
     _check_inference(bb, relax.op.full(s1, v3, "float16"), relax.TensorType(s1, "float16"))
     _check_inference(
         bb,
@@ -98,7 +98,7 @@ def test_full_infer_ty():
             s1,
             v3,
         ),
-        relax.TensorType(s1, dtype=""),
+        relax.TensorType(s1, dtype=None),
     )
     _check_inference(bb, relax.op.full(s2, v3, "float16"), relax.TensorType(s2, "float16"))
     _check_inference(
@@ -107,10 +107,10 @@ def test_full_infer_ty():
             s2,
             v3,
         ),
-        relax.TensorType(s2, dtype=""),
+        relax.TensorType(s2, dtype=None),
     )
     _check_inference(bb, relax.op.full(s3, v3, "float16"), relax.TensorType(s3, "float16"))
-    _check_inference(bb, relax.op.full(s3, v3), relax.TensorType(s3, dtype=""))
+    _check_inference(bb, relax.op.full(s3, v3), relax.TensorType(s3, dtype=None))
 
 
 def test_full_infer_ty_shape_symbolic():
@@ -229,18 +229,18 @@ def test_full_like_infer_ty():
     _check_inference(bb, relax.op.full_like(x2, v1), relax.TensorType(dtype="float32"))
     _check_inference(bb, relax.op.full_like(x2, v2), relax.TensorType(dtype="float32"))
     _check_inference(bb, relax.op.full_like(x2, v3), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.full_like(x3, v0), relax.TensorType((2, 3), dtype=""))
-    _check_inference(bb, relax.op.full_like(x3, v1), relax.TensorType((2, 3), dtype=""))
-    _check_inference(bb, relax.op.full_like(x3, v2), relax.TensorType((2, 3), dtype=""))
-    _check_inference(bb, relax.op.full_like(x3, v3), relax.TensorType((2, 3), dtype=""))
-    _check_inference(bb, relax.op.full_like(x4, v0), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.full_like(x4, v1), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.full_like(x4, v2), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.full_like(x4, v3), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.full_like(x5, v0), relax.TensorType(dtype=""))
-    _check_inference(bb, relax.op.full_like(x5, v1), relax.TensorType(dtype=""))
-    _check_inference(bb, relax.op.full_like(x5, v2), relax.TensorType(dtype=""))
-    _check_inference(bb, relax.op.full_like(x5, v3), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.full_like(x3, v0), relax.TensorType((2, 3), dtype=None))
+    _check_inference(bb, relax.op.full_like(x3, v1), relax.TensorType((2, 3), dtype=None))
+    _check_inference(bb, relax.op.full_like(x3, v2), relax.TensorType((2, 3), dtype=None))
+    _check_inference(bb, relax.op.full_like(x3, v3), relax.TensorType((2, 3), dtype=None))
+    _check_inference(bb, relax.op.full_like(x4, v0), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.full_like(x4, v1), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.full_like(x4, v2), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.full_like(x4, v3), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.full_like(x5, v0), relax.TensorType(dtype=None))
+    _check_inference(bb, relax.op.full_like(x5, v1), relax.TensorType(dtype=None))
+    _check_inference(bb, relax.op.full_like(x5, v2), relax.TensorType(dtype=None))
+    _check_inference(bb, relax.op.full_like(x5, v3), relax.TensorType(dtype=None))
     _check_inference(
         bb, relax.op.full_like(x0, v0, dtype="float16"), relax.TensorType((2, 3), "float16")
     )
@@ -264,7 +264,7 @@ def test_full_like_infer_ty_shape_symbolic():
     v = relax.Var("v", R.Tensor((), "float16"))
 
     _check_inference(bb, relax.op.full_like(x0, v), relax.TensorType((m, n), "float32"))
-    _check_inference(bb, relax.op.full_like(x1, v), relax.TensorType((m, n), dtype=""))
+    _check_inference(bb, relax.op.full_like(x1, v), relax.TensorType((m, n), dtype=None))
 
 
 def test_full_like_infer_ty_shape_var():
@@ -445,9 +445,9 @@ def test_ones_like_zeros_like_infer_ty():
     _check_inference(bb, relax.op.ones_like(x0), relax.TensorType((2, 3), "float32"))
     _check_inference(bb, relax.op.zeros_like(x1), relax.TensorType(dtype="float32", ndim=2))
     _check_inference(bb, relax.op.ones_like(x2), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.zeros_like(x3), relax.TensorType((2, 3), dtype=""))
-    _check_inference(bb, relax.op.ones_like(x4), relax.TensorType(dtype="", ndim=2))
-    _check_inference(bb, relax.op.zeros_like(x5), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.zeros_like(x3), relax.TensorType((2, 3), dtype=None))
+    _check_inference(bb, relax.op.ones_like(x4), relax.TensorType(dtype=None, ndim=2))
+    _check_inference(bb, relax.op.zeros_like(x5), relax.TensorType(dtype=None))
     _check_inference(
         bb, relax.op.ones_like(x0, dtype="float16"), relax.TensorType((2, 3), "float16")
     )
@@ -464,7 +464,7 @@ def test_ones_like_zeros_like_infer_ty_shape_symbolic():
     x1 = relax.Var("x", R.Tensor((m, n)))
 
     _check_inference(bb, relax.op.ones_like(x0), relax.TensorType((m, n), "float32"))
-    _check_inference(bb, relax.op.zeros_like(x1), relax.TensorType((m, n), dtype=""))
+    _check_inference(bb, relax.op.zeros_like(x1), relax.TensorType((m, n), dtype=None))
 
 
 def test_ones_like_zeros_like_infer_ty_shape_var():
@@ -530,7 +530,7 @@ def test_eye_like_infer_ty():
 
     _check_inference(bb, relax.op.eye_like(x0), relax.TensorType((3, 4), "float32"))
     _check_inference(bb, relax.op.eye_like(x1), relax.TensorType((2, 5), "int64"))
-    _check_inference(bb, relax.op.eye_like(x2), relax.TensorType((3, 3), dtype=""))
+    _check_inference(bb, relax.op.eye_like(x2), relax.TensorType((3, 3), dtype=None))
     _check_inference(bb, relax.op.eye_like(x0, k=1), relax.TensorType((3, 4), "float32"))
     _check_inference(
         bb, relax.op.eye_like(x1, dtype="float32"), relax.TensorType((2, 5), "float32")
@@ -640,9 +640,9 @@ def test_tril_triu_infer_ty():
     _check_inference(bb, relax.op.tril(x0), relax.TensorType((2, 3, 4), "float32"))
     _check_inference(bb, relax.op.triu(x1), relax.TensorType(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.tril(x2), relax.TensorType(dtype="float32"))
-    _check_inference(bb, relax.op.triu(x3), relax.TensorType((2, 3, 4), dtype=""))
-    _check_inference(bb, relax.op.tril(x4), relax.TensorType(dtype="", ndim=3))
-    _check_inference(bb, relax.op.triu(x5), relax.TensorType(dtype=""))
+    _check_inference(bb, relax.op.triu(x3), relax.TensorType((2, 3, 4), dtype=None))
+    _check_inference(bb, relax.op.tril(x4), relax.TensorType(dtype=None, ndim=3))
+    _check_inference(bb, relax.op.triu(x5), relax.TensorType(dtype=None))
     _check_inference(bb, relax.op.tril(x6), relax.TensorType((2, 3, 4), "float32", vdev0))
 
 
@@ -659,11 +659,11 @@ def test_tril_triu_infer_ty_shape_symbolic():
 
     # Dynamic tensor, static offset
     _check_inference(bb, relax.op.tril(x0), relax.TensorType((a, b, c), "float32"))
-    _check_inference(bb, relax.op.triu(x1), relax.TensorType((a, b, c), dtype=""))
+    _check_inference(bb, relax.op.triu(x1), relax.TensorType((a, b, c), dtype=None))
     _check_inference(bb, relax.op.tril(x2), relax.TensorType((a, b, c), "float32", vdev0))
 
     # Static tensor, dynamic offset
-    _check_inference(bb, relax.op.tril(x3, a), relax.TensorType((16, 32, 64), dtype=""))
+    _check_inference(bb, relax.op.tril(x3, a), relax.TensorType((16, 32, 64), dtype=None))
 
     # Dynamic tensor, dynamic offset
     _check_inference(bb, relax.op.tril(x0, a), relax.TensorType((a, b, c), "float32"))

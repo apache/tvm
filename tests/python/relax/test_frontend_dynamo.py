@@ -484,7 +484,7 @@ def test_masked_fill():
         ) -> R.Tensor((256, 256), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((256, 256), dtype="float32") = R.full_like(
-                    inp_1, R.const(0, "int32"), dtype="void"
+                    inp_1, R.const(0, "int32"), dtype=None
                 )
                 lv1: R.Tensor((256, 256), dtype="float32") = R.where(inp_0, lv, inp_1)
                 gv: R.Tensor((256, 256), dtype="float32") = lv1

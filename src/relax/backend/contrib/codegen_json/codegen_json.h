@@ -282,7 +282,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
         ShapeExpr output_shape = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
-        dtype.emplace_back(DType2String(tensor_ty->dtype->dtype));
+        dtype.emplace_back(DType2String(tensor_ty->dtype.value()->dtype));
       }
       node->SetNumOutput(tuple_ty->fields.size());
     } else {
@@ -292,7 +292,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       ShapeExpr output_shape = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
 
       shape.emplace_back(GetIntShape(output_shape->values));
-      dtype.emplace_back(DType2String(tensor_ty->dtype->dtype));
+      dtype.emplace_back(DType2String(tensor_ty->dtype.value()->dtype));
       ret.push_back(JSONGraphNodeEntry(node_id, 0));
     }
     node->SetShape(shape);

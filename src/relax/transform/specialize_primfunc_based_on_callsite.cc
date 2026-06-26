@@ -99,8 +99,8 @@ class SpecializeTIRCallArgs : ExprMutator {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const Buffer& buffer =
-          tirx::decl_buffer(GetShapeFromTensorType(tensor_ty), tensor_ty->dtype, name, scope);
+      const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(tensor_ty),
+                                               tensor_ty->dtype.value(), name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
     ffi::String scope = "global";
@@ -111,7 +111,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         scope = ty->vdevice.value()->memory_scope;
       }
       const Buffer& buffer =
-          tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype, "ret_val", scope);
+          tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(), "ret_val", scope);
       param_map.Set(pfunc->params[pfunc->params.size() - 1], buffer);
     } else {
       TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
@@ -132,7 +132,7 @@ class SpecializeTIRCallArgs : ExprMutator {
           scope = ty->vdevice.value()->memory_scope;
         }
 
-        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype,
+        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(),
                                                  "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;

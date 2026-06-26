@@ -125,7 +125,7 @@ class DTypeDecisionCollector : public ExprVisitor {
   }
 
  private:
-  NType GetDType(const Var& var) {
+  NType GetTrackedDType(const Var& var) {
     auto it = only_fp16_map_.find(var);
     if (it == only_fp16_map_.end()) {
       // we never encounter this var before
@@ -209,14 +209,14 @@ class DTypeDecisionCollector : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleNode* tuple_node) final {
     // require input fields to be the type of the lhs field respectively
-    NType lhs_type = GetDType(binding->var);
+    NType lhs_type = GetTrackedDType(binding->var);
     RequireArgsToType(tuple_node->fields, lhs_type.NestedArray());
   }
 
   void VisitBinding_(const VarBindingNode* binding,
                      const TupleGetItemNode* tuple_get_item_node) final {
     // require the i-th field rhs tuple to be the type of the lhs
-    NType lhs_type = GetDType(binding->var);
+    NType lhs_type = GetTrackedDType(binding->var);
     std::vector<NType> require_rhs;
     const TupleTypeNode* ty = tuple_get_item_node->tuple->ty.as<TupleTypeNode>();
     TVM_FFI_ICHECK(ty != nullptr) << "TupleGetItemNode must have TupleType";
@@ -313,9 +313,11 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       TVM_FFI_ICHECK(tensor != nullptr) << "Only support rewriting tensor expr";
       // We only rewrite the expr if the dtype is not the same as the given dtype
       if (NTypeEqual()(to[0], NTypeFrom(expr))) return expr;
+      // If the source dtype is unknown, there is no concrete dtype to cast from.
+      if (tensor->IsUnknownDtype()) return expr;
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
       // supported to be rewritten
-      DLDataType tensor_dtype = tensor->dtype->dtype;
+      DLDataType tensor_dtype = tensor->dtype.value()->dtype;
       if (tensor_dtype != fp16_ && tensor_dtype != fp32_) return expr;
       return astype(expr, ffi::StringToDLDataType(to[0].LeafValue()));
     };

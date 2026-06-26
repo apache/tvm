@@ -122,7 +122,7 @@ RelaxModuleWithTIR.show()
 #   .. code-block:: python
 #
 #     lv: R.Tensor((784, 128), dtype="float32") = R.permute_dims(w0, axes=None)
-#     lv1: R.Tensor((n, 128), dtype="float32") = R.matmul(data, lv, out_dtype="void")
+#     lv1: R.Tensor((n, 128), dtype="float32") = R.matmul(data, lv)
 #     lv0: R.Tensor((n, 128), dtype="float32") = R.add(lv1, b0)
 #
 
