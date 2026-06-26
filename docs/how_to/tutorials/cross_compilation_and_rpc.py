@@ -84,7 +84,6 @@ and the Firefly-RK3399 for an OpenCL example.
 #
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
-######################################################################
 # Declare and Cross Compile Kernel on Local Machine
 # -------------------------------------------------
 #
@@ -388,7 +387,6 @@ print(f"{cost:g} secs/op")
 # the device's ``site-packages`` directory.  It is a pure Python package, so it
 # usually does not need cross-compilation.
 #
-#########################################################################
 # Run OpenCL Kernel Remotely by RPC
 # ---------------------------------
 # For remote OpenCL devices, the workflow is almost the same as above.
@@ -446,7 +444,7 @@ def run_opencl():
     print("OpenCL test passed!")
 
 
-#########################################################################
+######################################################################
 # Deploy PyTorch Models to Remote Devices with RPC
 # ------------------------------------------------
 # The above examples demonstrate cross compilation and RPC using low-level

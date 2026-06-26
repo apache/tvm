@@ -86,9 +86,6 @@ def bind_assign_value(
         IRBuilder.name(var_name, value)
         return value
 
-    if isinstance(value, tirx.PrimExpr):
-        return value
-
     if isinstance(value, tuple):
         value = convert_to_expr(value)
     if isinstance(value, numbers.Number):
