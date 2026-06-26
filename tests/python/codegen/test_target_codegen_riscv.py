@@ -169,5 +169,31 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
     check_codegen(fixed16_negative_int64)
 
 
+@pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
+def test_rvv_scalable_ramp_expression():
+    @T.prim_func(s_tir=True)
+    def ramp_compare(B: T.Buffer((16,), "int32")):
+        for i in T.vectorized(16):
+            B[i] = T.Select(i * 3 + 5 < 29, i * 3 + 5, -1)
+
+    target = tvm.target.Target(
+        {
+            "kind": "llvm",
+            "device": "riscv_cpu",
+            "mtriple": "riscv64-linux-gnu",
+            "mcpu": "generic-rv64",
+            "mattr": ["+64bit", "+a", "+c", "+d", "+f", "+m", "+v"],
+        }
+    )
+
+    with target:
+        f = tvm.tirx.build(ramp_compare, target)
+
+    assembly = f.inspect_source("asm")
+    assert "vid.v" in assembly
+    assert re.search(r"\bvmul\.v", assembly)
+    assert re.search(r"\bvadd\.v", assembly)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

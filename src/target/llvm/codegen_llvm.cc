@@ -1898,9 +1898,32 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const RampNode* op) {
   PrimType dtype(op->ty()->dtype);
-  llvm::Value* vec = llvm::UndefValue::get(DTypeToLLVMType(dtype));
-  // TODO(ekalda): P4 in https://github.com/apache/tvm/issues/16455
-  TVM_FFI_ICHECK(!dtype.IsScalableVector());
+  llvm::Type* vec_type = DTypeToLLVMType(dtype);
+  if (dtype.IsScalableVector()) {
+    TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+        << "Scalable ramps require an integer dtype, but got " << dtype;
+    TVM_FFI_ICHECK_GE(dtype.bits(), 8)
+        << "Scalable ramps require at least 8-bit elements, but got " << dtype;
+
+#if TVM_LLVM_VERSION >= 200
+    constexpr llvm::Intrinsic::ID stepvector_id = llvm::Intrinsic::stepvector;
+#else
+    constexpr llvm::Intrinsic::ID stepvector_id = llvm::Intrinsic::experimental_stepvector;
+#endif
+    llvm::Function* stepvector = GetIntrinsicDecl(stepvector_id, vec_type, {});
+    llvm::Value* step = builder_->CreateCall(stepvector);
+    llvm::ElementCount lanes = llvm::ElementCount::getScalable(dtype.VScaleFactor());
+    PrimType elem_dtype = dtype.WithLanes(1);
+    llvm::Value* base_scalar =
+        CreateCast(PrimType(op->base.ty()->dtype), elem_dtype, MakeValue(op->base));
+    llvm::Value* stride_scalar =
+        CreateCast(PrimType(op->stride.ty()->dtype), elem_dtype, MakeValue(op->stride));
+    llvm::Value* base = builder_->CreateVectorSplat(lanes, base_scalar);
+    llvm::Value* stride = builder_->CreateVectorSplat(lanes, stride_scalar);
+    return builder_->CreateAdd(base, builder_->CreateMul(step, stride));
+  }
+
+  llvm::Value* vec = llvm::UndefValue::get(vec_type);
   int lanes = dtype.lanes();
   for (int i = 0; i < lanes; ++i) {
     vec = builder_->CreateInsertElement(
