@@ -39,6 +39,12 @@ from .entry import (
     _normalize_ty_proxy,
 )
 
+relax.Expr._dispatch_type = relax.Expr  # pylint: disable=protected-access
+dispatch.register_op(relax.Expr, doc.GtE, 0)(lambda lhs, rhs: lhs >= rhs)
+dispatch.register_op(relax.Expr, doc.Gt, 0)(lambda lhs, rhs: lhs > rhs)
+dispatch.register_op(relax.Expr, doc.LtE, 0)(lambda lhs, rhs: lhs <= rhs)
+dispatch.register_op(relax.Expr, doc.Lt, 0)(lambda lhs, rhs: lhs < rhs)
+
 
 def bind_assign_value(
     self: Parser,
@@ -78,6 +84,9 @@ def bind_assign_value(
                 )
             value = prev_value
         IRBuilder.name(var_name, value)
+        return value
+
+    if isinstance(value, tirx.FloatImm):
         return value
 
     if isinstance(value, tuple):

@@ -1618,12 +1618,15 @@ def test_iterative_rewrite_without_trivial_binding():
         if len(axes) != 1:
             return expr
 
-        axis = axes[0].value
-        begin = begin[0].value
-        end = end[0].value
-        stride = strides[0].value
+        axis = axes[0]
+        begin = begin[0]
+        end = end[0]
+        stride = strides[0]
 
-        if stride != 1:
+        if not isinstance(axis, tirx.IntImm) or axis.value != 0:
+            return expr
+
+        if not isinstance(stride, tirx.IntImm) or stride.value != 1:
             return expr
 
         size = arg.ty.shape[0]

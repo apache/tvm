@@ -563,8 +563,8 @@ def test_operators():
         )
     )
     assert 'Op(name="relax.unique")' in foo_str
-    # the sorted argument is true, so it will be a PrimExpr of 1
-    assert "PrimExpr(value=`T.int64(1)`)" in foo_str
+    # the sorted argument is true, so it will be a boolean PrimExpr
+    assert "PrimExpr(value=`T.bool(True)`)" in foo_str
     # axis is -1
     assert "PrimExpr(value=`T.int64(-1)`)" in foo_str
 
