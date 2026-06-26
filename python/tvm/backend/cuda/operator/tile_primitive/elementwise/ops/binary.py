@@ -15,14 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Binary elementwise ops: add / sub / mul / fdiv.
+"""Binary elementwise ops: add / sub / mul / fdiv / maximum.
 
 Includes constant-lhs commute logic. Broadcasting (extent=1 dims) is
 handled at the layout level in dispatch's ``_broadcast_lift``, not here —
 parser just records each src as-is.
 
 ``add``/``sub``/``mul`` attach a ``VecImpl`` for sm_100+ packed f32x2;
-``fdiv`` has no packed PTX (uses scalar fallback only).
+``fdiv``/``maximum`` have no packed PTX (scalar fallback only — ``max`` lowers
+to a single ``FMNMX``/``max.f32``, which is exact, so there is no rounding/ftz
+variant to pack).
 """
 
 from __future__ import annotations
@@ -31,12 +33,13 @@ import functools
 import operator
 from typing import Any
 
+from tvm.script import tirx as Tx
 from tvm.tirx import BufferRegion, TilePrimitiveCall
 
 from ..vec_emit.binary_f32x2 import BINARY_F32X2_IMPLS
 from . import OpSpec, Plan, SrcSpec
 
-_COMMUTATIVE = frozenset({"add", "mul"})
+_COMMUTATIVE = frozenset({"add", "mul", "maximum"})
 
 
 def _parse_binary_for(op_name: str):
@@ -100,6 +103,10 @@ def _compute_fdiv(src_vals, extras, dt):
     return src_vals[0] / src_vals[1]
 
 
+def _compute_maximum(src_vals, extras, dt):
+    return Tx.max(src_vals[0], src_vals[1])
+
+
 BINARY_OPS: dict[str, OpSpec] = {
     "add": OpSpec(
         "add",
@@ -123,5 +130,10 @@ BINARY_OPS: dict[str, OpSpec] = {
         "fdiv",
         _parse_binary_for("fdiv"),
         _compute_fdiv,
+    ),
+    "maximum": OpSpec(
+        "maximum",
+        _parse_binary_for("maximum"),
+        _compute_maximum,
     ),
 }
