@@ -266,10 +266,20 @@ def test_prim_value_helper_from_python_scalar():
     tvm.ir.assert_structural_equal(int_value.ty, tvm.ir.PrimType("int64"))
     assert int_value.value == 1
 
+    np_int_value = rx.prim_value(np.int32(2))
+    assert isinstance(np_int_value, tirx.IntImm)
+    tvm.ir.assert_structural_equal(np_int_value.ty, tvm.ir.PrimType("int64"))
+    assert np_int_value.value == 2
+
     float_value = rx.prim_value(1.0)
     assert isinstance(float_value, tirx.FloatImm)
     tvm.ir.assert_structural_equal(float_value.ty, tvm.ir.PrimType("float64"))
     assert float_value.value == 1.0
+
+    np_float_value = rx.prim_value(np.float32(1.5))
+    assert isinstance(np_float_value, tirx.FloatImm)
+    tvm.ir.assert_structural_equal(np_float_value.ty, tvm.ir.PrimType("float64"))
+    assert np_float_value.value == 1.5
 
 
 def test_prim_value_helper_preserves_prim_expr():

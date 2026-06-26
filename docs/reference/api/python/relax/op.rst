@@ -23,60 +23,70 @@ tvm.relax.op
 .. automodule:: tvm.relax.op
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.nn
 ***************
 .. automodule:: tvm.relax.op.nn
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.builtin
 ********************
 .. automodule:: tvm.relax.op.builtin
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.ccl
 ****************
 .. automodule:: tvm.relax.op.ccl
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.distributed
 ************************
 .. automodule:: tvm.relax.op.distributed
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.grad
 *****************
 .. automodule:: tvm.relax.op.grad
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.image
 ******************
 .. automodule:: tvm.relax.op.image
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.memory
 *******************
 .. automodule:: tvm.relax.op.memory
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.vision
 *******************
 .. automodule:: tvm.relax.op.vision
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.vm
 ***************
 .. automodule:: tvm.relax.op.vm
    :members:
    :imported-members:
+   :exclude-members: Expr
 
 tvm.relax.op.op_attrs
 *********************

@@ -2296,16 +2296,16 @@ def test_function_symbolic_variables_are_annotated():
     tvm.ir.assert_structural_equal(inferred_ty, expected)
 
 
-def test_constant_prim_expr_alias_not_used_in_type_annotation():
-    """Constant PrimExpr locals are not shape aliases."""
+def test_constant_prim_expr_alias_is_not_symbolic_declaration():
+    """Constant PrimExpr locals are constants, not declarations."""
 
-    with pytest.raises(tvm.error.DiagnosticError):
+    @R.function(private=True)
+    def func(A: R.Tensor([4], "float32")):
+        extent = T.int64(4)
+        output: R.Tensor([extent], "float32") = A
+        return output
 
-        @R.function(private=True)
-        def func(A: R.Tensor([4], "float32")):
-            extent = T.int64(4)
-            output: R.Tensor([extent], "float32") = A
-            return output
+    tvm.ir.assert_structural_equal(func.ret_ty.shape.values[0], T.int64(4))
 
 
 def test_conditional_may_use_symbolic_variables_from_function_scope():

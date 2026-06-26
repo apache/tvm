@@ -19,7 +19,7 @@
 
 import typing
 from collections.abc import Callable, Mapping
-from numbers import Number
+from numbers import Integral, Number, Real
 from typing import Any, Optional, Union
 
 import numpy as _np  # type: ignore
@@ -64,12 +64,12 @@ def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimE
     """
     if isinstance(value, PrimExpr):
         return value
-    if isinstance(value, bool):
+    if isinstance(value, bool | _np.bool_):
         return tvm.tirx.IntImm(dtype or "bool", int(value))
-    if isinstance(value, int):
-        return tvm.tirx.IntImm(dtype or "int64", value)
-    if isinstance(value, float):
-        return tvm.tirx.FloatImm(dtype or "float64", value)
+    if isinstance(value, Integral):
+        return tvm.tirx.IntImm(dtype or "int64", int(value))
+    if isinstance(value, Real):
+        return tvm.tirx.FloatImm(dtype or "float64", float(value))
     tvm_value = tvm_ffi.convert(value)
     if isinstance(tvm_value, PrimExpr):
         return tvm_value

@@ -86,7 +86,7 @@ def bind_assign_value(
         IRBuilder.name(var_name, value)
         return value
 
-    if isinstance(value, tirx.FloatImm):
+    if isinstance(value, tirx.PrimExpr):
         return value
 
     if isinstance(value, tuple):
