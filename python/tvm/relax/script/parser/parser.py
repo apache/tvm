@@ -55,35 +55,37 @@ def bind_assign_value(
 ) -> Any:
     var_table = self.var_table.get()
 
-    if isinstance(value, tirx.Var):
-        if value.name and var_name != value.name:
-            self.report_error(
-                node,
-                "Cannot define TIR variables with different names. The LHS of binding should "
-                "has the same name provided in RHS.",
-            )
-        if var_name in var_table:
-            prev_value = var_table[var_name]
-            if not isinstance(prev_value, tirx.Var):
+    if isinstance(value, tirx.PrimExpr):
+        if isinstance(value, tirx.Var):
+            if value.name and var_name != value.name:
                 self.report_error(
                     node,
-                    "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
-                    "define the TIR variable with another name.",
+                    "Cannot define TIR variables with different names. The LHS of binding should "
+                    "has the same name provided in RHS.",
                 )
-            if prev_value.ty != value.ty:
-                self.report_error(
-                    node,
-                    f"Expected the same dtype for TIR vars but got {value.ty} vs {prev_value.ty}",
-                )
-            if not isinstance(value, type(prev_value)):
-                self.report_error(
-                    node,
-                    f"Expected the same IR type for TIR vars "
-                    f"but existing value {type(value)} is mismatched "
-                    f"to previous {type(prev_value)}",
-                )
-            value = prev_value
-        IRBuilder.name(var_name, value)
+            if var_name in var_table:
+                prev_value = var_table[var_name]
+                if not isinstance(prev_value, tirx.Var):
+                    self.report_error(
+                        node,
+                        "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
+                        "define the TIR variable with another name.",
+                    )
+                if prev_value.ty != value.ty:
+                    self.report_error(
+                        node,
+                        "Expected the same dtype for TIR vars "
+                        f"but got {value.ty} vs {prev_value.ty}",
+                    )
+                if not isinstance(value, type(prev_value)):
+                    self.report_error(
+                        node,
+                        f"Expected the same IR type for TIR vars "
+                        f"but existing value {type(value)} is mismatched "
+                        f"to previous {type(prev_value)}",
+                    )
+                value = prev_value
+            IRBuilder.name(var_name, value)
         return value
 
     if isinstance(value, tuple):
