@@ -26,7 +26,7 @@ from tvm.runtime import Object
 
 from . import _ffi_api
 from .attrs import DictAttrs
-from .expr import RelaxExpr
+from .expr import Expr
 
 
 class CallingConv(IntEnum):
@@ -38,7 +38,7 @@ class CallingConv(IntEnum):
 
 
 @tvm_ffi.register_object("ir.BaseFunc")
-class BaseFunc(RelaxExpr):
+class BaseFunc(Expr):
     """Base class of all functions."""
 
     @property

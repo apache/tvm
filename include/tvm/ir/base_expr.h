@@ -272,7 +272,7 @@ inline bool operator!=(const PrimType& lhs, const PrimType& rhs) { return !(lhs 
  * \brief Base type of all the expressions.
  * \sa Expr
  */
-class BaseExprNode : public ffi::Object {
+class ExprNode : public ffi::Object {
  public:
   /*!
    * \brief Span that points to the original source code.
@@ -292,26 +292,26 @@ class BaseExprNode : public ffi::Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     // span and ty do not participate in structural equal and hash.
-    refl::ObjectDef<BaseExprNode>()
-        .def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
+    refl::ObjectDef<ExprNode>()
+        .def_ro("span", &ExprNode::span, refl::DefaultValue(Span()),
                 refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("ty", &BaseExprNode::ty, refl::DefaultValue(Type()),
+        .def_ro("ty", &ExprNode::ty, refl::DefaultValue(Type()),
                 refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
   static constexpr const uint32_t _type_child_slots = 64;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseExpr", BaseExprNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Expr", ExprNode, ffi::Object);
 };
 
 /*!
- * \brief Managed reference to BaseExprNode.
- * \sa BaseExprNode
+ * \brief Managed reference to ExprNode.
+ * \sa ExprNode
  */
-class BaseExpr : public ffi::ObjectRef {
+class Expr : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseExpr, ffi::ObjectRef, BaseExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Expr, ffi::ObjectRef, ExprNode);
 };
 
 namespace ffi {
