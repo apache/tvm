@@ -203,7 +203,7 @@ IRModule IRModuleNode::ShallowCopy() {
   return IRModule(this->functions, this->source_map, this->attrs, this->global_infos);
 }
 
-IRModule IRModule::FromExpr(const RelaxExpr& expr,
+IRModule IRModule::FromExpr(const Expr& expr,
                             const tvm::ffi::Map<GlobalVar, BaseFunc>& global_funcs) {
   auto mod = IRModule(global_funcs);
   ffi::String gv_name;
@@ -276,7 +276,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("ir.Module_Add",
            [](IRModule mod, GlobalVar var, ffi::ObjectRef val, bool update) -> IRModule {
-             TVM_FFI_ICHECK(val->IsInstance<RelaxExprNode>());
+             TVM_FFI_ICHECK(val->IsInstance<BaseFuncNode>());
              mod->Add(var, val.as_or_throw<BaseFunc>(), update);
              return mod;
            })

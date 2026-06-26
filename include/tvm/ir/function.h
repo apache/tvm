@@ -153,7 +153,7 @@ constexpr const char* kNumInputs = "num_inputs";
  *
  * \sa BaseFunc
  */
-class BaseFuncNode : public RelaxExprNode {
+class BaseFuncNode : public ExprNode {
  public:
   /*! \brief Additional attributes storing the meta-data */
   DictAttrs attrs;
@@ -240,16 +240,16 @@ class BaseFuncNode : public RelaxExprNode {
   }
 
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseFunc", BaseFuncNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.BaseFunc", BaseFuncNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to BaseFuncNode.
  * \sa BaseFuncNode
  */
-class BaseFunc : public RelaxExpr {
+class BaseFunc : public Expr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseFunc, RelaxExpr, BaseFuncNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseFunc, Expr, BaseFuncNode);
 };
 
 }  // namespace tvm
