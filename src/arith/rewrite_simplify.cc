@@ -1191,7 +1191,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   // Unsigned (uint32/uint64): the signed IsIndexType block above is skipped for
   // unsigned operands (see the note in the FloorMod handler). Only the
   // OVERFLOW-FREE identities are valid here.
-  if (op->dtype.is_uint() && (op->dtype.bits() == 32 || op->dtype.bits() == 64)) {
+  PrimType op_ty = op->ty();
+  if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt) && (op_ty.bits() == 32 || op_ty.bits() == 64)) {
     TVM_TRY_REWRITE(floordiv(x, x), OneWithTypeLike(x));            // x / x -> 1  (x != 0)
     TVM_TRY_REWRITE_IF(floordiv(x, c1), x, c1.Eval()->value == 1);  // x / 1 -> x
   }
@@ -1318,7 +1319,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // those rules assume no wraparound, which is UNSOUND for unsigned (e.g.
   // floormod(x*y, y) -> 0 fails when x*y wraps mod 2^bits). Only the
   // OVERFLOW-FREE identities are valid here.
-  if (op->dtype.is_uint() && (op->dtype.bits() == 32 || op->dtype.bits() == 64)) {
+  PrimType op_ty = op->ty();
+  if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt) && (op_ty.bits() == 32 || op_ty.bits() == 64)) {
     TVM_TRY_REWRITE(floormod(x, x), ZeroWithTypeLike(x));  // x % x -> 0  (x != 0)
     TVM_TRY_REWRITE_IF(floormod(x, c1), ZeroWithTypeLike(x),
                        c1.Eval()->value == 1);  // x % 1 -> 0

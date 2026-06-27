@@ -75,6 +75,13 @@ _INSTR_DESC_FORMAT_MAP = {
 }
 
 
+def _dtype_name(dtype) -> str:
+    dtype_obj = getattr(dtype, "dtype", None)
+    if dtype_obj is not None:
+        return str(dtype_obj)
+    return str(dtype)
+
+
 def _encode_instr_descriptor_dense_uint32(
     M,
     N,
@@ -96,6 +103,9 @@ def _encode_instr_descriptor_dense_uint32(
     local descriptor on every gemm_async call (which forces an inline ``asm``
     block that ptxas cannot hoist out of the i_kv loop body).
     """
+    d_dtype = _dtype_name(d_dtype)
+    a_dtype = _dtype_name(a_dtype)
+    b_dtype = _dtype_name(b_dtype)
     d_format = _INSTR_DESC_FORMAT_MAP[d_dtype]
     a_format = _INSTR_DESC_FORMAT_MAP[a_dtype]
     b_format = _INSTR_DESC_FORMAT_MAP[b_dtype]
@@ -240,8 +250,8 @@ def _compute_sf_mma_k(data_dtype, sf_dtype):
     - fp4 data + e8m0fnu SF: MMA_K=64, SF_VEC=32 → sf_mma_k=2
     - fp4 data + e4m3fn SF (nvfp4): MMA_K=64, SF_VEC=16 → sf_mma_k=4
     """
-    data_dtype = str(data_dtype)
-    sf_dtype = str(sf_dtype)
+    data_dtype = _dtype_name(data_dtype)
+    sf_dtype = _dtype_name(sf_dtype)
     if data_dtype in ("float8_e4m3fn", "float8_e5m2"):
         return 1  # MMA_K=32, one SF per MMA
     elif data_dtype == "float4_e2m1fn":
@@ -384,7 +394,11 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
 
     analyzer = Analyzer()
 
-    C_type, A_type, B_type = C_buffer.dtype, A_buffer.dtype, B_buffer.dtype
+    C_type, A_type, B_type = (
+        _dtype_name(C_buffer.dtype),
+        _dtype_name(A_buffer.dtype),
+        _dtype_name(B_buffer.dtype),
+    )
     assert C_type == "float32", f"tcgen05 schedule expected C_type=float32, got {C_type}"
 
     # fp32/bf16 storage may still use tf32 MMA semantics via is_AB_tf32.
@@ -435,7 +449,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
                 f"tcgen05 block-scaled schedule expected SFA_scope=tmem, SFB_scope=tmem, "
                 f"got SFA_scope={SFA_scope}, SFB_scope={SFB_scope}"
             )
-        SFA_type, SFB_type = SFA_buffer.dtype, SFB_buffer.dtype
+        SFA_type, SFB_type = _dtype_name(SFA_buffer.dtype), _dtype_name(SFB_buffer.dtype)
         SFA_slice_layout = SFA_buffer.layout.slice(SFA_buffer.shape, SFA_buffer_region.region)
         SFB_slice_layout = SFB_buffer.layout.slice(SFB_buffer.shape, SFB_buffer_region.region)
         SFA_elem_per_col = 32 // DataType(SFA_type).bits
