@@ -28,6 +28,7 @@ from __future__ import annotations
 from tvm.ir.expr import PrimExpr
 from tvm.script import tirx as T
 
+from .._common import dtype_name
 from ..ops import VecImpl
 
 _VEC2_CAST_INTRINSICS = {
@@ -60,8 +61,8 @@ def _cast_vec2_applies(op_call, sctx, plan):
     src = plan.srcs[0]
     if src.index_fn is not None:
         return False, "broadcasting src not supported by cast vec2"
-    src_dtype = src.buf_region.buffer.dtype
-    dst_dtype = plan.dst.buffer.dtype
+    src_dtype = dtype_name(src.buf_region.buffer.dtype)
+    dst_dtype = dtype_name(plan.dst.buffer.dtype)
     if (src_dtype, dst_dtype) not in _VEC2_CAST_INTRINSICS:
         return False, f"no vec2 intrinsic for {src_dtype}->{dst_dtype}"
     return True, None
@@ -72,8 +73,10 @@ def _emit_cast_vec2(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
     # cast_vec2 requires buffer src (guarded by applies()).
     assert isinstance(src_arg, tuple), "cast vec2 src must be a buffer"
     src_buf, src_lane_indices = src_arg
-    func_name = _intrinsic_name(src_buf.dtype, dst_buf.dtype)
-    source_code = _intrinsic_source(src_buf.dtype, dst_buf.dtype)
+    src_dtype = dtype_name(src_buf.dtype)
+    dst_dtype = dtype_name(dst_buf.dtype)
+    func_name = _intrinsic_name(src_dtype, dst_dtype)
+    source_code = _intrinsic_source(src_dtype, dst_dtype)
     return T.cuda.func_call(
         func_name,
         T.address_of(dst_buf[tuple(dst_lane_indices[0])]),

@@ -95,7 +95,7 @@ def test_builtin_expression_ops_are_not_tile_primitives():
 
     cast = T.cast(x, "float32")
     assert isinstance(cast, tvm.tirx.Cast)
-    assert cast.dtype == "float32"
+    assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
     assert sqrt.op.name == "tirx.sqrt"

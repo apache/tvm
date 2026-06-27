@@ -1006,7 +1006,7 @@ class NegateIntImmMutator(StmtExprMutator):
 
     def visit_int_imm_(self, op):
         # Create a new IntImm with negated value
-        return tir.IntImm(op.dtype, -op.value)
+        return tir.IntImm(op.ty, -op.value)
 
 
 def test_mutator_transformation():
