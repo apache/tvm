@@ -981,15 +981,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if num_layers > 1:
             raise NotImplementedError("Multi-layer RNN is not yet supported")
 
-        input_shape = self.shape_of(input_tensor)
+        def _node_meta(fx_node):
+            meta = fx_node.meta
+            return meta["val"] if "val" in meta else meta["tensor_meta"]
+
+        input_meta = _node_meta(node.args[0])
+        input_shape = list(input_meta.shape)
         if batch_first:
             batch_size, seq_len, input_size = input_shape
         else:
             seq_len, batch_size, input_size = input_shape
-
-        seq_len = int(seq_len) if isinstance(seq_len, tvm.tirx.IntImm) else seq_len
-        batch_size = int(batch_size) if isinstance(batch_size, tvm.tirx.IntImm) else batch_size
-        input_size = int(input_size) if isinstance(input_size, tvm.tirx.IntImm) else input_size
 
         if not isinstance(seq_len, int):
             raise NotImplementedError("Dynamic sequence length is not supported for rnn_tanh")
@@ -999,12 +1000,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # A vanilla RNN has a single gate, so weight_ih has shape (hidden_size, input_size)
         if params and len(params) >= 2:
-            hidden_size = self.shape_of(params[0])[0]
+            hidden_size = int(_node_meta(node.args[2][0]).shape[0])
         else:
             hidden_size = 16
-        hidden_size = int(hidden_size) if isinstance(hidden_size, tvm.tirx.IntImm) else hidden_size
 
-        dtype = input_tensor.struct_info.dtype
+        dtype = self._convert_data_type(input_meta.dtype)
 
         # Forward direction weights
         if params and len(params) >= params_per_direction:
