@@ -1568,5 +1568,71 @@ def test_copy_tma_dynamic_cta_mask(dtype):
     assert "multicast" in src, "Expected multicast TMA instruction in generated code"
 
 
+def test_copy_tma_uint32_shape_extent():
+    BK = 64
+    A_layout = mma_shared_layout("float16", 3, (128, BK))
+
+    @T.prim_func
+    def tma_load(n: T.uint32, a_ptr: T.handle, o_ptr: T.handle) -> None:
+        A = T.match_buffer(a_ptr, (n, BK), "float16")
+        Out = T.match_buffer(o_ptr, (128, BK), "float16")
+        T.device_entry()
+        T.warp_id([4])
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([128])
+        sm = T.alloc_buffer((128, BK), "float16", scope="shared", layout=A_layout)
+        mb = T.alloc_shared([1], "uint64")
+        if tid == 0:
+            T.ptx.mbarrier.init(mb.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        if tid == 0:
+            Tx.copy_async(sm[:, :], A[0:128, 0:BK], dispatch="tma", mbar=mb.ptr_to([0]))
+            T.ptx.mbarrier.arrive.expect_tx(mb.ptr_to([0]), 128 * BK * 2)
+        T.ptx.mbarrier.try_wait(mb.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        reg = T.alloc_local(BK, "float16")
+        Tx.copy(reg[:], sm[tid, 0:BK])
+        Tx.copy(Out[tid, 0:BK], reg[:])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        tvm.compile(tvm.IRModule({"main": tma_load}), target=target, tir_pipeline="tirx")
+
+
+def test_copy_tma_uint32_slice_base():
+    BK = 64
+    A_layout = mma_shared_layout("float16", 3, (128, BK))
+
+    @T.prim_func
+    def tma_off(off: T.uint32, a_ptr: T.handle, o_ptr: T.handle) -> None:
+        A = T.match_buffer(a_ptr, (4096, BK), "float16")
+        Out = T.match_buffer(o_ptr, (128, BK), "float16")
+        T.device_entry()
+        T.warp_id([4])
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([128])
+        sm = T.alloc_buffer((128, BK), "float16", scope="shared", layout=A_layout)
+        mb = T.alloc_shared([1], "uint64")
+        if tid == 0:
+            T.ptx.mbarrier.init(mb.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        if tid == 0:
+            Tx.copy_async(sm[:, :], A[off : off + 128, 0:BK], dispatch="tma", mbar=mb.ptr_to([0]))
+            T.ptx.mbarrier.arrive.expect_tx(mb.ptr_to([0]), 128 * BK * 2)
+        T.ptx.mbarrier.try_wait(mb.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        reg = T.alloc_local(BK, "float16")
+        Tx.copy(reg[:], sm[tid, 0:BK])
+        Tx.copy(Out[tid, 0:BK], reg[:])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        tvm.compile(tvm.IRModule({"main": tma_off}), target=target, tir_pipeline="tirx")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
