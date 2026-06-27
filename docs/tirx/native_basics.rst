@@ -67,3 +67,4 @@ kernels reference compile-time parameters inside type annotations (see
    native_basics/cuda/control_flow
    native_basics/cuda/threads_sync
    native_basics/cuda/compiling
+   native_basics/cuda/profiling
