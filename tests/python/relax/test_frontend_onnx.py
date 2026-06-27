@@ -658,6 +658,82 @@ def test_div_integer_constant_zero_divisor_raises_valueerror():
         from_onnx(model, opset=18, keep_params_in_input=False)
 
 
+def _make_div_integer_dynamic_model(a_shape, b_shape, y_shape):
+    node = helper.make_node("Div", ["a", "b"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "div_dyn_zero",
+        [
+            helper.make_tensor_value_info("a", TensorProto.INT32, a_shape),
+            helper.make_tensor_value_info("b", TensorProto.INT32, b_shape),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.INT32, y_shape)],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 18)])
+    model.ir_version = 9
+    return model
+
+
+def test_div_integer_dynamic_zero_divisor_runtime():
+    a = np.array([42, 99, -50, 7], dtype=np.int32)
+    b = np.array([3, 0, 0, 1], dtype=np.int32)
+    model = _make_div_integer_dynamic_model([4], [4], [4])
+    out = run_in_tvm(model, inputs={"a": a, "b": b}, ir_version=9, opset=18).numpy()
+
+    assert out.dtype == np.int32
+    assert out.shape == (4,)
+    np.testing.assert_array_equal(out[[0, 3]], np.array([14, 7], dtype=np.int32))
+    np.testing.assert_array_equal(out[[1, 2]], np.array([0, 0], dtype=np.int32))
+
+
+def test_div_integer_dynamic_zero_divisor_ir_guard():
+    tvm_model = from_onnx(
+        _make_div_integer_dynamic_model([4], [4], [4]), opset=18, keep_params_in_input=True
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(a: R.Tensor((4,), dtype="int32"), b: R.Tensor((4,), dtype="int32")) -> R.Tensor(
+            (4,), dtype="int32"
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="bool") = R.not_equal(b, R.const(0, "int32"))
+                lv1: R.Tensor((4,), dtype="int32") = R.where(lv, b, R.const(1, "int32"))
+                lv2: R.Tensor((4,), dtype="int32") = R.divide(a, lv1)
+                gv: R.Tensor((4,), dtype="int32") = R.where(lv, lv2, R.const(0, "int32"))
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_div_integer_dynamic_zero_divisor_broadcast_ir_guard():
+    tvm_model = from_onnx(
+        _make_div_integer_dynamic_model([2, 4], [4], [2, 4]),
+        opset=18,
+        keep_params_in_input=True,
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(a: R.Tensor((2, 4), dtype="int32"), b: R.Tensor((4,), dtype="int32")) -> R.Tensor(
+            (2, 4), dtype="int32"
+        ):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="bool") = R.not_equal(b, R.const(0, "int32"))
+                lv1: R.Tensor((4,), dtype="int32") = R.where(lv, b, R.const(1, "int32"))
+                lv2: R.Tensor((2, 4), dtype="int32") = R.divide(a, lv1)
+                gv: R.Tensor((2, 4), dtype="int32") = R.where(lv, lv2, R.const(0, "int32"))
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 @pytest.mark.parametrize("int_mode", [True, False])
 def test_mod(int_mode: bool):
     if int_mode:

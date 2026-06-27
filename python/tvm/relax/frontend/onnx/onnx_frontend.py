@@ -546,7 +546,15 @@ class Div(BinaryBase):
         if isinstance(inputs[1], relax.Constant) and bool(_np.any(inputs[1].data.numpy() == 0)):
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
 
-        return cls.base_impl(bb, inputs, attr, params)
+        if isinstance(inputs[1], relax.Constant):
+            return cls.base_impl(bb, inputs, attr, params)
+
+        rhs_dtype = inputs[1].ty.dtype.dtype
+        rhs_nonzero = bb.normalize(relax.op.not_equal(inputs[1], relax.const(0, rhs_dtype)))
+        safe_rhs = bb.normalize(relax.op.where(rhs_nonzero, inputs[1], relax.const(1, rhs_dtype)))
+        quotient = bb.normalize(relax.op.divide(inputs[0], safe_rhs))
+        quotient_dtype = quotient.ty.dtype.dtype
+        return relax.op.where(rhs_nonzero, quotient, relax.const(0, quotient_dtype))
 
 
 class Pow(BinaryBase):
