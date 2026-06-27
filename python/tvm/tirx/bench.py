@@ -388,14 +388,14 @@ def _bench_legacy_callable(func, warmup, repeat, proton_name, debug, nsight, flu
 
 
 # Labels identifying our own kernel (vs external reference impls). Must match
-# OUR_IMPLS in tir-bench's ratio_diff.py. Used by the TIRX_BENCH_IMPLS filter.
+# OUR_IMPLS in bench_suite's ratio_diff.py. Used by the TIRX_BENCH_IMPLS filter.
 OURS_IMPLS = frozenset({"tir", "tirx"})
 
 
 def bench_impls_mode():
     """Current impl-selection mode: 'all' (default), 'ours', or 'baseline'.
 
-    Set via the ``TIRX_BENCH_IMPLS`` env var (by tir-bench ``run.py --impls``).
+    Set via the ``TIRX_BENCH_IMPLS`` env var (by bench_suite ``run.py --impls``).
     A kernel's ``run_bench`` can use this to skip *building/warming* reference
     impls (e.g. flashinfer autotune, deepgemm/cublas ext setup) that ``bench``'s
     filter alone cannot avoid, since that setup runs before ``bench`` is called.
@@ -477,7 +477,7 @@ def bench(
         Seconds to sleep between rounds (ignored when ``rounds == 1``).
     validate_case : callable, optional
         Called once on the first prepared ``case`` (after ``prepare_input_groups``,
-        before warmup/repeat rounds). Under tir-bench, ``run_kernel_bench`` holds
+        before warmup/repeat rounds). Under bench_suite, ``run_kernel_bench`` holds
         the per-GPU lock for the whole ``run_bench()`` call.
     timer : {"event", "proton"}
         Timing backend.
@@ -486,7 +486,7 @@ def bench(
     -------
     dict
         ``{"impls": {name: us}, "round_samples": {name: [us, ...]}, ...}``.
-        Times are stored in microseconds (same unit as pinned tir-bench baselines).
+        Times are stored in microseconds (same unit as pinned bench_suite baselines).
     """
     if repeat <= 0:
         raise ValueError("repeat must be positive")
