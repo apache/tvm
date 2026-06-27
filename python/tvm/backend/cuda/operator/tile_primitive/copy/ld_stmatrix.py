@@ -95,17 +95,13 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     s_shape = list(s_buf.shape)
     s_layout = s_buf.layout
 
-    # Step 2: canonicalize, then slice, then canonicalize. Push target so the
-    # scope-aware fusers run (e.g. laneid+wid_in_wg -> tid_in_wg for warpgroup).
-    # Canonicalize *before* slicing too: a frag carrying separate laneid +
-    # wid_in_wg thread axes (e.g. a permuted tcgen05-ld atom) only fuses to a
-    # single tid_in_wg axis on the *full* layout — slicing first leaves a
-    # sub-layout whose scope chain is ill-formed and GetScope rejects it.
     r_region = [(r.min, r.min + r.extent) for r in r_br.region]
     s_region = [(r.min, r.min + r.extent) for r in s_br.region]
     with sctx.target:
-        r = r_layout.canonicalize().slice(r_shape, r_region).canonicalize()
-        s = s_layout.canonicalize().slice(s_shape, s_region).canonicalize()
+        r_sliced = r_layout.slice(r_shape, r_region)
+        s_sliced = s_layout.slice(s_shape, s_region)
+        r = r_sliced.canonicalize()
+        s = s_sliced.canonicalize()
 
     # Step 2.5: peel any S-side swizzle wrapper to expose the underlying
     # TileLayout. The ComposeLayout doesn't have ``.replica`` / ``.shard``,
