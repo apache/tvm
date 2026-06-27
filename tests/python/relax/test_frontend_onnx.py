@@ -472,7 +472,7 @@ def test_matmulinteger16():
             with R.dataflow():
                 lv: R.Tensor((2, 3), dtype="int32") = R.astype(a, dtype="int32")
                 lv1: R.Tensor((3, 4), dtype="int32") = R.astype(b, dtype="int32")
-                gv: R.Tensor((2, 4), dtype="int32") = R.matmul(lv, lv1, out_dtype="void")
+                gv: R.Tensor((2, 4), dtype="int32") = R.matmul(lv, lv1)
                 R.output(gv)
             return gv
 
@@ -487,7 +487,7 @@ def test_matmulinteger16():
             with R.dataflow():
                 lv: R.Tensor((2, 3), dtype="uint32") = R.astype(a, dtype="uint32")
                 lv1: R.Tensor((3, 4), dtype="uint32") = R.astype(b, dtype="uint32")
-                gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1, out_dtype="void")
+                gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1)
                 R.output(gv)
             return gv
 
@@ -502,7 +502,7 @@ def test_matmulinteger16():
             with R.dataflow():
                 lv: R.Tensor((2, 1, 3, 5), dtype="int32") = R.astype(a, dtype="int32")
                 lv1: R.Tensor((1, 2, 5, 4), dtype="int32") = R.astype(b, dtype="int32")
-                gv: R.Tensor((2, 2, 3, 4), dtype="int32") = R.matmul(lv, lv1, out_dtype="void")
+                gv: R.Tensor((2, 2, 3, 4), dtype="int32") = R.matmul(lv, lv1)
                 R.output(gv)
             return gv
 
@@ -548,7 +548,7 @@ def test_matmulinteger16_ir():
             with R.dataflow():
                 lv: R.Tensor((2, 3), dtype="uint32") = R.astype(a, dtype="uint32")
                 lv1: R.Tensor((3, 4), dtype="uint32") = R.astype(b, dtype="uint32")
-                gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1, out_dtype="void")
+                gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1)
                 R.output(gv)
             return gv
 
@@ -1980,7 +1980,7 @@ def test_gemm():
                         )
                         lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
                         lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                        gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2, out_dtype="void")
+                        gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2)
                         R.output(gv)
                     return gv
 
@@ -1999,7 +1999,7 @@ def test_gemm():
                     with R.dataflow():
                         lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
                         lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                        gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                        gv: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1)
                         R.output(gv)
                     return gv
 
@@ -2022,9 +2022,7 @@ def test_gemm():
                         )
                         lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
                         lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                        lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(
-                            lv1, lv2, out_dtype="void"
-                        )
+                        lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2)
                         lv4: R.Tensor((1, 5), dtype="float32") = R.multiply(
                             c, R.const(beta, "float32")
                         )
@@ -2051,9 +2049,7 @@ def test_gemm():
                         )
                         lv1: R.Tensor((3, 4), dtype="float32") = R.permute_dims(lv, axes=[1, 0])
                         lv2: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                        lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(
-                            lv1, lv2, out_dtype="void"
-                        )
+                        lv3: R.Tensor((3, 5), dtype="float32") = R.matmul(lv1, lv2)
                         gv: R.Tensor((3, 5), dtype="float32") = R.add(lv3, c)
                         R.output(gv)
                     return gv
@@ -2074,7 +2070,7 @@ def test_gemm():
                     with R.dataflow():
                         lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
                         lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                        lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                        lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1)
                         lv3: R.Tensor((1, 5), dtype="float32") = R.multiply(
                             c, R.const(beta, "float32")
                         )
@@ -2096,7 +2092,7 @@ def test_gemm():
                 with R.dataflow():
                     lv: R.Tensor((3, 4), dtype="float32") = R.permute_dims(a, axes=[1, 0])
                     lv1: R.Tensor((4, 5), dtype="float32") = R.permute_dims(b, axes=[1, 0])
-                    lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1, out_dtype="void")
+                    lv2: R.Tensor((3, 5), dtype="float32") = R.matmul(lv, lv1)
                     gv: R.Tensor((3, 5), dtype="float32") = R.add(lv2, c)
                     R.output(gv)
                 return gv
@@ -2519,9 +2515,7 @@ def test_unsqueeze_dynamic_axes_ir():
                 lv8: R.Tensor((4, 2), dtype="int64") = R.astype(lv7, dtype="int64")
                 lv9: R.Tensor((4,), dtype="int64") = R.sum(lv8, axis=[1], keepdims=False)
                 lv10: R.Tensor((4,), dtype="int64") = R.subtract(R.const(1, "int64"), lv9)
-                lv11: R.Tensor((4,), dtype="int64") = R.cumsum(
-                    lv10, axis=0, dtype="void", exclusive=False
-                )
+                lv11: R.Tensor((4,), dtype="int64") = R.cumsum(lv10, axis=0, exclusive=False)
                 lv12: R.Tensor((4,), dtype="int64") = R.subtract(lv11, R.const(1, "int64"))
                 lv13: R.Tensor((4,), dtype="bool") = R.less(lv12, R.const(0, "int64"))
                 lv14: R.Tensor((2,), dtype="int64") = R.shape_to_tensor(lv)
@@ -3369,7 +3363,7 @@ def test_shrink():
             with R.dataflow():
                 lv: R.Tensor((2, 3), dtype="bool") = R.greater(x, R.const(0.5, "float32"))
                 lv1: R.Tensor((2, 3), dtype="float32") = R.subtract(x, R.const(0.0, "float32"))
-                lv2: R.Tensor((2, 3), dtype="float32") = R.zeros_like(x, dtype="void")
+                lv2: R.Tensor((2, 3), dtype="float32") = R.zeros_like(x)
                 lv3: R.Tensor((2, 3), dtype="float32") = R.where(lv, lv1, lv2)
                 lv4: R.Tensor((), dtype="float32") = R.negative(R.const(0.5, "float32"))
                 lv5: R.Tensor((2, 3), dtype="bool") = R.less(x, lv4)
@@ -3396,7 +3390,7 @@ def test_shrink():
                 lv1: R.Tensor((2, 3), dtype="float32") = R.subtract(
                     x, R.const(0.10000000149011612, "float32")
                 )
-                lv2: R.Tensor((2, 3), dtype="float32") = R.zeros_like(x, dtype="void")
+                lv2: R.Tensor((2, 3), dtype="float32") = R.zeros_like(x)
                 lv3: R.Tensor((2, 3), dtype="float32") = R.where(lv, lv1, lv2)
                 lv4: R.Tensor((), dtype="float32") = R.negative(
                     R.const(0.20000000298023224, "float32")
@@ -3934,21 +3928,16 @@ def test_dynamic_shape_squeeze(axis):
     assert len(tvm_model["main"].attrs["params"]) == 1
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(
-            x: R.Tensor(("A",), dtype="float32"),
-            axes: R.Tensor((1,), dtype="int64"),
-        ) -> T.int64:
-            A = T.int64(is_size_var=True)
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: T.int64 = R.prim_value(A)
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    # TVMScript cannot currently round-trip this SizeVar dataflow binding.
+    a = tvm.tirx.SizeVar("A", "int64")
+    x = relax.Var("x", relax.TensorType([a], "float32"))
+    axes = relax.Var("axes", relax.TensorType([1], "int64"))
+    gv = relax.Var("gv", tvm.ir.PrimType("int64"))
+    body = relax.SeqExpr([relax.DataflowBlock([relax.VarBinding(gv, a)])], gv)
+    expected_func = relax.Function([x, axes], body, tvm.ir.PrimType("int64")).with_attrs(
+        {"num_input": 1, "global_symbol": "main"}
+    )
+    tvm.ir.assert_structural_equal(tvm_model, tvm.IRModule({"main": expected_func}))
 
 
 def test_const():
@@ -6215,9 +6204,7 @@ def test_attention(dynamic):
                     lv3: R.Tensor((4, 1, 1, 4), dtype="float32") = R.reshape(
                         lv2, R.shape([4, 1, 1, 4])
                     )
-                    lv4: R.Tensor((4, 4, 480), dtype="float32") = R.matmul(
-                        input, weight, out_dtype="void"
-                    )
+                    lv4: R.Tensor((4, 4, 480), dtype="float32") = R.matmul(input, weight)
                     lv5: R.Tensor((4, 4, 480), dtype="float32") = R.add(lv4, bias)
                     lv6: R.Tuple(
                         R.Tensor((4, 4, 192), dtype="float32"),
