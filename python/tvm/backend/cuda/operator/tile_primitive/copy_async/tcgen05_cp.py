@@ -372,19 +372,33 @@ def _build_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
 # add_post_buffer_def_stmt.
 # -----------------------------------------------------------------------------
 def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
-    cache_key = f"smem_tmem_desc:{hash(s_buf)}:{int(ldo)}:{int(sdo)}:{int(swizzle)}"
+    # Cache descriptor template at SMEM 0; patch addr per cp.
+    cache_key = f"smem_tmem_desc:{int(ldo)}:{int(sdo)}:{int(swizzle)}"
     cached = sctx.cache_get(cache_key)
     if cached is not None:
         return cached
 
     desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name="cp_desc", scope="local")
     encode_call = T.ptx.tcgen05.encode_matrix_descriptor(
-        desc_buf.data, s_buf.ptr_to([0] * len(s_buf.shape)), ldo, sdo, swizzle
+        desc_buf.data, T.reinterpret("handle", T.uint64(0)), ldo, sdo, swizzle
     )
     wrap = SeqStmt([AllocBuffer(desc_buf), Evaluate(encode_call)])
     sctx.add_post_buffer_def_stmt(s_buf, wrap)
     sctx.cache_set(cache_key, desc_buf)
     return desc_buf
+
+
+def _desc_set_addr(desc_val, addr_ptr):
+    """Patch a SMEM matrix descriptor's 14-bit address field with cvta(addr)>>4 —
+    matches the hand-rolled ``replace_smem_desc_addr`` (descriptor encoded at 0)."""
+    start_addr = T.cast(
+        T.bitwise_and(
+            T.shift_right(T.cuda.cvta_generic_to_shared(addr_ptr), T.uint32(4)),
+            T.uint32(0x3FFF),
+        ),
+        "uint64",
+    )
+    return T.bitwise_or(T.bitwise_and(desc_val, T.bitwise_not(T.uint64(0x3FFF))), start_addr)
 
 
 # -----------------------------------------------------------------------------
@@ -402,13 +416,18 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
     init_off_16B = plan["init_off_16B"]
     t_col0 = plan["t_col0"]
 
-    LDO_field = 16  # cp 32x128b ignores LDO; placeholder
+    # cp ignores LDO for data; non-zero LDO bloats the addr-patch codegen.
+    LDO_field = 0
 
     cta_group = op_call.config.get("cta_group", 1)
 
     desc_buf = _get_or_create_desc(sctx, s_buf, LDO_field, SDO_field, sw)
     t_addr = t_buf.allocated_addr
-    from tvm.backend.cuda.operator.tile_primitive.common import smem_desc_add_16B_offset
+    s_rank = len(s_buf.shape)
+
+    def _cp_desc(off_16B):
+        addr = T.ptr_byte_offset(s_buf.ptr_to([0] * s_rank), off_16B * 16, s_buf.dtype)
+        return _desc_set_addr(desc_buf[0], addr)
 
     # Flatten the N-D middle iteration into a single T.unroll. Each iteration's
     # per-dim index is (flat // stride) % extent, summed into the t/s offsets.
@@ -422,7 +441,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
         def impl():
             T.ptx.tcgen05.cp(
                 t_addr[0] + t_col0,
-                smem_desc_add_16B_offset(desc_buf[0], init_off_16B),
+                _cp_desc(init_off_16B),
                 shape="32x128b", cta_group=cta_group, multicast="warpx4",
             )
     else:
@@ -443,7 +462,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
                 t_off, s_off = T.meta_var(compute_offsets(flat))
                 T.ptx.tcgen05.cp(
                     t_addr[0] + t_col0 + t_off,
-                    smem_desc_add_16B_offset(desc_buf[0], init_off_16B + s_off),
+                    _cp_desc(init_off_16B + s_off),
                     shape="32x128b", cta_group=cta_group, multicast="warpx4",
                 )
     # fmt: on
