@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 
 import tvm
 import tvm.testing
@@ -56,7 +55,6 @@ def test_remove_unused_relax_parameter():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
 def test_replace_symbolic_variables():
     """If a parameter is only required for its symbolic variables, provide them directly
 
@@ -64,6 +62,12 @@ def test_replace_symbolic_variables():
     its shape defines the symbolic variables `m` and `n`.  When
     removing the `R.Tensor` argument, we may need to provide
     additional parameters to define the symbolic variables.
+
+    Value-bearing `R.Prim(value=...)` annotations were removed in the tirx
+    refactor (a `PrimType` carries only a dtype and defines no TIR var, which
+    leaves the var undefined under the strict tirx well-formedness verifier).
+    The replacement is to promote each free symbolic variable through a 1-D
+    `R.Shape` parameter, which actually *defines* the variable.
     """
 
     @I.ir_module
@@ -84,11 +88,11 @@ def test_replace_symbolic_variables():
         def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
             m = T.int64()
             n = T.int64()
-            out: R.Tensor([m, n], "float32") = Expected.func(R.prim_value(n), R.prim_value(m))
+            out: R.Tensor([m, n], "float32") = Expected.func(R.shape([n]), R.shape([m]))
             return out
 
         @R.function(private=True)
-        def func(param_n: R.Prim(value="n"), param_m: R.Prim(value="m")) -> R.Tensor(
+        def func(param_n: R.Shape(["n"]), param_m: R.Shape(["m"])) -> R.Tensor(
             ["m", "n"], "float32"
         ):
             m = T.int64()
