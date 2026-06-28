@@ -199,6 +199,8 @@ _INCLUDE_OPS = [
     "tanh",
     "tile",
     "transpose",
+    "tril",
+    "triu",
     "unique",
     "unsqueeze",
     "where",
