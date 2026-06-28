@@ -1177,7 +1177,11 @@ class CastLike(OnnxOpConverter):
     def _impl_v15(cls, bb, inputs, attr, params):
         data = inputs[0]
         target = inputs[1]
-        target_dtype = target.ty.dtype.dtype
+        target_dtype = getattr(getattr(getattr(target, "ty", None), "dtype", None), "dtype", None)
+        if target_dtype is None:
+            target_dtype = getattr(target.struct_info, "dtype", None)
+        if target_dtype is None:
+            raise ValueError(f"CastLike: unable to determine dtype from target {target}")
         return relax.op.astype(data, target_dtype)
 
 
@@ -1529,17 +1533,14 @@ class Trilu(OnnxOpConverter):
         m, n = shape[-2], shape[-1]
         row_idx = relax.op.reshape(relax.op.arange(0, m, dtype="int64"), (m, 1))
         col_idx = relax.op.reshape(relax.op.arange(0, n, dtype="int64"), (1, n))
-        diff = relax.op.subtract(
-            relax.op.broadcast_to(col_idx, (m, n)),
-            relax.op.broadcast_to(row_idx, (m, n)),
-        )
+        diff = relax.op.subtract(col_idx, row_idx)
         k_int64 = relax.op.astype(k, "int64")
         if upper:
             mask = relax.op.greater_equal(diff, k_int64)
         else:
             mask = relax.op.less_equal(diff, k_int64)
         mask = relax.op.broadcast_to(mask, shape)
-        return relax.op.where(mask, x, relax.const(0, x.ty.dtype))
+        return relax.op.where(mask, x, relax.const(0, x.ty.dtype.dtype))
 
 
 class Relu(OnnxOpConverter):
