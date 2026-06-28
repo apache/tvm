@@ -1170,6 +1170,17 @@ class Cast(OnnxOpConverter):
         return relax.op.astype(inputs[0], to_type)
 
 
+class CastLike(OnnxOpConverter):
+    """Convert an onnx CastLike node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v15(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        target = inputs[1]
+        target_dtype = target.ty.dtype.dtype
+        return relax.op.astype(data, target_dtype)
+
+
 class Gather(OnnxOpConverter):
     """Convert an onnx Gather node into an equivalent Relax expression."""
 
@@ -5241,6 +5252,7 @@ def _get_convert_map():
         "Max": Max,
         "Mean": Mean,
         "Cast": Cast,
+        "CastLike": CastLike,
         "Gemm": Gemm,
         "MatMul": MatMul,
         "MatMulInteger": MatMulInteger,

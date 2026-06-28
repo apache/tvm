@@ -1358,6 +1358,21 @@ def test_cast_nan_inf_to_int8():
     np.testing.assert_array_equal(out_np, expected)
 
 
+def test_castlike():
+    castlike_node = helper.make_node("CastLike", ["a", "b"], ["c"])
+    graph = helper.make_graph(
+        [castlike_node],
+        "castlike_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 32]),
+            helper.make_tensor_value_info("b", TensorProto.INT32, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("c", TensorProto.INT32, [1, 32])],
+    )
+    model = helper.make_model(graph, producer_name="castlike_test")
+    check_correctness(model, opset=15, check_dtypes=True)
+
+
 def test_gather():
     def _verify_gather(data_shape, indices, out_shape, expected, axis=0):
         gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)

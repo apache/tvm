@@ -81,9 +81,9 @@ class TVMRelaxBackendRep(BackendRep):
         self._vm.invoke_stateful("main")
         output = self._vm.get_outputs("main")
 
-        if isinstance(output, (tvm.runtime.Tensor, np.ndarray)):  # noqa: UP038
+        if isinstance(output, (tvm.runtime.Tensor, np.ndarray)):
             return (output.numpy() if hasattr(output, "numpy") else output,)
-        if isinstance(output, (tuple, list)):  # noqa: UP038
+        if isinstance(output, (tuple, list)):
             return tuple(o.numpy() if hasattr(o, "numpy") else np.array(o) for o in output)
         return (np.array(output),)
 
@@ -172,6 +172,7 @@ _INCLUDE_OPS = [
     "less",
     "less_equal",
     "lrn",
+    "logsoftmax",
     "matmul",
     "matmulinteger",
     "mean",
@@ -183,6 +184,7 @@ _INCLUDE_OPS = [
     "not",
     "or",
     "reciprocal",
+    "relu",
     "round",
     "scatternd",
     "sigmoid",
@@ -191,6 +193,7 @@ _INCLUDE_OPS = [
     "sinh",
     "size",
     "slice",
+    "softmax",
     "spacetodepth",
     "sqrt",
     "squeeze",
@@ -209,4 +212,7 @@ _INCLUDE_OPS = [
 for _op in _INCLUDE_OPS:
     backend_test.include(rf"^test_{_op}(?:_.*)?(?:_cpu|_cuda)$")
 
-globals().update(backend_test.test_cases)
+# Only node-level backend tests are in scope for importer conformance.
+globals().update(
+    {k: v for k, v in backend_test.test_cases.items() if k == "OnnxBackendNodeModelTest"}
+)
