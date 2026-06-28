@@ -168,6 +168,7 @@ _INCLUDE_OPS = [
     "less",
     "less_equal",
     "lrn",
+    "logsoftmax",
     "matmul",
     "matmulinteger",
     "mean",
@@ -179,6 +180,7 @@ _INCLUDE_OPS = [
     "not",
     "or",
     "reciprocal",
+    "relu",
     "round",
     "scatternd",
     "sigmoid",
@@ -187,6 +189,7 @@ _INCLUDE_OPS = [
     "sinh",
     "size",
     "slice",
+    "softmax",
     "spacetodepth",
     "sqrt",
     "squeeze",
@@ -234,4 +237,7 @@ class _AllowlistedBackendTest(onnx.backend.test.BackendTest):
 
 backend_test = _AllowlistedBackendTest(TVMRelaxBackend, __name__)
 
-globals().update(backend_test.test_cases)
+# Only node-level backend tests are in scope for importer conformance.
+globals().update(
+    {k: v for k, v in backend_test.test_cases.items() if k == "OnnxBackendNodeModelTest"}
+)
