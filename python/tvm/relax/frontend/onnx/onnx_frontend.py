@@ -1517,19 +1517,29 @@ class Trilu(OnnxOpConverter):
         x = inputs[0]
         k = inputs[1] if len(inputs) > 1 else 0
 
-        if len(inputs) > 1:
-            k = get_constant(inputs[1], params)
-            if isinstance(k, relax.Constant):
-                k = int(k.data.numpy().item())
-            else:
-                raise ValueError("Currently only support constant k for Trilu op.")
-        else:
-            k = 0
-
-        if upper:
-            return relax.op.triu(x, k)
-        else:
+        if isinstance(k, relax.Constant):
+            k = int(k.data.numpy().item())
+        if isinstance(k, int):
+            if upper:
+                return relax.op.triu(x, k)
             return relax.op.tril(x, k)
+
+        # Dynamic k: build the mask explicitly so it works with any scalar k.
+        shape = x.ty.shape
+        m, n = shape[-2], shape[-1]
+        row_idx = relax.op.reshape(relax.op.arange(0, m, dtype="int64"), (m, 1))
+        col_idx = relax.op.reshape(relax.op.arange(0, n, dtype="int64"), (1, n))
+        diff = relax.op.subtract(
+            relax.op.broadcast_to(col_idx, (m, n)),
+            relax.op.broadcast_to(row_idx, (m, n)),
+        )
+        k_int64 = relax.op.astype(k, "int64")
+        if upper:
+            mask = relax.op.greater_equal(diff, k_int64)
+        else:
+            mask = relax.op.less_equal(diff, k_int64)
+        mask = relax.op.broadcast_to(mask, shape)
+        return relax.op.where(mask, x, relax.const(0, x.ty.dtype))
 
 
 class Relu(OnnxOpConverter):
