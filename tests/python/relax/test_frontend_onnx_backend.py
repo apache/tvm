@@ -81,9 +81,9 @@ class TVMRelaxBackendRep(BackendRep):
         self._vm.invoke_stateful("main")
         output = self._vm.get_outputs("main")
 
-        if isinstance(output, (tvm.runtime.Tensor, np.ndarray)):
+        if isinstance(output, tvm.runtime.Tensor | np.ndarray):
             return (output.numpy() if hasattr(output, "numpy") else output,)
-        if isinstance(output, (tuple, list)):
+        if isinstance(output, tuple | list):
             return tuple(o.numpy() if hasattr(o, "numpy") else np.array(o) for o in output)
         return (np.array(output),)
 
