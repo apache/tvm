@@ -2289,7 +2289,19 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
     // - Sync Tensors to GPU.
     SyncAuxArrayToDevice();
+    // FlashInfer's plan kernels no longer take an explicit stream argument; they
+    // run on the device's *current* stream. Make the copy stream current around
+    // the plan so its workspace writes happen on the copy stream -- matching the
+    // aux-array copies above and the copy->compute synchronization below (this
+    // preserves the prior behavior where copy_stream_ was passed explicitly).
+    bool plan_on_copy_stream = copy_stream_ != nullptr && copy_stream_ != compute_stream_;
+    if (plan_on_copy_stream) {
+      DeviceAPI::Get(device_)->SetStream(device_, copy_stream_);
+    }
     KernelBeginForward();
+    if (plan_on_copy_stream) {
+      DeviceAPI::Get(device_)->SetStream(device_, compute_stream_);
+    }
     // - Clear the dirty flag.
     dirty_aux_data_device_ = false;
     // - If there is no particular copy stream, no action is needed.
