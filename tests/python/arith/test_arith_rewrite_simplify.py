@@ -751,6 +751,13 @@ class TestFloorModPadded(BaseCompare):
     )
 
 
+def test_uint_floormod_const_fold():
+    analyzer = tvm.arith.Analyzer()
+    expr = flm(8192, T.uint32(128))
+    tvm.ir.assert_structural_equal(expr, T.uint32(0))
+    assert analyzer.can_prove_equal(expr, 0)
+
+
 class TestMinIndex(BaseCompare):
     x, y, z = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32"), tvm.tirx.Var("z", "int32")
     test_case = tvm.testing.parameter(

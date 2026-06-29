@@ -140,6 +140,23 @@ def _get_layout(layout: str | Layout | None, shape: list[PrimExpr], scope: str) 
     return layout
 
 
+def _normalize_prim_type(dtype) -> ir.PrimType:
+    if isinstance(dtype, ir.PrimType):
+        return dtype
+    dtype_str = getattr(dtype, "_dtype_str", None)
+    if dtype_str is not None:
+        return ir.PrimType(dtype_str)
+    if callable(dtype):
+        value = dtype()
+        ty = getattr(value, "ty", None)
+        if isinstance(ty, ir.PrimType):
+            return ty
+        type_annotation = getattr(value, "type_annotation", None)
+        if isinstance(type_annotation, ir.PrimType):
+            return type_annotation
+    return ir.PrimType(dtype)
+
+
 def _get_elem_offset(elem_offset, byte_offset, dtype: str):
     assert elem_offset is None or byte_offset is None, (
         "elem_offset and byte_offset cannot be set at the same time"
@@ -148,7 +165,7 @@ def _get_elem_offset(elem_offset, byte_offset, dtype: str):
         return elem_offset
     if byte_offset is None:
         return None
-    return byte_offset * 8 // (DataType(dtype).bits)
+    return byte_offset * 8 // (DataType(_normalize_prim_type(dtype).dtype).bits)
 
 
 _block_name_suffix = threading.local()
@@ -1801,6 +1818,7 @@ def decl_buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
+    dtype = _normalize_prim_type(dtype)
     decl_frame = _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,

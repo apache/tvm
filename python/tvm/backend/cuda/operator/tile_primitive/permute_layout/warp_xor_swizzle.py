@@ -305,28 +305,70 @@ def _impl(op_call, sctx):
     tid_x = sctx.launch_params["threadIdx.x"]
     dtype = src_buf.dtype
 
+    # Shared 32/64b: base ptr + stride offset avoids buf[] flatten IMAD path.
+    direct = (
+        dtype_bytes in (4, 8)
+        and "shared" in str(src_buf.scope())
+        and "shared" in str(dst_buf.scope())
+    )
+    ptx_t = f"b{dtype_bytes * 8}"
+    # ld/st only move bits, so use an unsigned container of the matching width:
+    # ``ptx.ld(..., bN)`` rejects a float return dtype, and the permute is a pure
+    # byte shuffle, so a float32/float64 tile loads/stores correctly as uint.
+    bits_dtype = f"uint{dtype_bytes * 8}"
+
+    def _iter_off(iter_idx, strides):
+        return sum(iter_idx[d] * strides[d] for d in range(len(strides)))
+
     # fmt: off
-    @T.prim_func
-    def impl():
-        warp_size = T.meta_var(32)
-        lane_id = T.meta_var(tid_x % warp_size)
-        regs = T.alloc_buffer((P,), dtype, scope="local")
-        # Phase 1: read via L_src
-        for r in T.unroll(0, P):
-            j = T.meta_var(r ^ ((lane_id >> shift) & mask))
-            flat = T.meta_var(lane_id + j * warp_size)
-            iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
-            src_idx = T.meta_var(_project(iter_idx, src_st))
-            regs[r] = src_buf[tuple(src_idx)]
-        T.cuda.warp_sync()
-        # Phase 2: write via L_dst
-        for r in T.unroll(0, P):
-            j = T.meta_var(r ^ ((lane_id >> shift) & mask))
-            flat = T.meta_var(lane_id + j * warp_size)
-            iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
-            dst_idx = T.meta_var(_project(iter_idx, dst_st))
-            dst_buf[tuple(dst_idx)] = regs[r]
-        T.cuda.warp_sync()
+    if direct:
+        @T.prim_func
+        def impl():
+            warp_size = T.meta_var(32)
+            lane_id = T.meta_var(tid_x % warp_size)
+            regs = T.alloc_buffer((P,), bits_dtype, scope="local")
+            base_src = T.meta_var(src_buf.ptr_to(list(src_st)))
+            base_dst = T.meta_var(dst_buf.ptr_to(list(dst_st)))
+            # Phase 1: read via L_src
+            for r in T.unroll(0, P):
+                j = T.meta_var(r ^ ((lane_id >> shift) & mask))
+                flat = T.meta_var(lane_id + j * warp_size)
+                iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
+                off = T.meta_var(_iter_off(iter_idx, src_str_))
+                ptr = T.meta_var(T.ptr_byte_offset(base_src, off * dtype_bytes, dtype))
+                regs[r] = T.ptx.ld(ptr, bits_dtype, ptx_t, space="shared")
+            T.cuda.warp_sync()
+            # Phase 2: write via L_dst
+            for r in T.unroll(0, P):
+                j = T.meta_var(r ^ ((lane_id >> shift) & mask))
+                flat = T.meta_var(lane_id + j * warp_size)
+                iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
+                off = T.meta_var(_iter_off(iter_idx, dst_str_))
+                ptr = T.meta_var(T.ptr_byte_offset(base_dst, off * dtype_bytes, dtype))
+                T.evaluate(T.ptx.st(ptr, regs[r], space="shared", ptx_type=ptx_t))
+            T.cuda.warp_sync()
+    else:
+        @T.prim_func
+        def impl():
+            warp_size = T.meta_var(32)
+            lane_id = T.meta_var(tid_x % warp_size)
+            regs = T.alloc_buffer((P,), dtype, scope="local")
+            # Phase 1: read via L_src
+            for r in T.unroll(0, P):
+                j = T.meta_var(r ^ ((lane_id >> shift) & mask))
+                flat = T.meta_var(lane_id + j * warp_size)
+                iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
+                src_idx = T.meta_var(_project(iter_idx, src_st))
+                regs[r] = src_buf[tuple(src_idx)]
+            T.cuda.warp_sync()
+            # Phase 2: write via L_dst
+            for r in T.unroll(0, P):
+                j = T.meta_var(r ^ ((lane_id >> shift) & mask))
+                flat = T.meta_var(lane_id + j * warp_size)
+                iter_idx = T.meta_var(get_indices(flat, [0] * len(extent), extent))
+                dst_idx = T.meta_var(_project(iter_idx, dst_st))
+                dst_buf[tuple(dst_idx)] = regs[r]
+            T.cuda.warp_sync()
     # fmt: on
     return impl
 

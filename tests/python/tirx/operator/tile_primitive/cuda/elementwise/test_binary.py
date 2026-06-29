@@ -781,6 +781,41 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
     ), f"expected packed add_f32x2; got:\n{src[:2000]}"
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_binary_maximum_reg():
+    N = 128
+
+    @T.prim_func
+    def relu_max(a_ptr: T.handle, b_ptr: T.handle, c_ptr: T.handle) -> None:
+        A = T.match_buffer(a_ptr, (N,), "float32")
+        B = T.match_buffer(b_ptr, (N,), "float32")
+        C = T.match_buffer(c_ptr, (N,), "float32")
+        T.device_entry()
+        T.warp_id([4])
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([N])
+        a_reg = T.alloc_local((1,), "float32")
+        b_reg = T.alloc_local((1,), "float32")
+        Tx.copy(a_reg[:], A[tid : tid + 1])
+        Tx.copy(b_reg[:], B[tid : tid + 1])
+        Tx.maximum(a_reg[:], a_reg[:], b_reg[:])
+        Tx.copy(C[tid : tid + 1], a_reg[:])
+
+    dev = tvm.cuda(0)
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": relu_max}), target=target, tir_pipeline="tirx")
+    np.random.seed(0)
+    a = np.random.randn(N).astype("float32")
+    b = np.random.randn(N).astype("float32")
+    c = np.zeros(N, dtype="float32")
+    a_t, b_t, c_t = (tvm.runtime.tensor(x, dev) for x in (a, b, c))
+    mod["main"](a_t, b_t, c_t)
+    np.testing.assert_allclose(c_t.numpy(), np.maximum(a, b), atol=0, rtol=0)
+
+
 def test_binary_add_f16_scalar_fallback_dispatch():
     """add f16 has no packed VecImpl → reg.py scalar fallback (T.vectorized)."""
     shape = (64, 32)

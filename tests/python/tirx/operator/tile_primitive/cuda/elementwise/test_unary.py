@@ -1505,5 +1505,89 @@ def test_cast_thread_accepts_local_view():
     _sl_compile(kernel)
 
 
+# --- tcgen05 split-laneid atom (B00011 / tf32 A-cast path) -----------------
+_TCGEN05_M, _TCGEN05_K = 64, 64
+_TCGEN05_REGS_PER_THREAD = 32  # ``.16x256b`` fp32 atom on (64, 64)
+
+
+def _tcgen05_16x256b_row_col(tid_wg: T.int32, lane: T.int32, reg_idx: T.int32):
+    """Map ``(tid_in_wg, reg)`` → logical ``(row, col)`` for ``.16x256b`` fp32 atom."""
+    t0 = lane & T.int32(3)
+    t1 = lane >> 2
+    v0p = reg_idx & T.int32(1)
+    va = (reg_idx >> 1) & T.int32(1)
+    vb = reg_idx >> 2
+    wid = tid_wg >> 5
+    row = t1 + T.int32(8) * va + T.int32(16) * wid
+    col = v0p + T.int32(2) * t0 + T.int32(8) * vb
+    return row, col
+
+
+def _tcgen05_cast_atom_layout():
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    # Production tf32_hc_prenorm_gemm pattern: bf16 payload in fp32 atom slots.
+    return tcgen05_atom_layout("16x256b", (_TCGEN05_M, _TCGEN05_K), "float32")
+
+
+def _tcgen05_cast_warpgroup_kernel():
+    """Scatter gmem bf16 → reg, ``Tx.wg.cast``, gather fp32 → gmem."""
+    atom_layout = _tcgen05_cast_atom_layout()
+    m, k = _TCGEN05_M, _TCGEN05_K
+
+    @T.prim_func
+    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, (m, k), "bfloat16")
+        B = T.match_buffer(B_ptr, (m, k), "float32")
+        T.device_entry()
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        tid_wg = T.thread_id_in_wg([128])
+        lane = T.lane_id([32])
+        a_bf16 = T.alloc_buffer((m, k), "bfloat16", scope="local", layout=atom_layout)
+        a_fp32 = T.alloc_buffer((m, k), "float32", scope="local", layout=atom_layout)
+        reg_in = a_bf16.local(_TCGEN05_REGS_PER_THREAD)
+        reg_out = a_fp32.local(_TCGEN05_REGS_PER_THREAD)
+        for r in T.serial(_TCGEN05_REGS_PER_THREAD):
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            reg_in[r] = A[row, col]
+        Tx.wg.cast(a_fp32, a_bf16)
+        for r in T.serial(_TCGEN05_REGS_PER_THREAD):
+            row, col = _tcgen05_16x256b_row_col(tid_wg, lane, T.cast(r, "int32"))
+            B[row, col] = reg_out[r]
+
+    return kernel
+
+
+def test_cast_tcgen05_atom_warpgroup_reg_dispatch_compiles():
+    """Regression: tf32 A-cast ``Tx.wg.cast(a_fp32, a_bf16)`` on tcgen05 atom compiles."""
+    _sl_compile(_tcgen05_cast_warpgroup_kernel())
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cast_tcgen05_atom_warpgroup_gpu():
+    """GPU: bf16→fp32 cast on tcgen05 ``.16x256b`` atom must preserve per-slot layout."""
+    m, k = _TCGEN05_M, _TCGEN05_K
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(
+            tvm.IRModule({"main": _tcgen05_cast_warpgroup_kernel()}),
+            target=target,
+            tir_pipeline="tirx",
+        )
+
+    dev = tvm.cuda(0)
+    np.random.seed(0)
+    a_np = (np.random.randn(m, k).astype("float32") * 4.0).astype("bfloat16")
+    b_ref = a_np.astype("float32")
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(np.zeros((m, k), dtype="float32"), dev)
+    mod(a, b)
+    tvm.testing.assert_allclose(b.numpy(), b_ref, rtol=0, atol=1e-2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

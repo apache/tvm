@@ -434,12 +434,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     uint32_t tensor_rank = static_cast<uint32_t>(raw_tensor_rank);
     void* tensor_ptr = static_cast<void*>(args[arg_cnt++].cast<void*>());
 
-    TVM_FFI_ICHECK_EQ(args.size(), 4 + tensor_rank * 4 + 3)
-        << "cuTensorMapEncodeTiled expects " << 4 + tensor_rank * 4 + 3 << " arguments"
+    // The base arg list ends with oob_fill_kind. An OPTIONAL trailing int
+    // ``force_cu_dtype`` (>= 0) overrides the dtype-derived CUtensorMapDataType
+    // (e.g. 11 == TFLOAT32 for an fp32 gmem buffer feeding a tf32 MMA, so the TMA
+    // hardware RN-truncates fp32->tf32 on load). -1 / absent = derive from
+    // tensor_dtype. Omitting it keeps older callers backward-compatible.
+    int base_arg_count = static_cast<int>(4 + tensor_rank * 4 + 3);
+    TVM_FFI_ICHECK(args.size() == base_arg_count || args.size() == base_arg_count + 1)
+        << "cuTensorMapEncodeTiled expects " << base_arg_count
+        << " (or +1 force_cu_dtype) arguments"
         << "tensor_map, tensor_dtype, tensor_rank, tensor_ptr, global_shape(" << tensor_rank
         << "), global_strides(" << tensor_rank - 1 << "), shared_shape(" << tensor_rank
         << "), shared_strides(" << tensor_rank << "), interleaved_kind, swizzle_kind"
-        << ", l2_promotion_kind, oob_fill_kind";
+        << ", l2_promotion_kind, oob_fill_kind[, force_cu_dtype]";
 
     std::vector<cuuint64_t> global_shape(tensor_rank);
     std::vector<cuuint64_t> global_strides(
@@ -477,6 +484,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     auto swizzle_kind = static_cast<CUtensorMapSwizzle>(args[arg_cnt++].cast<int>());
     auto l2_promotion_kind = static_cast<CUtensorMapL2promotion>(args[arg_cnt++].cast<int>());
     auto oob_fill_kind = static_cast<CUtensorMapFloatOOBfill>(args[arg_cnt++].cast<int>());
+    int force_cu_dtype =
+        (arg_cnt < static_cast<size_t>(args.size())) ? args[arg_cnt++].cast<int>() : -1;
 
     TVM_FFI_ICHECK_EQ(tensor_dtype.lanes, 1)
         << "Expect tensor_dtype to have lanes=1, but get " << tensor_dtype;
@@ -569,6 +578,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       default:
         TVM_FFI_THROW(InternalError)
             << "Unsupported data type " << ffi::DLDataTypeToString(tensor_dtype);
+    }
+    // Caller override (e.g. TFLOAT32 == 11 for an fp32 buffer in a tf32 GEMM):
+    // bypass the dtype-derived mapping so the descriptor uses the requested
+    // CUtensorMapDataType. Same byte size, different on-load rounding semantics.
+    if (force_cu_dtype >= 0) {
+      cu_dtype = static_cast<CUtensorMapDataType>(force_cu_dtype);
     }
 
     auto is_valid_interleave = interleaved_kind == CU_TENSOR_MAP_INTERLEAVE_NONE ||

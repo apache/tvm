@@ -317,6 +317,22 @@ inline ffi::Optional<PrimExpr> TryConstFold<tirx::FloorDiv>(PrimExpr a, PrimExpr
 
 template <>
 inline ffi::Optional<PrimExpr> TryConstFold<tirx::FloorMod>(PrimExpr a, PrimExpr b) {
+  const IntImmNode* ua = a.as<IntImmNode>();
+  const IntImmNode* ub = b.as<IntImmNode>();
+  PrimType utype = a.ty();
+  if (utype.MatchesCode(DLDataTypeCode::kDLUInt) && utype == b.ty() && ua && ub) {
+    auto as_uint = [](int64_t value, const PrimType& dtype) -> uint64_t {
+      uint64_t result = static_cast<uint64_t>(value);
+      if (dtype.bits() < 64) {
+        result &= (uint64_t{1} << dtype.bits()) - 1;
+      }
+      return result;
+    };
+    uint64_t lhs = as_uint(ua->value, utype);
+    uint64_t rhs = as_uint(ub->value, b.ty());
+    TVM_FFI_ICHECK_NE(rhs, 0U) << "Divide by zero";
+    return IntImm(utype, static_cast<int64_t>(lhs % rhs));
+  }
   TVM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
     if (pa && pb) {

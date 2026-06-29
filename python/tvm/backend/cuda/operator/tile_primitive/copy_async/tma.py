@@ -24,7 +24,7 @@ kind (0 = zero, 1 = NaN) in the cuTensorMap.
 
 Pipeline:
 
-L1  Canonicalize smem+gmem layouts; group gmem by buffer shape; split any
+L1  Canonicalize smem; group gmem by buffer shape and canonicalize within each group; split any
     multi-iter gmem group into t separate iters (requires g_st, copy_ext
     divisible by the inner-product u); slice smem by copy region; regroup
     smem by the "copy shape with ext=1 dropped".
@@ -72,8 +72,8 @@ from ..tma_utils import SwizzleMode, get_swizzle_mode_from_layout, tma_atom_shap
 class GmemIter:
     """One gmem logical dim after multi-iter group splitting.
 
-    ``shape`` and ``stride`` come from the canonicalized gmem layout for
-    this dim. ``copy_start`` / ``copy_ext`` carve out the user-requested
+    ``shape`` and ``stride`` come from the grouped gmem layout for this
+    dim. ``copy_start`` / ``copy_ext`` carve out the user-requested
     sub-range. ``copy_ext == 1`` collapses the iter into a trivial
     coord-only descriptor dim (no smem shards, no issue axes).
     """
@@ -307,26 +307,29 @@ class L1Result:
     smem_groups: list  # list[SmemGroup]
 
 
-def _canonicalize_gmem(g_buf: Buffer) -> TileLayout:
+def _gmem_layout(g_buf: Buffer) -> TileLayout:
     layout = g_buf.layout
     if not isinstance(layout, TileLayout):
         # cuTensorMap requires a plain memory layout on gmem side.
         raise ValueError(f"TMA gmem layout must be a TileLayout; got {type(layout).__name__}")
-    return layout.canonicalize()
+    return layout
 
 
 def _canonicalize_smem(s_buf: Buffer) -> TileLayout:
     return _to_tile_layout(s_buf.layout, s_buf.shape).canonicalize()
 
 
-def _group_gmem_by_buffer_shape(gmem_canon: TileLayout, buffer_shape: list):
-    """Group gmem canonicalized layout by the buffer shape. Returns
-    ``(grouped, separators)`` or raises on failure."""
+def _group_gmem_by_buffer_shape(gmem_raw: TileLayout, buffer_shape: list):
+    """Group raw gmem first; each group is canonicalized locally before splitting."""
     try:
-        grouped, seps = gmem_canon.group(list(buffer_shape))
+        return gmem_raw.group(list(buffer_shape))
     except Exception as err:
         raise ValueError(f"Cannot group gmem layout by buffer shape: {err}") from err
-    return grouped, seps
+
+
+def _canonicalize_gmem_group_shards(shards: list, analyzer: Analyzer) -> list:
+    canon = TileLayout.from_iters(shards).canonicalize()
+    return [sh for sh in canon.shard if not analyzer.can_prove_equal(sh.extent, 1)]
 
 
 def _split_multi_iter_group(
@@ -343,10 +346,7 @@ def _split_multi_iter_group(
     """
     start = separators[group_idx]
     end = separators[group_idx + 1]
-    # Drop ext=1 padding iters (canonicalize may have inserted trivial ones).
-    raw_shards = [
-        sh for sh in grouped.shard[start:end] if not analyzer.can_prove_equal(sh.extent, 1)
-    ]
+    raw_shards = _canonicalize_gmem_group_shards(grouped.shard[start:end], analyzer)
     if not raw_shards:
         # Degenerate extent-1 group (e.g. batch dim with size 1); emit a
         # placeholder iter that's flagged ext=1 by copy_ext==1.
@@ -397,8 +397,7 @@ def _slice_and_canonicalize_smem(
 
 
 def _regroup_smem_by_extgt1_shape(sliced_smem: TileLayout, extgt1_shape: list) -> tuple:
-    """Group the sliced smem layout by the ext>1 copy shape. Returns
-    ``(grouped, separators)`` or ``None`` on failure."""
+    """Group the sliced smem layout by the ext>1 copy shape."""
     try:
         return sliced_smem.group(list(extgt1_shape))
     except Exception:
@@ -419,11 +418,11 @@ def _build_l1_result(
 
     smem_canon = _canonicalize_smem(s_buf)
     _assert_memory_only(smem_canon, "shared")
-    gmem_canon = _canonicalize_gmem(g_buf)
-    _assert_memory_only(gmem_canon, "global")
+    gmem_raw = _gmem_layout(g_buf)
+    _assert_memory_only(gmem_raw, "global")
 
     # --- gmem: group by buffer shape, then split each group ---
-    grouped_g, sep_g = _group_gmem_by_buffer_shape(gmem_canon, g_buf.shape)
+    grouped_g, sep_g = _group_gmem_by_buffer_shape(gmem_raw, g_buf.shape)
 
     gmem_iters: list = []
     # Track which gmem_iters correspond to each original buffer dim to
@@ -1118,6 +1117,20 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
     l1 = _build_l1_result(s_buf, g_buf, g_st, g_ext, s_st, s_ext)
     plan = _build_plan_with_shrink(l1, g_buf, s_buf)
 
+    # Optional descriptor dtype override. An fp32 buffer feeding a tf32 MMA should
+    # be loaded via a TFLOAT32 (== 11) descriptor so the TMA hardware RN-truncates
+    # fp32 -> tf32 ON LOAD (matching the MMA's operand precision and a torch
+    # allow_tf32 / DeepGEMM reference); leaving it as FLOAT32 loads full fp32 and
+    # the tf32 MMA then RZ-truncates, diverging by ~1 tf32 ULP. -1 = derive from
+    # the buffer dtype (the C++ ``runtime.cuTensorMapEncodeTiled`` default).
+    _TMA_DTYPE_TO_CU = {"tf32": 11, "tfloat32": 11}
+    _tma_dtype = op_call.config.get("tma_dtype", None)
+    if _tma_dtype is not None and _tma_dtype not in _TMA_DTYPE_TO_CU:
+        fail(f"Unsupported tma_dtype={_tma_dtype!r}; expected one of {sorted(_TMA_DTYPE_TO_CU)}")
+    if _tma_dtype is not None and plan.elem_dtype not in ("float32", "tfloat32"):
+        fail(f"tma_dtype={_tma_dtype!r} requires a float32 descriptor; got {plan.elem_dtype}")
+    force_cu_dtype = _TMA_DTYPE_TO_CU.get(_tma_dtype, -1)
+
     # Direction / runtime-config bits that don't affect the plan itself.
     cta_group = op_call.config.get("cta_group", None)
     if cta_group is None:
@@ -1158,7 +1171,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
         f":{tuple(val_key(v) for v in plan.shape)}"
         f":{tuple(val_key(v) for v in tma_g_strides_for_map)}"
         f":{tuple(val_key(v) for v in plan.box_dim)}"
-        f":{val_key(plan.swizzle_mode.value)}:{oob_fill_kind}"
+        f":{val_key(plan.swizzle_mode.value)}:{oob_fill_kind}:{force_cu_dtype}"
     )
 
     cached_tensormap = sctx.cache_get(tensormap_cache_key)
@@ -1235,6 +1248,10 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
                 plan.swizzle_mode.value,
                 2,  # CU_TENSOR_MAP_L2_PROMOTION_L2_128B
                 oob_fill_kind,
+                # Append the dtype override ONLY when requested, so the default
+                # (derive-from-dtype) path emits a byte-identical encode call (the
+                # C++ wrapper treats the trailing arg as optional).
+                *([force_cu_dtype] if force_cu_dtype >= 0 else []),
             )
             T.tvm_kernel_replace_point()
         # fmt: on

@@ -414,10 +414,12 @@ def test_tir_uint8_const_fold():
     with pytest.raises(RuntimeError):
         check_tir_const_fold("uint8", lambda x, y: tirx.truncdiv(x, y), ftruncdiv, 1, 0)
 
-    # u8 mod folding is not implemented
-    assert not isinstance(
-        tirx.floormod(tirx.const(7, "uint8"), tirx.const(3, "uint8")), tirx.IntImm
-    )
+    # u8 floormod folding is overflow-free and implemented
+    folded_floormod = tirx.floormod(tirx.const(7, "uint8"), tirx.const(3, "uint8"))
+    assert isinstance(folded_floormod, tirx.IntImm)
+    assert int(folded_floormod) == 1
+
+    # u8 truncmod folding is not implemented
     assert not isinstance(
         tirx.truncmod(tirx.const(7, "uint8"), tirx.const(3, "uint8")), tirx.IntImm
     )
@@ -561,10 +563,12 @@ def test_tir_uint32_const_fold():
     with pytest.raises(RuntimeError):
         check_tir_const_fold("uint32", lambda x, y: tirx.truncdiv(x, y), ftruncdiv, 1, 0)
 
-    # u8 mod folding is not implemented
-    assert not isinstance(
-        tirx.floormod(tirx.const(7, "uint32"), tirx.const(3, "uint32")), tirx.IntImm
-    )
+    # u32 floormod folding is overflow-free and implemented
+    folded_floormod = tirx.floormod(tirx.const(7, "uint32"), tirx.const(3, "uint32"))
+    assert isinstance(folded_floormod, tirx.IntImm)
+    assert int(folded_floormod) == 1
+
+    # u32 truncmod folding is not implemented
     assert not isinstance(
         tirx.truncmod(tirx.const(7, "uint32"), tirx.const(3, "uint32")), tirx.IntImm
     )

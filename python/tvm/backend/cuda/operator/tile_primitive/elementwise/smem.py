@@ -44,6 +44,7 @@ from ._common import (
     _tensor_shape_of,
     buffer_regions,
     compute_dtype_of,
+    dtype_bits,
     emit_scope_sync,
     fetch_src_value,
     n_elements,
@@ -99,10 +100,10 @@ def is_smem_ewise(spec):
 def _max_layout_vec(plan, total: int, thread_cnt: int) -> int:
     """Widest vec_chunk dividing all operands' innermost extents AND
     ``total / thread_cnt``, within dtype-bit candidates ``{128,64,32,16,8}``."""
-    max_bits = plan.dst.buffer.dtype.dtype.bits
+    max_bits = dtype_bits(plan.dst.buffer.dtype)
     for s in plan.srcs:
         if s.buf_region is not None:
-            max_bits = max(max_bits, s.buf_region.buffer.dtype.dtype.bits)
+            max_bits = max(max_bits, dtype_bits(s.buf_region.buffer.dtype))
     per_thread = total // thread_cnt if thread_cnt > 0 else total
     if total % thread_cnt != 0:
         return 1

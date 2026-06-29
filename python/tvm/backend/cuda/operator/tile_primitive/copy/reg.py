@@ -39,7 +39,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_disp
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.stmt import TilePrimitiveCall
 
-from ._common import _alignment_ok
+from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_return_type
 from ._swizzle_iter import (
     emit_fallback_offset,
     emit_init,
@@ -122,7 +122,6 @@ def _r_side_layout_valid(
         return False, f"R layout is {type(layout).__name__}, not TileLayout"
 
     scope_rank = _SCOPE_RANK[sctx.scope_kind]
-    seen_thread_axes: set[str] = set()
     for it in layout.shard:
         ax = it.axis
         if not ax.is_thread():
@@ -138,16 +137,6 @@ def _r_side_layout_valid(
                 False,
                 f"R thread axis {ax.name!r} scope={ax_scope.name!r} > exec {sctx.scope_kind!r}",
             )
-        # TODO: lift these two; for now i = thread_value (stride=1, each axis appears once).
-        if int(it.stride) != 1:
-            return (
-                False,
-                f"R thread axis {ax.name!r} stride={int(it.stride)} != 1 (not supported yet)",
-            )
-        if ax.name in seen_thread_axes:
-            return False, f"R thread axis {ax.name!r} appears more than once (not supported yet)"
-        seen_thread_axes.add(ax.name)
-
     r_br = op_call.src if src.scope() == "local" else op_call.dst
     region = [(r.min, r.min + r.extent) for r in r_br.region]
     sliced = layout.slice(list(r_buf.shape), region)
@@ -203,30 +192,39 @@ def _compute_perm_r(r):
     return [i for i, _ in sorted(enumerate(r.shard), key=key)]
 
 
-def align_layouts_raw(r_layout, r_shape, r_region, s_layout, s_shape, s_region):
-    """Returns (r_p, s_p, s_seps)."""
-    r = r_layout.slice(list(r_shape), r_region).canonicalize()
-    s = s_layout.slice(list(s_shape), s_region).canonicalize()
+def align_layouts_raw(r_sliced, s_sliced, s_region):
+    """Returns (r_p, s_p, s_seps, r_perm).
+
+    ``r_p`` for ``_s_thread_offset``; ``r_perm`` for ``_split_thread_loop`` pairing.
+    """
+    r = r_sliced.canonicalize()
+    s = s_sliced.canonicalize()
     s = _extract_tile(s, s_region)
     perm = _compute_perm_r(r)
     r_shape_for_group = [int(it.extent) for it in r.shard]
     s_grp, seps = s.group(r_shape_for_group)
     s_p = s_grp.permute_by_groups(list(seps), perm)
-    r_p = r.permute_dims(perm).canonicalize()
+    r_perm = r.permute_dims(perm)
+    r_p = r_perm.canonicalize()
     sizes = [seps[i + 1] - seps[i] for i in range(len(seps) - 1)]
     s_seps = [0]
     for p in perm:
         s_seps.append(s_seps[-1] + sizes[p])
-    return r_p, s_p, s_seps
+    return r_p, s_p, s_seps, r_perm
 
 
-def _split_thread_loop(r_p, s_p, s_seps):
+def _split_thread_loop(r_perm, s_p, s_seps):
     """Drop R's thread-axis positions and return per-R-position bundles:
     (r_iters, s_groups) — same length lists; s_groups[k] is the list of S
-    iters belonging to the k-th kept R position."""
+    iters belonging to the k-th kept R position.
+
+    ``r_perm`` is the permuted-but-uncanonicalized R layout: its iter list lines
+    up one-to-one with ``s_seps`` (which is built from the same ``perm``), so a
+    multi-group memory axis keeps each of its groups paired with the matching S
+    group instead of collapsing into one (see ``align_layouts_raw``)."""
     r_iters = []
     s_groups = []
-    for k, r_it in enumerate(r_p.shard):
+    for k, r_it in enumerate(r_perm.shard):
         if r_it.axis.is_thread():
             continue
         r_iters.append(r_it)
@@ -296,17 +294,10 @@ def _align_layouts(op_call: TilePrimitiveCall, sctx: DispatchContext):
     s_buf = s_br.buffer
     r_region = [(r.min, r.min + r.extent) for r in r_br.region]
     s_region = [(r.min, r.min + r.extent) for r in s_br.region]
-    # Push the dispatch target so layout.canonicalize() runs scope-aware
-    # fusers (e.g. laneid+wid_in_wg -> tid_in_wg).
     with sctx.target:
-        return align_layouts_raw(
-            r_buf.layout,
-            r_buf.shape,
-            r_region,
-            s_buf.layout,
-            s_buf.shape,
-            s_region,
-        )
+        r_sliced = r_buf.layout.slice(list(r_buf.shape), r_region)
+        s_sliced = s_buf.layout.slice(list(s_buf.shape), s_region)
+        return align_layouts_raw(r_sliced, s_sliced, s_region)
 
 
 def _make_thread_placeholders(r_p) -> dict[str, _TirVar]:
@@ -490,8 +481,8 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         r_buf, s_buf, r_is_src = dst, src, False
 
     with sctx.target:
-        r_p, s_p, s_seps = _align_layouts(op_call, sctx)
-    r_iters, s_groups = _split_thread_loop(r_p, s_p, s_seps)
+        r_p, s_p, s_seps, r_perm = _align_layouts(op_call, sctx)
+    r_iters, s_groups = _split_thread_loop(r_perm, s_p, s_seps)
     atoms = _build_atoms(r_iters, s_groups)
     elem_bits = DataType(src.dtype).bits
     vec_len = _choose_vec_len(elem_bits, atoms, r_p, s_p)
@@ -515,7 +506,10 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     for _ax, val in r_p.offset.items():
         r_off_base = r_off_base + val
 
-    copy_op = getattr(T.cuda, f"copy_{vec_bits}b")
+    s_is_shared = s_buf.scope().startswith("shared")
+    num_bytes = vec_bits // 8
+    vec, ptx_type = copy_ptx_form(num_bytes)
+    space = "shared" if s_is_shared else "global"
 
     total_outer = 1
     for a in outer:
@@ -572,9 +566,16 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
             s_ptr = _ptr_off(s_buf.ptr_to(s_zero_indices), _s_iter_off(f, ds, s_off))
             r_ptr = _ptr_off(r_local.ptr_to([0]), r_off_base + dr)
             if r_is_src:
-                copy_op(s_ptr, r_ptr)
+                T.ptx.st(s_ptr, src=r_ptr, space=space, vec=vec, ptx_type=ptx_type)
             else:
-                copy_op(r_ptr, s_ptr)
+                T.ptx.ld(
+                    s_ptr,
+                    copy_ptx_ld_return_type(ptx_type),
+                    ptx_type,
+                    dst=r_ptr,
+                    space=space,
+                    vec=vec,
+                )
     # fmt: on
     import os
 

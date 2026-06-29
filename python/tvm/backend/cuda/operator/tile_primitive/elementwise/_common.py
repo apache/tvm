@@ -55,14 +55,25 @@ def buffer_regions(plan) -> list[BufferRegion]:
     return out
 
 
+def dtype_name(dtype) -> str:
+    dtype_obj = getattr(dtype, "dtype", None)
+    if dtype_obj is not None:
+        return str(dtype_obj)
+    return str(dtype)
+
+
+def dtype_bits(dtype) -> int:
+    return DataType(dtype_name(dtype)).bits
+
+
 def compute_dtype_of(plan) -> str:
     """Widest dtype in bits across dst + buffer/scalar srcs (dst breaks ties)."""
-    candidates = [plan.dst.buffer.dtype]
+    candidates = [dtype_name(plan.dst.buffer.dtype)]
     for s in plan.srcs:
         if s.buf_region is not None:
-            candidates.append(s.buf_region.buffer.dtype)
+            candidates.append(dtype_name(s.buf_region.buffer.dtype))
         elif s.scalar is not None:
-            candidates.append(s.scalar.dtype)
+            candidates.append(scalar_dtype(s.scalar))
     widest = candidates[0]
     widest_bits = DataType(widest).bits
     for d in candidates[1:]:
@@ -70,6 +81,19 @@ def compute_dtype_of(plan) -> str:
         if b > widest_bits:
             widest, widest_bits = d, b
     return widest
+
+
+def scalar_dtype(scalar) -> str:
+    dtype = getattr(scalar, "dtype", None)
+    if dtype is not None:
+        return str(dtype)
+    ty = getattr(scalar, "ty", None)
+    if ty is None and hasattr(scalar, "expr_ty"):
+        ty = scalar.expr_ty()
+    dtype = getattr(ty, "dtype", None)
+    if dtype is None:
+        raise AttributeError(f"{type(scalar).__name__} has no dtype-bearing PrimType")
+    return str(dtype)
 
 
 def n_elements(buf_region: BufferRegion) -> int:
@@ -375,6 +399,8 @@ __all__ = [
     "align_operands_to_anchor",
     "buffer_regions",
     "compute_dtype_of",
+    "dtype_bits",
+    "dtype_name",
     "emit_scope_sync",
     "fetch_src_value",
     "n_elements",
