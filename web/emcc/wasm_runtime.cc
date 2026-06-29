@@ -160,20 +160,20 @@ int64_t StorageSizeBytes(int64_t num_elements, const std::string& dtype) {
   TVMFFIByteArray dtype_bytes{dtype.data(), dtype.size()};
   DLDataType dl_dtype;
   TVM_FFI_ICHECK_EQ(TVMFFIDataTypeFromString(&dtype_bytes, &dl_dtype), 0);
-  return static_cast<int64_t>(
-      ffi::GetDataSize(static_cast<size_t>(num_elements), dl_dtype));
+  return static_cast<int64_t>(ffi::GetDataSize(static_cast<size_t>(num_elements), dl_dtype));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def_packed("tvmjs.array.decode_storage", [](ffi::PackedArgs args, ffi::Any* ret) {
-        Tensor cpu_arr = args[0].cast<Tensor>();
-        TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
-        std::string format = args[2].cast<ffi::String>().operator std::string();
-        std::string dtype = args[3].cast<ffi::String>().operator std::string();
-        ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
-      })
+      .def_packed("tvmjs.array.decode_storage",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    Tensor cpu_arr = args[0].cast<Tensor>();
+                    TVMFFIByteArray* bytes = args[1].cast<TVMFFIByteArray*>();
+                    std::string format = args[2].cast<ffi::String>().operator std::string();
+                    std::string dtype = args[3].cast<ffi::String>().operator std::string();
+                    ArrayDecodeStorage(cpu_arr, bytes, format, dtype);
+                  })
       .def("tvmjs.runtime.StorageSizeBytes", StorageSizeBytes);
 }
 
