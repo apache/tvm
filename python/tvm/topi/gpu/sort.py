@@ -499,8 +499,10 @@ def _sort_common(
             nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
             nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
 
-        tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by)
-        bz = te.thread_axis("blockIdx.z")
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.z")  # nbx
+        by = te.thread_axis("blockIdx.y")  # batch
+        bz = te.thread_axis("blockIdx.x")  # nbz (largest extent)
         with T.frame_scope(
             [
                 T.attr(tx, "thread_extent", ntx),
