@@ -3893,6 +3893,117 @@ class RMSNormalization(OnnxOpConverter):
         return output
 
 
+class GroupNormalization(OnnxOpConverter):
+    """Converts an onnx GroupNormalization node into an equivalent Relax expression"""
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        scale = inputs[1]
+        bias = inputs[2]
+        num_groups = attr["num_groups"]
+        epsilon = attr.get("epsilon", 1e-05)
+
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("GroupNormalization requires a statically known input rank.")
+
+        ty = data.ty
+        if not isinstance(ty, relax.TensorType) or len(ty.shape) < 2:
+            raise ValueError(
+                "GroupNormalization-18 requires a statically typed input with rank >= 2."
+            )
+
+        if num_groups <= 0:
+            raise ValueError(
+                f"GroupNormalization requires num_groups to be positive, got {num_groups}."
+            )
+
+        channel_dim = ty.shape[1]
+        if not isinstance(channel_dim, tirx.IntImm):
+            raise ValueError(
+                "GroupNormalization-18 requires a statically known channel count "
+                "to expand per-group scale/bias to per-channel."
+            )
+
+        channels = int(channel_dim)
+        if channels % num_groups != 0:
+            raise ValueError(
+                f"GroupNormalization requires num_groups to divide channel count, "
+                f"but got C={channels} and num_groups={num_groups}."
+            )
+
+        channels_per_group = channels // num_groups
+
+        scale = relax.op.reshape(scale, [num_groups, 1])
+        scale = relax.op.broadcast_to(scale, [num_groups, channels_per_group])
+        scale = relax.op.reshape(scale, [channels])
+
+        bias = relax.op.reshape(bias, [num_groups, 1])
+        bias = relax.op.broadcast_to(bias, [num_groups, channels_per_group])
+        bias = relax.op.reshape(bias, [channels])
+
+        axes = list(range(2, ndim))
+        return relax.op.nn.group_norm(
+            data, scale, bias, num_groups, channel_axis=1, axes=axes, epsilon=epsilon
+        )
+
+    @classmethod
+    def _impl_v21(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        scale = inputs[1]
+        bias = inputs[2]
+        num_groups = attr["num_groups"]
+        epsilon = attr.get("epsilon", 1e-05)
+        stash_type = attr.get("stash_type", 1)
+
+        if stash_type not in [0, 1]:
+            raise ValueError(
+                f"GroupNormalization currently only supports stash_type 0 and 1, "
+                f"but got stash_type={stash_type}."
+            )
+
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("GroupNormalization requires a statically known input rank.")
+
+        ty = data.ty
+        if not isinstance(ty, relax.TensorType) or len(ty.shape) < 2:
+            raise ValueError(
+                "GroupNormalization requires a statically typed input with rank >= 2."
+            )
+
+        if num_groups <= 0:
+            raise ValueError(
+                f"GroupNormalization requires num_groups to be positive, got {num_groups}."
+            )
+
+        channel_dim = ty.shape[1]
+        if isinstance(channel_dim, tirx.IntImm):
+            channels = int(channel_dim)
+            if channels % num_groups != 0:
+                raise ValueError(
+                    f"GroupNormalization requires num_groups to divide channel count, "
+                    f"but got C={channels} and num_groups={num_groups}."
+                )
+
+        axes = list(range(2, ndim))
+        input_dtype = ty.dtype
+
+        if stash_type == 1 and input_dtype != "float32":
+            data = relax.op.astype(data, "float32")
+            scale = relax.op.astype(scale, "float32")
+            bias = relax.op.astype(bias, "float32")
+
+        output = relax.op.nn.group_norm(
+            data, scale, bias, num_groups, channel_axis=1, axes=axes, epsilon=epsilon
+        )
+
+        if stash_type == 1 and input_dtype != "float32":
+            output = relax.op.astype(output, input_dtype)
+        return output
+
+
 class ReduceMax(OnnxOpConverter):
     """Converts an onnx ReduceMax node into an equivalent Relax expression."""
 
@@ -5273,6 +5384,7 @@ def _get_convert_map():
         "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
         "RMSNormalization": RMSNormalization,
+        "GroupNormalization": GroupNormalization,
         "SkipLayerNormalization": SkipLayerNormalization,
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,

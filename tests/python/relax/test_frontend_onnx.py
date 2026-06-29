@@ -4354,6 +4354,201 @@ def test_rms_norm():
     check_correctness(model, opset=23, rtol=1e-2, atol=1e-2)
 
 
+def _make_group_norm_expected_ir(
+    input_shape: list[int],
+    scale_shape: list[int],
+    bias_shape: list[int],
+    num_groups: int,
+    opset: int = 21,
+    dtype: str = "float32",
+    stash_type: int = 1,
+):
+    input_shape = tuple(input_shape)
+    scale_shape = tuple(scale_shape)
+    bias_shape = tuple(bias_shape)
+    axes = list(range(2, len(input_shape)))
+    epsilon = float(np.float32(1e-5))
+
+    if opset == 18:
+        channels = input_shape[1]
+        channels_per_group = channels // num_groups
+
+        @I.ir_module
+        class ExpectedGroupNormOpset18:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor((num_groups, 1), dtype=dtype) = R.reshape(
+                        scale, R.shape([num_groups, 1])
+                    )
+                    lv1: R.Tensor((num_groups, channels_per_group), dtype=dtype) = (
+                        R.broadcast_to(lv, R.shape([num_groups, channels_per_group]))
+                    )
+                    lv2: R.Tensor((channels,), dtype=dtype) = R.reshape(
+                        lv1, R.shape([channels])
+                    )
+                    lv3: R.Tensor((num_groups, 1), dtype=dtype) = R.reshape(
+                        bias, R.shape([num_groups, 1])
+                    )
+                    lv4: R.Tensor((num_groups, channels_per_group), dtype=dtype) = (
+                        R.broadcast_to(lv3, R.shape([num_groups, channels_per_group]))
+                    )
+                    lv5: R.Tensor((channels,), dtype=dtype) = R.reshape(
+                        lv4, R.shape([channels])
+                    )
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.nn.group_norm(
+                        input,
+                        lv2,
+                        lv5,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                    )
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset18
+
+    if opset == 21 and stash_type == 1 and dtype != "float32":
+
+        @I.ir_module
+        class ExpectedGroupNormOpset21Stash:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor(input_shape, dtype="float32") = R.astype(
+                        input, dtype="float32"
+                    )
+                    lv1: R.Tensor(scale_shape, dtype="float32") = R.astype(
+                        scale, dtype="float32"
+                    )
+                    lv2: R.Tensor(bias_shape, dtype="float32") = R.astype(
+                        bias, dtype="float32"
+                    )
+                    lv3: R.Tensor(input_shape, dtype="float32") = R.nn.group_norm(
+                        lv,
+                        lv1,
+                        lv2,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                    )
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.astype(lv3, dtype=dtype)
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset21Stash
+
+    if opset == 21:
+
+        @I.ir_module
+        class ExpectedGroupNormOpset21:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.nn.group_norm(
+                        input,
+                        scale,
+                        bias,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                    )
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset21
+
+    raise AssertionError(f"No GroupNormalization expected IR for opset={opset}")
+
+
+def test_group_norm():
+    def verify_group_norm(
+        input_shape: list[int],
+        scale_shape: list[int],
+        bias_shape: list[int],
+        num_groups: int,
+        expected,
+        opset: int = 21,
+        dtype: int = TensorProto.FLOAT,
+        stash_type: int = 1,
+    ):
+        attrs = {"num_groups": num_groups, "epsilon": 1e-5}
+        if opset == 21:
+            attrs["stash_type"] = stash_type
+
+        node = helper.make_node(
+            "GroupNormalization", ["input", "scale", "bias"], ["output"], **attrs
+        )
+        graph = helper.make_graph(
+            [node],
+            "group_norm_test",
+            inputs=[
+                helper.make_tensor_value_info("input", dtype, list(input_shape)),
+                helper.make_tensor_value_info("scale", dtype, list(scale_shape)),
+                helper.make_tensor_value_info("bias", dtype, list(bias_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("output", dtype, list(input_shape))],
+        )
+
+        model = helper.make_model(
+            graph,
+            producer_name="group_norm_test",
+            opset_imports=[helper.make_opsetid("", opset)],
+        )
+        tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+        tvm_model["main"] = tvm_model["main"].without_attr("params")
+        expected = tvm.IRModule(expected.functions)
+        for gv in expected.get_global_vars():
+            if gv.name_hint != "main":
+                expected.update_func(gv, tvm_model[gv.name_hint])
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    for input_shape, scale_shape, bias_shape, num_groups, opset, dtype, dtype_str, stash_type in [
+        ([1, 4, 2, 2], [2], [2], 2, 18, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 2, 2], [4], [4], 2, 21, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 8], [4], [4], 2, 21, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 2, 2], [4], [4], 2, 21, TensorProto.FLOAT16, "float16", 1),
+        ([1, 4, 2, 2], [4], [4], 2, 21, TensorProto.FLOAT16, "float16", 0),
+    ]:
+        verify_group_norm(
+            input_shape,
+            scale_shape,
+            bias_shape,
+            num_groups,
+            _make_group_norm_expected_ir(
+                input_shape,
+                scale_shape,
+                bias_shape,
+                num_groups,
+                opset=opset,
+                dtype=dtype_str,
+                stash_type=stash_type,
+            ),
+            opset=opset,
+            dtype=dtype,
+            stash_type=stash_type,
+        )
+
+
 # TODO Enable dynamism
 @pytest.mark.parametrize("dynamic", [False])
 def test_skiplayernormalization(dynamic):
