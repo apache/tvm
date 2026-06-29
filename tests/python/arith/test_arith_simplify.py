@@ -167,6 +167,16 @@ def test_simplify_floor_mod_with_linear_offset():
     assert ana.can_prove_equal(tvm.tirx.floormod(expr1, divisor2), 0)
 
 
+def test_simplify_uint_floormod_const_scale_divisible():
+    """uint32 floormod(x * c1, c2) -> 0 when c1 % c2 == 0 (overflow-free)."""
+    ana = tvm.arith.Analyzer()
+    q = tirx.Var("q_stage_idx", "uint32")
+    expr = q * tirx.Cast("uint32", 128)
+    mod = expr % tirx.const(4, "uint32")
+    assert ana.can_prove_equal(mod, tirx.const(0, "uint32"))
+    tvm.ir.assert_structural_equal(ana.rewrite_simplify(mod), tirx.const(0, "uint32"))
+
+
 def test_simplify_float_division():
     # Test for the discussion:
     # https://discuss.tvm.apache.org/t/discuss-is-constant-division-to-multiplication-rewrite-in-tvm-necessary/18615
