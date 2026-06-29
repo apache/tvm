@@ -1464,12 +1464,17 @@ export class Instance implements Disposable {
               targetStrideBytes = targetBytes / outerDim;
             }
           }
+          const chunkOuterDim = canChunkRecord
+            ? Math.max(
+              1,
+              Math.floor(maxChunkBytes / Math.max(sourceStrideBytes, targetStrideBytes))
+            )
+            : 1;
           const copyRecordToTensor = (targetTensor: Tensor, sourceBytes: Uint8Array) => {
             if (!canChunkRecord) {
               this.ctx.arrayDecodeStorage(targetTensor, sourceBytes, rec.format, rec.dtype);
               return;
             }
-            const chunkOuterDim = Math.max(1, Math.floor(maxChunkBytes / sourceStrideBytes));
             for (let outerOffset = 0; outerOffset < outerDim; outerOffset += chunkOuterDim) {
               const outerCount = Math.min(chunkOuterDim, outerDim - outerOffset);
               const sourceByteOffset = outerOffset * sourceStrideBytes;
@@ -1515,7 +1520,6 @@ export class Instance implements Disposable {
             if (!canChunkRecord) {
               gpu_arr.copyFrom(cpu_arr);
             } else {
-              const chunkOuterDim = Math.max(1, Math.floor(maxChunkBytes / sourceStrideBytes));
               for (let outerOffset = 0; outerOffset < outerDim; outerOffset += chunkOuterDim) {
                 const outerCount = Math.min(chunkOuterDim, outerDim - outerOffset);
                 const targetByteOffset = outerOffset * targetStrideBytes;
