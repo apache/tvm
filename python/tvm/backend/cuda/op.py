@@ -159,57 +159,6 @@ def cuda_cta_min(value, num_warps, scratch):
     return cuda_cta_reduce(value, "min", num_warps, scratch)
 
 
-def cuda_copy_bytes(dst, src, num_bytes):
-    """Typed load/store copy of ``num_bytes`` bytes.
-
-    Copies ``num_bytes`` bytes from ``src`` to ``dst`` using a single
-    typed load/store instruction.  Codegen selects the appropriate C++
-    vector type (``uint4``, ``uint2``, ``unsigned int``, etc.).
-
-    Parameters
-    ----------
-    dst : Var
-        Destination pointer.
-
-    src : Var
-        Source pointer.
-
-    num_bytes : int
-        Number of bytes to copy.  Must be one of {1, 2, 4, 8, 16}.
-
-    Returns
-    -------
-    call : PrimExpr
-        A void call expression.
-    """
-    return call_intrin("void", "tirx.cuda.copy_bytes", dst, src, num_bytes)
-
-
-def cuda_copy_128b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 16)`` — copies 128 bits."""
-    return cuda_copy_bytes(dst, src, 16)
-
-
-def cuda_copy_64b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 8)`` — copies 64 bits."""
-    return cuda_copy_bytes(dst, src, 8)
-
-
-def cuda_copy_32b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 4)`` — copies 32 bits."""
-    return cuda_copy_bytes(dst, src, 4)
-
-
-def cuda_copy_16b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 2)`` — copies 16 bits."""
-    return cuda_copy_bytes(dst, src, 2)
-
-
-def cuda_copy_8b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 1)`` — copies 8 bits."""
-    return cuda_copy_bytes(dst, src, 1)
-
-
 def cuda_warp_sync():
     """TVM intrinsic to synchronize threads within the current warp.
 
@@ -3492,11 +3441,37 @@ def ptx_griddepcontrol_launch_dependents():
 _PTX_LD_SCOPE = {"cta", "cluster", "gpu", "sys"}
 _PTX_LD_SPACE = {"global", "shared", "shared::cta", "shared::cluster", "local"}
 _PTX_LD_VOLATILE_SPACE = _PTX_LD_SPACE | {"const"}
-_PTX_LD_TYPE = {"b32", "u32", "u64", "s32", "f32"}
+_PTX_SCALAR_TYPE = {
+    "b8",
+    "u8",
+    "s8",
+    "b16",
+    "u16",
+    "s16",
+    "b32",
+    "b64",
+    "u32",
+    "u64",
+    "s32",
+    "s64",
+    "f32",
+    "f64",
+}
+_PTX_LD_TYPE = set(_PTX_SCALAR_TYPE)
 _PTX_LD_COP = {"", "ca", "cg", "cs", "lu", "cv"}
+_PTX_LD_VEC = {"", "v2", "v4", "v8"}
+_PTX_L1_EVICT = {
+    "",
+    "L1::evict_normal",
+    "L1::evict_unchanged",
+    "L1::evict_first",
+    "L1::evict_last",
+    "L1::no_allocate",
+}
+_PTX_L2_EVICT = {"", "L2::evict_normal", "L2::evict_first", "L2::evict_last"}
+_PTX_PREFETCH = {"", "L2::64B", "L2::128B", "L2::256B"}
 _PTX_MEM_SCOPE = {"", "cta", "cluster", "gpu", "sys"}
 _PTX_MEM_SPACE = {"global", "shared", "shared::cta", "shared::cluster"}
-_PTX_SCALAR_TYPE = {"b32", "b64", "u32", "u64", "s32", "s64", "f32", "f64"}
 _PTX_RED_OP = {"and", "or", "xor", "add", "inc", "dec", "min", "max"}
 _PTX_ATOM_OP = {"and", "or", "xor", "exch", "add", "inc", "dec", "min", "max"}
 _PTX_ST_VEC = {"", "v2", "v4", "v8"}
@@ -3532,41 +3507,62 @@ def _resolve_cache_policy(cache_hint, cache_policy, choices=_CP_ASYNC_BULK_CACHE
     return const(0, dtype="uint64"), False
 
 
-def ptx_ld_acquire(addr, return_type, ptx_type, *, scope="gpu", space="global"):
-    """TVM intrinsic for scalar PTX ``ld.acquire.scope{.ss}.type`` loads.
-
-    This wrapper covers the scalar no-cache-policy/no-vector instances of the
-    PTX ISA ``ld.acquire`` form. ``scope``, state ``space``, PTX ``type`` and
-    TVM ``return_type`` are explicit so callers can request either raw-bit or
-    typed loads.
-
-    Parameters
-    ----------
-    addr : PrimExpr
-        The memory address to load.
-
-    return_type : str
-        TVM dtype returned by the load.
-
-    ptx_type : str
-        PTX type suffix such as ``"b32"``, ``"u64"``, or ``"s32"``.
-
-    scope : str
-        PTX memory scope: ``"cta"``, ``"cluster"``, ``"gpu"``, or ``"sys"``.
-
-    space : str
-        PTX state space suffix.
-
-    Returns
-    -------
-    call : PrimExpr
-        The loaded value.
-    """
+def ptx_ld_acquire(
+    addr,
+    return_type,
+    ptx_type,
+    *,
+    scope="gpu",
+    space="global",
+    vec="",
+    dst=None,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+    prefetch_size="",
+):
+    """TVM intrinsic for PTX ``ld.acquire.scope{.ss}...`` loads."""
     _choice("scope", scope, _PTX_LD_SCOPE)
     _choice("space", space, _PTX_LD_SPACE)
     _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    _choice("vec", vec, _PTX_LD_VEC)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld.acquire requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_acquire",
+            dst,
+            addr,
+            cache_policy,
+            return_type,
+            scope,
+            space,
+            vec,
+            ptx_type,
+            int(has_cache_policy),
+            to_dst,
+            l1_evict,
+            l2_evict,
+            prefetch_size,
+        )
     return call_intrin(
-        return_type, "tirx.ptx.ld_acquire", addr, return_type, ptx_type, scope, space
+        return_type,
+        "tirx.ptx.ld_acquire",
+        addr,
+        return_type,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        0,
+        l1_evict,
+        l2_evict,
+        prefetch_size,
     )
 
 
@@ -3575,21 +3571,45 @@ def ptx_ld(
     return_type,
     ptx_type,
     *,
+    dst=None,
     weak=False,
     space="global",
     cop="",
+    vec="",
     cache_hint="",
     cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+    prefetch_size="",
 ):
-    """TVM intrinsic for scalar PTX ``ld{.weak}{.ss}{.cop}{.level::cache_hint}.type``.
-
-    This wrapper covers scalar no-prefetch/no-vector instances of the weak
-    generic load form.
-    """
+    """TVM intrinsic for PTX ``ld{.weak}{.ss}{.cop}...`` loads."""
     _choice("space", space, _PTX_LD_SPACE | {"const", "param::entry", "param::func"})
     _choice("cop", cop, _PTX_LD_COP)
     _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    _choice("vec", vec, _PTX_LD_VEC)
     cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld",
+            dst,
+            addr,
+            cache_policy,
+            return_type,
+            int(bool(weak)),
+            space,
+            cop,
+            vec,
+            ptx_type,
+            int(has_cache_policy),
+            to_dst,
+            l1_evict,
+            l2_evict,
+            prefetch_size,
+        )
     return call_intrin(
         return_type,
         "tirx.ptx.ld",
@@ -3599,19 +3619,147 @@ def ptx_ld(
         int(bool(weak)),
         space,
         cop,
+        "",
         ptx_type,
         int(has_cache_policy),
+        0,
+        l1_evict,
+        l2_evict,
+        prefetch_size,
     )
 
 
-def ptx_ld_volatile(addr, return_type, ptx_type, *, space="global"):
-    """TVM intrinsic for scalar PTX ``ld.volatile{.ss}.type`` loads.
+def ptx_ld_relaxed(
+    addr,
+    return_type,
+    ptx_type,
+    *,
+    scope="gpu",
+    space="global",
+    vec="",
+    dst=None,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+    prefetch_size="",
+):
+    _choice("scope", scope, _PTX_LD_SCOPE)
+    _choice("space", space, _PTX_LD_SPACE)
+    _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    _choice("vec", vec, _PTX_LD_VEC)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld.relaxed requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_relaxed",
+            dst,
+            addr,
+            cache_policy,
+            return_type,
+            scope,
+            space,
+            vec,
+            ptx_type,
+            int(has_cache_policy),
+            to_dst,
+            l1_evict,
+            l2_evict,
+            prefetch_size,
+        )
+    return call_intrin(
+        return_type,
+        "tirx.ptx.ld_relaxed",
+        addr,
+        cache_policy,
+        return_type,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        0,
+        l1_evict,
+        l2_evict,
+        prefetch_size,
+    )
 
-    This wrapper covers scalar no-prefetch/no-vector instances.
-    """
+
+def ptx_ld_volatile(
+    addr,
+    return_type,
+    ptx_type,
+    *,
+    space="global",
+    vec="",
+    dst=None,
+    prefetch_size="",
+):
+    """TVM intrinsic for PTX ``ld.volatile{.ss}...`` loads."""
     _choice("space", space, _PTX_LD_VOLATILE_SPACE)
     _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
-    return call_intrin(return_type, "tirx.ptx.ld_volatile", addr, return_type, ptx_type, space)
+    _choice("vec", vec, _PTX_LD_VEC)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld.volatile requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_volatile",
+            dst,
+            addr,
+            return_type,
+            space,
+            vec,
+            ptx_type,
+            to_dst,
+            prefetch_size,
+        )
+    return call_intrin(
+        return_type,
+        "tirx.ptx.ld_volatile",
+        addr,
+        return_type,
+        space,
+        vec,
+        ptx_type,
+        0,
+        prefetch_size,
+    )
+
+
+def ptx_ld_mmio(addr, return_type, ptx_type, *, sem="acquire", dst=None):
+    if sem not in ("acquire", "relaxed"):
+        raise ValueError(f"Unsupported PTX ld.mmio sem {sem!r}")
+    _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    to_dst = int(dst is not None)
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_mmio",
+            dst,
+            addr,
+            return_type,
+            sem,
+            "sys",
+            "global",
+            ptx_type,
+            1,
+        )
+    return call_intrin(
+        return_type,
+        "tirx.ptx.ld_mmio",
+        addr,
+        return_type,
+        sem,
+        "sys",
+        "global",
+        ptx_type,
+        0,
+    )
 
 
 def ptx_ld_global_acquire(res, addr):
@@ -3706,6 +3854,7 @@ def ptx_atom_scalar(
 def ptx_st(
     address,
     *values,
+    src=None,
     weak=False,
     space="shared",
     cop="",
@@ -3713,17 +3862,15 @@ def ptx_st(
     ptx_type,
     cache_hint="",
     cache_policy=None,
+    l1_evict="",
+    l2_evict="",
 ):
     _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
     _choice("cop", cop, _PTX_ST_COP)
     _choice("vec", vec, _PTX_ST_VEC)
     _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
     cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
-    return call_intrin(
-        "",
-        "tirx.ptx.st",
-        address,
-        *values,
+    attrs = (
         cache_policy,
         int(bool(weak)),
         space,
@@ -3731,7 +3878,106 @@ def ptx_st(
         vec,
         ptx_type,
         int(has_cache_policy),
+        l1_evict,
+        l2_evict,
+        int(src is not None),
     )
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st", address, *values, *attrs)
+
+
+def ptx_st_relaxed(
+    address,
+    *values,
+    src=None,
+    scope="gpu",
+    space="global",
+    vec="",
+    ptx_type,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+):
+    _choice("scope", scope, _PTX_LD_SCOPE)
+    _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
+    _choice("vec", vec, _PTX_ST_VEC)
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    attrs = (
+        cache_policy,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        l1_evict,
+        l2_evict,
+        int(src is not None),
+    )
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st_relaxed expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st_relaxed", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st_relaxed", address, *values, *attrs)
+
+
+def ptx_st_release(
+    address,
+    *values,
+    src=None,
+    scope="gpu",
+    space="global",
+    vec="",
+    ptx_type,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+):
+    _choice("scope", scope, _PTX_LD_SCOPE)
+    _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
+    _choice("vec", vec, _PTX_ST_VEC)
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    attrs = (
+        cache_policy,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        l1_evict,
+        l2_evict,
+        int(src is not None),
+    )
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st_release expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st_release", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st_release", address, *values, *attrs)
+
+
+def ptx_st_volatile(address, *values, src=None, space="global", vec="", ptx_type):
+    _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
+    _choice("vec", vec, _PTX_ST_VEC)
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    attrs = (space, vec, ptx_type, int(src is not None))
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st_volatile expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st_volatile", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st_volatile", address, *values, *attrs)
+
+
+def ptx_st_mmio(address, value, *, sem="release", ptx_type):
+    if sem not in ("release", "relaxed"):
+        raise ValueError(f"Unsupported PTX st.mmio sem {sem!r}")
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    return call_intrin("", "tirx.ptx.st_mmio", address, value, sem, "sys", "global", ptx_type)
 
 
 def ptx_st_bulk(ptr, num_bytes, *, weak=False, space="shared::cta"):

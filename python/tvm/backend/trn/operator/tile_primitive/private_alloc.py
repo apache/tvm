@@ -35,6 +35,17 @@ from tvm.tirx.operator.tile_primitive.registry import f_op_dispatcher
 from tvm.tirx.stmt import TilePrimitiveCall
 
 
+def _scalar_dtype(scalar) -> str:
+    dtype = getattr(scalar, "dtype", None)
+    if dtype is not None:
+        return str(dtype)
+    ty = getattr(scalar, "ty", None)
+    dtype = getattr(ty, "dtype", None)
+    if dtype is None:
+        raise AttributeError(f"{type(scalar).__name__} has no dtype-bearing PrimType")
+    return str(dtype)
+
+
 def alloc_const_bias_trn(
     op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
@@ -53,7 +64,9 @@ def alloc_const_bias_trn(
             return {"const_bias": ("const_bias", bias.value)}
     else:
         new_shape = (par_size, max_inst_size)
-    new_buffer = T.buffer(new_shape, dtype=bias.dtype, scope="trn.sbuf", buffer_name="const_bias")
+    new_buffer = T.buffer(
+        new_shape, dtype=_scalar_dtype(bias), scope="trn.sbuf", buffer_name="const_bias"
+    )
 
     @T.prim_func
     def const_bias_init():

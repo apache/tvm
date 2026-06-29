@@ -20,6 +20,7 @@
 import glob
 import os
 import platform
+import shlex
 import subprocess
 import warnings
 
@@ -29,6 +30,29 @@ import tvm
 from tvm.target import Target
 
 from . import utils
+
+
+def _ptxas_option_flags():
+    """Return ptxas flags forwarded via ``--ptxas-options`` (without the prefix).
+
+    Environment Variables
+    ---------------------
+    TVM_CUDA_PTXAS_REG_LEVEL : str
+        ptxas ``--register-usage-level`` (default ``10``).
+    TVM_CUDA_PTXAS_EXTRA_OPTS : str
+        Extra ptxas flags, shell-tokenized (e.g. ``"-O1"`` or ``"-O2 --def-load-cache=ca"``).
+        Each token becomes its own ``--ptxas-options=<token>`` entry for NVRTC, or is
+        comma-joined for nvcc.
+    """
+    flags = [
+        "-v",
+        f"--register-usage-level={os.environ.get('TVM_CUDA_PTXAS_REG_LEVEL', '10')}",
+        "--warn-on-local-memory-usage",
+    ]
+    extra = os.environ.get("TVM_CUDA_PTXAS_EXTRA_OPTS", "").strip()
+    if extra:
+        flags.extend(shlex.split(extra))
+    return flags
 
 
 def compile_cuda(
@@ -190,8 +214,7 @@ def _compile_cuda_nvcc(
         "--expt-relaxed-constexpr",
         "--expt-extended-lambda",
         "--use_fast_math",
-        "--ptxas-options=-v",  # printing out number of registers
-        f"--ptxas-options=--verbose,--register-usage-level={os.environ.get('TVM_CUDA_PTXAS_REG_LEVEL', '10')},--warn-on-local-memory-usage",  # noqa: E501
+        f"--ptxas-options={','.join(_ptxas_option_flags())}",
     ]
 
     major, _ = parse_compute_version(get_target_compute_version(Target.current(allow_none=True)))
@@ -524,14 +547,8 @@ namespace std {
     # NVRTC does not comma-split --ptxas-options, so each ptxas flag must be its
     # own entry. The nvcc-only --expt-relaxed-constexpr / --expt-extended-lambda
     # have no NVRTC equivalent and are intentionally not mirrored.
-    reg_level = os.environ.get("TVM_CUDA_PTXAS_REG_LEVEL", "10")
-    compile_opts.extend(
-        [
-            b"--ptxas-options=-v",
-            f"--ptxas-options=--register-usage-level={reg_level}".encode(),
-            b"--ptxas-options=--warn-on-local-memory-usage",
-        ]
-    )
+    for flag in _ptxas_option_flags():
+        compile_opts.append(f"--ptxas-options={flag}".encode())
 
     # Add user-provided options, filtering out nvcc-specific flags that nvrtc doesn't support
     if options:
@@ -868,6 +885,10 @@ def tvm_callback_cuda_compile(code):
     TVM_KERNEL_DUMP : str
         If set, dump generated CUDA/intermediate files and append "-lineinfo" so profilers can
         correlate SASS back to the dumped source.
+    TVM_CUDA_PTXAS_REG_LEVEL : str
+        Forwarded to ptxas ``--register-usage-level`` (default ``10``).
+    TVM_CUDA_PTXAS_EXTRA_OPTS : str
+        Extra ptxas flags (shell-tokenized), e.g. ``"-O1"`` or ``"-O2"``.
 
     Parameters
     ----------

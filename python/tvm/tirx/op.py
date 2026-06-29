@@ -934,6 +934,8 @@ def print_buffer(buffer_var, dtype, is_string, is_scalar, dim_num, *shape):
         final_shape_args = list(shape[0])
     else:
         final_shape_args = list(shape)
+    if isinstance(dtype, tvm.ir.PrimType):
+        dtype = dtype.dtype
     return _ffi_api.print_buffer(
         buffer_var, dtype, is_string, is_scalar, dim_num, *final_shape_args
     )
