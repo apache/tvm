@@ -399,6 +399,36 @@ struct ReducerRegistry {
                 [](const ffi::Array<PrimExpr>& values) {
                   return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
                                               max_value(values[1].ty())};
+                }),
+            // argmax with `lhs_val > rhs_val` and tie-break `lhs_idx > rhs_idx`, which corresponds
+            // to topi.argmax with `select_last_index=True` (preferring the last occurrence).
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
+                  PrimExpr idx =
+                      Select(Or(greater(x[1], y[1]), And(equal(x[1], y[1]), greater(x[0], y[0]))),
+                             x[0], y[0]);
+                  PrimExpr val = Select(greater(x[1], y[1]), x[1], y[1]);
+                  return ffi::Array<PrimExpr>{idx, val};
+                },
+                [](const ffi::Array<PrimExpr>& values) {
+                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                                              min_value(values[1].ty())};
+                }),
+            // argmin with `lhs_val < rhs_val` and tie-break `lhs_idx > rhs_idx`, which corresponds
+            // to topi.argmin with `select_last_index=True` (preferring the last occurrence).
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
+                  PrimExpr idx =
+                      Select(Or(less(x[1], y[1]), And(equal(x[1], y[1]), greater(x[0], y[0]))),
+                             x[0], y[0]);
+                  PrimExpr val = Select(less(x[1], y[1]), x[1], y[1]);
+                  return ffi::Array<PrimExpr>{idx, val};
+                },
+                [](const ffi::Array<PrimExpr>& values) {
+                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                                              max_value(values[1].ty())};
                 })} {}
 
   static void RegisterReducer(
