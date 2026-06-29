@@ -109,6 +109,16 @@ PrimType WithScalableVScaleFactor(const PrimType& dtype, int vscale_factor) {
   return PrimType::ScalableVector(dtype.code(), dtype.bits(), vscale_factor);
 }
 
+// Bool tensors are backed by int8 so vectorized accesses lower to real loads/stores
+// (ld1b/st1b) instead of the i1 predicate registers that an i1 type would force.
+PrimType BoolStorageType(const PrimType& dtype) {
+  if (!dtype.MatchesCode(DLDataTypeCode::kDLBool)) return dtype;
+  if (dtype.IsScalableVector()) {
+    return PrimType::ScalableVector(DLDataTypeCode::kDLInt, 8, dtype.VScaleFactor());
+  }
+  return PrimType::Int(8, dtype.lanes());
+}
+
 }  // namespace
 
 // CodeGenLLVM has members of type std::unique_ptr<T>. These members will be
@@ -1720,7 +1730,7 @@ void CodeGenLLVM::BufferAccessHelper(
     std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                      llvm::Value* predicate, int alignment, bool is_volatile)>
         make_instruction) {
-  PrimType buffer_element_dtype = buffer->dtype;
+  PrimType buffer_element_dtype = BoolStorageType(buffer->dtype);
 
   TVM_FFI_ICHECK_GE(indices.size(), 1)
       << "Buffer " << buffer->name << " is accessed with no indices.  "
@@ -1825,6 +1835,7 @@ void CodeGenLLVM::BufferAccessHelper(
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   PrimType value_dtype(op->ty()->dtype);
+  PrimType access_dtype = BoolStorageType(value_dtype);
 
   std::vector<llvm::Value*> loads;
 
@@ -1848,17 +1859,21 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->buffer, op->indices, op->predicate, value_dtype, make_load);
+  BufferAccessHelper(op->buffer, op->indices, op->predicate, access_dtype, make_load);
 
+  llvm::Value* ret;
   if (loads.size() == 1) {
-    return loads[0];
+    ret = loads[0];
   } else {
-    llvm::Value* ret = llvm::UndefValue::get(DTypeToLLVMType(value_dtype));
+    ret = llvm::UndefValue::get(DTypeToLLVMType(access_dtype));
     for (size_t i = 0; i < loads.size(); i++) {
       ret = builder_->CreateInsertElement(ret, loads[i], ConstInt32(i));
     }
-    return ret;
   }
+  if (!access_dtype.same_as(value_dtype)) {
+    ret = CreateCast(access_dtype, value_dtype, ret);
+  }
+  return ret;
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
@@ -1976,6 +1991,12 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
   Var buffer_var = op->buffer->data;
 
   llvm::Value* value = MakeValue(op->value);
+
+  PrimType store_dtype = BoolStorageType(value_dtype);
+  if (!store_dtype.same_as(value_dtype)) {
+    value = CreateCast(value_dtype, store_dtype, value);
+    value_dtype = store_dtype;
+  }
 
   auto make_store = [this, value](TypedPointer buffer_ptr, int subelement_i, llvm::Value* predicate,
                                   int alignment, bool is_volatile) {
