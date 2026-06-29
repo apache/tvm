@@ -20,20 +20,6 @@ set -e
 set -u
 set -o pipefail
 
-wget -q -O - http://apt.llvm.org/llvm-snapshot.gpg.key \
-    | gpg --dearmor -o /usr/share/keyrings/llvm-archive.gpg
-
-cat > /etc/apt/sources.list.d/llvm.list <<'EOF'
-deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main
-deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main
-deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main
-deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main
-deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main
-deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main
-deb [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy main
-deb-src [signed-by=/usr/share/keyrings/llvm-archive.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy main
-EOF
-
 apt-get update && apt-install-and-clear -y \
      llvm-15 llvm-16 llvm-17\
      clang-15 libclang-15-dev \
