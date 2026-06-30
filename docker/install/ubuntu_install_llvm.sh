@@ -22,6 +22,6 @@ set -o pipefail
 
 apt-get update && apt-install-and-clear -y \
      llvm-15 llvm-16 llvm-17\
-     clang-15 libclang-15-dev \
+     clang-15 libclang-15-dev libpolly-15-dev \
      clang-16 libclang-16-dev libpolly-16-dev \
      clang-17 libclang-17-dev libpolly-17-dev libzstd-dev
