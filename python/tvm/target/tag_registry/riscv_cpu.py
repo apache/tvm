@@ -20,7 +20,7 @@ from .registry import register_tag
 
 
 def _register_riscv_tag(name, config):
-    base = {"kind": "llvm", "keys": ["arm_cpu", "cpu"], "device": "arm_cpu"}
+    base = {"kind": "llvm", "keys": ["riscv_cpu", "cpu"], "device": "riscv_cpu"}
     base.update(config)
     register_tag(name, base)
 
@@ -67,6 +67,17 @@ _register_riscv_tag(
         "num-cores": 8,
         "mtriple": "riscv64-unknown-linux-gnu",
         "mcpu": "spacemit-x60",
+        "mfloat-abi": "hard",
+        "mabi": "lp64d",
+    },
+)
+
+_register_riscv_tag(
+    "riscv/spacemit-k3",
+    {
+        "num-cores": 8,
+        "mtriple": "riscv64-unknown-linux-gnu",
+        "mcpu": "spacemit-x100",
         "mfloat-abi": "hard",
         "mabi": "lp64d",
     },
