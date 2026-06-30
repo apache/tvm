@@ -99,8 +99,15 @@ def test_structural_equal_reports_hidden_field_suffix():
         "Note: The hidden field is not rendered in TVMScript, so the underline points to the "
         "nearest visible object in the access path."
     )
-    assert message.startswith("StructuralEqual check failed, caused by lhs at:\n\n")
-    assert "\n\nand rhs at:\n\n" in message
+    lhs_header = "StructuralEqual check failed, caused by lhs at:\n\n"
+    rhs_header = "\n\nand rhs at:\n\n"
+    assert message.startswith(lhs_header)
+    assert rhs_header in message
+    lhs_block, rhs_block = message[len(lhs_header) :].split(rhs_header)
+    assert lhs_block.startswith(f"{hidden_context}\n\n")
+    assert rhs_block.startswith(f"{hidden_context}\n\n")
+    assert "int32" in lhs_block
+    assert "float32" in rhs_block
     assert hidden_context in message
     assert message.count("Access path:") == 2
     assert "Visible anchor:" not in message

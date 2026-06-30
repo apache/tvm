@@ -18,7 +18,6 @@
 
 import tvm_ffi
 from tvm_ffi import get_global_func, register_object
-from tvm_ffi.access_path import AccessKind
 from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
 from tvm.runtime import Object
@@ -190,79 +189,31 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     if first_mismatch is not None:
         from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
             PrinterConfig,
-            _script,
+            _script_with_invisible_path_info,
         )
 
         lhs_path, rhs_path = first_mismatch
-        lhs_script, lhs_visible_paths = _script(
+        lhs_location = _script_with_invisible_path_info(
             lhs,
             PrinterConfig(
                 syntax_sugar=False,
                 path_to_underline=[lhs_path],
             ),
-            render_invisible_path_info=True,
+            lhs_path,
         )
-        rhs_script, rhs_visible_paths = _script(
+        rhs_location = _script_with_invisible_path_info(
             rhs,
             PrinterConfig(
                 syntax_sugar=False,
                 path_to_underline=[rhs_path],
             ),
-            render_invisible_path_info=True,
+            rhs_path,
         )
-
-        def _access_step_text(step):
-            kind = AccessKind(step.kind)
-            if kind == AccessKind.ATTR:
-                return f".{step.key}"
-            if kind == AccessKind.ARRAY_ITEM:
-                return f"[{step.key}]"
-            if kind == AccessKind.MAP_ITEM:
-                return f"[{step.key!r}]"
-            if kind == AccessKind.ATTR_MISSING:
-                return f"[<missing:{step.key!r}>]"
-            if kind == AccessKind.ARRAY_ITEM_MISSING:
-                return f"[<missing:{step.key}>]"
-            if kind == AccessKind.MAP_ITEM_MISSING:
-                return f"[<missing:{step.key!r}>]"
-            raise ValueError(f"Unknown AccessKind: {kind}")
-
-        def _has_hidden_suffix(requested_path, visible_path):
-            return (
-                visible_path is not None
-                and visible_path != requested_path
-                and visible_path.is_prefix_of(requested_path)
-            )
-
-        def _hidden_path_suffix(requested_path, visible_path):
-            return "".join(
-                _access_step_text(step) for step in requested_path.to_steps()[visible_path.depth :]
-            )
-
-        def _access_path_context(requested_path, visible_path):
-            lines = [f"Access path: {requested_path}"]
-            if _has_hidden_suffix(requested_path, visible_path):
-                hidden_suffix = _hidden_path_suffix(requested_path, visible_path)
-                lines.extend(
-                    [
-                        f"Highlighted object: {visible_path}",
-                        f"Hidden field: {hidden_suffix}",
-                        "Note: The hidden field is not rendered in TVMScript, so the underline "
-                        "points to the nearest visible object in the access path.",
-                    ]
-                )
-            return "\n".join(lines)
-
-        def _location_block(requested_path, visible_path, script):
-            return f"{_access_path_context(requested_path, visible_path)}\n\n{script}"
-
-        lhs_visible_path = lhs_visible_paths[0] if lhs_visible_paths else None
-        rhs_visible_path = rhs_visible_paths[0] if rhs_visible_paths else None
         raise ValueError(
             "StructuralEqual check failed, caused by lhs at:\n\n"
-            f"{_location_block(lhs_path, lhs_visible_path, lhs_script)}\n\n"
+            f"{lhs_location}\n\n"
             "and rhs at:\n\n"
-            f"{_location_block(rhs_path, rhs_visible_path, rhs_script)}"
+            f"{rhs_location}"
         )
 
 
