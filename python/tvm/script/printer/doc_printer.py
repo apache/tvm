@@ -30,7 +30,8 @@ def to_python_script(
     print_line_numbers: bool = False,
     num_context_lines: int | None = None,
     path_to_underline: list[AccessPath] | None = None,
-) -> str:
+    render_invisible_path_info: bool = False,
+) -> str | tuple[str, list[AccessPath | None]]:
     """Convert Doc into Python script.
 
     Parameters
@@ -45,6 +46,9 @@ def to_python_script(
         Number of context lines to print around the underlined text
     path_to_underline : Optional[AccessPath]
         Object path to be underlined
+    render_invisible_path_info : bool
+        Whether to return the visible AccessPath selected for each requested
+        underline path together with the rendered script.
 
     Returns
     -------
@@ -56,5 +60,9 @@ def to_python_script(
         print_line_numbers=print_line_numbers,
         num_context_lines=num_context_lines,
         path_to_underline=path_to_underline,
+        render_invisible_path_info=render_invisible_path_info,
     )
-    return _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member
+    script = _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member
+    if render_invisible_path_info:
+        return script, list(cfg.visible_paths)
+    return script

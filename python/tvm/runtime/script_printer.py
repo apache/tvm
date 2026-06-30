@@ -44,8 +44,10 @@ class PrinterConfig(Object):
     num_context_lines: int
     syntax_sugar: bool
     show_object_address: bool
+    render_invisible_path_info: bool
     extra_config: dict
     path_to_underline: list[AccessPath] | None
+    visible_paths: list[AccessPath | None]
     path_to_annotate: dict[AccessPath, str] | None
     obj_to_underline: list[AccessPath] | None
     obj_to_annotate: dict[AccessPath, str] | None
@@ -66,6 +68,7 @@ class PrinterConfig(Object):
         num_context_lines: int | None = None,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
+        render_invisible_path_info: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -88,6 +91,7 @@ class PrinterConfig(Object):
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
             "show_object_address": show_object_address,
+            "render_invisible_path_info": render_invisible_path_info,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -106,8 +110,15 @@ class PrinterConfig(Object):
         )
 
 
-def _script(obj: Object, config: PrinterConfig) -> str:
-    return _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
+def _script(
+    obj: Object,
+    config: PrinterConfig | None,
+) -> str | tuple[str, list[AccessPath | None]]:
+    result = _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
+    if config is not None and config.render_invisible_path_info:
+        script, visible_paths = result
+        return script, list(visible_paths)
+    return result
 
 
 def _relax_script(obj: Object, config: PrinterConfig) -> str:
@@ -133,13 +144,14 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
+        render_invisible_path_info: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
         obj_to_underline: list[Object] | None = None,
         obj_to_annotate: dict[Object, str] | None = None,
-    ) -> str:
+    ) -> str | tuple[str, list[AccessPath | None]]:
         """Print TVM IR into TVMScript text format
 
         Parameters
@@ -169,6 +181,9 @@ class Scriptable:
             Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
             Whether to include the object's address as part of the TVMScript name
+        render_invisible_path_info: bool = False
+            Whether to return the rendered script together with the visible
+            AccessPath selected for each requested underline path.
         show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
@@ -189,7 +204,9 @@ class Scriptable:
         Returns
         -------
         script : str
-            The TVM Script of the given TVM IR
+            The TVM Script of the given TVM IR.  When
+            render_invisible_path_info=True, returns a tuple of script and
+            visible paths.
 
         """
         # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
@@ -241,6 +258,7 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
+                render_invisible_path_info=render_invisible_path_info,
                 show_all_ty=show_all_ty,
                 extra_config=merged_extra if merged_extra else None,
                 path_to_underline=path_to_underline,

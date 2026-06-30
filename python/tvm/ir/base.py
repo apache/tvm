@@ -18,6 +18,7 @@
 
 import tvm_ffi
 from tvm_ffi import get_global_func, register_object
+from tvm_ffi.access_path import AccessKind
 from tvm_ffi.serialization import from_json_graph_str, to_json_graph_str
 
 from tvm.runtime import Object
@@ -193,13 +194,63 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
         )
 
         lhs_path, rhs_path = first_mismatch
-        lhs_script = _script(lhs, PrinterConfig(syntax_sugar=False, path_to_underline=[lhs_path]))
-        rhs_script = _script(rhs, PrinterConfig(syntax_sugar=False, path_to_underline=[rhs_path]))
+        lhs_script, lhs_visible_paths = _script(
+            lhs,
+            PrinterConfig(
+                syntax_sugar=False,
+                path_to_underline=[lhs_path],
+                render_invisible_path_info=True,
+            ),
+        )
+        rhs_script, rhs_visible_paths = _script(
+            rhs,
+            PrinterConfig(
+                syntax_sugar=False,
+                path_to_underline=[rhs_path],
+                render_invisible_path_info=True,
+            ),
+        )
+
+        def _access_step_text(step):
+            kind = AccessKind(step.kind)
+            if kind == AccessKind.ATTR:
+                return f".{step.key}"
+            if kind == AccessKind.ARRAY_ITEM:
+                return f"[{step.key}]"
+            if kind == AccessKind.MAP_ITEM:
+                return f"[{step.key!r}]"
+            if kind == AccessKind.ATTR_MISSING:
+                return f"[<missing:{step.key!r}>]"
+            if kind == AccessKind.ARRAY_ITEM_MISSING:
+                return f"[<missing:{step.key}>]"
+            if kind == AccessKind.MAP_ITEM_MISSING:
+                return f"[<missing:{step.key!r}>]"
+            raise ValueError(f"Unknown AccessKind: {kind}")
+
+        def _hidden_path_details(requested_path, visible_path):
+            if (
+                visible_path is not None
+                and visible_path != requested_path
+                and visible_path.is_prefix_of(requested_path)
+            ):
+                hidden_suffix = "".join(
+                    _access_step_text(step)
+                    for step in requested_path.to_steps()[visible_path.depth :]
+                )
+                return (
+                    f"\nVisible anchor: {visible_path}"
+                    f"\nHidden field: {hidden_suffix}"
+                    f"\nFull internal path: {requested_path}"
+                )
+            return ""
+
+        lhs_visible_path = lhs_visible_paths[0] if lhs_visible_paths else None
+        rhs_visible_path = rhs_visible_paths[0] if rhs_visible_paths else None
         raise ValueError(
             f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
-            f"{lhs_script}\n"
+            f"{lhs_script}{_hidden_path_details(lhs_path, lhs_visible_path)}\n"
             f"and rhs at {rhs_path}:\n"
-            f"{rhs_script}"
+            f"{rhs_script}{_hidden_path_details(rhs_path, rhs_visible_path)}"
         )
 
 

@@ -798,6 +798,7 @@ ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   }
   PythonDocPrinter printer(cfg);
   printer.Append(doc, cfg);
+  cfg->visible_paths = printer.GetVisiblePaths();
   std::string result = printer.GetString();
   int last_space = result.size();
   while (last_space > 0 && std::isspace(result[last_space - 1])) {

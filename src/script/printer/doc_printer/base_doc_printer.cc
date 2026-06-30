@@ -267,6 +267,7 @@ void DocPrinter::Append(const Doc& doc, const PrinterConfig& cfg) {
   for (const AccessPath& p : cfg->path_to_underline) {
     path_to_underline_.push_back(p);
     current_max_path_depth_.push_back(0);
+    current_visible_paths_.push_back(std::nullopt);
     current_underline_candidates_.push_back(std::vector<ByteSpan>());
   }
   PrintDoc(doc);
@@ -289,6 +290,10 @@ ffi::String DocPrinter::GetString() const {
 
   return DecorateText(text, line_starts_, options_,
                       MergeAndExemptSpans(underlines_, underlines_exempted_));
+}
+
+ffi::Array<ffi::Optional<AccessPath>> DocPrinter::GetVisiblePaths() const {
+  return ffi::Array<ffi::Optional<AccessPath>>(current_visible_paths_);
 }
 
 void DocPrinter::PrintDoc(const Doc& doc) {
@@ -364,8 +369,9 @@ void DocPrinter::MarkSpan(const ByteSpan& span, const AccessPath& path) {
   for (int i = 0; i < n; ++i) {
     AccessPath p = path_to_underline_[i];
     if (path->depth >= current_max_path_depth_[i] && path->IsPrefixOf(p)) {
-      if (path->depth > current_max_path_depth_[i]) {
+      if (path->depth > current_max_path_depth_[i] || !current_visible_paths_[i].defined()) {
         current_max_path_depth_[i] = path->depth;
+        current_visible_paths_[i] = path;
         current_underline_candidates_[i].clear();
       }
       current_underline_candidates_[i].push_back(span);
