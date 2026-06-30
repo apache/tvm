@@ -36,6 +36,24 @@ and rhs at {objpath2}:
 {func2.script(path_to_underline=[objpath2], syntax_sugar=False)}"""
 
 
+def test_prim_type_hidden_path_exact_message():
+    with pytest.raises(ValueError) as exc_info:
+        assert_structural_equal(tvm.ir.PrimType("int32"), tvm.ir.PrimType("float32"))
+
+    assert str(exc_info.value) == (
+        "StructuralEqual check failed, caused by lhs at <root>.dtype:\n"
+        "Access path: <root>.dtype\n"
+        "Note: The underlined object is the nearest visible parent of this path.\n\n"
+        "T.int32\n"
+        "^^^^^^^\n"
+        "and rhs at <root>.dtype:\n"
+        "Access path: <root>.dtype\n"
+        "Note: The underlined object is the nearest visible parent of this path.\n\n"
+        "T.float32\n"
+        "^^^^^^^^^"
+    )
+
+
 def test_prim_func_buffer_map():
     @T.prim_func(s_tir=True)
     def func1(a: T.handle, b: T.handle):
