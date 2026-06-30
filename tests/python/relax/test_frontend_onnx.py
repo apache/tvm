@@ -10150,6 +10150,37 @@ def test_affine_grid():
     verify_affine_grid(1, ExpectedAlignCorners)
 
 
+def test_affine_grid_3d():
+    affine_grid_node = helper.make_node(
+        "AffineGrid",
+        ["theta", "size"],
+        ["grid"],
+        align_corners=1,
+    )
+
+    graph = helper.make_graph(
+        [affine_grid_node],
+        "affine_grid_3d_test",
+        inputs=[
+            helper.make_tensor_value_info("theta", TensorProto.FLOAT, [2, 3, 4]),
+        ],
+        initializer=[
+            helper.make_tensor("size", TensorProto.INT64, [5], [2, 3, 8, 16, 16]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, [2, 8, 16, 16, 3]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="affine_grid_3d_test")
+
+    tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
+    call_ops = collect_relax_call_ops(tvm_model["main"])
+    assert "relax.image.affine_grid" in call_ops
+    assert "relax.permute_dims" in call_ops
+    assert [int(d) for d in tvm_model["main"].ret_ty.shape] == [2, 8, 16, 16, 3]
+
+
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
 @pytest.mark.parametrize("padding_mode", ["zeros", "border", "reflection"])
 @pytest.mark.parametrize("align_corners", [0, 1])
