@@ -411,7 +411,10 @@ def test_underline_from_obj():
         T.evaluate(a)
         T.evaluate(b)
 
-    result = func.with_attr("global_symbol", "main").script(obj_to_underline=[func.params[0]])
+    result = func.with_attr("global_symbol", "main").script(
+        obj_to_underline=[func.params[0]],
+        extra_config={"render_invisible_path_info": False},
+    )
     assert result == format_script(
         """
         # from tvm.script import tirx as T
@@ -450,7 +453,8 @@ def test_underline_from_multi_obj():
             func.body.seq[3],
             func.body.seq[5],
             func.body.seq[7],
-        ]
+        ],
+        extra_config={"render_invisible_path_info": False},
     )
     assert result == format_script(
         """
@@ -483,7 +487,8 @@ def test_underline_func():
     result = func.with_attr("global_symbol", "main").script(
         path_to_underline=[
             AccessPath.root(),
-        ]
+        ],
+        extra_config={"render_invisible_path_info": False},
     )
     assert result == format_script(
         """
@@ -510,7 +515,8 @@ def test_underline_func_in_irmodule():
     result = irmodule.script(
         path_to_underline=[
             AccessPath.root().attr("functions").map_item(irmodule.get_global_var("func")),
-        ]
+        ],
+        extra_config={"render_invisible_path_info": False},
     )
     assert result == format_script(
         """
@@ -540,7 +546,8 @@ def test_underline_irmodule():
     result = irmodule.script(
         path_to_underline=[
             AccessPath.root(),
-        ]
+        ],
+        extra_config={"render_invisible_path_info": False},
     )
     assert result == format_script(
         """

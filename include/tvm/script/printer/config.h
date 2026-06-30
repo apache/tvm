@@ -76,8 +76,8 @@ class PrinterConfigNode : public ffi::Object {
   /*! \brief Whether variable names should include the object's address */
   bool show_object_address = false;
 
-  /*! \brief Whether to render access-path context for invisible underlined paths. */
-  bool render_invisible_path_info = false;
+  /*! \brief Whether to render access-path context for invisible underlined paths. Defaults true. */
+  bool render_invisible_path_info = true;
 
   /* \brief ffi::Object path to be underlined */
   ffi::Array<ffi::reflection::AccessPath> path_to_underline;
