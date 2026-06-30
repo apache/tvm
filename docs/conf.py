@@ -381,12 +381,6 @@ footer_dropdown = {
     ],
 }
 
-footer_links = [
-    ("Community", "https://tvm.apache.org/community"),
-    ("Download", "https://tvm.apache.org/download"),
-    ("Docs", "https://tvm.apache.org/docs"),
-]
-
 footer_note = " ".join(
     """
 Copyright © 2026 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
@@ -396,7 +390,7 @@ the Apache Software Foundation.""".split("\n")
 
 
 def footer_html() -> str:
-    """Build the extra footer: nav links, ASF dropdown, and the Apache trademark note.
+    """Build the extra footer: ASF dropdown and the Apache trademark note.
 
     The copyright line is rendered natively by sphinx-book-theme (from the ``copyright``
     config value), so it is intentionally not repeated here.
@@ -405,15 +399,9 @@ def footer_html() -> str:
     for item_name, item_url in footer_dropdown["items"]:
         dropdown_items += f'<li><a class="dropdown-item" href="{item_url}" target="_blank" style="font-size: 0.9em;">{item_name}</a></li>\n'
 
-    nav_links = " &middot; ".join(
-        f'<a href="{url}" style="color: #6c757d; text-decoration: none;">{name}</a>'
-        for name, url in footer_links
-    )
-
     return f"""
   <div class="footer-container" style="margin: 5px 0; font-size: 0.9em; color: #6c757d; text-align: right;">
       <div class="footer-line1" style="display: flex; justify-content: flex-end; align-items: center; gap: 0.9em; margin-bottom: 3px; flex-wrap: wrap;">
-          <span class="footer-links">{nav_links}</span>
           <div class="footer-dropdown">
               <div class="dropdown">
                   <button class="btn btn-link dropdown-toggle" type="button" id="footerDropdown" data-bs-toggle="dropdown"
@@ -444,15 +432,21 @@ html_theme_options = {
     "show_navbar_depth": 1,
     "icon_links": [
         {
-            "name": "GitHub",
-            "url": "https://github.com/apache/tvm",
-            "icon": "fa-brands fa-github",
-            "type": "fontawesome",
-        },
-        {
             "name": "TVM Homepage",
             "url": "https://tvm.apache.org/",
             "icon": "fa-solid fa-house",
+            "type": "fontawesome",
+        },
+        {
+            "name": "Community",
+            "url": "https://tvm.apache.org/community",
+            "icon": "fa-solid fa-users",
+            "type": "fontawesome",
+        },
+        {
+            "name": "Download",
+            "url": "https://tvm.apache.org/download",
+            "icon": "fa-solid fa-box-open",
             "type": "fontawesome",
         },
     ],
