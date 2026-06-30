@@ -31,8 +31,8 @@ from ..utils import ceil_div, prod, swap
 
 def _get_threads(nthread_tx, nthread_bx, nthread_by):
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    by = te.thread_axis("blockIdx.y")
+    bx = te.thread_axis("blockIdx.y")
+    by = te.thread_axis("blockIdx.x")
     return tx, bx, by, nthread_tx, nthread_bx, nthread_by
 
 
