@@ -618,6 +618,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
             T.func_name(node.name)
             if node.returns is not None:
                 ret_type = self.eval_expr(node.returns)
+                if isinstance(ret_type, str):
+                    from tvm.script.parser.core.doc import parse
+
+                    ret_type_expr = parse(ret_type, mode="eval").body
+                    ret_type = self.eval_expr(ret_type_expr)
                 if callable(ret_type):
                     ret_type = PrimType(ret_type().dtype)
                 T.func_ret(ret_type)
@@ -634,6 +639,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         self.report_error(arg, "Type annotation required for function parameters.")
                     try:
                         ann = self.eval_expr(arg.annotation)
+                        if isinstance(ann, str):
+                            from tvm.script.parser.core.doc import parse
+
+                            ann_expr = parse(ann, mode="eval").body
+                            ann = self.eval_expr(ann_expr)
                         if callable(ann) and ann is not _constexpr_sentinel:
                             ann = ann()
                     except Exception:  # pylint: disable=broad-except
