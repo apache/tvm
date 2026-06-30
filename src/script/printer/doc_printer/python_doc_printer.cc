@@ -848,16 +848,9 @@ ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   return result.first;
 }
 
-ffi::Array<ffi::Any> DocToPythonScriptWithVisiblePaths(Doc doc, const PrinterConfig& cfg) {
-  auto result = RenderPythonScriptWithVisiblePaths(doc, cfg);
-  return {result.first, result.second};
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("script.printer.DocToPythonScript", DocToPythonScript)
-      .def("script.printer.DocToPythonScriptWithVisiblePaths", DocToPythonScriptWithVisiblePaths);
+  refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
 }
 
 }  // namespace printer

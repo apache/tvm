@@ -20,7 +20,7 @@ import os
 from collections.abc import Sequence
 
 from tvm_ffi import get_global_func, register_object
-from tvm_ffi.access_path import AccessKind, AccessPath
+from tvm_ffi.access_path import AccessPath
 
 from tvm.runtime import Object
 
@@ -106,79 +106,8 @@ class PrinterConfig(Object):
         )
 
 
-def _script(
-    obj: Object,
-    config: PrinterConfig | None,
-    render_invisible_path_info: bool = False,
-) -> str | tuple[str, list[AccessPath | None]]:
-    if render_invisible_path_info:
-        result = _ffi_node_api.TVMScriptPrinterScriptWithVisiblePaths(  # type: ignore # pylint: disable=no-member
-            obj, config
-        )
-        script, visible_paths = result
-        return script, list(visible_paths)
+def _script(obj: Object, config: PrinterConfig) -> str:
     return _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
-
-
-_HIDDEN_PATH_NOTE = (
-    "Note: The hidden field is not rendered in TVMScript, so the underline "
-    "points to the nearest visible object in the access path."
-)
-
-
-def _access_step_text(step):
-    kind = AccessKind(step.kind)
-    if kind == AccessKind.ATTR:
-        return f".{step.key}"
-    if kind == AccessKind.ARRAY_ITEM:
-        return f"[{step.key}]"
-    if kind == AccessKind.MAP_ITEM:
-        return f"[{step.key!r}]"
-    if kind == AccessKind.ATTR_MISSING:
-        return f"[<missing:{step.key!r}>]"
-    if kind == AccessKind.ARRAY_ITEM_MISSING:
-        return f"[<missing:{step.key}>]"
-    if kind == AccessKind.MAP_ITEM_MISSING:
-        return f"[<missing:{step.key!r}>]"
-    raise ValueError(f"Unknown AccessKind: {kind}")
-
-
-def _has_hidden_suffix(requested_path: AccessPath, visible_path: AccessPath | None) -> bool:
-    return (
-        visible_path is not None
-        and visible_path != requested_path
-        and visible_path.is_prefix_of(requested_path)
-    )
-
-
-def _hidden_path_suffix(requested_path: AccessPath, visible_path: AccessPath) -> str:
-    return "".join(
-        _access_step_text(step) for step in requested_path.to_steps()[visible_path.depth :]
-    )
-
-
-def _path_info_text(requested_path: AccessPath, visible_path: AccessPath | None) -> str:
-    lines = [f"Access path: {requested_path}"]
-    if _has_hidden_suffix(requested_path, visible_path):
-        lines.extend(
-            [
-                f"Highlighted object: {visible_path}",
-                f"Hidden field: {_hidden_path_suffix(requested_path, visible_path)}",
-                _HIDDEN_PATH_NOTE,
-            ]
-        )
-    return "\n".join(lines)
-
-
-def _script_with_invisible_path_info(
-    obj: Object,
-    config: PrinterConfig,
-    requested_path: AccessPath,
-) -> str:
-    """Render TVMScript together with the path info for one requested underline."""
-    script, visible_paths = _script(obj, config, render_invisible_path_info=True)
-    visible_path = visible_paths[0] if visible_paths else None
-    return f"{_path_info_text(requested_path, visible_path)}\n\n{script}"
 
 
 def _relax_script(obj: Object, config: PrinterConfig) -> str:
@@ -204,14 +133,13 @@ class Scriptable:
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        render_invisible_path_info: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
         obj_to_underline: list[Object] | None = None,
         obj_to_annotate: dict[Object, str] | None = None,
-    ) -> str | tuple[str, list[AccessPath | None]]:
+    ) -> str:
         """Print TVM IR into TVMScript text format
 
         Parameters
@@ -241,11 +169,6 @@ class Scriptable:
             Whether to output with syntax sugar, set false for complete printing.
         show_object_address: bool = False
             Whether to include the object's address as part of the TVMScript name
-        render_invisible_path_info: bool = False
-            Whether to return the rendered script together with the visible
-            AccessPath selected for each requested underline path.  The visible
-            path may be a prefix of the requested access path when the requested
-            field is not rendered in TVMScript.
         show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
@@ -266,9 +189,7 @@ class Scriptable:
         Returns
         -------
         script : str
-            The TVM Script of the given TVM IR.  When
-            render_invisible_path_info=True, returns a tuple of script and
-            visible paths.
+            The TVM Script of the given TVM IR
 
         """
         # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
@@ -327,7 +248,6 @@ class Scriptable:
                 obj_to_underline=obj_to_underline,
                 obj_to_annotate=obj_to_annotate,
             ),
-            render_invisible_path_info=render_invisible_path_info,
         )
 
     def _relax_script(

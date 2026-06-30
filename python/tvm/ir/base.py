@@ -171,7 +171,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
         The left operand.
 
     rhs : Object
-        The right operand.
+        The left operand.
 
     map_free_vars : bool
         Whether or not shall we map free vars that does
@@ -189,31 +189,17 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     if first_mismatch is not None:
         from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
             PrinterConfig,
-            _script_with_invisible_path_info,
+            _script,
         )
 
         lhs_path, rhs_path = first_mismatch
-        lhs_location = _script_with_invisible_path_info(
-            lhs,
-            PrinterConfig(
-                syntax_sugar=False,
-                path_to_underline=[lhs_path],
-            ),
-            lhs_path,
-        )
-        rhs_location = _script_with_invisible_path_info(
-            rhs,
-            PrinterConfig(
-                syntax_sugar=False,
-                path_to_underline=[rhs_path],
-            ),
-            rhs_path,
-        )
+        lhs_script = _script(lhs, PrinterConfig(syntax_sugar=False, path_to_underline=[lhs_path]))
+        rhs_script = _script(rhs, PrinterConfig(syntax_sugar=False, path_to_underline=[rhs_path]))
         raise ValueError(
-            "StructuralEqual check failed, caused by lhs at:\n\n"
-            f"{lhs_location}\n\n"
-            "and rhs at:\n\n"
-            f"{rhs_location}"
+            f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
+            f"{lhs_script}\n"
+            f"and rhs at {rhs_path}:\n"
+            f"{rhs_script}"
         )
 
 

@@ -30,8 +30,7 @@ def to_python_script(
     print_line_numbers: bool = False,
     num_context_lines: int | None = None,
     path_to_underline: list[AccessPath] | None = None,
-    render_invisible_path_info: bool = False,
-) -> str | tuple[str, list[AccessPath | None]]:
+) -> str:
     """Convert Doc into Python script.
 
     Parameters
@@ -46,11 +45,6 @@ def to_python_script(
         Number of context lines to print around the underlined text
     path_to_underline : Optional[AccessPath]
         Object path to be underlined
-    render_invisible_path_info : bool
-        Whether to return the visible AccessPath selected for each requested
-        underline path together with the rendered script.  The visible path may
-        be a prefix when the requested access path points into a field that is
-        not rendered in TVMScript.
 
     Returns
     -------
@@ -63,10 +57,4 @@ def to_python_script(
         num_context_lines=num_context_lines,
         path_to_underline=path_to_underline,
     )
-    if render_invisible_path_info:
-        script, visible_paths = _ffi_api.DocToPythonScriptWithVisiblePaths(  # type: ignore # pylint: disable=no-member
-            doc, cfg
-        )
-        return script, list(visible_paths)
-    script = _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member
-    return script
+    return _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member

@@ -58,9 +58,6 @@ def test_pass_error_renders_underlined_tvmscript():
     assert "Error in pass: Normalize" in msg
     # The location is rendered as TVMScript with the offending expr underlined.
     assert "Location (TVMScript):" in msg
-    assert "Access path:" in msg
-    assert "Hidden field:" not in msg
-    assert msg.index("Access path:") < msg.index("R.matmul(x, y")
     assert "R.matmul(x, y" in msg
     assert "^^^" in msg
 

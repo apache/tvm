@@ -27,6 +27,10 @@ namespace printer {
 
 using VisiblePathArray = ffi::Array<ffi::Optional<AccessPath>>;
 
+TVM_DLL ffi::String RenderInvisiblePathInfo(const ffi::String& script,
+                                            const ffi::Array<AccessPath>& requested_paths,
+                                            const VisiblePathArray& visible_paths);
+
 class VisiblePathRenderScope {
  public:
   explicit VisiblePathRenderScope(VisiblePathArray visible_paths);

@@ -296,84 +296,21 @@ IRModule Pass::operator()(IRModule mod) const {
 }
 
 namespace {
-/*! \brief Marker line that precedes the access-path and TVMScript location block. */
+/*! \brief Marker line that precedes the TVMScript-rendered location block. */
 constexpr const char* kLocationMarker = "Location (TVMScript):";
-constexpr const char* kHiddenPathNote =
-    "Note: The hidden field is not rendered in TVMScript, so the underline points to the nearest "
-    "visible object in the access path.";
-
-struct RenderedLocation {
-  std::string script;
-  ffi::reflection::AccessPath requested_path;
-  ffi::Optional<ffi::reflection::AccessPath> visible_path;
-};
-
-std::string AccessStepString(const ffi::reflection::AccessStep& step) {
-  std::ostringstream os;
-  switch (step->kind) {
-    case ffi::reflection::AccessKind::kAttr:
-      os << "." << step->key.cast<ffi::String>();
-      break;
-    case ffi::reflection::AccessKind::kArrayItem:
-      os << "[" << step->key.cast<int64_t>() << "]";
-      break;
-    case ffi::reflection::AccessKind::kMapItem:
-      os << "[" << step->key << "]";
-      break;
-    case ffi::reflection::AccessKind::kAttrMissing:
-      os << "[<missing:" << step->key << ">]";
-      break;
-    case ffi::reflection::AccessKind::kArrayItemMissing:
-      os << "[<missing:" << step->key.cast<int64_t>() << ">]";
-      break;
-    case ffi::reflection::AccessKind::kMapItemMissing:
-      os << "[<missing:" << step->key << ">]";
-      break;
-  }
-  return os.str();
-}
-
-std::string HiddenPathSuffix(const ffi::reflection::AccessPath& requested_path,
-                             const ffi::reflection::AccessPath& visible_path) {
-  std::ostringstream os;
-  ffi::Array<ffi::reflection::AccessStep> requested_steps = requested_path->ToSteps();
-  for (size_t i = visible_path->depth; i < requested_steps.size(); ++i) {
-    os << AccessStepString(requested_steps[i]);
-  }
-  return os.str();
-}
-
-bool HasHiddenSuffix(const RenderedLocation& location) {
-  if (!location.visible_path.defined()) return false;
-  const ffi::reflection::AccessPath& visible_path = location.visible_path.value();
-  return !visible_path->PathEqual(location.requested_path) &&
-         visible_path->IsPrefixOf(location.requested_path);
-}
-
-std::string AccessPathContext(const RenderedLocation& location) {
-  std::ostringstream os;
-  os << "Access path: " << location.requested_path;
-  if (HasHiddenSuffix(location)) {
-    const ffi::reflection::AccessPath& visible_path = location.visible_path.value();
-    std::string hidden_suffix = HiddenPathSuffix(location.requested_path, visible_path);
-    os << "\nHighlighted object: " << visible_path << "\nHidden field: " << hidden_suffix << "\n"
-       << kHiddenPathNote;
-  }
-  return os.str();
-}
 
 /*!
  * \brief Render `node` as TVMScript with `path` underlined, via the script
  *        printer global registry, so src/ir does not link against the printer.
  *
- * Returns the rendered snippet plus visible-path metadata, or std::nullopt if
- * the printer entry is unavailable or throws.
+ * Returns the rendered snippet, or std::nullopt if the printer entry is
+ * unavailable or throws.
  */
-std::optional<RenderedLocation> RenderScriptWithUnderline(const ffi::ObjectRef& node,
-                                                          const ffi::reflection::AccessPath& path) {
+std::optional<std::string> RenderScriptWithUnderline(const ffi::ObjectRef& node,
+                                                     const ffi::reflection::AccessPath& path) {
   namespace ffi = tvm::ffi;
   auto config_fn = ffi::Function::GetGlobal("node.PrinterConfig");
-  auto script_fn = ffi::Function::GetGlobal("node.TVMScriptPrinterScriptWithVisiblePaths");
+  auto script_fn = ffi::Function::GetGlobal("node.TVMScriptPrinterScript");
   if (!config_fn.has_value() || !script_fn.has_value()) return std::nullopt;
   try {
     ffi::Map<ffi::String, ffi::Any> config_dict;
@@ -383,16 +320,10 @@ std::optional<RenderedLocation> RenderScriptWithUnderline(const ffi::ObjectRef& 
     // module. A small TIR/Relax function is ~8-15 lines; 10 lines of context
     // on each side of the underline covers it end-to-end.
     config_dict.Set("num_context_lines", static_cast<int>(10));
+    config_dict.Set("render_invisible_path_info", true);
     ffi::Any cfg = (*config_fn)(config_dict);
     ffi::Any rendered = (*script_fn)(node, cfg);
-    auto result = rendered.cast<ffi::Array<ffi::Any>>();
-    ffi::String script = result[0].cast<ffi::String>();
-    auto visible_paths = result[1].cast<ffi::Array<ffi::Optional<ffi::reflection::AccessPath>>>();
-    ffi::Optional<ffi::reflection::AccessPath> visible_path = std::nullopt;
-    if (!visible_paths.empty()) {
-      visible_path = visible_paths[0];
-    }
-    return RenderedLocation{script.operator std::string(), path, visible_path};
+    return rendered.cast<ffi::String>().operator std::string();
   } catch (...) {
     return std::nullopt;
   }
@@ -419,19 +350,19 @@ ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod
     }
   }
 
-  auto try_render = [&](const ffi::ObjectRef& search_root) -> std::optional<RenderedLocation> {
+  auto try_render = [&](const ffi::ObjectRef& search_root) -> std::optional<std::string> {
     auto paths = ffi::VisitErrorContext::FindAccessPaths(search_root, visit_ctx.value(),
                                                          /*allow_prefix_match=*/true);
     if (paths.empty()) return std::nullopt;
     return RenderScriptWithUnderline(search_root, paths[0]);
   };
 
-  std::optional<RenderedLocation> location = try_render(root);
-  if (!location && func.has_value()) {
+  std::optional<std::string> snippet = try_render(root);
+  if (!snippet && func.has_value()) {
     // Function-local resolution failed; retry against the whole module.
-    location = try_render(mod);
+    snippet = try_render(mod);
   }
-  if (!location) return err;
+  if (!snippet) return err;
 
   // Append the pass name + underlined TVMScript location. Preserve kind,
   // original message, and backtrace; drop the VisitErrorContext payload so an
@@ -439,8 +370,7 @@ ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod
   std::ostringstream suffix;
   suffix << "\n\nError in pass: " << pass_name << "\n"
          << kLocationMarker << "\n"
-         << AccessPathContext(location.value()) << "\n\n"
-         << location->script;
+         << snippet.value();
   return ffi::Error(err.kind(), err.message() + suffix.str(), err.backtrace());
 }
 
