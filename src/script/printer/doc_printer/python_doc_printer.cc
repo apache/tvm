@@ -25,6 +25,8 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <optional>
+#include <sstream>
 #include <string>
 
 #include "../../../support/str_escape.h"
@@ -34,6 +36,33 @@
 namespace tvm {
 namespace script {
 namespace printer {
+namespace {
+
+ffi::String RenderInvisiblePathInfo(const ffi::String& script,
+                                    const ffi::Array<AccessPath>& requested_paths,
+                                    const ffi::Array<ffi::Optional<AccessPath>>& visible_paths) {
+  if (requested_paths.empty()) return script;
+
+  std::ostringstream os;
+  for (size_t i = 0; i < requested_paths.size(); ++i) {
+    if (i != 0) os << "\n";
+    const AccessPath& requested_path = requested_paths[i];
+    os << "Access path: " << requested_path;
+
+    ffi::Optional<AccessPath> visible_path = std::nullopt;
+    if (i < visible_paths.size()) visible_path = visible_paths[i];
+    if (!visible_path.defined()) {
+      os << "\nNote: No visible object for this path is rendered in TVMScript.";
+    } else if (!visible_path.value()->PathEqual(requested_path) &&
+               visible_path.value()->IsPrefixOf(requested_path)) {
+      os << "\nNote: The underlined object is the nearest visible parent of this path.";
+    }
+  }
+  os << "\n\n" << script;
+  return ffi::String(os.str());
+}
+
+}  // namespace
 
 /*!
  * \brief Operator precedence
@@ -798,12 +827,18 @@ ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   }
   PythonDocPrinter printer(cfg);
   printer.Append(doc, cfg);
-  std::string result = printer.GetString();
-  int last_space = result.size();
-  while (last_space > 0 && std::isspace(result[last_space - 1])) {
-    last_space--;
+  std::string script = printer.GetString();
+
+  // GetString terminates non-empty output with one newline.  Preserve the
+  // established DocToPythonScript result without normalizing any other
+  // trailing whitespace.
+  if (!script.empty()) {
+    TVM_FFI_ICHECK_EQ(script.back(), '\n');
+    script.pop_back();
   }
-  return result.substr(0, last_space);
+
+  if (!cfg->render_invisible_path_info) return script;
+  return RenderInvisiblePathInfo(script, cfg->path_to_underline, printer.GetVisiblePaths());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
