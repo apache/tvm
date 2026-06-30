@@ -76,6 +76,9 @@ class PrinterConfigNode : public ffi::Object {
   /*! \brief Whether variable names should include the object's address */
   bool show_object_address = false;
 
+  /*! \brief Whether to render access-path context for invisible underlined paths. Defaults true. */
+  bool render_invisible_path_info = true;
+
   /* \brief ffi::Object path to be underlined */
   ffi::Array<ffi::reflection::AccessPath> path_to_underline;
   /*! \brief ffi::Object path to be annotated. */
@@ -126,6 +129,7 @@ class PrinterConfigNode : public ffi::Object {
         .def_ro("num_context_lines", &PrinterConfigNode::num_context_lines)
         .def_ro("syntax_sugar", &PrinterConfigNode::syntax_sugar)
         .def_ro("show_object_address", &PrinterConfigNode::show_object_address)
+        .def_ro("render_invisible_path_info", &PrinterConfigNode::render_invisible_path_info)
         .def_ro("path_to_underline", &PrinterConfigNode::path_to_underline)
         .def_ro("path_to_annotate", &PrinterConfigNode::path_to_annotate)
         .def_ro("obj_to_underline", &PrinterConfigNode::obj_to_underline)

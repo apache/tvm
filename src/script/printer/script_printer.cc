@@ -23,8 +23,29 @@
 #include <tvm/script/printer/printer.h>
 
 #include <algorithm>
+#include <sstream>
 
 namespace tvm {
+
+namespace {
+
+std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
+                                                const PrinterConfig& config) {
+  if (!config->render_invisible_path_info || config->path_to_underline.empty()) {
+    return std::string(script);
+  }
+
+  std::ostringstream os;
+  for (size_t i = 0; i < config->path_to_underline.size(); ++i) {
+    if (i != 0) os << "\n";
+    os << "Access path: " << config->path_to_underline[i]
+       << "\nNote: No visible object for this path is rendered in TVMScript.";
+  }
+  os << "\n\n" << script;
+  return os.str();
+}
+
+}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() { PrinterConfigNode::RegisterReflection(); }
 
@@ -34,11 +55,12 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
 }
 
 std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
+  PrinterConfig config = cfg.value_or(PrinterConfig());
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
     // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
-    return std::string(ffi::ReprPrint(ffi::Any(node)));
+    return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
   }
-  return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
+  return TVMScriptPrinter::vtable()(node, config);
 }
 
 bool IsIdentifier(const std::string& name) {
@@ -117,6 +139,9 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = config_dict.Get("show_object_address")) {
     n->show_object_address = v.value().cast<bool>();
   }
+  if (auto v = config_dict.Get("render_invisible_path_info")) {
+    n->render_invisible_path_info = v.value().cast<bool>();
+  }
   // Dialect-specific keys are stored in extra_config with dotted-name keys.
   // String-typed dialect keys passed through directly.
   for (const char* key : {"tirx.prefix", "relax.prefix"}) {
@@ -132,6 +157,9 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     auto extra = v.value().as_or_throw<ffi::Map<ffi::String, ffi::Any>>();
     for (auto kv : extra) {
       n->extra_config.Set(kv.first, kv.second);
+    }
+    if (auto render = extra.Get("render_invisible_path_info")) {
+      n->render_invisible_path_info = render.value().cast<bool>();
     }
   }
 
