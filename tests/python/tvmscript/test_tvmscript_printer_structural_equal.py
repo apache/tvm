@@ -17,7 +17,7 @@
 # ruff: noqa: F841
 
 import pytest
-from tvm_ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessKind, AccessPath
 
 import tvm
 from tvm.ir import assert_structural_equal
@@ -29,11 +29,56 @@ def _error_message(exception):
     return str(exception)
 
 
+def _access_step_text(step):
+    kind = AccessKind(step.kind)
+    if kind == AccessKind.ATTR:
+        return f".{step.key}"
+    if kind == AccessKind.ARRAY_ITEM:
+        return f"[{step.key}]"
+    if kind == AccessKind.MAP_ITEM:
+        return f"[{step.key!r}]"
+    if kind == AccessKind.ATTR_MISSING:
+        return f"[<missing:{step.key!r}>]"
+    if kind == AccessKind.ARRAY_ITEM_MISSING:
+        return f"[<missing:{step.key}>]"
+    if kind == AccessKind.MAP_ITEM_MISSING:
+        return f"[<missing:{step.key!r}>]"
+    raise ValueError(f"Unknown AccessKind: {kind}")
+
+
+def _hidden_path_suffix(requested_path, visible_path):
+    return "".join(
+        _access_step_text(step) for step in requested_path.to_steps()[visible_path.depth :]
+    )
+
+
+def _location_block(obj, objpath):
+    script, visible_paths = obj.script(
+        path_to_underline=[objpath],
+        syntax_sugar=False,
+        render_invisible_path_info=True,
+    )
+    visible_path = visible_paths[0] if visible_paths else None
+    lines = [f"Access path: {objpath}"]
+    if visible_path is not None and visible_path != objpath and visible_path.is_prefix_of(objpath):
+        lines.extend(
+            [
+                f"Highlighted object: {visible_path}",
+                f"Hidden field: {_hidden_path_suffix(objpath, visible_path)}",
+                "Note: The hidden field is not rendered in TVMScript, so the underline "
+                "points to the nearest visible object in the access path.",
+            ]
+        )
+    context = "\n".join(lines)
+    return f"{context}\n\n{script}"
+
+
 def _expected_result(func1, func2, objpath1, objpath2):
-    return f"""StructuralEqual check failed, caused by lhs at {objpath1}:
-{func1.script(path_to_underline=[objpath1], syntax_sugar=False)}
-and rhs at {objpath2}:
-{func2.script(path_to_underline=[objpath2], syntax_sugar=False)}"""
+    return f"""StructuralEqual check failed.
+lhs:
+{_location_block(func1, objpath1)}
+rhs:
+{_location_block(func2, objpath2)}"""
 
 
 def test_prim_func_buffer_map():

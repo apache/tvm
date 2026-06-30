@@ -92,6 +92,16 @@ def test_structural_equal_reports_hidden_field_suffix():
     else:
         raise AssertionError("Expected structural equality failure")
 
-    assert "Visible anchor:" in message
+    hidden_context = (
+        "Access path: <root>.dtype\n"
+        "Highlighted object: <root>\n"
+        "Hidden field: .dtype\n"
+        "Note: The hidden field is not rendered in TVMScript, so the underline points to the "
+        "nearest visible object in the access path."
+    )
+    assert hidden_context in message
+    assert message.count("Access path:") == 2
+    assert "Visible anchor:" not in message
     assert "Hidden field: .dtype" in message
-    assert "Full internal path:" in message
+    assert "Full internal path:" not in message
+    assert message.index("Access path: <root>.dtype") < message.index("^^")

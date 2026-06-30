@@ -48,7 +48,9 @@ def to_python_script(
         Object path to be underlined
     render_invisible_path_info : bool
         Whether to return the visible AccessPath selected for each requested
-        underline path together with the rendered script.
+        underline path together with the rendered script.  The visible path may
+        be a prefix when the requested access path points into a field that is
+        not rendered in TVMScript.
 
     Returns
     -------

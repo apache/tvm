@@ -183,7 +183,9 @@ class Scriptable:
             Whether to include the object's address as part of the TVMScript name
         render_invisible_path_info: bool = False
             Whether to return the rendered script together with the visible
-            AccessPath selected for each requested underline path.
+            AccessPath selected for each requested underline path.  The visible
+            path may be a prefix of the requested access path when the requested
+            field is not rendered in TVMScript.
         show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where

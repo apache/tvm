@@ -296,8 +296,11 @@ IRModule Pass::operator()(IRModule mod) const {
 }
 
 namespace {
-/*! \brief Marker line that precedes the TVMScript-rendered location block. */
+/*! \brief Marker line that precedes the access-path and TVMScript location block. */
 constexpr const char* kLocationMarker = "Location (TVMScript):";
+constexpr const char* kHiddenPathNote =
+    "Note: The hidden field is not rendered in TVMScript, so the underline points to the nearest "
+    "visible object in the access path.";
 
 struct RenderedLocation {
   std::string script;
@@ -340,19 +343,22 @@ std::string HiddenPathSuffix(const ffi::reflection::AccessPath& requested_path,
   return os.str();
 }
 
-std::string HiddenPathDetails(const RenderedLocation& location) {
-  if (!location.visible_path.defined()) {
-    return "";
-  }
+bool HasHiddenSuffix(const RenderedLocation& location) {
+  if (!location.visible_path.defined()) return false;
   const ffi::reflection::AccessPath& visible_path = location.visible_path.value();
-  if (visible_path->PathEqual(location.requested_path) ||
-      !visible_path->IsPrefixOf(location.requested_path)) {
-    return "";
-  }
-  std::string hidden_suffix = HiddenPathSuffix(location.requested_path, visible_path);
+  return !visible_path->PathEqual(location.requested_path) &&
+         visible_path->IsPrefixOf(location.requested_path);
+}
+
+std::string AccessPathContext(const RenderedLocation& location) {
   std::ostringstream os;
-  os << "\nVisible anchor: " << visible_path << "\nHidden field: " << hidden_suffix
-     << "\nFull internal path: " << location.requested_path;
+  os << "Access path: " << location.requested_path;
+  if (HasHiddenSuffix(location)) {
+    const ffi::reflection::AccessPath& visible_path = location.visible_path.value();
+    std::string hidden_suffix = HiddenPathSuffix(location.requested_path, visible_path);
+    os << "\nHighlighted object: " << visible_path << "\nHidden field: " << hidden_suffix << "\n"
+       << kHiddenPathNote;
+  }
   return os.str();
 }
 
@@ -363,8 +369,8 @@ std::string HiddenPathDetails(const RenderedLocation& location) {
  * Returns the rendered snippet plus visible-path metadata, or std::nullopt if
  * the printer entry is unavailable or throws.
  */
-std::optional<RenderedLocation> RenderScriptWithUnderline(
-    const ffi::ObjectRef& node, const ffi::reflection::AccessPath& path) {
+std::optional<RenderedLocation> RenderScriptWithUnderline(const ffi::ObjectRef& node,
+                                                          const ffi::reflection::AccessPath& path) {
   namespace ffi = tvm::ffi;
   auto config_fn = ffi::Function::GetGlobal("node.PrinterConfig");
   auto script_fn = ffi::Function::GetGlobal("node.TVMScriptPrinterScript");
@@ -434,7 +440,8 @@ ffi::Error EnrichPassErrorWithContext(const ffi::Error& err, const IRModule& mod
   std::ostringstream suffix;
   suffix << "\n\nError in pass: " << pass_name << "\n"
          << kLocationMarker << "\n"
-         << location->script << HiddenPathDetails(location.value());
+         << AccessPathContext(location.value()) << "\n\n"
+         << location->script;
   return ffi::Error(err.kind(), err.message() + suffix.str(), err.backtrace());
 }
 

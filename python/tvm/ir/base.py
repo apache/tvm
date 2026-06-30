@@ -172,7 +172,7 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
         The left operand.
 
     rhs : Object
-        The left operand.
+        The right operand.
 
     map_free_vars : bool
         Whether or not shall we map free vars that does
@@ -227,30 +227,41 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
                 return f"[<missing:{step.key!r}>]"
             raise ValueError(f"Unknown AccessKind: {kind}")
 
-        def _hidden_path_details(requested_path, visible_path):
-            if (
+        def _has_hidden_suffix(requested_path, visible_path):
+            return (
                 visible_path is not None
                 and visible_path != requested_path
                 and visible_path.is_prefix_of(requested_path)
-            ):
-                hidden_suffix = "".join(
-                    _access_step_text(step)
-                    for step in requested_path.to_steps()[visible_path.depth :]
+            )
+
+        def _hidden_path_suffix(requested_path, visible_path):
+            return "".join(
+                _access_step_text(step) for step in requested_path.to_steps()[visible_path.depth :]
+            )
+
+        def _access_path_context(requested_path, visible_path):
+            lines = [f"Access path: {requested_path}"]
+            if _has_hidden_suffix(requested_path, visible_path):
+                hidden_suffix = _hidden_path_suffix(requested_path, visible_path)
+                lines.extend(
+                    [
+                        f"Highlighted object: {visible_path}",
+                        f"Hidden field: {hidden_suffix}",
+                        "Note: The hidden field is not rendered in TVMScript, so the underline "
+                        "points to the nearest visible object in the access path.",
+                    ]
                 )
-                return (
-                    f"\nVisible anchor: {visible_path}"
-                    f"\nHidden field: {hidden_suffix}"
-                    f"\nFull internal path: {requested_path}"
-                )
-            return ""
+            return "\n".join(lines)
+
+        def _location_block(requested_path, visible_path, script):
+            return f"{_access_path_context(requested_path, visible_path)}\n\n{script}"
 
         lhs_visible_path = lhs_visible_paths[0] if lhs_visible_paths else None
         rhs_visible_path = rhs_visible_paths[0] if rhs_visible_paths else None
         raise ValueError(
-            f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
-            f"{lhs_script}{_hidden_path_details(lhs_path, lhs_visible_path)}\n"
-            f"and rhs at {rhs_path}:\n"
-            f"{rhs_script}{_hidden_path_details(rhs_path, rhs_visible_path)}"
+            "StructuralEqual check failed.\n"
+            f"lhs:\n{_location_block(lhs_path, lhs_visible_path, lhs_script)}\n"
+            f"rhs:\n{_location_block(rhs_path, rhs_visible_path, rhs_script)}"
         )
 
 
