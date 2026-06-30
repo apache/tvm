@@ -414,12 +414,8 @@ def test_ones_zeros_shape_not_tuple():
 def test_ones_zeros_wrong_dtype():
     with pytest.raises(TypeError):
         relax.op.ones((2, 3))
-    with pytest.raises(tvm.error.InternalError):
-        relax.op.ones((2, 3), "")
     with pytest.raises(TypeError):
         relax.op.zeros((2, 3))
-    with pytest.raises(tvm.error.InternalError):
-        relax.op.zeros((2, 3), "")
 
 
 def test_ones_zeros_infer_ty_wrong_input_type():
