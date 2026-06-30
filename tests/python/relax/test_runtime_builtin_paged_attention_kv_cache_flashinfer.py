@@ -35,6 +35,17 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
 )
 from tvm.s_tir import dlight as dl
 
+
+def has_flashinfer():
+    """Check whether FlashInfer (with the JIT module generator) is available."""
+    try:
+        from flashinfer.jit import gen_customize_batch_prefill_module  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 reserved_nseq = 32
 maximum_total_seq_length = 2048
 prefill_chunk_size = 512
@@ -195,7 +206,14 @@ def create_kv_cache(rope_mode):
 
 @pytest.fixture(params=[RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE])
 def kv_cache_and_rope_mode(request):
-    set_global_func()
+    if not has_flashinfer():
+        pytest.skip("FlashInfer is not available")
+    if request.param == RopeMode.INLINE:
+        # FlashInfer does not support inline RoPE (see the assertion in
+        # tvm/relax/frontend/nn/llm/kv_cache.py); models pair FlashInfer with
+        # NORMAL/NONE rope and apply rotary embedding in a separate kernel.
+        pytest.skip("FlashInfer does not support inline RoPE mode")
+    set_global_func(request.param)
     return create_kv_cache(request.param), request.param
 
 
@@ -410,7 +428,6 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -431,7 +448,6 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -454,7 +470,6 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode):
         )
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -520,7 +535,6 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)

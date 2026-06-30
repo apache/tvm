@@ -35,6 +35,17 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
 )
 from tvm.s_tir import dlight as dl
 
+
+def has_flashinfer():
+    """Check whether FlashInfer (with the JIT module generator) is available."""
+    try:
+        from flashinfer.jit import gen_batch_mla_module  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 np.random.seed(0)
 
 reserved_nseq = 32
@@ -225,6 +236,8 @@ def create_kv_cache(dtype):
 
 @pytest.fixture(params=itertools.product(["float16"]))
 def kv_cache_and_config(request):
+    if not has_flashinfer():
+        pytest.skip("FlashInfer is not available")
     global dtype, dtype_torch
     (dtype,) = request.param
     dtype_torch = getattr(torch, dtype)
@@ -430,7 +443,6 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_kv)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -450,7 +462,6 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, batch, cached_kv)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -470,7 +481,6 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
         )
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -539,7 +549,6 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, [(10, 1), (12, 1)], cached_kv)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
