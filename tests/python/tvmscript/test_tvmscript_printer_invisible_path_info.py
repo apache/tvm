@@ -15,9 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 from tvm_ffi.access_path import AccessPath
 
 import tvm
+from tvm.runtime import script_printer
 from tvm.runtime.script_printer import PrinterConfig
 from tvm.script.printer.doc import ExprStmtDoc, IdDoc, StmtBlockDoc
 from tvm.script.printer.doc_printer import to_python_script
@@ -114,3 +116,31 @@ def test_structural_equal_reports_hidden_field_suffix():
     assert "Hidden field: .dtype" in message
     assert "Full internal path:" not in message
     assert message.index("Access path: <root>.dtype") < message.index("^^")
+
+
+def test_structural_equal_uses_invisible_path_info_render(monkeypatch):
+    lhs = tvm.ir.PrimType("int32")
+    rhs = tvm.ir.PrimType("float32")
+    calls = []
+
+    def fake_script(obj, config, render_invisible_path_info=False):
+        calls.append((obj, config, render_invisible_path_info))
+        assert render_invisible_path_info
+        requested_path = config.path_to_underline[0]
+        return f"script {len(calls)}", [requested_path]
+
+    monkeypatch.setattr(script_printer, "_script", fake_script)
+
+    with pytest.raises(ValueError) as err:
+        tvm.ir.assert_structural_equal(lhs, rhs)
+
+    message = str(err.value)
+    assert len(calls) == 2
+    assert calls[0][0] == lhs
+    assert calls[1][0] == rhs
+    assert all(render_invisible_path_info for _, _, render_invisible_path_info in calls)
+    assert "StructuralEqual check failed, caused by lhs at:\n\n" in message
+    assert "\n\nand rhs at:\n\n" in message
+    assert "Access path: <root>.dtype\n\nscript 1" in message
+    assert "Access path: <root>.dtype\n\nscript 2" in message
+    assert "Hidden field:" not in message
