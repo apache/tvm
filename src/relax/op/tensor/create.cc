@@ -179,8 +179,6 @@ Type InferTypeOnesLikeZerosLike(const Call& call, const BlockBuilder& ctx) {
 
 /* relax.ones & relax.ones_like */
 Expr ones(Expr shape, DLDataType dtype) {
-  TVM_FFI_ICHECK((dtype != DLDataType{kDLOpaqueHandle, 0, 0}))
-      << "Ones op expects the input dtype not to be void";
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 
@@ -217,8 +215,6 @@ TVM_REGISTER_OP("relax.ones_like")
 
 /* relax.zeros & relax.zeros_like */
 Expr zeros(Expr shape, DLDataType dtype) {
-  TVM_FFI_ICHECK((dtype != DLDataType{kDLOpaqueHandle, 0, 0}))
-      << "Zeros op expects the input dtype not to be void";
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
 

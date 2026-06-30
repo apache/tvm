@@ -196,9 +196,9 @@ bool IsBoolType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dt
     return false;
   }
 
-  // Bool-type matching preserves the old element-code-only behavior; rank is checked separately.
-  bool correct_dtype = dtype.code == DLDataTypeCode::kDLBool ||
-                       (permit_unknown_dtype && dtype == DLDataType{kDLOpaqueHandle, 0, 0});
+  // Bool-type matching uses element-code-only behavior; rank is checked separately.
+  // Unknown dtype is already handled above via IsUnknownDtype().
+  bool correct_dtype = dtype.code == DLDataTypeCode::kDLBool;
   bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
   return correct_dtype && correct_rank;
 }
