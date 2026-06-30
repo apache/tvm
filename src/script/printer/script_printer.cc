@@ -23,53 +23,26 @@
 #include <tvm/script/printer/printer.h>
 
 #include <algorithm>
-#include <optional>
 #include <sstream>
-
-#include "visible_path.h"
 
 namespace tvm {
 
-namespace script {
-namespace printer {
-
-ffi::String RenderInvisiblePathInfo(const ffi::String& script,
-                                    const ffi::Array<AccessPath>& requested_paths,
-                                    const VisiblePathArray& visible_paths) {
-  if (requested_paths.empty()) return script;
-
-  std::ostringstream os;
-  for (size_t i = 0; i < requested_paths.size(); ++i) {
-    if (i != 0) os << "\n";
-    const AccessPath& requested_path = requested_paths[i];
-    os << "Access path: " << requested_path;
-
-    ffi::Optional<AccessPath> visible_path = std::nullopt;
-    if (i < visible_paths.size()) visible_path = visible_paths[i];
-    if (!visible_path.defined()) {
-      os << "\nNote: No visible object for this path is rendered in TVMScript.";
-    } else if (!visible_path.value()->PathEqual(requested_path) &&
-               visible_path.value()->IsPrefixOf(requested_path)) {
-      os << "\nNote: The underlined object is the nearest visible parent of this path.";
-    }
-  }
-  os << "\n\n" << script;
-  return ffi::String(os.str());
-}
-
-}  // namespace printer
-}  // namespace script
-
 namespace {
 
-using AccessPath = ffi::reflection::AccessPath;
-
-ffi::Array<ffi::Optional<AccessPath>> EmptyVisiblePaths(const PrinterConfig& cfg) {
-  ffi::Array<ffi::Optional<AccessPath>> result;
-  for (size_t i = 0; i < cfg->path_to_underline.size(); ++i) {
-    result.push_back(std::nullopt);
+std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
+                                                const PrinterConfig& config) {
+  if (!config->render_invisible_path_info || config->path_to_underline.empty()) {
+    return std::string(script);
   }
-  return result;
+
+  std::ostringstream os;
+  for (size_t i = 0; i < config->path_to_underline.size(); ++i) {
+    if (i != 0) os << "\n";
+    os << "Access path: " << config->path_to_underline[i]
+       << "\nNote: No visible object for this path is rendered in TVMScript.";
+  }
+  os << "\n\n" << script;
+  return os.str();
 }
 
 }  // namespace
@@ -85,19 +58,9 @@ std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig
   PrinterConfig config = cfg.value_or(PrinterConfig());
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
     // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
-    ffi::String rendered_script = ffi::ReprPrint(ffi::Any(node));
-    if (!config->render_invisible_path_info) return std::string(rendered_script);
-    return std::string(script::printer::RenderInvisiblePathInfo(
-        rendered_script, config->path_to_underline, EmptyVisiblePaths(config)));
+    return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
   }
-  if (!config->render_invisible_path_info) {
-    return TVMScriptPrinter::vtable()(node, config);
-  }
-
-  script::printer::VisiblePathRenderScope visible_paths(EmptyVisiblePaths(config));
-  ffi::String rendered_script = ffi::String(TVMScriptPrinter::vtable()(node, config));
-  return std::string(script::printer::RenderInvisiblePathInfo(
-      rendered_script, config->path_to_underline, visible_paths.Get()));
+  return TVMScriptPrinter::vtable()(node, config);
 }
 
 bool IsIdentifier(const std::string& name) {
