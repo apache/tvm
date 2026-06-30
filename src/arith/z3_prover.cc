@@ -556,8 +556,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   /// @brief Check if the expression type is supported by z3 integer operations.
   static bool IsZ3SupportedExpr(const PrimExprNode* expr) {
     TVM_FFI_DCHECK(expr != nullptr);
-    TVM_FFI_DCHECK(expr->ty.defined());
-    const auto* prim_ty = expr->ty.as<PrimTypeNode>();
+    TVM_FFI_DCHECK(expr->ty().defined());
+    const auto* prim_ty = expr->ty().as<PrimTypeNode>();
     TVM_FFI_DCHECK(prim_ty != nullptr);
     return (prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLInt) ||
             prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLUInt) ||
