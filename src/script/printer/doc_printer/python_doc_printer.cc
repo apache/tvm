@@ -23,17 +23,52 @@
 #include <tvm/tirx/tirx_op.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <map>
 #include <string>
+#include <utility>
 
 #include "../../../support/str_escape.h"
 #include "../../../support/utils.h"
+#include "../visible_path.h"
 #include "./base_doc_printer.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace {
+
+thread_local VisiblePathRenderScope* current_visible_path_scope = nullptr;
+
+ffi::String TrimTrailingWhitespace(std::string result) {
+  int last_space = result.size();
+  while (last_space > 0 && std::isspace(result[last_space - 1])) {
+    last_space--;
+  }
+  return result.substr(0, last_space);
+}
+
+}  // namespace
+
+VisiblePathRenderScope::VisiblePathRenderScope(VisiblePathArray visible_paths)
+    : parent_(current_visible_path_scope), visible_paths_(std::move(visible_paths)) {
+  current_visible_path_scope = this;
+}
+
+VisiblePathRenderScope::~VisiblePathRenderScope() { current_visible_path_scope = parent_; }
+
+VisiblePathArray VisiblePathRenderScope::Get() const { return visible_paths_; }
+
+void VisiblePathRenderScope::Set(VisiblePathArray visible_paths) {
+  visible_paths_ = std::move(visible_paths);
+}
+
+void CaptureVisiblePaths(VisiblePathArray visible_paths) {
+  if (current_visible_path_scope != nullptr) {
+    current_visible_path_scope->Set(std::move(visible_paths));
+  }
+}
 
 /*!
  * \brief Operator precedence
@@ -792,24 +827,37 @@ void PythonDocPrinter::PrintTypedDoc(const OpCallDoc& doc) {
   output_ << ")";
 }
 
-ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
+namespace {
+
+std::pair<ffi::String, VisiblePathArray> RenderPythonScriptWithVisiblePaths(
+    Doc doc, const PrinterConfig& cfg) {
   if (cfg->num_context_lines < 0) {
     cfg->num_context_lines = std::numeric_limits<int32_t>::max();
   }
   PythonDocPrinter printer(cfg);
   printer.Append(doc, cfg);
-  cfg->visible_paths = printer.GetVisiblePaths();
-  std::string result = printer.GetString();
-  int last_space = result.size();
-  while (last_space > 0 && std::isspace(result[last_space - 1])) {
-    last_space--;
-  }
-  return result.substr(0, last_space);
+  VisiblePathArray visible_paths = printer.GetVisiblePaths();
+  return {TrimTrailingWhitespace(printer.GetString()), visible_paths};
+}
+
+}  // namespace
+
+ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
+  auto result = RenderPythonScriptWithVisiblePaths(doc, cfg);
+  CaptureVisiblePaths(result.second);
+  return result.first;
+}
+
+ffi::Array<ffi::Any> DocToPythonScriptWithVisiblePaths(Doc doc, const PrinterConfig& cfg) {
+  auto result = RenderPythonScriptWithVisiblePaths(doc, cfg);
+  return {result.first, result.second};
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
+  refl::GlobalDef()
+      .def("script.printer.DocToPythonScript", DocToPythonScript)
+      .def("script.printer.DocToPythonScriptWithVisiblePaths", DocToPythonScriptWithVisiblePaths);
 }
 
 }  // namespace printer

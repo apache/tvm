@@ -74,10 +74,12 @@ def _location_block(obj, objpath):
 
 
 def _expected_result(func1, func2, objpath1, objpath2):
-    return f"""StructuralEqual check failed.
-lhs:
+    return f"""StructuralEqual check failed, caused by lhs at:
+
 {_location_block(func1, objpath1)}
-rhs:
+
+and rhs at:
+
 {_location_block(func2, objpath2)}"""
 
 

@@ -65,10 +65,10 @@ def test_render_invisible_path_info_reports_visible_prefix():
     assert visible_paths == [make_path("foo").attr("x"), None]
 
 
-def test_render_invisible_path_info_is_part_of_python_printer_config():
-    config = PrinterConfig(render_invisible_path_info=True)
+def test_render_invisible_path_info_is_not_python_printer_config_surface():
+    config = PrinterConfig()
 
-    assert config.render_invisible_path_info
+    assert not hasattr(config, "render_invisible_path_info")
 
 
 def test_script_render_invisible_path_info_is_passable_from_python():
@@ -99,6 +99,8 @@ def test_structural_equal_reports_hidden_field_suffix():
         "Note: The hidden field is not rendered in TVMScript, so the underline points to the "
         "nearest visible object in the access path."
     )
+    assert message.startswith("StructuralEqual check failed, caused by lhs at:\n\n")
+    assert "\n\nand rhs at:\n\n" in message
     assert hidden_context in message
     assert message.count("Access path:") == 2
     assert "Visible anchor:" not in message

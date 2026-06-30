@@ -62,9 +62,11 @@ def to_python_script(
         print_line_numbers=print_line_numbers,
         num_context_lines=num_context_lines,
         path_to_underline=path_to_underline,
-        render_invisible_path_info=render_invisible_path_info,
     )
-    script = _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member
     if render_invisible_path_info:
-        return script, list(cfg.visible_paths)
+        script, visible_paths = _ffi_api.DocToPythonScriptWithVisiblePaths(  # type: ignore # pylint: disable=no-member
+            doc, cfg
+        )
+        return script, list(visible_paths)
+    script = _ffi_api.DocToPythonScript(doc, cfg)  # type: ignore # pylint: disable=no-member
     return script

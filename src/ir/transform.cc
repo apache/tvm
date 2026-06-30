@@ -373,7 +373,7 @@ std::optional<RenderedLocation> RenderScriptWithUnderline(const ffi::ObjectRef& 
                                                           const ffi::reflection::AccessPath& path) {
   namespace ffi = tvm::ffi;
   auto config_fn = ffi::Function::GetGlobal("node.PrinterConfig");
-  auto script_fn = ffi::Function::GetGlobal("node.TVMScriptPrinterScript");
+  auto script_fn = ffi::Function::GetGlobal("node.TVMScriptPrinterScriptWithVisiblePaths");
   if (!config_fn.has_value() || !script_fn.has_value()) return std::nullopt;
   try {
     ffi::Map<ffi::String, ffi::Any> config_dict;
@@ -383,7 +383,6 @@ std::optional<RenderedLocation> RenderScriptWithUnderline(const ffi::ObjectRef& 
     // module. A small TIR/Relax function is ~8-15 lines; 10 lines of context
     // on each side of the underline covers it end-to-end.
     config_dict.Set("num_context_lines", static_cast<int>(10));
-    config_dict.Set("render_invisible_path_info", true);
     ffi::Any cfg = (*config_fn)(config_dict);
     ffi::Any rendered = (*script_fn)(node, cfg);
     auto result = rendered.cast<ffi::Array<ffi::Any>>();

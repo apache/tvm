@@ -44,10 +44,8 @@ class PrinterConfig(Object):
     num_context_lines: int
     syntax_sugar: bool
     show_object_address: bool
-    render_invisible_path_info: bool
     extra_config: dict
     path_to_underline: list[AccessPath] | None
-    visible_paths: list[AccessPath | None]
     path_to_annotate: dict[AccessPath, str] | None
     obj_to_underline: list[AccessPath] | None
     obj_to_annotate: dict[AccessPath, str] | None
@@ -68,7 +66,6 @@ class PrinterConfig(Object):
         num_context_lines: int | None = None,
         syntax_sugar: bool = True,
         show_object_address: bool = False,
-        render_invisible_path_info: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -91,7 +88,6 @@ class PrinterConfig(Object):
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
             "show_object_address": show_object_address,
-            "render_invisible_path_info": render_invisible_path_info,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -113,12 +109,15 @@ class PrinterConfig(Object):
 def _script(
     obj: Object,
     config: PrinterConfig | None,
+    render_invisible_path_info: bool = False,
 ) -> str | tuple[str, list[AccessPath | None]]:
-    result = _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
-    if config is not None and config.render_invisible_path_info:
+    if render_invisible_path_info:
+        result = _ffi_node_api.TVMScriptPrinterScriptWithVisiblePaths(  # type: ignore # pylint: disable=no-member
+            obj, config
+        )
         script, visible_paths = result
         return script, list(visible_paths)
-    return result
+    return _ffi_node_api.TVMScriptPrinterScript(obj, config)  # type: ignore # pylint: disable=no-member
 
 
 def _relax_script(obj: Object, config: PrinterConfig) -> str:
@@ -260,7 +259,6 @@ class Scriptable:
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
                 show_object_address=show_object_address,
-                render_invisible_path_info=render_invisible_path_info,
                 show_all_ty=show_all_ty,
                 extra_config=merged_extra if merged_extra else None,
                 path_to_underline=path_to_underline,
@@ -268,6 +266,7 @@ class Scriptable:
                 obj_to_underline=obj_to_underline,
                 obj_to_annotate=obj_to_annotate,
             ),
+            render_invisible_path_info=render_invisible_path_info,
         )
 
     def _relax_script(

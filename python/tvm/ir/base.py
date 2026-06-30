@@ -199,16 +199,16 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
             PrinterConfig(
                 syntax_sugar=False,
                 path_to_underline=[lhs_path],
-                render_invisible_path_info=True,
             ),
+            render_invisible_path_info=True,
         )
         rhs_script, rhs_visible_paths = _script(
             rhs,
             PrinterConfig(
                 syntax_sugar=False,
                 path_to_underline=[rhs_path],
-                render_invisible_path_info=True,
             ),
+            render_invisible_path_info=True,
         )
 
         def _access_step_text(step):
@@ -259,9 +259,10 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
         lhs_visible_path = lhs_visible_paths[0] if lhs_visible_paths else None
         rhs_visible_path = rhs_visible_paths[0] if rhs_visible_paths else None
         raise ValueError(
-            "StructuralEqual check failed.\n"
-            f"lhs:\n{_location_block(lhs_path, lhs_visible_path, lhs_script)}\n"
-            f"rhs:\n{_location_block(rhs_path, rhs_visible_path, rhs_script)}"
+            "StructuralEqual check failed, caused by lhs at:\n\n"
+            f"{_location_block(lhs_path, lhs_visible_path, lhs_script)}\n\n"
+            "and rhs at:\n\n"
+            f"{_location_block(rhs_path, rhs_visible_path, rhs_script)}"
         )
 
 

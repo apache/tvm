@@ -25,6 +25,8 @@
 #include <algorithm>
 #include <optional>
 
+#include "visible_path.h"
+
 namespace tvm {
 namespace {
 
@@ -39,13 +41,15 @@ ffi::Array<ffi::Optional<AccessPath>> EmptyVisiblePaths(const PrinterConfig& cfg
 }
 
 ffi::Any ScriptForPython(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
+  return ffi::String(tvm::Script(node, cfg.value_or(PrinterConfig())));
+}
+
+ffi::Any ScriptWithVisiblePathsForPython(const ffi::ObjectRef& node,
+                                         const ffi::Optional<PrinterConfig>& cfg) {
   PrinterConfig config = cfg.value_or(PrinterConfig());
-  config->visible_paths = EmptyVisiblePaths(config);
+  script::printer::VisiblePathRenderScope visible_paths(EmptyVisiblePaths(config));
   ffi::String script = ffi::String(tvm::Script(node, config));
-  if (!config->render_invisible_path_info) {
-    return script;
-  }
-  return ffi::Array<ffi::Any>{script, config->visible_paths};
+  return ffi::Array<ffi::Any>{script, visible_paths.Get()};
 }
 
 }  // namespace
@@ -141,9 +145,6 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = config_dict.Get("show_object_address")) {
     n->show_object_address = v.value().cast<bool>();
   }
-  if (auto v = config_dict.Get("render_invisible_path_info")) {
-    n->render_invisible_path_info = v.value().cast<bool>();
-  }
   // Dialect-specific keys are stored in extra_config with dotted-name keys.
   // String-typed dialect keys passed through directly.
   for (const char* key : {"tirx.prefix", "relax.prefix"}) {
@@ -191,7 +192,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("node.PrinterConfig",
            [](ffi::Map<ffi::String, Any> config_dict) { return PrinterConfig(config_dict); })
-      .def("node.TVMScriptPrinterScript", ScriptForPython);
+      .def("node.TVMScriptPrinterScript", ScriptForPython)
+      .def("node.TVMScriptPrinterScriptWithVisiblePaths", ScriptWithVisiblePathsForPython);
 }
 
 }  // namespace tvm
