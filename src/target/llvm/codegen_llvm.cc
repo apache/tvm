@@ -109,9 +109,9 @@ PrimType WithScalableVScaleFactor(const PrimType& dtype, int vscale_factor) {
   return PrimType::ScalableVector(dtype.code(), dtype.bits(), vscale_factor);
 }
 
-// Bool tensors are backed by int8 so vectorized accesses lower to real loads/stores
-// (ld1b/st1b) instead of the i1 predicate registers that an i1 type would force.
-PrimType BoolStorageType(const PrimType& dtype) {
+// Underlying access type for a Buffer: bool is backed by int8 so vectorized
+// accesses lower to real loads/stores instead of i1 predicate registers.
+PrimType BufferAccessType(const PrimType& dtype) {
   if (!dtype.MatchesCode(DLDataTypeCode::kDLBool)) return dtype;
   if (dtype.IsScalableVector()) {
     return PrimType::ScalableVector(DLDataTypeCode::kDLInt, 8, dtype.VScaleFactor());
@@ -1730,7 +1730,7 @@ void CodeGenLLVM::BufferAccessHelper(
     std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                      llvm::Value* predicate, int alignment, bool is_volatile)>
         make_instruction) {
-  PrimType buffer_element_dtype = BoolStorageType(buffer->dtype);
+  PrimType buffer_element_dtype = BufferAccessType(buffer->dtype);
 
   TVM_FFI_ICHECK_GE(indices.size(), 1)
       << "Buffer " << buffer->name << " is accessed with no indices.  "
@@ -1835,7 +1835,7 @@ void CodeGenLLVM::BufferAccessHelper(
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   PrimType value_dtype(op->ty()->dtype);
-  PrimType access_dtype = BoolStorageType(value_dtype);
+  PrimType access_dtype = BufferAccessType(value_dtype);
 
   std::vector<llvm::Value*> loads;
 
@@ -1992,7 +1992,7 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
 
   llvm::Value* value = MakeValue(op->value);
 
-  PrimType store_dtype = BoolStorageType(value_dtype);
+  PrimType store_dtype = BufferAccessType(value_dtype);
   if (!store_dtype.same_as(value_dtype)) {
     value = CreateCast(value_dtype, store_dtype, value);
     value_dtype = store_dtype;
