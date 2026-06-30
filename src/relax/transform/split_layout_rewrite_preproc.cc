@@ -317,8 +317,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
                           : preproc_ty_list[0];
 
     // Step 6: Call the preproc function
-    Expr preproc_call =
-        builder_->Emit(Call(call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
+    Expr preproc_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
     if (rewrite_infos.size() == 1) {
       call_tir_args.Set(rewrite_infos[0].buffer_index, preproc_call);
     } else {
@@ -326,8 +326,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
         call_tir_args.Set(rewrite_infos[i].buffer_index, TupleGetItem(preproc_call, i));
       }
     }
-    Expr main_call =
-        builder_->Emit(Call(call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
+    Expr main_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
 
     return main_call;
   }

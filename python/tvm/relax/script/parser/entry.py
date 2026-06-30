@@ -40,7 +40,6 @@ from tvm.script.ir_builder.ir import lookup_vdevice
 from tvm.script.parser._core import doc, parse, utils
 from tvm.script.parser.core.entry import scan_macro
 from tvm.script.parser.core.parser import Parser, ScriptMacro
-from tvm.tirx import PrimExpr
 
 FType = TypeVar("FType", bound=_Callable)
 
@@ -164,7 +163,7 @@ class AnyProxy(TypeProxy):
 
     Parameters
     ----------
-    values : Optional[List[PrimExpr]]
+    values : Optional[List[Expr]]
        The symbolic shape values if known.
 
     ndim : Optional[int]
@@ -195,7 +194,7 @@ def Object() -> AnyProxy:
 ############################### R.Tensor ###############################
 
 
-def _eval_shape(expr: str | PrimExpr, dict_globals: dict[str, Any] | None) -> PrimExpr:
+def _eval_shape(expr: str | Expr, dict_globals: dict[str, Any] | None) -> Expr:
     if isinstance(expr, str):
         code = compile(expr, "<string>", "eval")
         return eval(code, dict_globals or {})  # pylint: disable=eval-used
@@ -204,14 +203,14 @@ def _eval_shape(expr: str | PrimExpr, dict_globals: dict[str, Any] | None) -> Pr
 
 
 class TensorProxy(TypeProxy):
-    shape: list[str | PrimExpr] | None
+    shape: list[str | Expr] | None
     dtype: str
     vdevice: str | None
     ndim: int
 
     def __init__(
         self,
-        shape: list[PrimExpr | str] | Expr | None = None,
+        shape: list[Expr | str] | Expr | None = None,
         dtype: str | None = None,
         vdevice: str | None = None,
         ndim: int = -1,
@@ -262,7 +261,7 @@ class TensorProxy(TypeProxy):
 
 
 def Tensor(
-    shape: list[PrimExpr | str] | Expr | None = None,
+    shape: list[Expr | str] | Expr | None = None,
     dtype: str | None = None,
     vdevice: str | None = None,
     ndim: int = -1,
@@ -410,13 +409,13 @@ def Tuple(*fields: list[TypeProxy]) -> TupleProxy:
 
 
 class ShapeProxy(TypeProxy):
-    values: list[PrimExpr] | None
+    values: list[Expr] | None
     ndim: int
     """The type of shape values.
 
     Parameters
     ----------
-    values : Optional[List[PrimExpr]]
+    values : Optional[List[Expr]]
        The symbolic shape values if known.
 
     ndim : Optional[int]
@@ -425,7 +424,7 @@ class ShapeProxy(TypeProxy):
 
     def __init__(
         self,
-        values: list[PrimExpr] | None = None,
+        values: list[Expr] | None = None,
         ndim: int = -1,
     ) -> None:
         self.values = values
@@ -442,7 +441,7 @@ class ShapeProxy(TypeProxy):
         return ShapeType(values, self.ndim)
 
 
-def Shape(values: list[PrimExpr] | None = None, ndim: int = -1) -> ShapeProxy:
+def Shape(values: list[Expr] | None = None, ndim: int = -1) -> ShapeProxy:
     return ShapeProxy(values, ndim)
 
 
@@ -464,10 +463,10 @@ class PrimProxy(TypeProxy):
     def __init__(
         self,
         dtype: str | None = None,
-        value: int | float | str | PrimExpr | None = None,
+        value: int | float | str | Expr | None = None,
     ) -> None:
         if dtype is None:
-            if isinstance(value, PrimExpr):
+            if tvm.ir.is_prim_expr(value):
                 dtype = str(value.ty)
             elif isinstance(value, float):
                 dtype = "float32"
@@ -487,7 +486,7 @@ class PrimProxy(TypeProxy):
 
 def Prim(
     dtype: str | None = None,
-    value: int | float | str | PrimExpr | None = None,
+    value: int | float | str | Expr | None = None,
 ) -> PrimProxy:
     return PrimProxy(dtype, value)
 
@@ -517,7 +516,7 @@ def _normalize_ty_proxy(annotation) -> TypeProxy:
         return TupleProxy([])
     elif callable(annotation):
         annotation = annotation()
-        if isinstance(annotation, PrimExpr):
+        if tvm.ir.is_prim_expr(annotation):
             return PrimProxy(annotation.ty.dtype)
         return annotation
     elif isinstance(annotation, TypeProxy):

@@ -837,7 +837,7 @@ void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
 
    private:
     void VisitExpr(const PrimExpr& expr) final {
-      const PrimExprNode* p_expr = expr.get();
+      const ExprNode* p_expr = expr.get();
       if (visited_.count(p_expr) == 0) {
         visited_.insert(p_expr);
         if (f_(expr)) {

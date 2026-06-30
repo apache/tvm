@@ -396,11 +396,7 @@ class ExprEvaluator:
         orelse = self._eval_expr(fields["orelse"])
         if isinstance(test, bool):
             return body if test else orelse
-        elif (
-            isinstance(test, tvm.tirx.PrimExpr)
-            and isinstance(test.ty, tvm.ir.PrimType)
-            and test.ty.matches_code(tvm.DataTypeCode.BOOL)
-        ):
+        elif tvm.ir.is_prim_expr(test) and test.ty.matches_code(tvm.DataTypeCode.BOOL):
             return tvm.tirx.op.if_then_else(test, body, orelse)
         else:
             raise TypeError(f"Expected Python bool or TIR bool, but got {type(test)}")

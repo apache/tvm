@@ -64,7 +64,7 @@ TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
   // Avoid PrimExpr::ty() ObjectRef materialization in expression constructor hot paths.
   const auto* node = expr.get();
   TVM_FFI_DCHECK(node != nullptr);
-  TVM_FFI_DCHECK(node->ExprNode::ty.defined());
+  TVM_FFI_DCHECK(!node->ExprNode::ty.IsMissing());
   const auto* prim_ty = node->ExprNode::ty.as<PrimTypeNode>();
   TVM_FFI_DCHECK(prim_ty != nullptr);
   return prim_ty;
@@ -101,7 +101,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RampNode::RegisterReflection();
   BroadcastNode::RegisterReflection();
   LetNode::RegisterReflection();
-  CallNode::RegisterReflection();
   ShuffleNode::RegisterReflection();
   CommReducerNode::RegisterReflection();
   ReduceNode::RegisterReflection();
@@ -568,7 +567,8 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
 
     node->ExprNode::ty =
         PrimType::ScalableVector(base_ty.code(), base_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}), vscale_factor.value());
+    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+                vscale_factor.value());
     node->lanes = lanes;
   }
   node->base = base;
@@ -604,7 +604,8 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
 
     node->ExprNode::ty =
         PrimType::ScalableVector(value_ty.code(), value_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}), vscale_factor.value());
+    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+                vscale_factor.value());
     node->lanes = lanes;
   }
   node->value = std::move(value);
@@ -639,73 +640,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.Let", [](Var var, PrimExpr value, PrimExpr body, Span span) {
     return Let(var, value, body, span);
   });
-}
-
-// Call
-using CallArg = ffi::Variant<ffi::String, DLDataType, PrimType, IterVar, BufferRegion, PrimExpr>;
-
-static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
-  ffi::Array<PrimExpr> prim_expr_args;
-  for (const auto& it : args) {
-    if (auto opt_str = it.as<ffi::String>()) {
-      prim_expr_args.push_back(StringImm(opt_str.value()));
-    } else if (auto opt_dtype = it.as<DLDataType>()) {
-      prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
-    } else if (const auto* prim_ty = it.as<PrimTypeNode>()) {
-      prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(prim_ty->dtype)));
-    } else if (const auto* iter_var = it.as<IterVarNode>()) {
-      prim_expr_args.push_back(iter_var->var);
-    } else if (const auto* br = it.as<BufferRegionNode>()) {
-      ffi::Array<PrimExpr> indices;
-      for (Range r : br->region) {
-        if (is_one(r->extent)) {
-          indices.push_back(r->min);
-        } else if (r->extent.as<IntImmNode>()) {
-          indices.push_back(tirx::Ramp(r->min, MakeConst(r->min.ty(), 1), r->extent));
-        } else {
-          TVM_FFI_THROW(ValueError)
-              << "Cannot convert to BufferLoad: " << ffi::GetRef<BufferRegion>(br);
-        }
-      }
-      prim_expr_args.push_back(BufferLoad(br->buffer, indices));
-    } else {
-      prim_expr_args.push_back(it.get<PrimExpr>());
-    }
-  }
-  return prim_expr_args;
-}
-
-Call::Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Attrs attrs, Span span) {
-  for (size_t i = 0; i < args.size(); ++i) {
-    TVM_FFI_ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
-  }
-
-  ffi::ObjectPtr<CallNode> node = ffi::make_object<CallNode>();
-  node->ExprNode::ty = std::move(ret_ty);
-  node->op = std::move(op);
-  node->args = std::move(args);
-  node->attrs = std::move(attrs);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-Call::Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Span span)
-    : Call(std::move(ret_ty), std::move(op), std::move(args), Attrs(), std::move(span)) {}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.Call",
-           [](ffi::Optional<PrimType> dtype, tvm::Expr op, ffi::Array<CallArg> args, Span span) {
-             return Call(dtype.value_or(PrimType::Void()), op, ConvertCallArgs(args), Attrs(),
-                         span);
-           })
-      .def("tirx.CallWithAttrs",
-           [](ffi::Optional<PrimType> dtype, tvm::Expr op, ffi::Array<CallArg> args,
-              ffi::Optional<Attrs> attrs, Span span) {
-             return Call(dtype.value_or(PrimType::Void()), op, ConvertCallArgs(args),
-                         attrs.value_or(Attrs()), span);
-           });
 }
 
 // Shuffle

@@ -512,7 +512,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     if (opt_new_dtype) {
       auto new_dtype = opt_new_dtype.value();
       new_call.CopyOnWrite()->args = RewriteArgs(new_call->args, new_dtype);
-      new_call.CopyOnWrite()->ty = Type();
+      new_call.CopyOnWrite()->ty = Type::Missing();
 
       new_value = builder_->Normalize(Call(new_call));
 
@@ -536,7 +536,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
     ffi::ObjectPtr<TupleNode> new_tuple = ffi::make_object<TupleNode>(*tuple_node);
     new_tuple->fields = RemapArgs(tuple_node->fields);
-    new_tuple->ty = Type();
+    new_tuple->ty = Type::Missing();
     Expr new_value = builder_->Normalize(Tuple(new_tuple));
     if (!binding->var->IsInstance<DataflowVarNode>()) {
       // Global var: store the tensors to the original dtype
@@ -556,7 +556,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     ffi::ObjectPtr<TupleGetItemNode> new_tuple_get_item =
         ffi::make_object<TupleGetItemNode>(*tuple_get_item_node);
     new_tuple_get_item->tuple = RemapArgs({tuple_get_item_node->tuple})[0];
-    new_tuple_get_item->ty = Type();
+    new_tuple_get_item->ty = Type::Missing();
     Expr new_value = TupleGetItem(new_tuple_get_item);
     if (!binding->var->IsInstance<DataflowVarNode>()) {
       // Global var: store the tensors to the original dtype

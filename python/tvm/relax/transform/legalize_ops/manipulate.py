@@ -20,13 +20,14 @@
 
 import tvm
 from tvm import DataTypeCode, relax, s_tir, te, tirx, topi
+from tvm.ir import Call
 from tvm.relax.op.base import call_tir
 from tvm.relax.type import TensorType
 from tvm.relax.utils import gen_call_tir_inputs
 from tvm.tirx.expr import IntImm
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, ShapeExpr, Tuple, TupleGetItem, Var
+from ...expr import Expr, ShapeExpr, Tuple, TupleGetItem, Var
 from .common import LegalizeFunc, TEFunc, register_legalize
 
 
@@ -300,8 +301,8 @@ def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.one_hot")
 def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     indices, on_value, off_value = call.args
-    if not (isinstance(on_value, tirx.PrimExpr) and isinstance(off_value, tirx.PrimExpr)):
-        raise ValueError("on_value and off_value must be PrimExpr")
+    if not (tvm.ir.is_prim_expr(on_value) and tvm.ir.is_prim_expr(off_value)):
+        raise ValueError("on_value and off_value must be Expr")
     if on_value.ty != off_value.ty:
         raise ValueError("on_value and off_value must have the same dtype")
     return bb.call_te(

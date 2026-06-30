@@ -615,9 +615,9 @@ def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
 @pytest.mark.xfail(reason="Current support for R.Prim with known value is primarily for int64")
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_relax_prim_value_fp32(exec_mode):
-    """A PrimExpr may be R.prim('float32')
+    """A Expr may be R.prim('float32')
 
-    Unlike shape tuples, which must contain int64, a PrimExpr may be
+    Unlike shape tuples, which must contain int64, a Expr may be
     any type that can be represented as a single primitive value.
     """
 

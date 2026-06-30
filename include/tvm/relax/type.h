@@ -42,7 +42,6 @@ using Expr = tvm::Expr;
 using ExprNode = tvm::ExprNode;
 
 class BlockBuilder;
-class Call;
 
 /*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
 static constexpr int kUnknownNDim = -1;
@@ -196,7 +195,7 @@ class TensorTypeNode : public TypeNode {
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.defined()) return {};
     const Expr& shape_expr = this->shape.value();
-    if (!shape_expr->ty.defined()) return {};
+    if (shape_expr->ty.IsMissing()) return {};
     if (const auto* shape_ty = shape_expr->ty.as<ShapeTypeNode>()) {
       return shape_ty->values;
     }
@@ -275,7 +274,7 @@ class FuncTypeNode : public TypeNode {
   /*!
    * \brief The type of the function's return value.
    */
-  Type ret;
+  Type ret = Type::Missing();
   /*!
    * \brief Derivation function of opaque functions that may take any number of parameters.
    * \note When derive_func is not empty, then params should be std::nullopt,
@@ -387,7 +386,7 @@ inline ffi::Optional<T> MatchType(const Expr& expr) {
  */
 template <typename T>
 inline const T* GetTypeAs(const Expr& expr) {
-  TVM_FFI_ICHECK(expr->ty.defined())
+  TVM_FFI_ICHECK(!expr->ty.IsMissing())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty.as<T>();
 }
@@ -399,7 +398,7 @@ inline const T* GetTypeAs(const Expr& expr) {
  * \return underlying Relax type.
  */
 inline Type GetType(const Expr& expr) {
-  TVM_FFI_ICHECK(expr->ty.defined())
+  TVM_FFI_ICHECK(!expr->ty.IsMissing())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty;
 }

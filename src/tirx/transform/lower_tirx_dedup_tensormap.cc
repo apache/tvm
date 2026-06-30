@@ -76,7 +76,9 @@ inline std::pair<ffi::Optional<Var>, ffi::Array<PrimExpr>> ExtractEncodeKey(cons
   }
   ffi::Array<PrimExpr> key;
   key.reserve(call->args.size() - 2);
-  for (size_t i = 2; i < call->args.size(); ++i) key.push_back(call->args[i]);
+  for (size_t i = 2; i < call->args.size(); ++i) {
+    key.push_back(call->args[i].as_or_throw<PrimExpr>());
+  }
   return {tensormap, key};
 }
 
@@ -194,7 +196,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     if (it != var_remap_.end()) {
       return it->second;
     }
-    return ffi::GetRef<PrimExpr>(op);
+    return v;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {

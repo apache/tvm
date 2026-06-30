@@ -379,7 +379,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
 
   if (is_op(nki_matmul_op, "tirx.nki.matmul")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
-    std::string accum = is_one(op->args[3]) ? " += " : " = ";
+    std::string accum = is_one(op->args[3].as_or_throw<PrimExpr>()) ? " += " : " = ";
     os << PrintExpr(op->args[0]) << accum;
     ctx_.is_matmul_input = true;
     os << "nisa.nc_matmul(" << PrintExpr(op->args[1]) << "," << PrintExpr(op->args[2]);
@@ -432,7 +432,10 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     TVM_FFI_ICHECK(opcode_map_.count(op->args[2].as<StringImmNode>()->value));
     std::string nki_op = opcode_map_[op->args[2].as<StringImmNode>()->value];
     bool negate = op->args[3].as<IntImmNode>()->value != 0;
-    Array<PrimExpr> axes(op->args.begin() + 4, op->args.end());
+    Array<PrimExpr> axes;
+    for (size_t i = 4; i < op->args.size(); ++i) {
+      axes.push_back(op->args[i].as_or_throw<PrimExpr>());
+    }
     os << PrintExpr(op->args[0]) << " = nisa.tensor_reduce(data=" << PrintExpr(op->args[1])
        << ", op=" << nki_op << ", negate=" << PrintBool(negate) << ", axis=" << axes;
   } else if (is_op(nki_activation_reduce_op, "tirx.nki.activation_reduce")) {
@@ -589,7 +592,7 @@ void CodeGenTrainium::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLI
 }
 
 void CodeGenTrainium::VisitExpr_(const CastNode* op, std::ostream& os) {
-  ctx_.dst_dtype = op->ty();
+  ctx_.dst_dtype = op->ty.as_or_throw<PrimType>();
   CodeGenTrainium::VisitExpr(op->value, os);
 }
 

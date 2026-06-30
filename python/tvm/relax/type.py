@@ -21,7 +21,7 @@
 import tvm_ffi
 from tvm_ffi import Array
 
-from tvm.ir import EnvFunc, PrimExpr, PrimType, Span, TupleType, VDevice
+from tvm.ir import EnvFunc, PrimType, Span, TupleType, VDevice
 
 from . import _ffi_api
 from .expr import Expr, ShapeExpr, Type
@@ -45,7 +45,7 @@ class ShapeType(Type):
 
     Parameters
     ----------
-    values : Optional[List[PrimExpr]]
+    values : Optional[List[Expr]]
        The symbolic shape values if known.
 
     ndim : Optional[int]
@@ -56,13 +56,11 @@ class ShapeType(Type):
     Do not specify values and ndim at the same time.
     """
 
-    values: list[PrimExpr] | None
+    values: list[Expr] | None
     ndim: int
     span: Span
 
-    def __init__(
-        self, values: list[PrimExpr] | None = None, ndim: int = -1, span: Span = None
-    ) -> None:
+    def __init__(self, values: list[Expr] | None = None, ndim: int = -1, span: Span = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.ShapeType,
             values,
@@ -102,7 +100,7 @@ class TensorType(Type):
 
     def __init__(
         self,
-        shape: Expr | None | list[PrimExpr] = None,
+        shape: Expr | None | list[Expr] = None,
         dtype: str | PrimType | None = "float32",
         vdevice: VDevice | None | str = None,
         ndim: int = -1,

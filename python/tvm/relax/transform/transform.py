@@ -671,14 +671,14 @@ def BindParams(
 
 
 def BindSymbolicVars(
-    binding_map: Mapping[str | tvm.tirx.Var, tvm.tirx.PrimExpr],
+    binding_map: Mapping[str | tvm.tirx.Var, tvm.tirx.Expr],
     func_name: str | None = None,
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
     Parameters
     ----------
-    binding_map : Mapping[Union[str, tvm.tirx.Var], tvm.tirx.PrimExpr]
+    binding_map : Mapping[Union[str, tvm.tirx.Var], tvm.tirx.Expr]
         The map from symbolic varname to integer.
 
     func_name : Optional[str]

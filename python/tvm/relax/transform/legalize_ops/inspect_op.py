@@ -19,11 +19,12 @@
 
 import enum
 
+from tvm.ir import Call
 from tvm.script import tirx as T
 
 from ... import op
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import register_legalize
 
 

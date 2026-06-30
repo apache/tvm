@@ -93,7 +93,7 @@ class StrideExtractor : public ExprVisitor {
   }
 
   const Var& var_;
-  std::unordered_map<const PrimExprNode*, int64_t> strides_;
+  std::unordered_map<const ExprNode*, int64_t> strides_;
 };
 
 struct ParsedAnnotation {

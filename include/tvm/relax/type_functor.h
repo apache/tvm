@@ -73,6 +73,8 @@ class TypeFunctor<R(const Type& n, Args...)> {
    */
   virtual R VisitType(const Type& n, Args... args) {
     TVM_FFI_ICHECK(n.defined());
+    TVM_FFI_ICHECK_NE(n->type_index(), TypeNode::RuntimeTypeIndex())
+        << "TypeFunctor cannot visit Type::Missing()";
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }

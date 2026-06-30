@@ -28,7 +28,7 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
-from tvm.ir import PrimExpr
+from tvm.ir import is_prim_expr
 from tvm.runtime import Module, const
 from tvm.support import nvcc
 
@@ -116,7 +116,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
     def compile_to_device_module(  # pylint: disable=arguments-differ
         self,
-        grid: list[list[int | tirx.PrimExpr]],
+        grid: list[list[int | tirx.Expr]],
         *args: list[Any],
         **kwargs: dict[str, Any],
     ) -> tuple[str, Module, list[Any]]:
@@ -137,9 +137,9 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             "threadIdx.y",
             "threadIdx.z",
         ][: len(grid[1])]
-        runtime_args = [arg if isinstance(arg, PrimExpr) else const(arg) for arg in args]
+        runtime_args = [arg if is_prim_expr(arg) else const(arg) for arg in args]
         kernel_arg_types = [
-            str(arg.ty.dtype) if isinstance(arg, PrimExpr) else arg.dtype for arg in runtime_args
+            str(arg.ty.dtype) if is_prim_expr(arg) else arg.dtype for arg in runtime_args
         ]
         runtime_args = runtime_args + list(grid[0]) + list(grid[1])
 
@@ -187,7 +187,7 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
 
 def call_kernel(
     kernel,
-    launch_args: list[int | tirx.PrimExpr | list[int | tirx.PrimExpr]],
+    launch_args: list[int | tirx.Expr | list[int | tirx.Expr]],
     *args: list[Any],
     **kwargs: dict[str, Any],
 ):
@@ -199,11 +199,11 @@ def call_kernel(
     kernel : Any
         The external kernel to call.
 
-    launch_args : List[Union[int, tirx.PrimExpr, List[Union[int, tirx.PrimExpr]]]]
+    launch_args : List[Union[int, tirx.Expr, List[Union[int, tirx.Expr]]]]
         The launch arguments. A list of integers for grid size, block size, and shared memory size.
         The actual requirements depend on the kernel.
 
-    args : List[tirx.PrimExpr]
+    args : List[tirx.Expr]
         The arguments to pass to the kernel.
 
     kwargs : Dict[str, Any]

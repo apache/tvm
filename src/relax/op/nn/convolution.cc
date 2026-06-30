@@ -636,7 +636,7 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op& op = Op::Get("relax.nn.conv1d_transpose");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -827,7 +827,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op& op = Op::Get("relax.nn.conv2d_transpose");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1059,7 +1059,7 @@ Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op& op = Op::Get("relax.nn.conv3d_transpose");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

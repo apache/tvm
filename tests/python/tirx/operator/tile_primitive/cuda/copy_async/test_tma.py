@@ -64,7 +64,7 @@ class TMACounter(StmtExprVisitor):
         self.loop_extents.pop()
 
     def visit_evaluate_(self, op):
-        if isinstance(op.value, tvm.tirx.Call):
+        if isinstance(op.value, tvm.ir.Call):
             if op.value.op.name in (
                 "tirx.ptx.cp_async_bulk_tensor_global_to_cluster",
                 "tirx.ptx.cp_async_bulk_tensor_shared_to_global",
@@ -143,10 +143,10 @@ def _build_expected_host_init(dtype, encode_args):
     where ndim = encode_args[0] and the rest are the tensor map parameters.
     """
     A_tensormap = Var("A_tensormap", PointerType(TensorMapType(), "global"))
-    stack_alloca = tvm.tirx.Call(
-        "handle",
+    stack_alloca = tvm.ir.Call(
         tvm.ir.Op.get("tirx.tvm_stack_alloca"),
         [StringImm("tensormap"), IntImm("int32", 1)],
+        ret_ty="handle",
     )
     A_var = Var("A", PointerType(PrimType(dtype), "global"))
     call_args = (
@@ -159,7 +159,7 @@ def _build_expected_host_init(dtype, encode_args):
         ]
         + [IntImm("int32", v) for v in encode_args[1:]]
     )
-    encode_call = tvm.tirx.Call("int32", tvm.ir.Op.get("tirx.tvm_call_packed"), call_args)
+    encode_call = tvm.ir.Call(tvm.ir.Op.get("tirx.tvm_call_packed"), call_args, ret_ty="int32")
     replace_point = tvm.tirx.Evaluate(tvm.tirx.op.tvm_kernel_replace_point())
     return tvm.tirx.SeqStmt(
         [tvm.tirx.Bind(A_tensormap, stack_alloca), tvm.tirx.Evaluate(encode_call), replace_point]
@@ -172,8 +172,8 @@ def _build_expected_impl(direction, dtype, s_shape, s_layout, impl_spec):
     impl_spec is a dict with:
         loop_extents: list[int]  — e.g. [1], [2, 2], [8]
         dim: int  — TMA rank (number of coordinates, also the dim arg to PTX call)
-        elem_offset_fn: callable(loop_vars) -> PrimExpr  (or None for 0)
-        coord_fn: callable(loop_vars) -> list[PrimExpr]  (dim coordinate args)
+        elem_offset_fn: callable(loop_vars) -> Expr  (or None for 0)
+        coord_fn: callable(loop_vars) -> list[Expr]  (dim coordinate args)
         s_start: optional list[int]  — starting index for address_of (default all zeros)
     """
     from tvm.tirx.layout import ComposeLayout, SwizzleLayout
@@ -224,13 +224,15 @@ def _build_expected_impl(direction, dtype, s_shape, s_layout, impl_spec):
         buf_indices = [IntImm("int32", v) for v in s_start]
     else:
         buf_indices = [IntImm("int32", 0)] * len(s_shape)
-    addr_of = tvm.tirx.Call(
-        "handle", tvm.ir.Op.get("tirx.address_of"), [tvm.tirx.BufferLoad(s_buf, buf_indices)]
+    addr_of = tvm.ir.Call(
+        tvm.ir.Op.get("tirx.address_of"),
+        [tvm.tirx.BufferLoad(s_buf, buf_indices)],
+        ret_ty="handle",
     )
 
     # Coordinate args (must have exactly `dim` entries)
     coords = coord_fn(loop_vars)
-    tensormap_addr = tvm.tirx.Call("uint64", tvm.ir.Op.get("tirx.address_of"), [A_tensormap])
+    tensormap_addr = tvm.ir.Call(tvm.ir.Op.get("tirx.address_of"), [A_tensormap], ret_ty="uint64")
 
     # Build PTX call based on direction
     if direction == "g2s":
@@ -260,7 +262,7 @@ def _build_expected_impl(direction, dtype, s_shape, s_layout, impl_spec):
             *coords,
         ]
 
-    eval_stmt = tvm.tirx.Evaluate(tvm.tirx.Call("", ptx_op, ptx_args))
+    eval_stmt = tvm.tirx.Evaluate(tvm.ir.Call(ptx_op, ptx_args))
 
     # Wrap: DeclBuffer -> nested For loops (skipped when total extent is 1,
     # matching the implementation's always-unroll single-loop emission).
@@ -334,8 +336,8 @@ def _atom_multiphase_rank5_coords(lvs):
 # impl_spec keys:
 #   loop_extents: list[int] — iteration counts for nested loops
 #   dim: int — TMA rank = number of coordinates = dim arg to PTX call
-#   coord_fn: callable(loop_vars) -> list[PrimExpr] — coordinate arguments (len == dim)
-#   elem_offset_fn: optional callable(loop_vars) -> PrimExpr — buffer offset
+#   coord_fn: callable(loop_vars) -> list[Expr] — coordinate arguments (len == dim)
+#   elem_offset_fn: optional callable(loop_vars) -> Expr — buffer offset
 #
 # encode_args: list[int] — all numeric args to cuTensorMapEncodeTiled
 #   [ndim, global_strides..., global_dims..., box_dims..., elem_strides...,

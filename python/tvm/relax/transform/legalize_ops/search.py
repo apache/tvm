@@ -18,9 +18,10 @@
 """Default legalization function for search operators."""
 
 from tvm import topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import LegalizeFunc, TEFunc, _call_topi_without_attr, register_legalize
 
 register_legalize("relax.where", _call_topi_without_attr(topi.where))

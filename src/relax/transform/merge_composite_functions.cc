@@ -89,8 +89,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       // Make default groups for dataflow nodes other than CallNode.
       // Groups for CallNode are created in its visitor.
       if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
-          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
-          e->IsInstance<PrimExprNode>()) {
+          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() || e.as<PrimExpr>()) {
         memo_[e] = arena_->make<Group>();
       }
     });
@@ -326,7 +325,7 @@ class CompositeInliner : public ExprMutator {
           new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
           inlined_functions_.Set(func, new_func);
         }
-        return Call(inlined_functions_[func], call->args);
+        return Call(Type::Missing(), inlined_functions_[func], call->args);
       }
     }
 
@@ -386,7 +385,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         // we call new var instead of the old one.
         // we don't have to update args since we are just updating the function to call,
         // without any change in the arguments.
-        return Call(new_var, call->args);
+        return Call(Type::Missing(), new_var, call->args);
       }
     }
     return ffi::GetRef<Call>(call);

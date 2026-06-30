@@ -40,7 +40,7 @@ namespace relax {
 #define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName)                                                  \
   Expr OpName(Expr x1, Expr x2) {                                                                  \
     static const Op& op = Op::Get("relax." #OpName);                                               \
-    return Call(op, {x1, x2}, Attrs(), {});                                                        \
+    return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});                                       \
   }                                                                                                \
   TVM_FFI_STATIC_INIT_BLOCK() {                                                                    \
     tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);                            \

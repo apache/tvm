@@ -20,10 +20,12 @@
 
 import numpy as np
 
+import tvm
 from tvm import tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, ShapeExpr, const
+from ...expr import Expr, ShapeExpr, const
 from ...type import ShapeType
 from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
@@ -115,11 +117,11 @@ register_legalize("relax.eye_like", _eye(is_like=True, primfunc_name="eye_like")
 @register_legalize("relax.arange")
 def _arange(bb: BlockBuilder, call: Call) -> Expr:
     assert len(call.args) == 3
-    assert all(isinstance(x, tirx.PrimExpr) for x in call.args)
+    assert all(tvm.ir.is_prim_expr(x) for x in call.args)
     start, end, step = call.args
     dtype = call.attrs.dtype
 
-    def is_const_scalar(x: tirx.PrimExpr):
+    def is_const_scalar(x: tirx.Expr):
         return isinstance(x, tirx.IntImm | tirx.FloatImm)
 
     if all([is_const_scalar(x) for x in call.args]):

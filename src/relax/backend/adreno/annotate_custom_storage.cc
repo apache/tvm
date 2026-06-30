@@ -494,7 +494,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
     ExprVisitor::VisitBinding_(binding, call);
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    Type out_ty;
+    Type out_ty = Type::Missing();
 
     if (call->op == call_tir_op) {
       out_ty = call->ty_args[0];
@@ -624,7 +624,7 @@ class DefineVDevice : ExprMutator {
     GlobalVar gv;
     Tuple func_args;
 
-    Type out_ty;
+    Type out_ty = Type::Missing();
 
     if (call->op == call_tir_op) {
       gv = call->args[0].as_or_throw<GlobalVar>();
@@ -692,9 +692,10 @@ class DefineVDevice : ExprMutator {
 
     if (call->op == call_tir_op) {
       return builder_->Normalize(
-          Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
+          Call(Type::Missing(), call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
     } else {
-      return builder_->Normalize(Call(call->op, new_args, call->attrs, {updated_ret_ty}));
+      return builder_->Normalize(
+          Call(Type::Missing(), call->op, new_args, call->attrs, {updated_ret_ty}));
     }
   }
 
@@ -730,7 +731,7 @@ class DefineVDevice : ExprMutator {
     attrs->index = vdev->vdevice_id;
     attrs->memory_scope = vdev->memory_scope;
 
-    Expr new_arg = Call(hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
+    Expr new_arg = Call(Type::Missing(), hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
 
     return new_arg;
   }

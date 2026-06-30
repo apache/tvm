@@ -499,7 +499,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   return false;
 }
 
-std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
+std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsCondition(
     std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const {
   ffi::Optional<ffi::Array<PrimExpr>> expected_shape;
   bool all_shapes_defined = true;

@@ -34,7 +34,6 @@ from tvm.runtime import Object
 
 from ..ir import BaseFunc, Node, Span
 from ..runtime import Scriptable
-from ..tirx import PrimExpr
 from . import _ffi_api
 
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
@@ -45,12 +44,12 @@ Type = tvm.ir.Type  # pylint: disable=invalid-name
 GlobalVar = tvm.ir.GlobalVar
 
 
-def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimExpr:
-    """Convert a Python scalar or primitive expression to ``PrimExpr``.
+def prim_value(value: Expr | int | float, dtype: str | None = None) -> Expr:
+    """Convert a Python scalar or primitive expression to ``Expr``.
 
     Parameters
     ----------
-    value : PrimExpr | int | float
+    value : Expr | int | float
         The value to convert.
 
     dtype : Optional[str]
@@ -58,11 +57,11 @@ def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimE
 
     Returns
     -------
-    result : PrimExpr
-        The converted primitive expression.  Existing ``PrimExpr`` inputs are
+    result : Expr
+        The converted primitive expression.  Existing ``Expr`` inputs are
         returned unchanged.
     """
-    if isinstance(value, PrimExpr):
+    if tvm.ir.is_prim_expr(value):
         return value
     if isinstance(value, bool | _np.bool_):
         return tvm.tirx.IntImm(dtype or "bool", int(value))
@@ -71,9 +70,9 @@ def prim_value(value: PrimExpr | int | float, dtype: str | None = None) -> PrimE
     if isinstance(value, Real):
         return tvm.tirx.FloatImm(dtype or "float64", float(value))
     tvm_value = tvm_ffi.convert(value)
-    if isinstance(tvm_value, PrimExpr):
+    if tvm.ir.is_prim_expr(tvm_value):
         return tvm_value
-    raise TypeError(f"Cannot convert {value} with type {type(value)} to `PrimExpr`")
+    raise TypeError(f"Cannot convert {value} with type {type(value)} to `Expr`")
 
 
 @tvm_ffi.register_object("relax.Id")
@@ -218,7 +217,7 @@ class ExprWithOp(Expr, Scriptable):
         call: ExprWithOp
             A call taking the variable as a function.
         """
-        return Call(self, args, attrs=attrs)
+        return tvm.ir.Call(self, args, attrs=attrs)
 
     def __getitem__(self, index: int) -> "ExprWithOp":
         """Get the i-th element of the tuple or Expr with TupleType.
@@ -321,7 +320,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectConvertible):
     will produce `relax.Call` expressions, representing the field's
     runtime value.  If the datatype of the tensor is known at
     compile-time, the `relax.Call` will be normalized into a
-    `PrimExpr`, with no runtime cost.
+    `Expr`, with no runtime cost.
 
     Parameters
     ----------
@@ -400,7 +399,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
     these fields will produce `relax.Call` expressions, representing
     the field's runtime value.  If the datatype of the tensor is known
     at compile-time, the `relax.Call` will be normalized into a
-    `PrimExpr`, with no runtime cost.
+    `Expr`, with no runtime cost.
 
     Parameters
     ----------
@@ -429,12 +428,12 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
             f"and the DLTensor::shape array can be accessed as {self.tensor}.shape[i]"
         )
 
-    def __getitem__(self, axis: int | PrimExpr | Expr) -> Expr:
+    def __getitem__(self, axis: int | Expr) -> Expr:
         """Returns the extent of a tensor axis
 
         Parameters
         ----------
-        axis: int | PrimExpr | Expr
+        axis: int | Expr
 
             The tensor axis whose extent should be returned.  For ease
             of use, any python integers or TIR expressions are
@@ -450,7 +449,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.tirx.IntImm("int64", axis)
 
-        if axis.ty is not None and not isinstance(axis.ty, tvm.ir.PrimType):
+        if not tvm.ir.is_prim_expr(axis):
             raise TypeError(
                 f"The index used to access {self.tensor}.shape "
                 f'must have type R.Prim("int64"), '
@@ -468,7 +467,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
     these fields will produce `relax.Call` expressions, representing
     the field's runtime value.  If the datatype of the tensor is known
     at compile-time, the `relax.Call` will be normalized into a
-    `PrimExpr`, with no runtime cost.
+    `Expr`, with no runtime cost.
 
     Parameters
     ----------
@@ -497,12 +496,12 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
             f"and the DLTensor::strides array can be accessed as {self.tensor}.strides[i]"
         )
 
-    def __getitem__(self, axis: int | PrimExpr | Expr) -> Expr:
+    def __getitem__(self, axis: int | Expr) -> Expr:
         """Returns the extent of a tensor axis
 
         Parameters
         ----------
-        axis: int | PrimExpr | Expr
+        axis: int | Expr
 
             The tensor axis whose extent should be returned.  For ease
             of use, any python integers or TIR expressions are
@@ -518,7 +517,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
         if not isinstance(axis, tvm.relax.Expr):
             axis = tvm.tirx.IntImm("int64", axis)
 
-        if axis.ty is not None and not isinstance(axis.ty, tvm.ir.PrimType):
+        if not tvm.ir.is_prim_expr(axis):
             raise TypeError(
                 f"The index used to access {self.tensor}.strides "
                 f'must have type R.Prim("int64"), '
@@ -527,60 +526,6 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectConvertible):
 
         op = tvm.ir.Op.get("relax.inspect.tensor_stride_i")
         return tvm.relax.Call(op, [self.tensor, axis])
-
-
-@tvm_ffi.register_object("relax.expr.Call")
-class Call(ExprWithOp):
-    """Function call node in Relax.
-
-    Call node corresponds the operator application node
-    in computational graph terminology.
-
-    Parameters
-    ----------
-    op: tvm.ir.Op or any tvm.relax.Expr with function type.
-        The operation to be called.
-
-    args: Union[List[Expr], typing.Tuple[Expr, ...]]
-        The arguments to the call.
-
-    attrs: Optional[tvm.ir.Attrs]
-        Attributes to the call, can be None
-
-    ty_args: Optional[Union[List[Type], typing.Tuple[Type, ...]]]
-        The type information arguments of a CallNode.
-        ty_args is designed to be non-empty only for intrinsic op (e.g.,
-        call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
-        usage of type information inference.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    op: Expr
-    args: list[Expr]
-    attrs: tvm.ir.Attrs
-    ty_args: list[Type]
-    span: Span | None
-
-    def __init__(
-        self,
-        op: Expr | tvm.ir.Op,
-        args: list[Expr] | tuple[Expr, ...],
-        attrs: tvm.ir.Attrs | None = None,
-        ty_args: list[Type] | tuple[Type, ...] | None = None,
-        span: Span | None = None,
-    ):
-        if not ty_args:
-            ty_args = []
-        self.__init_handle_by_constructor__(
-            _ffi_api.Call,
-            op,
-            args,
-            attrs,
-            ty_args,
-            span,  # type: ignore
-        )
 
 
 @tvm_ffi.register_object("relax.expr.If")
@@ -681,23 +626,23 @@ class TupleGetItem(ExprWithOp):
 
 @tvm_ffi.register_object("relax.expr.ShapeExpr")
 class ShapeExpr(ExprWithOp):
-    """A shape expression which allows users to construct a shape containing PrimExpr.
+    """A shape expression which allows users to construct a shape containing Expr.
 
     Parameters
     ----------
-    values: Union[List[PrimExpr], typing.Tuple[PrimExpr, ...], tvm_ffi.Array]
+    values: Union[List[Expr], typing.Tuple[Expr, ...], tvm_ffi.Array]
         The values of the shape expression.
 
     span: Optional[Span]
         Span that points to original source code
     """
 
-    values: list[PrimExpr]
+    values: list[Expr]
     span: Span | None
 
     def __init__(
         self,
-        values: list[PrimExpr] | tuple[PrimExpr, ...] | tvm_ffi.Array,
+        values: list[Expr] | tuple[Expr, ...] | tvm_ffi.Array,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.ShapeExpr, values, span)  # type: ignore
@@ -1028,14 +973,14 @@ class Function(BaseFunc, Scriptable):
         args: List[relax.Expr]
             Arguments.
         """
-        return Call(self, args, None, None)
+        return tvm.ir.Call(self, args, None, None)
 
-    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tirx.Var, PrimExpr]) -> "Function":
+    def bind_symbolic_vars(self, binding_map: Mapping[str | tvm.tirx.Var, Expr]) -> "Function":
         """Return a new function with updated symbolic variable
 
         Parameters
         ----------
-        binding_map: Mapping[str | tvm.tirx.Var, PrimExpr]
+        binding_map: Mapping[str | tvm.tirx.Var, Expr]
 
             The mapping of values to be replaced.  Keys may be either
             a `tirx.Var` or a string name of the variable.  If the
@@ -1062,7 +1007,7 @@ class Function(BaseFunc, Scriptable):
         self,
         binding_map: Mapping[
             str | Var,
-            int | float | PrimExpr | tvm.runtime.Tensor | _np.ndarray | Expr,
+            int | float | Expr | tvm.runtime.Tensor | _np.ndarray,
         ],
     ) -> "Function":
         """Return a new function with updated symbolic variable
@@ -1071,7 +1016,7 @@ class Function(BaseFunc, Scriptable):
         ----------
         binding_map: Mapping[
                 str | Var,
-                int | float | PrimExpr | tvm.runtime.Tensor | _np.ndarray | Expr,
+                int | float | Expr | tvm.runtime.Tensor | _np.ndarray,
         ]
 
             The mapping of values to be replaced.
@@ -1198,7 +1143,7 @@ class TEPlaceholderOp(tvm.te.tensor.Operation):
 
 
 def te_tensor(
-    value: Expr, tir_var_map: dict[tvm.tirx.Var, tvm.tirx.PrimExpr], name: str = "rxplaceholder"
+    value: Expr, tir_var_map: dict[tvm.tirx.Var, tvm.tirx.Expr], name: str = "rxplaceholder"
 ):
     """Create a TE tensor from relax expression, with TIR variables in the
     tensor shape substituted by the given mapping
@@ -1208,7 +1153,7 @@ def te_tensor(
     value : Expr
         The relax expression, which is required to have TensorType.
 
-    tir_var_map : Dict[tvm.tirx.Var, tvm.tirx.PrimExpr]
+    tir_var_map : Dict[tvm.tirx.Var, tvm.tirx.Expr]
         The mapping to substitute the TIR variables appeared in the
         shape of the input Expr.
 

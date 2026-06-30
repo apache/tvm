@@ -172,9 +172,57 @@ from .vision import (
 def _register_op_make():
     # pylint: disable=import-outside-toplevel
     from .. import expr
+    from tvm.ir import _overload_tensor_expr
     from . import _ffi_api
 
     expr._op_ffi_api = _ffi_api  # type: ignore
+
+    def _add(lhs, rhs):
+        if isinstance(lhs.ty, expr.tvm.relax.TupleType) and isinstance(rhs, tuple):
+            return tuple([*lhs, *rhs])
+        return expr._binary_op_helper(lhs, rhs, _ffi_api.add)
+
+    def _rhs(_lhs, rhs):
+        return expr._binary_rhs_helper(rhs)
+
+    _overload_tensor_expr.astype = lambda lhs, dtype, _span=None: _ffi_api.astype(lhs, dtype)
+    _overload_tensor_expr.__neg__ = lambda lhs: _ffi_api.negative(lhs)
+    _overload_tensor_expr.__lt__ = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.less)
+    _overload_tensor_expr.__le__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.less_equal
+    )
+    _overload_tensor_expr.__gt__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.greater
+    )
+    _overload_tensor_expr.__ge__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.greater_equal
+    )
+    _overload_tensor_expr.__add__ = _add
+    _overload_tensor_expr.__radd__ = _add
+    _overload_tensor_expr.__sub__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.subtract
+    )
+    _overload_tensor_expr.__rsub__ = _rhs
+    _overload_tensor_expr.__mul__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.multiply
+    )
+    _overload_tensor_expr.__rmul__ = _overload_tensor_expr.__mul__
+    _overload_tensor_expr.__div__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.divide
+    )
+    _overload_tensor_expr.__rdiv__ = _rhs
+    _overload_tensor_expr.__truediv__ = _overload_tensor_expr.__div__
+    _overload_tensor_expr.__rtruediv__ = _rhs
+    _overload_tensor_expr.__floordiv__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.floor_divide
+    )
+    _overload_tensor_expr.__rfloordiv__ = _rhs
+    _overload_tensor_expr.__mod__ = lambda lhs, rhs: expr._binary_op_helper(lhs, rhs, _ffi_api.mod)
+    _overload_tensor_expr.__rmod__ = _rhs
+    _overload_tensor_expr.__pow__ = lambda lhs, rhs: expr._binary_op_helper(
+        lhs, rhs, _ffi_api.power
+    )
+    _overload_tensor_expr.__rpow__ = _rhs
 
 
 _register_op_make()

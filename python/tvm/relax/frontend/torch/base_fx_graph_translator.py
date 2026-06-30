@@ -28,6 +28,7 @@ from functools import reduce
 
 import tvm_ffi
 
+import tvm
 from tvm import relax, tirx
 from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
@@ -2150,18 +2151,18 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         return input_shape[axis]
                 return val
 
-            if isinstance(bound, tirx.PrimExpr):
+            if tvm.ir.is_prim_expr(bound):
                 value = _adjust(bound)
                 return relax.prim_value(value)
 
             bound = _adjust(bound)
-            if not isinstance(bound, tirx.PrimExpr):
+            if not tvm.ir.is_prim_expr(bound):
                 bound = relax.prim_value(bound)
             return bound
 
         start = _normalize_bound(start)
         end = _normalize_bound(end)
-        if not isinstance(step, tirx.PrimExpr):
+        if not tvm.ir.is_prim_expr(step):
             step = relax.prim_value(step)
 
         return self.block_builder.emit(

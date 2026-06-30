@@ -23,10 +23,10 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
+from tvm.ir import Call
 from tvm.runtime import Object, ObjectConvertible
 
-from ...ir import PrimExpr
-from ..expr import Call, Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var
+from ..expr import Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var
 from ..type import TensorType, Type
 from ..utils import convert_to_expr
 from . import _ffi_api
@@ -93,7 +93,7 @@ def call_tir(
     gvar: GlobalVar,
     args: Expr,
     out_ty: TensorType | list[TensorType],
-    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
+    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """
     Call a tirx.prim_func and return the output.
@@ -111,7 +111,7 @@ def call_tir(
         It should be a single or a list of TensorType. Each one denotes the
         type information of a returned tensor.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
@@ -136,7 +136,7 @@ def call_tir_with_grad(
     out_ty: TensorType | list[TensorType],
     te_grad_name: str,
     te_grad_kwargs: dict[str, Object] | None = None,
-    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
+    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """
     Call a tirx.prim_func and return the output. This intrinsic will bind a te gradient function
@@ -164,7 +164,7 @@ def call_tir_with_grad(
         The keyword arguments passed to the te gradient function.
         Optionally provided as a keyword argument. Default: {}.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
@@ -193,7 +193,7 @@ def call_tir_inplace(
     args: Expr,
     inplace_indices: int | list[int],
     out_ty: TensorType | list[TensorType],
-    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
+    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """
     Call a TIR PrimFunc and return the result, doing the specified computations in-place
@@ -230,7 +230,7 @@ def call_tir_inplace(
         Each one denotes the type information of a returned tensor.
         If a list of `TensorType` is given, the result will be a tuple of `TensorType`.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
@@ -576,7 +576,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
 
 def assert_op(
-    condition: Expr | PrimExpr,
+    condition: Expr,
     format_args: Expr | list[Expr] | None = None,
     format: str | Expr = "",
 ) -> Expr:
@@ -586,7 +586,7 @@ def assert_op(
 
     Parameters
     ----------
-    condition: Union[Expr, PrimExpr]
+    condition: Expr
         The assertion condition.
 
     format_args: Optional[Union[Expr, List[Expr]]]

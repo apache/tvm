@@ -49,18 +49,20 @@ class PurityRemover : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) override {
     if (call->op == call_pure_packed_op_) {
-      auto ret = Call(call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
-                      call->attrs, call->ty_args);
+      auto ret = Call(Type::Missing(), call->args[0],
+                      ffi::Array<Expr>(call->args.begin() + 1, call->args.end()), call->attrs,
+                      call->ty_args);
       return VisitExpr(ret);
     }
     if (call->op == call_inplace_packed_op_) {
       // call_inplace_packed has its own attrs so we don't pass those down
-      auto ret = Call(call->args[0], ffi::Array<Expr>(call->args.begin() + 1, call->args.end()),
-                      tvm::Attrs(), call->ty_args);
+      auto ret = Call(Type::Missing(), call->args[0],
+                      ffi::Array<Expr>(call->args.begin() + 1, call->args.end()), tvm::Attrs(),
+                      call->ty_args);
       return VisitExpr(ret);
     }
     if (call->op == invoke_pure_closure_op_) {
-      auto ret = Call(invoke_closure_op_, call->args, call->attrs, call->ty_args);
+      auto ret = Call(Type::Missing(), invoke_closure_op_, call->args, call->attrs, call->ty_args);
       return VisitExpr(ret);
     }
     return ExprMutator::VisitExpr_(call);

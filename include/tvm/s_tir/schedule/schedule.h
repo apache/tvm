@@ -97,7 +97,7 @@ class LoopRV : public ffi::ObjectRef {
 /*! \brief An expr random variable */
 using ExprRV = PrimExpr;
 
-using ExprRVNode = PrimExprNode;
+using ExprRVNode = ExprNode;
 
 /**************** The Schedule class ****************/
 

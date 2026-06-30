@@ -1709,7 +1709,7 @@ class OperatorConverter:
 
         Mirrors the ``tensor_to_shape`` + ``match_cast`` bridge used by
         ``_get_shape_expr_from_tensor`` so a data-dependent scalar can be used as
-        a ``PrimExpr`` (e.g. an output length). The scalar is cast to int64 first.
+        a ``Expr`` (e.g. an output length). The scalar is cast to int64 first.
         """
         expr = self.bb.normalize(relax.op.astype(expr, "int64"))
         expr = self.bb.normalize(relax.op.reshape(expr, (1,)))
@@ -1722,7 +1722,7 @@ class OperatorConverter:
     def _convert_dynamic_range(self, start, limit, delta, out_type):
         """RANGE with dynamic (runtime) scalar bounds, for int and float dtypes.
 
-        ``relax.op.arange`` only accepts compile-time ``PrimExpr`` bounds, and its
+        ``relax.op.arange`` only accepts compile-time ``Expr`` bounds, and its
         struct-info length formula lacks a negative-step branch, so feeding
         symbolic bounds directly would mis-declare descending ranges. Instead the
         element count ``max(0, ceil((limit - start) / delta))`` is computed
@@ -3135,7 +3135,7 @@ class OperatorConverter:
 
         StableHLO clamp(min, operand, max) → R.minimum(R.maximum(operand, min), max).
         """
-        # NOTE: R.clip is not used here because it only accepts scalar PrimExpr
+        # NOTE: R.clip is not used here because it only accepts scalar Expr
         # min/max, not tensor inputs.
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 3, "input tensors length should be 3"
@@ -7838,7 +7838,7 @@ class OperatorConverter:
         one_hot_options.Init(op_options.Bytes, op_options.Pos)
         axis = one_hot_options.Axis()
 
-        # Extract scalar values for on_value and off_value as PrimExpr
+        # Extract scalar values for on_value and off_value as Expr
         dtype = self.get_tensor_type_str(on_value.tensor.Type())
         on_val = self.get_tensor_value(on_value).item()
         off_val = self.get_tensor_value(off_value).item()

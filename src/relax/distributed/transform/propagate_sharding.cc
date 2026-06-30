@@ -384,7 +384,7 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
   Expr RewriteInputTensorAndConstant(Expr tensor) {
-    Type new_ty;
+    Type new_ty = Type::Missing();
     if (tensor->ty.as<TensorTypeNode>()) {
       new_ty = ConvertToDTensorType(tensor->ty.as_or_throw<TensorType>(), tensor);
     } else if (const auto* tuple = tensor->ty.as<TupleTypeNode>()) {

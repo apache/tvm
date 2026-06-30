@@ -117,7 +117,7 @@ class Instruction(Object):
         and the type of each element can be one of the following:
         - SBlockRV
         - LoopRV
-        - ExprRV, atomic variables only, won't be constants or composite PrimExpr
+        - ExprRV, atomic variables only, won't be constants or composite Expr
     """
 
     kind: InstructionKind
@@ -157,7 +157,7 @@ class Instruction(Object):
             and the type of each element can be one of the following:
             - SBlockRV
             - LoopRV
-            - ExprRV, atomic variables only, won't be constants or composite PrimExpr
+            - ExprRV, atomic variables only, won't be constants or composite Expr
         """
         self.__init_handle_by_constructor__(
             _ffi_api.Instruction,  # type: ignore # pylint: disable=no-member

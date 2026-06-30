@@ -238,7 +238,7 @@ def clml_pattern_table():
 
     def _check_maxpool2d(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.nn.max_pool2d":
@@ -305,7 +305,7 @@ def clml_pattern_table():
 
     def _check_avgpool2d(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.nn.avg_pool2d":
@@ -365,7 +365,7 @@ def clml_pattern_table():
 
     def _check_global_avgpool(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.mean":
@@ -408,7 +408,7 @@ def clml_pattern_table():
 
     def _check_reshape(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.reshape":
@@ -431,7 +431,7 @@ def clml_pattern_table():
 
     def _check_batchnorm(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.reshape":

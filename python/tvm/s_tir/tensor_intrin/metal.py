@@ -20,12 +20,12 @@
 from typing import Literal
 
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimExpr, PrimFunc, TensorIntrin
+from tvm.tirx import Buffer, Expr, PrimFunc, TensorIntrin
 
 ######## simdgroup matrix intrinsics ########
 
 
-def get_simdgroup_index(buffer: Buffer, stride: PrimExpr, col: int, row: int):
+def get_simdgroup_index(buffer: Buffer, stride: Expr, col: int, row: int):
     """Compute simdgroup index using elem_offset of the buffer"""
 
     # NOTE: Need further check the usage between `col`` and `row`

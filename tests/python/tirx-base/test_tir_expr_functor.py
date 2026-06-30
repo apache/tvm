@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import tirx as tir
-from tvm.ir import Op
+from tvm.ir import Call, Op
 from tvm.ir.base import assert_structural_equal
 from tvm.tirx.expr import (
     EQ,
@@ -31,7 +31,6 @@ from tvm.tirx.expr import (
     And,
     Broadcast,
     BufferLoad,
-    Call,
     Cast,
     Div,
     FloatImm,
@@ -329,167 +328,167 @@ class ASTPostPrinterMutator(ExprMutator):
         super().__init__()
         self.log = ASTLog()
 
-    def visit_var_(self, op: Var) -> tir.PrimExpr:
+    def visit_var_(self, op: Var) -> tir.Expr:
         result = super().visit_var_(op)
         self.log.add("Var")
         return result
 
-    def visit_size_var_(self, op: SizeVar) -> tir.PrimExpr:
+    def visit_size_var_(self, op: SizeVar) -> tir.Expr:
         result = op
         self.log.add("SizeVar")
         return result
 
-    def visit_buffer_load_(self, op: BufferLoad) -> tir.PrimExpr:
+    def visit_buffer_load_(self, op: BufferLoad) -> tir.Expr:
         result = super().visit_buffer_load_(op)
         self.log.add("BufferLoad")
         return result
 
-    def visit_producer_load_(self, op: ProducerLoad) -> tir.PrimExpr:
+    def visit_producer_load_(self, op: ProducerLoad) -> tir.Expr:
         result = super().visit_producer_load_(op)
         self.log.add("ProducerLoad")
         return result
 
-    def visit_let_(self, op: Let) -> tir.PrimExpr:
+    def visit_let_(self, op: Let) -> tir.Expr:
         result = super().visit_let_(op)
         self.log.add("Let")
         return result
 
-    def visit_call_(self, op: Call) -> tir.PrimExpr:
+    def visit_call_(self, op: Call) -> tir.Expr:
         result = super().visit_call_(op)
         self.log.add("Call")
         return result
 
-    def visit_add_(self, op: Add) -> tir.PrimExpr:
+    def visit_add_(self, op: Add) -> tir.Expr:
         result = super().visit_add_(op)
         self.log.add("Add")
         return result
 
-    def visit_sub_(self, op: Sub) -> tir.PrimExpr:
+    def visit_sub_(self, op: Sub) -> tir.Expr:
         result = super().visit_sub_(op)
         self.log.add("Sub")
         return result
 
-    def visit_mul_(self, op: Mul) -> tir.PrimExpr:
+    def visit_mul_(self, op: Mul) -> tir.Expr:
         result = super().visit_mul_(op)
         self.log.add("Mul")
         return result
 
-    def visit_div_(self, op: Div) -> tir.PrimExpr:
+    def visit_div_(self, op: Div) -> tir.Expr:
         result = super().visit_div_(op)
         self.log.add("Div")
         return result
 
-    def visit_mod_(self, op: Mod) -> tir.PrimExpr:
+    def visit_mod_(self, op: Mod) -> tir.Expr:
         result = super().visit_mod_(op)
         self.log.add("Mod")
         return result
 
-    def visit_floordiv_(self, op: FloorDiv) -> tir.PrimExpr:
+    def visit_floordiv_(self, op: FloorDiv) -> tir.Expr:
         result = super().visit_floordiv_(op)
         self.log.add("FloorDiv")
         return result
 
-    def visit_floormod_(self, op: FloorMod) -> tir.PrimExpr:
+    def visit_floormod_(self, op: FloorMod) -> tir.Expr:
         result = super().visit_floormod_(op)
         self.log.add("FloorMod")
         return result
 
-    def visit_min_(self, op: Min) -> tir.PrimExpr:
+    def visit_min_(self, op: Min) -> tir.Expr:
         result = super().visit_min_(op)
         self.log.add("Min")
         return result
 
-    def visit_max_(self, op: Max) -> tir.PrimExpr:
+    def visit_max_(self, op: Max) -> tir.Expr:
         result = super().visit_max_(op)
         self.log.add("Max")
         return result
 
-    def visit_eq_(self, op: EQ) -> tir.PrimExpr:
+    def visit_eq_(self, op: EQ) -> tir.Expr:
         result = super().visit_eq_(op)
         self.log.add("EQ")
         return result
 
-    def visit_ne_(self, op: NE) -> tir.PrimExpr:
+    def visit_ne_(self, op: NE) -> tir.Expr:
         result = super().visit_ne_(op)
         self.log.add("NE")
         return result
 
-    def visit_lt_(self, op: LT) -> tir.PrimExpr:
+    def visit_lt_(self, op: LT) -> tir.Expr:
         result = super().visit_lt_(op)
         self.log.add("LT")
         return result
 
-    def visit_le_(self, op: LE) -> tir.PrimExpr:
+    def visit_le_(self, op: LE) -> tir.Expr:
         result = super().visit_le_(op)
         self.log.add("LE")
         return result
 
-    def visit_gt_(self, op: GT) -> tir.PrimExpr:
+    def visit_gt_(self, op: GT) -> tir.Expr:
         result = super().visit_gt_(op)
         self.log.add("GT")
         return result
 
-    def visit_ge_(self, op: GE) -> tir.PrimExpr:
+    def visit_ge_(self, op: GE) -> tir.Expr:
         result = super().visit_ge_(op)
         self.log.add("GE")
         return result
 
-    def visit_and_(self, op: And) -> tir.PrimExpr:
+    def visit_and_(self, op: And) -> tir.Expr:
         result = super().visit_and_(op)
         self.log.add("And")
         return result
 
-    def visit_or_(self, op: Or) -> tir.PrimExpr:
+    def visit_or_(self, op: Or) -> tir.Expr:
         result = super().visit_or_(op)
         self.log.add("Or")
         return result
 
-    def visit_reduce_(self, op: Reduce) -> tir.PrimExpr:
+    def visit_reduce_(self, op: Reduce) -> tir.Expr:
         result = super().visit_reduce_(op)
         self.log.add("Reduce")
         return result
 
-    def visit_cast_(self, op: Cast) -> tir.PrimExpr:
+    def visit_cast_(self, op: Cast) -> tir.Expr:
         result = super().visit_cast_(op)
         self.log.add("Cast")
         return result
 
-    def visit_not_(self, op: Not) -> tir.PrimExpr:
+    def visit_not_(self, op: Not) -> tir.Expr:
         result = super().visit_not_(op)
         self.log.add("Not")
         return result
 
-    def visit_select_(self, op: Select) -> tir.PrimExpr:
+    def visit_select_(self, op: Select) -> tir.Expr:
         result = super().visit_select_(op)
         self.log.add("Select")
         return result
 
-    def visit_ramp_(self, op: Ramp) -> tir.PrimExpr:
+    def visit_ramp_(self, op: Ramp) -> tir.Expr:
         result = super().visit_ramp_(op)
         self.log.add("Ramp")
         return result
 
-    def visit_broadcast_(self, op: Broadcast) -> tir.PrimExpr:
+    def visit_broadcast_(self, op: Broadcast) -> tir.Expr:
         result = super().visit_broadcast_(op)
         self.log.add("Broadcast")
         return result
 
-    def visit_shuffle_(self, op: Shuffle) -> tir.PrimExpr:
+    def visit_shuffle_(self, op: Shuffle) -> tir.Expr:
         result = super().visit_shuffle_(op)
         self.log.add("Shuffle")
         return result
 
-    def visit_int_imm_(self, op: IntImm) -> tir.PrimExpr:
+    def visit_int_imm_(self, op: IntImm) -> tir.Expr:
         result = super().visit_int_imm_(op)
         self.log.add("IntImm")
         return result
 
-    def visit_float_imm_(self, op: FloatImm) -> tir.PrimExpr:
+    def visit_float_imm_(self, op: FloatImm) -> tir.Expr:
         result = super().visit_float_imm_(op)
         self.log.add("FloatImm")
         return result
 
-    def visit_string_imm_(self, op: StringImm) -> tir.PrimExpr:
+    def visit_string_imm_(self, op: StringImm) -> tir.Expr:
         result = super().visit_string_imm_(op)
         self.log.add("StringImm")
         return result
@@ -787,20 +786,20 @@ def test_call_mutator_super():
             super().__init__()
             self.log = ASTLog()
 
-        def visit_add_(self, op: Add) -> tir.PrimExpr:
+        def visit_add_(self, op: Add) -> tir.Expr:
             self.log.add("InternalAdd")
             return super().visit_add_(op)  # call ExprMutator.visit_add_
 
-        def visit_var_(self, op: Var) -> tir.PrimExpr:
+        def visit_var_(self, op: Var) -> tir.Expr:
             self.log.add("InternalVar")
             return super().visit_var_(op)  # call ExprMutator.visit_var_
 
-        def visit_int_imm_(self, op: IntImm) -> tir.PrimExpr:
+        def visit_int_imm_(self, op: IntImm) -> tir.Expr:
             self.log.add("InternalIntImm")
             return super().visit_int_imm_(op)  # call ExprMutator.visit_int_imm_
 
     class LeafMutator(InternalMutator):
-        def visit_add_(self, op: Add) -> tir.PrimExpr:
+        def visit_add_(self, op: Add) -> tir.Expr:
             self.log.add("LeafAdd")
             return super().visit_add_(op)  # call InternalMutator.visit_add_
 
@@ -822,7 +821,7 @@ def test_var_mutation():
             super().__init__()
             self.var_map = var_map
 
-        def visit_var_(self, op: Var) -> tir.PrimExpr:
+        def visit_var_(self, op: Var) -> tir.Expr:
             if op.name in self.var_map:
                 return self.var_map[op.name]
             return op

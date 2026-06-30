@@ -392,10 +392,10 @@ def test_rewrite_of_arbitrary_dtype():
             N = T.int64()
 
             # TODO(Lunderberg): Improve this syntax.  A Relax
-            # PrimExpr (e.g. `A.dtype.bits`) should be usable in any
-            # Relax context that accepts a `PrimExpr`.  Currently,
+            # Expr (e.g. `A.dtype.bits`) should be usable in any
+            # Relax context that accepts a `Expr`.  Currently,
             # this requires `R.match_cast` to produce a TIR symbolic
-            # variable from the Relax PrimExpr.
+            # variable from the Relax Expr.
             bits_per_element = T.uint8()
             _ = R.match_cast(
                 A.dtype.bits,

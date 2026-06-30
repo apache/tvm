@@ -45,7 +45,8 @@ Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
   attrs->out_int32 = std::move(out_int32);
   attrs->right = std::move(right);
   static const Op& op = Op::Get("relax.bucketize");
-  return Call(op, {std::move(input_tensor), std::move(boundaries)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(input_tensor), std::move(boundaries)}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -89,7 +90,8 @@ TVM_REGISTER_OP("relax.bucketize")
 /* relax.where */
 Expr where(Expr condition, Expr x1, Expr x2) {
   static const Op& op = Op::Get("relax.where");
-  return Call(op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -252,7 +254,7 @@ Type InferTypeArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
     attrs->axis = std::move(axis);                                                   \
     attrs->keepdims = std::move(keepdims);                                           \
     static const Op& op = Op::Get("relax." #OpName);                                 \
-    return Call(op, {std::move(x)}, Attrs(attrs));                                   \
+    return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs));                  \
   }                                                                                  \
   TVM_FFI_STATIC_INIT_BLOCK() {                                                      \
     tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);              \

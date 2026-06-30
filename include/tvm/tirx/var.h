@@ -45,7 +45,7 @@ namespace tirx {
  * - Let
  * - Bind
  */
-class VarNode : public PrimExprNode {
+class VarNode : public ExprNode {
  public:
   /*!
    * \brief The hint to the variable name.
@@ -59,7 +59,7 @@ class VarNode : public PrimExprNode {
    *
    * \sa tvm/ir/type.h for discussion of relations between DLPack dtype and Type.
    */
-  Type type_annotation;
+  Type type_annotation = Type::Missing();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -70,7 +70,7 @@ class VarNode : public PrimExprNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("tirx.Var", VarNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tirx.Var", VarNode, ExprNode);
 };
 
 /*! \brief a named variable in TIR */
@@ -124,6 +124,7 @@ class Var : public PrimExpr {
   const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
   /*! \brief type indicate the container type */
   using ContainerType = VarNode;
+  static constexpr bool _type_container_is_exact = true;
 };
 
 /*!
@@ -171,6 +172,7 @@ class SizeVar : public Var {
   const SizeVarNode* get() const { return static_cast<const SizeVarNode*>(data_.get()); }
   /*! \brief type indicate the container type */
   using ContainerType = SizeVarNode;
+  static constexpr bool _type_container_is_exact = true;
 };
 
 using Region = ffi::Array<Range>;

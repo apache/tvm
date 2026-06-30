@@ -43,7 +43,7 @@ class VDeviceMutator : public ExprMutator {
 
   Expr VisitExpr(const Expr& expr) final {
     auto visited_expr = ExprMutator::VisitExpr(expr);
-    if (visited_expr->ty.defined()) {
+    if (!visited_expr->ty.IsMissing()) {
       auto* tinfo = GetTypeAs<TensorTypeNode>(visited_expr);
       bool unchanged = true;
       if (tinfo != nullptr) {

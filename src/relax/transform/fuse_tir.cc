@@ -122,7 +122,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
     if (!rhs) {
       TVM_FFI_THROW(InternalError)
           << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " expected an cast to "
-          << op->ty()->dtype << " as the argument, "
+          << op->ty.as_or_throw<PrimType>()->dtype << " as the argument, "
           << "but was provided with the argument " << other;
     }
     VisitExpr(op->value, rhs->value);
@@ -130,14 +130,14 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
 
   void VisitExpr_(const VarNode* op, const PrimExpr& rhs) {
     auto lhs = ffi::GetRef<Var>(op);
+    PrimType lhs_ty = op->ty.as_or_throw<PrimType>();
 
     if (lhs.same_as(rhs)) {
       // Reference identity, no further checks needed.
-    } else if (op->ty().code() != rhs.ty().code()) {
+    } else if (lhs_ty.code() != rhs.ty().code()) {
       TVM_FFI_THROW(InternalError)
-          << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " with dtype "
-          << op->ty()->dtype << " cannot match to argument " << rhs << " with dtype "
-          << rhs.ty()->dtype;
+          << "Parameter expression " << lhs << " with dtype " << lhs_ty->dtype
+          << " cannot match to argument " << rhs << " with dtype " << rhs.ty()->dtype;
     } else if (auto it = var_remap_->find(lhs); it != var_remap_->end()) {
       VisitExpr((*it).second, rhs);
     } else {
@@ -202,7 +202,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     if (auto it = var_remap_.find(ffi::GetRef<Var>(_op)); it != var_remap_.end()) {
       return (*it).second;
     } else {
-      return ffi::GetRef<PrimExpr>(_op);
+      return ffi::GetRef<Var>(_op);
     }
   }
 
@@ -1256,8 +1256,8 @@ class TIRFuseMutator : public ExprMutator {
           tir_vars.push_back(prim_value);
         }
       } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
-        if (const auto* literal = arg.as<PrimExprNode>()) {
-          tir_vars.push_back(ffi::GetRef<PrimExpr>(literal));
+        if (auto literal = arg.as<PrimExpr>()) {
+          tir_vars.push_back(literal.value());
         } else if (const auto* var = arg.as<VarNode>()) {
           tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype)));
         } else {
@@ -1283,7 +1283,7 @@ class TIRFuseMutator : public ExprMutator {
       inplace_attrs->inplace_indices = replacement.inplace_indices;
       call_attrs = Attrs(inplace_attrs);
     }
-    return Call(call_op, call_args, call_attrs, {GetType(call)});
+    return Call(Type::Missing(), call_op, call_args, call_attrs, {GetType(call)});
   }
 
  private:

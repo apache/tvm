@@ -43,7 +43,7 @@ Expr astype(Expr x, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.astype");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -75,7 +75,7 @@ Expr MakeWrapParam(Expr data, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.wrap_param");
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

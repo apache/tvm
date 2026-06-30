@@ -76,7 +76,7 @@ class CallTIRWithGradEliminator : private ExprMutator {
     if (call_node->op != Op::Get("relax.call_tir_with_grad")) {
       return ExprMutator::VisitExpr_(call_node);
     }
-    return Call(Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
+    return Call(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
                 call_node->span);
   }
 };
@@ -264,7 +264,7 @@ class CheckpointGenerator : private ExprMutator {
       Expr new_arg = this->VisitExpr(arg);
       call_args.push_back(new_arg);
     }
-    return Call(new_op, call_args, call_node->attrs, call_node->ty_args);
+    return Call(Type::Missing(), new_op, call_args, call_node->attrs, call_node->ty_args);
   }
 
   BlockBuilder builder_;

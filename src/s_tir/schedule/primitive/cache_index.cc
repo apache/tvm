@@ -172,8 +172,8 @@ class IndexInfoCollector : public StmtExprVisitor {
       // Record the final sub expr with repeat time greater than cse_thresh_
       // In order to make the result stable, sort it by post order and then by complexity
       PostOrderVisit(store->value, [&semantic_comp_done_by_stmt, this](const ffi::ObjectRef& node) {
-        if (node->IsInstance<PrimExprNode>()) {
-          PrimExpr this_expr = node.as_or_throw<PrimExpr>();
+        if (auto prim = node.as<PrimExpr>()) {
+          PrimExpr this_expr = prim.value();
           for (auto& it : semantic_comp_done_by_stmt) {
             if (it.second >= this->cse_thresh_ && EquivalentTerms(this_expr, it.first, true)) {
               auto find_result =

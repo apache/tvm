@@ -18,9 +18,10 @@
 """Default legalization function for datatype operators."""
 
 from tvm import relax, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import _is_relax_expr, _try_convert_to_scalar_const, register_legalize
 
 

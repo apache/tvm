@@ -20,12 +20,13 @@
 import logging
 
 from tvm import te, tirx, topi
+from tvm.ir import Call
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
 from tvm.tirx.script.builder.utils import buffer_proxy
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import register_legalize
 
 

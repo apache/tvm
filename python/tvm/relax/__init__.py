@@ -20,6 +20,7 @@
 
 from tvm.runtime import vm
 from tvm.runtime.vm import VirtualMachine, VMInstrumentReturnKind
+from tvm.ir import Call
 
 # Expr
 from .expr import (
@@ -40,7 +41,6 @@ from .expr import (
     TupleGetItem,
     Function,
     ExternFunc,
-    Call,
     If,
     Constant,
     DataTypeImm,

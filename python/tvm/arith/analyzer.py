@@ -145,7 +145,7 @@ class Analyzer(Object):
                 "Rebuild TVM with USE_Z3=ON to use Z3-specific Analyzer APIs."
             )
 
-    def get_smtlib2(self, expr: tirx.PrimExpr | None = None) -> str:
+    def get_smtlib2(self, expr: tirx.Expr | None = None) -> str:
         """Get the current Z3 problem in SMT-LIB2 format.
 
         Raises
@@ -156,7 +156,7 @@ class Analyzer(Object):
 
         Parameters
         ----------
-        expr : Optional[PrimExpr]
+        expr : Optional[Expr]
             The expression to prove. If provided, its negation is added to the problem.
         """
         self._check_z3_enabled()
@@ -213,12 +213,12 @@ class Analyzer(Object):
         self._check_z3_enabled()
         return _ffi_api.AnalyzerGetZ3Stats(self)
 
-    def const_int_bound(self, expr: tirx.PrimExpr) -> ConstIntBound:
+    def const_int_bound(self, expr: tirx.Expr) -> ConstIntBound:
         """Find constant integer bound for expr.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -243,12 +243,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerConstIntBoundIsBound(self, var)
 
-    def modular_set(self, expr: tirx.PrimExpr) -> ModularSet:
+    def modular_set(self, expr: tirx.Expr) -> ModularSet:
         """Find a modular set that expr belongs to.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -258,12 +258,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerModularSet(self, expr)
 
-    def simplify(self, expr: tirx.PrimExpr, steps: int = 2) -> tirx.PrimExpr:
+    def simplify(self, expr: tirx.Expr, steps: int = 2) -> tirx.Expr:
         """Simplify expression via both rewrite and canonicalization.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
         steps : The simplification runs in the order of
                 rewrite_simplify (step 1) -> canonical_simplify (step 2) ->
@@ -296,12 +296,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerClone(self)
 
-    def rewrite_simplify(self, expr: tirx.PrimExpr) -> tirx.PrimExpr:
+    def rewrite_simplify(self, expr: tirx.Expr) -> tirx.Expr:
         """Simplify expression via rewriting rules.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -318,12 +318,12 @@ class Analyzer(Object):
     def reset_rewrite_simplify_stats(self):
         _ffi_api.AnalyzerResetRewriteSimplifyStats(self)
 
-    def canonical_simplify(self, expr: tirx.PrimExpr) -> tirx.PrimExpr:
+    def canonical_simplify(self, expr: tirx.Expr) -> tirx.Expr:
         """Simplify expression via canonicalization.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -333,12 +333,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerCanonicalSimplify(self, expr)
 
-    def int_set(self, expr: tirx.PrimExpr, dom_map: dict[tirx.Var, IntSet] | None = None) -> IntSet:
+    def int_set(self, expr: tirx.Expr, dom_map: dict[tirx.Var, IntSet] | None = None) -> IntSet:
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         dom_map : Optional[Dict[tvm.tirx.Var, tvm.arith.IntSet]]
@@ -352,14 +352,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerIntSet(self, expr, dom_map)
 
-    def can_prove(
-        self, expr: tirx.PrimExpr, strength: ProofStrength = ProofStrength.DEFAULT
-    ) -> bool:
+    def can_prove(self, expr: tirx.Expr, strength: ProofStrength = ProofStrength.DEFAULT) -> bool:
         """Check whether we can prove expr to be true.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         strength: ProofStrength
@@ -392,7 +390,7 @@ class Analyzer(Object):
     def bind(
         self,
         var: tirx.Var,
-        expr: tirx.PrimExpr | ir.Range,
+        expr: tirx.Expr | ir.Range,
         allow_override: bool = False,
     ) -> None:
         """Bind a variable to the expression.
@@ -402,7 +400,7 @@ class Analyzer(Object):
         var : tvm.tirx.Var
             The variable.
 
-        expr : Union[tirx.PrimExpr, ir.Range]
+        expr : Union[tirx.Expr, ir.Range]
             The expression or the range to bind to.
 
         allow_override : bool
@@ -410,12 +408,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerBind(self, var, expr, allow_override)
 
-    def constraint_scope(self, constraint: tirx.PrimExpr) -> ConstraintScope:
+    def constraint_scope(self, constraint: tirx.Expr) -> ConstraintScope:
         """Create a constraint scope.
 
         Parameters
         ----------
-        constraint : PrimExpr
+        constraint : Expr
             The constraint expression.
 
         returns
@@ -468,15 +466,15 @@ class Analyzer(Object):
         else:
             raise TypeError(f"Do not know how to handle type {type(info)}")
 
-    def can_prove_equal(self, lhs: tirx.PrimExpr, rhs: tirx.PrimExpr) -> bool:
+    def can_prove_equal(self, lhs: tirx.Expr, rhs: tirx.Expr) -> bool:
         """Whether we can prove that lhs == rhs
 
         Parameters
         ----------
-        lhs: PrimExpr
+        lhs: Expr
             The left-hand side of the comparison
 
-        rhs: PrimExpr
+        rhs: Expr
             The right-hand side of the comparison
 
         Returns
@@ -487,16 +485,16 @@ class Analyzer(Object):
         return _ffi_api.AnalyzerCanProveEqual(self, lhs, rhs)
 
     def try_compare(
-        self, lhs: tirx.PrimExpr, rhs: tirx.PrimExpr, propagate_inequalities: bool = True
+        self, lhs: tirx.Expr, rhs: tirx.Expr, propagate_inequalities: bool = True
     ) -> CompareResult:
         """Compare lhs and rhs using previously provided known comparisons.
 
         Parameters
         ----------
-        lhs : PrimExpr
+        lhs : Expr
             The left-hand side of the comparison.
 
-        rhs : PrimExpr
+        rhs : Expr
             The right-hand side of the comparison.
 
         propagate_inequalities : bool

@@ -81,13 +81,13 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
 inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v_p,
                                         const IRDocsifier& d,
                                         const ffi::Optional<relax::Expr>& rhs) {
-  if (!v->ty.defined()) {
+  if (v->ty.IsMissing()) {
     return std::nullopt;
   }
   bool attempt_to_hide_ty = !d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true);
 
   if (rhs.defined()) {
-    if (const auto* call = rhs.as<relax::CallNode>()) {
+    if (const auto* call = rhs.as<tvm::CallNode>()) {
       static const Op& call_tir_op = Op::Get("relax.call_tir");
       static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
       if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
@@ -97,7 +97,7 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v
   }
   if (attempt_to_hide_ty && rhs.defined()) {
     ffi::Optional<tvm::Type> inferred_ty = std::nullopt;
-    if (auto opt = rhs.as<relax::Call>()) {
+    if (auto opt = rhs.as<tvm::Call>()) {
       auto call = opt.value();
       if (auto opt = call->op.as<Op>()) {
         auto op = opt.value();

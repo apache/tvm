@@ -64,7 +64,7 @@ Expr MakePool1d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op& op = Op::Get(op_name);
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool1d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -188,7 +188,7 @@ Expr MakePool2d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op& op = Op::Get(op_name);
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool2d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -345,7 +345,7 @@ Expr MakePool3d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op& op = Op::Get(op_name);
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool3d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -537,7 +537,7 @@ Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op& op = Op::Get("relax.nn.adaptive_avg_pool1d");
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -622,7 +622,7 @@ Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op& op = Op::Get("relax.nn.adaptive_avg_pool2d");
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -725,7 +725,7 @@ Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op& op = Op::Get("relax.nn.adaptive_avg_pool3d");
-  return Call(op, {std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

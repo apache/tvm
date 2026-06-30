@@ -37,7 +37,7 @@ class DispatchContext(Object, Scriptable):
     exec_scope : ExecScope
         The execution scope of the dispatch context.
 
-    launch_params : Dict[str, PrimExpr]
+    launch_params : Dict[str, Expr]
         The launch parameters of the dispatch context.
 
     var_range_map : Dict[Var, Range]

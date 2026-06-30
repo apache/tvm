@@ -70,14 +70,14 @@ ffi::Optional<PrimExpr> FindReturnValue(const tirx::Stmt& node) {
   auto eval = node.as<tirx::EvaluateNode>();
   if (!eval) return std::nullopt;
 
-  auto call = eval->value.as<tirx::CallNode>();
+  auto call = eval->value.as<CallNode>();
   if (!call) return std::nullopt;
 
   if (!call->op.same_as(tirx::builtin::ret())) return std::nullopt;
 
   if (call->args.size() != 1) return std::nullopt;
 
-  return call->args[0];
+  return call->args[0].as_or_throw<PrimExpr>();
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -198,7 +198,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
 
       ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
-      if (eval->value->IsInstance<tirx::CallNode>()) {
+      if (eval->value->IsInstance<CallNode>()) {
         return ExprStmtDoc(value);
       }
       return ExprStmtDoc(TIR(d, "evaluate")->Call({value}));
@@ -207,7 +207,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Bind>("", [](tirx::Bind stmt, AccessPath p, IRDocsifier d) -> Doc {
       // Step 1. Type annotation
-      TVM_FFI_ICHECK(stmt->var->type_annotation.defined())
+      TVM_FFI_ICHECK(!stmt->var->type_annotation.IsMissing())
           << "Type annotation is required for variable: " << stmt->var->name_hint;
       ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
                                                           p->Attr("var")->Attr("type_annotation"));
@@ -814,7 +814,7 @@ ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& a
 /*! \brief Check whether an AttrStmt has node=IntImm(int32, 0) (the dict-attr pattern). */
 static bool IsDictAttrPattern(const tirx::AttrStmt& stmt) {
   if (auto int_imm = stmt->node.as<IntImmNode>()) {
-    return int_imm->ty() == PrimType::Int(32) && int_imm->value == 0;
+    return int_imm->ty.as_or_throw<PrimType>() == PrimType::Int(32) && int_imm->value == 0;
   }
   return false;
 }

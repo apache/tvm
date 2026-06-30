@@ -18,9 +18,10 @@
 """Default legalization function for distir-related operators."""
 
 from tvm import relax, tirx
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from ...op import call_pure_packed
 from ...type import ShapeType
 from .common import register_legalize

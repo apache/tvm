@@ -161,7 +161,7 @@ def get_value(token, value_dict: dict[str, tvm.tirx.SizeVar]) -> int | tvm.tirx.
 
 def parse_shape_name(
     name: str, value_dict: dict[str, tvm.tirx.SizeVar]
-) -> tirx.PrimExpr | tvm.tirx.SizeVar:
+) -> tirx.Expr | tvm.tirx.SizeVar:
     """Converts expressions in the shape dimension name to prim expressions.
 
     Parameters
@@ -174,7 +174,7 @@ def parse_shape_name(
 
     Returns
     -------
-    Union[tirx.PrimExpr, tvm.tirx.SizeVar]
+    Union[tirx.Expr, tvm.tirx.SizeVar]
         The expression of the shape dimension.
     """
 
@@ -260,30 +260,30 @@ def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
 
 def get_prim_expr_list(
     inputs: relax.Constant | relax.ShapeExpr,
-) -> list[int | tirx.PrimExpr]:
-    """Attempt to convert a variable to list of PrimExpr if possible.
+) -> list[int | tirx.Expr]:
+    """Attempt to convert a variable to list of Expr if possible.
 
     Parameters
     ----------
-    inputs : Union[relax.Constant, relax.ShapeExpr, tvm.tirx.PrimExpr]
-        The input value to try to convert to a list of PrimExpr.
+    inputs : Union[relax.Constant, relax.ShapeExpr, tvm.tirx.Expr]
+        The input value to try to convert to a list of Expr.
 
     Returns
     -------
-    ret : List[Union[int, tirx.PrimExpr]]
-        The input value converted to a list of PrimExpr if possible.
+    ret : List[Union[int, tirx.Expr]]
+        The input value converted to a list of Expr if possible.
     """
     if isinstance(inputs, relax.Constant):
         np_value = inputs.data.numpy()
         if np_value.ndim != 1:
-            raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
+            raise ValueError(f"Cannot cast {type(inputs)} to list of Expr")
         return np_value.tolist()
     elif isinstance(inputs, relax.ShapeExpr):
         return inputs.values
-    elif isinstance(inputs, tvm.tirx.PrimExpr):
+    elif tvm.ir.is_prim_expr(inputs):
         return [inputs]
     else:
-        raise ValueError(f"Cannot cast {type(inputs)} to list of PrimExpr")
+        raise ValueError(f"Cannot cast {type(inputs)} to list of Expr")
 
 
 class onnx_input(list):  # pylint: disable=invalid-name
@@ -441,7 +441,7 @@ class MatMulInteger16(OnnxOpConverter):
 
 
 def _to_numpy(x):
-    if isinstance(x, tvm.tirx.PrimExpr):
+    if tvm.ir.is_prim_expr(x):
         if isinstance(x, tirx.IntImm | tirx.FloatImm):
             return _np.array(x.value)
         return x
@@ -473,8 +473,8 @@ class BinaryBase(OnnxOpConverter):
         """Base implementation for binary operations."""
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
-        if all([not isinstance(inp, relax.expr.Call | relax.Var) for inp in inputs]):
-            has_prim_expr = any([isinstance(inp, tvm.tirx.PrimExpr) for inp in inputs])
+        if all([not isinstance(inp, tvm.ir.Call | relax.Var) for inp in inputs]):
+            has_prim_expr = any([tvm.ir.is_prim_expr(inp) for inp in inputs])
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
@@ -771,7 +771,7 @@ def _normalize_legacy_softmax_axis(axis: int, rank: int, op_name: str) -> int:
     return axis
 
 
-def _shape_product(dims: list[int | tirx.PrimExpr]) -> int | tirx.PrimExpr:
+def _shape_product(dims: list[int | tirx.Expr]) -> int | tirx.Expr:
     """Compute product of a list of shape dims (supports symbolic dims)."""
 
     prod = 1
@@ -784,7 +784,7 @@ def _shape_product(dims: list[int | tirx.PrimExpr]) -> int | tirx.PrimExpr:
 
 def _legacy_softmax_prepare(
     data: relax.Expr, axis: int, op_name: str
-) -> tuple[relax.Expr, tuple[int | tirx.PrimExpr, ...]] | None:
+) -> tuple[relax.Expr, tuple[int | tirx.Expr, ...]] | None:
     """Build legacy 2D view for Softmax-family opset <= 12 semantics.
 
     Returns (reshaped_data, original_shape). If rank/shape isn't statically
@@ -812,7 +812,7 @@ def _legacy_softmax_prepare(
     return flattened, tuple(original_shape)
 
 
-def _get_axis_extent(data: relax.Expr, axis: int, op_name: str) -> tuple[int, int | tirx.PrimExpr]:
+def _get_axis_extent(data: relax.Expr, axis: int, op_name: str) -> tuple[int, int | tirx.Expr]:
     """Return normalized axis and axis extent when rank/shape are known."""
 
     rank = _get_known_tensor_rank(data)
@@ -987,7 +987,7 @@ class Unsqueeze(OnnxOpConverter):
         axes = get_constant(inputs[1], params)
         data_ndim = _get_known_tensor_rank(data)
 
-        if isinstance(data, tvm.tirx.PrimExpr) and isinstance(axes, relax.Constant):
+        if tvm.ir.is_prim_expr(data) and isinstance(axes, relax.Constant):
             constant_axes = _normalize_constant_axes(
                 list(map(int, axes.data.numpy().tolist())), 1, "Unsqueeze"
             )
@@ -1106,7 +1106,7 @@ class Cast(OnnxOpConverter):
         if isinstance(inputs[0], relax.Constant):
             output = inputs[0].data.numpy().astype(to_type)
             return relax.const(output, to_type)
-        if isinstance(inputs[0], tvm.tirx.PrimExpr):
+        if tvm.ir.is_prim_expr(inputs[0]):
             if isinstance(inputs[0], tirx.IntImm | tirx.FloatImm):
                 return tvm.tirx.const(inputs[0].value, to_type)
             return inputs[0].astype(to_type)
@@ -2143,7 +2143,7 @@ class Neg(OnnxOpConverter):
         if isinstance(inputs[0], relax.Constant):
             data_np = inputs[0].data.numpy()
             return relax.const(_np.negative(data_np), inputs[0].ty.dtype)
-        if isinstance(inputs[0], tvm.tirx.PrimExpr):
+        if tvm.ir.is_prim_expr(inputs[0]):
             return -inputs[0]
         return relax.op.negative(inputs[0])
 
@@ -2379,7 +2379,7 @@ class Split(OnnxOpConverter):
 def get_prim_value_list(values):
     new_values = []
     for v in list(values):
-        if isinstance(v, relax.expr.PrimExpr):
+        if tvm.ir.is_prim_expr(v):
             new_values.append(relax.prim_value(v))
         else:
             new_values.append(v)
@@ -2393,7 +2393,7 @@ def _get_known_tensor_rank(expr: relax.Expr) -> int | None:
         return len(expr.data.numpy().shape)
     if isinstance(expr, relax.ShapeExpr):
         return 1
-    if isinstance(expr, tvm.tirx.PrimExpr):
+    if tvm.ir.is_prim_expr(expr):
         return 0
     ty = expr.ty
     if isinstance(ty, relax.TensorType):
@@ -2413,7 +2413,7 @@ def _get_known_tensor_length(expr: relax.Expr | None) -> int | None:
         return int(np_value.shape[0])
     if isinstance(expr, relax.ShapeExpr):
         return len(expr.values)
-    if isinstance(expr, tvm.tirx.PrimExpr):
+    if tvm.ir.is_prim_expr(expr):
         return 1
     ty = expr.ty
     if not isinstance(ty, relax.TensorType):
@@ -2452,7 +2452,7 @@ def _as_int64_tensor(bb: relax.BlockBuilder, expr: relax.Expr) -> relax.Expr:
 
     if isinstance(expr, relax.ShapeExpr):
         return bb.normalize(relax.op.shape_to_tensor(expr))
-    if isinstance(expr, tvm.tirx.PrimExpr):
+    if tvm.ir.is_prim_expr(expr):
         return bb.normalize(relax.op.full((1,), expr, dtype="int64"))
     if isinstance(expr, relax.Constant):
         if expr.ty.dtype == "int64":
@@ -2558,7 +2558,9 @@ class Slice(OnnxOpConverter):
         axes = get_constant(inputs[3], params)
         steps = get_constant(inputs[4], params)
         all_constant_params = all(
-            isinstance(param, relax.Constant | relax.ShapeExpr | tvm.tirx.PrimExpr) or param is None
+            isinstance(param, relax.Constant | relax.ShapeExpr)
+            or tvm.ir.is_prim_expr(param)
+            or param is None
             for param in [starts, ends, axes, steps]
         )
         if all_constant_params:

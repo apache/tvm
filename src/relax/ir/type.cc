@@ -30,7 +30,7 @@ namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() { PackedFuncTypeNode::RegisterReflection(); }
 
-PackedFuncType::PackedFuncType(Span span) {
+PackedFuncType::PackedFuncType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<PackedFuncTypeNode> n = ffi::make_object<PackedFuncTypeNode>();
   n->span = span;
   data_ = std::move(n);

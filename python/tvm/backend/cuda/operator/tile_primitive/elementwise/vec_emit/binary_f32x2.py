@@ -26,7 +26,7 @@ because operand-shape branching is now Python-level (outside any
 
 from __future__ import annotations
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir.expr import Expr
 from tvm.script import tirx as T
 
 from .._common import dtype_name, scalar_dtype
@@ -73,7 +73,7 @@ def _f32x2_applies(op_name):
 def _emit_binary_f32x2_for(op_name):
     op_func = getattr(T.ptx, f"{op_name}_f32x2")
 
-    def emit(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
+    def emit(dst_buf, dst_lane_indices, src_args, extras) -> Expr:
         a_arg, b_arg = src_args
         rm = extras.get("rounding_mode", "rz")
         return op_func(

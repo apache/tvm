@@ -149,18 +149,19 @@ class DataTypeVisitor final : public StmtExprVisitor {
       // We only narrow and never promote, so the result dtype
       // is upperbounded by its original dtype before rewrite.
       int bits = std::min(vextent_it->second.bits(), bits_);
+      PrimType op_ty = op->ty.as_or_throw<PrimType>();
       if (auto it = vmap.find(op); it == vmap.end()) {
-        vmap.emplace(op, op->ty().WithBits(bits));
+        vmap.emplace(op, op_ty.WithBits(bits));
       } else {
         // We take maximum bits for all the possible Expr where a var occurs
-        it->second = op->ty().WithBits(std::max(it->second.bits(), bits));
+        it->second = op_ty.WithBits(std::max(it->second.bits(), bits));
       }
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
   void VisitExpr_(const IntImmNode* op) {
-    PrimType op_ty = op->ty();
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (op_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
       // We only narrow and never promote, so the result dtype
       // is upperbounded by its original dtype before rewrite.
@@ -175,7 +176,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CastNode* op) {
-    PrimType op_ty = op->ty();
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (op_ty.MatchesCode(DLDataTypeCode::kDLInt)) {
       // We only narrow and never promote, so the result dtype
       // is upperbounded by its original dtype before rewrite.
@@ -190,7 +191,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   }
 
   // the narrowed datatype of Var and IntImm
-  std::unordered_map<const PrimExprNode*, PrimType> vmap;
+  std::unordered_map<const ExprNode*, PrimType> vmap;
 
  protected:
   // internal analyzer
@@ -217,7 +218,7 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
   Stmt operator()(Stmt s) {
     visitor_(s);
     for (auto i = visitor_.vmap.begin(), last = visitor_.vmap.end(); i != last;) {
-      PrimExpr e = ffi::GetRef<PrimExpr>(i->first);
+      PrimExpr e = ffi::GetRef<Expr>(i->first).as_or_throw<PrimExpr>();
       if (e.ty() == i->second) {
         i = visitor_.vmap.erase(i);
       } else {

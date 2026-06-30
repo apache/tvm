@@ -28,7 +28,7 @@ from .common_analysis import (
 )
 
 
-def get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
+def get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
     """Extracts the reduction expression from a TIR block.
 
     This function checks whether the given TIR block follows a reduction pattern
@@ -41,7 +41,7 @@ def get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
 
     Returns:
     -------
-    Optional[tirx.PrimExpr]
+    Optional[tirx.Expr]
         The reduction expression (`Y`) if detected, otherwise None.
     """
 

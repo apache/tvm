@@ -276,7 +276,7 @@ def simplify(expr):
             name="simplify_output",
             tag="simplify",
         )
-    elif isinstance(expr, tvm.tirx.PrimExpr):
+    elif tvm.ir.is_prim_expr(expr):
         return tvm.arith.Analyzer().simplify(expr)
     else:
         return expr

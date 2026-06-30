@@ -652,8 +652,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     StringImm storage_scope = call->args[3].as_or_throw<StringImm>();
 
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call->args[2].as<PrimExprNode>()) {
-      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+    if (auto prim_value = call->args[2].as<PrimExpr>()) {
+      vdevice_index = prim_value->as<IntImmNode>()->value;
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -944,7 +944,7 @@ class StorageAllocationRewriter : public ExprMutator {
         ShapeExpr size({token->bytes});
         PrimExpr virtual_device_index = runtime_device_index;
         DLDataType dtype = token->dtype;
-        Call alloc_storage(mem_alloc_storage,
+        Call alloc_storage(Type::Missing(), mem_alloc_storage,
                            {std::move(size), virtual_device_index, StringImm(token->storage_scope),
                             DataTypeImm(dtype)},
                            Attrs());
@@ -957,7 +957,7 @@ class StorageAllocationRewriter : public ExprMutator {
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimExpr offset = IntImm::Int64(0);
       DLDataType dtype = ty->dtype.value()->dtype;
-      return Call(mem_alloc_tensor,
+      return Call(Type::Missing(), mem_alloc_tensor,
                   {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
                   Attrs());
     } else if (plan_dynamic_output_ && call->op == alloc_tensor_op) {
@@ -986,17 +986,18 @@ class StorageAllocationRewriter : public ExprMutator {
         TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
             << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
         bytes *= IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
-        Call alloc_storage(mem_alloc_storage,
+        Call alloc_storage(Type::Missing(), mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/call->args[2].as_or_throw<PrimExpr>(),
                             /*storage_scope=*/call->args[3].as_or_throw<StringImm>(),  //
                             /*dtype=*/DataTypeImm(dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
-        return Call(mem_alloc_tensor, {storage,  //
-                                       /*offset=*/IntImm::Int64(0),
-                                       /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                                       /*dtype=*/DataTypeImm(dtype),
-                                       /*vdevice_index=*/call->args[2]});
+        return Call(Type::Missing(), mem_alloc_tensor,
+                    {storage,  //
+                     /*offset=*/IntImm::Int64(0),
+                     /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
+                     /*dtype=*/DataTypeImm(dtype),
+                     /*vdevice_index=*/call->args[2]});
       }
     }
 

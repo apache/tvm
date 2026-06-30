@@ -37,7 +37,7 @@ def _count_ptx_ldg32(stmt):
     num_call = [0]
 
     def visit(n):
-        if isinstance(n, tvm.tirx.Call) and n.op.name == "tirx.ptx.ldg32":
+        if isinstance(n, tvm.ir.Call) and n.op.name == "tirx.ptx.ldg32":
             num_call[0] += 1
 
     tvm.tirx.stmt_functor.post_order_visit(stmt, visit)

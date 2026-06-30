@@ -645,7 +645,7 @@ def test_tensor_ir_op():
         # including the output tensor arguments
         #
         # TODO(Lunderberg): Update
-        # `tvm.relax.frontend.nn.op.tensor_ir_op` to use `PrimExpr`
+        # `tvm.relax.frontend.nn.op.tensor_ir_op` to use `Expr`
         # instead of `tir_vars`, so that the order can be consistent
         # between the function definition and the arguments in
         # `op.tensor_ir_op`.

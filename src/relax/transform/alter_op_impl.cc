@@ -155,8 +155,9 @@ class AlterOpImplMutator : public ExprMutator {
 
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1) << "call_tir ty_args.size() is expected to be 1";
     Type updated_ret_ty = UpdateOutputType(call->ty_args[0], buffer_transforms);
-    auto updated_call = builder_->Normalize(
-        Call(call_tir_op_, {replacement_gv, updated_inputs}, call->attrs, {updated_ret_ty}));
+    auto updated_call =
+        builder_->Normalize(Call(Type::Missing(), call_tir_op_, {replacement_gv, updated_inputs},
+                                 call->attrs, {updated_ret_ty}));
 
     // Now transform each of the outputs to previous layout.
     return TransformOutputs(updated_call, buffer_transforms, call->ty_args[0], axis_separators,
@@ -199,7 +200,7 @@ class AlterOpImplMutator : public ExprMutator {
     attrs->index_map = DeepCopyIndexMap(index_map);
     attrs->axis_separators = std::move(axis_separators);
     attrs->input_axis_separators = std::move(input_axis_separators);
-    return Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+    return Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
   }
 
   /*!
@@ -265,7 +266,8 @@ class AlterOpImplMutator : public ExprMutator {
       const auto& tensor_ty = padded_expr->ty.as_or_throw<TensorType>();
 
       GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype.value()->dtype);
-      return Call(call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {}, {old_tensor_ty});
+      return Call(Type::Missing(), call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {},
+                  {old_tensor_ty});
     }
   }
 

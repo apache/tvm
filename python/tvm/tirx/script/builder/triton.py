@@ -50,7 +50,7 @@ class TritonKernel(BaseKernel):
 
     def compile_to_device_module(
         self,
-        launch_args: list[int | tirx.PrimExpr],
+        launch_args: list[int | tirx.Expr],
         *args: list[Any],
         **kwargs: dict[str, Any],
     ) -> tuple[str, Module, list[Any]]:
@@ -95,7 +95,7 @@ class TritonKernel(BaseKernel):
 
     def _generate_triton_kernel(
         self, func, *args, **kwargs
-    ) -> tuple["triton.compiler.CompiledKernel", list[tirx.PrimExpr]]:
+    ) -> tuple["triton.compiler.CompiledKernel", list[tirx.Expr]]:
         """Deduce the kernel signature and generate the Triton kernel"""
 
         kernel_params = func.params

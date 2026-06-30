@@ -46,12 +46,12 @@ def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=inval
     return gv.name_hint
 
 
-def dym_var_sample_str(sample: dict[str | tvm.relax.expr.Call, int]) -> str:
+def dym_var_sample_str(sample: dict[str | tvm.ir.Call, int]) -> str:
     """Convert a variable value sample to a string.
 
     Parameters
     ----------
-    sample : Dict[Union[str, tvm.relax.expr.Call], int]
+    sample : Dict[Union[str, tvm.ir.Call], int]
         Variable value sample, e.g., {n: 64, m: 128} or {"n": 64, "m": 128}
 
     Returns

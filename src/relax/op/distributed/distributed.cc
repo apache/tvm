@@ -49,7 +49,7 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   attrs->placement = placement;
 
   static const Op& op = Op::Get("relax.dist.annotate_sharding");
-  return Call(op, {std::move(input)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -77,7 +77,7 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   attrs->placement = placement;
 
   static const Op& op = Op::Get("relax.dist.redistribute");
-  return Call(op, {std::move(input)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -129,7 +129,7 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensor
         << ty;
   }
 
-  Type out_ty{nullptr};
+  Type out_ty = Type::Missing();
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
@@ -140,9 +140,9 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensor
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, {}, {out_ty});
+    call = Call(Type::Missing(), op, {func, args}, {}, {out_ty});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, {}, {out_ty});
+    call = Call(Type::Missing(), op, {func, args, packed_ints.value()}, {}, {out_ty});
   }
   return call;
 }
@@ -216,7 +216,7 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.dist.redistribute_replica_to_shard");
 
-  return Call(op, {std::move(input)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(input)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

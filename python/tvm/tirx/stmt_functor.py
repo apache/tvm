@@ -19,7 +19,7 @@
 from typing import TypeVar
 
 import tvm
-from tvm.ir import PrimExpr, Range
+from tvm.ir import Range
 
 from . import _ffi_api
 from .expr_functor import ExprMutator, ExprVisitor, _visit_array
@@ -219,7 +219,7 @@ class StmtVisitor(StmtFunctor):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
         """
         pass
@@ -290,7 +290,7 @@ class StmtVisitor(StmtFunctor):
         """Visitor implementation for AssertStmt."""
         self.visit_expr(op.condition)
         for message_part in op.message_parts:
-            if isinstance(message_part, PrimExpr):
+            if tvm.ir.is_prim_expr(message_part):
                 self.visit_expr(message_part)
 
     def visit_seqstmt_(self, op):
@@ -354,14 +354,14 @@ class StmtVisitor(StmtFunctor):
     def visit_op_call_(self, op):
         """Visitor implementation for TilePrimitiveCall."""
         for arg in op.args:
-            if isinstance(arg, PrimExpr):
+            if tvm.ir.is_prim_expr(arg):
                 self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 self.visit_stmt(arg)
             elif isinstance(arg, tvm.tirx.BufferRegion):
                 self.visit_buffer_region_(arg)
         for value in op.config.values():
-            if isinstance(value, PrimExpr):
+            if tvm.ir.is_prim_expr(value):
                 self.visit_expr(value)
             elif isinstance(value, tvm.tirx.Stmt):
                 self.visit_stmt(value)
@@ -398,12 +398,12 @@ class StmtMutator(StmtFunctor):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
 
         Returns
         -------
-        result : PrimExpr
+        result : Expr
             The mutated expression.
         """
         return expr
@@ -566,7 +566,7 @@ class StmtMutator(StmtFunctor):
         message_parts = []
         message_parts_changed = False
         for message_part in op.message_parts:
-            if isinstance(message_part, PrimExpr):
+            if tvm.ir.is_prim_expr(message_part):
                 new_message_part = self.visit_expr(message_part)
                 if new_message_part is not message_part:
                     message_parts_changed = True
@@ -824,7 +824,7 @@ class StmtMutator(StmtFunctor):
         args_changed = False
 
         for arg in op.args:
-            if isinstance(arg, PrimExpr):
+            if tvm.ir.is_prim_expr(arg):
                 new_arg = self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 new_arg = self.visit_stmt(arg)
@@ -837,11 +837,11 @@ class StmtMutator(StmtFunctor):
                 args_changed = True
             new_args.append(new_arg)
 
-        # Also mutate PrimExpr values in the config map
+        # Also mutate Expr values in the config map
         new_config = {}
         config_changed = False
         for key, value in op.config.items():
-            if isinstance(value, PrimExpr):
+            if tvm.ir.is_prim_expr(value):
                 new_value = self.visit_expr(value)
             elif isinstance(value, tvm.tirx.Stmt):
                 new_value = self.visit_stmt(value)
@@ -928,7 +928,7 @@ class StmtExprVisitor(StmtVisitor, ExprVisitor):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
         """
         return ExprVisitor.visit_expr(self, expr)
@@ -955,12 +955,12 @@ class StmtExprMutator(StmtMutator, ExprMutator):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be mutated.
 
         Returns
         -------
-        result : PrimExpr
+        result : Expr
             The mutated expression.
         """
         return ExprMutator.visit_expr(self, expr)
@@ -1026,7 +1026,7 @@ def substitute(node, vmap):
     node: ObjectRef
         The input.
 
-    vmap : Dict[Var, PrimExpr]
+    vmap : Dict[Var, Expr]
         The variable mapping.
 
     Returns

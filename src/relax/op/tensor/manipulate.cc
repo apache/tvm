@@ -65,7 +65,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.broadcast_to */
 Expr broadcast_to(Expr x, Expr shape) {
   static const Op& op = Op::Get("relax.broadcast_to");
-  return Call(op, {std::move(x), std::move(shape)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(shape)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -146,7 +146,7 @@ Expr concat(Expr tensors, ffi::Optional<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.concat");
-  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -406,7 +406,7 @@ Expr expand_dims(Expr x, ffi::Array<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.expand_dims");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -515,7 +515,7 @@ PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values) {
 /* relax.flatten */
 Expr flatten(Expr x) {
   static const Op& op = Op::Get("relax.flatten");
-  return Call(op, {std::move(x)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -552,7 +552,7 @@ TVM_REGISTER_OP("relax.flatten")
 
 Expr index_tensor(Expr first, Expr tensors) {
   static const Op& op = Op::Get("relax.index_tensor");
-  return Call(op, {std::move(first), std::move(tensors)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(first), std::move(tensors)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -709,7 +709,7 @@ Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> 
   attrs->input_axis_separators = std::move(input_axis_separators);
 
   static const Op& op = Op::Get("relax.layout_transform");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -776,7 +776,7 @@ Expr permute_dims(Expr x, ffi::Optional<ffi::Array<int64_t>> axes) {
   attrs->axes = std::move(axes);
 
   static const Op& op = Op::Get("relax.permute_dims");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -912,12 +912,12 @@ Expr ConvertNewShapeToExpr(const Expr& data,
   // Keep track of which dimensions should be copied from input.
   std::vector<int> zero_dims;
   for (int i = 0; i < static_cast<int>(array->size()); ++i) {
-    const auto* _len = array->at(i).as<PrimExprNode>();
-    TVM_FFI_ICHECK(_len != nullptr)
+    auto prim_len = array->at(i).as<PrimExpr>();
+    TVM_FFI_ICHECK(prim_len)
         << "Reshape only expects the input new shape to be either an Expr or an "
            "Array of PrimExprs. However, the given new shape is "
         << shape;
-    PrimExpr len = ffi::GetRef<PrimExpr>(_len);
+    PrimExpr len = prim_len.value();
     TVM_FFI_ICHECK(len.ty().code() == DLDataTypeCode::kDLInt)
         << "Reshape requires the new shape values to be all "
            "integers. However, the give new shape is "
@@ -993,7 +993,7 @@ Expr ConvertNewShapeToExpr(const Expr& data,
 Expr reshape(Expr x, ffi::Variant<Expr, ffi::Array<PrimExpr>> shape) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
   static const Op& op = Op::Get("relax.reshape");
-  return Call(op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1083,7 +1083,7 @@ Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections,
   attrs->axis = axis;
 
   static const Op& op = Op::Get("relax.split");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1233,7 +1233,7 @@ Expr squeeze(Expr x, ffi::Optional<ffi::Array<int64_t>> axis) {
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.squeeze");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1431,7 +1431,7 @@ Expr stack(Expr tensors, ffi::Optional<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.stack");
-  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1640,7 +1640,7 @@ TVM_REGISTER_OP("relax.stack")
 /* relax.collapse_sum_like */
 Expr collapse_sum_like(Expr data, Expr collapse_target) {
   static const Op& op = Op::Get("relax.collapse_sum_like");
-  return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1687,7 +1687,7 @@ TVM_REGISTER_OP("relax.collapse_sum_like")
 /* relax.collapse_sum_to */
 Expr collapse_sum_to(Expr data, Expr shape) {
   static const Op& op = Op::Get("relax.collapse_sum_to");
-  return Call(op, {std::move(data), std::move(shape)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(shape)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1742,7 +1742,7 @@ Expr repeat(Expr data, int repeats, ffi::Optional<int64_t> axis) {
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.repeat");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1866,7 +1866,7 @@ Expr tile(Expr data, ffi::Array<int64_t> repeats) {
   attrs->repeats = std::move(repeats);
 
   static const Op& op = Op::Get("relax.tile");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2009,7 +2009,7 @@ Expr flip(Expr data, int64_t axis) {
   auto attrs = ffi::make_object<FlipAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.flip");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2082,7 +2082,7 @@ Expr reverse_sequence(Expr data, Expr seq_lengths, int64_t seq_axis, int64_t bat
   attrs->seq_axis = seq_axis;
   attrs->batch_axis = batch_axis;
   static const Op& op = Op::Get("relax.reverse_sequence");
-  return Call(op, {std::move(data), std::move(seq_lengths)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(seq_lengths)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2174,7 +2174,7 @@ Expr gather_elements(Expr data, Expr indices, int axis) {
   auto attrs = ffi::make_object<GatherElementsAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.gather_elements");
-  return Call(op, {data, indices}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2276,7 +2276,7 @@ Expr gather_nd(Expr data, Expr indices, int batch_dims) {
   auto attrs = ffi::make_object<GatherNDAttrs>();
   attrs->batch_dims = batch_dims;
   static const Op& op = Op::Get("relax.gather_nd");
-  return Call(op, {data, indices}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2369,7 +2369,7 @@ Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
   auto attrs = ffi::make_object<IndexPutAttrs>();
   attrs->accumulate = std::move(accumulate);
   static const Op& op = Op::Get("relax.index_put");
-  return Call(op, {data, indices, values}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices, values}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2520,7 +2520,7 @@ Expr meshgrid(Expr tensors, ffi::Optional<ffi::String> indexing) {
   ffi::ObjectPtr<MeshgridAttrs> attrs = ffi::make_object<MeshgridAttrs>();
   attrs->indexing = indexing;
   static const Op& op = Op::Get("relax.meshgrid");
-  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2626,7 +2626,7 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, ffi::Stri
   attrs->axis = std::move(axis);
   attrs->reduction = std::move(reduction);
   static const Op& op = Op::Get("relax.scatter_elements");
-  return Call(op, {data, indices, updates}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2770,7 +2770,7 @@ Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction) {
   auto attrs = ffi::make_object<ScatterNDAttrs>();
   attrs->reduction = std::move(reduction);
   static const Op& op = Op::Get("relax.scatter_nd");
-  return Call(op, {data, indices, updates}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2948,7 +2948,7 @@ Expr slice_scatter(Expr input, Expr src, int axis, PrimExpr start, PrimExpr end,
   auto attrs = ffi::make_object<SliceScatterAttrs>();
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.slice_scatter");
-  return Call(op, {input, src, start, end, step}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {input, src, start, end, step}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -3015,13 +3015,13 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
   }
 
   auto get_prim_expr_from_arg = [&ctx, &call](const Expr& arg_expr, std::string key) -> PrimExpr {
-    const auto* prim_value_node = arg_expr.as<PrimExprNode>();
-    if (prim_value_node == nullptr) {
+    auto prim_value = arg_expr.as<PrimExpr>();
+    if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "SliceScatter expects the `" << key << "` argument (" << arg_expr
           << ") to be a PrimExpr, but got " << arg_expr->GetTypeKey();
     }
-    PrimExpr prim_expr = ffi::GetRef<PrimExpr>(prim_value_node);
+    PrimExpr prim_expr = prim_value.value();
     tvm::PrimType prim_ty = prim_expr.ty();
     if (prim_ty.code() != DLDataTypeCode::kDLInt && prim_ty.code() != DLDataTypeCode::kDLUInt) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -3114,7 +3114,7 @@ Expr one_hot(Expr indices, PrimExpr on_value, PrimExpr off_value, int depth, int
   TVM_FFI_ICHECK(depth > 0) << "one_hot: depth must be positive, but got " << depth;
 
   static const Op& op = Op::Get("relax.one_hot");
-  return Call(op, {indices, on_value, off_value}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {indices, on_value, off_value}, Attrs(attrs), {});
 }  // namespace relax
 
 TVM_FFI_STATIC_INIT_BLOCK() {

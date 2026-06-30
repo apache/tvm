@@ -22,12 +22,11 @@ import operator
 
 from tvm import relax
 from tvm.arith import Analyzer
-from tvm.ir import PrimType
+from tvm.ir import Call, PrimType
 from tvm.relax.type import ShapeType
 
-from ...tirx import PrimExpr
 from ..block_builder import BlockBuilder
-from ..expr import Call, Expr, ShapeExpr, Var
+from ..expr import Expr, ShapeExpr, Var
 from .base import register_gradient
 from .binary import greater_equal, less
 from .create import triu
@@ -738,7 +737,7 @@ def concat_grad(
     axis = orig_call.attrs.axis
     assert axis is not None
     axis = int(axis)
-    split_indices: list[PrimExpr] = []
+    split_indices: list[Expr] = []
     ty = orig_call.args[0].ty
     assert isinstance(ty, relax.TupleType)
     for i in range(len(ty.fields) - 1):

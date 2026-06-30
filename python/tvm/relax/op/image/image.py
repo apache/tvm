@@ -19,18 +19,18 @@
 from typing import cast
 
 from tvm import DataType
-from tvm.ir.expr import PrimExpr
+from tvm.ir import is_prim_expr
 
 from ...expr import Expr, ShapeExpr
 from . import _ffi_api
 
-PrimExprLike = int | PrimExpr
+PrimExprLike = int | Expr
 SizeLike = PrimExprLike | tuple[PrimExprLike, ...]
 
 
 def resize2d(
     data: Expr,
-    size: Expr | PrimExprLike | tuple[PrimExprLike],
+    size: SizeLike,
     roi: float | tuple[float] | None = None,
     layout: str = "NCHW",
     method: str = "linear",
@@ -56,7 +56,7 @@ def resize2d(
     data : relax.Expr
         The input data to the operator.
 
-    size: Union[Expr, PrimExprLike, Tuple[PrimExprLike]]
+    size: SizeLike
         The out size to which the image will be resized.
         If specified as a list, it is required to have length either 1 or 2.
         If specified as an Expr, it is required to have ndim 2.
@@ -110,7 +110,7 @@ def resize2d(
     else:
         raise NotImplementedError(f"Unsupported roi type {type(roi)}")
 
-    if isinstance(size, int | PrimExpr):
+    if isinstance(size, int) or is_prim_expr(size):
         size = (size, size)
     if isinstance(size, tuple | list):
         if len(size) == 1:
@@ -135,7 +135,7 @@ def resize2d(
 
 def resize3d(
     data: Expr,
-    size: Expr | PrimExprLike | tuple[PrimExprLike],
+    size: SizeLike,
     roi: float | tuple[float] | None = None,
     layout: str = "NCDHW",
     method: str = "linear",
@@ -162,7 +162,7 @@ def resize3d(
     else:
         raise NotImplementedError(f"Unsupported roi type {type(roi)}")
 
-    if isinstance(size, int | PrimExpr):
+    if isinstance(size, int) or is_prim_expr(size):
         size = (size, size, size)
     if isinstance(size, tuple | list):
         if len(size) == 1:
@@ -236,7 +236,7 @@ def grid_sample(
 
 def affine_grid(
     data: Expr,
-    size: Expr | SizeLike,
+    size: SizeLike,
     align_corners: bool = True,
 ) -> Expr:
     """Generate a 2D or 3D sampling grid using an affine transformation matrix.
@@ -251,7 +251,7 @@ def affine_grid(
         The input affine matrix tensor with shape [batch, 2, 3] for 2D or
         [batch, 3, 4] for 3D.
 
-    size : Union[Expr, PrimExprLike, Tuple[PrimExprLike, ...]]
+    size : SizeLike
         The target output spatial shape, (H, W) for 2D or (D, H, W) for 3D. If a
         single integer or PrimExpr is provided, it is interpreted as a square 2D
         output shape (size, size).
@@ -266,7 +266,7 @@ def affine_grid(
         The output grid tensor with shape [batch, 2, H, W] for 2D or
         [batch, 3, D, H, W] for 3D.
     """
-    if isinstance(size, int | PrimExpr):
+    if isinstance(size, int) or is_prim_expr(size):
         size = (size, size)
     if isinstance(size, tuple | list):
         size = ShapeExpr(size)

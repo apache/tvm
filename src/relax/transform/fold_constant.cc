@@ -342,8 +342,8 @@ class ConstantFolder : public ExprMutator {
       }
       new_args.push_back(arg);
     }
-    post_call =
-        Call(post_call->op, new_args, post_call->attrs, post_call->ty_args, post_call->span);
+    post_call = Call(Type::Missing(), post_call->op, new_args, post_call->attrs, post_call->ty_args,
+                     post_call->span);
 
     // If we are in a dataflow block, we can fold ops.
     if (builder_->CurrentBlockIsDataFlow()) {

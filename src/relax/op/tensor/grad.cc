@@ -35,7 +35,7 @@ namespace relax {
 /* relax.grad.no_grad */
 Expr no_grad(Expr input) {
   static const Op& op = Op::Get("relax.grad.no_grad");
-  return Call(op, {std::move(input)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(input)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -54,7 +54,7 @@ TVM_REGISTER_OP("relax.grad.no_grad")
 /* relax.grad.start_checkpoint */
 Expr start_checkpoint(Expr input) {
   static const Op& op = Op::Get("relax.grad.start_checkpoint");
-  return Call(op, {std::move(input)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(input)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -79,7 +79,7 @@ TVM_REGISTER_OP("relax.grad.start_checkpoint")
 /* relax.grad.end_checkpoint */
 Expr end_checkpoint(Expr input) {
   static const Op& op = Op::Get("relax.grad.end_checkpoint");
-  return Call(op, {std::move(input)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(input)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -112,11 +112,13 @@ Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
   static const Op& op = Op::Get("relax.grad.nll_loss_backward");
   if (weights.defined()) {
     return Call(
-        op, {std::move(output_grad), std::move(predictions), std::move(targets), weights.value()},
+        Type::Missing(), op,
+        {std::move(output_grad), std::move(predictions), std::move(targets), weights.value()},
         Attrs{attrs}, {});
   } else {
-    return Call(op, {std::move(output_grad), std::move(predictions), std::move(targets)},
-                Attrs{attrs}, {});
+    return Call(Type::Missing(), op,
+                {std::move(output_grad), std::move(predictions), std::move(targets)}, Attrs{attrs},
+                {});
   }
 }
 
@@ -154,7 +156,7 @@ Expr max_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_s
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   static const Op& op = Op::Get("relax.grad.max_pool2d_backward");
-  return Call(op, {std::move(output_grad), std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(output_grad), std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -189,7 +191,7 @@ Expr avg_pool2d_backward(Expr output_grad, Expr data, ffi::Array<int64_t> pool_s
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   static const Op& op = Op::Get("relax.grad.avg_pool2d_backward");
-  return Call(op, {std::move(output_grad), std::move(data)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(output_grad), std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -216,7 +218,8 @@ Expr take_backward(Expr output_grad, Expr x, Expr indices, ffi::Optional<int64_t
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.grad.take_backward");
-  return Call(op, {std::move(output_grad), std::move(x), std::move(indices)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(output_grad), std::move(x), std::move(indices)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

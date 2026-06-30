@@ -25,7 +25,7 @@ from tvm.testing import env
 
 def lower_intrin(params, stmt):
     """wrapper to call transformation in stmt"""
-    lower_expr = isinstance(stmt, tvm.tirx.PrimExpr)
+    lower_expr = tvm.ir.is_prim_expr(stmt)
     stmt = tvm.tirx.Evaluate(stmt) if lower_expr else stmt
     mod = tvm.IRModule.from_expr(
         tvm.tirx.PrimFunc(params, stmt).with_attr("target", tvm.target.Target("llvm"))

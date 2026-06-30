@@ -24,14 +24,14 @@ from tvm_ffi import Array
 
 import tvm
 from tvm import tirx
-from tvm.ir import Op, PointerType, PrimExpr
+from tvm.ir import Call, Expr, Op, PointerType
 from tvm.ir.base import Span
 from tvm.ir.type import TensorMapType
 from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import BufferLoad, Call, CommReducer, ExprOp, IntImm, PrimExprWithOp, Var
+from .expr import BufferLoad, CommReducer, ExprOp, ExprWithOp, IntImm, Var
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
 
@@ -64,11 +64,11 @@ def _primexpr_ty(expr):
         return ty
     if isinstance(expr, ExprOp):
         return expr.expr_ty()
-    raise TypeError(f"Cannot determine PrimExpr type for {type(expr).__name__}")
+    raise TypeError(f"Cannot determine Expr type for {type(expr).__name__}")
 
 
 def _primexpr_dtype(expr):
-    """Return the runtime dtype of a primitive expression without using PrimExpr.dtype."""
+    """Return the runtime dtype of a primitive expression without using Expr.dtype."""
     ty = _primexpr_ty(expr)
     if not isinstance(ty, tvm.ir.PrimType):
         raise TypeError(f"Expected PrimType for {type(expr).__name__}, but got {ty}")
@@ -77,9 +77,11 @@ def _primexpr_dtype(expr):
 
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
-    shape = Call("handle", "tirx.tvm_stack_make_shape", buf.shape, span=span)
+    shape = Call("tirx.tvm_stack_make_shape", buf.shape, span=span, ret_ty="handle")
     strides = (
-        Call("handle", "tirx.tvm_stack_make_shape", buf.strides, span=span) if buf.strides else 0
+        Call("tirx.tvm_stack_make_shape", buf.strides, span=span, ret_ty="handle")
+        if buf.strides
+        else 0
     )
     pack_args = [
         buf.data,
@@ -89,7 +91,7 @@ def _pack_buffer(buf, span=None):
         const(0, dtype=buf.dtype),
         buf.elem_offset,
     ]
-    return Call("handle", Op.get("tirx.tvm_stack_make_array"), pack_args, span=span)
+    return Call(Op.get("tirx.tvm_stack_make_array"), pack_args, span=span, ret_ty="handle")
 
 
 def call_packed_lowered(*args, span=None):
@@ -110,7 +112,7 @@ def call_packed_lowered(*args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
 
     See Also
@@ -118,7 +120,7 @@ def call_packed_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span)
+    return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ret_ty="int32")
 
 
 def call_cpacked_lowered(*args, span=None):
@@ -136,7 +138,7 @@ def call_cpacked_lowered(*args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
 
     See Also
@@ -144,7 +146,7 @@ def call_cpacked_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span)
+    return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ret_ty="int32")
 
 
 def call_packed(*args, span=None):
@@ -167,7 +169,7 @@ def call_packed(*args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
 
     See Also
@@ -175,7 +177,7 @@ def call_packed(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_packed"), call_args, span=span)
+    return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
 
 
 def call_cpacked(*args, span=None):
@@ -194,7 +196,7 @@ def call_cpacked(*args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
 
     See Also
@@ -202,7 +204,7 @@ def call_cpacked(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    return Call("int32", Op.get("tirx.tvm_call_cpacked"), call_args, span=span)
+    return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ret_ty="int32")
 
 
 def call_intrin(dtype: str | tvm.ir.PrimType, func_name, *args, attrs=None, span=None):
@@ -230,12 +232,12 @@ def call_intrin(dtype: str | tvm.ir.PrimType, func_name, *args, attrs=None, span
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
-    return Call(dtype, func_name, args, attrs=attrs, span=span)
+    return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
 
 
 def call_pure_extern(dtype, func_name, *args, span=None):
@@ -257,10 +259,15 @@ def call_pure_extern(dtype, func_name, *args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
-    return Call(dtype, Op.get("tirx.call_pure_extern"), [func_name, *args], span=span)
+    return Call(
+        Op.get("tirx.call_pure_extern"),
+        [func_name, *args],
+        span=span,
+        ret_ty=dtype,
+    )
 
 
 def call_extern(dtype, func_name, *args, span=None):
@@ -282,10 +289,15 @@ def call_extern(dtype, func_name, *args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
-    return Call(dtype, Op.get("tirx.call_extern"), [func_name, *args], span=span)
+    return Call(
+        Op.get("tirx.call_extern"),
+        [func_name, *args],
+        span=span,
+        ret_ty=dtype,
+    )
 
 
 def _require_float_arg(op_name, x):
@@ -315,7 +327,7 @@ def call_llvm_intrin(dtype, name, *args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     # pylint: disable=import-outside-toplevel
@@ -357,7 +369,7 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     # pylint: disable=import-outside-toplevel
@@ -393,7 +405,7 @@ def tvm_stack_alloca(dtype_str, num):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.tvm_stack_alloca", dtype_str, num)
@@ -409,7 +421,7 @@ def tvm_stack_make_shape(*args):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.tvm_stack_make_shape", *args)
@@ -440,9 +452,12 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
+    if isinstance(arr_dtype, str | tvm.DataType | tvm.ir.PrimType):
+        arr_dtype = const(0, dtype=arr_dtype)
+
     return call_intrin(
         "handle",
         "tirx.tvm_stack_make_array",
@@ -465,7 +480,7 @@ def assume(cond=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("bool", "tirx.assume", cond)
@@ -476,7 +491,7 @@ def undef():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int32", "tirx.undef")
@@ -487,7 +502,7 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     assert isinstance(global_var, tvm.ir.GlobalVar)
@@ -498,7 +513,7 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
         if isinstance(ret_ty, tvm.ir.PrimType):
             dtype = ret_ty
 
-    return Call(dtype=dtype, op=global_var, args=args)
+    return Call(op=global_var, args=args, ret_ty=dtype)
 
 
 def start_profile_intrinsic(id):
@@ -509,7 +524,7 @@ def start_profile_intrinsic(id):
         The intrinsic id.
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.start_profile_intrinsic", id)
@@ -523,7 +538,7 @@ def end_profile_intrinsic(id):
         The intrinsic id.
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.end_profile_intrinsic", id)
@@ -539,7 +554,7 @@ def tvm_tuple(*value):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.tvm_tuple", *value)
@@ -558,7 +573,7 @@ def handle_add_byte_offset(handle, offset):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.handle_add_byte_offset", handle, offset)
@@ -583,7 +598,7 @@ def tvm_struct_get(arr, index, field, dtype):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(dtype, "tirx.tvm_struct_get", arr, index, field)
@@ -608,7 +623,7 @@ def tvm_struct_set(arr, index, field, value):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int32", "tirx.tvm_struct_set", arr, index, field, value)
@@ -621,7 +636,7 @@ def _is_tensormap_var(obj: Var) -> bool:
     )
 
 
-def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> PrimExpr:
+def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
     Parameters
@@ -634,7 +649,7 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Prim
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     if isinstance(obj, Buffer):
@@ -663,7 +678,7 @@ def lookup_param(param_name, span=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.lookup_param", param_name, span=span)
@@ -679,7 +694,7 @@ def tvm_thread_allreduce(*freduce_args):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.tvm_thread_allreduce", *freduce_args)
@@ -695,10 +710,10 @@ def tvm_thread_invariant(cond):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
-    assert isinstance(cond, PrimExpr)
+    assert tvm.ir.is_prim_expr(cond)
     return call_intrin(_primexpr_ty(cond), "tirx.tvm_thread_invariant", cond)
 
 
@@ -718,7 +733,7 @@ def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("void", "tirx.tvm_storage_sync", storage_scope, is_load, num_blocks)
@@ -734,7 +749,7 @@ def tvm_global_barrier_kinit():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("void", "tirx.tvm_global_barrier_kinit")
@@ -745,20 +760,20 @@ def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
 
     Parameters
     ----------
-    mask : PrimExpr
+    mask : Expr
         The warp mask indicates active threads inside warp.
-    value : PrimExpr
+    value : Expr
         The value to exchange.
-    warp_id : PrimExpr
+    warp_id : Expr
         The source lane index to fetch value.
-    width : PrimExpr
+    width : Expr
         The width of sub-sections to perform warp shuffle.
-    warp_size : PrimExpr
+    warp_size : Expr
         The warp size.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -771,21 +786,21 @@ def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
 
     Parameters
     ----------
-    mask : PrimExpr
+    mask : Expr
         The warp mask indicates active threads inside warp.
-    value : PrimExpr
+    value : Expr
         The value to exchange.
-    offset : PrimExpr
+    offset : Expr
         The difference between source lane index and destination lane index:
         `offset = dst_lane_idx - src_lane_idx`
-    width : PrimExpr
+    width : Expr
         The width of sub-sections to perform warp shuffle.
-    warp_size : PrimExpr
+    warp_size : Expr
         The warp size.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -798,21 +813,21 @@ def tvm_warp_shuffle_down(mask, value, offset, width, warp_size):
 
     Parameters
     ----------
-    mask : PrimExpr
+    mask : Expr
         The warp mask indicates active threads inside warp.
-    value : PrimExpr
+    value : Expr
         The value to exchange.
-    offset : PrimExpr
+    offset : Expr
         The difference between source lane index and destination lane index:
         `offset = src_lane_idx - dst_lane_idx`
-    width : PrimExpr
+    width : Expr
         The width of sub-sections to perform warp shuffle.
-    warp_size : PrimExpr
+    warp_size : Expr
         The warp size.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -825,20 +840,20 @@ def tvm_warp_shuffle_xor(mask, value, lane_mask, width, warp_size):
 
     Parameters
     ----------
-    mask : PrimExpr
+    mask : Expr
         The warp mask indicates active threads inside warp.
-    value : PrimExpr
+    value : Expr
         The value to exchange.
-    lane_mask : PrimExpr
+    lane_mask : Expr
         The mask to compute source lane index:
-    width : PrimExpr
+    width : Expr
         The width of sub-sections to perform warp shuffle.
-    warp_size : PrimExpr
+    warp_size : Expr
         The warp size.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -851,7 +866,7 @@ def tvm_warp_activemask():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("uint32", "tirx.tvm_warp_activemask")
@@ -867,7 +882,7 @@ def type_annotation(dtype):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(dtype, "tirx.type_annotation")
@@ -898,7 +913,7 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     if isinstance(ptype, str):
@@ -922,7 +937,7 @@ def tvm_throw_last_error():
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The return expression
     """
     return call_intrin("handle", "tirx.tvm_throw_last_error")
@@ -943,8 +958,8 @@ def print_buffer(buffer_var, dtype, is_string, is_scalar, dim_num, *shape):
 
 def cooperative_tensor_fill(
     d: Var,
-    index: PrimExpr,
-    value: PrimExpr,
+    index: Expr,
+    value: Expr,
     rows: int,
     cols: int,
 ):
@@ -953,9 +968,9 @@ def cooperative_tensor_fill(
 
 def cooperative_tensor_load(
     d: Var,
-    index: PrimExpr,
-    ptr: PrimExpr,
-    stride: PrimExpr,
+    index: Expr,
+    ptr: Expr,
+    stride: Expr,
     rows: int,
     cols: int,
     transpose_matrix: bool = False,
@@ -982,10 +997,10 @@ def cooperative_tensor_load(
 
 
 def cooperative_tensor_store(
-    d: PrimExpr,
-    index: PrimExpr,
-    ptr: PrimExpr,
-    stride: PrimExpr,
+    d: Expr,
+    index: Expr,
+    ptr: Expr,
+    stride: Expr,
     rows: int,
     cols: int,
     transpose_matrix: bool = False,
@@ -1013,13 +1028,13 @@ def cooperative_tensor_store(
 
 def cooperative_tensor_multiply_accumulate(
     d: Var,
-    index_d: PrimExpr,
+    index_d: Expr,
     a: Var,
-    index_a: PrimExpr,
+    index_a: Expr,
     b: Var,
-    index_b: PrimExpr,
+    index_b: Expr,
     c: Var,
-    index_c: PrimExpr,
+    index_c: Expr,
     M: int,
     N: int,
     K: int,
@@ -1058,7 +1073,7 @@ def vectorlow(dtype, vec):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(dtype, "tirx.vectorlow", vec)
@@ -1077,7 +1092,7 @@ def vectorhigh(dtype, vec):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(dtype, "tirx.vectorhigh", vec)
@@ -1096,7 +1111,7 @@ def vectorcombine(dtype, vec1, vec2):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(dtype, "tirx.vectorcombine", vec1, vec2)
@@ -1118,7 +1133,7 @@ def dp4a(vec1, vec2, acc=0):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int32", "tirx.dp4a", vec1, vec2, acc)
@@ -1137,11 +1152,11 @@ def ret(val, span=None):
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The return expression
     """
-
-    return _ffi_api.ret(val, span)
+    val = tirx.convert(val)
+    return Call(Op.get("tirx.ret"), [val], span=span, ret_ty=_primexpr_ty(val))
 
 
 def any(*args, span=None):
@@ -1220,7 +1235,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
 
     See Also
@@ -1230,9 +1245,9 @@ def trace(args, trace_action="tvm.default_trace_action"):
     if not isinstance(args, list):
         raise Exception("tvm.tirx.trace consumes the args as list type")
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
-    call_args.insert(0, trace_action)
-    dtype = _primexpr_ty(args[-1]) if isinstance(args[-1], PrimExpr) else args[-1].dtype
-    return tvm.tirx.Call(dtype, Op.get("tirx.tvm_call_trace_packed"), call_args)
+    call_args.insert(0, tvm.tirx.StringImm(trace_action))
+    dtype = _primexpr_ty(args[-1]) if tvm.ir.is_prim_expr(args[-1]) else args[-1].dtype
+    return tvm.ir.Call(Op.get("tirx.tvm_call_trace_packed"), call_args, ret_ty=dtype)
 
 
 def min_value(dtype, span=None):
@@ -1300,7 +1315,7 @@ def reinterpret(dtype, value, span: Span | None = None) -> Any:
     dtype : str
         The data type.
 
-    value : PrimExpr
+    value : Expr
         The input value.
 
     span : Optional[Span]
@@ -1319,12 +1334,12 @@ def exp(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1336,12 +1351,12 @@ def exp2(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1353,12 +1368,12 @@ def exp10(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1370,18 +1385,18 @@ def fma(x, y, z):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         First input argument.
 
-    y : PrimExpr
+    y : Expr
         Second input argument.
 
-    z : PrimExpr
+    z : Expr
         Third input argument.
 
     Returns
     -------
-    out : PrimExpr
+    out : Expr
         The result of x * y + z.
     """
     x = tir.convert(x)
@@ -1395,12 +1410,12 @@ def erf(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1412,12 +1427,12 @@ def tanh(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1429,12 +1444,12 @@ def sigmoid(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1446,12 +1461,12 @@ def log(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1463,12 +1478,12 @@ def log2(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1480,12 +1495,12 @@ def log10(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1497,12 +1512,12 @@ def log1p(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1514,12 +1529,12 @@ def tan(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = _require_float_arg("tan", x)
@@ -1531,12 +1546,12 @@ def cos(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = _require_float_arg("cos", x)
@@ -1548,12 +1563,12 @@ def cosh(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1565,12 +1580,12 @@ def acos(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1582,12 +1597,12 @@ def acosh(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1599,12 +1614,12 @@ def sin(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = _require_float_arg("sin", x)
@@ -1616,12 +1631,12 @@ def sinh(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1633,12 +1648,12 @@ def asin(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1650,12 +1665,12 @@ def asinh(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1667,12 +1682,12 @@ def atan(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1684,12 +1699,12 @@ def atanh(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1701,15 +1716,15 @@ def atan2(x1, x2):
 
     Parameters
     ----------
-    x1 : PrimExpr
+    x1 : Expr
         Input argument.
 
-    x2 : PrimExpr
+    x2 : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x1 = tir.convert(x1)
@@ -1722,12 +1737,12 @@ def sqrt(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1739,12 +1754,12 @@ def rsqrt(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -1756,24 +1771,24 @@ def clz(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input 32 or 64 bit integer.
         The result is undefined if the input is 0.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return call_intrin("int32", "tirx.clz", x)
 
 
-def floor(x: PrimExprWithOp, span=None):
+def floor(x: ExprWithOp, span=None):
     """Take floor of float input x.
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -1781,7 +1796,7 @@ def floor(x: PrimExprWithOp, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.floor(x, span)  # type: ignore
@@ -1792,7 +1807,7 @@ def ceil(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -1800,7 +1815,7 @@ def ceil(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.ceil(x, span)  # type: ignore
@@ -1814,7 +1829,7 @@ def trunc(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -1822,7 +1837,7 @@ def trunc(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.trunc(x, span)  # type: ignore
@@ -1833,7 +1848,7 @@ def abs(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -1841,7 +1856,7 @@ def abs(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.abs(x, span)  # type: ignore
@@ -1852,10 +1867,10 @@ def bitwise_and(x, y, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Left operand
 
-    y : PrimExpr
+    y : Expr
         Right operand
 
     span : Optional[Span]
@@ -1863,7 +1878,7 @@ def bitwise_and(x, y, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result.
     """
     return _ffi_api.bitwise_and(x, y, span)
@@ -1874,7 +1889,7 @@ def bitwise_not(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input operand
 
     span : Optional[Span]
@@ -1882,7 +1897,7 @@ def bitwise_not(x, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result.
     """
     return _ffi_api.bitwise_not(x, span)
@@ -1893,10 +1908,10 @@ def bitwise_or(x, y, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Left operand
 
-    y : PrimExpr
+    y : Expr
         Right operand
 
     span : Optional[Span]
@@ -1904,7 +1919,7 @@ def bitwise_or(x, y, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result.
     """
     return _ffi_api.bitwise_or(x, y, span)
@@ -1915,10 +1930,10 @@ def bitwise_xor(x, y, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Left operand
 
-    y : PrimExpr
+    y : Expr
         Right operand
 
     span : Optional[Span]
@@ -1926,7 +1941,7 @@ def bitwise_xor(x, y, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result.
     """
     return _ffi_api.bitwise_xor(x, y, span)
@@ -1937,7 +1952,7 @@ def round(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -1945,7 +1960,7 @@ def round(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.round(x, span)  # type: ignore
@@ -1963,7 +1978,7 @@ def nearbyint(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -1971,7 +1986,7 @@ def nearbyint(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.nearbyint(x, span)  # type: ignore
@@ -1982,15 +1997,15 @@ def nextafter(x1, x2):
 
     Parameters
     ----------
-    x1 : PrimExpr
+    x1 : Expr
         Input argument.
 
-    x2 : PrimExpr
+    x2 : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x1 = tir.convert(x1)
@@ -2003,15 +2018,15 @@ def hypot(x1, x2):
 
     Parameters
     ----------
-    x1 : PrimExpr
+    x1 : Expr
         Input argument.
 
-    x2 : PrimExpr
+    x2 : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x1 = tir.convert(x1)
@@ -2024,15 +2039,15 @@ def copysign(x1, x2):
 
     Parameters
     ----------
-    x1 : PrimExpr
+    x1 : Expr
         Input argument.
 
-    x2 : PrimExpr
+    x2 : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x1 = tir.convert(x1)
@@ -2045,15 +2060,15 @@ def ldexp(x1, x2):
 
     Parameters
     ----------
-    x1 : PrimExpr
+    x1 : Expr
         Input argument.
 
-    x2 : PrimExpr
+    x2 : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x1 = tir.convert(x1)
@@ -2067,7 +2082,7 @@ def likely(cond, span=None):
     Parameters
     ----------
 
-    cond : PrimExpr
+    cond : Expr
         Input argument.
 
     span : Optional[Span]
@@ -2075,7 +2090,7 @@ def likely(cond, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The marked expression.
     """
     return _ffi_api.likely(cond, span)  # type: ignore
@@ -2118,7 +2133,7 @@ def isnan(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -2126,7 +2141,7 @@ def isnan(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.isnan(x, span)  # type: ignore
@@ -2137,7 +2152,7 @@ def isnullptr(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -2145,7 +2160,7 @@ def isnullptr(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return call_intrin("bool", "tirx.isnullptr", x, span=span)  # type: ignore
@@ -2156,7 +2171,7 @@ def isfinite(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -2164,7 +2179,7 @@ def isfinite(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.isfinite(x, span)  # type: ignore
@@ -2175,7 +2190,7 @@ def isinf(x, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     span : Optional[Span]
@@ -2183,7 +2198,7 @@ def isinf(x, span=None):
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return _ffi_api.isinf(x, span)  # type: ignore
@@ -2194,10 +2209,10 @@ def power(x, y, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
-    y : PrimExpr
+    y : Expr
         The exponent
 
     span : Optional[Span]
@@ -2205,7 +2220,7 @@ def power(x, y, span=None):
 
     Returns
     -------
-    z : PrimExpr
+    z : Expr
         The result.
     """
     return _ffi_api._OpPow(x, y, span)  # type: ignore
@@ -2216,10 +2231,10 @@ def pow(x, y, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
-    y : PrimExpr
+    y : Expr
         The exponent
 
     span : Optional[Span]
@@ -2227,7 +2242,7 @@ def pow(x, y, span=None):
 
     Returns
     -------
-    z : PrimExpr
+    z : Expr
         The result.
     """
     return _ffi_api._OpPow(x, y, span)  # type: ignore
@@ -2238,12 +2253,12 @@ def popcount(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     x = tir.convert(x)
@@ -2262,28 +2277,28 @@ def q_multiply_shift(x, y, q, s):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         First Q-number
-    y : PrimExpr
+    y : Expr
         Second Q-number
-    q : PrimExpr
+    q : Expr
         Number of fractional bits in x and y. Needs to be > 0
-    s : PrimExpr
+    s : Expr
         Integer shift
 
     Returns
     -------
-    y : PrimExpr
+    y : Expr
         The result.
     """
     return call_intrin("int32", "tirx.q_multiply_shift", x, y, q, s)
 
 
 def q_multiply_shift_per_axis(
-    x: PrimExpr,
-    y: PrimExpr,
-    ls: PrimExpr,
-    rs: PrimExpr,
+    x: Expr,
+    y: Expr,
+    ls: Expr,
+    rs: Expr,
     q: IntImm,
     is_lshift_required: IntImm,
     is_rshift_required: IntImm,
@@ -2292,13 +2307,13 @@ def q_multiply_shift_per_axis(
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         First Q-number.
-    y : PrimExpr
+    y : Expr
         Second Q-number.
-    ls : PrimExpr
+    ls : Expr
          Integer left shift.
-    rs : PrimExpr
+    rs : Expr
          Integer right shift.
     q : IntImm
         Number of fractional bits in x and y. Needs to be > 0.
@@ -2309,7 +2324,7 @@ def q_multiply_shift_per_axis(
 
     Returns
     -------
-    z : PrimExpr
+    z : Expr
         The result.
     """
     return call_intrin(
@@ -2330,15 +2345,15 @@ def shift_left(x, y, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
-    y : PrimExpr
+    y : Expr
         Input argument.
 
     Returns
     -------
-    z : PrimExpr
+    z : Expr
         The result.
     """
     return _ffi_api.left_shift(x, y, span)
@@ -2349,15 +2364,15 @@ def shift_right(x, y, span=None):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
 
-    y : PrimExpr
+    y : Expr
         Input argument.
 
     Returns
     -------
-    z : PrimExpr
+    z : Expr
         The result.
     """
     return _ffi_api.right_shift(x, y, span)
@@ -2368,14 +2383,14 @@ def fmod(x, y):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         Input argument.
-    y : PrimExpr
+    y : Expr
         Input argument.
 
     Returns
     -------
-    z : PrimExpr
+    z : Expr
         The result.
     """
     x = tir.convert(x)
@@ -2388,13 +2403,13 @@ def if_then_else(cond, t, f, span=None):
 
     Parameters
     ----------
-    cond : PrimExpr
+    cond : Expr
         The condition
 
-    t : PrimExpr
+    t : Expr
         The result expression if cond is true.
 
-    f : PrimExpr
+    f : Expr
         The result expression if cond is false.
 
     span : Optional[Span]
@@ -2421,10 +2436,10 @@ def div(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand, known to be non-negative.
 
-    b : PrimExpr
+    b : Expr
         The right hand operand, known to be non-negative.
 
     span : Optional[Span]
@@ -2432,7 +2447,7 @@ def div(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
     Note
     ----
@@ -2446,10 +2461,10 @@ def indexdiv(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand, known to be non-negative.
 
-    b : PrimExpr
+    b : Expr
         The right hand operand, known to be non-negative.
 
     span : Optional[Span]
@@ -2457,7 +2472,7 @@ def indexdiv(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
 
     Note
@@ -2474,10 +2489,10 @@ def indexmod(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand, known to be non-negative.
 
-    b : PrimExpr
+    b : Expr
         The right hand operand, known to be non-negative.
 
     span : Optional[Span]
@@ -2485,7 +2500,7 @@ def indexmod(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
 
     Note
@@ -2502,10 +2517,10 @@ def truncdiv(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand
 
-    b : PrimExpr
+    b : Expr
         The right hand operand
 
     span : Optional[Span]
@@ -2513,7 +2528,7 @@ def truncdiv(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
 
     Note
@@ -2528,10 +2543,10 @@ def truncmod(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand
 
-    b : PrimExpr
+    b : Expr
         The right hand operand
 
     span : Optional[Span]
@@ -2539,7 +2554,7 @@ def truncmod(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
 
     Note
@@ -2554,10 +2569,10 @@ def floordiv(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand
 
-    b : PrimExpr
+    b : Expr
         The right hand operand
 
     span : Optional[Span]
@@ -2565,7 +2580,7 @@ def floordiv(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
     """
     return _ffi_api._OpFloorDiv(a, b, span)  # type: ignore
@@ -2576,10 +2591,10 @@ def logaddexp(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand
 
-    b : PrimExpr
+    b : Expr
         The right hand operand
 
     span : Optional[Span]
@@ -2587,7 +2602,7 @@ def logaddexp(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
     """
     return _ffi_api._OpLogAddExp(a, b, span)  # type: ignore
@@ -2598,10 +2613,10 @@ def floormod(a, b, span=None):
 
     Parameters
     ----------
-    a : PrimExpr
+    a : Expr
         The left hand operand
 
-    b : PrimExpr
+    b : Expr
         The right hand operand
 
     span : Optional[Span]
@@ -2609,7 +2624,7 @@ def floormod(a, b, span=None):
 
     Returns
     -------
-    res : PrimExpr
+    res : Expr
         The result expression.
     """
     return _ffi_api._OpFloorMod(a, b, span)  # type: ignore
@@ -2702,7 +2717,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
             result = fcombine(lhs, rhs)
             id_elem = fidentity(*dtypes)
         else:
-            assert isinstance(expr, tvm.ir.PrimExpr)
+            assert tvm.ir.is_prim_expr(expr)
             size = 1
             dtype = _primexpr_dtype(expr)
             lvar = Var(code.co_varnames[0], dtype)
@@ -2749,7 +2764,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
               Parameters
               ----------
-              expr : PrimExpr
+              expr : Expr
                   The source expression.
               axis : IterVar
                   The reduction IterVar axis
@@ -2757,7 +2772,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
                   Filtering predicate of the reduction.
               Returns
               -------
-              value : PrimExpr
+              value : Expr
                   The result value.
 
               Example
@@ -2803,7 +2818,7 @@ def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dt
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -2833,7 +2848,7 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int32", "tirx.TVMBackendFreeWorkspace", device_type, device_id, ptr)
@@ -2847,7 +2862,7 @@ def anylist_getitem(list_handle, index):
         The index
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.anylist_getitem", list_handle, index)
@@ -2861,7 +2876,7 @@ def anylist_resetitem(list_handle, index):
         The index
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int", "tirx.anylist_resetitem", list_handle, index)
@@ -2879,7 +2894,7 @@ def anylist_setitem_call_packed(list_handle, index, func_name, *args):
         Extra arguments
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -2899,7 +2914,7 @@ def anylist_setitem_call_cpacked(list_handle, index, func_name, *args):
         Extra arguments
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -2912,7 +2927,7 @@ def vscale():
     (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         Call to the vscale intrinsic
     """
     return call_intrin("int32", "tirx.vscale")
@@ -2930,16 +2945,16 @@ def get_active_lane_mask(dtype, base, limit):
     dtype : str
         The data type of the result.
 
-    base : PrimExpr
+    base : Expr
         An expression reprsenting the base.
 
-    limit : PrimExpr
+    limit : Expr
         An expression representing the limit.
     """
     return call_intrin(dtype, "tirx.get_active_lane_mask", base, limit)
 
 
-def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> Expr:
     """
     Create a datatype dependent scalable expression.
 
@@ -2955,13 +2970,13 @@ def get_vscale_expr(dtype: str | tvm_ffi.dtype, min_size: int = 128) -> PrimExpr
     return min_size // dtype.bits * vscale()
 
 
-def ignore_loop_partition(predicate) -> PrimExpr:
+def ignore_loop_partition(predicate) -> Expr:
     """
     Annotate a predicate not be considered as target condition of loop partition.
 
     Parameters
     ----------
-    predicate : PrimExpr
+    predicate : Expr
         The annotated predicate expression.
     """
     return call_intrin("bool", "tirx.ignore_loop_partition", predicate)
@@ -3004,7 +3019,7 @@ def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -3045,7 +3060,7 @@ def tvm_mma_sync(
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -3095,7 +3110,7 @@ def tvm_bmma_sync(
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -3137,7 +3152,7 @@ def tvm_fill_fragment(fragment, m, n, k, index, value):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("handle", "tirx.tvm_fill_fragment", fragment, m, n, k, index, value)
@@ -3174,7 +3189,7 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -3187,7 +3202,7 @@ def thread_return():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.thread_return")
@@ -3203,7 +3218,7 @@ def continue_loop(span=None):
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The continue expression
     """
 
@@ -3220,7 +3235,7 @@ def break_loop(span=None):
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The break expression
     """
 

@@ -23,8 +23,9 @@ import os
 import tvm_ffi
 
 import tvm
+from tvm.ir import Call
 from tvm.ir.module import IRModule
-from tvm.relax.expr import Call, DataflowBlock, Var
+from tvm.relax.expr import DataflowBlock, Var
 from tvm.runtime import Object
 
 

@@ -162,7 +162,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && !expr->ty.defined()) {
+    if (!expr.as<OpNode>() && expr->ty.IsMissing()) {
       TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is nullptr.";
     }
     relax::ExprVisitor::VisitExpr(expr);
@@ -178,7 +178,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (op->ty.defined()) {
+    if (!op->ty.IsMissing()) {
       if (!op->ty->IsInstance<FuncTypeNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
             << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncType.";
@@ -281,7 +281,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       param_var_func_map_.insert({param, cur_visited_func_});
     }
     // check function ret_ty
-    if (op->ret_ty.defined()) {
+    if (!op->ret_ty.IsMissing()) {
       this->VisitType(op->ret_ty);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op)) << "Function must have defined ret_ty";
@@ -383,12 +383,12 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (check_ty && call->ty.defined()) {
+    if (check_ty && !call->ty.IsMissing()) {
       // The `InferType` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
       // an expression that does not yet have `Type`.
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
-      Call copied(call->op, call->args, call->attrs, call->ty_args);
+      Call copied(Type::Missing(), call->op, call->args, call->attrs, call->ty_args);
       ffi::Optional<Expr> normalized = std::nullopt;
       try {
         normalized = dummy_builder->Normalize(copied);
@@ -502,7 +502,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     this->VisitVarDef(binding->var);
 
-    if (check_ty && binding->var->ty.defined() && binding->value->ty.defined()) {
+    if (check_ty && !binding->var->ty.IsMissing() && !binding->value->ty.IsMissing()) {
       auto expr_ty = GetType(binding->value);
       auto var_ty = GetType(binding->var);
       if (!IsBaseOf(var_ty, expr_ty)) {

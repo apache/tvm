@@ -25,7 +25,7 @@ element of each packed pair on either side.
 
 from __future__ import annotations
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir.expr import Expr
 from tvm.script import tirx as T
 
 from .._common import dtype_name
@@ -68,7 +68,7 @@ def _cast_vec2_applies(op_call, sctx, plan):
     return True, None
 
 
-def _emit_cast_vec2(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
+def _emit_cast_vec2(dst_buf, dst_lane_indices, src_args, extras) -> Expr:
     src_arg = src_args[0]
     # cast_vec2 requires buffer src (guarded by applies()).
     assert isinstance(src_arg, tuple), "cast vec2 src must be a buffer"

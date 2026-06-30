@@ -39,7 +39,7 @@ def make_prim_func(
     name: str,
     dtype: str,
     num_inputs: int,
-    op: Callable[[tirx.PrimExpr, ...], tirx.PrimExpr],
+    op: Callable[[tirx.Expr, ...], tirx.Expr],
 ) -> tirx.PrimFunc:
     """Make a primitive function that applies the given operation to the input buffer."""
     if num_inputs == 1:
@@ -74,7 +74,7 @@ def make_prim_func(
 @dataclass(frozen=True)
 class MathCase:
     name: str
-    op: Callable[[tirx.PrimExpr, ...], tirx.PrimExpr]
+    op: Callable[[tirx.Expr, ...], tirx.Expr]
     num_inputs: int
     default_intrinsic_f16: str
     default_intrinsic_bf16: str

@@ -78,7 +78,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //
         "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
           // TODO(@junrushao): support non-int64 cases
-          if (n->ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
+          if (n->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
             return LiteralDoc::Boolean(n->value, n_p);
           } else {
             return LiteralDoc::Int(n->value, n_p);

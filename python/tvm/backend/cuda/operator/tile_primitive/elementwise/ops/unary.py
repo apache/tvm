@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir import is_prim_expr
 from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, TilePrimitiveCall
 from tvm.tirx.expr import FloatImm
@@ -44,7 +44,7 @@ def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
     srcs: list[SrcSpec] = []
     if isinstance(_src, BufferRegion):
         srcs.append(SrcSpec(buf_region=_src))
-    elif isinstance(_src, PrimExpr):
+    elif is_prim_expr(_src):
         srcs.append(SrcSpec(scalar=_src))
     else:
         return None, f"unsupported src type {type(_src).__name__}"

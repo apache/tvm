@@ -47,7 +47,7 @@ void ExprVisitor::VisitExpr_(const LetNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const CallNode* op) {
-  VisitArray(op->args, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  VisitArray(op->args, [this](const Expr& e) { this->VisitExpr(e.as_or_throw<PrimExpr>()); });
 }
 
 #define DEFINE_BINOP_VISIT_(OP)                \
@@ -112,7 +112,7 @@ void ExprVisitor::VisitExpr_(const ShuffleNode* op) {
 
 void ExprVisitor::VisitExpr_(const BroadcastNode* op) { this->VisitExpr(op->value); }
 
-PrimExpr ExprMutator::VisitExpr_(const VarNode* op) { return ffi::GetRef<PrimExpr>(op); }
+PrimExpr ExprMutator::VisitExpr_(const VarNode* op) { return ffi::GetRef<Var>(op); }
 
 PrimExpr ExprMutator::VisitExpr_(const SizeVarNode* op) {
   return this->VisitExpr_(static_cast<const VarNode*>(op));
@@ -149,13 +149,14 @@ PrimExpr ExprMutator::VisitExpr_(const LetNode* op) {
 }
 
 PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
-  auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
-  ffi::Array<PrimExpr> args = op->args.Map(fmutate);
+  ffi::Array<Expr> args = op->args.Map(
+      [this](const Expr& arg) -> Expr { return this->VisitExpr(arg.as_or_throw<PrimExpr>()); });
 
   if (args.same_as(op->args)) {
-    return ffi::GetRef<PrimExpr>(op);
+    return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
   } else {
-    return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op, args, op->attrs, op->span);
+    return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op, args, op->attrs, {}, op->span)
+        .as_or_throw<PrimExpr>();
   }
 }
 

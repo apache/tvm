@@ -93,7 +93,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   static InstructionKind inst_bind = InstructionKind::Get("Bind");
 
   std::vector<MutateThreadBindingNode::Candidate> candidates;
-  std::unordered_map<const PrimExprNode*, const s_tir::InstructionNode*> sample_insts;
+  std::unordered_map<const ExprNode*, const s_tir::InstructionNode*> sample_insts;
   std::unordered_map<const s_tir::LoopRVNode*, const s_tir::InstructionNode*> sampled_split_insts;
   std::vector<const InstructionNode*> bind_insts;
 
@@ -123,7 +123,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_sample_categorical)) {
       TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
-      const PrimExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], PrimExprNode);
+      const ExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], ExprNode);
       sample_insts[var_rv] = inst.get();
     } else if (is_split_by_sample(inst)) {
       TVM_FFI_ICHECK_EQ(inst->outputs.size(), 2);
@@ -141,7 +141,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     TVM_FFI_ICHECK(split_it != sampled_split_insts.end());
     const InstructionNode* split_inst = split_it->second;
 
-    const auto* expr_rv = TVM_TYPE_AS(split_inst->inputs[2], PrimExprNode);
+    const auto* expr_rv = TVM_TYPE_AS(split_inst->inputs[2], ExprNode);
     auto sample_it = sample_insts.find(expr_rv);
     TVM_FFI_ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;

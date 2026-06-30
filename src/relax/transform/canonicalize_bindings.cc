@@ -115,7 +115,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return If(guard, true_b, false_b, op->span);
   }
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) override {
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) override {
     if (known_values_.empty()) {
       return expr;
     }
@@ -133,6 +133,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 
     output = builder_->GetAnalyzer()->Simplify(output);
     return output;
+  }
+
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutator::VisitExprFallback_(op);
   }
 
  private:

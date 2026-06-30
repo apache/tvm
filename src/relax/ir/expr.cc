@@ -29,7 +29,6 @@ namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IdNode::RegisterReflection();
-  CallNode::RegisterReflection();
   TupleNode::RegisterReflection();
   TupleGetItemNode::RegisterReflection();
   ShapeExprNode::RegisterReflection();
@@ -55,74 +54,6 @@ Id::Id(ffi::String name_hint) {
   data_ = std::move(n);
 }
 
-Call::Call(Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args, Span span) {
-  TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
-  TVM_FFI_CHECK(!op->ty.defined() || op->ty->IsInstance<FuncTypeNode>(), ValueError)
-      << "Call expects its operator to have FuncType, "
-      << "but operator " << op << ", which was called with arguments " << args << ", has type "
-      << op->ty;
-
-  ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>();
-  n->op = std::move(op);
-  n->args = std::move(args);
-  n->attrs = std::move(attrs);
-  n->ty_args = std::move(ty_args);
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-Call WithFields(Call call, ffi::Optional<Expr> opt_op, ffi::Optional<ffi::Array<Expr>> opt_args,
-                ffi::Optional<Attrs> opt_attrs, ffi::Optional<ffi::Array<Type>> opt_ty_args,
-                ffi::Optional<Span> opt_span) {
-  // Collect new values for fields.
-  Expr op = opt_op.value_or(call->op);
-  ffi::Array<Expr> args = opt_args.value_or(call->args);
-  Attrs attrs = opt_attrs.value_or(call->attrs);
-  ffi::Array<Type> ty_args = opt_ty_args.value_or(call->ty_args);
-  Span span = opt_span.value_or(call->span);
-
-  TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
-
-  // Check if anything changed.
-  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) && span.same_as(call->span);
-  if (unchanged) {
-    if (args.size() == call->args.size()) {
-      for (size_t i = 0; i < args.size(); i++) {
-        unchanged &= args[i].same_as(call->args[i]);
-      }
-    } else {
-      unchanged = false;
-    }
-  }
-  if (unchanged) {
-    if (ty_args.size() == call->ty_args.size()) {
-      for (size_t i = 0; i < ty_args.size(); i++) {
-        unchanged &= ty_args[i].same_as(call->ty_args[i]);
-      }
-    } else {
-      unchanged = false;
-    }
-  }
-
-  if (!unchanged) {
-    // If call is only references, update it in place. Otherwise copy and update.
-    CallNode* cow_call_node = call.CopyOnWrite();
-    cow_call_node->op = op;
-    cow_call_node->args = args;
-    cow_call_node->attrs = attrs;
-    cow_call_node->ty_args = ty_args;
-    cow_call_node->span = span;
-  }
-  return call;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.Call",
-                        [](Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-                           Span span) { return Call(op, args, attrs, ty_args, span); });
-}
-
 If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   ffi::ObjectPtr<IfNode> n = ffi::make_object<IfNode>();
   n->cond = std::move(cond);
@@ -130,26 +61,6 @@ If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   n->false_branch = std::move(false_branch);
   n->span = std::move(span);
   data_ = std::move(n);
-}
-
-If WithFields(If if_expr, ffi::Optional<Expr> opt_cond, ffi::Optional<Expr> opt_true_branch,
-              ffi::Optional<Expr> opt_false_branch, ffi::Optional<Span> opt_span) {
-  Expr cond = opt_cond.value_or(if_expr->cond);
-  Expr true_branch = opt_true_branch.value_or(if_expr->true_branch);
-  Expr false_branch = opt_false_branch.value_or(if_expr->false_branch);
-  Span span = opt_span.value_or(if_expr->span);
-
-  bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
-                   false_branch.same_as(if_expr->false_branch) && span.same_as(if_expr->span);
-
-  if (!unchanged) {
-    IfNode* cow_if_node = if_expr.CopyOnWrite();
-    cow_if_node->cond = cond;
-    cow_if_node->true_branch = true_branch;
-    cow_if_node->false_branch = false_branch;
-    cow_if_node->span = span;
-  }
-  return if_expr;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -163,7 +74,7 @@ Tuple::Tuple(tvm::ffi::Array<Expr> fields, Span span) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
     ffi::Array<Type> field_ty;
     for (const auto& field : fields) {
-      if (field->ty.defined()) {
+      if (!field->ty.IsMissing()) {
         field_ty.push_back(GetType(field));
       } else {
         return std::nullopt;
@@ -187,29 +98,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "relax.Tuple", [](tvm::ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); });
 }
 
-Tuple WithFields(Tuple tuple, ffi::Optional<ffi::Array<Expr>> opt_fields,
-                 ffi::Optional<Span> opt_span) {
-  ffi::Array<Expr> fields = opt_fields.value_or(tuple->fields);
-  Span span = opt_span.value_or(tuple->span);
-
-  bool all_fields_unchanged = true;
-  if (fields.size() == tuple->fields.size()) {
-    for (size_t i = 0; i < fields.size(); i++) {
-      all_fields_unchanged &= fields[i].same_as(tuple->fields[i]);
-    }
-  } else {
-    all_fields_unchanged = false;
-  }
-
-  all_fields_unchanged = all_fields_unchanged && span.same_as(tuple->span);
-  if (!all_fields_unchanged) {
-    TupleNode* cow_tuple_node = tuple.CopyOnWrite();
-    cow_tuple_node->fields = fields;
-    cow_tuple_node->span = span;
-  }
-  return tuple;
-}
-
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   TVM_FFI_ICHECK_GE(index, 0) << "Index out of bounds: Tuple " << tuple
                               << " cannot be accessed with negative index " << index;
@@ -226,22 +114,6 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   n->index = index;
   n->span = std::move(span);
   data_ = std::move(n);
-}
-
-TupleGetItem WithFields(TupleGetItem tuple_get_item, ffi::Optional<Expr> opt_tuple,
-                        ffi::Optional<int64_t> opt_index, ffi::Optional<Span> opt_span) {
-  Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
-  int64_t index = opt_index.value_or(tuple_get_item->index);
-  Span span = opt_span.value_or(tuple_get_item->span);
-
-  bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
-                   span.same_as(tuple_get_item->span);
-  if (!unchanged) {
-    TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
-    cow_tuple_get_item_node->index = static_cast<int>(index);
-    cow_tuple_get_item_node->span = span;
-  }
-  return tuple_get_item;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -529,13 +401,13 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
   ffi::Array<Type> param_ty;
 
   for (const Var& param : params) {
-    TVM_FFI_ICHECK(param->ty.defined()) << "relax.Function requires params to contain ty";
+    TVM_FFI_ICHECK(!param->ty.IsMissing()) << "relax.Function requires params to contain ty";
     param_ty.push_back(GetType(param));
   }
 
   ffi::Optional<Type> body_ty;
 
-  if (body->ty.defined()) {
+  if (!body->ty.IsMissing()) {
     body_ty = GetType(body);
   }
 
@@ -596,7 +468,7 @@ Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure
                                Span span) {
   ffi::Array<Type> param_ty;
   for (const Var& param : params) {
-    TVM_FFI_ICHECK(param->ty.defined()) << "relax.Function requires params to contain ty.";
+    TVM_FFI_ICHECK(!param->ty.IsMissing()) << "relax.Function requires params to contain ty.";
     param_ty.push_back(GetType(param));
   }
 
@@ -605,7 +477,7 @@ Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure
   // A dummy body, to ensure that the empty function is still well-formed.
   Expr body = [&]() -> Expr {
     Var output("output", ret_ty);
-    Call expr(ExternFunc("_dummy_function", FuncType({}, ret_ty)), {});
+    Call expr(Type::Missing(), ExternFunc("_dummy_function", FuncType({}, ret_ty)), {});
 
     return SeqExpr({BindingBlock({VarBinding(output, expr)})}, output);
   }();
@@ -684,7 +556,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
-  TVM_FFI_ICHECK(expr->ty.defined()) << "GetShapeOf can only be applied to normalized expr";
+  TVM_FFI_ICHECK(!expr->ty.IsMissing()) << "GetShapeOf can only be applied to normalized expr";
   auto* tinfo = GetTypeAs<TensorTypeNode>(expr);
 
   TVM_FFI_ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorType";
@@ -692,7 +564,7 @@ Expr GetShapeOf(const Expr& expr) {
 
   static const Op& op = Op::Get("relax.shape_of");
   // default case, call shape of, eagerly normalize the expr.
-  relax::Call call_shape_of(op, {expr}, {}, {});
+  Call call_shape_of(Type::Missing(), op, {expr}, {}, {});
   UpdateType(call_shape_of, ShapeType(tinfo->ndim));
   return call_shape_of;
 }

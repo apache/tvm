@@ -19,9 +19,10 @@
 
 import tvm
 from tvm import tirx
+from tvm.ir import Call
 from tvm.target import Target
 from tvm.tirx import BufferStore, SBlock
-from tvm.tirx.expr import BufferLoad, Call, Cast
+from tvm.tirx.expr import BufferLoad, Cast
 
 from ..base import ScheduleRule
 

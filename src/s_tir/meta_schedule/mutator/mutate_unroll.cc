@@ -98,14 +98,14 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   using s_tir::InstructionKind;
   using s_tir::InstructionNode;
   static const InstructionKind& inst_sample_categorical = InstructionKind::Get("SampleCategorical");
-  std::unordered_map<const PrimExprNode*, const InstructionNode*> sample_insts;
+  std::unordered_map<const ExprNode*, const InstructionNode*> sample_insts;
   std::vector<const InstructionNode*> ann_insts;
   sample_insts.reserve(trace->insts.size());
   ann_insts.reserve(trace->insts.size());
   for (const Instruction& inst : trace->insts) {
     if (inst->kind.same_as(inst_sample_categorical)) {
       TVM_FFI_ICHECK_EQ(inst->outputs.size(), 1);
-      const PrimExprNode* var_rv = TVM_TYPE_AS(inst->outputs[0], PrimExprNode);
+      const ExprNode* var_rv = inst->outputs[0].as_or_throw<PrimExpr>().get();
       sample_insts[var_rv] = inst.get();
     } else if (IsAnnotateWithUnroll(inst)) {
       ann_insts.push_back(inst.get());
@@ -117,7 +117,7 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   }
   const InstructionNode* ann_inst = ann_insts[s_tir::SampleInt(rand_state, 0, n_ann_insts)];
   TVM_FFI_ICHECK_EQ(ann_inst->inputs.size(), 2);
-  const auto* var_rv = TVM_TYPE_AS(ann_inst->inputs[1], PrimExprNode);
+  const auto* var_rv = ann_inst->inputs[1].as_or_throw<PrimExpr>().get();
   TVM_FFI_ICHECK(sample_insts.count(var_rv));
   const InstructionNode* sample_inst = sample_insts.at(var_rv);
   TVM_FFI_ICHECK_EQ(sample_inst->attrs.size(), 2);

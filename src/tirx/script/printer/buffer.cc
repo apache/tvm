@@ -145,7 +145,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   // Step 5. Handle `buffer.elem_offset`
   bool needs_print_factor = false;
   if (const auto* int_imm = buffer->elem_offset.as<IntImmNode>()) {
-    if (int_imm->value != 0 || int_imm->ty()->dtype != buffer->DefaultIndexType()) {
+    if (int_imm->value != 0 ||
+        int_imm->ty.as_or_throw<PrimType>()->dtype != buffer->DefaultIndexType()) {
       kwargs.Set("elem_offset",
                  d->AsDoc<ExprDoc>(buffer->elem_offset,  //
                                    buffer_p->Attr("elem_offset")));
