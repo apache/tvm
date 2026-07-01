@@ -101,7 +101,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   // Step 3. Handle `buffer.data`
   // For tmem scope, DeclBuffer does not accept `data` (it auto-creates the data var).
   bool is_tmem_scope = false;
-  if (auto* ptr_type = buffer->data->type_annotation.as<PointerTypeNode>()) {
+  if (auto* ptr_type = buffer->data->ty.as<PointerTypeNode>()) {
     is_tmem_scope = (ptr_type->storage_scope == "tmem");
   }
   bool is_inline_data = false;

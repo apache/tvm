@@ -612,7 +612,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       ffi::Array<PrimExpr> fcd = MutateArray({op->args.back().as_or_throw<PrimExpr>()}, &lane);
       DLDataType dtype = op->args[0]
                              .as<VarNode>()
-                             ->type_annotation.as<PointerTypeNode>()
+                             ->ty.as<PointerTypeNode>()
                              ->element_type.as<PrimTypeNode>()
                              ->dtype;
       TVM_FFI_ICHECK(lane * dtype.bits <= op->args[4].as<IntImmNode>()->value)
@@ -632,7 +632,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       ffi::Array<PrimExpr> mutated_value = MutateArray(value, &lane);
       DLDataType dtype = op->args[0]
                              .as<VarNode>()
-                             ->type_annotation.as<PointerTypeNode>()
+                             ->ty.as<PointerTypeNode>()
                              ->element_type.as<PrimTypeNode>()
                              ->dtype;
       TVM_FFI_ICHECK(lane * dtype.bits == op->args[4].as<IntImmNode>()->value)

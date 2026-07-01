@@ -548,7 +548,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         ann_var = raw_ann() if callable(raw_ann) else raw_ann
         if not isinstance(ann_var, Var):
             self.report_error(node.annotation, "Annotation should resolve to Var")
-        if not isinstance(ann_var.type_annotation, PrimType):
+        if not isinstance(ann_var.ty, PrimType):
             self.report_error(
                 node.annotation,
                 "Use T.let[...] for non-PrimType annotations (e.g. PointerType, handle)",

@@ -113,8 +113,8 @@ Type GetType(const PrimExpr& expr) {
   if (auto* ptr = expr.as<tirx::VarNode>()) {
     // If Var has a more refined type annotation,
     // return the type anotation
-    if (!ptr->type_annotation.IsMissing()) {
-      return ptr->type_annotation;
+    if (!ptr->ty.IsMissing()) {
+      return ptr->ty;
     }
   }
 
@@ -150,7 +150,7 @@ Type GetType(const PrimExpr& expr) {
       }
 
       if (auto* var = address_of->args[0].as<VarNode>()) {
-        if (auto* ptr = var->type_annotation.as<PointerTypeNode>()) {
+        if (auto* ptr = var->ty.as<PointerTypeNode>()) {
           if (ptr->element_type.as<TensorMapTypeNode>()) {
             return PrimType::UInt(64);
           }

@@ -42,9 +42,9 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
-  new_var->type_annotation = PointerType(ptr_type->element_type, scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
+  new_var->ty = PointerType(ptr_type->element_type, scope);
+  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->ty);
   new_buffer->name = buffer->name + "_" + scope;
   return Buffer(new_buffer);
 }
@@ -52,7 +52,7 @@ Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
 Buffer WithDType(const Buffer& buffer, PrimType dtype) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   new_buffer->dtype = dtype;
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
   new_buffer->data = Var(buffer->data->name_hint, PointerType(dtype, ptr_type->storage_scope));
   new_buffer->name = buffer->name;
   return Buffer(new_buffer);

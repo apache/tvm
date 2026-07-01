@@ -478,7 +478,7 @@ Stmt Buffer::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
 }
 
 ffi::String Buffer::scope() const {
-  const auto* ptr_type = (*this)->data->type_annotation.as<PointerTypeNode>();
+  const auto* ptr_type = (*this)->data->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "Buffer variable is not of pointer type";
   if (ptr_type->storage_scope.empty()) {
     return "global";
@@ -597,11 +597,11 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   // TODO(Lunderberg): Use an explicit pointer cast for the data
   // pointer.  Should be done alongside extensions to StmtExprMutator
   // to more easily handle buffer/buffer_var updates.
-  TVM_FFI_ICHECK(!data->type_annotation.IsMissing())
+  TVM_FFI_ICHECK(!data->ty.IsMissing())
       << "Variable " << data->name_hint << " is missing a type annotation.";
-  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>())
+  TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>())
       << "Variable " << data->name_hint << " is not a pointer.";
-  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
+  TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
       << "Variable " << data->name_hint << " does not point to a primitive.";
 
   ValidateAxisSeparators(axis_separators, shape.size());

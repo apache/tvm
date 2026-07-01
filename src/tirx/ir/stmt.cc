@@ -58,15 +58,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Bind
-Bind::Bind(Var var, PrimExpr value, Span span) {
+Bind::Bind(Var var, Expr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
-  PrimType value_ty = value.ty();
-  // It is still valid to bind a pointer type var to a value that is of type handle.
-  if (var->type_annotation.as<PointerTypeNode>()) {
-    TVM_FFI_ICHECK(value_ty.IsHandle());
-  } else {
-    TVM_FFI_ICHECK(value.ty() == var.ty());
-  }
+  TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
   ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
   node->var = std::move(var);
@@ -78,7 +72,7 @@ Bind::Bind(Var var, PrimExpr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.Bind",
-                        [](Var var, PrimExpr value, Span span) { return Bind(var, value, span); });
+                        [](Var var, Expr value, Span span) { return Bind(var, value, span); });
 }
 
 // AttrStmt

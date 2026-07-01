@@ -114,7 +114,7 @@ class TritonKernel(BaseKernel):
                 continue
             if arg.dtype == "handle":
                 assert isinstance(arg, tirx.Var)
-                elem_type = arg.type_annotation.element_type.dtype
+                elem_type = arg.ty.element_type.dtype
                 pointer_type = "*" + type_canonicalisation_dict[elem_type]
                 signature[kernel_params[i].name] = pointer_type
             else:

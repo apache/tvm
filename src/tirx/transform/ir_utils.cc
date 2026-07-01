@@ -456,8 +456,8 @@ class IRConvertSSA final : public StmtExprMutator {
         var = it->second;
       } else if (defined_.count(var.get())) {
         Var new_var = [&]() {
-          if (!var->type_annotation.IsMissing()) {
-            return Var(var->name_hint, var->type_annotation);
+          if (!var->ty.IsMissing()) {
+            return Var(var->name_hint, var->ty);
           } else {
             return Var(var->name_hint, var.ty());
           }
@@ -534,11 +534,11 @@ class IRConvertSSA final : public StmtExprMutator {
   /*! \brief Create a new variable with the same name and type as the original. */
   static Var MakeNewVar(const Var& old_var) {
     bool is_size_var = old_var->IsInstance<SizeVarNode>();
-    if (!old_var->type_annotation.IsMissing()) {
+    if (!old_var->ty.IsMissing()) {
       if (is_size_var) {
-        return SizeVar(old_var->name_hint, old_var->type_annotation);
+        return SizeVar(old_var->name_hint, old_var->ty);
       } else {
-        return Var(old_var->name_hint, old_var->type_annotation);
+        return Var(old_var->name_hint, old_var->ty);
       }
     } else {
       if (is_size_var) {
@@ -667,7 +667,7 @@ class IRConvertSSA final : public StmtExprMutator {
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
-  const auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
+  const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return ptr_type->storage_scope;
 }

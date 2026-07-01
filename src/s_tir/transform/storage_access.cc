@@ -290,7 +290,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
-  if (buffer_var->type_annotation.as<PointerTypeNode>()) {
+  if (buffer_var->ty.as<PointerTypeNode>()) {
     return StorageScope::Create(GetPtrStorageScope(buffer_var));
   }
   return StorageScope();  // global by default

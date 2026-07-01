@@ -2176,11 +2176,11 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
   // Therefore, to have the correct LLVM type for pointers, we may
   // need to introduce a pointer-cast, even though pointer-to-pointer
   // casts are not expressible with the `tirx::CastNode`.
-  if (var_ty.IsHandle() && !v->type_annotation.IsMissing()) {
+  if (var_ty.IsHandle() && !v->ty.IsMissing()) {
     TVM_FFI_ICHECK(op->value.ty().IsHandle())
         << "Variable " << op->var << " is a pointer with type " << op->value
         << ", but is being bound to expression with type " << op->value.ty();
-    auto* llvm_type = GetLLVMType(v->type_annotation);
+    auto* llvm_type = GetLLVMType(v->ty);
     if (llvm_type != value->getType()) {
       value->setName((v->name_hint + "_void_ptr").c_str());
       value = builder_->CreatePointerCast(value, llvm_type);

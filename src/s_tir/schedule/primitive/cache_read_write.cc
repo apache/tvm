@@ -2035,9 +2035,9 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   // Create new buffer
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*old_buffer.get());
   ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*old_buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(old_buffer->data->type_annotation, PointerTypeNode);
-  new_var->type_annotation = PointerType(ptr_type->element_type, storage_scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + storage_scope, new_var->type_annotation);
+  const auto* ptr_type = TVM_TYPE_AS(old_buffer->data->ty, PointerTypeNode);
+  new_var->ty = PointerType(ptr_type->element_type, storage_scope);
+  new_buffer->data = Var(new_var->name_hint + "_" + storage_scope, new_var->ty);
   new_buffer->name = old_buffer->name + "_" + storage_scope;
   new_buffer->shape = new_shape;
 

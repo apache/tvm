@@ -52,20 +52,10 @@ class VarNode : public ExprNode {
    * \note Each variable is uniquely identified by its address.
    */
   ffi::String name_hint;
-  /*!
-   * \brief type annotation of the variable.
-   *
-   * It is an optional field that provides a refined type of the variable than dtype.
-   *
-   * \sa tvm/ir/type.h for discussion of relations between DLPack dtype and Type.
-   */
-  Type type_annotation = Type::Missing();
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>()
-        .def_ro("name", &VarNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("type_annotation", &VarNode::type_annotation);
+    refl::ObjectDef<VarNode>().def_ro("name", &VarNode::name_hint,
+                                      refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
@@ -74,10 +64,10 @@ class VarNode : public ExprNode {
 };
 
 /*! \brief a named variable in TIR */
-class Var : public PrimExpr {
+class Var : public Expr {
  public:
-  explicit Var(ffi::UnsafeInit tag) : PrimExpr(tag) {}
-  explicit Var(ffi::ObjectPtr<VarNode> n) : PrimExpr(n) {}
+  explicit Var(ffi::UnsafeInit tag) : Expr(tag) {}
+  explicit Var(ffi::ObjectPtr<VarNode> n) : Expr(n) {}
   /*!
    * \brief Constructor
    * \param name_hint variable name
@@ -111,6 +101,12 @@ class Var : public PrimExpr {
    * \return The new variable
    */
   TVM_DLL Var copy_with_dtype(PrimType dtype) const;
+
+  /*! \return The exact semantic type of this variable. */
+  Type ty() const { return get()->ExprNode::ty; }
+
+  /*! \brief Checked conversion for scalar variables. */
+  operator PrimExpr() const { return this->as_or_throw<PrimExpr>(); }
 
   /*!
    * \brief Get pointer to the internal value.

@@ -62,8 +62,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
       const int bytes = indices_lanes * static_cast<int>(load->buffer->dtype.StorageBytes());
 
       if (bytes == 4 || bytes == 8 || bytes == 16) {
-        auto dst_elem_type = GetPointerType(store->buffer->data->type_annotation);
-        auto src_elem_type = GetPointerType(load->buffer->data->type_annotation);
+        auto dst_elem_type = GetPointerType(store->buffer->data->ty);
+        auto src_elem_type = GetPointerType(load->buffer->data->ty);
         TVM_FFI_ICHECK(dst_elem_type.has_value() && src_elem_type.has_value())
             << "Both store and load buffer should have a pointer type annotation.";
 

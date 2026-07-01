@@ -97,7 +97,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     }
 
     auto is_tensormap_ptr = [&]() -> bool {
-      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+      if (auto* ptr = v->ty.as<PointerTypeNode>()) {
         return ptr->element_type.as<TensorMapTypeNode>();
       }
       return false;
@@ -110,7 +110,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
 
     bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
     bool is_handle = v.ty().IsHandle();
-    auto* ptr = v->type_annotation.as<PointerTypeNode>();
+    auto* ptr = v->ty.as<PointerTypeNode>();
     if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
       is_handle = false;
     }
@@ -126,7 +126,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
   // TODO(tvm-team): consider simply keep type info in the
   // type annotation(via a normalizing rewriting).
   for (const auto& param : func->params) {
-    if (auto* ptr = param->type_annotation.as<PointerTypeNode>()) {
+    if (auto* ptr = param->ty.as<PointerTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
         RegisterHandleType(param.get(), ffi::GetRef<PrimType>(prim));
       }
@@ -745,7 +745,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         TVM_FFI_ICHECK(var)
             << "Builtin address_of() expects the argument to be a BufferLoad or Var, but "
             << "received argument " << op->args[0];
-        if (auto* ptr = var->type_annotation.as<PointerTypeNode>()) {
+        if (auto* ptr = var->ty.as<PointerTypeNode>()) {
           if (ptr->element_type.as<TensorMapTypeNode>()) {
             os << "((unsigned long long)(&(";
             this->PrintExpr(op->args[0], os);

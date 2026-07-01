@@ -630,10 +630,7 @@ def tvm_struct_set(arr, index, field, value):
 
 
 def _is_tensormap_var(obj: Var) -> bool:
-    type_annotation = obj.type_annotation
-    return isinstance(type_annotation, PointerType) and isinstance(
-        type_annotation.element_type, TensorMapType
-    )
+    return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
 def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr:

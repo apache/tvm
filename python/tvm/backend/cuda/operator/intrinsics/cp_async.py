@@ -239,13 +239,13 @@ def codegen_ptx_cp_async(*args):
         ca_or_cg = "cg" if cp_size_v == 16 else "ca"
 
         # Recover the per-side element dtype from each pointer's type
-        # annotation (Var has type_annotation = PointerType(PrimType(dtype))).
+        # type (Var has ty = PointerType(PrimType(dtype))).
         # InjectPTXAsyncCopy emits offsets in element-units of each side's
         # buffer dtype (dst gets dst_offset * src_elem_size only when dst is a
         # merged shared.dyn byte buffer, in which case dst_elem_dtype is uint8
         # and the resulting scale-by-1 is a no-op).
         def _elem_bytes(ptr):
-            ta = getattr(ptr, "type_annotation", None)
+            ta = getattr(ptr, "ty", None)
             if ta is None or getattr(ta, "element_type", None) is None:
                 return 1
             et = ta.element_type

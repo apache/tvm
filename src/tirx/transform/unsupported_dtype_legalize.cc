@@ -116,7 +116,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     if (MatchType(op->buffer->dtype)) {
       PrimType dtype = promote_dtype_.WithLanes(op->buffer->dtype.lanes());
       ffi::String storage_scope = "global";
-      if (auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>()) {
+      if (auto* ptr_type = op->buffer->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
       Var buffer_var = Var(op->buffer->data->name_hint, PointerType(dtype, storage_scope));
@@ -570,7 +570,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (MatchType(buf->dtype)) {
       PrimType new_dtype = GetStorageUIntDType(buf->dtype);
       ffi::String storage_scope = "global";
-      if (auto* ptr_type = buf->data->type_annotation.as<PointerTypeNode>()) {
+      if (auto* ptr_type = buf->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
       Var new_data = Var(buf->data->name_hint, PointerType(new_dtype, storage_scope));
@@ -720,7 +720,7 @@ class StorageLegalizer : public StmtExprMutator {
   Var RemapVarDef(Var var) {
     // remap the var
     if (var.ty().IsHandle()) {
-      if (auto* ptr_type = var->type_annotation.as<PointerTypeNode>()) {
+      if (auto* ptr_type = var->ty.as<PointerTypeNode>()) {
         if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
           PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
           if (MatchType(elem_prim_type)) {
