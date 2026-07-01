@@ -652,6 +652,8 @@ class FunctionCreator : public ExprMutator {
     if (const auto* tuple = expr.as<TupleNode>()) {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(),
                          [this](const Expr& e) { return IsInlinableConstants(e); });
+    } else if (expr.as<VarNode>() || expr.as<CallNode>()) {
+      return false;
     } else if (auto prim_value = expr.as<PrimExpr>()) {
       return tvm::tirx::UndefinedVars(prim_value.value()).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {

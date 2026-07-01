@@ -354,8 +354,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(this->VisitExpr(call_node->args[i]));
     }
     int64_t vdevice_index = -1;
-    if (auto prim_value = call_node->args[4].as<PrimExpr>()) {
-      vdevice_index = prim_value->as<IntImmNode>()->value;
+    if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
+      vdevice_index = int_imm->value;
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 

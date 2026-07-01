@@ -20,9 +20,15 @@
 import pytest
 
 import tvm.testing
+from tvm import relax
+from tvm.ir import Op
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+
+
+def inspect_tensor_field(op_name, *args):
+    return relax.Call(Op.get(f"relax.inspect.{op_name}"), args)
 
 
 def test_rewrite_defined_by_ir_module():
@@ -391,19 +397,18 @@ def test_rewrite_of_arbitrary_dtype():
             M = T.int64()
             N = T.int64()
 
-            # TODO(Lunderberg): Improve this syntax.  A Relax
-            # Expr (e.g. `A.dtype.bits`) should be usable in any
-            # Relax context that accepts a `Expr`.  Currently,
+            # A primitive-valued Relax inspect Call can be used in a
+            # Relax context that accepts an Expr.  Currently,
             # this requires `R.match_cast` to produce a TIR symbolic
             # variable from the Relax Expr.
             bits_per_element = T.uint8()
             _ = R.match_cast(
-                A.dtype.bits,
+                inspect_tensor_field("tensor_dtype_bits", A),
                 R.Prim(value=bits_per_element),
             )
             lanes_per_element = T.uint16()
             _ = R.match_cast(
-                A.dtype.lanes,
+                inspect_tensor_field("tensor_dtype_lanes", A),
                 R.Prim(value=lanes_per_element),
             )
 
@@ -481,13 +486,13 @@ def test_rewrite_of_arbitrary_dtype():
             #                     (32 elements/row) *
             #                     (ceildiv(bits*lanes,8) bytes/element)`
             C_bits_per_element = T.uint8()
-            C_bits_prim_value = C.dtype.bits
+            C_bits_prim_value = inspect_tensor_field("tensor_dtype_bits", C)
             _ = R.match_cast(
                 C_bits_prim_value,
                 R.Prim(value=C_bits_per_element),
             )
             C_lanes_per_element = T.uint16()
-            C_lanes_prim_value = C.dtype.lanes
+            C_lanes_prim_value = inspect_tensor_field("tensor_dtype_lanes", C)
             _ = R.match_cast(
                 C_lanes_prim_value,
                 R.Prim(value=C_lanes_per_element),

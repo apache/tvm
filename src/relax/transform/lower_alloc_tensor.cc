@@ -85,8 +85,8 @@ class Mutator : public ExprMutator {
       ShapeExpr size({nbytes});
 
       int64_t vdevice_index = -1;
-      if (auto prim_value = op->args[2].as<PrimExpr>()) {
-        vdevice_index = prim_value->as<IntImmNode>()->value;
+      if (const auto* int_imm = op->args[2].as<IntImmNode>()) {
+        vdevice_index = int_imm->value;
       }
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 

@@ -219,6 +219,13 @@ def gen_call_tir_inputs(
         """
 
         def _convert_te_arg_helper(arg):
+            if isinstance(arg, tvm.relax.Var) and tvm.ir.is_prim_expr(arg):
+                name = arg.name_hint or f"scalar_input_{len(create_primfunc_args)}"
+                tir_param = tirx.Var(name, arg.ty.dtype)
+                call_tir_args.append(arg)
+                create_primfunc_args.append(tir_param)
+                return tir_param
+
             if tvm.ir.is_prim_expr(arg):
                 _copy_undefined_var(arg)
                 new_arg = tirx.stmt_functor.substitute(arg, tir_var_map)
@@ -253,22 +260,6 @@ def gen_call_tir_inputs(
                         "For Expr having ShapeType, emit_te now only supports ShapeExpr"
                     )
                     return [_convert_te_arg_helper(val) for val in arg.values]
-
-                if tvm.ir.is_prim_expr(arg):
-                    n_args = len(create_primfunc_args)
-                    if isinstance(arg, tvm.relax.Var):
-                        name = arg.name_hint
-                    elif n_args < len(string.ascii_lowercase):
-                        name = string.ascii_lowercase[n_args]
-                    else:
-                        name = f"scalar_input_{n_args}"
-
-                    tir_param = tirx.Var(name, arg.ty.dtype)
-
-                    call_tir_args.append(arg)
-                    create_primfunc_args.append(tir_param)
-
-                    return tir_param
 
             elif isinstance(arg, list | Array):
                 return [_convert_te_arg_helper(x) for x in arg]

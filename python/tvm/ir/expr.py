@@ -23,7 +23,7 @@ import tvm_ffi
 import tvm
 
 from ..runtime import Object, Scriptable
-from . import _ffi_api, _overload_prim_expr, _overload_tensor_expr
+from . import _ffi_api, _overload_prim_expr, _tensor_expr_overload
 from .base import Node, Span
 
 
@@ -71,15 +71,11 @@ class GlobalVar(Expr):
         call: Expr
             A call taking the variable as a function.
         """
-        # pylint: disable=import-outside-toplevel
-
         if args and all(isinstance(x, Number) or is_prim_expr(x) for x in args):
             return tvm.tirx.call_tir(self, *args)
 
         if all(isinstance(x, Expr) for x in args):
-            from tvm import relax
-
-            return relax.Call(self, args)
+            return Call(self, args)
 
         arg_types = [type(x) for x in args]
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
@@ -132,82 +128,82 @@ class Call(Expr, Scriptable):
     def __add__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__add__(self, other)
-        return _overload_tensor_expr.__add__(self, other)
+        return _tensor_expr_overload.__add__(self, other)
 
     def __radd__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__radd__(self, other)
-        return _overload_tensor_expr.__radd__(self, other)
+        return _tensor_expr_overload.__radd__(self, other)
 
     def __sub__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__sub__(self, other)
-        return _overload_tensor_expr.__sub__(self, other)
+        return _tensor_expr_overload.__sub__(self, other)
 
     def __rsub__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__rsub__(self, other)
-        return _overload_tensor_expr.__rsub__(self, other)
+        return _tensor_expr_overload.__rsub__(self, other)
 
     def __mul__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__mul__(self, other)
-        return _overload_tensor_expr.__mul__(self, other)
+        return _tensor_expr_overload.__mul__(self, other)
 
     def __rmul__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__rmul__(self, other)
-        return _overload_tensor_expr.__rmul__(self, other)
+        return _tensor_expr_overload.__rmul__(self, other)
 
     def __div__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__div__(self, other)
-        return _overload_tensor_expr.__div__(self, other)
+        return _tensor_expr_overload.__div__(self, other)
 
     def __rdiv__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__rdiv__(self, other)
-        return _overload_tensor_expr.__rdiv__(self, other)
+        return _tensor_expr_overload.__rdiv__(self, other)
 
     def __truediv__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__truediv__(self, other)
-        return _overload_tensor_expr.__truediv__(self, other)
+        return _tensor_expr_overload.__truediv__(self, other)
 
     def __rtruediv__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__rtruediv__(self, other)
-        return _overload_tensor_expr.__rtruediv__(self, other)
+        return _tensor_expr_overload.__rtruediv__(self, other)
 
     def __floordiv__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__floordiv__(self, other)
-        return _overload_tensor_expr.__floordiv__(self, other)
+        return _tensor_expr_overload.__floordiv__(self, other)
 
     def __rfloordiv__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__rfloordiv__(self, other)
-        return _overload_tensor_expr.__rfloordiv__(self, other)
+        return _tensor_expr_overload.__rfloordiv__(self, other)
 
     def __mod__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__mod__(self, other)
-        return _overload_tensor_expr.__mod__(self, other)
+        return _tensor_expr_overload.__mod__(self, other)
 
     def __rmod__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__rmod__(self, other)
-        return _overload_tensor_expr.__rmod__(self, other)
+        return _tensor_expr_overload.__rmod__(self, other)
 
     def __pow__(self, other):
         if is_prim_expr(self):
             return NotImplemented
-        return _overload_tensor_expr.__pow__(self, other)
+        return _tensor_expr_overload.__pow__(self, other)
 
     def __rpow__(self, other):
         if is_prim_expr(self):
             return NotImplemented
-        return _overload_tensor_expr.__rpow__(self, other)
+        return _tensor_expr_overload.__rpow__(self, other)
 
     def __neg__(self):
         if is_prim_expr(self):
@@ -215,7 +211,7 @@ class Call(Expr, Scriptable):
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload __neg__ is not registered")
             return result
-        result = _overload_tensor_expr.__neg__(self)
+        result = _tensor_expr_overload.__neg__(self)
         if result is NotImplemented:
             raise TypeError("Tensor expression overload negative is not registered")
         return result
@@ -281,12 +277,12 @@ class Call(Expr, Scriptable):
     def __lt__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__lt__(self, other)
-        return _overload_tensor_expr.__lt__(self, other)
+        return _tensor_expr_overload.__lt__(self, other)
 
     def __le__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__le__(self, other)
-        return _overload_tensor_expr.__le__(self, other)
+        return _tensor_expr_overload.__le__(self, other)
 
     def __eq__(self, other):
         if is_prim_expr(self):
@@ -301,17 +297,17 @@ class Call(Expr, Scriptable):
     def __gt__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__gt__(self, other)
-        return _overload_tensor_expr.__gt__(self, other)
+        return _tensor_expr_overload.__gt__(self, other)
 
     def __ge__(self, other):
         if is_prim_expr(self):
             return _overload_prim_expr.__ge__(self, other)
-        return _overload_tensor_expr.__ge__(self, other)
+        return _tensor_expr_overload.__ge__(self, other)
 
     def __nonzero__(self):
         raise ValueError(
-            "Cannot use and / or / not operator to Expr, hint: "
-            + "use tvm.tirx.all / tvm.tirx.any instead"
+            "Cannot use and / or / not operator to Expr, hint: use tvm.tirx.all / "
+            "tvm.tirx.any, if it is None checking, use node is not None"
         )
 
     def __bool__(self):
@@ -329,7 +325,7 @@ class Call(Expr, Scriptable):
             if result is NotImplemented:
                 raise TypeError("Primitive expression overload astype is not registered")
             return result
-        result = _overload_tensor_expr.astype(self, dtype, span)
+        result = _tensor_expr_overload.astype(self, dtype, span)
         if result is NotImplemented:
             raise TypeError("Tensor expression overload astype is not registered")
         return result
@@ -337,76 +333,18 @@ class Call(Expr, Scriptable):
     def __call__(self, *args, attrs=None):
         if is_prim_expr(self):
             raise TypeError("A primitive-valued Call cannot be called")
-        return Call(self, args, attrs=attrs)
+        result = _tensor_expr_overload.__call__(self, *args, attrs=attrs)
+        if result is NotImplemented:
+            raise TypeError("Tensor expression overload __call__ is not registered")
+        return result
 
     def __getitem__(self, index):
         if is_prim_expr(self):
             raise TypeError("A primitive-valued Call cannot be indexed")
-
-        # pylint: disable=import-outside-toplevel
-        from tvm.relax.expr import TupleGetItem
-
-        try:
-            return TupleGetItem(self, index)
-        except RuntimeError as err:
-            if "Index out of bounds" in err.args[0]:
-                raise IndexError from err
-            raise
-
-    def _check_for_tensor_ty(self):
-        if self.ty.is_missing():
-            return
-
-        # pylint: disable=import-outside-toplevel
-        from tvm.relax import TensorType
-
-        if not isinstance(self.ty, TensorType):
-            raise TypeError(
-                "Runtime unpacking of DLDataType is only implemented for tensors, "
-                f"but was applied to object {self} of type {type(self)}."
-            )
-
-    @property
-    def dtype(self):
-        if is_prim_expr(self):
-            return self.ty.dtype
-
-        # pylint: disable=import-outside-toplevel
-        from tvm.relax.expr import _DLTensorDTypeProxy
-
-        self._check_for_tensor_ty()
-        return _DLTensorDTypeProxy(self)
-
-    @property
-    def ndim(self):
-        self._check_for_tensor_ty()
-        return Call("relax.inspect.tensor_ndim", [self])
-
-    @property
-    def shape(self):
-        # pylint: disable=import-outside-toplevel
-        from tvm.relax.expr import _DLTensorShapeProxy
-
-        self._check_for_tensor_ty()
-        return _DLTensorShapeProxy(self)
-
-    @property
-    def strides(self):
-        # pylint: disable=import-outside-toplevel
-        from tvm.relax.expr import _DLTensorStrideProxy
-
-        self._check_for_tensor_ty()
-        return _DLTensorStrideProxy(self)
-
-    @property
-    def byte_offset(self):
-        self._check_for_tensor_ty()
-        return Call("relax.inspect.tensor_byte_offset", [self])
-
-    @property
-    def elem_offset(self):
-        self._check_for_tensor_ty()
-        return Call("relax.inspect.tensor_elem_offset", [self])
+        result = _tensor_expr_overload.__getitem__(self, index)
+        if result is NotImplemented:
+            raise TypeError("Tensor expression overload __getitem__ is not registered")
+        return result
 
 
 @tvm_ffi.register_object("ir.Range")

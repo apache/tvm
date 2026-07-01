@@ -652,8 +652,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     StringImm storage_scope = call->args[3].as_or_throw<StringImm>();
 
     int64_t vdevice_index = -1;
-    if (auto prim_value = call->args[2].as<PrimExpr>()) {
-      vdevice_index = prim_value->as<IntImmNode>()->value;
+    if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
+      vdevice_index = int_imm->value;
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 

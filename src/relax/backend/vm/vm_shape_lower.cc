@@ -25,6 +25,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_functor.h>
 #include <tvm/runtime/vm/builtin.h>
@@ -72,6 +73,14 @@ struct MatchShapeTodoItem {
 using PrimExprSlotMap =
     std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, tirx::ExprDeepEqual>;
 
+static bool IsRelaxOwnedCall(const CallNode* call) {
+  auto op = call->op.as<Op>();
+  if (!op) return true;
+  static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+  static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+  return infer_type_map.count(op.value()) || legalize_map.count(op.value());
+}
+
 // Collector to collect PrimExprSlotMap
 class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
  public:
@@ -91,16 +100,28 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
   }
 
  private:
-  void VisitExpr(const Expr& expr) final {
-    if (auto prim_expr = expr.as<PrimExpr>()) {
+  void VisitExpr_(const CallNode* op) final {
+    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>(); prim_expr && !IsRelaxOwnedCall(op)) {
       CollectPrimExprSlot(prim_expr.value());
       return;
     }
-    ExprVisitor::VisitExpr(expr);
+    ExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitExprFallback_(const ExprNode* op) final {
+    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>()) {
+      CollectPrimExprSlot(prim_expr.value());
+    } else {
+      ExprVisitor::VisitExprFallback_(op);
+    }
   }
 
   void CollectPrimExprSlot(const PrimExpr& expr) {
     if (expr->IsInstance<IntImmNode>()) return;
+    if (const auto* call = expr.as<CallNode>()) {
+      TVM_FFI_CHECK(!IsRelaxOwnedCall(call), ValueError)
+          << "VM shape expressions cannot compile a Relax-owned Call: " << ffi::GetRef<Call>(call);
+    }
     if (slot_map_->count(expr) == 0) {
       auto slot = std::make_unique<PrimExprSlot>();
       slot->expr = expr;
@@ -237,11 +258,18 @@ class VMShapeLowerMutator
 
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr(const Expr& expr) final {
-    if (auto prim_expr = expr.as<PrimExpr>()) {
+  Expr VisitExpr_(const CallNode* op) final {
+    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>(); prim_expr && !IsRelaxOwnedCall(op)) {
       return RewritePrimValue(prim_expr.value());
     }
-    return ExprMutator::VisitExpr(expr);
+    return ExprMutator::VisitExpr_(op);
+  }
+
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>()) {
+      return RewritePrimValue(prim_expr.value());
+    }
+    return ExprMutator::VisitExprFallback_(op);
   }
 
   // Unit rewrite function per function.
@@ -593,12 +621,13 @@ class VMShapeLowerMutator
     ffi::Map<tirx::Var, tirx::Buffer> buffer_map;
     buffer_map.Set(heap, buffer);
 
-    auto var_map = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
-      auto it = slot_map_.find(var);
-      TVM_FFI_ICHECK(it != slot_map_.end());
-      return tirx::BufferLoad(
-          buffer, ffi::Array<PrimExpr>{IntImm(tvm::PrimType(ShapeDType()), it->second->index)});
-    };
+    ffi::Map<tirx::Var, PrimExpr> var_map;
+    for (const auto& [expr, slot] : slot_map_) {
+      if (auto var = expr.as<tirx::Var>()) {
+        var_map.Set(var.value(),
+                    tirx::BufferLoad(buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+      }
+    }
 
     ffi::Array<tirx::Stmt> seq;
     for (PrimExprSlot* slot : to_compute) {

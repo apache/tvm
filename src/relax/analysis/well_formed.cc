@@ -383,7 +383,11 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (check_ty && !call->ty.IsMissing()) {
+    bool has_infer_type = true;
+    if (auto op = call->op.as<Op>()) {
+      has_infer_type = op_map_infer_type_.count(op.value());
+    }
+    if (check_ty && !call->ty.IsMissing() && (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
       // The `InferType` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
       // an expression that does not yet have `Type`.
@@ -668,6 +672,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
   tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
+  tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
 };
 
 void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {

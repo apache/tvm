@@ -145,7 +145,16 @@ class CodeGenRunner : ExprMutator {
       new_args.push_back(VisitExpr(arg));
     }
 
-    return Call(Type::Missing(), call_node->op, new_args, call_node->attrs, call_node->ty_args,
+    Type ret_ty = Type::Missing();
+    if (call_node->ty.as<PrimTypeNode>()) {
+      if (auto op = call_node->op.as<Op>()) {
+        static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+        if (!infer_type_map.count(op.value())) {
+          ret_ty = call_node->ty.as_or_throw<Type>();
+        }
+      }
+    }
+    return Call(ret_ty, call_node->op, new_args, call_node->attrs, call_node->ty_args,
                 call_node->span);
   }
 

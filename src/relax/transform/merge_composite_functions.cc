@@ -89,7 +89,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       // Make default groups for dataflow nodes other than CallNode.
       // Groups for CallNode are created in its visitor.
       if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
-          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() || e.as<PrimExpr>()) {
+          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
+          (!e->IsInstance<CallNode>() && !e->IsInstance<VarNode>() && e.as<PrimExpr>())) {
         memo_[e] = arena_->make<Group>();
       }
     });

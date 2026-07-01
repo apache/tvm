@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
@@ -30,25 +31,44 @@ namespace relax {
 
 namespace {
 
+bool HasRelaxCallCapabilities(const CallNode* call) {
+  auto op = call->op.as<Op>();
+  if (!op) return true;
+  static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+  static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+  return infer_type_map.count(op.value()) || legalize_map.count(op.value());
+}
+
 class PrimExprComputeInjector : public ExprMutator {
  public:
   IRModule Finalize() const { return builder_->Finalize(); }
 
-  using ExprMutator::VisitExpr_;
-
-  Expr VisitExpr(const Expr& expr) final {
-    if (auto prim_expr = expr.as<PrimExpr>()) {
-      return VisitPrimValue(prim_expr.value());
+ private:
+  Expr VisitExpr_(const CallNode* op) final {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto prim_expr = call.as<PrimExpr>()) {
+      if (call->op.as<Op>()) {
+        if (!HasRelaxCallCapabilities(op)) {
+          return LiftPrimValue(prim_expr.value());
+        }
+      }
     }
-    return ExprMutator::VisitExpr(expr);
+    return ExprMutator::VisitExpr_(op);
   }
 
- private:
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    Expr expr = ffi::GetRef<Expr>(op);
+    if (auto prim_expr = expr.as<PrimExpr>()) {
+      return LiftPrimValue(prim_expr.value());
+    }
+    return ExprMutator::VisitExprFallback_(op);
+  }
+
   Expr VisitExpr_(const ShapeExprNode* op) final { return ffi::GetRef<Expr>(op); }
 
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return expr; }
 
-  Expr VisitPrimValue(const PrimExpr& node) {
+  Expr LiftPrimValue(const PrimExpr& node) {
     if (node->IsInstance<tirx::IntImmNode>() || node->IsInstance<tirx::VarNode>()) {
       return node;
     }

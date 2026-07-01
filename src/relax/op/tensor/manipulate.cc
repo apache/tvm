@@ -918,6 +918,8 @@ Expr ConvertNewShapeToExpr(const Expr& data,
            "Array of PrimExprs. However, the given new shape is "
         << shape;
     PrimExpr len = prim_len.value();
+    TVM_FFI_CHECK(!len.as<VarNode>(), TypeError)
+        << "Reshape shape dimensions must be TIRX expressions, but received " << len;
     TVM_FFI_ICHECK(len.ty().code() == DLDataTypeCode::kDLInt)
         << "Reshape requires the new shape values to be all "
            "integers. However, the give new shape is "

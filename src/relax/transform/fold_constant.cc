@@ -310,6 +310,7 @@ class ConstantFolder : public ExprMutator {
     if (!ShouldBeFolded(post_call)) return post_call;
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const auto& infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     auto* op_node = post_call->op.as<OpNode>();
 
@@ -342,7 +343,11 @@ class ConstantFolder : public ExprMutator {
       }
       new_args.push_back(arg);
     }
-    post_call = Call(Type::Missing(), post_call->op, new_args, post_call->attrs, post_call->ty_args,
+    Type ret_ty = Type::Missing();
+    if (post_call->ty.as<PrimTypeNode>() && !infer_type_map.count(op)) {
+      ret_ty = post_call->ty.as_or_throw<Type>();
+    }
+    post_call = Call(ret_ty, post_call->op, new_args, post_call->attrs, post_call->ty_args,
                      post_call->span);
 
     // If we are in a dataflow block, we can fold ops.
