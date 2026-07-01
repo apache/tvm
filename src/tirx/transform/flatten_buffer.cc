@@ -113,11 +113,6 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
 
     auto new_buf = GetFlattenedBuffer(node->buffer);
-    // TODO(Lunderberg): Move the handling of boolean into a dedicated pass.
-    if (new_buf->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
-      auto writer = new_buf.CopyOnWrite();
-      writer->dtype = PrimType::Int(8);
-    }
     if (!node->buffer.same_as(new_buf)) {
       node.CopyOnWrite()->buffer = new_buf;
     }
@@ -144,11 +139,6 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     auto flattened = buf.GetFlattenedBuffer();
     auto writer = flattened.CopyOnWrite();
 
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
-      writer->dtype = PrimType::Int(8);
-    }
     // canonicalize shape
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
       writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
@@ -161,40 +151,14 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    PrimType store_value_ty = op->value.ty();
-    bool store_returns_bool = store_value_ty.MatchesCode(DLDataTypeCode::kDLBool);
     store = VisitBufferAccess(store);
-
-    // Handle casts from the value's dtype to the dtype of the
-    // backing array.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (store_returns_bool) {
-      TVM_FFI_ICHECK_EQ(store->buffer->dtype->dtype, (DLDataType{kDLInt, 8, 1}))
-          << "Expected int8 backing array for boolean tensor";
-      auto writer = store.CopyOnWrite();
-      writer->value = tvm::cast(PrimType::Int(8), store->value);
-      return store;
-    }
     return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimType load_ty = op->ty();
-    bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
-    // Handle casts from dtype of the backing array to value's dtype.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (load_returns_bool) {
-      TVM_FFI_ICHECK_EQ(load->buffer->dtype->dtype, (DLDataType{kDLInt, 8, 1}))
-          << "Expected int8 backing array for boolean tensor";
-      load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
-      return tvm::cast(PrimType::Bool(), load);
-    } else {
-      return load;
-    }
+    return load;
   }
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
