@@ -1167,10 +1167,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # tensor's own dimension size (common with dynamic shapes).
         if isinstance(start, int) and start == 0 and isinstance(step, int) and step == 1:
             in_shape = self.shape_of(x)
-            if in_shape is not None and isinstance(end_val, tvm.tirx.PrimExpr):
+            if in_shape is not None and tvm.ir.is_prim_expr(end_val):
                 actual_dim = dim if dim >= 0 else len(in_shape) + dim
                 dim_expr = in_shape[actual_dim]
-                if isinstance(dim_expr, tvm.tirx.PrimExpr):
+                if tvm.ir.is_prim_expr(dim_expr):
                     if tvm.tirx.analysis.expr_deep_equal(end_val, dim_expr):
                         return x
 
@@ -2044,7 +2044,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _process_derived_symbol(
         self, symbol, torch_symbol_to_relax_var: dict[str, tvm.tirx.Var]
-    ) -> tuple[str, tvm.tirx.PrimExpr | None]:
+    ) -> tuple[str, tvm.tirx.Expr | None]:
         """Process a sympy symbol to generate a descriptive name and TIR expression."""
         import sympy
 

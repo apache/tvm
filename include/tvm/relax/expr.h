@@ -74,77 +74,6 @@ class Id : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ffi::ObjectRef, IdNode);
 };
 
-/*!
- * \brief Call corresponds to callable invocation.
- *  Corresponds to operation in computational graph terminology.
- */
-class CallNode : public ExprNode {
- public:
-  /*!
-   * \brief The operator(function) being invoked
-   *
-   *  - It can be tvm::Op which corresponds to the primitive operators.
-   *  - It can also be user defined functions (Function, GlobalVar, Var).
-   */
-  Expr op;
-
-  /*! \brief The arguments(inputs) of the call */
-  tvm::ffi::Array<Expr> args;
-
-  /*! \brief The additional attributes */
-  Attrs attrs;
-
-  /*!
-   * \brief The type information arguments of a CallNode.
-   * ty_args is by default designed to be non-empty only for intrinsic op (e.g.,
-   * call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
-   * usage of type information inference.
-   *
-   * Regular ops also at times may have ty_args defined to specialize partial
-   * or complete type information. Like VDevice customization with mixed input memory_scopes.
-   * The customized pass can set this info and operator specific inference will respect it.
-   */
-  ffi::Array<Type> ty_args;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallNode>()
-        .def_ro("op", &CallNode::op)
-        .def_ro("args", &CallNode::args)
-        .def_ro("attrs", &CallNode::attrs)
-        .def_ro("ty_args", &CallNode::ty_args);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Call", CallNode, ExprNode);
-};
-
-class Call : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param op The operator to be invoked.
-   * \param args The arguments of the call.
-   * \param attrs The attributes of the call node.
-   * \param ty_args The type information arguments passed to a function.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL Call(Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
-               ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
-};
-
-/*!
- * \brief Returns \p call with the given properties. A null property denotes 'no change'.
- * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-Call WithFields(Call call, ffi::Optional<Expr> opt_op = ffi::Optional<Expr>(),
-                ffi::Optional<ffi::Array<Expr>> opt_args = ffi::Optional<ffi::Array<Expr>>(),
-                ffi::Optional<Attrs> opt_attrs = ffi::Optional<Attrs>(),
-                ffi::Optional<ffi::Array<Type>> opt_ty_args = ffi::Optional<ffi::Array<Type>>(),
-                ffi::Optional<Span> opt_span = ffi::Optional<Span>());
-
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
@@ -189,15 +118,6 @@ class Tuple : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
 
-/*!
- * \brief Returns \p tuple with the given properties. A null property denotes 'no change'.
- * Returns \p tuple if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-Tuple WithFields(Tuple tuple,
-                 ffi::Optional<ffi::Array<Expr>> opt_fields = ffi::Optional<ffi::Array<Expr>>(),
-                 ffi::Optional<Span> opt_span = ffi::Optional<Span>());
-
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
  public:
@@ -228,16 +148,6 @@ class TupleGetItem : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItem, Expr, TupleGetItemNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
 };
-
-/*!
- * \brief Returns \p tuple_get_item with the given properties. A null property denotes 'no change'.
- * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-TupleGetItem WithFields(TupleGetItem tuple_get_item,
-                        ffi::Optional<Expr> opt_tuple = ffi::Optional<Expr>(),
-                        ffi::Optional<int64_t> opt_index = ffi::Optional<int64_t>(),
-                        ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
@@ -484,7 +394,7 @@ class MatchCastNode : public BindingNode {
   /*! \brief The input value to match cast. */
   Expr value;
   /*! \brief The type pattern to match to. */
-  Type ty;
+  Type ty = Type::Missing();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -672,16 +582,6 @@ class If : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
 };
 
-/*!
- * \brief Returns \p if_expr with the given properties. A null property denotes 'no change'.
- * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-If WithFields(If if_expr, ffi::Optional<Expr> opt_cond = ffi::Optional<Expr>(),
-              ffi::Optional<Expr> opt_true_branch = ffi::Optional<Expr>(),
-              ffi::Optional<Expr> opt_false_branch = ffi::Optional<Expr>(),
-              ffi::Optional<Span> opt_span = ffi::Optional<Span>());
-
 /*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
  public:
@@ -690,7 +590,7 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The body of the function. */
   SeqExpr body;
   /*! \brief The return type of the function. */
-  Type ret_ty;
+  Type ret_ty = Type::Missing();
   /*! \brief Whether the function is annotated as pure or not. */
   bool is_pure;
 

@@ -233,7 +233,7 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const tirx::CallNode* call, const PrimExpr& other) final {
+  bool VisitExpr_(const CallNode* call, const PrimExpr& other) final {
     const auto* rhs = other.as<CallNode>();
     if (rhs == nullptr) return false;
     const auto* lhs_op = call->op.as<OpNode>();
@@ -242,7 +242,9 @@ class ForMatcher : public TensorizeComparator {
     if (lhs_op->name != rhs_op->name) return false;
     if (call->args.size() != rhs->args.size()) return false;
     for (size_t i = 0; i < call->args.size(); ++i) {
-      if (!VisitExpr(call->args[i], rhs->args[i])) return false;
+      if (!VisitExpr(call->args[i].as_or_throw<PrimExpr>(), rhs->args[i].as_or_throw<PrimExpr>())) {
+        return false;
+      }
     }
     return true;
   }
@@ -753,7 +755,7 @@ class SplitMutator : public ExprMutator {
     builder_->UpdateFunction(gv, lib_func);
     tirx::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
     PrimType dtype = intermediate_buffer->dtype;
-    Call call1(call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
+    Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
                {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});
     Var call_var1 = builder_->Emit(call1);
     // emit the second call to the rest of the function
@@ -763,7 +765,7 @@ class SplitMutator : public ExprMutator {
       args2.push_back(GetCallTIRArgs(call->args[1])[p]);
     }
     GlobalVar gv2 = builder_->AddFunction(func2, "unfused_epilogue");
-    Call call2(call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
+    Call call2(Type::Missing(), call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
     builder_->UpdateFunction(gv, WithoutAttr(func, "global_symbol"));
     return call2;
   }

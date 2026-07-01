@@ -66,7 +66,7 @@ Expr leakyrelu(Expr data, double alpha) {
   auto attrs = ffi::make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("relax.nn.leakyrelu");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -88,7 +88,7 @@ Expr softplus(Expr data, double beta, double threshold) {
   attrs->beta = beta;
   attrs->threshold = threshold;
   static const Op& op = Op::Get("relax.nn.softplus");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -109,7 +109,7 @@ Expr prelu(Expr data, Expr alpha, int axis = 1) {
   auto attrs = ffi::make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.prelu");
-  return Call(op, {data, alpha}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, alpha}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -174,7 +174,7 @@ Expr softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.softmax");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -238,7 +238,7 @@ Expr log_softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.log_softmax");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -261,7 +261,7 @@ Expr pad(Expr data, ffi::Array<int64_t> pad_width, ffi::String pad_mode, double 
   attrs->pad_mode = std::move(pad_mode);
   attrs->pad_value = pad_value;
   static const Op& op = Op::Get("relax.nn.pad");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -306,7 +306,7 @@ Expr pixel_shuffle(Expr data, int upscale_factor) {
   auto attrs = ffi::make_object<PixelShuffleAttrs>();
   attrs->upscale_factor = upscale_factor;
   static const Op& op = Op::Get("relax.nn.pixel_shuffle");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -455,7 +455,7 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
   attrs->training = training;
 
   static const Op& op = Op::Get("relax.nn.batch_norm");
-  return Call(op,
+  return Call(Type::Missing(), op,
               {std::move(data), std::move(gamma), std::move(beta), std::move(moving_mean),
                std::move(moving_var)},
               Attrs{attrs}, {});
@@ -535,7 +535,8 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<int64_t> axes, doub
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.layer_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -604,7 +605,8 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.group_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -716,7 +718,8 @@ Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Arra
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.instance_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -812,7 +815,7 @@ Expr rms_norm(Expr data, Expr weight, ffi::Array<int64_t> axes, double epsilon) 
   attrs->epsilon = epsilon;
 
   static const Op& op = Op::Get("relax.nn.rms_norm");
-  return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -871,7 +874,7 @@ Expr dropout(Expr data, double rate) {
   attrs->rate = rate;
 
   static const Op& op = Op::Get("relax.nn.dropout");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -940,7 +943,7 @@ Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
 
 Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
   static const Op& op = Op::Get("relax.nn.cross_entropy_with_logits");
-  return Call(op, {std::move(predictions), std::move(labels)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(predictions), std::move(labels)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -971,10 +974,11 @@ Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::
 
   static const Op& op = Op::Get("relax.nn.nll_loss");
   if (weights.defined()) {
-    return Call(op, {std::move(predictions), std::move(targets), weights.value()}, Attrs{attrs},
-                {});
+    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets), weights.value()},
+                Attrs{attrs}, {});
   } else {
-    return Call(op, {std::move(predictions), std::move(targets)}, Attrs{attrs}, {});
+    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets)}, Attrs{attrs},
+                {});
   }
 }
 
@@ -1186,7 +1190,7 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
 
 Expr batch_flatten(Expr data) {
   static const Op& op = Op::Get("relax.nn.batch_flatten");
-  return Call(op, {std::move(data)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

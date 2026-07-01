@@ -310,9 +310,9 @@ class LambdaLifter : public ExprMutator {
     // Defining the rewrite rule prior to visiting the body, so that
     // recursive closures can be updated.
     if (is_recursive && is_closure) {
-      nested_closure_map_.emplace(
-          current_lambda_var_.value(),
-          Call(gvar_lifted_func, captured_vars.Map([](Var var) -> Expr { return var; })));
+      nested_closure_map_.emplace(current_lambda_var_.value(),
+                                  Call(Type::Missing(), gvar_lifted_func,
+                                       captured_vars.Map([](Var var) -> Expr { return var; })));
     }
 
     if (!is_closure) {
@@ -350,7 +350,8 @@ class LambdaLifter : public ExprMutator {
       // we pass the variables in its environment here.
       Tuple arg_tuple(captured_vars.Map([](Var var) -> Expr { return var; }));
       // Call make_closure intrinsic
-      callable_value = Call(make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
+      callable_value =
+          Call(Type::Missing(), make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
     }
 
     return callable_value;
@@ -385,7 +386,7 @@ class LambdaLifter : public ExprMutator {
         }();
 
         auto prev = call;
-        call = Call(is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
+        call = Call(Type::Missing(), is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
                     {var, Tuple(call->args)}, {}, {orig_ty});
       }
     }
@@ -401,7 +402,7 @@ class LambdaLifter : public ExprMutator {
         }
 
         auto prev = call;
-        call = Call(nested_call->op, new_args, call->attrs, call->ty_args);
+        call = Call(Type::Missing(), nested_call->op, new_args, call->attrs, call->ty_args);
       }
     }
 
@@ -426,7 +427,7 @@ class LambdaLifter : public ExprMutator {
       }
     }
 
-    if (const auto* call_node = val.as<relax::CallNode>()) {
+    if (const auto* call_node = val.as<tvm::CallNode>()) {
       // recursive call
       auto op = call_node->op;
       if (auto local_var = op.as<Var>()) {

@@ -392,7 +392,7 @@ class VDeviceTypeUpdater : ExprMutator {
     } else {
       ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
       attrs->dst_vdevice = output_vdevice;
-      return Call(to_vdevice_op_, {arg}, Attrs(attrs), {});
+      return Call(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }
 

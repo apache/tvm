@@ -41,10 +41,12 @@ Expr unique(Expr x, PrimExpr sorted, PrimExpr return_index, PrimExpr return_inve
   static const Op& op = Op::Get("relax.unique");
   Call call;
   if (!axis) {
-    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts});
+    call = Call(Type::Missing(), op,
+                {std::move(x), sorted, return_index, return_inverse, return_counts});
   } else {
     PrimExpr pv_axis = axis.value();
-    call = Call(op, {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
+    call = Call(Type::Missing(), op,
+                {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
   }
   return call;
 }
@@ -58,8 +60,8 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = call->args[0]->ty.as_or_throw<TensorType>();
   PrimExpr axis, return_index, return_inverse, return_counts;
   if (call->args.size() == 6) {
-    if (auto* prim_value_node = call->args[5].as<PrimExprNode>()) {
-      axis = ffi::GetRef<PrimExpr>(prim_value_node);
+    if (auto prim_value = call->args[5].as<PrimExpr>()) {
+      axis = prim_value.value();
     }
   }
   if (!data_ty->IsUnknownNdim() && axis.defined()) {
@@ -68,9 +70,9 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
       NormalizeAxis(call, ctx, data_ty->ndim, axis_int->value);
     }
   }
-  TVM_FFI_ICHECK(call->args[2]->IsInstance<PrimExprNode>());
-  TVM_FFI_ICHECK(call->args[3]->IsInstance<PrimExprNode>());
-  TVM_FFI_ICHECK(call->args[4]->IsInstance<PrimExprNode>());
+  TVM_FFI_ICHECK(call->args[2].as<PrimExpr>());
+  TVM_FFI_ICHECK(call->args[3].as<PrimExpr>());
+  TVM_FFI_ICHECK(call->args[4].as<PrimExpr>());
 
   return_index = call->args[2].as_or_throw<PrimExpr>();
   return_inverse = call->args[3].as_or_throw<PrimExpr>();
@@ -164,7 +166,7 @@ TVM_REGISTER_OP("relax.unique")
 /* relax.nonzero */
 Expr nonzero(Expr x) {
   static const Op& op = Op::Get("relax.nonzero");
-  return Call(op, {std::move(x)});
+  return Call(Type::Missing(), op, {std::move(x)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

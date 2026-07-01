@@ -206,7 +206,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimType load_ty = op->ty();
+    PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
@@ -287,7 +287,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return TrainiumBufferOffsetRemover()(stmt); }
 
  private:
-  PrimExpr VisitExpr_(const tirx::CallNode* call) final {
+  PrimExpr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";

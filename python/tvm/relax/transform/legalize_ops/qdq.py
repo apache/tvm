@@ -19,10 +19,11 @@
 
 import tvm
 from tvm import te, tirx
+from tvm.ir import Call
 from tvm.runtime import DataTypeCode
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import _try_convert_to_scalar_const, register_legalize
 
 

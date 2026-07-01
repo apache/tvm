@@ -127,8 +127,7 @@ def test_bind_prim_value(prim_value_dtype):
     @R.function
     def expected() -> R.Prim(value=value):
         R.func_attr({"global_symbol": "main"})
-        B = R.prim_value(value)
-        return B
+        return value
 
     after = before.bind_params({"A": value})
 

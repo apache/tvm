@@ -222,9 +222,9 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::if_then_else())) {
-        PrimExpr cond = call->args[0];
-        PrimExpr then_clause = call->args[1];
-        PrimExpr else_clause = call->args[2];
+        PrimExpr cond = call->args[0].as_or_throw<PrimExpr>();
+        PrimExpr then_clause = call->args[1].as_or_throw<PrimExpr>();
+        PrimExpr else_clause = call->args[2].as_or_throw<PrimExpr>();
 
         PrimExpr then_clause_in_then_context;
         PrimExpr else_clause_in_then_context;
@@ -269,7 +269,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::assume())) {
-      Assume(op->args[0]);
+      Assume(op->args[0].as_or_throw<PrimExpr>());
     }
     return Parent::VisitExpr_(op);
   }

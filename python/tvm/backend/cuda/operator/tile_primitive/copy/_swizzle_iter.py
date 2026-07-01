@@ -399,7 +399,7 @@ def emit_fallback_offset(swizzle: SwizzleLayout, s_off_resolved, ds_k):
     per iter. Use when ``try_recognize`` returns ``None``.
 
     ``ds_k`` is the outer-iter delta for unrolled iter k — typically a
-    PrimExpr (a function of the unroll var that simplifies to a constant
+    Expr (a function of the unroll var that simplifies to a constant
     after unrolling) or a Python int. ``s_off_resolved`` is the per-thread
     base linear offset with the real tid Var substituted.
     """

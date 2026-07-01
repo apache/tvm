@@ -102,16 +102,16 @@ class PaddingInfoAnalyzer {
       SetError("Value of BufferStore expect to be constrained by a padding predicate");
       return false;
     }
-    PrimExpr pad_predicate = Substitute(if_then_else->args[0], iter_values);
-    PrimExpr in_bound_value = if_then_else->args[1];
-    PrimExpr pad_value = if_then_else->args[2];
+    PrimExpr pad_predicate = Substitute(if_then_else->args[0].as_or_throw<PrimExpr>(), iter_values);
+    PrimExpr in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
+    PrimExpr pad_value = if_then_else->args[2].as_or_throw<PrimExpr>();
     if (!is_const_number(pad_value)) {
       SetError("Pad value should be constant");
       return false;
     }
 
     // Step 2. Check in-bound computation to be effectiveless.
-    if (SideEffect(if_then_else->args[1]) > CallEffectKind::kReadState) {
+    if (SideEffect(if_then_else->args[1].as_or_throw<PrimExpr>()) > CallEffectKind::kReadState) {
       SetError("Inbound computation should not have side-effect");
       return false;
     }
@@ -130,7 +130,7 @@ class PaddingInfoAnalyzer {
     }
 
     // Step 4. Update result information.
-    info_.in_bound_value = if_then_else->args[1];
+    info_.in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
     info_.in_bound_region = in_bound_region;
     info_.in_bound_predicate = in_bound_predicate;
     info_.pad_value = pad_value;
@@ -148,7 +148,7 @@ class PaddingInfoAnalyzer {
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
           if (call->op.same_as(builtin::likely())) {
-            e = call->args[0];
+            e = call->args[0].as_or_throw<PrimExpr>();
           }
         }
         res = res && e;

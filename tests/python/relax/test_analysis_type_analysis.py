@@ -834,7 +834,7 @@ def test_collect_nonnegative_expressions():
         [M, N],
     )
 
-    # PrimExpr instances may contain negative values, and do not
+    # Expr instances may contain negative values, and do not
     # imply that their contents are non-negative.
     tvm.ir.assert_structural_equal(
         rx.analysis.collect_non_negative_expressions(func.params[3].ty),

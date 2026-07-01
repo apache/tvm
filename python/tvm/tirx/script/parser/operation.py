@@ -16,6 +16,7 @@
 # under the License.
 """The tirx expression operation registration"""
 
+import tvm
 from tvm import tirx
 from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
@@ -28,7 +29,7 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
     ty._dispatch_type = ty  # pylint: disable=protected-access
 
     def _expr_ty(expr):
-        ty = expr.ty if isinstance(expr, tirx.PrimExpr) else None
+        ty = expr.ty if tvm.ir.is_prim_expr(expr) else None
         if not isinstance(ty, PrimType):
             ty = expr.expr_ty()
         if not isinstance(ty, PrimType):
@@ -64,7 +65,7 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
 
     def _auto_broadcast(a, b, op):
         if isinstance(a, int):
-            if isinstance(b, tirx.PrimExpr) or hasattr(b, "expr_ty"):
+            if tvm.ir.is_prim_expr(b) or hasattr(b, "expr_ty"):
                 b_ty = _expr_ty(b)
                 if b_ty.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
                     a = IntImm(_get_type_str(b_ty), a)
@@ -81,7 +82,7 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
             else:
                 a = FloatImm("float32", a)
 
-        assert isinstance(a, tirx.PrimExpr), "Operand should be a PrimExpr."
+        assert tvm.ir.is_prim_expr(a), "Operand should be a Expr."
         if isinstance(b, int):
             a_ty = _expr_ty(a)
             if a_ty.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
@@ -162,5 +163,5 @@ def _register_expr_op(ty: type):  # pylint: disable=invalid-name
         # doc.USub <-- is overloaded
 
 
-_register_expr_op(tirx.PrimExpr)
+_register_expr_op(tirx.Expr)
 _register_expr_op(tirx.IterVar)

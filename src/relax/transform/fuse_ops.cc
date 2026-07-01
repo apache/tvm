@@ -272,7 +272,7 @@ class GraphCreator : public ExprVisitor {
     }
 
     if (!leaf_expr.as<ShapeExprNode>() && !leaf_expr.as<VarNode>() &&
-        !leaf_expr.as<ConstantNode>() && !leaf_expr.as<PrimExprNode>() &&
+        !leaf_expr.as<ConstantNode>() && !leaf_expr.as<PrimExpr>() &&
         !leaf_expr.as<StringImmNode>() && !leaf_expr.as<DataTypeImmNode>()) {
       // Skip GlobalVar, ExternFunc, OpNode.
       return;
@@ -652,8 +652,10 @@ class FunctionCreator : public ExprMutator {
     if (const auto* tuple = expr.as<TupleNode>()) {
       return std::all_of(tuple->fields.begin(), tuple->fields.end(),
                          [this](const Expr& e) { return IsInlinableConstants(e); });
-    } else if (const auto* prim_value = expr.as<PrimExprNode>()) {
-      return tvm::tirx::UndefinedVars(ffi::GetRef<PrimExpr>(prim_value)).empty();
+    } else if (expr.as<VarNode>() || expr.as<CallNode>()) {
+      return false;
+    } else if (auto prim_value = expr.as<PrimExpr>()) {
+      return tvm::tirx::UndefinedVars(prim_value.value()).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
       return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
                          [](const PrimExpr& e) { return tvm::tirx::UndefinedVars(e).empty(); });
@@ -856,7 +858,7 @@ class OperatorFusor : public ExprMutator {
       //  - If this binding is an output binding, emit an output variable.
       //  - Otherwise, emit a dataflow variable.
       Var new_var;
-      Call call_to_emit = Call(gv, UpdateArgs(func_info.arguments_));
+      Call call_to_emit = Call(Type::Missing(), gv, UpdateArgs(func_info.arguments_));
 
       if (var_binding->var->IsInstance<DataflowVarNode>()) {
         new_var = builder_->Emit(call_to_emit);
@@ -1289,7 +1291,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto const* gvar = call_node->op.as<GlobalVarNode>()) {
       if (auto it = gvar_map_.find(gvar); it != gvar_map_.end()) {
-        return Call(it->second, call_node->args);
+        return Call(Type::Missing(), it->second, call_node->args);
       }
       auto func = builder_->GetContextIRModule()->Lookup(ffi::GetRef<GlobalVar>(gvar));
       if (auto composite_name = func->GetAttr<ffi::String>(attr::kComposite)) {
@@ -1302,7 +1304,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
         gvar_map_[gvar] = new_gvar;
-        return Call(new_gvar, call_node->args);
+        return Call(Type::Missing(), new_gvar, call_node->args);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
@@ -1335,7 +1337,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     Var output_var("output", f_inner->ret_ty);
     SeqExpr new_body({BindingBlock({
                          VarBinding(local_func_var, f_inner),
-                         VarBinding(output_var, Call(local_func_var, params)),
+                         VarBinding(output_var, Call(Type::Missing(), local_func_var, params)),
                      })},
                      output_var);
 

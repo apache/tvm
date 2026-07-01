@@ -488,7 +488,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<arith::Analyzer>(analyzer))[0];
     PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
-    Stmt stmt = Evaluate(Call(PrimType::Bool(), builtin::assume(), {expr}));
+    Stmt stmt = Evaluate(Call(PrimType::Bool(), builtin::assume(), {expr}).as_or_throw<PrimExpr>());
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_assumptions";

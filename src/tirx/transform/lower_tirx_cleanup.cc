@@ -261,7 +261,7 @@ class BufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return BufferOffsetRemover()(stmt); }
 
  private:
-  PrimExpr VisitExpr_(const tirx::CallNode* call) final {
+  PrimExpr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";

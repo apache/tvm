@@ -266,6 +266,8 @@ inline std::string ReprPrintTIR(const ffi::ObjectRef& obj, const PrinterConfig& 
   return Docsify(obj, d, *f, cfg);
 }
 
+Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d);
+
 /* \brief Specify which variables are defined along with the buffer
  *
  * Depending on the context, defining a buffer may define additional

@@ -370,7 +370,7 @@ class HoistInfoCollector : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::if_then_else())) {
-      PrimExpr cond = op->args[0];
+      PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
       AttemptHoistConditional(cond, HoistedConditionals::kIfElseExpr);
     }
     Parent::VisitExpr_(op);

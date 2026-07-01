@@ -32,7 +32,7 @@ from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 
 def _alignment_ok(vec_len: int, terms) -> bool:
     """Every term must be a multiple of ``vec_len``. Constants checked
-    directly; PrimExpr / symbolic terms checked via ``arith.Analyzer``.
+    directly; Expr / symbolic terms checked via ``arith.Analyzer``.
 
     ``vec_len=1`` always passes (the scalar fallback). When a symbolic
     term can't be proved divisible, returns ``False`` conservatively —

@@ -55,6 +55,11 @@ class TIRVisitorWithPath
   virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
     VisitExpr(obj, path);
   }
+  // Core Call stores arguments as Expr. TIR path traversal still expects the
+  // primitive typed view for these children.
+  virtual inline void Visit(const Expr& obj, ffi::reflection::AccessPath path) {
+    Visit(obj.as_or_throw<PrimExpr>(), path);
+  }
   // Delegate to ExprFunctor::VisitStmt for Stmt, and any subclasses
   virtual inline void Visit(const Stmt& obj, ffi::reflection::AccessPath path) {
     VisitStmt(obj, path);

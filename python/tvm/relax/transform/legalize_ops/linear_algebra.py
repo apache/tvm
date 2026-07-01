@@ -18,9 +18,10 @@
 """Default legalization function for linear algebra operators."""
 
 from tvm import DataTypeCode, relax, te, tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, Tuple, TupleGetItem, Var
+from ...expr import Expr, Tuple, TupleGetItem, Var
 from .common import register_legalize
 
 

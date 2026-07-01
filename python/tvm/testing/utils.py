@@ -261,10 +261,10 @@ def assert_prim_expr_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.tirx.PrimExpr
+    lhs : tvm.tirx.Expr
         The left operand.
 
-    rhs : tvm.tirx.PrimExpr
+    rhs : tvm.tirx.Expr
         The left operand.
     """
     ana = tvm.arith.Analyzer()
@@ -287,11 +287,11 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
     Parameters
     ----------
-    bool_expr : tvm.ir.PrimExpr
+    bool_expr : tvm.ir.Expr
         Boolean expression to check
     vranges: Dict[tvm.tirx.expr.Var, tvm.ir.Range]
         Free variables and their ranges
-    cond: tvm.ir.PrimExpr
+    cond: tvm.ir.Expr
         extra conditions needs to be satisfied.
     """
     if cond is not None:

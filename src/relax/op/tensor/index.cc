@@ -52,7 +52,7 @@ Expr take(Expr x, Expr indices, ffi::Optional<int64_t> axis, ffi::String mode) {
   attrs->mode = std::move(mode);
 
   static const Op& op = Op::Get("relax.take");
-  return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -173,7 +173,7 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> 
   }
 
   static const Op& op = Op::Get("relax.strided_slice");
-  auto call = Call(op, args, Attrs(attrs));
+  auto call = Call(Type::Missing(), op, args, Attrs(attrs));
 
   return call;
 }
@@ -264,12 +264,12 @@ ffi::Optional<ffi::Array<PrimType>> UnpackTupleOfPrimExpr(ffi::Optional<Expr> ex
     ffi::Array<PrimType> output;
     for (size_t i = 0; i < tuple->fields.size(); i++) {
       const Expr& field = tuple->fields[i];
-      auto prim_value = field.as<PrimExprNode>();
+      auto prim_value = field.as<PrimExpr>();
       TVM_FFI_CHECK(prim_value, TypeError)
           << "The expression " << value << " cannot contain a tuple whose elements are "
           << PrimType::ContainerType::_type_key << ", because element " << i << " is " << field;
 
-      PrimExpr prim_expr = ffi::GetRef<PrimExpr>(prim_value);
+      PrimExpr prim_expr = prim_value.value();
       TVM_FFI_CHECK(prim_expr.template as<typename PrimType::ContainerType>(), TypeError)
           << "The expression " << value << " cannot contain a tuple whose elements are "
           << PrimType::ContainerType::_type_key << ", because element " << i << " has value "
@@ -500,7 +500,8 @@ Expr dynamic_strided_slice(Expr x,      //
                            Expr end,    //
                            Expr strides) {
   static const Op& op = Op::Get("relax.dynamic_strided_slice");
-  return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
+  return Call(Type::Missing(), op,
+              {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

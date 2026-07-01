@@ -161,7 +161,7 @@ class ThreadBindingLifter : public StmtExprMutator {
     if (it != var_subst.end()) {
       return (*it).second;
     } else {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::GetRef<Var>(op);
     }
   }
 

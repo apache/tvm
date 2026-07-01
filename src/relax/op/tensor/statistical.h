@@ -48,7 +48,7 @@ namespace relax {
     attrs->axis = std::move(axis);                                                 \
     attrs->keepdims = keepdims;                                                    \
     static const Op& op = Op::Get("relax." #OpName);                               \
-    return Call(op, {std::move(x)}, Attrs{attrs}, {});                             \
+    return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});            \
   }                                                                                \
   TVM_FFI_STATIC_INIT_BLOCK() {                                                    \
     tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);            \

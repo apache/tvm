@@ -260,7 +260,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const VarNode* op) final {
     TVM_FFI_ICHECK(!dbuffer_info_.count(op));
-    return ffi::GetRef<PrimExpr>(op);
+    return ffi::GetRef<Var>(op);
   }
 
  private:

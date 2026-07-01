@@ -272,7 +272,7 @@ def test_bind_usage_of_symbolic_vars_in_prim_value():
 
 
 def test_bind_strided_slice():
-    """relax.op.strided_slice stores PrimExpr attributes"""
+    """relax.op.strided_slice stores Expr attributes"""
 
     @R.function(private=True)
     def before(A: R.Tensor(["M", "N"])):

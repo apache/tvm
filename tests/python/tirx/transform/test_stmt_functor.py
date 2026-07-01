@@ -1076,7 +1076,7 @@ def test_inheritance():
 
 
 def test_op_call_config_visited():
-    """Test that TilePrimitiveCall config PrimExpr values are visited by StmtVisitor.
+    """Test that TilePrimitiveCall config Expr values are visited by StmtVisitor.
 
     Regression test for B00004: TIR expressions in TilePrimitiveCall.config (e.g. cta_mask)
     were not visited by StmtVisitor, causing Substitute to miss variable
@@ -1101,7 +1101,7 @@ def test_op_call_config_visited():
     op_call_stmt = op_call_with_config.body.body
     assert isinstance(op_call_stmt, tir.stmt.TilePrimitiveCall)
 
-    # Manually construct an TilePrimitiveCall with a PrimExpr in config
+    # Manually construct an TilePrimitiveCall with a Expr in config
     config_var = Var("config_val", "int32")
     new_config = dict(op_call_stmt.config)
     new_config["cta_mask"] = config_var + tir.IntImm("int32", 5)
@@ -1112,12 +1112,12 @@ def test_op_call_config_visited():
     collector = VarCollector()
     collector.visit_stmt(op_call_with_var)
     assert "config_val" in collector.vars, (
-        "StmtVisitor should visit PrimExpr values in TilePrimitiveCall.config"
+        "StmtVisitor should visit Expr values in TilePrimitiveCall.config"
     )
 
 
 def test_op_call_config_mutated():
-    """Test that Substitute updates PrimExpr values inside TilePrimitiveCall.config.
+    """Test that Substitute updates Expr values inside TilePrimitiveCall.config.
 
     Regression test for B00004: lower_tirx_scope_ids creates new let-vars for
     scope IDs and uses Substitute to replace them in the body. Without visiting
@@ -1152,7 +1152,7 @@ def test_op_call_config_mutated():
     assert isinstance(cta_mask_expr.a, tir.Var)
     assert cta_mask_expr.a.name == "new_let_var", (
         f"Expected 'new_let_var' after substitution, got '{cta_mask_expr.a.name}'. "
-        "Substitute should visit PrimExpr values in TilePrimitiveCall.config."
+        "Substitute should visit Expr values in TilePrimitiveCall.config."
     )
 
 

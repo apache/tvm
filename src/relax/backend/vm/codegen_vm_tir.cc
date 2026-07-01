@@ -88,20 +88,23 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
 
   PrimExpr RegListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tirx::Call(tvm::PrimType::Handle(), tirx::builtin::anylist_getitem(),
-                      {reg_anylist_handle_, ConstInt32(slot)});
+    return tvm::Call(tvm::PrimType::Handle(), tirx::builtin::anylist_getitem(),
+                     {reg_anylist_handle_, ConstInt32(slot)})
+        .as_or_throw<PrimExpr>();
   }
 
   PrimExpr ConstListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tirx::Call(tvm::PrimType::Handle(), tirx::builtin::anylist_getitem(),
-                      {const_anylist_handle_, ConstInt32(slot)});
+    return tvm::Call(tvm::PrimType::Handle(), tirx::builtin::anylist_getitem(),
+                     {const_anylist_handle_, ConstInt32(slot)})
+        .as_or_throw<PrimExpr>();
   }
 
   PrimExpr FuncListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tirx::Call(tvm::PrimType::Handle(), tirx::builtin::anylist_getitem(),
-                      {func_anylist_handle_, ConstInt32(slot)});
+    return tvm::Call(tvm::PrimType::Handle(), tirx::builtin::anylist_getitem(),
+                     {func_anylist_handle_, ConstInt32(slot)})
+        .as_or_throw<PrimExpr>();
   }
 
   void EmitStmt(tirx::Stmt stmt) {
@@ -121,11 +124,13 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       all_args.push_back(arg);
     }
     if (dst_anylist_slot >= 0) {
-      this->EmitStmt(tirx::Evaluate(tirx::Call(
-          tvm::PrimType::Int(32), tirx::builtin::anylist_setitem_call_packed(), all_args)));
+      this->EmitStmt(tirx::Evaluate(
+          tvm::Call(tvm::PrimType::Int(32), tirx::builtin::anylist_setitem_call_packed(), all_args)
+              .as_or_throw<PrimExpr>()));
     } else {
       this->EmitStmt(tirx::Evaluate(
-          tirx::Call(tvm::PrimType::Int(32), tirx::builtin::tvm_call_packed(), all_args)));
+          tvm::Call(tvm::PrimType::Int(32), tirx::builtin::tvm_call_packed(), all_args)
+              .as_or_throw<PrimExpr>()));
     }
   }
 
@@ -143,11 +148,13 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       all_args.push_back(arg);
     }
     if (dst_anylist_slot >= 0) {
-      this->EmitStmt(tirx::Evaluate(tirx::Call(
-          tvm::PrimType::Int(32), tirx::builtin::anylist_setitem_call_cpacked(), all_args)));
+      this->EmitStmt(tirx::Evaluate(
+          tvm::Call(tvm::PrimType::Int(32), tirx::builtin::anylist_setitem_call_cpacked(), all_args)
+              .as_or_throw<PrimExpr>()));
     } else {
       this->EmitStmt(tirx::Evaluate(
-          tirx::Call(tvm::PrimType::Int(32), tirx::builtin::tvm_call_cpacked(), all_args)));
+          tvm::Call(tvm::PrimType::Int(32), tirx::builtin::tvm_call_cpacked(), all_args)
+              .as_or_throw<PrimExpr>()));
     }
   }
 
@@ -231,7 +238,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     Call call = ffi::GetRef<Call>(call_node);
 
     if (call_node->op == null_value_op_) {
-      return tirx::Call(tvm::PrimType::Handle(), tirx::builtin::reinterpret(), {IntImm::Int64(0)});
+      return tvm::Call(tvm::PrimType::Handle(), tirx::builtin::reinterpret(), {IntImm::Int64(0)})
+          .as_or_throw<PrimExpr>();
     }
     int64_t dst_reg = HasVoidType(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
@@ -264,8 +272,9 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     size_t merge_register = NewRegister();
     PrimExpr cond_value = this->VisitExpr(op->cond).value();
 
-    cond_value = tirx::Call(tvm::PrimType::Bool(), tirx::builtin::tvm_call_packed(),
-                            {tirx::StringImm("vm.builtin.read_if_cond"), cond_value});
+    cond_value = tvm::Call(tvm::PrimType::Bool(), tirx::builtin::tvm_call_packed(),
+                           {tirx::StringImm("vm.builtin.read_if_cond"), cond_value})
+                     .as_or_throw<PrimExpr>();
 
     tirx::Stmt true_branch = WithNewScope([&]() {
       PrimExpr true_value = this->VisitExpr(op->true_branch).value();
@@ -303,8 +312,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     return ConstListGet(builder_->ConvertConstant(ffi::Shape(shape)).value());
   }
 
-  ffi::Optional<PrimExpr> VisitExpr_(const PrimExprNode* op) final {
-    return ffi::GetRef<PrimExpr>(op);
+  ffi::Optional<PrimExpr> VisitExprFallback_(const ExprNode* op) final {
+    return ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>();
   }
 
   ffi::Optional<PrimExpr> VisitExpr_(const StringImmNode* op) final {
@@ -416,8 +425,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
       args.push_back(this->VisitExpr(call_node->args[i]).value());
     }
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call_node->args[4].as<PrimExprNode>()) {
-      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+    if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
+      vdevice_index = int_imm->value;
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -433,14 +442,15 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     PrimExpr arg = this->VisitExpr(call_node->args[0]).value();
 
     // Check the arg is a register.
-    const auto* tir_call = arg.as<tirx::CallNode>();
+    const auto* tir_call = arg.as<CallNode>();
     TVM_FFI_ICHECK(tir_call != nullptr);
     TVM_FFI_ICHECK(tir_call->op == tirx::builtin::anylist_getitem());
     TVM_FFI_ICHECK(tir_call->args.size() == 2);
     TVM_FFI_ICHECK(tir_call->args[0].same_as(reg_anylist_handle_));
     const auto* p_dst_reg = tir_call->args[1].as<tirx::IntImmNode>();
     TVM_FFI_ICHECK(p_dst_reg != nullptr);
-    TVM_FFI_ICHECK(p_dst_reg->ty().MatchesElementType(DLDataTypeCode::kDLInt, 32));
+    TVM_FFI_ICHECK(
+        p_dst_reg->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLInt, 32));
 
     int64_t dst_reg = p_dst_reg->value;
     this->EmitCallPacked("vm.builtin.null_value", {}, dst_reg);

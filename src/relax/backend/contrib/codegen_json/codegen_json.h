@@ -249,7 +249,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
   /*!\brief Return the generated json. */
   std::string GetJSON() {
-    namespace json = ::tvm::ffi::json;
+    namespace json = ffi::json;
     return std::string(json::Stringify(SaveToJSON()));
   }
 
@@ -447,7 +447,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   ffi::json::Value SaveToJSON() {
-    namespace json = ::tvm::ffi::json;
+    namespace json = ffi::json;
     std::vector<size_t> arg_nodes;
     for (size_t i = 0; i < nodes_.size(); ++i) {
       auto node = nodes_[i];

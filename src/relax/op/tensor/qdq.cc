@@ -44,7 +44,8 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_d
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.quantize");
-  return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -161,7 +162,8 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.dequantize");
-  return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

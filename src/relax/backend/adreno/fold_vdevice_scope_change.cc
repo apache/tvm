@@ -88,7 +88,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       auto shape_arr = tir_out_ty->GetShape().value();
       auto new_ty = TensorType(ShapeExpr(shape_arr), tir_out_ty->dtype, vdev_attrs->dst_vdevice);
 
-      return Call(call_tir->op, call_tir->args, call_tir->attrs, {new_ty});
+      return Call(Type::Missing(), call_tir->op, call_tir->args, call_tir->attrs, {new_ty});
     }
     return expr;
   };

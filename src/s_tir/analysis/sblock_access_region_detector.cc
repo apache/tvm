@@ -225,16 +225,17 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     return;
   }
   if (op->op.same_as(builtin::if_then_else())) {
-    VisitExpr(op->args[0]);
+    PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
+    VisitExpr(condition);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
-      StmtExprVisitor::VisitExpr(op->args[1]);
+      With<ConditionalBoundsContext> ctx(condition, &dom_map_, &hint_map_, &pending_conditions_);
+      StmtExprVisitor::VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(!op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
-      StmtExprVisitor::VisitExpr(op->args[2]);
+      With<ConditionalBoundsContext> ctx(!condition, &dom_map_, &hint_map_, &pending_conditions_);
+      StmtExprVisitor::VisitExpr(op->args[2].as_or_throw<PrimExpr>());
     }
     return;
   }

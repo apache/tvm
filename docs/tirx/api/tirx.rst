@@ -20,4 +20,4 @@ tvm.tirx
 .. automodule:: tvm.tirx
    :members:
    :imported-members:
-   :exclude-members: PrimExpr, Op, Call, const
+   :exclude-members: Expr, PrimExpr, Op, Call, const

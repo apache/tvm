@@ -18,7 +18,7 @@
 """Implementation of TIR operator."""
 
 from tvm.ir import Op
-from tvm.tirx import PrimExpr
+from tvm.tirx import Expr
 from tvm.tirx.stmt import TilePrimitiveCall
 
 
@@ -48,12 +48,12 @@ class UnaryOp(TilePrimitiveCall):
     input = ArgProperty(1)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expression (input) of the operator."""
         return [self.input]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expression (output) of the operator."""
         return [self.output]
 
@@ -69,7 +69,7 @@ class UnaryOpWithBiasScale(UnaryOp):
     scale = ArgProperty(3)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.input, self.bias, self.scale]
 
@@ -85,12 +85,12 @@ class BinaryOp(TilePrimitiveCall):
     output = ArgProperty(0)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.lhs, self.rhs]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expression (output) of the operator."""
         return [self.output]
 
@@ -107,12 +107,12 @@ class ReduceOp(TilePrimitiveCall):
     accum = ArgProperty(3)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expression (input) of the operator."""
         return [self.input]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expression (output) of the operator."""
         return [self.output]
 
@@ -169,7 +169,7 @@ class FMA(TilePrimitiveCall):
 
     fma(output, input, scale, bias)
 
-    scale and bias can each be either a BufferRegion or a PrimExpr scalar.
+    scale and bias can each be either a BufferRegion or a Expr scalar.
     """
 
     op = get_tirx_op("fma")
@@ -180,12 +180,12 @@ class FMA(TilePrimitiveCall):
     bias = ArgProperty(3)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.input, self.scale, self.bias]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expression (output) of the operator."""
         return [self.output]
 
@@ -210,12 +210,12 @@ class Copy(TilePrimitiveCall):
     src = ArgProperty(1)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.src]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expressions (outputs) of the operator."""
         return [self.dst]
 
@@ -234,12 +234,12 @@ class CopyAsync(TilePrimitiveCall):
     src = ArgProperty(1)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.src]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expressions (outputs) of the operator."""
         return [self.dst]
 
@@ -269,12 +269,12 @@ class Gemm(TilePrimitiveCall):
     beta = ArgProperty(7)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source matrices."""
         return [self.lhs, self.rhs, self.bias]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination matrix."""
         return [self.output]
 
@@ -320,7 +320,7 @@ class GemmAsync(TilePrimitiveCall):
         return self.args[7] if self.is_block_scaled else self.args[5]
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source matrices (including scale factors if block-scaled)."""
         srcs = [self.lhs, self.rhs]
         if self.is_block_scaled:
@@ -328,7 +328,7 @@ class GemmAsync(TilePrimitiveCall):
         return srcs
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination matrix."""
         return [self.output]
 
@@ -428,12 +428,12 @@ class BinaryReduce(TilePrimitiveCall):
     reduce_axes = ArgProperty(6)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.binary_input1, self.binary_input2]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expressions (outputs) of the operator."""
         return [self.binary_output, self.reduce_output]
 
@@ -456,12 +456,12 @@ class UnaryReduce(TilePrimitiveCall):
     reduce_axes = ArgProperty(7)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.unary_input, self.bias, self.scale]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expressions (outputs) of the operator."""
         return [self.unary_output, self.reduce_output]
 
@@ -488,12 +488,12 @@ class BinaryChain(TilePrimitiveCall):
     reverse1 = ArgProperty(6)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         return [self.data, self.operand0, self.operand1]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expressions (outputs) of the operator."""
         return [self.output]
 
@@ -521,14 +521,14 @@ class ComposeOp(TilePrimitiveCall):
     op = get_tirx_op("compose_op")
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         """Get the source expressions (inputs) of the operator."""
         raise NotImplementedError(
             "Generic compose_op must be lowered to specific compose ops before operator-level passes"  # noqa: E501
         )
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         """Get the destination expressions (outputs) of the operator."""
         raise NotImplementedError(
             "Generic compose_op must be lowered to specific compose ops before operator-level passes"  # noqa: E501
@@ -551,17 +551,17 @@ class PermuteLayout(TilePrimitiveCall):
     op = get_tirx_op("permute_layout")
 
     @property
-    def dst(self) -> PrimExpr:
+    def dst(self) -> Expr:
         return self.args[0]
 
     @property
-    def src(self) -> PrimExpr:
+    def src(self) -> Expr:
         return self.args[1]
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         return [self.src]
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         return [self.dst]

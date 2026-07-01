@@ -99,10 +99,10 @@ class Linear(Module):
 
     Parameters
     ----------
-    in_features : Union[int, str, tirx.PrimExpr]
+    in_features : Union[int, str, tirx.Expr]
         Size of each input sample. Can be symbolic.
 
-    out_features : Union[int, str, tirx.PrimExpr]
+    out_features : Union[int, str, tirx.Expr]
         Size of each output sample. Can be symbolic.
 
     bias : bool
@@ -120,8 +120,8 @@ class Linear(Module):
 
     def __init__(
         self,
-        in_features: int | str | tirx.PrimExpr,
-        out_features: int | str | tirx.PrimExpr,
+        in_features: int | str | tirx.Expr,
+        out_features: int | str | tirx.Expr,
         bias: bool = True,
         dtype: str | None = None,
         out_dtype: str | None = None,
@@ -918,10 +918,10 @@ class Embedding(Module):
 
     Parameters
     ----------
-    num : Union[int, str, tirx.PrimExpr]
+    num : Union[int, str, tirx.Expr]
         Size of the embedding dictionary (vocabulary size). Can be symbolic.
 
-    dim : Union[int, str, tirx.PrimExpr]
+    dim : Union[int, str, tirx.Expr]
         Size of each embedding vector. Can be symbolic.
 
     dtype : Optional[str]
@@ -930,8 +930,8 @@ class Embedding(Module):
 
     def __init__(
         self,
-        num: int | str | tirx.PrimExpr,
-        dim: int | str | tirx.PrimExpr,
+        num: int | str | tirx.Expr,
+        dim: int | str | tirx.Expr,
         dtype: str | None = None,
     ):
         self.num = num

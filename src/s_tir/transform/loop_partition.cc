@@ -274,7 +274,7 @@ class PartitionFinder : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
-      DeduceCondition(op->args[0]);
+      DeduceCondition(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(builtin::ignore_loop_partition())) {
       return;
     } else {
@@ -786,10 +786,10 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      return StmtExprMutator::VisitExpr(op->args[0]);
+      return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(builtin::ignore_loop_partition())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      return StmtExprMutator::VisitExpr(op->args[0]);
+      return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }

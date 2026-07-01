@@ -218,19 +218,20 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::if_then_else())) {
+      PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
+      PrimExpr then_value = op->args[1].as_or_throw<PrimExpr>();
+      PrimExpr else_value = op->args[2].as_or_throw<PrimExpr>();
       // Visit condition
-      StmtExprVisitor::VisitExpr(op->args[0]);
+      StmtExprVisitor::VisitExpr(condition);
       {
         // Visit then branch
-        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_,
-                                           &pending_conditions_);
-        StmtExprVisitor::VisitExpr(op->args[1]);
+        With<ConditionalBoundsContext> ctx(condition, &dom_map_, &hint_map_, &pending_conditions_);
+        StmtExprVisitor::VisitExpr(then_value);
       }
       {
         // Visit else branch
-        With<ConditionalBoundsContext> ctx(!op->args[0], &dom_map_, &hint_map_,
-                                           &pending_conditions_);
-        StmtExprVisitor::VisitExpr(op->args[2]);
+        With<ConditionalBoundsContext> ctx(!condition, &dom_map_, &hint_map_, &pending_conditions_);
+        StmtExprVisitor::VisitExpr(else_value);
       }
       return;
     }

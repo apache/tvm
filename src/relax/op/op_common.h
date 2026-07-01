@@ -103,7 +103,7 @@ namespace detail {
 /*! \brief Implementation helper for GetArgType */
 template <typename ArgType>
 ArgType GetArgTypeByIndex(const Call& call, const Op& op, const BlockBuilder& ctx, size_t index) {
-  if (!call->args[index]->ty.defined()) {
+  if (call->args[index]->ty.IsMissing()) {
     TVM_FFI_VISIT_THROW(InternalError, call)
         << op << " op should have arguments with defined Type.  "
         << "However, args[" << index << "] has undefined type.";
@@ -179,7 +179,7 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
 #define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                       \
   Expr OpName(Expr x) {                                                   \
     static const Op& op = Op::Get("relax." OpRegName);                    \
-    return Call(op, {std::move(x)}, Attrs(), {});                         \
+    return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});        \
   }                                                                       \
   TVM_FFI_STATIC_INIT_BLOCK() {                                           \
     tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); \

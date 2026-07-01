@@ -742,23 +742,23 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtyp
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                        \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                  \
-    static const Op op = Op::Get("tirx." #OpName);                                          \
-    PrimType x_ty = x.ty();                                                                 \
-    CheckInputDType(#OpName, x_ty);                                                         \
-    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                           \
-      PrimType bf16_ty = x_ty;                                                              \
-      PrimType f32_ty =                                                                     \
-          x_ty.IsScalableVector()                                                           \
-              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor()) \
-              : PrimType::Float(32, x_ty.lanes());                                          \
-      PrimExpr x_fp32 = tirx::Cast(f32_ty, x, span);                                        \
-      PrimExpr result_fp32 = tirx::Call(f32_ty, op, {x_fp32}, {}, span);                    \
-      return tirx::Cast(bf16_ty, result_fp32, span);                                        \
-    } else {                                                                                \
-      return tirx::Call(x_ty, op, {x}, {}, span);                                           \
-    }                                                                                       \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                           \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                     \
+    static const Op op = Op::Get("tirx." #OpName);                                             \
+    PrimType x_ty = x.ty();                                                                    \
+    CheckInputDType(#OpName, x_ty);                                                            \
+    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                              \
+      PrimType bf16_ty = x_ty;                                                                 \
+      PrimType f32_ty =                                                                        \
+          x_ty.IsScalableVector()                                                              \
+              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())    \
+              : PrimType::Float(32, x_ty.lanes());                                             \
+      PrimExpr x_fp32 = tirx::Cast(f32_ty, x, span);                                           \
+      PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>(); \
+      return tirx::Cast(bf16_ty, result_fp32, span);                                           \
+    } else {                                                                                   \
+      return Call(x_ty, op, {x}, {}, {}, span).as_or_throw<PrimExpr>();                        \
+    }                                                                                          \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
@@ -793,10 +793,10 @@ TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
 TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
 TVM_DECLARE_INTRIN_UNARY(clz);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
-    static const Op op = Op::Get("tirx." #OpName);                     \
-    return tirx::Call(x.ty(), op, {x, y}, {}, span);                   \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) {     \
+    static const Op op = Op::Get("tirx." #OpName);                         \
+    return Call(x.ty(), op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>(); \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -814,7 +814,7 @@ namespace tirx {
  * \return The check results
  */
 inline bool IsPointerType(const Type& type, DLDataType element_type) {
-  if (!type.defined()) return false;
+  if (type.IsMissing()) return false;
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
       return prim_type->dtype == element_type;
@@ -1026,7 +1026,8 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
     return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
   }
   PrimExpr lanes =
-      tirx::Mul(tirx::Call(PrimType::Int(32), tirx::builtin::vscale(), {}), dtype.VScaleFactor());
+      tirx::Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+                dtype.VScaleFactor());
   return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
 }
 

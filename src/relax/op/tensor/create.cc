@@ -62,7 +62,8 @@ Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.full");
-  return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -110,7 +111,7 @@ Expr full_like(Expr x, Expr fill_value, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.full_like");
-  return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -183,14 +184,14 @@ Expr ones(Expr shape, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.ones");
-  return Call(op, {std::move(shape)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(shape)}, Attrs(attrs), {});
 }
 
 Expr ones_like(Expr x, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.ones_like");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -219,14 +220,14 @@ Expr zeros(Expr shape, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.zeros");
-  return Call(op, {std::move(shape)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(shape)}, Attrs(attrs), {});
 }
 
 Expr zeros_like(Expr x, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.zeros_like");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -254,14 +255,14 @@ Expr eye(PrimExpr n, PrimExpr m, PrimExpr k, DLDataType dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.eye");
-  return Call(op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
 }
 
 Expr eye_like(Expr x, PrimExpr k, ffi::Optional<DLDataType> dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.eye_like");
-  return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -276,11 +277,12 @@ Type InferTypeEye(const Call& call, const BlockBuilder& ctx) {
   }
 
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
-    if (!expr->IsInstance<PrimExprNode>()) {
+    auto prim_value = expr.as<PrimExpr>();
+    if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, expr)
           << "Eye expects the `" << key << "` to be a PrimExpr, but got " << expr->GetTypeKey();
     }
-    return expr.as_or_throw<PrimExpr>();
+    return prim_value.value();
   };
 
   PrimExpr n = get_prim_value(call->args[0], "n");
@@ -342,7 +344,8 @@ Expr arange(PrimExpr start, PrimExpr stop, PrimExpr step, DLDataType dtype) {
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.arange");
-  return Call(op, {std::move(start), std::move(stop), std::move(step)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(start), std::move(stop), std::move(step)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -358,11 +361,12 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
   }
   // TODO(Siyuan): Support indirect prim_values
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
-    if (!expr->IsInstance<PrimExprNode>()) {
+    auto prim_value = expr.as<PrimExpr>();
+    if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, expr)
           << "Arange expects the `" << key << "` to be a PrimExpr, but got " << expr->GetTypeKey();
     }
-    return expr.as_or_throw<PrimExpr>();
+    return prim_value.value();
   };
   PrimExpr start = get_prim_value(call->args[0], "start");
   PrimExpr end = get_prim_value(call->args[1], "end");
@@ -399,7 +403,8 @@ Expr hamming_window(PrimExpr window_size, PrimExpr periodic, PrimExpr alpha, Pri
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("relax.hamming_window");
-  return Call(op, {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},
+  return Call(Type::Missing(), op,
+              {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},
               Attrs(attrs), {});
 }
 
@@ -417,11 +422,12 @@ Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
         << "Hamming Window expects the datatype to be float but got " << dtype;
   }
   auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
-    if (!expr->IsInstance<PrimExprNode>()) {
+    auto prim_value = expr.as<PrimExpr>();
+    if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, expr) << "Hamming_window expects the `" << key
                                            << "` to be a PrimExpr, but got " << expr->GetTypeKey();
     }
-    return expr.as_or_throw<PrimExpr>();
+    return prim_value.value();
   };
   PrimExpr window_size = get_prim_value(call->args[0], "window_size");
 
@@ -452,14 +458,14 @@ TVM_REGISTER_OP("relax.hamming_window")
 
 Expr tril(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.tril");
-  return Call(op, {x, k});
+  return Call(Type::Missing(), op, {x, k});
 }
 
 Expr tril(Expr x, int k) { return tril(x, IntImm::Int64(k)); }
 
 Expr triu(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.triu");
-  return Call(op, {x, k});
+  return Call(Type::Missing(), op, {x, k});
 }
 
 Expr triu(Expr x, int k) { return triu(x, IntImm::Int64(k)); }

@@ -84,7 +84,7 @@ def test_var() -> None:
     assert v1_no_annos == 'Var(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
-    assert "PrimExpr" in v1_annos
+    assert "Expr" in v1_annos
     assert "ty" in v1_annos
 
 
@@ -98,7 +98,7 @@ def test_dataflow_var() -> None:
     assert v1_no_annos == 'DataflowVar(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
-    assert "PrimExpr" in v1_annos
+    assert "Expr" in v1_annos
     assert "ty" in v1_annos
 
 
@@ -112,8 +112,8 @@ def test_match_cast() -> None:
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchCast(")
     assert "Constant" in b0_str
-    assert "PrimExpr(value=`m" in b0_str
-    assert "PrimExpr(value=`n" in b0_str
+    assert "Expr(value=`m" in b0_str
+    assert "Expr(value=`n" in b0_str
     assert "16" in b0_str
     assert "8" in b0_str
 
@@ -124,8 +124,8 @@ def test_match_cast() -> None:
     b1 = rx.MatchCast(var, value, R.Tensor([m, n], "float32"))
     b1_str = dump_ast(b1)
     assert b1_str.startswith("MatchCast(")
-    assert "PrimExpr(value=`m" in b1_str
-    assert "PrimExpr(value=`n" in b1_str
+    assert "Expr(value=`m" in b1_str
+    assert "Expr(value=`n" in b1_str
     assert b1_str != dump_ast(b1, include_ty_annotations=False)
 
 
@@ -201,8 +201,8 @@ def test_shape_expr() -> None:
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
     assert "values=" in s_str
-    assert "PrimExpr(value=`m: int32`)" in s_str
-    assert "PrimExpr(value=`n: int32`)" in s_str
+    assert "Expr(value=`m: int32`)" in s_str
+    assert "Expr(value=`n: int32`)" in s_str
 
 
 def test_func():
@@ -240,8 +240,8 @@ def test_shape_of():
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str
     assert "values=" in s1_str
-    assert "PrimExpr(value=`T.int64(96)`)" in s1_str
-    assert "PrimExpr(value=`T.int64(54)`)" in s1_str
+    assert "Expr(value=`T.int64(96)`)" in s1_str
+    assert "Expr(value=`T.int64(54)`)" in s1_str
 
 
 def test_shape_expr():
@@ -249,8 +249,8 @@ def test_shape_expr():
     shape_expr_str = dump_ast(shape_expr)
     assert shape_expr_str.startswith("ShapeExpr(")
     assert "values" in shape_expr_str
-    assert "PrimExpr(value=`T.int64(10)`)" in shape_expr_str
-    assert "PrimExpr(value=`T.int64(20)`)" in shape_expr_str
+    assert "Expr(value=`T.int64(10)`)" in shape_expr_str
+    assert "Expr(value=`T.int64(20)`)" in shape_expr_str
 
 
 def test_types():
@@ -302,8 +302,8 @@ def test_ty():
         ShapeType(
             ndim=2,
             values=[
-                PrimExpr(value=`T.int64(1)`),
-                PrimExpr(value=`T.int64(2)`)
+                Expr(value=`T.int64(1)`),
+                Expr(value=`T.int64(2)`)
             ]
         )
         """
@@ -490,8 +490,8 @@ def test_call_tir():
                     dtype=float32,
                     shape=ShapeExpr(
                         values=[
-                            PrimExpr(value=`m`),
-                            PrimExpr(value=`n`)
+                            Expr(value=`m`),
+                            Expr(value=`n`)
                         ]
                     )
                 )
@@ -539,8 +539,8 @@ def test_call_dps_packed():
                     dtype=float32,
                     shape=ShapeExpr(
                         values=[
-                            PrimExpr(value=`m`),
-                            PrimExpr(value=`n`)
+                            Expr(value=`m`),
+                            Expr(value=`n`)
                         ]
                     )
                 )
@@ -563,10 +563,10 @@ def test_operators():
         )
     )
     assert 'Op(name="relax.unique")' in foo_str
-    # the sorted argument is true, so it will be a boolean PrimExpr
-    assert "PrimExpr(value=`T.bool(True)`)" in foo_str
+    # the sorted argument is true, so it will be a boolean Expr
+    assert "Expr(value=`T.bool(True)`)" in foo_str
     # axis is -1
-    assert "PrimExpr(value=`T.int64(-1)`)" in foo_str
+    assert "Expr(value=`T.int64(-1)`)" in foo_str
 
     @R.function(pure=False)
     def bar(x: R.Tensor):
@@ -595,10 +595,10 @@ def test_print_ty_annotation_non_var():
         ty=TensorType(
             dtype=int32,
             shape=ShapeExpr(
-                values=[PrimExpr(value=`T.int64(2)`)],
+                values=[Expr(value=`T.int64(2)`)],
                 ty=ShapeType(
                     ndim=1,
-                    values=[PrimExpr(value=`T.int64(2)`)]
+                    values=[Expr(value=`T.int64(2)`)]
                 )
             )
         )
@@ -655,7 +655,7 @@ def test_prim_value():
     prim_str = strip_whitespace(dump_ast(prim_value))
     assert prim_str == strip_whitespace(
         """
-        PrimExpr(value=`T.int64(1)`)
+        Expr(value=`T.int64(1)`)
     """
     )
 

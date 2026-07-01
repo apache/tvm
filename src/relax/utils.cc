@@ -76,13 +76,20 @@ class ExprBinder : public ExprMutator {
     }
   }
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final {
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
     auto new_expr = tirx::Substitute(expr, symbolic_var_map_);
     if (!expr.same_as(new_expr)) {
       arith::Analyzer analyzer;
       new_expr = analyzer->Simplify(new_expr);
     }
     return new_expr;
+  }
+
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutator::VisitExprFallback_(op);
   }
 
  private:

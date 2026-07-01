@@ -26,7 +26,7 @@ from tvm.ir import Range
 from tvm.s_tir.schedule.schedule import SBlockRV
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.tirx import IterVar, PrimExpr, Var
+from tvm.tirx import Expr, IterVar, Var
 from tvm.tirx.analysis import undefined_vars
 
 from ..analysis import IterInfo, SBlockInfo, get_root_block
@@ -134,10 +134,10 @@ class IterKind(Enum):
 @dataclass
 class IterTrait:
     kind: IterKind
-    extent: PrimExpr
+    extent: Expr
 
 
-def _is_one(x: PrimExpr) -> bool:
+def _is_one(x: Expr) -> bool:
     return isinstance(x, tirx.IntImm) and x.value == 1
 
 
@@ -145,7 +145,7 @@ def make_iter_fusion_index_map(
     traits: list[IterTrait],
     kind_order: list[IterKind],
 ) -> tirx.IndexMap:
-    fused_iters: dict[IterKind, PrimExpr] = {}
+    fused_iters: dict[IterKind, Expr] = {}
     input_iters: list[tirx.Var] = []
     for i, trait in enumerate(traits):
         v_i = tirx.Var(f"i{i}", trait.extent.ty)
@@ -159,7 +159,7 @@ def make_iter_fusion_index_map(
         else:
             fused_iters[trait.kind] = v_i
 
-    final_indices: list[tirx.PrimExpr] = [
+    final_indices: list[tirx.Expr] = [
         fused_iters.get(kind, tirx.IntImm(traits[0].extent.ty, 0)) for kind in kind_order
     ]
 

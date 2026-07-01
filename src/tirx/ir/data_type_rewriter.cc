@@ -243,26 +243,29 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be CallNode"
                                 << ", but get " << e->GetTypeKey();
   if (op->op.same_as(builtin::shift_right())) {
-    return op->args[0] >> op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::shift_left())) {
-    return op->args[0] << op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_and())) {
-    return op->args[0] & op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() & op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_or())) {
-    return op->args[0] | op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() | op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_xor())) {
-    return op->args[0] ^ op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() ^ op->args[1].as_or_throw<PrimExpr>();
   }
   static const Op& pow_op = Op::Get("tirx.pow");
   static const Op& clz_op = Op::Get("tirx.clz");
   if (op->op.same_as(pow_op)) {
-    return pow(op->args[0], op->args[1]);
+    return pow(op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>());
   } else if (op->op.same_as(builtin::if_then_else())) {
-    return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op, {op->args[0], op->args[1], op->args[2]},
-                op->attrs, op->span);
+    return Call(op->ty.as_or_throw<PrimType>(), op->op,
+                {op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>(),
+                 op->args[2].as_or_throw<PrimExpr>()},
+                op->attrs, {}, op->span)
+        .as_or_throw<PrimExpr>();
   } else if (op->op.same_as(clz_op)) {
-    PrimType before_dtype = before->args[0].ty();
-    PrimType after_dtype = op->args[0].ty();
+    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
+    PrimType after_dtype = op->args[0].as_or_throw<PrimExpr>().ty();
     TVM_FFI_ICHECK((before_dtype.code() == DLDataTypeCode::kDLInt ||
                     before_dtype.code() == DLDataTypeCode::kDLUInt) &&
                    (before_dtype.bits() == 32 || before_dtype.bits() == 64))
@@ -577,10 +580,13 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::if_then_else())) {
     bool is_condition = is_condition_;
     is_condition_ = true;
-    PrimExpr cond = VisitExpr(op->args[0]);
+    PrimExpr cond = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     is_condition_ = is_condition;
-    return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op,
-                {cond, VisitExpr(op->args[1]), VisitExpr(op->args[2])}, op->attrs, op->span);
+    return Call(op->ty.as_or_throw<PrimType>(), op->op,
+                {cond, VisitExpr(op->args[1].as_or_throw<PrimExpr>()),
+                 VisitExpr(op->args[2].as_or_throw<PrimExpr>())},
+                op->attrs, {}, op->span)
+        .as_or_throw<PrimExpr>();
   }
   return Parent::VisitExpr_(op);
 }
@@ -646,7 +652,7 @@ bool IndexDataTypeNormalizer::CanRewriteDType(PrimType dtype) const {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
-  if (is_enabled_ && CanRewriteDType(op->ty())) {
+  if (is_enabled_ && CanRewriteDType(op->ty.as_or_throw<PrimType>())) {
     TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
     return cast(target_data_type_, ffi::GetRef<IntImm>(op));
   }
@@ -654,7 +660,7 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  PrimType dtype = op->ty();
+  PrimType dtype = op->ty.as_or_throw<PrimType>();
   if (is_enabled_ && CanRewriteDType(dtype) && dtype->dtype != target_data_type_->dtype &&
       !var_remap_.count(op)) {
     var_remap_[op] = ffi::GetRef<Var>(op).copy_with_dtype(target_data_type_);
@@ -666,7 +672,7 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
   // Unwrap the cast only when the dtype of this cast is integer dtype.
   // When the dtype of this cast is not integer dtype, it means that this cast
   // has some other purpose, and we should not unwrap the cast.
-  PrimType dtype = op->ty();
+  PrimType dtype = op->ty.as_or_throw<PrimType>();
   if (is_enabled_ && CanRewriteDType(dtype)) {
     PrimExpr value = IndexDataTypeNormalizer::VisitExpr(op->value);
     return value.ty() == target_data_type_ ? value : Cast(target_data_type_, value);

@@ -23,7 +23,7 @@ from collections.abc import Callable
 from tvm_ffi import register_object
 
 from tvm.runtime import Object
-from tvm.tirx import PrimExpr, Var
+from tvm.tirx import Expr, Var
 
 from . import _ffi_api
 
@@ -33,13 +33,13 @@ class Predicate(Object):
     """A predicate object for TIRX"""
 
     vars: list[Var]
-    pred: PrimExpr
+    pred: Expr
 
-    def __init__(self, f_pred: Callable[..., PrimExpr]):
+    def __init__(self, f_pred: Callable[..., Expr]):
         vars = [Var(name, "int32") for name in inspect.signature(f_pred).parameters]
         pred = f_pred(*vars)
         self.__init_handle_by_constructor__(_ffi_api.Predicate, vars, pred)
 
-    def apply(self, indices: list[PrimExpr]) -> PrimExpr:
+    def apply(self, indices: list[Expr]) -> Expr:
         """Apply the predicate to the given indices"""
         return _ffi_api.PredicateApply(self, indices)

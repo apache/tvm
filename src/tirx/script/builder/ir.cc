@@ -465,7 +465,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
     }
     TVM_FFI_ICHECK(dom.defined()) << "TypeError: Variable is not in the loop: "
                                   << ffi::GetRef<Var>(v);
-    PrimType dtype = v->ty();
+    PrimType dtype = v->ty.as_or_throw<PrimType>();
     if (c == 'S') {
       results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
                                              /*var=*/Var("", dtype),

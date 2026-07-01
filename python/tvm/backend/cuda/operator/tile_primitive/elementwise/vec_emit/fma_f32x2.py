@@ -23,7 +23,7 @@ shape collapse as binary_f32x2.
 
 from __future__ import annotations
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir.expr import Expr
 from tvm.script import tirx as T
 
 from .._common import dtype_name, scalar_dtype
@@ -59,7 +59,7 @@ def _fma_f32x2_applies(op_call, sctx, plan):
     return True, None
 
 
-def _emit_fma_f32x2(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
+def _emit_fma_f32x2(dst_buf, dst_lane_indices, src_args, extras) -> Expr:
     a_arg, b_arg, c_arg = src_args
     rm = extras.get("rounding_mode", "rz")
     return T.ptx.fma_f32x2(

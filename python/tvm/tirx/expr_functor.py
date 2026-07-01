@@ -24,7 +24,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 import tvm
-from tvm.ir import PrimExpr, Range
+from tvm.ir import Expr, Range
 from tvm.tirx import IterVar
 
 T = TypeVar("T")
@@ -84,12 +84,12 @@ class ExprFunctor:
             "tirx.StringImm": self.visit_string_imm_,
         }
 
-    def visit_expr(self, expr: PrimExpr):
+    def visit_expr(self, expr: Expr):
         """Apply the visitor to an expression.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
 
         Returns
@@ -102,7 +102,7 @@ class ExprFunctor:
 
         key = expr.__class__.__name__
         if key.endswith("Node"):
-            key = key[:-4]  # Remove the "Node" suffix
+            key = key[:-4]
 
         key = "tirx." + key
         if key in self._dispatch_map:
@@ -251,7 +251,7 @@ class ExprFunctor:
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -495,7 +495,7 @@ class ExprMutator(ExprFunctor):
         if all(old_arg is new_arg for old_arg, new_arg in zip(op.args, args)):
             return op
         else:
-            return tvm.tirx.Call(op.ty, op.op, args, attrs=op.attrs, span=op.span)
+            return tvm.ir.Call(op.op, args, attrs=op.attrs, span=op.span, ret_ty=op.ty)
 
     def _mutate_binary_op(self, op_cls, op):
         """Helper to mutate binary operators."""

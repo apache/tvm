@@ -74,7 +74,7 @@ class MBarrier:
         Number of barrier slots (one per pipeline stage).
     phase_offset : int
         XORed into the phase bit on every ``wait`` / ``arrive``.
-    leader : PrimExpr, optional
+    leader : Expr, optional
         Boolean predicate selecting the single thread that runs
         ``mbarrier.init``. Defaults to ``T.cuda.thread_rank() == 0`` --
         thread 0 of the enclosing CTA, which always picks exactly one
@@ -228,7 +228,7 @@ class Pipeline:
         Expected arrival count for the full / empty barrier.
     empty_phase_offset : int
         XORed into the empty barrier's phase bit on every wait / arrive.
-    leader : PrimExpr, optional
+    leader : Expr, optional
         Propagated to both barriers; defaults to thread 0 of the CTA.
     """
 

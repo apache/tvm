@@ -369,8 +369,8 @@ void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLI
 
 void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = op->ty().lanes();
-  PrintType(op->ty()->dtype, os);
+  int lanes = op->ty.as_or_throw<PrimType>().lanes();
+  PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
   os << "(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -405,19 +405,22 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     TVM_FFI_ICHECK(it != simdgroup_dtype_.end())
         << "Cannot find variable allocation for simdgroup: " << var;
     const std::string& dtype_str = it->second;
-    f_check_simdgroup_shape(op->args[3], op->args[4]);
+    f_check_simdgroup_shape(op->args[3].as_or_throw<PrimExpr>(),
+                            op->args[4].as_or_throw<PrimExpr>());
     os << PrintExpr(var) << "[" << PrintExpr(op->args[1]) << "] = make_filled_simdgroup_matrix<"
        << dtype_str << ", " << PrintExpr(op->args[3]) << ", " << PrintExpr(op->args[4]) << ">("
        << PrintExpr(op->args[2]) << ")";
   } else if (op->op.same_as(simdgroup_load_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7);
-    f_check_simdgroup_shape(op->args[4], op->args[5]);
+    f_check_simdgroup_shape(op->args[4].as_or_throw<PrimExpr>(),
+                            op->args[5].as_or_throw<PrimExpr>());
     os << "simdgroup_load(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
        << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
        << PrintExpr(op->args[6]) << ")";
   } else if (op->op.same_as(simdgroup_store_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7);
-    f_check_simdgroup_shape(op->args[4], op->args[5]);
+    f_check_simdgroup_shape(op->args[4].as_or_throw<PrimExpr>(),
+                            op->args[5].as_or_throw<PrimExpr>());
     os << "simdgroup_store(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
        << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
        << PrintExpr(op->args[6]) << ")";
@@ -431,7 +434,7 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   } else if (op->op.same_as(builtin::reinterpret())) {
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
-    this->PrintType(op->ty()->dtype, os);
+    this->PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << "))";
@@ -451,9 +454,9 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
     temp << "NAN";
   } else {
     temp << std::scientific << op->value;
-    if (op->ty().bits() == 32)
+    if (op->ty.as_or_throw<PrimType>().bits() == 32)
       temp << 'f';
-    else if (op->ty().bits() == 16)
+    else if (op->ty.as_or_throw<PrimType>().bits() == 16)
       temp << 'h';
   }
   MarkConst(temp.str());

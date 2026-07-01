@@ -134,7 +134,7 @@ class GeneralReduction(GPUScheduleRule):
             for block_iter, loop_rv in zip(spatial_block.iter_vars, loops):
                 block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).loop_var
 
-            def _visit_expr(e: tirx.PrimExpr):
+            def _visit_expr(e: tirx.Expr):
                 if isinstance(e, tirx.Var) and e in block_var_to_loop_var:
                     spatial_loops.add(block_var_to_loop_var[e])
 

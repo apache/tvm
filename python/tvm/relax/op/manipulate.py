@@ -18,7 +18,7 @@
 
 from collections.abc import Callable
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir import is_prim_expr
 from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
@@ -26,7 +26,7 @@ from ..expr import Expr, ShapeExpr, prim_value
 from ..expr import Tuple as RxTuple
 from . import _ffi_api
 
-PrimExprLike = int | PrimExpr
+PrimExprLike = int | Expr
 
 
 def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
@@ -115,7 +115,7 @@ def flatten(x: Expr) -> Expr:
 def layout_transform(
     x: Expr,
     index_map: Callable | IndexMap,
-    pad_value: int | float | PrimExpr | None = None,
+    pad_value: int | float | Expr | None = None,
     axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
     input_axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
 ):
@@ -129,7 +129,7 @@ def layout_transform(
     index_map : Callable | IndexMap
         The transformation to apply.
 
-    pad_value : Optional[int | float | PrimExpr]
+    pad_value : Optional[int | float | Expr]
         The value used for padding if the transformation results in implicit padding.
         If not specified, any value can be used.
 
@@ -151,7 +151,7 @@ def layout_transform(
     # is applied, it would be converted to int32/float32, which may not match the x's type.
     if pad_value is None:
         pass
-    elif not isinstance(pad_value, PrimExpr):
+    elif not is_prim_expr(pad_value):
         if x_dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(pad_value, int):
             pad_value = IntImm(x_dtype.dtype, pad_value)
         elif x_dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT) and (
@@ -222,6 +222,8 @@ def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     That is to say, in any case the dimension length of ``-1`` cannot be inferred in
     compile-time, an error will be thrown.
     """
+    if not isinstance(shape, tuple | list | Expr) or is_prim_expr(shape):
+        raise TypeError("shape must be a tuple/list or a Relax shape expression")
     return _ffi_api.reshape(x, shape)  # type: ignore
 
 
@@ -236,7 +238,7 @@ def split(
     along given axis (if possible). Last section will be smaller if the tensor
     size along the given dimension is not divisible by the integer.
 
-    If indices_or_sections is a tuple of mixture of int or PrimExpr,
+    If indices_or_sections is a tuple of mixture of int or Expr,
     the entries indicate the indices where along axis the array is split.
 
     Parameters
@@ -845,19 +847,19 @@ def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
         The computed result tensor with the same shape as `data`.
 
     """
-    if not isinstance(start, PrimExpr):
+    if not is_prim_expr(start):
         start = prim_value(start)
-    if not isinstance(end, PrimExpr):
+    if not is_prim_expr(end):
         end = prim_value(end)
-    if not isinstance(step, PrimExpr):
+    if not is_prim_expr(step):
         step = prim_value(step)
     return _ffi_api.slice_scatter(input_tensor, src, axis, start, end, step)
 
 
 def one_hot(
     indices: Expr,
-    on_value: int | float | PrimExpr,
-    off_value: int | float | PrimExpr,
+    on_value: int | float | Expr,
+    off_value: int | float | Expr,
     depth: int,
     axis: int = -1,
 ) -> Expr:
@@ -868,10 +870,10 @@ def one_hot(
     indices : relax.Expr
         The indices to set to `on_value`.
 
-    on_value : int | float | PrimExpr
+    on_value : int | float | Expr
         The value to fill at `indices`.
 
-    off_value : int | float | PrimExpr
+    off_value : int | float | Expr
         The value to fill at other locations.
 
     depth : int

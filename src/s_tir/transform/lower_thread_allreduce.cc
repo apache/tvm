@@ -182,9 +182,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     std::vector<PrimExpr> values(size);
     std::vector<PrimType> dtypes;
     dtypes.reserve(size);
-    PrimExpr cond = call->args[size + 1];
+    PrimExpr cond = call->args[size + 1].as_or_throw<PrimExpr>();
     for (size_t idx = 0; idx < size; ++idx) {
-      values[idx] = call->args[1 + idx];
+      values[idx] = call->args[1 + idx].as_or_throw<PrimExpr>();
       if (!is_one(cond)) {
         values[idx] = Select(cond, values[idx], inits[idx]);
       }
@@ -192,7 +192,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     std::vector<Buffer> buffers(size);
     for (size_t idx = 0; idx < size; ++idx) {
-      PrimExpr arg = call->args[2 + size + idx];
+      PrimExpr arg = call->args[2 + size + idx].as_or_throw<PrimExpr>();
       // Loads from boolean buffers may have cast nodes inserted by
       // earlier passes.
       if (auto cast = arg.as<CastNode>()) {
@@ -309,7 +309,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     PrimExpr zero_index = IntImm(reduce_index.ty(), 0);
     if (IsWarpReduction(dtypes, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
-      PrimExpr mask = Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {});
+      PrimExpr mask =
+          Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {}).as_or_throw<PrimExpr>();
 
       if (reduce_extent <= warp_size_) {
         std::tie(reduce_results, new_alloc_bufs) =
@@ -717,7 +718,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(PrimType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync)}));
+    return Evaluate(Call(PrimType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync)})
+                        .as_or_throw<PrimExpr>());
   }
 
   // Emit warp shuffle  calls.
@@ -732,7 +734,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     PrimExpr width = IntImm::Int32(warp_size_);
     ffi::Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
-    return Call(val.ty(), op, args);
+    return Call(val.ty(), op, args).as_or_throw<PrimExpr>();
   }
 
   // Check if we can use warp level reduction.

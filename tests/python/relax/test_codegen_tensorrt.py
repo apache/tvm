@@ -396,7 +396,7 @@ def test_tensorrt_layer_norm():
 
 
 def test_tensorrt_clip():
-    # Regression test: Relax clip passes min/max as PrimExpr arguments (Relay used a_min/a_max
+    # Regression test: Relax clip passes min/max as Expr arguments (Relay used a_min/a_max
     # attributes); the codegen serializes them under the op's argument names.
     @tvm.script.ir_module
     class Clip:

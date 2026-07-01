@@ -44,7 +44,7 @@ def _expr_calls(func):
     calls = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.Call):
+        if isinstance(node, tvm.ir.Call):
             calls.append(node)
 
     tvm.tirx.stmt_functor.post_order_visit(func.body, visit)

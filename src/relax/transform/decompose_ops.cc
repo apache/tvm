@@ -143,16 +143,16 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  TVM_FFI_ICHECK(call_node->ty.defined());
+  TVM_FFI_ICHECK(!call_node->ty.IsMissing());
   Expr expr = call_node->args[0];
   const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
   TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
   static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
-  Var call =
-      builder->Emit(Call(call_pure_packed_op, {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
-                         {ffi::GetRef<ShapeType>(ty)}));
+  Var call = builder->Emit(Call(Type::Missing(), call_pure_packed_op,
+                                {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
+                                {ffi::GetRef<ShapeType>(ty)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,

@@ -248,7 +248,7 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> d
   attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumprod");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -272,7 +272,7 @@ Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> dt
   attrs->exclusive = exclusive;
 
   static const Op& op = Op::Get("relax.cumsum");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -293,7 +293,7 @@ Expr median(Expr data, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op& op = Op::Get("relax.median");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

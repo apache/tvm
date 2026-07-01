@@ -215,7 +215,7 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr, const ffi::Optional<tvm::Type
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   if (annotate_ty.defined()) {
     const auto& ty = annotate_ty.value();
-    if (!expr->ty.defined()) {
+    if (expr->ty.IsMissing()) {
       tvm::relax::UpdateType(expr, ty);
     } else {
       TVM_FFI_ICHECK(tvm::relax::TypeBaseCheck(ty, GetType(expr)) !=

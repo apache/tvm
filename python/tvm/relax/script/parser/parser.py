@@ -22,6 +22,7 @@ from typing import Any
 
 import tvm_ffi
 
+import tvm
 from tvm import relax, tirx
 from tvm.ir import GlobalVar
 from tvm.relax import Expr, Type
@@ -87,7 +88,7 @@ def bind_assign_value(
         IRBuilder.name(var_name, value)
         return value
 
-    if isinstance(value, tirx.PrimExpr):
+    if tvm.ir.is_prim_expr(value):
         if not emit_prim_expr:
             return value
 

@@ -10186,10 +10186,29 @@ def test_affine_grid_3d():
     model = helper.make_model(graph, producer_name="affine_grid_3d_test")
 
     tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
-    call_ops = collect_relax_call_ops(tvm_model["main"])
-    assert "relax.image.affine_grid" in call_ops
-    assert "relax.permute_dims" in call_ops
-    assert [int(d) for d in tvm_model["main"].ret_ty.shape] == [2, 8, 16, 16, 3]
+    assert len(tvm_model["main"].attrs["params"]) == 1
+    tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            theta: R.Tensor((2, 3, 4), dtype="float32"),
+            size: R.Tensor((5,), dtype="int64"),
+        ) -> R.Tensor((2, 8, 16, 16, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 8, 16, 16), dtype="float32") = R.image.affine_grid(
+                    theta, size=(8, 16, 16), align_corners=True
+                )
+                lv1: R.Tensor((2, 8, 16, 16, 3), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 2, 3, 4, 1]
+                )
+                gv: R.Tensor((2, 8, 16, 16, 3), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])

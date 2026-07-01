@@ -203,7 +203,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         AsDocBody(func->body, p->Attr("body"), f->get(), d);
       }
       ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (func->ret_type.defined()) {
+      if (!func->ret_type.IsMissing()) {
         const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
         if (!as_tuple || as_tuple->fields.size()) {
           ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));

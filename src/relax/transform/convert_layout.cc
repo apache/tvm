@@ -135,7 +135,8 @@ class LayoutConvertMutator : public ExprMutator {
         attrs->axis_separators = std::move(axis_separator);
         attrs->input_axis_separators = std::move(input_axis_separator);
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
-        auto ret_expr = Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+        auto ret_expr =
+            Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
         return ret_expr;
       }
     };
@@ -228,7 +229,7 @@ class LayoutConvertMutator : public ExprMutator {
     ffi::Optional<InferLayoutOutput> res =
         GetInferLayoutInfo(call_node, desired_layouts_, layout_cb_, var_layout_map_);
     ffi::ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
-    new_call->ty = Type();
+    new_call->ty = Type::Missing();
     if (!res.defined() ||
         (!IsNestedTensor(binding->var) && !binding->var->IsInstance<DataflowVarNode>())) {
       // Default policy: use the initial layout.

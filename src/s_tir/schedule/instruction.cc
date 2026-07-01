@@ -79,13 +79,12 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       inputs.push_back(obj);
     } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
       inputs.push_back(obj);
-    } else if (const auto* expr = obj.as<PrimExprNode>()) {
-      PrimExpr new_expr =
-          Substitute(ffi::GetRef<PrimExpr>(expr), [](const Var& var) -> ffi::Optional<PrimExpr> {
-            ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
-            new_var->name_hint = "_";
-            return Var(new_var);
-          });
+    } else if (auto expr = obj.as<PrimExpr>()) {
+      PrimExpr new_expr = Substitute(expr.value(), [](const Var& var) -> ffi::Optional<PrimExpr> {
+        ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
+        new_var->name_hint = "_";
+        return Var(new_var);
+      });
       std::ostringstream os;
       os << new_expr;
       inputs.push_back(ffi::String(os.str()));

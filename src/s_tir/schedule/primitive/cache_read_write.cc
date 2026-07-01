@@ -1040,7 +1040,7 @@ class CacheReadRewriter : public StmtExprMutator {
     if (op == info_->read_buffer->data.get()) {
       return info_->write_buffer->data;
     }
-    return ffi::GetRef<PrimExpr>(op);
+    return ffi::GetRef<Var>(op);
   }
 
  private:
@@ -1324,7 +1324,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     if (op == info_->write_buffer->data.get()) {
       return info_->read_buffer->data;
     }
-    return ffi::GetRef<PrimExpr>(op);
+    return ffi::GetRef<Var>(op);
   }
 
  private:

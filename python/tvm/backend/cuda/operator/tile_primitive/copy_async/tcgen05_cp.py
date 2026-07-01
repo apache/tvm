@@ -172,8 +172,8 @@ def _build_plan(op_call: TilePrimitiveCall, sctx: DispatchContext):
       - SmemSwizzleMode (int)
       - SDO_field, atom_K_byte
       - middle_iters: list of (extent, s_step_16B, t_step_32bcol)
-      - init_off_16B (PrimExpr)
-      - t_col0 (PrimExpr, TMEM 32-bit col offset for cp's first call)
+      - init_off_16B (Expr)
+      - t_col0 (Expr, TMEM 32-bit col offset for cp's first call)
     """
     op_call = TilePrimitiveCall.downcast(op_call)
     dst_region, src_region = op_call.args[:2]

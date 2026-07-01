@@ -386,8 +386,8 @@ void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, const PrimType& t,
 
 void CodeGenWebGPU::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = op->ty().lanes();
-  PrintType(op->ty()->dtype, os);
+  int lanes = op->ty.as_or_throw<PrimType>().lanes();
+  PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
   os << "(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -404,7 +404,7 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
   if (op->op.same_as(builtin::reinterpret())) {
     // generate bitcast<TYPE>(ARG)
     os << "bitcast<";
-    this->PrintType(op->ty()->dtype, os);
+    this->PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << ")";
@@ -413,14 +413,14 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     this->PrintExpr(op->args[0], os);
     os << ">>";
     // WebGPU requires shift bits to be u32.
-    this->PrintExpr(EnforceU32(op->args[1]), os);
+    this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
     os << ')';
   } else if (op->op.same_as(builtin::shift_left())) {
     os << '(';
     this->PrintExpr(op->args[0], os);
     os << "<<";
     // WebGPU requires shift bits to be u32.
-    this->PrintExpr(EnforceU32(op->args[1]), os);
+    this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
     os << ')';
   } else if (op->op.same_as(builtin::if_then_else())) {
     // conditional that skips eval if cond evals to false
@@ -428,7 +428,7 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     std::string cond = PrintExpr(op->args[0]);
     this->PrintIndent();
     this->stream << "var " << result << " : ";
-    PrintType(op->ty()->dtype, this->stream);
+    PrintType(op->ty.as_or_throw<PrimType>()->dtype, this->stream);
     this->stream << ";\n";
     this->PrintIndent();
     this->stream << "if (" << cond << ") {\n";
@@ -461,7 +461,7 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
 }
 
 void CodeGenWebGPU::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintType(op->ty()->dtype, os);
+  PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
   os << "(" << PrintExpr(op->value) << ")";
 }
 
@@ -492,18 +492,18 @@ void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT
 }
 
 void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->ty().bits() == 32) {
+  if (op->ty.as_or_throw<PrimType>().bits() == 32) {
     std::ostringstream temp;
-    if (op->ty().MatchesCode(DLDataTypeCode::kDLInt)) {
+    if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLInt)) {
       temp << op->value << "i";
     } else {
-      TVM_FFI_ICHECK(op->ty().MatchesCode(DLDataTypeCode::kDLUInt));
+      TVM_FFI_ICHECK(op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt));
       temp << op->value << "u";
     }
     this->MarkConst(temp.str());
     os << temp.str();
   } else {
-    this->PrintType(op->ty()->dtype, os);
+    this->PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
     os << "(" << op->value << ")";
   }
 }
@@ -511,14 +511,15 @@ void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOL
 void CodeGenWebGPU::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   temp << std::scientific << op->value;
-  if (op->ty().bits() == 32) {
+  if (op->ty.as_or_throw<PrimType>().bits() == 32) {
     temp << 'f';
-  } else if (op->ty().bits() == 16) {
+  } else if (op->ty.as_or_throw<PrimType>().bits() == 16) {
     // Using f16 requires enable directive
     enable_fp16_ = true;
     temp << 'h';
   } else {
-    TVM_FFI_THROW(InternalError) << "Unsupported floating point bits " << op->ty().bits();
+    TVM_FFI_THROW(InternalError) << "Unsupported floating point bits "
+                                 << op->ty.as_or_throw<PrimType>().bits();
   }
   MarkConst(temp.str());
   os << temp.str();
@@ -532,7 +533,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
   TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
 
-  DLDataType value_dtype = op->ty()->dtype;
+  DLDataType value_dtype = op->ty.as_or_throw<PrimType>()->dtype;
   PrimType value_ty(value_dtype);
   PrimExpr index = op->indices[0];
   Var buffer_var = op->buffer->data;

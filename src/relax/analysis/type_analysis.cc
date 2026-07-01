@@ -113,7 +113,7 @@ Type TypeFromStaticType(const Type& type) {
     return FuncType(params, ret, true, func_type->span);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type: " << type;
-    return Type();
+    return Type::Missing();
   }
 }
 
@@ -135,7 +135,8 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
 
     if (op->values.defined()) {
       std::swap(has_undefined_, has_undefined);
-      values = op->values.value().Map([&](PrimExpr val) { return this->VisitPrimExpr(val); });
+      values =
+          op->values.value().Map([&](PrimExpr val) { return this->VisitTypePrimExprField(val); });
       std::swap(has_undefined_, has_undefined);
     }
     // erase symbolic shape if we have undefined.
@@ -189,8 +190,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
   using relax::ExprMutatorBase::VisitExpr_;
   using tirx::ExprMutator::VisitExpr_;
 
-  // connect things up
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) {
+  PrimExpr VisitPrimitiveExpr(const PrimExpr& expr) {
     // apply eager simplification
     PrimExpr val = tirx::ExprMutator::VisitExpr(expr);
     if (!val.same_as(expr)) {
@@ -199,6 +199,15 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
       return val;
     }
   }
+
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitPrimitiveExpr(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutatorBase::VisitExprFallback_(op);
+  }
+
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return VisitPrimitiveExpr(expr); }
 
   Expr VisitExpr_(const VarNode* var) final {
     ffi::Optional<Expr> ret;
@@ -229,7 +238,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
           << "Can only provide i64 expressions in shape";
       return value;
     } else {
-      return ffi::GetRef<PrimExpr>(var);
+      return ffi::GetRef<tirx::Var>(var);
     }
   }
 
@@ -1180,7 +1189,7 @@ class TIRVarsDetector : public TypeVisitor {
   ffi::Array<tirx::Var> GetTIRVars() const { return tir_vars_; }
 
  private:
-  void VisitPrimExpr(PrimExpr expr) {
+  void VisitTypePrimExprField(PrimExpr expr) {
     if (collection_type == VarType::Definition) {
       if (auto opt = expr.as<tirx::Var>()) {
         RecordTIRVar(opt.value());
@@ -1197,7 +1206,7 @@ class TIRVarsDetector : public TypeVisitor {
 
   void VisitShape(ffi::Array<PrimExpr> shape) {
     for (const PrimExpr& expr : shape) {
-      VisitPrimExpr(expr);
+      VisitTypePrimExprField(expr);
     }
   }
 

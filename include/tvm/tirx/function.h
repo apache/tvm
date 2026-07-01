@@ -51,7 +51,7 @@ class PrimFuncNode : public BaseFuncNode {
   /*! \brief Function parameters */
   ffi::Array<tirx::Var> params;
   /*! \brief The return type of the function. */
-  Type ret_type;
+  Type ret_type = Type::Missing();
   /*!
    * \brief Maps some parameters to specific Buffer data structures.
    *

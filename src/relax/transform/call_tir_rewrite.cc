@@ -90,7 +90,7 @@ class CallTIRMutator : public ExprMutator {
         }
 
         if (!is_inplace) {
-          outs.push_back(builder_->Emit(Call(alloc_tensor_op,
+          outs.push_back(builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                              {output_ty->shape.value().as_or_throw<ShapeExpr>(),
                                               DataTypeImm(output_ty->dtype.value()->dtype),
                                               IntImm::Int64(dev_index), StringImm(scope)},
@@ -127,7 +127,7 @@ class CallTIRMutator : public ExprMutator {
 
           if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
             outs.push_back(
-                builder_->Emit(Call(alloc_tensor_op,
+                builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                     {field_tensor->shape.value().as_or_throw<ShapeExpr>(),
                                      DataTypeImm(field_tensor->dtype.value()->dtype),
                                      IntImm::Int64(dev_index), StringImm(scope)},
@@ -159,11 +159,11 @@ class CallTIRMutator : public ExprMutator {
         }
 
         if (call->args.size() == 2) {
-          builder_->Emit(Call(call->args[0], args), "_");
+          builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
         } else {
           // unpack semantics
           args.push_back(call->args[2]);
-          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
+          builder_->Emit(Call(Type::Missing(), call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {
         if (!is_inplace) {
@@ -172,7 +172,7 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        builder_->Emit(Call(call->args[0], args), "_");
+        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
       }
 
       if (outs.size() == 1) {

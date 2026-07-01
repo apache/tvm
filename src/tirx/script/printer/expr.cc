@@ -256,111 +256,111 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                                  {"where"}, {where});
     });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Call>("", [](tirx::Call call, AccessPath call_p, IRDocsifier d) -> Doc {
-      DLDataType call_dtype = call.ty()->dtype;
-      if (call->attrs.defined()) {
-        ffi::Array<ExprDoc> call_args;
-        int n_args = call->args.size();
-        call_args.reserve(n_args);
-        for (int i = 0; i < n_args; ++i) {
-          call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
-        }
-        ExprDoc op_doc = call->op.as<Op>()
-                             ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
-                             : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-        return TIR(d, "Call")->Call(
-            {LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")), op_doc, ListDoc(call_args)},
-            {"attrs"}, {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs"))});
-      }
-      static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
-          Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
-      static const OpAttrMap<tirx::TScriptDtypePrintLocation> dtype_locations =
-          Op::GetAttrMap<tirx::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
-      tirx::ScriptDtypePrintLocation dtype_print_location = tirx::ScriptDtypePrintLocation::kNone;
-      ffi::Optional<ExprDoc> prefix;
-      if (auto optional_op = call->op.as<Op>()) {
-        auto op = optional_op.value();
-        ffi::String name = op_names.get(op, op->name);
-        if (op_names.count(op) == 0) {
-          LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
-        }
-        prefix = TIR(d, name);
-        if (dtype_locations.count(op)) {
-          dtype_print_location = static_cast<tirx::ScriptDtypePrintLocation>(dtype_locations[op]);
-        }
-        if (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin") {
-          int n_args = call->args.size();
-          int64_t id = call->args[0].as<IntImmNode>()->value;
-          auto f_llvm_lookup_intrinsic_name =
-              tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
-
-          ffi::Array<ExprDoc> args;
-          args.reserve(n_args + 1);
-          if (dtype_print_location == tirx::ScriptDtypePrintLocation::kFirst) {
-            args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
-          }
-
-          for (int i = 0; i < n_args; ++i) {
-            if ((i == 0) && (f_llvm_lookup_intrinsic_name)) {
-              ffi::String name = (*f_llvm_lookup_intrinsic_name)(id).cast<ffi::String>();
-              args.push_back(LiteralDoc::Str(name.c_str(), call_p->Attr("args")->ArrayItem(i)));
-            } else {
-              args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
-            }
-          }
-          if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
-            args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
-          }
-          return prefix.value()->Call(args);
-        }
-        // cuda_func_call: last arg is source_code (keyword-only in the Python API).
-        // Print it as source_code=... to enable TVMScript round-trip.
-        if (op->name == "tirx.cuda.func_call") {
-          int n_args = call->args.size();
-          ffi::Array<ExprDoc> args;
-          // All args except the last (source_code) are positional.
-          for (int i = 0; i < n_args - 1; ++i) {
-            args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
-          }
-          // source_code is the last arg, printed as keyword.
-          // Extract the string value directly to avoid the StringImm printer
-          // storing multiline source code in metadata (which can't be reparsed).
-          ffi::Array<ffi::String> kw_keys;
-          ffi::Array<ExprDoc> kw_vals;
-          const auto* src_str = call->args[n_args - 1].as<tirx::StringImmNode>();
-          TVM_FFI_ICHECK(src_str) << "cuda_func_call: last arg (source_code) must be StringImm";
-          ExprDoc src =
-              LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
-          kw_keys.push_back("source_code");
-          kw_vals.push_back(src);
-          // If non-void return type, print return_type keyword.
-          if (!call.ty().IsVoid()) {
-            kw_keys.push_back("return_type");
-            kw_vals.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
-          }
-          return prefix.value()->Call(args, kw_keys, kw_vals);
-        }
-      } else if (call->op.as<GlobalVarNode>()) {
-        prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-      } else {
-        TVM_FFI_THROW(InternalError) << "call: " << call;
-      }
-      ffi::Array<ExprDoc> args;
+Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
+  DLDataType call_dtype = call->ty.as_or_throw<PrimType>()->dtype;
+  if (call->attrs.defined()) {
+    ffi::Array<ExprDoc> call_args;
+    int n_args = call->args.size();
+    call_args.reserve(n_args);
+    for (int i = 0; i < n_args; ++i) {
+      call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+    }
+    ExprDoc op_doc = call->op.as<Op>()
+                         ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
+                         : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
+    return TIR(d, "Call")->Call({op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
+                                {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")),
+                                 LiteralDoc::DataType(call_dtype, call_p->Attr("ty"))});
+  }
+  static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
+      Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
+  static const OpAttrMap<tirx::TScriptDtypePrintLocation> dtype_locations =
+      Op::GetAttrMap<tirx::TScriptDtypePrintLocation>("TScriptDtypePrintLocation");
+  tirx::ScriptDtypePrintLocation dtype_print_location = tirx::ScriptDtypePrintLocation::kNone;
+  ffi::Optional<ExprDoc> prefix;
+  if (auto optional_op = call->op.as<Op>()) {
+    auto op = optional_op.value();
+    ffi::String name = op_names.get(op, op->name);
+    if (op_names.count(op) == 0) {
+      LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
+    }
+    prefix = TIR(d, name);
+    if (dtype_locations.count(op)) {
+      dtype_print_location = static_cast<tirx::ScriptDtypePrintLocation>(dtype_locations[op]);
+    }
+    if (name == "call_llvm_pure_intrin" || name == "call_llvm_intrin") {
       int n_args = call->args.size();
+      int64_t id = call->args[0].as<IntImmNode>()->value;
+      auto f_llvm_lookup_intrinsic_name =
+          tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
+
+      ffi::Array<ExprDoc> args;
       args.reserve(n_args + 1);
       if (dtype_print_location == tirx::ScriptDtypePrintLocation::kFirst) {
         args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
       }
 
       for (int i = 0; i < n_args; ++i) {
-        args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+        if ((i == 0) && (f_llvm_lookup_intrinsic_name)) {
+          ffi::String name = (*f_llvm_lookup_intrinsic_name)(id).cast<ffi::String>();
+          args.push_back(LiteralDoc::Str(name.c_str(), call_p->Attr("args")->ArrayItem(i)));
+        } else {
+          args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+        }
       }
       if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
         args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
       }
       return prefix.value()->Call(args);
-    });
+    }
+    // cuda_func_call: last arg is source_code (keyword-only in the Python API).
+    // Print it as source_code=... to enable TVMScript round-trip.
+    if (op->name == "tirx.cuda.func_call") {
+      int n_args = call->args.size();
+      ffi::Array<ExprDoc> args;
+      // All args except the last (source_code) are positional.
+      for (int i = 0; i < n_args - 1; ++i) {
+        args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+      }
+      // source_code is the last arg, printed as keyword.
+      // Extract the string value directly to avoid the StringImm printer
+      // storing multiline source code in metadata (which can't be reparsed).
+      ffi::Array<ffi::String> kw_keys;
+      ffi::Array<ExprDoc> kw_vals;
+      const auto* src_str = call->args[n_args - 1].as<tirx::StringImmNode>();
+      TVM_FFI_ICHECK(src_str) << "cuda_func_call: last arg (source_code) must be StringImm";
+      ExprDoc src = LiteralDoc::Str(src_str->value, call_p->Attr("args")->ArrayItem(n_args - 1));
+      kw_keys.push_back("source_code");
+      kw_vals.push_back(src);
+      // If non-void return type, print return_type keyword.
+      if (!call->ty.as_or_throw<PrimType>().IsVoid()) {
+        kw_keys.push_back("return_type");
+        kw_vals.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+      }
+      return prefix.value()->Call(args, kw_keys, kw_vals);
+    }
+  } else if (call->op.as<GlobalVarNode>()) {
+    prefix = d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
+  } else {
+    TVM_FFI_THROW(InternalError) << "call: " << call;
+  }
+  ffi::Array<ExprDoc> args;
+  int n_args = call->args.size();
+  args.reserve(n_args + 1);
+  if (dtype_print_location == tirx::ScriptDtypePrintLocation::kFirst) {
+    args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+  }
+
+  for (int i = 0; i < n_args; ++i) {
+    args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+  }
+  if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
+    args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+  }
+  return prefix.value()->Call(args);
+}
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<Call>("tirx", PrintTIRCall);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Reduce>("", [](tirx::Reduce r, AccessPath p, IRDocsifier d) -> Doc {
@@ -464,7 +464,6 @@ TVM_SCRIPT_REPR(tirx::SelectNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::RampNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BroadcastNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::LetNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::CallNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ShuffleNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::CommReducerNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IndexMapNode, ReprPrintTIR);

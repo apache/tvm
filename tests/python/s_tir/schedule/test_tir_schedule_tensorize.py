@@ -841,7 +841,7 @@ def test_tensorize_matmul_mixed_dtype():
 def _tir_packed_int_to_int_to_float(storage_nbit: int):
     storage_dtype = "int" + str(storage_nbit)
 
-    def f_convert(nbit: int, val: tirx.PrimExpr, pos: tirx.PrimExpr, dtype: str):
+    def f_convert(nbit: int, val: tirx.Expr, pos: tirx.Expr, dtype: str):
         assert val.ty.dtype == storage_dtype
         mask = tirx.const((1 << nbit) - 1, "int32")
         unextended = (val >> (pos.astype("int32") * tirx.const(nbit, "int32"))) & mask

@@ -92,12 +92,12 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   TResult VisitExpr(const PrimExpr& expr) override { return ExprFunctor::VisitExpr(expr); }
   TResult VisitStmt(const Stmt& stmt) override { return StmtFunctor::VisitStmt(stmt); }
 
-#define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node) \
-  TResult VisitExpr_(const Node* op) final {     \
-    TResult result = VisitExpr(op->a);           \
-    result += VisitExpr(op->b);                  \
-    result.Add(op->ty()->dtype);                 \
-    return result;                               \
+#define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node)       \
+  TResult VisitExpr_(const Node* op) final {           \
+    TResult result = VisitExpr(op->a);                 \
+    result += VisitExpr(op->b);                        \
+    result.Add(op->ty.as_or_throw<PrimType>()->dtype); \
+    return result;                                     \
   }
   TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(AddNode);
   TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(SubNode);
@@ -216,8 +216,8 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
 
   TResult VisitExpr_(const CallNode* op) override {
     TResult ret;
-    for (const auto& x : op->args) {
-      ret += VisitExpr(x);
+    for (const PrimExpr& arg : op->args.as_or_throw<ffi::Array<PrimExpr>>()) {
+      ret += VisitExpr(arg);
     }
     return ret;
   }

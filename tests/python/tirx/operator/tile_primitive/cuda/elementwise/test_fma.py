@@ -122,7 +122,7 @@ def test_fma_buffer_scale_scalar_bias():
 
 
 # ---------------------------------------------------------------------------
-# Binary op with scalar broadcast (PrimExpr scalar, e.g. BufferLoad)
+# Binary op with scalar broadcast (Expr scalar, e.g. BufferLoad)
 # ---------------------------------------------------------------------------
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")

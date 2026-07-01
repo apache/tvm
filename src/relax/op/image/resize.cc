@@ -54,7 +54,7 @@ Expr resize2d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
   attrs->out_dtype = out_dtype;
 
   static const Op& op = Op::Get("relax.image.resize2d");
-  return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -170,7 +170,7 @@ Expr resize3d(Expr data, Expr size, ffi::Array<FloatImm> roi, ffi::String layout
   attrs->out_dtype = out_dtype;
 
   static const Op& op = Op::Get("relax.image.resize3d");
-  return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -279,7 +279,7 @@ Expr grid_sample(Expr data, Expr grid, ffi::String method, ffi::String layout,
   attrs->align_corners = align_corners;
 
   static const Op& op = Op::Get("relax.image.grid_sample");
-  return Call(op, {std::move(data), std::move(grid)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(grid)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -362,7 +362,7 @@ Expr affine_grid(Expr data, Expr size, bool align_corners) {
   ffi::ObjectPtr<AffineGridAttrs> attrs = ffi::make_object<AffineGridAttrs>();
   attrs->align_corners = align_corners;
   static const Op& op = Op::Get("relax.image.affine_grid");
-  return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { AffineGridAttrs::RegisterReflection(); }

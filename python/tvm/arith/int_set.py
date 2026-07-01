@@ -41,7 +41,7 @@ class IntSet(Object):
 
         Parameters
         ----------
-        vec : PrimExpr
+        vec : Expr
             The vector expression.
 
         Returns
@@ -57,7 +57,7 @@ class IntSet(Object):
 
         Parameters
         ----------
-        point : PrimExpr
+        point : Expr
             The vector expression.
 
         Returns
@@ -74,10 +74,10 @@ class IntervalSet(IntSet):
 
     Parameters
     ----------
-    min_value : PrimExpr
+    min_value : Expr
         The minimum value in the interval.
 
-    max_value : PrimExpr
+    max_value : Expr
         The maximum value in the interval.
     """
 
@@ -105,7 +105,7 @@ def estimate_region_lower_bound(region, var_dom, predicate, analyzer=None):
     var_dom : Dict[tvm.tirx.Var, Range]
         The ranges of the variables
 
-    predicate : PrimExpr
+    predicate : Expr
         The predicate for the affine map
 
     analyzer : Optional[tvm.arith.Analyzer]
@@ -132,7 +132,7 @@ def estimate_region_strict_bound(region, var_dom, predicate, analyzer=None):
     var_dom : Dict[tvm.tirx.Var, Range]
         The ranges of the variables
 
-    predicate : PrimExpr
+    predicate : Expr
         The predicate for the affine map
 
     analyzer : Optional[tvm.arith.Analyzer]
@@ -160,7 +160,7 @@ def estimate_region_upper_bound(region, var_dom, predicate, analyzer=None):
     var_dom : Dict[tvm.tirx.Var, Range]
         The ranges of the variables
 
-    predicate : PrimExpr
+    predicate : Expr
         The predicate for the affine map
 
     analyzer : Optional[tvm.arith.Analyzer]

@@ -32,7 +32,7 @@ from tvm.relax.script.builder.distributed import (
 )
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder.ir import IRModuleFrame
-from tvm.tirx import PrimExpr
+from tvm.tirx import Expr
 
 from .entry import TensorProxy, TypeProxy
 
@@ -67,7 +67,7 @@ class DTensorProxy(TypeProxy):
 
 
 def DTensor(
-    shape: list[PrimExpr | str] | None = None,
+    shape: list[Expr | str] | None = None,
     dtype: str | None = None,
     device_mesh: DeviceMesh | str = DeviceMesh([], Range(0, 1)),
     placement: Placement | str = "",

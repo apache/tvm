@@ -336,7 +336,7 @@ def LowerIntrin():
 
 
 def NarrowDataType(target_bits: int):
-    """Narrow down PrimExpr datatype in stmt to target_bits.
+    """Narrow down Expr datatype in stmt to target_bits.
 
     Parameters
     ----------

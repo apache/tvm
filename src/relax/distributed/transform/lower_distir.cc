@@ -112,7 +112,7 @@ class DistIRSharder : public ExprMutator {
   }
 
   Expr ShardInputParamTensorAndConstant(Expr input) {
-    TVM_FFI_ICHECK(input->ty.defined());
+    TVM_FFI_ICHECK(!input->ty.IsMissing());
     Type old_ty = GetType(input);
     Type new_ty = ConvertType(old_ty, false);
     if (const auto* var = input.as<VarNode>()) {

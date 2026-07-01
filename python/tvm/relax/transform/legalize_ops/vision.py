@@ -17,9 +17,10 @@
 """Default legalization function for vision network related operators."""
 
 from tvm import relax, te, tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, TupleGetItem
+from ...expr import Expr, TupleGetItem
 from .common import register_legalize
 
 

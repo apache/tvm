@@ -426,7 +426,8 @@ class LowerTIRToLocalView : public ExprMutator {
     if (allreduce_kind != "") {
       ffi::ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
       attrs->op_type = allreduce_kind;
-      new_call = Call(Op::Get("relax.ccl.allreduce"), {new_call}, Attrs(attrs), {});
+      new_call =
+          Call(Type::Missing(), Op::Get("relax.ccl.allreduce"), {new_call}, Attrs(attrs), {});
     }
     ReEmitBinding(binding, this->builder_->Normalize(new_call));
   }

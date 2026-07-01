@@ -939,7 +939,7 @@ inline Tensor strided_slice_with_axes(
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < normalized_axes.size(); ++i) {
           int64_t ax = normalized_axes[i];
-          auto stride = MakeConst(strides[i]->ty(), strides_vec[i]);
+          auto stride = MakeConst(strides[i]->ty.as_or_throw<PrimType>(), strides_vec[i]);
           PrimExpr ind = indices[ax] * stride + begin_expr[i];
           real_indices.Set(ax, ind);
         }

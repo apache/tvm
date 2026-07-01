@@ -36,12 +36,13 @@ Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
   Tuple void_expr(ffi::Array<Expr>{});
 
   static const Op& op = Op::Get("relax.memory.view");
-  return Call(op, {
-                      x,
-                      shape.value_or(void_expr),
-                      dtype.value_or(void_expr),
-                      relative_byte_offset.value_or(void_expr),
-                  });
+  return Call(Type::Missing(), op,
+              {
+                  x,
+                  shape.value_or(void_expr),
+                  dtype.value_or(void_expr),
+                  relative_byte_offset.value_or(void_expr),
+              });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -151,10 +152,14 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
           << "Operator " << call->op
           << " expects the relative_byte_offset to be a 64-bit integer, but received "
           << arg_relative_byte_offset << ", which has type " << ty;
-      if (const auto* prim_value = arg_relative_byte_offset.as<PrimExprNode>()) {
+      if (arg_relative_byte_offset.as<VarNode>()) {
+        // A scalar Relax variable has an unknown value.  Although it has a
+        // PrimType, it is not a TIRX expression that can be analyzed.
+        return std::nullopt;
+      } else if (auto prim_value = arg_relative_byte_offset.as<PrimExpr>()) {
         // An offset of known value is applied.  The known value may
         // be dynamic.
-        return ffi::GetRef<PrimExpr>(prim_value);
+        return prim_value.value();
       } else {
         // An offset of unknown value is applied.
         return std::nullopt;
@@ -383,7 +388,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
   ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_ty);
 
-  return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
+  return Call(Type::Missing(), runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }
 
 TVM_REGISTER_OP("relax.memory.view")
@@ -400,7 +405,7 @@ TVM_REGISTER_OP("relax.memory.view")
 
 Expr ensure_zero_offset(const Expr& x) {
   static const Op& op = Op::Get("relax.memory.ensure_zero_offset");
-  return Call(op, {x});
+  return Call(Type::Missing(), op, {x});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -419,7 +424,7 @@ Type InferTypeEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
   const ExternFunc builtin_ensure_zero_offset_{"vm.builtin.ensure_zero_offset"};
-  return Call(builtin_ensure_zero_offset_, call->args, Attrs(), {GetType(call)});
+  return Call(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(), {GetType(call)});
 }
 
 TVM_REGISTER_OP("relax.memory.ensure_zero_offset")

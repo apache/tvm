@@ -425,7 +425,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def quantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        weight_shape: list[tirx.PrimExpr],
+        weight_shape: list[tirx.Expr],
         model_dtype,
         quantize_dtype,
         storage_dtype,
@@ -510,7 +510,7 @@ class BaseFP8E4M3QuantScaleOnly:
     @classmethod
     def dequantize_fp8x4_e4m3(  # pylint: disable=too-many-locals
         cls,
-        packed_weight_shape: list[tirx.PrimExpr],
+        packed_weight_shape: list[tirx.Expr],
         scale_shape,
         dequant_shape,
         model_dtype,

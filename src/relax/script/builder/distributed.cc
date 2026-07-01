@@ -38,7 +38,7 @@ Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType>
         << ty;
   }
 
-  Type out_ty{nullptr};
+  Type out_ty = Type::Missing();
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
@@ -49,9 +49,9 @@ Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType>
   Call call;
   if (!packed_ints) {
     // don't use additional optional argument
-    call = Call(op, {func, args}, {}, {out_ty});
+    call = Call(Type::Missing(), op, {func, args}, {}, {out_ty});
   } else {
-    call = Call(op, {func, args, packed_ints.value()}, {}, {out_ty});
+    call = Call(Type::Missing(), op, {func, args, packed_ints.value()}, {}, {out_ty});
   }
   return call;
 }

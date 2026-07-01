@@ -257,7 +257,7 @@ Pass RemoveUnusedOutputs() {
                   << "but " << call << " was used in a context expecting "
                   << old_call_ty->fields.size() << " outputs.";
 
-              Call new_call(new_gvar, call->args);
+              Call new_call(Type::Missing(), new_gvar, call->args);
 
               int num_outputs_used = 0;
               for (bool used : usage_mask) {

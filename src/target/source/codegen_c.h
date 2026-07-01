@@ -108,6 +108,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param os The output stream
    */
   void PrintExpr(const PrimExpr& n, std::ostream& os);
+  void PrintExpr(const Expr& n, std::ostream& os) { PrintExpr(n.as_or_throw<PrimExpr>(), os); }
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
@@ -117,6 +118,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
     PrintExpr(n, os);
     return os.str();
   }
+  std::string PrintExpr(const Expr& n) { return PrintExpr(n.as_or_throw<PrimExpr>()); }
 
   // The following parts are overloadable print operations.
 

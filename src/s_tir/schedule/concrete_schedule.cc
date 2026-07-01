@@ -946,10 +946,10 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     return (*std::move(opt_floatimm))->value;
   }
 
-  if (const auto* expr = ann_val.as<PrimExprNode>()) {
-    TVM_FFI_CHECK(!expr->IsInstance<StringImmNode>(), TypeError)
+  if (auto expr = ann_val.as<PrimExpr>()) {
+    TVM_FFI_CHECK(!expr.value().as<StringImmNode>(), TypeError)
         << "ffi::String is expected, but gets StringImm";
-    auto res_expr = this->Get(ffi::GetRef<PrimExpr>(expr));
+    auto res_expr = this->Get(expr.value());
     // prefer to return int/float literals for annotations
     if (auto opt_intimm = res_expr.as<IntImm>()) {
       return (*std::move(opt_intimm))->value;
