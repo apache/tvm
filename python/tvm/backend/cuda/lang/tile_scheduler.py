@@ -473,7 +473,7 @@ class GroupMajor3D(BaseTileScheduler):
     Args
     ----
     prefix: str
-    m_tiles: int | T PrimExpr   # tiles along M (static or runtime)
+    m_tiles: int | T Expr   # tiles along M (static or runtime)
     n_tiles: int                # tiles along N (static)
     k_tiles: int                # tiles along K (static)
     group_rows: int             # rows per group along M

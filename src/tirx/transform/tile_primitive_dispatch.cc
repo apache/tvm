@@ -1144,8 +1144,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
     if (const auto* call = pred.as<CallNode>()) {
       if (IsBitwiseAndCall(call)) {
-        FlattenConjuncts(call->args[0], out);
-        FlattenConjuncts(call->args[1], out);
+        FlattenConjuncts(call->args[0].as_or_throw<PrimExpr>(), out);
+        FlattenConjuncts(call->args[1].as_or_throw<PrimExpr>(), out);
         return;
       }
     }
@@ -1155,14 +1155,16 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   int PushFilterPredicateCtx(const CallNode* call) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
         << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
-    auto target = ResolveScopeIdTarget(call->args[0]);
-    if (target && ElectSyncFinder::Contains(call->args[1])) {
+    PrimExpr var = call->args[0].as_or_throw<PrimExpr>();
+    PrimExpr cond = call->args[1].as_or_throw<PrimExpr>();
+    auto target = ResolveScopeIdTarget(var);
+    if (target && ElectSyncFinder::Contains(cond)) {
       PrimExpr selector =
-          tirx::Call(call->args[0].ty(), tirx::builtin::selector(), {call->args[0], call->args[1]});
+          Call(var.ty(), tirx::builtin::selector(), {var, cond}).as_or_throw<PrimExpr>();
       int pushed = TryPushSelectorForTarget(*target, selector) ? 1 : 0;
-      return pushed + PushPredicateCtx(call->args[1]);
+      return pushed + PushPredicateCtx(cond);
     }
-    return PushPredicateCtx(call->args[1]);
+    return PushPredicateCtx(cond);
   }
 
   int PushConjunctivePredicateCtx(const PrimExpr& pred) {
@@ -1269,7 +1271,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         auto lane = FindLaneScopeVar();
         if (!lane) return -1;
         ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-        PrimExpr selector = tirx::Call(lane->ty(), tirx::builtin::selector(), {*lane, cond});
+        PrimExpr selector =
+            Call(lane->ty(), tirx::builtin::selector(), {*lane, cond}).as_or_throw<PrimExpr>();
         return TryPushSelectorForTarget(target, selector) ? 1 : 0;
       }
       return -1;
@@ -1336,8 +1339,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     auto lane = FindLaneScopeVar();
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-    PrimExpr selector =
-        tirx::Call(lane->ty(), tirx::builtin::selector(), {*lane, atom.elect_sync_call});
+    PrimExpr selector = Call(lane->ty(), tirx::builtin::selector(), {*lane, atom.elect_sync_call})
+                            .as_or_throw<PrimExpr>();
     return TryPushSelectorForTarget(target, selector);
   }
 
@@ -1374,7 +1377,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   PrimExpr RewriteFilterCall(const CallNode* call) const {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
         << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
-    return AsBool(call->args[1]);
+    return AsBool(call->args[1].as_or_throw<PrimExpr>());
   }
 
   PrimExpr RewriteFilterCalls(const PrimExpr& pred) const {
@@ -1393,13 +1396,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       bool changed = false;
       ffi::Array<PrimExpr> args;
       args.reserve(call->args.size());
-      for (const auto& arg : call->args) {
+      for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
         PrimExpr new_arg = RewriteFilterCalls(arg);
         changed = changed || !new_arg.same_as(arg);
         args.push_back(new_arg);
       }
       if (changed) {
-        return tirx::Call(call->ty(), call->op, args, call->attrs, call->span);
+        return Call(call->ty.as_or_throw<PrimType>(), call->op, args, call->attrs, {}, call->span)
+            .as_or_throw<PrimExpr>();
       }
     }
     return pred;

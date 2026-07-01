@@ -220,10 +220,11 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
   llvm::Value* CreateIntrinsic(const CallNode* op) final {
     if (op->op.same_as(builtin::atomic_add())) {
-      PrimType value_ty = op->args[1].ty();
+      ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+      PrimType value_ty = args[1].ty();
       TVM_FFI_ICHECK(value_ty.bits() == 32) << "Only supports 32 bit atomic for now";
-      llvm::Value* v0 = MakeValue(op->args[0]);
-      llvm::Value* v1 = MakeValue(op->args[1]);
+      llvm::Value* v0 = MakeValue(args[0]);
+      llvm::Value* v1 = MakeValue(args[1]);
       if (value_ty.MatchesCode(DLDataTypeCode::kDLFloat)) {
         return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1, llvm::MaybeAlign(),
                                          llvm::AtomicOrdering::Monotonic);

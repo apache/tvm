@@ -28,7 +28,7 @@ from tvm.arith.analyzer import Analyzer
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import Range
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimExpr, Var
+from tvm.tirx import BufferRegion, Expr, Var
 from tvm.tirx.expr_functor import ExprMutator
 from tvm.tirx.layout import Iter
 
@@ -39,7 +39,7 @@ from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
 class LogicalIterDim:
     logical_stride: int
     extent: int
-    bind_expr: PrimExpr
+    bind_expr: Expr
 
     @staticmethod
     def default():
@@ -54,7 +54,7 @@ def to_int_list(intimm_list: list[T.IntImm]):
 
 
 class VarReplacer(ExprMutator):
-    def __init__(self, var_map: dict[Var, PrimExpr]):
+    def __init__(self, var_map: dict[Var, Expr]):
         super().__init__()
         self.var_map = var_map
 
@@ -64,7 +64,7 @@ class VarReplacer(ExprMutator):
         return op
 
     @staticmethod
-    def replace_vars(expr: PrimExpr, var_map: dict[Var, PrimExpr]) -> PrimExpr:
+    def replace_vars(expr: Expr, var_map: dict[Var, Expr]) -> Expr:
         return VarReplacer(var_map).visit_expr(expr)
 
 
@@ -108,7 +108,7 @@ class InstructionGenerator:
         self.seps = {}
         self.bound_regions = {}
         self.bind_iters: dict[BufferRegion, LogicalIterList] = None
-        self.bind_maps: dict[BufferRegion, dict[Var, PrimExpr]] = {}
+        self.bind_maps: dict[BufferRegion, dict[Var, Expr]] = {}
         for buffer_region in buffer_regions:
             if not isinstance(buffer_region, BufferRegion):
                 continue
@@ -436,14 +436,14 @@ class InstructionGenerator:
                     )
                     assert gap == 1, "Call fill_in_block_dim() before calling generate_indices()"
 
-    def set_bind_map(self, buffer_region: BufferRegion, bind_map: dict[Var, PrimExpr]):
+    def set_bind_map(self, buffer_region: BufferRegion, bind_map: dict[Var, Expr]):
         self.bind_maps[buffer_region] = bind_map
 
-    def set_bind_map_all(self, bind_map: dict[Var, PrimExpr]):
+    def set_bind_map_all(self, bind_map: dict[Var, Expr]):
         for buffer_region in self.buffer_regions:
             self.set_bind_map(buffer_region, bind_map)
 
-    def generate_axes(self, buffer_region: BufferRegion) -> list[PrimExpr]:
+    def generate_axes(self, buffer_region: BufferRegion) -> list[Expr]:
         self._check_bind_iter_coverage(buffer_region)
         layout = self.split_layout_views[buffer_region]
         iters = layout.shard
@@ -467,7 +467,7 @@ class InstructionGenerator:
             axes.append(index)
         return axes
 
-    def generate_indices(self, buffer_region: BufferRegion) -> list[PrimExpr]:
+    def generate_indices(self, buffer_region: BufferRegion) -> list[Expr]:
         axes = self.generate_axes(buffer_region)
         return [axes[i] + r.min for i, r in enumerate(buffer_region.region)]
 

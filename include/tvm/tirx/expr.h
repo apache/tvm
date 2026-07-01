@@ -51,16 +51,15 @@ using IntImmNode = tvm::IntImmNode;
 using FloatImmNode = tvm::FloatImmNode;
 
 /*! \brief ffi::String constants, only used in asserts. */
-class StringImmNode : public PrimExprNode {
+class StringImmNode : public ExprNode {
  public:
   /*! \brief The constant value content. */
   ffi::String value;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.StringImm", StringImmNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.StringImm", StringImmNode, ExprNode);
 };
 
 /*!
@@ -71,6 +70,7 @@ class StringImm : public PrimExpr {
  public:
   TVM_DLL StringImm(ffi::String value, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, PrimExpr, StringImmNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
 
@@ -78,16 +78,15 @@ class StringImm : public PrimExpr {
  * \brief Cast value from one data type to another.
  * \note The lanes of value should keep fixed.
  */
-class CastNode : public PrimExprNode {
+class CastNode : public ExprNode {
  public:
   /*! \brief Original data type. */
   PrimExpr value;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Cast", CastNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Cast", CastNode, ExprNode);
 };
 
 /*!
@@ -98,6 +97,7 @@ class Cast : public PrimExpr {
  public:
   TVM_DLL Cast(PrimType value_ty, PrimExpr value, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Cast, PrimExpr, CastNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CastNode);
 };
 
@@ -106,21 +106,19 @@ class Cast : public PrimExpr {
  * \tparam T The type of the child class.
  */
 template <typename T>
-class BinaryOpNode : public PrimExprNode {
+class BinaryOpNode : public ExprNode {
  public:
   /*! \brief The left operand. */
   PrimExpr a;
   /*! \brief The right operand. */
   PrimExpr b;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
   }
-
   static const constexpr int _type_child_slots [[maybe_unused]] = 0;
   static const constexpr bool _type_final [[maybe_unused]] = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_PREDEFINED_TYPE_KEY(T, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_PREDEFINED_TYPE_KEY(T, ExprNode);
 };
 
 /*! \brief a + b */
@@ -137,6 +135,7 @@ class Add : public PrimExpr {
  public:
   TVM_DLL Add(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Add, PrimExpr, AddNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AddNode);
 };
 
@@ -155,6 +154,7 @@ class Sub : public PrimExpr {
   TVM_DLL Sub(PrimExpr a, PrimExpr b, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Sub, PrimExpr, SubNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SubNode);
 };
 
@@ -172,6 +172,7 @@ class Mul : public PrimExpr {
  public:
   TVM_DLL Mul(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mul, PrimExpr, MulNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MulNode);
 };
 
@@ -192,6 +193,7 @@ class Div : public PrimExpr {
  public:
   TVM_DLL Div(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Div, PrimExpr, DivNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DivNode);
 };
 
@@ -212,6 +214,7 @@ class Mod : public PrimExpr {
  public:
   TVM_DLL Mod(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mod, PrimExpr, ModNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ModNode);
 };
 
@@ -229,6 +232,7 @@ class FloorDiv : public PrimExpr {
  public:
   TVM_DLL FloorDiv(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloorDiv, PrimExpr, FloorDivNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloorDivNode);
 };
 
@@ -246,6 +250,7 @@ class FloorMod : public PrimExpr {
  public:
   TVM_DLL FloorMod(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloorMod, PrimExpr, FloorModNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloorModNode);
 };
 
@@ -263,6 +268,7 @@ class Min : public PrimExpr {
  public:
   TVM_DLL Min(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Min, PrimExpr, MinNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MinNode);
 };
 
@@ -280,6 +286,7 @@ class Max : public PrimExpr {
  public:
   TVM_DLL Max(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Max, PrimExpr, MaxNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MaxNode);
 };
 
@@ -288,21 +295,19 @@ class Max : public PrimExpr {
  * \tparam T The type of the child class.
  */
 template <typename T>
-class CmpOpNode : public PrimExprNode {
+class CmpOpNode : public ExprNode {
  public:
   /*! \brief The left operand. */
   PrimExpr a;
   /*! \brief The right operand. */
   PrimExpr b;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
   }
-
   static const constexpr int _type_child_slots [[maybe_unused]] = 0;
   static const constexpr bool _type_final [[maybe_unused]] = true;
-  TVM_FFI_DECLARE_OBJECT_INFO_PREDEFINED_TYPE_KEY(T, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_PREDEFINED_TYPE_KEY(T, ExprNode);
 };
 
 /*! \brief a == b */
@@ -319,6 +324,7 @@ class EQ : public PrimExpr {
  public:
   TVM_DLL EQ(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EQ, PrimExpr, EQNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(EQNode);
 };
 
@@ -336,6 +342,7 @@ class NE : public PrimExpr {
  public:
   TVM_DLL NE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(NE, PrimExpr, NENode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(NENode);
 };
 
@@ -353,6 +360,7 @@ class LT : public PrimExpr {
  public:
   TVM_DLL LT(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LT, PrimExpr, LTNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LTNode);
 };
 
@@ -370,6 +378,7 @@ class LE : public PrimExpr {
  public:
   TVM_DLL LE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LE, PrimExpr, LENode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LENode);
 };
 
@@ -387,6 +396,7 @@ class GT : public PrimExpr {
  public:
   TVM_DLL GT(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GT, PrimExpr, GTNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GTNode);
 };
 
@@ -404,22 +414,22 @@ class GE : public PrimExpr {
  public:
   TVM_DLL GE(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GE, PrimExpr, GENode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GENode);
 };
 
 /*! \brief a && b */
-class AndNode : public PrimExprNode {
+class AndNode : public ExprNode {
  public:
   /*! \brief The left operand. */
   PrimExpr a;
   /*! \brief The right operand. */
   PrimExpr b;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.And", AndNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.And", AndNode, ExprNode);
 };
 
 /*!
@@ -430,22 +440,22 @@ class And : public PrimExpr {
  public:
   TVM_DLL And(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(And, PrimExpr, AndNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AndNode);
 };
 
 /*! \brief a || b */
-class OrNode : public PrimExprNode {
+class OrNode : public ExprNode {
  public:
   /*! \brief The left operand. */
   PrimExpr a;
   /*! \brief The right operand. */
   PrimExpr b;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Or", OrNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Or", OrNode, ExprNode);
 };
 
 /*!
@@ -456,20 +466,20 @@ class Or : public PrimExpr {
  public:
   TVM_DLL Or(PrimExpr a, PrimExpr b, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Or, PrimExpr, OrNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(OrNode);
 };
 
 /*! \brief !a */
-class NotNode : public PrimExprNode {
+class NotNode : public ExprNode {
  public:
   /*! \brief The input operand. */
   PrimExpr a;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Not", NotNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Not", NotNode, ExprNode);
 };
 
 /*!
@@ -480,6 +490,7 @@ class Not : public PrimExpr {
  public:
   TVM_DLL Not(PrimExpr a, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Not, PrimExpr, NotNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(NotNode);
 };
 
@@ -490,7 +501,7 @@ class Not : public PrimExpr {
  *       Do not use it to guard against out of bound access,
  *       please use if_then_else instead.
  */
-class SelectNode : public PrimExprNode {
+class SelectNode : public ExprNode {
  public:
   /*! \brief The condition */
   PrimExpr condition;
@@ -498,7 +509,6 @@ class SelectNode : public PrimExprNode {
   PrimExpr true_value;
   /*! \brief value to be returned when condition is false. */
   PrimExpr false_value;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SelectNode>()
@@ -506,7 +516,7 @@ class SelectNode : public PrimExprNode {
         .def_ro("true_value", &SelectNode::true_value)
         .def_ro("false_value", &SelectNode::false_value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Select", SelectNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Select", SelectNode, ExprNode);
 };
 
 /*!
@@ -518,6 +528,7 @@ class Select : public PrimExpr {
   TVM_DLL Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Select, PrimExpr, SelectNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SelectNode);
 };
 
@@ -531,7 +542,7 @@ class Select : public PrimExpr {
  * \endcode
  * \sa BufferStore
  */
-class BufferLoadNode : public PrimExprNode {
+class BufferLoadNode : public ExprNode {
  public:
   /*! \brief The buffer variable. */
   Buffer buffer;
@@ -539,7 +550,6 @@ class BufferLoadNode : public PrimExprNode {
   ffi::Array<PrimExpr> indices;
   /*! \brief The predicate mask for loading values. */
   ffi::Optional<PrimExpr> predicate;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferLoadNode>()
@@ -547,7 +557,7 @@ class BufferLoadNode : public PrimExprNode {
         .def_ro("indices", &BufferLoadNode::indices)
         .def_ro("predicate", &BufferLoadNode::predicate);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferLoad", BufferLoadNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferLoad", BufferLoadNode, ExprNode);
 
  private:
   /*! \brief Set the dtype based on the buffer/indices
@@ -575,6 +585,7 @@ class BufferLoad : public PrimExpr {
   TVM_DLL explicit BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
                               ffi::Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferLoad, PrimExpr, BufferLoadNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };
 
@@ -587,20 +598,19 @@ class BufferLoad : public PrimExpr {
  *
  * \sa ProducerLoad, DataProducerNode
  */
-class ProducerLoadNode : public PrimExprNode {
+class ProducerLoadNode : public ExprNode {
  public:
   /*! \brief The buffer producer. */
   DataProducer producer;
   /*! \brief The location arguments. */
   ffi::Array<PrimExpr> indices;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ProducerLoadNode>()
         .def_ro("producer", &ProducerLoadNode::producer)
         .def_ro("indices", &ProducerLoadNode::indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ProducerLoad", ProducerLoadNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.ProducerLoad", ProducerLoadNode, ExprNode);
 };
 
 /*!
@@ -613,6 +623,7 @@ class ProducerLoad : public PrimExpr {
                                 Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ProducerLoad, PrimExpr, ProducerLoadNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerLoadNode);
 };
 
@@ -625,7 +636,7 @@ class ProducerLoad : public PrimExpr {
  *  - ramp(0, 1, 3) = [0, 1, 2]
  *  - ramp(1, 2, 4) = [1, 3, 5, 7]
  */
-class RampNode : public PrimExprNode {
+class RampNode : public ExprNode {
  public:
   /*! \brief The base value. */
   PrimExpr base;
@@ -633,7 +644,6 @@ class RampNode : public PrimExprNode {
   PrimExpr stride;
   /*! \brief Total number of lanes. */
   PrimExpr lanes;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RampNode>()
@@ -641,7 +651,7 @@ class RampNode : public PrimExprNode {
         .def_ro("stride", &RampNode::stride)
         .def_ro("lanes", &RampNode::lanes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Ramp", RampNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Ramp", RampNode, ExprNode);
 };
 
 /*!
@@ -652,24 +662,24 @@ class Ramp : public PrimExpr {
  public:
   TVM_DLL Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Ramp, PrimExpr, RampNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RampNode);
 };
 
 /*! \brief Create a vector where all the elements are value. */
-class BroadcastNode : public PrimExprNode {
+class BroadcastNode : public ExprNode {
  public:
   /*! \brief The base value. */
   PrimExpr value;
   /*! \brief The number of lanes. */
   PrimExpr lanes;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BroadcastNode>()
         .def_ro("value", &BroadcastNode::value)
         .def_ro("lanes", &BroadcastNode::lanes);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Broadcast", BroadcastNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Broadcast", BroadcastNode, ExprNode);
 };
 
 /*!
@@ -680,13 +690,14 @@ class Broadcast : public PrimExpr {
  public:
   TVM_DLL Broadcast(PrimExpr value, PrimExpr lanes, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Broadcast, PrimExpr, BroadcastNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BroadcastNode);
 };
 
 /*!
  * \brief Let binding. Bind var to value then evaluate body.
  */
-class LetNode : public PrimExprNode {
+class LetNode : public ExprNode {
  public:
   /*! \brief The variable. */
   Var var;
@@ -694,7 +705,6 @@ class LetNode : public PrimExprNode {
   PrimExpr value;
   /*! \brief The result expression. */
   PrimExpr body;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
@@ -703,7 +713,7 @@ class LetNode : public PrimExprNode {
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Let", LetNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Let", LetNode, ExprNode);
 };
 
 /*!
@@ -714,49 +724,8 @@ class Let : public PrimExpr {
  public:
   TVM_DLL Let(Var var, PrimExpr value, PrimExpr body, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Let, PrimExpr, LetNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LetNode);
-};
-
-/*!
- * \brief Call node.
- */
-class CallNode : public PrimExprNode {
- public:
-  /*!
-   * \brief The operator(function) being invoked
-   *
-   *  - It can be tvm::Op which corresponds to the primitive operators(intrinsics).
-   *  - It can also be another function in the IRModule (GlobalVar).
-   */
-  tvm::Expr op;
-
-  /*! \brief The arguments. */
-  ffi::Array<PrimExpr> args;
-
-  /*! \brief The additional attributes. */
-  Attrs attrs;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallNode>()
-        .def_ro("op", &CallNode::op)
-        .def_ro("args", &CallNode::args)
-        .def_ro("attrs", &CallNode::attrs);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Call", CallNode, PrimExprNode);
-};
-
-/*!
- * \brief Managed reference to CallNode
- * \sa CallNode
- */
-class Call : public PrimExpr {
- public:
-  TVM_DLL Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Attrs attrs = Attrs(),
-               Span span = Span());
-  TVM_DLL Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Span span);
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, PrimExpr, CallNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
 /*!
@@ -764,20 +733,19 @@ class Call : public PrimExpr {
  *  vec = concat(vectors)
  *  result = (vec[indices[0]], vec[indices[1]] ...)
  */
-class ShuffleNode : public PrimExprNode {
+class ShuffleNode : public ExprNode {
  public:
   /*! \brief the input vectors. */
   ffi::Array<PrimExpr> vectors;
   /*! \brief The indices of each element. */
   ffi::Array<PrimExpr> indices;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ShuffleNode>()
         .def_ro("vectors", &ShuffleNode::vectors)
         .def_ro("indices", &ShuffleNode::indices);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Shuffle", ShuffleNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Shuffle", ShuffleNode, ExprNode);
 };
 
 /*!
@@ -791,6 +759,7 @@ class Shuffle : public PrimExpr {
   TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Shuffle, PrimExpr, ShuffleNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShuffleNode);
 };
 
@@ -848,7 +817,7 @@ class CommReducer : public ffi::ObjectRef {
 };
 
 /*! \brief Reduction operator */
-class ReduceNode : public PrimExprNode {
+class ReduceNode : public ExprNode {
  public:
   /*! \brief The commutative combiner */
   CommReducer combiner;
@@ -865,7 +834,6 @@ class ReduceNode : public PrimExprNode {
   PrimExpr condition;
   /*! \brief the index of this reduce node */
   int value_index;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReduceNode>()
@@ -876,7 +844,7 @@ class ReduceNode : public PrimExprNode {
         .def_ro("condition", &ReduceNode::condition)
         .def_ro("value_index", &ReduceNode::value_index);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Reduce", ReduceNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Reduce", ReduceNode, ExprNode);
 };
 
 /*!
@@ -890,6 +858,7 @@ class Reduce : public PrimExpr {
                  Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Reduce, PrimExpr, ReduceNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
 
@@ -912,6 +881,63 @@ inline std::unordered_map<K, V> as_unordered_map(const ffi::Map<K, V>& dmap) {
 }  // namespace tirx
 
 namespace ffi {
+
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::StringImmNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::CastNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::AddNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::SubNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::MulNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::DivNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::ModNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::FloorDivNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::FloorModNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::MinNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::MaxNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::EQNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::NENode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::LTNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::LENode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::GTNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::GENode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::AndNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::OrNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::NotNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::SelectNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::BufferLoadNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::ProducerLoadNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::RampNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::BroadcastNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::LetNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::ShuffleNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, tirx::ReduceNode> = true;
 
 template <>
 inline constexpr bool use_default_type_traits_v<tvm::tirx::StringImm> = false;

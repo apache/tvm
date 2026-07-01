@@ -792,7 +792,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
                                                          bool use_env_lookup) {
   std::string func_name = [&]() {
     auto ptr = args[0].as<StringImmNode>();
-    TVM_FFI_ICHECK(ptr) << "Expected first argument of tirx::Call to be "
+    TVM_FFI_ICHECK(ptr) << "Expected first argument of Call to be "
                         << "a string containing the callee's name, "
                         << "but instead contained " << args[0];
     return ptr->value;
@@ -860,20 +860,20 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
   bool use_string_lookup = op->op.same_as(builtin::tvm_call_packed_lowered());
-  PackedCall pc = MakeCallPackedLowered(op->args, PrimType(op->ty()->dtype),
-                                        op->args[2].as<IntImmNode>()->value,
-                                        op->args[3].as<IntImmNode>()->value, use_string_lookup);
+  PackedCall pc = MakeCallPackedLowered(
+      op->args.as_or_throw<ffi::Array<PrimExpr>>(), op->ty.as_or_throw<PrimType>(),
+      op->args[2].as<IntImmNode>()->value, op->args[3].as<IntImmNode>()->value, use_string_lookup);
   return pc.ret_value;
 }
 
 llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-  PackedCall pc = MakeCallPackedLowered(op->args, PrimType(op->ty()->dtype),
-                                        op->args[2].as<IntImmNode>()->value,
-                                        op->args[3].as<IntImmNode>()->value, true);
+  PackedCall pc = MakeCallPackedLowered(
+      op->args.as_or_throw<ffi::Array<PrimExpr>>(), op->ty.as_or_throw<PrimType>(),
+      op->args[2].as<IntImmNode>()->value, op->args[3].as<IntImmNode>()->value, true);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   // Get traced value.
-  llvm::Value* traced_value = MakeValue(op->args[4]);
+  llvm::Value* traced_value = MakeValue(op->args[4].as_or_throw<PrimExpr>());
   // The update_block handles case when we need to update the return value.
   llvm::BasicBlock* update_block = llvm::BasicBlock::Create(*ctx, "update_block", function_);
   // The continue_block handles case when we need to return original
@@ -1013,6 +1013,7 @@ void CodeGenCPU::AddStartupFunction() {
 }
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
+  ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     return CreateCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
@@ -1029,11 +1030,10 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     builder_->SetInsertPoint(new_bb);
     return ConstInt32(-1);
   } else if (op->op.same_as(builtin::tvm_struct_get())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
-    int kind = op->args[2].as<IntImm>().value()->value;
-    PrimType op_dtype(op->ty()->dtype);
-    TypedPointer ref =
-        CreateStructRefPtr(op_dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
+    TVM_FFI_ICHECK_EQ(args.size(), 3U);
+    int kind = args[2].as<IntImm>().value()->value;
+    PrimType op_dtype = op->ty.as_or_throw<PrimType>();
+    TypedPointer ref = CreateStructRefPtr(op_dtype, MakeValue(args[0]), MakeValue(args[1]), kind);
     if (kind == builtin::kDLTensorAddr) {
       return builder_->CreatePointerCast(ref.addr, t_void_p_);
     }
@@ -1046,11 +1046,11 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
 
     return struct_value;
   } else if (op->op.same_as(builtin::tvm_struct_set())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
-    int kind = op->args[2].as<IntImm>().value()->value;
-    llvm::Value* value = MakeValue(op->args[3]);
-    TypedPointer ref = CreateStructRefPtr(PrimType(op->args[3].ty()->dtype), MakeValue(op->args[0]),
-                                          MakeValue(op->args[1]), kind);
+    TVM_FFI_ICHECK_EQ(args.size(), 4U);
+    int kind = args[2].as<IntImm>().value()->value;
+    llvm::Value* value = MakeValue(args[3]);
+    TypedPointer ref =
+        CreateStructRefPtr(args[3].ty(), MakeValue(args[0]), MakeValue(args[1]), kind);
     TVM_FFI_ICHECK(kind != builtin::kDLTensorAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
@@ -1068,10 +1068,10 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
   } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
-    TVM_FFI_ICHECK_EQ(op->args.size(), 2U);
-    std::string type = op->args[0].as<StringImm>().value()->value;
+    TVM_FFI_ICHECK_EQ(args.size(), 2U);
+    std::string type = args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
-      const int64_t* pval = as_const_int(op->args[1]);
+      const int64_t* pval = as_const_int(args[1]);
       TVM_FFI_ICHECK(pval) << "require stack alloca to contain constant value";
       llvm::Value* num = ConstInt32(pval[0]);
       if (type == "shape") {

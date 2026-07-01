@@ -87,9 +87,10 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
 
   // Emit null-pointer check for packed args (early check)
   if (num_args > 0) {
-    EmitAssert(!Call(PrimType::Bool(), builtin::isnullptr(), {v_packed_args}),
-               "TypeError",  //
-               "args pointer is NULL", when_calling_imm_, sig_imm_, "`");
+    EmitAssert(
+        !Call(PrimType::Bool(), builtin::isnullptr(), {v_packed_args}).as_or_throw<PrimExpr>(),
+        "TypeError",  //
+        "args pointer is NULL", when_calling_imm_, sig_imm_, "`");
   }
 }
 
@@ -260,7 +261,7 @@ class ExprPathRenderer : public ExprFunctor<std::string(const PrimExpr&)> {
   // Fallback: use operator<< for unhandled expression types.
   std::string VisitExprDefault_(const ffi::Object* op) final {
     std::ostringstream os;
-    os << ffi::GetRef<PrimExpr>(static_cast<const PrimExprNode*>(op));
+    os << ffi::GetRef<Expr>(static_cast<const ExprNode*>(op));
     return os.str();
   }
 
@@ -428,7 +429,7 @@ PrimExpr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int
   ffi::Array<PrimExpr> call_args{v_packed_args, IntImm::Int32(param_index),
                                  IntImm::Int32(builtin::kTVMFFIAnyUnionValue)};
   PrimType api_type = APIType(arg_type);
-  PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
+  PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args).as_or_throw<PrimExpr>();
   if (api_type->dtype != arg_type->dtype) {
     res = Cast(arg_type, res);
   }
@@ -451,7 +452,8 @@ PrimExpr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const Var& t
   PrimExpr arg_value =
       LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, params_[param_index].ty());
   PrimExpr handle_from_tensor = Call(PrimType::Handle(), tirx::builtin::handle_add_byte_offset(),
-                                     {arg_value, IntImm::Int32(object_cell_offset)});
+                                     {arg_value, IntImm::Int32(object_cell_offset)})
+                                    .as_or_throw<PrimExpr>();
   return Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
 }
 
@@ -498,9 +500,10 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
 
   // Extract type_index from packed_args
   Var type_index(param->name_hint + ".type_index", PrimType::Int(32));
-  init_nest_.push_back(Bind(type_index, tirx::Call(PrimType::Int(32), builtin::tvm_struct_get(),
-                                                   {v_packed_args_, IntImm::Int32(param_index),
-                                                    IntImm::Int32(builtin::kTVMFFIAnyTypeIndex)})));
+  init_nest_.push_back(Bind(type_index, Call(PrimType::Int(32), builtin::tvm_struct_get(),
+                                             {v_packed_args_, IntImm::Int32(param_index),
+                                              IntImm::Int32(builtin::kTVMFFIAnyTypeIndex)})
+                                            .as_or_throw<PrimExpr>()));
 
   // Type-check and load value via per-dtype dispatch
   PrimExpr arg_value;
@@ -648,8 +651,9 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
   int param_index = GetParamIndex(base_path);
 
   // ── Section: Null pointer check ──────────────────────────────
-  EmitTypeIndexCheck(param_index, !Call(PrimType::Bool(), builtin::isnullptr(), {handle}),
-                     "Tensor");
+  EmitTypeIndexCheck(
+      param_index, !Call(PrimType::Bool(), builtin::isnullptr(), {handle}).as_or_throw<PrimExpr>(),
+      "Tensor");
 
   // ── Section: ndim ────────────────────────────────────────────
   PrimExpr v_ndim = TVMStructGet(tvm_ndim_type, handle, 0, builtin::kDLTensorNDim);
@@ -694,7 +698,8 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
 
   // ── Section: strides ─────────────────────────────────────────
   Var strides_ptr = DLTensorGetFieldPtr(handle, builtin::kDLTensorStrides, arg_name + "_strides");
-  PrimExpr v_strides_is_null = Call(PrimType::Bool(), builtin::isnullptr(), {strides_ptr});
+  PrimExpr v_strides_is_null =
+      Call(PrimType::Bool(), builtin::isnullptr(), {strides_ptr}).as_or_throw<PrimExpr>();
   if (buffer->strides.size() == 0) {
     BindCompactStrides(buffer, strides_ptr, v_strides_is_null, param_path);
   } else if (buffer->buffer_type == kAutoBroadcast) {
@@ -776,7 +781,8 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
       // Data pointer null and alignment checks go to asserts_ because alloc_size
       // references buffer->shape which may contain forward-referenced symbolic vars.
       PrimExpr empty_alloc = cast(PrimType::Bool(), alloc_size == 0);
-      PrimExpr data_non_null = !Call(PrimType::Bool(), builtin::isnullptr(), {vptr});
+      PrimExpr data_non_null =
+          !Call(PrimType::Bool(), builtin::isnullptr(), {vptr}).as_or_throw<PrimExpr>();
       asserts_.emplace_back(AssertStmt(
           empty_alloc || data_non_null, StringImm("ValueError"),
           ffi::Array<StringImm>({StringImm(buf_name),
@@ -788,7 +794,8 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
         // Check data pointer alignment
         if (buffer->data_alignment > 1) {
           PrimExpr ptr_as_int =
-              Call(PrimType::UInt(64), builtin::reinterpret(), {cast(PrimType::Handle(), vptr)});
+              Call(PrimType::UInt(64), builtin::reinterpret(), {cast(PrimType::Handle(), vptr)})
+                  .as_or_throw<PrimExpr>();
           PrimExpr align_cond =
               truncmod(ptr_as_int, IntImm(PrimType::UInt(64), buffer->data_alignment)) ==
               IntImm(PrimType::UInt(64), 0);

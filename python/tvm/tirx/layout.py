@@ -27,22 +27,22 @@ import tvm_ffi
 
 import tvm
 from tvm.runtime import Object
-from tvm.tirx.expr import PrimExpr
+from tvm.tirx.expr import Expr
 
 from . import _ffi_api
 from .exec_scope import ExecScope
 
 
-def _flatten_coord(coord: list[PrimExpr], shape: list[PrimExpr]) -> PrimExpr:
+def _flatten_coord(coord: list[Expr], shape: list[Expr]) -> Expr:
     """Python mirror of ``src/tirx/ir/layout/utils.cc::FlattenCoord``."""
 
-    flat: PrimExpr = 0
+    flat: Expr = 0
     for c, s in zip(coord, shape, strict=False):
         flat = flat * s + c
     return flat
 
 
-def _split_coord(coord: PrimExpr, extents: list[PrimExpr]) -> list[PrimExpr]:
+def _split_coord(coord: Expr, extents: list[Expr]) -> list[Expr]:
     """Python mirror of ``src/tirx/ir/layout/utils.cc::SplitCoord``.
 
     Walks ``extents`` from the innermost (last index, ``%``-ed first) toward
@@ -100,9 +100,7 @@ class Layout(Object):
 
     # Note: no backward-compat alias; `cosize` is removed.
 
-    def apply(
-        self, *coord: list[PrimExpr], shape: list[PrimExpr] | None = None
-    ) -> dict[str, PrimExpr]:
+    def apply(self, *coord: list[Expr], shape: list[Expr] | None = None) -> dict[str, Expr]:
         """Apply the layout on the input coordinate and get the mapped output.
 
         Input cases:
@@ -113,7 +111,7 @@ class Layout(Object):
 
         Returns
         -------
-        Dict[str, PrimExpr]
+        Dict[str, Expr]
             The mapped output (axis name -> value on the axis)
         """
         if len(coord) == 1:
@@ -123,7 +121,7 @@ class Layout(Object):
             return _ffi_api.LayoutApply(self, coord)  # pylint: disable=no-member
         return _ffi_api.LayoutApplyWithShape(self, coord, shape)  # pylint: disable=no-member
 
-    def apply_to_shape(self, coord: list[PrimExpr], input_shape: list[PrimExpr]) -> list[PrimExpr]:
+    def apply_to_shape(self, coord: list[Expr], input_shape: list[Expr]) -> list[Expr]:
         """Compute the per-shard value that each shard would take if ``coord``
         were interpreted against ``input_shape``.
 
@@ -167,7 +165,7 @@ class Layout(Object):
         return _ffi_api.LayoutCanonicalize(self)  # pylint: disable=no-member
 
     def tile(
-        self, outer: "TileLayout", outer_shape: list[PrimExpr], inner_shape: list[PrimExpr]
+        self, outer: "TileLayout", outer_shape: list[Expr], inner_shape: list[Expr]
     ) -> Union["TileLayout", "ComposeLayout"]:
         """Tile the current layout with an outer layout.
 
@@ -175,9 +173,9 @@ class Layout(Object):
         ----------
         outer : TileLayout
             The outer layout to tile with
-        outer_shape : List[PrimExpr]
+        outer_shape : List[Expr]
             The shape of the outer layout
-        inner_shape : List[PrimExpr]
+        inner_shape : List[Expr]
             The shape of the inner layout
 
         Returns
@@ -190,7 +188,7 @@ class Layout(Object):
         )
 
     def direct_sum(
-        self, left: "TileLayout", left_shape: list[PrimExpr], right_shape: list[PrimExpr]
+        self, left: "TileLayout", left_shape: list[Expr], right_shape: list[Expr]
     ) -> Union["TileLayout", "ComposeLayout"]:
         """Direct-sum on the tiling domain (unscaled composition): A + B.
 
@@ -206,8 +204,8 @@ class Layout(Object):
     def is_tile_inner(
         self,
         tile_layout: Union["TileLayout", "ComposeLayout"],
-        tiled_shape: list[PrimExpr],
-        inner_shape: list[PrimExpr],
+        tiled_shape: list[Expr],
+        inner_shape: list[Expr],
     ) -> Optional["TileLayout"]:
         """Check if a layout is the inner layout of a tiled layout.
 
@@ -215,9 +213,9 @@ class Layout(Object):
         ----------
         tile_layout : Union[TileLayout, ComposeLayout]
             The tiled layout to check
-        tiled_shape : List[PrimExpr]
+        tiled_shape : List[Expr]
             The shape of the tiled layout
-        inner_shape : List[PrimExpr]
+        inner_shape : List[Expr]
             The shape of the inner layout
 
         Returns
@@ -232,8 +230,8 @@ class Layout(Object):
     def is_tile_outer(
         self,
         tile_layout: Union["TileLayout", "ComposeLayout"],
-        tiled_shape: list[PrimExpr],
-        outer_shape: list[PrimExpr],
+        tiled_shape: list[Expr],
+        outer_shape: list[Expr],
     ) -> Optional["Layout"]:
         """Check if a layout is the outer layout of a tiled layout.
 
@@ -241,9 +239,9 @@ class Layout(Object):
         ----------
         tile_layout : Union[TileLayout, ComposeLayout]
             The tiled layout to check
-        tiled_shape : List[PrimExpr]
+        tiled_shape : List[Expr]
             The shape of the tiled layout
-        outer_shape : List[PrimExpr]
+        outer_shape : List[Expr]
             The shape of the outer layout
 
         Returns
@@ -258,8 +256,8 @@ class Layout(Object):
     def is_direct_sum_right(
         self,
         sum_layout: Union["TileLayout", "ComposeLayout"],
-        interleaved_shape: list[PrimExpr],
-        right_shape: list[PrimExpr],
+        interleaved_shape: list[Expr],
+        right_shape: list[Expr],
     ) -> Optional["TileLayout"]:
         """Check if this layout is the right addend B in a direct-sum A + B.
 
@@ -272,8 +270,8 @@ class Layout(Object):
     def is_direct_sum_left(
         self,
         sum_layout: Union["TileLayout", "ComposeLayout"],
-        interleaved_shape: list[PrimExpr],
-        left_shape: list[PrimExpr],
+        interleaved_shape: list[Expr],
+        left_shape: list[Expr],
     ) -> Optional["Layout"]:
         """Check if this layout is the left addend A in a direct-sum A + B.
 
@@ -283,16 +281,14 @@ class Layout(Object):
             self, sum_layout, interleaved_shape, left_shape
         )
 
-    def slice(
-        self, shape: list[PrimExpr], region: list[tuple[PrimExpr, PrimExpr]]
-    ) -> Optional["Layout"]:
+    def slice(self, shape: list[Expr], region: list[tuple[Expr, Expr]]) -> Optional["Layout"]:
         """Slice the layout with a given shape and region.
 
         Parameters
         ----------
-        shape : List[PrimExpr]
+        shape : List[Expr]
             The shape of the layout
-        region : List[Tuple[PrimExpr, PrimExpr], tvm.ir.Range]
+        region : List[Tuple[Expr, Expr], tvm.ir.Range]
             The region to slice, each element is (begin, end)
 
         Returns
@@ -310,14 +306,14 @@ class Layout(Object):
                 region_list.append(tvm.ir.Range(range_i[0], range_i[1]))
         return _ffi_api.LayoutSlice(self, shape, region_list)  # pylint: disable=no-member
 
-    def tile_to(self, to_shape: list[PrimExpr], current_shape: list[PrimExpr]) -> "Layout":
+    def tile_to(self, to_shape: list[Expr], current_shape: list[Expr]) -> "Layout":
         """Tile the current layout to the given shape.
 
         Parameters
         ----------
-        to_shape : List[PrimExpr]
+        to_shape : List[Expr]
             The shape to tile to
-        current_shape : List[PrimExpr]
+        current_shape : List[Expr]
             The current shape of the layout
         """
 
@@ -325,21 +321,23 @@ class Layout(Object):
         return self.tile(TileLayout(S[tuple(tile_shape)]), tile_shape, current_shape)
 
     @staticmethod
-    def _get_default_strides(data: list[int | PrimExpr], stride: int = 1) -> tuple:
+    def _get_default_strides(data: list[int | Expr], stride: int = 1) -> tuple:
         assert isinstance(data, list | tuple), "data must be a tuple"
         # Promote ``stride`` to the dtype of the shape extents so the resulting
         # strides match what te-create_prim_func / C++ ``GetDefaultStrides``
         # produce for int64-shaped buffers (otherwise the last stride stays a
         # Python ``int`` -> int32 IntImm and breaks structural-equal).
         for t in data:
-            if isinstance(t, PrimExpr) and t.ty.dtype != "int32":
+            if tvm.ir.is_prim_expr(t) and t.ty.dtype != "int32":
                 from .expr import IntImm  # pylint: disable=import-outside-toplevel
 
                 stride = IntImm(t.ty, stride)
                 break
         res = list()
         for t in reversed(data):
-            assert isinstance(t, int | PrimExpr), f"data must be int or PrimExpr, but got {t}"
+            assert isinstance(t, int) or tvm.ir.is_prim_expr(t), (
+                f"data must be int or Expr, but got {t}"
+            )
             res.append(stride)
             stride *= t
         return list(reversed(res))
@@ -543,7 +541,7 @@ class Axis(Object, metaclass=_AxisMeta):
 
     # Enable syntax like `4 @ Axis.laneid` to attach an axis to a stride/term.
     # This mirrors libraries that overload the matrix multiply operator for DSLs.
-    def __rmatmul__(self, other: PrimExpr):  # type: ignore[override]
+    def __rmatmul__(self, other: Expr):  # type: ignore[override]
         # Represent a single value bound to an axis.
         return _OnAxis(other, self)
 
@@ -902,7 +900,7 @@ def tcgen05_atom_layout(instr_shape: str, tensor_shape: tuple[int, int], dtype) 
 
 
 # ------------------------------------------------------------------
-# Helper types to support `PrimExpr @ Axis` and `sum` for offsets
+# Helper types to support `Expr @ Axis` and `sum` for offsets
 # ------------------------------------------------------------------
 class _OnAxis:
     """Represents a single value attached to an axis, created via `value @ Axis.X`.
@@ -912,7 +910,7 @@ class _OnAxis:
     - As terms to build an offset expression like `1 @ Axis.laneid + 512`
     """
 
-    def __init__(self, value: PrimExpr, axis: Axis):
+    def __init__(self, value: Expr, axis: Axis):
         self.value = value
         self.axis = axis
 
@@ -928,14 +926,14 @@ class _OnAxis:
 class _OffsetExpr:
     """Sum of axis-bound terms forming an offset specification.
 
-    Internally stored as a dict {Axis: PrimExpr}. When a plain PrimExpr is
+    Internally stored as a dict {Axis: Expr}. When a plain Expr is
     provided (without axis), it is treated as `Axis.m` by convention.
     """
 
-    def __init__(self, terms: dict[Axis, PrimExpr] | None = None):
-        self.terms: dict[Axis, PrimExpr] = dict(terms or {})
+    def __init__(self, terms: dict[Axis, Expr] | None = None):
+        self.terms: dict[Axis, Expr] = dict(terms or {})
 
-    def _add_term(self, axis: Axis, value: PrimExpr):
+    def _add_term(self, axis: Axis, value: Expr):
         if axis in self.terms:
             # Merge if both exist; rely on tvm arith for symbolic add
             self.terms[axis] = self.terms[axis] + value  # type: ignore[operator]
@@ -949,7 +947,7 @@ class _OffsetExpr:
                 res._add_term(ax, v)
         elif isinstance(other, _OnAxis):
             res._add_term(other.axis, other.value)
-        else:  # PrimExpr-like -> default to Axis.m
+        else:  # Expr-like -> default to Axis.m
             res._add_term(Axis.get("m"), other)  # type: ignore[arg-type]
         return res
 
@@ -957,7 +955,7 @@ class _OffsetExpr:
         return self.__add__(other)
 
 
-_OffsetExprLike = _OffsetExpr | _OnAxis | PrimExpr | int
+_OffsetExprLike = _OffsetExpr | _OnAxis | Expr | int
 
 
 # ------------------------------------------------------------------
@@ -1056,7 +1054,7 @@ def _to_offset_expr(x: _OffsetExprLike) -> _OffsetExpr:
         return x
     if isinstance(x, _OnAxis):
         return _OffsetExpr({x.axis: x.value})
-    # Fallback: treat plain PrimExpr/int as Axis.m
+    # Fallback: treat plain Expr/int as Axis.m
     return _OffsetExpr({Axis.get("m"): x})  # type: ignore[arg-type]
 
 
@@ -1064,11 +1062,11 @@ def _to_offset_expr(x: _OffsetExprLike) -> _OffsetExpr:
 class Iter(Object):
     """A memory layout that tiles data across devices."""
 
-    extent: PrimExpr
-    stride: PrimExpr
+    extent: Expr
+    stride: Expr
     axis: Axis
 
-    def __init__(self, extent: PrimExpr, stride: PrimExpr, axis: Axis | str):
+    def __init__(self, extent: Expr, stride: Expr, axis: Axis | str):
         if isinstance(axis, str):
             axis = Axis.get(axis)
         self.__init_handle_by_constructor__(
@@ -1105,7 +1103,7 @@ class TileLayout(Layout):
 
     shard: list[Iter]
     replicate: list[Iter]
-    exclude: list[tuple[Axis, PrimExpr]]
+    exclude: list[tuple[Axis, Expr]]
 
     def __init__(self, spec: "_LayoutSpec"):
         shard_iters = _spec_to_iters(spec.shard)
@@ -1125,7 +1123,7 @@ class TileLayout(Layout):
     def from_iters(
         shard: "Sequence[Iter]" = (),
         replica: "Sequence[Iter]" = (),
-        offset: dict[Axis | str, PrimExpr] | None = None,
+        offset: dict[Axis | str, Expr] | None = None,
     ) -> "TileLayout":
         """Construct a TileLayout from pre-built Iter objects."""
         if offset:
@@ -1136,12 +1134,12 @@ class TileLayout(Layout):
         """Check if the layout is trivial."""
         return _ffi_api.TileLayoutIsTrivial(self)  # pylint: disable=no-member
 
-    def group(self, shape: list[PrimExpr]) -> tuple["Layout", list[int]]:
+    def group(self, shape: list[Expr]) -> tuple["Layout", list[int]]:
         """Group the current layout by the given shape.
 
         Parameters
         ----------
-        shape : List[PrimExpr]
+        shape : List[Expr]
             The shape to group by
 
         Returns
@@ -1156,9 +1154,7 @@ class TileLayout(Layout):
         return _ffi_api.TileLayoutGetScope(self)  # pylint: disable=no-member
 
     @classmethod
-    def trainium(
-        cls, annotation: str, shape: tuple[PrimExpr], is_psum: bool = False
-    ) -> "TileLayout":
+    def trainium(cls, annotation: str, shape: tuple[Expr], is_psum: bool = False) -> "TileLayout":
         """Create a TileLayout from an annotation string and a shape."""
         analyzer = tvm.arith.Analyzer()
         assert re.fullmatch(r"[PF]*", annotation), (

@@ -16,16 +16,15 @@
 # under the License.
 
 
-from tvm.ir import Op
+from tvm.ir import Call, Op, is_prim_expr
 from tvm.tirx import (
     AllocBuffer,
     BufferLoad,
     BufferRegion,
     BufferStore,
-    Call,
     DeclBuffer,
     Evaluate,
-    PrimExpr,
+    Expr,
     Stmt,
     TilePrimitiveCall,
     Var,
@@ -138,7 +137,7 @@ class BufferReplacer(StmtExprMutator):
             return DeclBuffer(new_buffer, op.span)
         return op
 
-    def visit_array_prim_expr_(self, op: list[PrimExpr]):
+    def visit_array_prim_expr_(self, op: list[Expr]):
         return [self.visit_expr(expr) for expr in op]
 
     def visit_alloc_buffer_(self, op: AllocBuffer):
@@ -158,7 +157,7 @@ class BufferReplacer(StmtExprMutator):
                 new_workspace[key] = value
         new_config = {}
         for key, value in op.config.items():
-            if isinstance(value, PrimExpr):
+            if is_prim_expr(value):
                 new_config[key] = self.visit_expr(value)
             else:
                 new_config[key] = value

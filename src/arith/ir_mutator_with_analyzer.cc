@@ -116,12 +116,15 @@ void CollectDerivedConstraintFacts(const PrimExpr& condition, std::vector<PrimEx
     return;
   }
   if (const auto* call = condition.as<CallNode>()) {
-    if (call->op.same_as(tirx::builtin::bitwise_and()) && call->args.size() == 2 &&
-        call->args[0].ty().MatchesElementType(DLDataTypeCode::kDLBool, 8) &&
-        call->args[1].ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
-      CollectDerivedConstraintFacts(call->args[0], out);
-      CollectDerivedConstraintFacts(call->args[1], out);
-      return;
+    if (call->op.same_as(tirx::builtin::bitwise_and()) && call->args.size() == 2) {
+      PrimExpr lhs = call->args[0].as_or_throw<PrimExpr>();
+      PrimExpr rhs = call->args[1].as_or_throw<PrimExpr>();
+      if (lhs.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8) &&
+          rhs.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
+        CollectDerivedConstraintFacts(lhs, out);
+        CollectDerivedConstraintFacts(rhs, out);
+        return;
+      }
     }
   }
   if (const auto* eq = condition.as<EQNode>()) {
@@ -221,7 +224,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
     if (auto call = condition.as<CallNode>()) {
       static const Op& likely_op = Op::Get("tirx.likely");
       if (call->op.same_as(likely_op)) {
-        real_condition = call->args[0];
+        real_condition = call->args[0].as_or_throw<PrimExpr>();
       }
     }
 
@@ -291,17 +294,19 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
   static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
-    PrimExpr cond = this->VisitExpr(op->args[0]);
+    PrimExpr cond = this->VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     PrimExpr true_value, false_value;
     constraint_scope_.WithNewScope([&]() {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
-      WithRecordIterPredicate(cond, [&] { true_value = this->VisitExpr(op->args[1]); });
+      WithRecordIterPredicate(
+          cond, [&] { true_value = this->VisitExpr(op->args[1].as_or_throw<PrimExpr>()); });
     });
     {
       PrimExpr not_cond = Not(cond);
       constraint_scope_.WithNewScope([&]() {
         constraint_scope_.Current().Emplace(analyzer_, not_cond);
-        WithRecordIterPredicate(not_cond, [&] { false_value = this->VisitExpr(op->args[2]); });
+        WithRecordIterPredicate(
+            not_cond, [&] { false_value = this->VisitExpr(op->args[2].as_or_throw<PrimExpr>()); });
       });
     }
     if (is_zero(cond)) {
@@ -312,9 +317,11 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
     }
     if (cond.same_as(op->args[0]) && true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>();
     } else {
-      return Call(op->ty(), op->op, {cond, true_value, false_value}, op->attrs, op->span);
+      return Call(op->ty.as_or_throw<PrimType>(), op->op, {cond, true_value, false_value},
+                  op->attrs, {}, op->span)
+          .as_or_throw<PrimExpr>();
     }
   }
   return StmtExprMutator::VisitExpr_(op);

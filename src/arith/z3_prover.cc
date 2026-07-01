@@ -144,10 +144,10 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     SetRLimit(10000U);
   }
 
-  /// @brief Create a Free z3 expression from PrimExprNode
-  z3::expr Create(const PrimExprNode* op) {
-    auto ref = ffi::GetRef<PrimExpr>(op);
-    PrimType dtype = op->ty();
+  /// @brief Create a Free z3 expression from a primitive-valued ExprNode.
+  z3::expr Create(const ExprNode* op) {
+    auto ref = ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>();
+    PrimType dtype = ref.ty();
     std::string name = ns.GetNewName(ref);
     /// TVM max_val can't handle uint64 max correctly, so we special case it here
     if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
@@ -278,7 +278,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     // 1. Create a placeholder for the var, and save it in the memo
     //    if the var is overrided later, we can just update the memo, and the old placeholder will
     //    be ignored
-    auto var_expr = Create(var.as<PrimExprNode>());
+    auto var_expr = Create(var.get());
     memo_.emplace(var, var_expr);
 
     // 2. Add constraint on the placeholder
@@ -554,11 +554,10 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   }
 
   /// @brief Check if the expression type is supported by z3 integer operations.
-  static bool IsZ3SupportedExpr(const PrimExprNode* expr) {
+  static bool IsZ3SupportedExpr(const ExprNode* expr) {
     TVM_FFI_DCHECK(expr != nullptr);
-    TVM_FFI_DCHECK(expr->ty.defined());
-    const auto* prim_ty = expr->ty.as<PrimTypeNode>();
-    TVM_FFI_DCHECK(prim_ty != nullptr);
+    TVM_FFI_DCHECK(!expr->ExprNode::ty.IsMissing());
+    PrimType prim_ty = expr->ExprNode::ty.as_or_throw<PrimType>();
     return (prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLInt) ||
             prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLUInt) ||
             prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLBool)) &&
@@ -586,8 +585,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   }
 
   /// @brief Helper function to visit binary arithmetic operations
-  z3::expr VisitArith(Z3BinOp signed_op, const PrimExprNode* op, const PrimExpr& a,
-                      const PrimExpr& b) {
+  z3::expr VisitArith(Z3BinOp signed_op, const ExprNode* op, const PrimExpr& a, const PrimExpr& b) {
     if (IsZ3SupportedExpr(a.get()) && IsZ3SupportedExpr(b.get())) {
       return signed_op(VisitInt(a), VisitInt(b));
     } else {
@@ -789,7 +787,7 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
     // have already failed. An unsupported node must not crash the build, so we
     // model it as a fresh unconstrained free variable, which keeps the proof
     // sound (it can only make CanProve more conservative).
-    return Create(static_cast<const PrimExprNode*>(op));
+    return Create(static_cast<const ExprNode*>(op));
   }
 };
 

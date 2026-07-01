@@ -99,15 +99,15 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
   static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
-    PrimExpr cond = op->args[0];
-    this->VisitExpr(op->args[0]);
+    PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
+    this->VisitExpr(cond);
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, cond);
-      this->VisitExpr(op->args[1]);
+      this->VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     });
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
-      this->VisitExpr(op->args[2]);
+      this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
     });
   } else {
     StmtExprVisitor::VisitExpr_(op);
@@ -130,7 +130,7 @@ void IRVisitorWithAnalyzer::VisitExpr_(const ReduceNode* op) {
 PrimExpr IRVisitorWithAnalyzer::ExtractRealCondition(PrimExpr condition) const {
   if (auto call = condition.as<CallNode>()) {
     if (call->op.same_as(builtin::likely())) {
-      return call->args[0];
+      return call->args[0].as_or_throw<PrimExpr>();
     }
   }
 

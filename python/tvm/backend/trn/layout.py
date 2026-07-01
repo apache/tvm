@@ -23,7 +23,7 @@ import operator
 import re
 
 import tvm
-from tvm.tirx.expr import PrimExpr
+from tvm.tirx.expr import Expr
 from tvm.tirx.layout import Axis, Iter, Layout, S, TileLayout
 
 _TRN_MEMORY_AXES = {"F", "P", "Bank"}
@@ -39,7 +39,7 @@ def is_trainium_layout(layout: Layout | None) -> bool:
     )
 
 
-def trainium_layout(annotation: str, shape: tuple[PrimExpr], is_psum: bool = False) -> TileLayout:
+def trainium_layout(annotation: str, shape: tuple[Expr], is_psum: bool = False) -> TileLayout:
     """Create a Trainium tile layout from a PF annotation string and logical shape."""
     analyzer = tvm.arith.Analyzer()
     assert re.fullmatch(r"[PF]*", annotation), (
