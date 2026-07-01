@@ -23,6 +23,7 @@
 #include "codegen_metal.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
@@ -471,7 +472,9 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
   // Map<String, Bytes> across all multi-shader backends.
   ffi::Map<ffi::String, ffi::Bytes> smap;
   const auto fmetal_compile = tvm::ffi::Function::GetGlobal("tvm_callback_metal_compile");
+  // Default payload format. A callback may override it per the contract below.
   std::string fmt = fmetal_compile ? "metallib" : "metal";
+  bool fmt_locked = false;
 
   for (auto kv : mod->functions) {
     TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
@@ -495,7 +498,32 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     std::string fsource = cg.Finish();
     source_maker << fsource << "\n";
     if (fmetal_compile) {
-      fsource = (*fmetal_compile)(fsource, target).cast<std::string>();
+      ffi::Any ret = (*fmetal_compile)(fsource, target);
+      // Backward-compatible contract for tvm_callback_metal_compile:
+      //   * returning a str/bytes    -> treated as a compiled metallib payload
+      //   * returning (payload, fmt) -> the callback declares the payload format
+      std::string kernel_fmt;
+      if (auto ret_tuple = ret.try_cast<ffi::Array<ffi::Any>>()) {
+        TVM_FFI_ICHECK_EQ(ret_tuple->size(), 2)
+            << "tvm_callback_metal_compile must return either a payload or a "
+               "(payload, format) pair, but got a tuple of size "
+            << ret_tuple->size();
+        fsource = (*ret_tuple)[0].cast<std::string>();
+        kernel_fmt = (*ret_tuple)[1].cast<std::string>();
+        TVM_FFI_ICHECK(kernel_fmt == "metal" || kernel_fmt == "metallib")
+            << "tvm_callback_metal_compile returned unsupported format \"" << kernel_fmt
+            << "\"; expected \"metal\" or \"metallib\"";
+      } else {
+        // Backward-compatible behavior
+        fsource = ret.cast<std::string>();
+        kernel_fmt = "metallib";
+      }
+      // All kernels of a module share a single declared format
+      TVM_FFI_ICHECK(!fmt_locked || fmt == kernel_fmt)
+          << "tvm_callback_metal_compile returned inconsistent formats across kernels: \"" << fmt
+          << "\" vs \"" << kernel_fmt << "\"";
+      fmt = kernel_fmt;
+      fmt_locked = true;
     }
     smap.Set(func_name, ffi::Bytes(std::move(fsource)));
   }
