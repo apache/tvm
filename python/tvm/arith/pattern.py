@@ -26,7 +26,7 @@ def detect_linear_equation(expr, var_list):
 
     Parameters
     ----------
-    expr : PrimExpr
+    expr : Expr
         The expression to be matched.
 
     var_list : List[tvm.tirx.Var]
@@ -34,7 +34,7 @@ def detect_linear_equation(expr, var_list):
 
     Returns
     -------
-    coeff : List[PrimExpr]
+    coeff : List[Expr]
         A list of co-efficients if the match is successful.
         An empty list if the match failed.
     """
@@ -46,7 +46,7 @@ def detect_clip_bound(expr, var_list):
 
     Parameters
     ----------
-    expr : PrimExpr
+    expr : Expr
         The expression to be matched.
 
     var_list : List[tvm.tirx.Var]
@@ -54,7 +54,7 @@ def detect_clip_bound(expr, var_list):
 
     Returns
     -------
-    coeff : List[PrimExpr]
+    coeff : List[Expr]
         `concat([min_value[i], max_value[i]] for i, v in enumerate(var_list))`
         An empty list if the match failed.
     """

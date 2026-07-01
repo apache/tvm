@@ -54,7 +54,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
   // half -> float conversion (i.e. using AVX2/AVX-512 vectorized variants of
   // vcvtph2ps), so we explicitly generate them ourselves.
   const auto from = PrimType(op->value.ty()->dtype);
-  const auto to = PrimType(op->ty()->dtype);
+  const auto to = PrimType(op->ty.as_or_throw<PrimType>()->dtype);
   if (from.MatchesCode(DLDataTypeCode::kDLFloat) && to.MatchesCode(DLDataTypeCode::kDLFloat) &&
       from.bits() == 16 && to.bits() == 32) {
     TVM_FFI_ICHECK_EQ(from.lanes(), to.lanes());
@@ -66,8 +66,9 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
           llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
           DTypeToLLVMType(PrimType::Float(32, from.lanes())),
           {
-              MakeValue(tirx::Call(PrimType::Int(16, from.lanes()), tirx::builtin::reinterpret(),
-                                   {op->value})),
+              MakeValue(
+                  Call(PrimType::Int(16, from.lanes()), tirx::builtin::reinterpret(), {op->value})
+                      .as_or_throw<PrimExpr>()),
               MakeValue(tirx::Broadcast(FloatImm(PrimType::Float(32), 0), from.lanes())),
               /*mask=*/MakeValue(IntImm(PrimType::Int(16), -1)),
               /*rounding-mode=*/MakeValue(IntImm::Int32(4)),

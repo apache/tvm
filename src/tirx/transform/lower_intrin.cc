@@ -85,7 +85,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       for (const auto& f_attr_map : attr_maps_) {
         FLowerGeneral f = f_attr_map.get(ffi::GetRef<Op>(ptr_op), nullptr);
         if (f != nullptr) {
-          PrimExpr e = ffi::GetRef<PrimExpr>(op);
+          PrimExpr e = ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
           PrimExpr r = f(e);
           TVM_FFI_ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
           if (!r.same_as(e)) {
@@ -117,7 +117,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     op = ret.as<FloorDivNode>();
     if (op == nullptr) return ret;
     int shift;
-    PrimType dtype = op->ty();
+    PrimType dtype = op->ty.as_or_throw<PrimType>();
     TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
@@ -178,7 +178,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     if (op == nullptr) return ret;
     // Lower floordiv to native truncdiv.
     int shift;
-    PrimType dtype = op->ty();
+    PrimType dtype = op->ty.as_or_throw<PrimType>();
     TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
     if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
@@ -274,7 +274,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     if (const BroadcastNode* bcast = e.as<BroadcastNode>()) {
       if (const CastNode* cast = bcast->value.as<CastNode>()) {
         auto should_swap = [&]() {
-          PrimType cast_ty = cast->ty();
+          PrimType cast_ty = cast->ty.as_or_throw<PrimType>();
           PrimType value_ty = cast->value.ty();
           // Maintain behaviour (int8 -> int16, fp16 -> fp32).
           if (cast_ty.bits() == value_ty.bits() * 2) {
@@ -295,7 +295,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
         if (should_swap()) {
           PrimExpr new_bcast = Broadcast(cast->value, bcast->lanes);
-          return Cast(ffi::GetRef<PrimExpr>(bcast).ty(), new_bcast);
+          return Cast(bcast->ty.as_or_throw<PrimType>(), new_bcast);
         }
       }
     }
@@ -307,8 +307,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr lhs = SwapBroadcastCast(a);
     PrimExpr rhs = SwapBroadcastCast(b);
 
-    if (fma_ != nullptr && op->ty().code() == DLDataTypeCode::kDLFloat) {
-      PrimExpr r = fma_(Call(ffi::GetRef<PrimExpr>(op).ty(), builtin::fma(), {lhs, rhs, c}));
+    if (fma_ != nullptr && op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
+      PrimExpr r = fma_(Call(op->ty.as_or_throw<PrimType>(), builtin::fma(), {lhs, rhs, c})
+                            .as_or_throw<PrimExpr>());
       if (r.defined()) return this->VisitExpr(r);
     } else {
       if (!lhs.same_as(a) || !rhs.same_as(b)) {

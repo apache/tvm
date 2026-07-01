@@ -192,9 +192,9 @@ void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLIN
 
 void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = static_cast<int16_t>(op->ty()->dtype.lanes);
+  int lanes = static_cast<int16_t>(op->ty.as_or_throw<PrimType>()->dtype.lanes);
   os << "((";
-  PrintType(op->ty()->dtype, os);
+  PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
   os << ")(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";

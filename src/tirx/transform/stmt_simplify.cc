@@ -184,11 +184,11 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 
   PrimExpr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::if_then_else())) {
-      if (ffi::Optional<bool> cond = ProveCondition(op->args[0])) {
+      if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
         if (cond.value()) {
-          return this->VisitExpr(op->args[1]);
+          return this->VisitExpr(op->args[1].as_or_throw<PrimExpr>());
         } else {
-          return this->VisitExpr(op->args[2]);
+          return this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
         }
       }
     }

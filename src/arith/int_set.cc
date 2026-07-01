@@ -123,7 +123,7 @@ TVM_DECLARE_LOGICAL_OP(Not);
  */
 template <typename Op, typename OpNode>
 inline IntervalSet Combine(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b, const OpNode* op) {
-  PrimType dtype = op->ty();
+  PrimType dtype = op->ty.template as_or_throw<PrimType>();
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
     PrimExpr expr;
     if (auto res = TryConstFold<Op>(a->min_value, b->min_value)) {
@@ -350,7 +350,7 @@ inline IntervalSet Combine<tirx::FloorMod>(AnalyzerObj* analyzer, IntervalSet a,
             int64_t max_mod_result = max_quotient * gcd + (dividend_mod->base % gcd);
 
             if (max_mod_result >= 0 && max_mod_result < div_val) {
-              PrimType result_ty = ffi::GetRef<PrimExpr>(op).ty();
+              PrimType result_ty = op->ty.as_or_throw<PrimType>();
               return IntervalSet(IntImm(result_ty, 0), IntImm(result_ty, max_mod_result));
             }
           }
@@ -572,17 +572,19 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     // short cut for the int set.
     if (value_set->min_value.same_as(value_set->max_value)) {
       if (value_set->IsEmpty()) return value_set;
-      return IntervalSet::SinglePoint(cast(op->ty(), value_set->min_value));
+      return IntervalSet::SinglePoint(cast(op->ty.as_or_throw<PrimType>(), value_set->min_value));
     }
-    PrimExpr min_value =
-        value_set->HasLowerBound() ? cast(op->ty(), value_set->min_value) : neg_inf();
-    PrimExpr max_value =
-        value_set->HasUpperBound() ? cast(op->ty(), value_set->max_value) : pos_inf();
+    PrimExpr min_value = value_set->HasLowerBound()
+                             ? cast(op->ty.as_or_throw<PrimType>(), value_set->min_value)
+                             : neg_inf();
+    PrimExpr max_value = value_set->HasUpperBound()
+                             ? cast(op->ty.as_or_throw<PrimType>(), value_set->max_value)
+                             : pos_inf();
     return IntervalSet(min_value, max_value);
   }
 
   IntervalSet VisitExpr_(const BufferLoadNode* op) final {
-    PrimType op_ty = op->ty();
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (!op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       DLOG(WARNING) << "cannot evaluate set BufferLoad which loads from a " << op_ty->dtype
                     << " buffer";
@@ -601,8 +603,10 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
   }
 
   IntervalSet VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(tirx::builtin::vscale()))
-      return IntervalSet(ffi::GetRef<PrimExpr>(op), ffi::GetRef<PrimExpr>(op));
+    if (op->op.same_as(tirx::builtin::vscale())) {
+      PrimExpr call = ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
+      return IntervalSet(call, call);
+    }
     return IntervalSet::Everything();
   }
 

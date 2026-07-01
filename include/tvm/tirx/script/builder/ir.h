@@ -503,7 +503,7 @@ void Evaluate(PrimExpr value);
  */
 inline Var Handle(PrimType dtype = PrimType::Handle(), ffi::String storage_scope = "global",
                   bool is_size_var = false, bool is_unknown_type = false) {
-  Type type_annotation{nullptr};
+  Type type_annotation = Type::Missing();
   if (is_unknown_type && storage_scope == "global") {
     type_annotation = PrimType::Handle();
   } else {

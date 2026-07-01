@@ -230,7 +230,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
 // corresponding nvvm intrinsic. Return true if the match is successful.
 static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id) {
   // Only 32 bit data type is supported.
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.IsFixedLengthVector() || op_ty.bits() != 32) {
     return false;
   }
@@ -259,15 +259,16 @@ static bool GetWarpShuffleIntrinsic(const CallNode* op, llvm::Intrinsic::ID* id)
 }
 
 llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
+  ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
   llvm::Intrinsic::ID id = llvm::Intrinsic::not_intrinsic;
   if (GetWarpShuffleIntrinsic(op, &id)) {
     std::vector<llvm::Value*> arg_value;
     std::vector<llvm::Type*> arg_type;
     // Ignore the first mask operand and remove the last
     // redundant warp_size..
-    size_t n_args = op->args.size() - 1;
+    size_t n_args = args.size() - 1;
     for (size_t i = 1; i < n_args; ++i) {
-      arg_value.push_back(MakeValue(op->args[i]));
+      arg_value.push_back(MakeValue(args[i]));
       arg_type.push_back(arg_value.back()->getType());
     }
     llvm::Type* return_type = arg_type[0];
@@ -280,10 +281,10 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
     auto val = llvm::InlineAsm::get(fty, "activemask.b32 %0", "=r", true);
     return builder_->CreateCall(val);
   } else if (op->op.same_as(builtin::atomic_add())) {
-    PrimType value_ty = op->args[1].ty();
+    PrimType value_ty = args[1].ty();
     TVM_FFI_ICHECK(value_ty.bits() == 32) << "Only supports 32 bit atomic for now";
-    llvm::Value* v0 = MakeValue(op->args[0]);
-    llvm::Value* v1 = MakeValue(op->args[1]);
+    llvm::Value* v0 = MakeValue(args[0]);
+    llvm::Value* v1 = MakeValue(args[1]);
     if (value_ty.MatchesCode(DLDataTypeCode::kDLFloat)) {
       return builder_->CreateAtomicRMW(llvm::AtomicRMWInst::FAdd, v0, v1, llvm::MaybeAlign(),
                                        llvm::AtomicOrdering::Monotonic);

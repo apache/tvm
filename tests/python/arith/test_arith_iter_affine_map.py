@@ -1286,15 +1286,15 @@ def assert_normalize_to_iter_sum(index, input_iters, args, base):
 
     Parameters
     ----------
-    index : tvm.tirx.PrimExpr
+    index : tvm.tirx.Expr
         The index to be normalized
     input_iters : Mapping[Var, Range]
         The input iterators
-    args : List[Union[tvm.arith.IterSplitExpr, Tuple[PrimExpr, PrimExpr]]]
+    args : List[Union[tvm.arith.IterSplitExpr, Tuple[Expr, Expr]]]
         The expected result. Ordered list of args of the expected IterSumExpr. Each arg can be
-        either IterSplitExpr or a tuple of (PrimExpr, PrimExpr) where the first element is the
-        iterator normalized to PrimExpr and the second element is the scale.
-    base : tvm.tirx.PrimExpr
+        either IterSplitExpr or a tuple of (Expr, Expr) where the first element is the
+        iterator normalized to Expr and the second element is the scale.
+    base : tvm.tirx.Expr
         The expected base
     """
     res = tvm.arith.normalize_to_iter_sum(index, input_iters)

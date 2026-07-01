@@ -71,8 +71,8 @@ void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) {
   }
   if (const auto* call = stripped.as<CallNode>()) {
     if (IsBitwiseAndCall(call)) {
-      FlattenConjuncts(call->args[0], out);
-      FlattenConjuncts(call->args[1], out);
+      FlattenConjuncts(call->args[0].as_or_throw<PrimExpr>(), out);
+      FlattenConjuncts(call->args[1].as_or_throw<PrimExpr>(), out);
       return;
     }
   }

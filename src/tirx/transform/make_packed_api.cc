@@ -64,7 +64,7 @@ class ReturnRewriter : public StmtMutator {
       if (call->op.same_as(builtin::ret())) {
         TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "tirx.ret cannot be used in parallel scope.";
         TVM_FFI_ICHECK_EQ(call->args.size(), 1) << "tirx.ret expect a single argument.";
-        ret = WriteToOut(call->args[0]);
+        ret = WriteToOut(call->args[0].as_or_throw<PrimExpr>());
       }
     }
     return ret;
@@ -103,17 +103,20 @@ class ReturnRewriter : public StmtMutator {
   Stmt WriteToOut(PrimExpr val) {
     auto info = ConvertForFFI(val);
     Stmt store_tindex = tirx::Evaluate(
-        tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                   {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
-                    IntImm::Int32(info.type_index)}));
-    Stmt store_zero_padding = tirx::Evaluate(
-        tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                   {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding),
-                    IntImm::Int32(0)}));
+        Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
+              IntImm::Int32(info.type_index)})
+            .as_or_throw<PrimExpr>());
+    Stmt store_zero_padding =
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+                            {ret_var_, IntImm::Int32(0),
+                             IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding), IntImm::Int32(0)})
+                           .as_or_throw<PrimExpr>());
     Stmt store_val =
-        tirx::Evaluate(tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                                  {ret_var_, IntImm::Int32(0),
-                                   IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr}));
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+                            {ret_var_, IntImm::Int32(0),
+                             IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
+                           .as_or_throw<PrimExpr>());
     Stmt ret_zero = Evaluate(tvm::ret(0));
     return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
@@ -147,18 +150,20 @@ class SubroutineCallRewriter : public StmtExprMutator {
       if (auto symbol = packed_func_methods.Get(gvar)) {
         ffi::Array<PrimExpr> cpacked_args;
         cpacked_args.push_back(tirx::StringImm(symbol.value()));
-        for (auto arg : node->args) {
+        for (const PrimExpr& arg : node->args.as_or_throw<ffi::Array<PrimExpr>>()) {
           cpacked_args.push_back(arg);
         }
 
         // push an empty handle to be compatible with current cpacked convention
         cpacked_args.push_back(tirx::ConstHandle(0));
         made_change_ = true;
-        return tirx::Call(node.ty(), tirx::builtin::tvm_call_cpacked(), cpacked_args);
+        return Call(node->ty.as_or_throw<PrimType>(), tirx::builtin::tvm_call_cpacked(),
+                    cpacked_args)
+            .as_or_throw<PrimExpr>();
       }
     }
 
-    return node;
+    return node.as_or_throw<PrimExpr>();
   }
   const ffi::Map<GlobalVar, ffi::String>& packed_func_methods;
   bool made_change_{false};
@@ -258,7 +263,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
       Stmt set_device =
           Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                        {StringImm(runtime::symbol::tvm_set_device), device_type, device_id}));
+                        {StringImm(runtime::symbol::tvm_set_device), device_type, device_id})
+                       .as_or_throw<PrimExpr>());
       body = SeqStmt({set_device, body});
     }
   }

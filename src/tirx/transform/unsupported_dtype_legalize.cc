@@ -215,7 +215,7 @@ class ComputeLegalizer : public StmtExprMutator {
     auto op_val = PromoteToTarget(this->VisitExpr(op->value));
 
     // all casts to matched data type (fp8/bf16) becomes f32
-    PrimType op_ty = op->ty();
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (MatchType(op_ty)) {
       return cast(promote_dtype_.WithLanes(op_ty.lanes()), op_val);
     }
@@ -264,21 +264,25 @@ class ComputeLegalizer : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
     // update normal computations to return f32 instead.
-    auto fmutate = [this](const PrimExpr& e) { return PromoteToTarget(this->VisitExpr(e)); };
+    auto fmutate = [this](const Expr& e) {
+      return PromoteToTarget(this->VisitExpr(e.as_or_throw<PrimExpr>()));
+    };
     ffi::Array<PrimExpr> args = op->args.Map(fmutate);
-    PrimType op_ty = op->ty();
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (MatchType(op_ty)) {
-      return Call(promote_dtype_.WithLanes(op_ty.lanes()), op->op, args, op->attrs, op->span);
+      return Call(promote_dtype_.WithLanes(op_ty.lanes()), op->op, args, op->attrs, {}, op->span)
+          .as_or_throw<PrimExpr>();
     }
     if (args.same_as(op->args)) {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
     } else {
-      return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op, args, op->attrs, op->span);
+      return Call(op->ty.as_or_throw<PrimType>(), op->op, args, op->attrs, {}, op->span)
+          .as_or_throw<PrimExpr>();
     }
   }
 
   PrimExpr VisitExpr_(const FloatImmNode* op) final {
-    if (MatchType(op->ty())) {
+    if (MatchType(op->ty.as_or_throw<PrimType>())) {
       return FloatImm(promote_dtype_, op->value);
     }
     return ffi::GetRef<PrimExpr>(op);
@@ -345,10 +349,15 @@ class ComputeLegalizer : public StmtExprMutator {
     auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
 
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
+    ffi::Optional<PrimExpr> predicate = std::nullopt;
+    if (op->predicate.defined()) {
+      predicate = this->VisitExpr(op->predicate.value());
+    }
 
     Buffer new_buf = GetRemappedBuffer(op->buffer);
 
-    if (value.same_as(op->value) && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
+    if (value.same_as(op->value) && indices.same_as(op->indices) &&
+        predicate.same_as(op->predicate) && new_buf.same_as(op->buffer)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchType(new_buf->dtype)) {
@@ -363,10 +372,7 @@ class ComputeLegalizer : public StmtExprMutator {
         TVM_FFI_ICHECK(MatchType(value.ty()));
         value = DTypeConversion(value, new_buf->dtype.WithLanes(value.ty().lanes()));
       }
-      TVM_FFI_ICHECK(!op->predicate.defined())
-          << "Predicated buffer store is not currently supported in "
-             "data type legalizer pass.";
-      return BufferStore(new_buf, value, indices);
+      return BufferStore(new_buf, value, indices, predicate);
     }
   }
 
@@ -458,10 +464,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      TVM_FFI_ICHECK(!op->predicate.defined())
-          << "Predicated buffer load is not currently supported in "
-             "data type legalizer pass.";
-      return BufferLoad(new_buf, op->indices);
+      return BufferLoad(new_buf, op->indices, op->predicate);
     }
   }
 
@@ -632,16 +635,18 @@ class StorageLegalizer : public StmtExprMutator {
     PrimExpr value = this->ChangeToUInt(VisitExpr(op->value));
     Buffer new_buf = GetRemappedBuffer(op->buffer);
     auto indices = op->indices.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
-    if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) && value.same_as(op->value)) {
+    ffi::Optional<PrimExpr> predicate = std::nullopt;
+    if (op->predicate.defined()) {
+      predicate = this->VisitExpr(op->predicate.value());
+    }
+    if (new_buf.same_as(op->buffer) && indices.same_as(op->indices) &&
+        predicate.same_as(op->predicate) && value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     } else {
       if (MatchType(op->value.ty())) {
         TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
       }
-      TVM_FFI_ICHECK(!op->predicate.defined())
-          << "Predicated buffer store is not currently supported in "
-             "data type legalizer pass.";
-      return BufferStore(new_buf, value, indices);
+      return BufferStore(new_buf, value, indices, predicate);
     }
   }
 
@@ -670,25 +675,22 @@ class StorageLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
-      TVM_FFI_ICHECK(!op->predicate.defined())
-          << "Predicated buffer load is not currently supported in "
-             "data type legalizer pass.";
-      return BufferLoad(new_buf, op->indices);
+      return BufferLoad(new_buf, op->indices, op->predicate);
     }
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     // remap re-interpret so un-necessary reinterpret can be skipped.
     if (op->op.same_as(builtin::reinterpret())) {
-      PrimExpr value = VisitExpr(op->args[0]);
+      PrimExpr value = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
       // sometimes the input dtype can change and we can skip.
-      PrimType op_dtype = op->ty();
+      PrimType op_dtype = op->ty.as_or_throw<PrimType>();
       if (value.ty() == op_dtype) return value;
       if (MatchType(op_dtype)) {
         return reinterpret(GetStorageUIntDType(op_dtype), value);
       }
       if (op->args[0].same_as(value)) {
-        return ffi::GetRef<PrimExpr>(op);
+        return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
       } else {
         return reinterpret(op_dtype, value);
       }
@@ -709,7 +711,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (!MatchType(value_dtype)) return value;
     auto* call = value.as<CallNode>();
     if (call && call->op.same_as(builtin::reinterpret())) {
-      return reinterpret(GetStorageUIntDType(value_dtype), call->args[0]);
+      return reinterpret(GetStorageUIntDType(value_dtype), call->args[0].as_or_throw<PrimExpr>());
     } else {
       return value;
     }

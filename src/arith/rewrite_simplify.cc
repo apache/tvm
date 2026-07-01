@@ -46,7 +46,7 @@ namespace arith {
 namespace {
 // File-local helper: true if `expr` is a call to tirx::builtin::vscale().
 bool IsVScaleCall(const PrimExpr& expr) {
-  if (const auto* call = expr.as<tirx::CallNode>()) {
+  if (const auto* call = expr.as<CallNode>()) {
     return call->op.same_as(tirx::builtin::vscale());
   }
   return false;
@@ -57,8 +57,8 @@ bool ContainsVscaleCall(const PrimExpr& expr) {
   return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
 }
 
-TVM_FFI_INLINE bool IsVectorExpr(const PrimExprNode* expr) {
-  PrimType ty = expr->ty();
+TVM_FFI_INLINE bool IsVectorExpr(const ExprNode* expr) {
+  PrimType ty = expr->ty.as_or_throw<PrimType>();
   return ty.IsScalableVector() || ty.IsFixedLengthVector();
 }
 
@@ -844,7 +844,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     if (truncdiv(c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      return MakeConst(op->ty(), truncdiv(c1val, c2val));
+      return MakeConst(op->ty.as_or_throw<PrimType>(), truncdiv(c1val, c2val));
     }
 
     // while it is always true for trunc div
@@ -1024,7 +1024,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     // canonicalization: x % c == x % (-c) for truncated division
     // NOTE: trunc div required
     TVM_TRY_RECURSIVE_REWRITE_IF(
-        truncmod(x, c1), truncmod(x, PConst<PrimExpr>(MakeConst(op->ty(), -c1.Eval()->value))),
+        truncmod(x, c1),
+        truncmod(x, PConst<PrimExpr>(MakeConst(op->ty.as_or_throw<PrimType>(), -c1.Eval()->value))),
         c1.Eval()->value < 0);
 
     // try modular analysis
@@ -1191,7 +1192,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   // Unsigned (uint32/uint64): the signed IsIndexType block above is skipped for
   // unsigned operands (see the note in the FloorMod handler). Only the
   // OVERFLOW-FREE identities are valid here.
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt) && (op_ty.bits() == 32 || op_ty.bits() == 64)) {
     TVM_TRY_REWRITE(floordiv(x, x), OneWithTypeLike(x));            // x / x -> 1  (x != 0)
     TVM_TRY_REWRITE_IF(floordiv(x, c1), x, c1.Eval()->value == 1);  // x / 1 -> x
@@ -1319,7 +1320,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // those rules assume no wraparound, which is UNSOUND for unsigned (e.g.
   // floormod(x*y, y) -> 0 fails when x*y wraps mod 2^bits). Only the
   // OVERFLOW-FREE identities are valid here.
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesCode(DLDataTypeCode::kDLUInt) && (op_ty.bits() == 32 || op_ty.bits() == 64)) {
     TVM_TRY_REWRITE(floormod(x, x), ZeroWithTypeLike(x));  // x % x -> 0  (x != 0)
     TVM_TRY_REWRITE_IF(floormod(x, c1), ZeroWithTypeLike(x),
@@ -1715,10 +1716,10 @@ ffi::Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(
   ExprDeepEqual expr_equal;
   for (const auto& constraint : literal_constraints_) {
     if (expr_equal(constraint, expr)) {
-      return MakeConst(expr->ty(), true);
+      return MakeConst(expr.ty(), true);
     }
     if (expr_equal(constraint, negation)) {
-      return MakeConst(expr->ty(), false);
+      return MakeConst(expr.ty(), false);
     }
   }
   return std::nullopt;
@@ -1744,7 +1745,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   PVar<PrimExpr> lanes;
-  PConst<PrimExpr> ctrue(MakeConst(ret->ty(), true));
+  PConst<PrimExpr> ctrue(MakeConst(ret->ty.as_or_throw<PrimType>(), true));
 
   // vector rule
   if (IsVectorExpr(ret.get())) {
@@ -1754,10 +1755,10 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   if (IsIndexTypedExpr(ret->a)) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kEQ) {
-      return MakeConst(ret->ty(), true);
+      return MakeConst(ret->ty.as_or_throw<PrimType>(), true);
     } else if (result == CompareResult::kNE || result == CompareResult::kGT ||
                result == CompareResult::kLT) {
-      return MakeConst(ret->ty(), false);
+      return MakeConst(ret->ty.as_or_throw<PrimType>(), false);
     }
     TVM_TRY_REWRITE(c1 == x, x == c1);
 
@@ -1791,9 +1792,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kNE || result == CompareResult::kGT ||
         result == CompareResult::kLT) {
-      return MakeConst(op->ty(), true);
+      return MakeConst(op->ty.as_or_throw<PrimType>(), true);
     } else if (result == CompareResult::kEQ) {
-      return MakeConst(op->ty(), false);
+      return MakeConst(op->ty.as_or_throw<PrimType>(), false);
     } else if (result == CompareResult::kGE) {
       // Known: a >= b
       //
@@ -1835,9 +1836,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const LENode* op) {
     CompareResult result = TryCompare(op->a, op->b);
     if (result == CompareResult::kLE || result == CompareResult::kLT ||
         result == CompareResult::kEQ) {
-      return MakeConst(op->ty(), true);
+      return MakeConst(op->ty.as_or_throw<PrimType>(), true);
     } else if (result == CompareResult::kGT) {
-      return MakeConst(op->ty(), false);
+      return MakeConst(op->ty.as_or_throw<PrimType>(), false);
     } else if (result == CompareResult::kNE) {
       // Known: a != b
       //
@@ -1894,11 +1895,11 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   if (IsIndexTypedExpr(ret->a)) {
     CompareResult result = TryCompare(ret->a, ret->b);
     if (result == CompareResult::kLT) {
-      return MakeConst(ret->ty(), true);
+      return MakeConst(ret->ty.as_or_throw<PrimType>(), true);
     }
     if (result == CompareResult::kEQ || result == CompareResult::kGT ||
         result == CompareResult::kGE) {
-      return MakeConst(ret->ty(), false);
+      return MakeConst(ret->ty.as_or_throw<PrimType>(), false);
     }
 
     // clang-format off
@@ -2133,7 +2134,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
   }
 
-  auto cfalse = PConst<PrimExpr>(MakeConst(op->ty(), false));
+  auto cfalse = PConst<PrimExpr>(MakeConst(op->ty.as_or_throw<PrimType>(), false));
   TVM_TRY_REWRITE(x == y && x != y, cfalse);
   TVM_TRY_REWRITE(x != y && x == y, cfalse);
   TVM_TRY_REWRITE(x && !x, cfalse);
@@ -2281,7 +2282,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
   }
 
-  auto ctrue = PConst<PrimExpr>(MakeConst(op->ty(), true));
+  auto ctrue = PConst<PrimExpr>(MakeConst(op->ty.as_or_throw<PrimType>(), true));
 
   TVM_TRY_REWRITE(x == y || x != y, ctrue);
   TVM_TRY_REWRITE(x != y || x == y, ctrue);
@@ -2332,35 +2333,36 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   op = ret.as<CallNode>();
   if (op == nullptr) return ret;
 
-  if (op->op.same_as(tirx::builtin::likely()) && is_const_int(op->args[0])) {
-    return op->args[0];
+  if (op->op.same_as(tirx::builtin::likely()) &&
+      is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
+    return op->args[0].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(tirx::builtin::shift_right())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
-      return op->args[0] >> op->args[1];
+      return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
     }
   } else if (op->op.same_as(tirx::builtin::shift_left())) {
     if (op->args[0].as<IntImmNode>() && op->args[1].as<IntImmNode>()) {
       // the operator overload will eagerly constant fold.
-      return op->args[0] << op->args[1];
+      return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
     }
   }
   static const Op& ceil_op = Op::Get("tirx.ceil");
   static const Op& log2_op = Op::Get("tirx.log2");
   static const Op& clz_op = Op::Get("tirx.clz");
-  PrimType ret_ty = op->ty();
+  PrimType ret_ty = op->ty.as_or_throw<PrimType>();
   if (op->op.same_as(ceil_op)) {
-    PrimExpr ceil_arg = op->args[0];
+    PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();
     if (auto arg_int = op->args[0].as<IntImmNode>()) {
-      return cast(ret_ty, IntImm(ffi::GetRef<PrimExpr>(arg_int).ty(), arg_int->value));
+      return cast(ret_ty, IntImm(arg_int->ty.as_or_throw<PrimType>(), arg_int->value));
     } else if (auto arg_float = ceil_arg.as<FloatImmNode>()) {
       return cast(ret_ty,
-                  FloatImm(ffi::GetRef<PrimExpr>(arg_float).ty(), std::ceil(arg_float->value)));
+                  FloatImm(arg_float->ty.as_or_throw<PrimType>(), std::ceil(arg_float->value)));
     } else if (auto arg_call = ceil_arg.as<CallNode>()) {
       // ceil(log2(cast(n,"float64"))) is used as the implementation of
       // topi.math.ceil_log2, and appears in iteration bounds.
       if (arg_call->op.same_as(log2_op)) {
-        PrimExpr log_arg = arg_call->args[0];
+        PrimExpr log_arg = arg_call->args[0].as_or_throw<PrimExpr>();
         if (auto as_float = log_arg.as<FloatImmNode>()) {
           // ceil(log2(n)) can be simplified, and should produce the
           // same integer result regardless of the target's rounding
@@ -2371,7 +2373,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
     }
   } else if (op->op.same_as(clz_op)) {
     if (const auto* arg_int = op->args[0].as<IntImmNode>()) {
-      int bits = arg_int->ty().bits();
+      int bits = arg_int->ty.as_or_throw<PrimType>().bits();
       if (arg_int->value == 0) return MakeConst(ret_ty, bits);
       for (int i = bits - 1; i >= 0; --i) {
         if ((int64_t(1) << i) & arg_int->value) {
@@ -2384,7 +2386,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 
   if (op->op.same_as(tirx::builtin::likely())) {
     // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
-    if (auto match = TryMatchLiteralConstraint(op->args[0])) {
+    if (auto match = TryMatchLiteralConstraint(op->args[0].as_or_throw<PrimExpr>())) {
       return match.value();
     }
   }
@@ -2393,19 +2395,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
     // Simplify nested if_then_else
     // if (cond) { if (inner_cond) { inner_then_expr } else { inner_else_expr } } else { else_expr }
     // => if (cond && inner_cond) { inner_then_expr } else { else_expr }
-    const PrimExpr& cond = op->args[0];
-    const PrimExpr& then_expr = op->args[1];
-    const PrimExpr& else_expr = op->args[2];
+    PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
+    PrimExpr then_expr = op->args[1].as_or_throw<PrimExpr>();
+    PrimExpr else_expr = op->args[2].as_or_throw<PrimExpr>();
     const CallNode* inner_call = then_expr.as<CallNode>();
     if (inner_call != nullptr && inner_call->op.same_as(tirx::builtin::if_then_else())) {
-      const PrimExpr& inner_cond = inner_call->args[0];
-      const PrimExpr& inner_then_expr = inner_call->args[1];
-      const PrimExpr& inner_else_expr = inner_call->args[2];
+      PrimExpr inner_cond = inner_call->args[0].as_or_throw<PrimExpr>();
+      PrimExpr inner_then_expr = inner_call->args[1].as_or_throw<PrimExpr>();
+      PrimExpr inner_else_expr = inner_call->args[2].as_or_throw<PrimExpr>();
       // Only check constant cases to avoid recursion
       if (is_const_number(inner_else_expr) && is_const_number(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
-        return Call(ret_ty, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
-                    op->span);
+        return Call(ret_ty, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs, {},
+                    op->span)
+            .as_or_throw<PrimExpr>();
       }
     }
   }
@@ -2415,7 +2418,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !op_ty.IsScalableVector() &&
       !op_ty.IsFixedLengthVector()) {
     if (auto match = TryMatchLiteralConstraint(var)) {
@@ -2427,7 +2430,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   if (it != var_map_.end()) {
     return it->second;
   }
-  return ffi::GetRef<PrimExpr>(op);
+  return ffi::GetRef<Var>(op);
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CastNode* op) {

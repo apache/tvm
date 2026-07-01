@@ -45,12 +45,13 @@ std::string tvm_qhl_ahf_sin = "tvm_vect_qhmath_hvx_sin_ahf";
 std::string tvm_qhl_ahf_pow = "tvm_vect_qhmath_hvx_pow_ahf";
 std::string tvm_qhl_ahf_sqrt = "tvm_vect_qhmath_hvx_sqrt_ahf";
 
-inline PrimExpr TVMExternCall(const tirx::CallNode* call, const std::string& fname) {
+inline PrimExpr TVMExternCall(const CallNode* call, const std::string& fname) {
   ffi::Array<PrimExpr> new_args = {tirx::StringImm(fname)};
-  for (PrimExpr arg : call->args) {
+  for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
-  return tirx::Call(call->ty(), tirx::builtin::call_pure_extern(), new_args);
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_pure_extern(), new_args)
+      .as_or_throw<PrimExpr>();
 }
 
 template <std::string& tvm_wrapper, unsigned id, int num_sign>
@@ -71,7 +72,7 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   }
 
   // Enable QHL library for FP16 data type
-  const PrimExpr& x = call->args[0];
+  PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
   PrimType x_ty = x.ty();
   if (x_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&
       (x_ty.IsFixedLengthVector() || x_ty.IsScalableVector()) && useqhl) {
@@ -80,8 +81,10 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
 #endif
   new_args.push_back(IntImm(PrimType::UInt(32), id));
   new_args.push_back(IntImm(PrimType::UInt(32), num_sign));
-  new_args.insert(new_args.end(), call->args.begin(), call->args.end());
-  return tirx::Call(call->ty(), tirx::builtin::call_llvm_pure_intrin(), new_args);
+  ffi::Array<PrimExpr> call_args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
+  new_args.insert(new_args.end(), call_args.begin(), call_args.end());
+  return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_pure_intrin(), new_args)
+      .as_or_throw<PrimExpr>();
 }
 
 void RegisterHexagonIntrinRules() {
@@ -116,9 +119,9 @@ TVM_REGISTER_OP("tirx.ctpop")
                                DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 TVM_REGISTER_OP("tirx.tanh")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
       PrimType x_ty = x.ty();
 
 #if ENABLE_QHL
@@ -155,9 +158,9 @@ TVM_REGISTER_OP("tirx.tanh")
 
 TVM_REGISTER_OP("tirx.tan")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
       PrimType x_ty = x.ty();
 #if ENABLE_QHL
       // Check target for qfloat enablement
@@ -187,9 +190,9 @@ TVM_REGISTER_OP("tirx.nearbyint")
 
 TVM_REGISTER_OP("tirx.sigmoid")
     .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic", [](const PrimExpr& e) {
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
       PrimType x_ty = x.ty();
 #if ENABLE_QHL
       // Check target for qfloat enablement
@@ -208,7 +211,8 @@ TVM_REGISTER_OP("tirx.sigmoid")
       const PrimExpr v2 = tirx::Min(v1, MaxBound);
 
       ffi::Array<tvm::PrimExpr> new_args = {v2};
-      const tirx::Call new_call = tirx::Call(call->ty(), call->op, new_args);
+      const Call new_call =
+          Call(call->ty.as_or_throw<PrimType>(), call->op, new_args);
 
       // Enable QHL library for FP16 data type
       if (x_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) &&

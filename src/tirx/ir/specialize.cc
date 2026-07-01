@@ -185,7 +185,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
   PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_map_.find(ffi::GetRef<Var>(op));
     if (it == var_map_.end()) {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::GetRef<Var>(op);
     } else {
       return it->second;
     }

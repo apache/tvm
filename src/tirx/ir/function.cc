@@ -80,7 +80,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
                    ffi::Map<tirx::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
-  if (!ret_type.defined()) {
+  if (ret_type.IsMissing()) {
     ret_type = VoidType();
   }
 

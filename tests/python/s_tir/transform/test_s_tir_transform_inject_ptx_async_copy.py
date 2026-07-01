@@ -47,7 +47,7 @@ def count_cp_async(stmt):
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tirx.Call) and n.op.name == "tirx.ptx.cp_async_raw":
+        if isinstance(n, tvm.ir.Call) and n.op.name == "tirx.ptx.cp_async_raw":
             num_alloc[0] += 1
 
     tvm.tirx.stmt_functor.post_order_visit(stmt, verify)

@@ -1050,11 +1050,11 @@ def test_workspace_default_none():
 
 
 def test_scalar_assign_in_macro():
-    """Regression: the parser's scalar-assignment sugar (scalar = PrimExpr) must
+    """Regression: the parser's scalar-assignment sugar (scalar = Expr) must
     work in macro context via self.attr.
 
     The parser narrowed ``except Exception: pass`` around the scalar-detection
-    path. This test verifies that PrimExpr assignment to a scalar attribute in
+    path. This test verifies that Expr assignment to a scalar attribute in
     a macro still goes through buffer_store correctly.
 
     The full integration regression for the TypeError fallthrough path
@@ -1068,7 +1068,7 @@ def test_scalar_assign_in_macro():
 
         @T.inline
         def add_one(self):
-            # PrimExpr assigned to scalar via self.attr → buffer_store succeeds
+            # Expr assigned to scalar via self.attr → buffer_store succeeds
             self.counter = self.counter + T.int32(1)
 
     @T.prim_func
@@ -1763,7 +1763,7 @@ def test_vector_annotation_with_python_variable_size():
 
 def test_roundtrip_tmem_decl_buffer():
     """DeclBuffer with tmem scope: data kwarg must be suppressed, allocated_addr
-    must print as PrimExpr (not Array), and scalar buffer index must not get
+    must print as Expr (not Array), and scalar buffer index must not get
     a .buffer suffix."""
 
     # fmt: off

@@ -143,7 +143,7 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
     Parameters
     ----------
     expect_region: dict
-        The keys are of form (begin, end) or PrimExpr as a single point. The values are
+        The keys are of form (begin, end) or Expr as a single point. The values are
         expected estimated region or region dict on different bindings.
 
     var_dom: dict
@@ -152,7 +152,7 @@ def check_region_bound(expect_region, var_dom, mode, predicate=None):
     mode: str
         Specify "lowerbound", "upperbound" or else use strict bound estimation.
 
-    predicate: PrimExpr
+    predicate: Expr
         Extra predicate, defaults to True.
     """
     if predicate is None:

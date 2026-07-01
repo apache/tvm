@@ -141,7 +141,7 @@ class HostDeviceSplitter : public StmtMutator {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
             return std::tuple{
-                !var->ty().IsHandle(),
+                !var->ty.as_or_throw<PrimType>().IsHandle(),
                 var->name_hint,
             };
           };
@@ -168,7 +168,7 @@ class HostDeviceSplitter : public StmtMutator {
       return kind == kDLCPU || kind == kDLExtDev || kind == kDLHexagon;
     }();
     IntImm success(PrimType::Int(32), 0);
-    Type kernel_ret_type;
+    Type kernel_ret_type = Type::Missing();
     if (can_propagate_errors) {
       kernel_ret_type = PrimType::Int(32);
       body = SeqStmt::Flatten(body, Evaluate(ret(success)));
@@ -206,10 +206,11 @@ class HostDeviceSplitter : public StmtMutator {
       Call kernel_call(success.ty(), kernel_symbol_global, args);
       AssertStmt assert_success(kernel_error_code == success, StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
-      return SeqStmt({Bind(kernel_error_code, kernel_call), assert_success});
+      return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
+                                      assert_success});
 
     } else {
-      return Evaluate(Call(PrimType::Void(), kernel_symbol_global, args));
+      return Evaluate(Call(PrimType::Void(), kernel_symbol_global, args).as_or_throw<PrimExpr>());
     }
   }
 
@@ -511,7 +512,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto node = Parent::VisitExpr_(op).as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();
-    if (!gvar) return node;
+    if (!gvar) return node.as_or_throw<PrimExpr>();
 
     auto it = device_info_map_.find(gvar);
     TVM_FFI_ICHECK(it != device_info_map_.end())
@@ -555,7 +556,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       if (same_target) {
         // Calls within the same target may be handled at codegen time
         // as internal subroutine calls.
-        return node;
+        return node.as_or_throw<PrimExpr>();
       }
 
       bool same_device_type =
@@ -567,10 +568,11 @@ class DeviceKernelMutator : public StmtExprMutator {
         extern_function_call_.insert(gvar);
         ffi::Array<PrimExpr> args;
         args.push_back(StringImm(gvar->name_hint));
-        for (const auto& arg : node->args) {
+        for (const PrimExpr& arg : node->args.as_or_throw<ffi::Array<PrimExpr>>()) {
           args.push_back(arg);
         }
-        return Call(node.ty(), builtin::call_extern(), args);
+        return Call(node->ty.as_or_throw<PrimType>(), builtin::call_extern(), args)
+            .as_or_throw<PrimExpr>();
       }
     }
 
@@ -585,13 +587,14 @@ class DeviceKernelMutator : public StmtExprMutator {
     // caller's parameters.  The param_map allows substitution of
     // parameter values into the thread extents, to generate
     // expressions that are valid within the caller.
+    ffi::Array<PrimExpr> prim_args = node->args.as_or_throw<ffi::Array<PrimExpr>>();
     ffi::Map<Var, PrimExpr> param_map = [&]() {
       ffi::Map<Var, PrimExpr> param_map;
-      TVM_FFI_ICHECK_EQ(node->args.size(), dev_info.params.size())
+      TVM_FFI_ICHECK_EQ(prim_args.size(), dev_info.params.size())
           << "Function " << gvar->name_hint << " accepts " << dev_info.params.size()
-          << " arguments as input, but is called using " << node->args.size() << " arguments";
-      for (size_t i = 0; i < node->args.size(); i++) {
-        param_map.Set(dev_info.params[i], node->args[i]);
+          << " arguments as input, but is called using " << prim_args.size() << " arguments";
+      for (size_t i = 0; i < prim_args.size(); i++) {
+        param_map.Set(dev_info.params[i], prim_args[i]);
       }
       return param_map;
     }();
@@ -600,16 +603,17 @@ class DeviceKernelMutator : public StmtExprMutator {
 
     ffi::Array<PrimExpr> call_args;
     call_args.push_back(StringImm(dev_info.global_symbol));
-    for (PrimExpr arg : node->args) {
+    for (const PrimExpr& arg : prim_args) {
       call_args.push_back(arg);
     }
     for (const auto& launch_arg : dev_info.launch_args) {
       call_args.push_back(Substitute(launch_arg, param_map));
     }
 
-    PrimType ret_ty = node->ty().IsVoid() ? PrimType::Int(32) : node.ty();
+    PrimType node_ty = node->ty.as_or_throw<PrimType>();
+    PrimType ret_ty = node_ty.IsVoid() ? PrimType::Int(32) : node_ty;
 
-    return Call(ret_ty, builtin::tvm_call_packed(), call_args);
+    return Call(ret_ty, builtin::tvm_call_packed(), call_args).as_or_throw<PrimExpr>();
   }
 
   ffi::Optional<Target> current_target_;

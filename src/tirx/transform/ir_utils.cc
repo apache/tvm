@@ -163,8 +163,8 @@ class IRConvertSSA final : public StmtExprMutator {
 
       for (const auto& [key, old_value] : func->attrs->dict) {
         auto value = old_value;
-        if (auto* expr = value.as<PrimExprNode>()) {
-          value = VisitExpr(ffi::GetRef<PrimExpr>(expr));
+        if (auto expr = value.as<PrimExpr>()) {
+          value = VisitExpr(expr.value());
         } else if (auto* stmt = value.as<StmtNode>()) {
           value = VisitStmt(ffi::GetRef<Stmt>(stmt));
         }
@@ -456,7 +456,7 @@ class IRConvertSSA final : public StmtExprMutator {
         var = it->second;
       } else if (defined_.count(var.get())) {
         Var new_var = [&]() {
-          if (var->type_annotation.defined()) {
+          if (!var->type_annotation.IsMissing()) {
             return Var(var->name_hint, var->type_annotation);
           } else {
             return Var(var->name_hint, var.ty());
@@ -534,7 +534,7 @@ class IRConvertSSA final : public StmtExprMutator {
   /*! \brief Create a new variable with the same name and type as the original. */
   static Var MakeNewVar(const Var& old_var) {
     bool is_size_var = old_var->IsInstance<SizeVarNode>();
-    if (old_var->type_annotation.defined()) {
+    if (!old_var->type_annotation.IsMissing()) {
       if (is_size_var) {
         return SizeVar(old_var->name_hint, old_var->type_annotation);
       } else {
@@ -750,7 +750,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
         if (obj.same_as(e)) {
           return;
         } else if (const VarNode* var = obj.as<VarNode>()) {
-          PrimType var_ty = var->ty();
+          PrimType var_ty = var->ty.as_or_throw<PrimType>();
           if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
             cand_vars.push_back(ffi::GetRef<Var>(var));
           }
@@ -776,7 +776,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
     } else if (e->IsInstance<CallNode>()) {
       Call op = e.as_or_throw<Call>();
       if (op->op.same_as(builtin::likely())) {
-        fvisit(op->args[0]);
+        fvisit(op->args[0].as_or_throw<PrimExpr>());
       }
     }
   };
