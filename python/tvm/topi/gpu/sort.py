@@ -30,6 +30,9 @@ from ..utils import ceil_div, prod, swap
 
 
 def _get_threads(nthread_tx, nthread_bx, nthread_by):
+    # Swap blockIdx.x and blockIdx.y mappings.
+    # The batch dimension (nthread_by) can easily exceed the CUDA limit of 65535 for gridDim.y.
+    # By mapping nthread_by to blockIdx.x (limit ~2 billion), we prevent CUDA_ERROR_INVALID_VALUE on large inputs.
     tx = te.thread_axis("threadIdx.x")
     bx = te.thread_axis("blockIdx.y")
     by = te.thread_axis("blockIdx.x")
