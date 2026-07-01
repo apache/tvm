@@ -50,6 +50,17 @@ bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
 
 
+def collect_relax_call_ops(func):
+    call_ops = set()
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            call_ops.add(expr.op.name)
+
+    relax.analysis.post_order_visit(func.body, _visit)
+    return call_ops
+
+
 def generate_random_inputs(
     model: ModelProto, inputs: dict[str, np.ndarray] | None = None
 ) -> dict[str, np.ndarray]:
