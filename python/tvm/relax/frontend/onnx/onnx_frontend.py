@@ -2755,6 +2755,63 @@ class Pad(OnnxOpConverter):
             # edge mode - replicate border values
             return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
 
+    @classmethod
+    def _impl_v19(cls, bb, inputs, attr, params):
+        pads = get_constant(inputs[1], params)
+        constant_value = get_constant(inputs[2], params)
+        if constant_value is not None:
+            constant_value = constant_value.data.numpy().item()
+        else:
+            constant_value = 0.0
+
+        if isinstance(pads, relax.Constant):
+            pad_before, pad_after = _np.split(pads.data.numpy(), 2)
+            pad_before = _np.ndarray.tolist(pad_before)
+            pad_after = _np.ndarray.tolist(pad_after)
+        else:
+            raise ValueError("Dynamic pads are not supported yet.")
+
+        axes_input = inputs[3] if len(inputs) > 3 else None
+        if axes_input is not None:
+            axes_const = get_constant(axes_input, params)
+            if not isinstance(axes_const, relax.Constant):
+                raise ValueError("Dynamic axes are not supported for Pad yet.")
+
+            axes = axes_const.data.numpy().tolist()
+            if len(pad_before) != len(axes):
+                raise ValueError(
+                    f"Pad expects pads length 2 * len(axes), got "
+                    f"{len(pad_before) + len(pad_after)} pads and {len(axes)} axes."
+                )
+
+            rank = _get_known_tensor_rank(inputs[0])
+            if rank is None:
+                raise ValueError("Pad with axes requires a statically known input rank.")
+
+            axes = _normalize_constant_axes([int(a) for a in axes], rank, "Pad")
+            full_before = [0] * rank
+            full_after = [0] * rank
+            for i, ax in enumerate(axes):
+                full_before[ax] = pad_before[i]
+                full_after[ax] = pad_after[i]
+            pad_before, pad_after = full_before, full_after
+
+        pad_mode = attr.get("mode", b"constant").decode("utf-8")
+        if pad_mode not in ["constant", "edge", "reflect", "wrap"]:
+            raise tvm.error.OpAttributeInvalid(
+                "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
+            )
+
+        if pad_mode == "constant":
+            return bb.emit_te(topi.nn.pad, inputs[0], pad_before, pad_after, constant_value)
+        elif pad_mode == "reflect":
+            return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
+        elif pad_mode == "wrap":
+            return bb.emit_te(topi.nn.circular_pad, inputs[0], pad_before, pad_after)
+        else:
+            # edge mode - replicate border values
+            return bb.emit_te(topi.nn.replicate_pad, inputs[0], pad_before, pad_after)
+
 
 class Tile(OnnxOpConverter):
     """Converts an onnx Tile node into an equivalent Relax expression."""
