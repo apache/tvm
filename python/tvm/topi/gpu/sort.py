@@ -501,17 +501,19 @@ def _sort_common(
             nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
             nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
 
-        tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.z")  # nbx
+        by = te.thread_axis("blockIdx.y")  # batch
+        bz = te.thread_axis("blockIdx.x")  # nbz (largest extent)
         with T.frame_scope(
             [
                 T.attr(tx, "thread_extent", ntx),
                 T.attr(bx, "thread_extent", nbx),
-                T.attr(by, "thread_extent", nthread_by * nbz),
+                T.attr(by, "thread_extent", nthread_by),
+                T.attr(bz, "thread_extent", nbz),
             ]
         ):
-            by_val = by % nthread_by
-            bz = by // nthread_by
-            base_idx = by_val * size
+            base_idx = by * size
 
             # calculate the start, mid, and end points of this section
             start_pos = width * bz
