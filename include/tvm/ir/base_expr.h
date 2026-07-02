@@ -299,12 +299,11 @@ class ExprNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    // span and ty do not participate in structural equal and hash.
+    // span does not participate in structural equal and hash.
     refl::ObjectDef<ExprNode>()
         .def_ro("span", &ExprNode::span, refl::DefaultValue(Span()),
                 refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("ty", &ExprNode::ty, refl::DefaultValue(Type::Missing()),
-                refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("ty", &ExprNode::ty, refl::DefaultValue(Type::Missing()));
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

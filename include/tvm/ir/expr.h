@@ -276,6 +276,11 @@ class GlobalVarNode : public ExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
+    // A GlobalVar identifies a module-level symbol.  Its type is derived from the
+    // corresponding function definition and is not part of the symbol identity.
+    refl::TypeAttrDef<GlobalVarNode>()
+        .def("__s_equal__", &GlobalVarNode::SEqual)
+        .def("__s_hash__", &GlobalVarNode::SHash);
   }
 
   bool SEqual(const GlobalVarNode* other,

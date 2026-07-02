@@ -74,15 +74,21 @@ def test_prim_func_buffer_map():
         func1,
         func2,
         AccessPath.root()
-        .attr("buffer_map")
-        .map_item(func1.params[1])
+        .attr("ty")
+        .attr("params")
+        .array_item(1)
         .attr("shape")
+        .attr("ty")
+        .attr("values")
         .array_item(1)
         .attr("value"),
         AccessPath.root()
-        .attr("buffer_map")
-        .map_item(func2.params[1])
+        .attr("ty")
+        .attr("params")
+        .array_item(1)
         .attr("shape")
+        .attr("ty")
+        .attr("values")
         .array_item(1)
         .attr("value"),
     )

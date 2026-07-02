@@ -143,7 +143,7 @@ def test_assert_structural_equal_in_seqexpr():
 
     with pytest.raises(
         ValueError,
-        match=re.escape("<root>.body.blocks[0].bindings[0].value.op"),
+        match=re.escape("<root>.ty.ret.shape.ty.values[0].value"),
     ):
         assert_structural_equal(func_1, func_2)
 

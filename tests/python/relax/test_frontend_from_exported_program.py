@@ -6227,9 +6227,9 @@ def test_hamming_window():
             with R.dataflow():
                 lv: R.Tensor((20,), dtype="float32") = R.hamming_window(
                     R.prim_value(20),
-                    R.prim_value(1),
-                    R.prim_value(T.float32(0.54000000000000004)),
-                    R.prim_value(T.float32(0.46000000000000002)),
+                    R.prim_value(True),
+                    R.prim_value(T.float64(0.54000000000000004)),
+                    R.prim_value(T.float64(0.46000000000000002)),
                     dtype="float32",
                 )
                 gv: R.Tuple(R.Tensor((20,), dtype="float32")) = (lv,)

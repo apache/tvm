@@ -36,6 +36,11 @@ def _check_equal(x, y, map_free_vars=False):
     assert xhash == yhash
 
 
+def _check_not_equal(x, y, map_free_vars=False):
+    assert not tvm_ffi.structural_equal(x, y, map_free_vars)
+    assert tvm_ffi.structural_hash(x, map_free_vars) != tvm_ffi.structural_hash(y, map_free_vars)
+
+
 def _check_json_roundtrip(x):
     xret = tvm.ir.load_json(tvm.ir.save_json(x))
     _check_equal(x, xret, map_free_vars=True)
@@ -331,6 +336,48 @@ def test_call():
     assert call.op.same_as(func)
     assert len(call.args) == 1
     assert call.args[0].same_as(arg)
+
+
+def test_expr_structural_identity_includes_type_but_not_span():
+    span_a = tvm.ir.Span(tvm.ir.SourceName("a.py"), 1, 1, 0, 1)
+    span_b = tvm.ir.Span(tvm.ir.SourceName("b.py"), 2, 2, 0, 1)
+
+    int32_a = tirx.IntImm("int32", 1, span_a)
+    int32_b = tirx.IntImm("int32", 1, span_b)
+    int64 = tirx.IntImm("int64", 1)
+    _check_equal(int32_a, int32_b)
+    _check_not_equal(int32_a, int64)
+
+    string_a = rx.StringImm("value", span_a)
+    string_b = rx.StringImm("value", span_b)
+    _check_equal(string_a, string_b)
+    _check_not_equal(string_a, rx.StringImm("other"))
+
+    op = rx.Var("op", rx.FuncType([], tvm.ir.PrimType("int32")))
+    missing = tvm.ir.Call(op, [], span=span_a)
+    known_a = tvm.ir.Call(op, [], ret_ty="int32", span=span_a)
+    known_b = tvm.ir.Call(op, [], ret_ty="int32", span=span_b)
+    different = tvm.ir.Call(op, [], ret_ty="int64")
+    _check_equal(known_a, known_b)
+    _check_not_equal(missing, known_a)
+    _check_not_equal(known_a, different)
+
+
+def test_variable_structural_identity_includes_exact_type():
+    span_a = tvm.ir.Span(tvm.ir.SourceName("a.py"), 1, 1, 0, 1)
+    span_b = tvm.ir.Span(tvm.ir.SourceName("b.py"), 2, 2, 0, 1)
+
+    tirx_int32_a = tirx.Var("v", "int32", span_a)
+    tirx_int32_b = tirx.Var("v", "int32", span_b)
+    tirx_int64 = tirx.Var("v", "int64")
+    _check_equal(tirx_int32_a, tirx_int32_b, map_free_vars=True)
+    _check_not_equal(tirx_int32_a, tirx_int64, map_free_vars=True)
+
+    relax_var = rx.Var("v", tvm.ir.PrimType("int32"), span_a)
+    relax_same = rx.Var(relax_var.vid, tvm.ir.PrimType("int32"), span_b)
+    relax_different = rx.Var(relax_var.vid, tvm.ir.PrimType("int64"))
+    _check_equal(relax_var, relax_same)
+    _check_not_equal(relax_var, relax_different)
 
 
 def test_call_accepts_core_expr_operator():
