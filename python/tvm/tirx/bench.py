@@ -16,12 +16,20 @@
 # under the License.
 
 import argparse
+import gc
+import inspect
+import json
+import math
 import os
 import re
+import statistics
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 from collections.abc import Mapping
+from contextlib import contextmanager
 from enum import Enum
 
 import numpy as np
@@ -425,7 +433,7 @@ def filter_impls(funcs):
     return funcs
 
 
-def bench(
+def bench_tk(
     funcs,
     input_factory=None,
     warmup=500,
@@ -444,11 +452,15 @@ def bench(
 ):
     """Benchmark implementations with a factory-owned input footprint.
 
-    This is the single TIRx benchmark API.  It follows the ThunderKittens-style
-    multi-input protocol for L2 eviction and supports either Proton/CUPTI or
-    CUDA-event timing.  The benchmark driver never infers which tensors belong
-    to a workload; ``input_factory`` owns that definition by returning
-    ``(case, input_bytes)``.
+    This is the ThunderKittens-style TIRx benchmark API.  It follows the
+    multi-input protocol for L2 eviction (adapted from ThunderKittens,
+    https://github.com/HazyResearch/ThunderKittens) and supports either
+    Proton/CUPTI or CUDA-event timing.  The benchmark driver never infers which
+    tensors belong to a workload; ``input_factory`` owns that definition by
+    returning ``(case, input_bytes)``.
+
+    For the Triton-standard, pure-launch benchmark path (``do_bench`` /
+    ``do_bench_cudagraph`` semantics, no group protocol), use ``bench`` instead.
 
     Parameters
     ----------
@@ -613,8 +625,6 @@ def bench(
     if not round_samples:
         aggregated = {}
     else:
-        import statistics
-
         aggregated = {impl: statistics.mean(samples) for impl, samples in round_samples.items()}
 
     return {
@@ -631,6 +641,553 @@ def bench(
             "round_cooldown_s": round_cooldown_s,
             "order": list(funcs.keys()),
         },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Triton-standard benchmark path.
+#
+# Faithful in-repo port of triton.testing.do_bench / do_bench_cudagraph
+# (see https://github.com/triton-lang/triton, python/triton/testing.py). This is
+# torch-only and does NOT import or call into triton at runtime: Triton driver
+# calls (get_device_interface / get_empty_cache_for_benchmark / clear_cache) are
+# replaced with direct torch.cuda + a torch L2-flush buffer. The timed function
+# is a *pure no-arg launch closure* (inputs captured once, allocated outside the
+# timed region) -- exactly how Triton times a function.
+# ---------------------------------------------------------------------------
+
+
+def _quantile(a, q):
+    # pure-Python np.quantile / torch.quantile (port of triton.testing._quantile)
+    n = len(a)
+    a = sorted(a)
+
+    def get_quantile(qi):
+        if not (0 <= qi <= 1):
+            raise ValueError("Quantiles must be in the range [0, 1]")
+        point = qi * (n - 1)
+        lower = math.floor(point)
+        upper = math.ceil(point)
+        t = point - lower
+        return (1 - t) * a[lower] + t * a[upper]
+
+    return [get_quantile(qi) for qi in q]
+
+
+def _summarize_statistics(times, quantiles, return_mode):
+    # port of triton.testing._summarize_statistics
+    if quantiles is not None:
+        ret = _quantile(times, quantiles)
+        if len(ret) == 1:
+            ret = ret[0]
+        return ret
+    if return_mode == "all":
+        return times
+    elif return_mode == "min":
+        return min(times)
+    elif return_mode == "max":
+        return max(times)
+    elif return_mode == "mean":
+        return statistics.mean(times)
+    elif return_mode == "median":
+        return statistics.median(times)
+
+
+@contextmanager
+def _cuda_graph_without_gc(*args, **kwargs):
+    # port of triton.testing.cuda_graph_without_gc. A loaded kernel may be
+    # finalized by Python's cyclic GC; its destructor unloads the CUDA module,
+    # which is illegal during CUDA stream capture and invalidates the graph.
+    # Keep GC disabled only for the capture window and restore afterwards.
+    gc_was_enabled = gc.isenabled()
+    if gc_was_enabled:
+        gc.disable()
+    try:
+        with torch.cuda.graph(*args, **kwargs) as graph:
+            yield graph
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+
+def _empty_cache_for_benchmark():
+    # torch equivalent of triton's driver.get_empty_cache_for_benchmark(): a
+    # 256 MB buffer whose .zero_() evicts the L2 cache between measured iters.
+    return torch.empty(int(256e6 // 4), dtype=torch.int, device="cuda")
+
+
+def _do_bench_event(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, return_mode="mean"):
+    """Faithful port of triton.testing.do_bench (CUDA-event timing, per-iter L2 flush).
+
+    ``warmup`` and ``rep`` are millisecond time budgets, not iteration counts.
+    Returns the runtime in milliseconds (mean by default).
+    """
+    assert return_mode in ["min", "max", "mean", "median", "all"]
+
+    fn()
+    torch.cuda.synchronize()
+
+    cache = _empty_cache_for_benchmark()
+
+    # Estimate the runtime of the function.
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+    start_event.record()
+    for _ in range(5):
+        cache.zero_()
+        fn()
+    end_event.record()
+    torch.cuda.synchronize()
+    estimate_ms = start_event.elapsed_time(end_event) / 5
+
+    # Compute number of warmup and repeat iterations from the ms budgets.
+    if estimate_ms == 0:
+        n_warmup = 1000
+        n_repeat = 1000
+    else:
+        n_warmup = max(1, int(warmup / estimate_ms))
+        n_repeat = max(1, int(rep / estimate_ms))
+    start_event = [torch.cuda.Event(enable_timing=True) for _ in range(n_repeat)]
+    end_event = [torch.cuda.Event(enable_timing=True) for _ in range(n_repeat)]
+    # Warm-up.
+    for _ in range(n_warmup):
+        fn()
+    # Benchmark.
+    for i in range(n_repeat):
+        if grad_to_none is not None:
+            for x in grad_to_none:
+                x.grad = None
+        # Clear the L2 cache before each run.
+        cache.zero_()
+        start_event[i].record()
+        fn()
+        end_event[i].record()
+    torch.cuda.synchronize()
+    times = [s.elapsed_time(e) for s, e in zip(start_event, end_event)]
+    return _summarize_statistics(times, quantiles, return_mode)
+
+
+def _collect_proton_scope_times(database, prefix):
+    """Port of triton.testing._collect_proton_scope_times.
+
+    Walk the Proton hatchet JSON tree and, for each scope whose frame name starts
+    with ``prefix``, sum the GPU ``time (ns)`` of all its leaf kernels. Returns the
+    per-scope times (ms), sorted by scope name.
+    """
+    scope_times = []
+
+    def kernel_time_ms(node):
+        children = node.get("children", [])
+        if len(children) == 0:
+            return node.get("metrics", {}).get("time (ns)", 0) / 1e6
+        return sum(kernel_time_ms(child) for child in children)
+
+    def visit(node):
+        name = node.get("frame", {}).get("name", "")
+        if name.startswith(prefix):
+            time_ms = kernel_time_ms(node)
+            if time_ms > 0:
+                scope_times.append((name, time_ms))
+            return
+        for child in node.get("children", []):
+            visit(child)
+
+    for node in database:
+        # The hatchet top-level list may carry a device_info dict (no "frame"/
+        # "children"); the name-prefix walk simply ignores it.
+        if isinstance(node, dict):
+            visit(node)
+    return [t for _, t in sorted(scope_times)]
+
+
+def _do_bench_proton(fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, return_mode="mean"):
+    """Port of triton.testing.do_bench_proton, aligned with ``_do_bench_event``.
+
+    IDENTICAL to ``_do_bench_event`` in everything -- warmup/rep millisecond budgets,
+    the 5-call estimate, per-iter L2 flush, the untimed warmup loop -- EXCEPT the
+    timing mechanism: each timed call runs inside a Proton scope and the per-kernel
+    GPU time (read from the hatchet tree) is used instead of the CUDA-event wall.
+    Cold cache. NVIDIA + Proton only. No CUDA graph (so it works for references that
+    can't be graph-captured, e.g. CuTeDSL flash-attention).
+
+    Falls back to ``_do_bench_event`` under pytest or when a Proton session cannot be
+    created.
+    """
+    assert return_mode in ["min", "max", "mean", "median", "all"]
+
+    if is_running_under_pytest():
+        return _do_bench_event(
+            fn,
+            warmup=warmup,
+            rep=rep,
+            grad_to_none=grad_to_none,
+            quantiles=quantiles,
+            return_mode=return_mode,
+        )
+
+    fn()
+    torch.cuda.synchronize()
+
+    cache = _empty_cache_for_benchmark()
+
+    # Estimate the runtime of the function (identical to _do_bench_event).
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+    start_event.record()
+    for _ in range(5):
+        cache.zero_()
+        fn()
+    end_event.record()
+    torch.cuda.synchronize()
+    estimate_ms = start_event.elapsed_time(end_event) / 5
+
+    if estimate_ms == 0:
+        n_warmup = 1000
+        n_repeat = 1000
+    else:
+        n_warmup = max(1, int(warmup / estimate_ms))
+        n_repeat = max(1, int(rep / estimate_ms))
+
+    # Warm-up (untimed), same as _do_bench_event.
+    for _ in range(n_warmup):
+        fn()
+    torch.cuda.synchronize()
+
+    with tempfile.TemporaryDirectory(prefix=f"tirx-proton-{uuid.uuid4().hex}-") as tmpdir:
+        profile_path = os.path.join(tmpdir, "profile")
+        session = proton.start(profile_path, context="shadow", data="tree")
+        if session is None:
+            print(
+                "proton: Proton session unavailable; falling back to event timing", file=sys.stderr
+            )
+            return _do_bench_event(
+                fn,
+                warmup=warmup,
+                rep=rep,
+                grad_to_none=grad_to_none,
+                quantiles=quantiles,
+                return_mode=return_mode,
+            )
+        scope_prefix = f"proton.{uuid.uuid4().hex}."
+        # finalize() MUST run even if fn() raises mid-loop; otherwise the global
+        # Proton profiler stays active and the next session in this process starts
+        # dirty (corrupted attribution). Mirrors triton.testing._proton_bench_session
+        # (finalize in a finally), adapted to read the .hatchet finalize writes.
+        try:
+            for i in range(n_repeat):
+                if grad_to_none is not None:
+                    for x in grad_to_none:
+                        x.grad = None
+                # Flush L2 OUTSIDE the scope so it is excluded from the measured time
+                # -- identical cold-cache behavior to _do_bench_event.
+                cache.zero_()
+                with proton.scope(f"{scope_prefix}{i:08d}"):
+                    fn()
+            torch.cuda.synchronize()
+        finally:
+            proton.finalize(session)
+        with open(profile_path + ".hatchet") as f:
+            database = json.load(f)
+        times = _collect_proton_scope_times(database, scope_prefix)
+
+    if not times:
+        raise RuntimeError(
+            "proton: Proton attributed no kernel time to the captured scopes. "
+            "Use timer='event' instead."
+        )
+    return _summarize_statistics(times, quantiles, return_mode)
+
+
+def _do_bench_cudagraph_proton(fn, rep=20, grad_to_none=None, quantiles=None, return_mode="mean"):
+    """Faithful port of triton.testing.do_bench_cudagraph_proton.
+
+    CUDA-graph replay (kills per-launch CPU overhead) + Proton per-kernel GPU time
+    + per-iter L2 flush. Best accuracy for short / multi-kernel workloads. NVIDIA
+    only (Proton cannot reliably attribute graph-replay launches to scopes on HIP).
+    ``rep`` (ms) sets the graph unroll count (``n_repeat = rep / estimate_ms``); the
+    measurement is 10 graph replays. Triton's default is ``rep=20``. Returns ms.
+
+    Adapted to the installed proton (3.6.0): there is no ``proton.data.get`` /
+    ``deactivate(flushing=True)`` here, so we read the ``.hatchet`` JSON that
+    ``finalize`` writes (the same tree the in-memory getter would return).
+
+    Falls back to ``_do_bench_event`` (cold-cache CUDA-event timing) under pytest or
+    when a Proton session cannot be created -- staying on a cold-cache timer keeps it
+    consistent with the rest of the baseline.
+    """
+    assert return_mode in ["min", "max", "mean", "median", "all"]
+
+    if is_running_under_pytest():
+        return _do_bench_event(
+            fn, grad_to_none=grad_to_none, quantiles=quantiles, return_mode=return_mode
+        )
+
+    with torch.cuda.stream(torch.cuda.Stream()):
+        # warmup
+        fn()
+        if grad_to_none is not None:
+            for x in grad_to_none:
+                x.detach_()
+                x.requires_grad_(True)
+                x.grad = None
+        # estimate single-call time
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        start_event.record()
+        for _ in range(5):
+            fn()
+        end_event.record()
+        torch.cuda.synchronize()
+        estimate_ms = start_event.elapsed_time(end_event) / 5
+        n_repeat = 1000 if estimate_ms == 0 else max(1, int(rep / estimate_ms))
+
+        with tempfile.TemporaryDirectory(prefix=f"tirx-cgproton-{uuid.uuid4().hex}-") as tmpdir:
+            profile_path = os.path.join(tmpdir, "profile")
+            # shadow/CUPTI captures kernel GPU activity itself; the triton launch
+            # hook only adds flops/bytes metadata, so it is omitted here.
+            session = proton.start(profile_path, context="shadow", data="tree")
+            if session is None:
+                print(
+                    "cudagraph_proton: Proton session unavailable; falling back to event timing",
+                    file=sys.stderr,
+                )
+                return _do_bench_event(
+                    fn, grad_to_none=grad_to_none, quantiles=quantiles, return_mode=return_mode
+                )
+
+            cache = _empty_cache_for_benchmark()
+            scope_prefix = f"proton.{uuid.uuid4().hex}."
+            g = torch.cuda.CUDAGraph()
+            n_retries = 10
+            # finalize() MUST run even if capture/replay raises, or the global Proton
+            # profiler stays active and poisons the next session (see _do_bench_proton).
+            try:
+                with _cuda_graph_without_gc(g):
+                    for i in range(n_repeat):
+                        if grad_to_none is not None:
+                            for x in grad_to_none:
+                                x.grad = None
+                        # Flush L2 OUTSIDE the scope so it is excluded from the timed span.
+                        cache.zero_()
+                        with proton.scope(f"{scope_prefix}{i:08d}"):
+                            fn()
+                torch.cuda.synchronize()
+                for _ in range(n_retries):
+                    g.replay()
+                torch.cuda.synchronize()
+            finally:
+                # finalize flushes the replay data and writes <profile>.hatchet.
+                proton.finalize(session)
+            with open(profile_path + ".hatchet") as f:
+                database = json.load(f)
+            times = [t / n_retries for t in _collect_proton_scope_times(database, scope_prefix)]
+
+    if not times:
+        raise RuntimeError(
+            "cudagraph_proton: Proton attributed no kernel time to the captured scopes "
+            "(CUDA-graph replay scope attribution may be unsupported in this "
+            "environment). Use timer='event' or 'proton' instead."
+        )
+    return _summarize_statistics(times, quantiles, return_mode)
+
+
+def bench(
+    funcs,
+    *,
+    warmup=None,
+    repeat=None,
+    cudagraph_rep=None,
+    timer=None,
+    references=None,
+    rounds=1,
+    round_cooldown_s=1.0,
+):
+    """Benchmark pure-launch implementations using Triton-standard timing.
+
+    Each callable in ``funcs`` is a *no-arg launch closure* (inputs allocated
+    once and captured in the closure), timed exactly the way
+    ``triton.testing.do_bench`` / ``do_bench_cudagraph_proton`` time a function. The
+    timing core is a faithful in-repo port (torch-only, no triton dependency);
+    see ``_do_bench_event`` / ``_do_bench_cudagraph_proton``.
+
+    For the ThunderKittens-style multi-input group protocol (``input_factory``,
+    per-workload L2 eviction, Proton per-kernel attribution), use ``bench_tk``.
+
+    Parameters
+    ----------
+    funcs : dict[str, callable]
+        Map of implementation name to a no-arg callable that launches our
+        kernel.  This should hold only *our* kernel(s); external baselines go in
+        ``references``.
+    references : dict[str, callable], optional
+        Map of reference-impl name to a no-arg *builder* that does the heavy
+        import/setup and returns the no-arg run callable.  Builders run lazily
+        and only when that impl will actually be benched (skipped entirely under
+        ``--impls ours``); a builder that raises is recorded as a
+        ``BASELINE_ERROR`` instead of failing the workload.
+    warmup : int, optional
+        Warmup time budget (ms) for the ``event`` timer. ``None`` (default) defers
+        to ``_do_bench_event``'s own default; pass a value only to override. Ignored
+        by the graph timers (which have no warmup).
+    repeat : int, optional
+        Rep time budget (ms) for the ``event`` timer. ``None`` (default) defers to
+        ``_do_bench_event``'s own default; pass a value only to override.
+    cudagraph_rep : int, optional
+        ``rep`` (ms) for the graph timers (graph unroll length). ``None`` (default)
+        defers to ``_do_bench_cudagraph_proton``'s own default. Each timer default
+        lives only in its own signature (Triton: do_bench 25/100, graph 20); nothing
+        is hardcoded here.
+    timer : {None, "event", "proton", "cudagraph_proton"}
+        ``None`` (default) resolves to ``proton`` -- see the resolution in the body;
+        the default is defined in exactly one place so kernels pass ``None`` to inherit.
+        All three are **cold-cache** (per-iter L2 flush) so results are comparable.
+        ``event`` -> ported ``do_bench`` (CUDA-event wall of each call).
+        ``proton`` -> ported ``do_bench_proton``: same setup as ``event``, differs
+        ONLY in timing -- Proton per-kernel GPU time instead of the event wall (so
+        launch/host overhead of the ref is excluded). No graph, so it works for
+        references that can't be CUDA-graph-captured (e.g. CuTeDSL flash-attention).
+        NVIDIA + Proton only.
+        ``cudagraph_proton`` -> ``do_bench_cudagraph_proton`` (graph replay + Proton +
+        L2 flush); like ``proton`` but also removes launch overhead via graph replay --
+        best for tiny back-to-back kernels, but the graph capture fails/misattributes
+        for some references (CuTeDSL) so it is not universal.
+        Prefer ``proton`` when the reference has heavy host dispatch (flashinfer,
+        CuTeDSL) -- ``event`` would over/under-credit us by measuring the wall, not the
+        kernel. (Plain no-flush ``do_bench_cudagraph`` is intentionally NOT offered.)
+    rounds : int
+        Independent measurement rounds; per-impl times are averaged across
+        rounds. (Triton times a single fn with no rounds; this is our sampling
+        layer on top.)
+    round_cooldown_s : float
+        Seconds to sleep between rounds (ignored when ``rounds == 1``).
+
+    Returns
+    -------
+    dict
+        ``{"impls": {name: us}, "round_samples": {name: [us, ...]}, ...}``.
+        Times are stored in microseconds (same unit as ``bench_tk`` and the
+        pinned tir-bench baselines).
+    """
+    # warmup/repeat/cudagraph_rep default to None = "use the timer function's own
+    # (Triton-aligned) default". They are only forwarded to the timer below when a
+    # caller explicitly overrides, so the defaults live in exactly one place: the
+    # _do_bench_* signatures.
+    if repeat is not None and repeat <= 0:
+        raise ValueError("repeat must be positive")
+    if warmup is not None and warmup < 0:
+        raise ValueError("warmup must be non-negative")
+    if rounds < 1:
+        raise ValueError("rounds must be >= 1")
+    if round_cooldown_s < 0:
+        raise ValueError("round_cooldown_s must be non-negative")
+    # ``timer=None`` means "use the default timer". The default lives in exactly one
+    # place -- here -- so kernels forward ``timer=None`` to inherit it and a future
+    # change is a one-line edit. proton = pure per-kernel GPU time; it is honest for
+    # references with heavy host dispatch (flashinfer, CuTeDSL) where the ``event``
+    # wall would over/under-credit us, and matches event within a few % on
+    # compute-bound kernels. It auto-falls back to ``event`` when Proton/CUPTI is
+    # unavailable (non-NVIDIA, or under pytest).
+    if timer is None:
+        timer = "proton"
+    if timer not in {"event", "proton", "cudagraph_proton"}:
+        raise ValueError(
+            f"unsupported timer {timer!r}; expected event, proton, or cudagraph_proton"
+        )
+    if not isinstance(funcs, Mapping) or not funcs:
+        raise TypeError("funcs must be a non-empty mapping of name to no-arg callable")
+    for name, func in funcs.items():
+        if not isinstance(name, str):
+            raise TypeError("func names must be strings")
+        if not callable(func):
+            raise TypeError(f"funcs[{name!r}] must be callable")
+
+    # Select impls for this run. ``funcs`` holds our own kernel(s); external
+    # baselines are passed as ``references`` (name -> no-arg builder). A builder
+    # is invoked here ONLY when its impl will actually be benched, so --impls
+    # ours skips all reference setup, --impls baseline skips ours, and a builder
+    # that fails is recorded as a BASELINE_ERROR rather than failing the workload.
+    funcs = filter_impls(funcs)
+    build_errors: dict[str, str] = {}
+    if bench_impls_mode() != "ours":
+        for ref_name, builder in (references or {}).items():
+            if not isinstance(ref_name, str) or not callable(builder):
+                raise TypeError("references must map a name to a no-arg builder callable")
+            try:
+                ref_fn = builder()
+            except Exception as e:
+                build_errors[ref_name] = str(e)
+                print(f"BASELINE_ERROR: {ref_name}: {e}", file=sys.stderr)
+                continue
+            if ref_fn is None:
+                continue
+            if not callable(ref_fn):
+                raise TypeError(f"references[{ref_name!r}] builder must return a callable")
+            funcs = {**funcs, ref_name: ref_fn}
+
+    # Resolve the timer function once. Only forward warmup/repeat/cudagraph_rep when a
+    # caller explicitly overrode them; otherwise the _do_bench_* signature default
+    # applies, so each default lives in exactly ONE place (its timer signature). The
+    # effective value is read back via inspect, so the recorded protocol tracks that
+    # default automatically even if it later changes -- no value is duplicated here.
+    def _sig_default(fn, param):
+        return inspect.signature(fn).parameters[param].default
+
+    if timer in ("event", "proton"):
+        # event and proton share the exact same warmup/rep setup; they differ only in
+        # how the timed calls are measured (CUDA-event wall vs Proton per-kernel time).
+        _timer_fn = _do_bench_event if timer == "event" else _do_bench_proton
+        _timer_kwargs = {}
+        if warmup is not None:
+            _timer_kwargs["warmup"] = warmup
+        if repeat is not None:
+            _timer_kwargs["rep"] = repeat
+        _eff = {
+            "warmup": _timer_kwargs.get("warmup", _sig_default(_timer_fn, "warmup")),
+            "repeat": _timer_kwargs.get("rep", _sig_default(_timer_fn, "rep")),
+        }
+    else:  # cudagraph_proton -- no warmup; rep is the graph unroll budget
+        _timer_fn = _do_bench_cudagraph_proton
+        _timer_kwargs = {}
+        if cudagraph_rep is not None:
+            _timer_kwargs["rep"] = cudagraph_rep
+        _eff = {"cudagraph_rep": _timer_kwargs.get("rep", _sig_default(_timer_fn, "rep"))}
+
+    protocol = {
+        **_eff,
+        "rounds": rounds,
+        "round_cooldown_s": round_cooldown_s,
+        "order": list(funcs.keys()),
+    }
+
+    if not funcs:
+        # Nothing to bench in this mode (e.g. 'ours' on a kernel with no tir
+        # impl, or 'baseline' with no references). Return an empty-but-valid
+        # result so the workload is a no-op.
+        return {
+            "impls": {},
+            "round_samples": {},
+            "errors": build_errors,
+            "timer": timer,
+            "benchmark_protocol": protocol,
+        }
+
+    round_samples: dict[str, list[float]] = {}
+    for round_idx in range(rounds):
+        if round_idx > 0:
+            time.sleep(round_cooldown_s)
+        for name, func in funcs.items():
+            ms = _timer_fn(func, **_timer_kwargs)
+            # ms -> microseconds (matches bench_tk unit and pinned baselines).
+            round_samples.setdefault(name, []).append(ms * 1000.0)
+
+    aggregated = {impl: statistics.mean(samples) for impl, samples in round_samples.items()}
+
+    return {
+        "impls": aggregated,
+        "round_samples": round_samples,
+        "errors": build_errors,
+        "timer": timer,
+        "benchmark_protocol": protocol,
     }
 
 
