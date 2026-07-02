@@ -65,7 +65,33 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
     if (!lhs.defined() && rhs.defined()) return false;
     if (!rhs.defined() && lhs.defined()) return false;
     if (lhs->type_index() != rhs->type_index()) return false;
+    // Arithmetic analyzers use private PrimExpr subclasses that are not part
+    // of the TIR expression functor's dispatch table.
+    if (lhs->GetTypeKey().rfind("arith.", 0) == 0) {
+      return ffi::StructuralEqual()(lhs, rhs);
+    }
     return ExprFunctor::VisitExpr(lhs, rhs);
+  }
+
+  bool VisitExpr(const Expr& lhs, const Expr& rhs) {
+    if (lhs.same_as(rhs)) return true;
+    if (!lhs.defined() || !rhs.defined()) return false;
+    if (lhs->type_index() != rhs->type_index()) return false;
+    if (auto lhs_prim = lhs.as<PrimExpr>()) {
+      auto rhs_prim = rhs.as<PrimExpr>();
+      return rhs_prim && VisitExpr(lhs_prim.value(), rhs_prim.value());
+    }
+    if (lhs.as<VarNode>()) {
+      return false;
+    }
+    if (auto* lhs_call = lhs.as<CallNode>()) {
+      auto* rhs_call = rhs.as<CallNode>();
+      return ffi::StructuralEqual()(lhs_call->ty, rhs_call->ty) &&
+             lhs_call->op.same_as(rhs_call->op) &&
+             ArrayDeepEqual(lhs_call->args, rhs_call->args) &&
+             ffi::StructuralEqual()(lhs_call->attrs, rhs_call->attrs);
+    }
+    return false;
   }
 
  private:
@@ -80,7 +106,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
   bool ArrayDeepEqual(const ffi::Array<Expr>& lhs, const ffi::Array<Expr>& rhs) {
     if (lhs.size() != rhs.size()) return false;
     for (size_t i = 0; i < lhs.size(); i++) {
-      if (!VisitExpr(lhs[i].as_or_throw<PrimExpr>(), rhs[i].as_or_throw<PrimExpr>())) return false;
+      if (!VisitExpr(lhs[i], rhs[i])) return false;
     }
     return true;
   }

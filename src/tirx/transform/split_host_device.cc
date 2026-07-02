@@ -141,7 +141,7 @@ class HostDeviceSplitter : public StmtMutator {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
             return std::tuple{
-                !var->ty.as_or_throw<PrimType>().IsHandle(),
+                !var.ty().IsHandle(),
                 var->name_hint,
             };
           };

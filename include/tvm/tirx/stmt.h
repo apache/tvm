@@ -337,7 +337,7 @@ class SeqStmtNode : public StmtNode {
 class EvaluateNode : public StmtNode {
  public:
   /*! \brief The expression to be evaluated. */
-  PrimExpr value;
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -352,7 +352,7 @@ class EvaluateNode : public StmtNode {
  */
 class Evaluate : public Stmt {
  public:
-  TVM_DLL explicit Evaluate(PrimExpr value, Span span = Span());
+  TVM_DLL explicit Evaluate(Expr value, Span span = Span());
 
   explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
 

@@ -174,7 +174,8 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
       Stmt new_stmt = VisitStmt(stmt);
       // Dropped statements are represented as Evaluate(0).
       if (const auto* eval = new_stmt.as<EvaluateNode>()) {
-        if (is_zero(eval->value)) {
+        auto value = eval->value.as<PrimExpr>();
+        if (value && is_zero(value.value())) {
           changed = true;
           continue;
         }

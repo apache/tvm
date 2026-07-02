@@ -128,7 +128,7 @@ class VarTouchedAnalysis : public StmtVisitor {
   // external function call
   void VisitStmt_(const EvaluateNode* op) final {
     ExprTouched tc(touched_var_, true);
-    tc(op->value);
+    tc.VisitExpr(op->value);
     for (const VarNode* var : tc.write_vars_) {
       Record(var, tc);
     }

@@ -38,7 +38,7 @@
 namespace tvm {
 namespace tirx {
 
-using VarMap = std::unordered_map<Var, PrimExpr>;
+using VarMap = std::unordered_map<Var, Expr>;
 
 /**************** Helper functions ****************/
 
@@ -182,12 +182,21 @@ class PrimFuncSpecializer : public StmtExprMutator {
   // Override VisitBufferUse to use our own buffer_map_ instead of base class field visiting.
   Buffer VisitBufferUse(const Buffer& buffer) final { return GetNewBuffer(buffer); }
 
+  using StmtExprMutator::VisitExpr;
+  Expr VisitExpr(const Expr& expr) final {
+    if (auto var = expr.as<Var>()) {
+      auto it = var_map_.find(var.value());
+      if (it != var_map_.end()) return it->second;
+    }
+    return StmtExprMutator::VisitExpr(expr);
+  }
+
   PrimExpr VisitExpr_(const VarNode* op) final {
     auto it = var_map_.find(ffi::GetRef<Var>(op));
     if (it == var_map_.end()) {
       return ffi::GetRef<Var>(op);
     } else {
-      return it->second;
+      return it->second.as_or_throw<PrimExpr>();
     }
   }
 
@@ -351,15 +360,22 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   const Buffer& buf_to_specialize = (*it).second;
 
   // build var mapping using specific_buf's parameters
-  auto build_var_mapping = [&](const PrimExpr& new_expr, const PrimExpr& old_expr) {
-    if (!equal(new_expr, old_expr)) {
+  auto build_var_mapping = [&](const Expr& new_expr, const Expr& old_expr) {
+    auto expr_equal = [&](const Expr& lhs, const Expr& rhs) {
+      if (auto lhs_prim = lhs.as<PrimExpr>()) {
+        auto rhs_prim = rhs.as<PrimExpr>();
+        return rhs_prim && equal(lhs_prim.value(), rhs_prim.value());
+      }
+      return lhs.same_as(rhs);
+    };
+    if (!expr_equal(new_expr, old_expr)) {
       TVM_FFI_CHECK(old_expr->IsInstance<VarNode>(), TypeError)
           << "The signature of target buffer exprected an independent Var, but got " << old_expr
           << ".";
       const Var& var = old_expr.as_or_throw<Var>();
       auto it = var_map->find(var);
       if (it != var_map->end()) {
-        TVM_FFI_CHECK(equal(it->second, new_expr), ValueError)
+        TVM_FFI_CHECK(expr_equal(it->second, new_expr), ValueError)
             << "The assigned value of var " << var << " mismatched. " << it->second << " vs. "
             << new_expr << ".";
       } else {

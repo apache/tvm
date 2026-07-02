@@ -574,8 +574,7 @@ PrimExpr Buffer::access_ptr(int access_mask, PrimType ptr_type, int content_lane
   if (input_extent.defined()) {
     extent = input_extent.value();
   }
-  ffi::Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
-                                IntImm::Int32(access_mask)};
+  ffi::Array<Expr> acc_args{e_dtype, self->data, elem_offset, extent, IntImm::Int32(access_mask)};
   return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args).as_or_throw<PrimExpr>();
 }
 

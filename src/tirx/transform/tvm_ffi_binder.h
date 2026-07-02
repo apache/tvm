@@ -88,7 +88,7 @@ class TVMFFIABIBuilder {
   /*! \brief Variable definition info: bound value and the ffi::reflection::AccessPath where first
    * defined. */
   struct VarDefInfo {
-    PrimExpr value;
+    Expr value;
     ffi::reflection::AccessPath first_def_path;
   };
 
@@ -243,6 +243,10 @@ class TVMFFIABIBuilder {
    */
   bool BindScalar(const PrimExpr& arg, const PrimExpr& value,
                   const ffi::reflection::AccessPath& path, bool with_lets);
+
+  /*! \brief Bind an exact pointer-typed variable to a pointer-valued expression. */
+  bool BindPointer(const Var& arg, const Expr& value,
+                   const ffi::reflection::AccessPath& path, bool with_lets);
 
   /*!
    * \brief Array bind: binds element-wise with ffi::reflection::AccessPath[k] for each element.

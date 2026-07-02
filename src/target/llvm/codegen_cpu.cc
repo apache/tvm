@@ -395,7 +395,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(PrimType t, llvm::Value
 }
 
 llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                          const ffi::Array<PrimExpr>& args, bool skip_first_arg) {
+                                          const ffi::Array<Expr>& args, bool skip_first_arg) {
   std::vector<llvm::Value*> arg_values;
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
     arg_values.push_back(MakeValue(args[i]));
@@ -1016,7 +1016,7 @@ void CodeGenCPU::AddStartupFunction() {
 }
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
-  ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+  const ffi::Array<Expr>& args = op->args;
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     return CreateCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
@@ -1052,8 +1052,8 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     TVM_FFI_ICHECK_EQ(args.size(), 4U);
     int kind = args[2].as<IntImm>().value()->value;
     llvm::Value* value = MakeValue(args[3]);
-    TypedPointer ref =
-        CreateStructRefPtr(args[3].ty(), MakeValue(args[0]), MakeValue(args[1]), kind);
+    TypedPointer ref = CreateStructRefPtr(args[3].as_or_throw<PrimExpr>().ty(),
+                                          MakeValue(args[0]), MakeValue(args[1]), kind);
     TVM_FFI_ICHECK(kind != builtin::kDLTensorAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
@@ -1074,7 +1074,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
     std::string type = args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
-      const int64_t* pval = as_const_int(args[1]);
+      const int64_t* pval = as_const_int(args[1].as_or_throw<PrimExpr>());
       TVM_FFI_ICHECK(pval) << "require stack alloca to contain constant value";
       llvm::Value* num = ConstInt32(pval[0]);
       if (type == "shape") {

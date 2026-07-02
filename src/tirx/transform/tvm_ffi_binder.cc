@@ -179,7 +179,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
       return true;
     } else {
       // Duplicate bind: create rich assertion with both paths
-      PrimExpr prev_value = it->second.value;
+      PrimExpr prev_value = it->second.value.as_or_throw<PrimExpr>();
       PrimExpr scond = analyzer_->Simplify(prev_value == value);
       if (is_zero(scond)) {
         TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << prev_value
@@ -218,6 +218,41 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
     if (!is_one(scond)) {
       pending_const_asserts_.push_back({scond, path, arg});
     }
+  }
+  return false;
+}
+
+bool TVMFFIABIBuilder::BindPointer(const Var& arg, const Expr& value,
+                                   const ffi::reflection::AccessPath& path, bool with_lets) {
+  TVM_FFI_ICHECK(ffi::StructuralEqual()(arg->ty, value->ty));
+  auto it = var_defs_.find(arg.get());
+  if (it == var_defs_.end()) {
+    var_defs_.emplace(arg.get(), VarDefInfo{value, path});
+    if (with_lets) {
+      init_nest_.emplace_back(Bind(arg, value));
+    }
+    return true;
+  }
+
+  auto pointer_as_uint = [](const Expr& expr) {
+    return Call(PrimType::UInt(64), builtin::reinterpret(), {expr}).as_or_throw<PrimExpr>();
+  };
+  PrimExpr prev_value = pointer_as_uint(it->second.value);
+  PrimExpr current_value = pointer_as_uint(value);
+  PrimExpr condition = analyzer_->Simplify(prev_value == current_value);
+  if (is_zero(condition)) {
+    TVM_FFI_THROW(InternalError) << "Bind has an unmet pointer assertion at "
+                                 << RenderAccessPath(path);
+  }
+  if (!is_one(condition)) {
+    ffi::String current_path = RenderAccessPath(path);
+    ffi::String first_path = RenderAccessPath(it->second.first_def_path);
+    ffi::Array<StringImm> parts{StringImm("Mismatched "), StringImm(current_path)};
+    if (!first_path.empty() && first_path != current_path) {
+      parts.push_back(StringImm("`,\n  expected to match "));
+      parts.push_back(StringImm(first_path));
+    }
+    asserts_.emplace_back(AssertStmt(condition, StringImm("ValueError"), parts));
   }
   return false;
 }
@@ -766,9 +801,10 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
   // ── Section: data pointer ────────────────────────────────────
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
-    if (BindScalar(buffer->data,
-                   TVMStructGet(PrimType::Handle(), handle, 0, builtin::kDLTensorData), data_path,
-                   true)) {
+    PrimExpr raw_data =
+        TVMStructGet(PrimType::Handle(), handle, 0, builtin::kDLTensorData);
+    Expr typed_data = Call(buffer->data->ty, builtin::reinterpret(), {raw_data});
+    if (BindPointer(buffer->data, typed_data, data_path, true)) {
       Var vptr(buffer->data);
 
       auto alloc_size = [&]() -> PrimExpr {

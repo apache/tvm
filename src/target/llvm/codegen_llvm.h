@@ -292,7 +292,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // create extern function call
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                        const ffi::Array<PrimExpr>& args, bool skip_first_arg);
+                                        const ffi::Array<Expr>& args, bool skip_first_arg);
 
   /*! \brief Insert a printf() call to the generated LLVM
    *

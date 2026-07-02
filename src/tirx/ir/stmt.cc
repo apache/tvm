@@ -367,7 +367,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Evaluate
-Evaluate::Evaluate(PrimExpr value, Span span) {
+Evaluate::Evaluate(Expr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
 
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
@@ -379,7 +379,7 @@ Evaluate::Evaluate(PrimExpr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.Evaluate",
-                        [](PrimExpr value, Span span) { return Evaluate(value, span); });
+                        [](Expr value, Span span) { return Evaluate(value, span); });
 }
 
 // BufferStore

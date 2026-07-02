@@ -29,7 +29,7 @@ namespace tirx {
 
 void ExprVisitor::VisitExpr(const Expr& expr) {
   if (auto prim = expr.as<PrimExpr>()) {
-    return ExprFunctor::VisitExpr(prim.value());
+    return this->VisitExpr(prim.value());
   }
   if (const auto* op = expr.as<SizeVarNode>()) return VisitExpr_(op);
   if (const auto* op = expr.as<VarNode>()) return VisitExpr_(op);
@@ -40,7 +40,7 @@ void ExprVisitor::VisitExpr(const Expr& expr) {
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
   if (auto prim = expr.as<PrimExpr>()) {
-    return ExprFunctor::VisitExpr(prim.value());
+    return this->VisitExpr(prim.value());
   }
   if (expr.as<VarNode>() || expr.as<StringImmNode>()) return expr;
   if (const auto* op = expr.as<CallNode>()) {

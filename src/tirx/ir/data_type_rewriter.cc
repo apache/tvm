@@ -46,7 +46,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   Stmt s = StmtExprMutator::VisitStmt_(op);
   op = s.as<ForNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
-  PrimExpr e = VisitExpr(op->loop_var);
+  PrimExpr e = VisitExpr(op->loop_var).as_or_throw<PrimExpr>();
   Var var = e.as_or_throw<Var>();
   auto n = CopyOnWrite(op);
   n->min = cast(var.ty(), op->min);
@@ -105,7 +105,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     const IterVarNode* iv = op->node.as<IterVarNode>();
     TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                                   << ", but get " << op->node.GetTypeKey();
-    PrimExpr e = VisitExpr(iv->var);
+    PrimExpr e = VisitExpr(iv->var).as_or_throw<PrimExpr>();
     Var var = e.as_or_throw<Var>();
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
