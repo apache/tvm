@@ -1369,6 +1369,36 @@ def test_cast_nan_inf_to_int8():
     np.testing.assert_array_equal(out_np, expected)
 
 
+def test_castlike_ir():
+    castlike_node = helper.make_node("CastLike", ["a", "b"], ["c"])
+    graph = helper.make_graph(
+        [castlike_node],
+        "castlike_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [1, 32]),
+            helper.make_tensor_value_info("b", TensorProto.INT32, [1]),
+        ],
+        outputs=[helper.make_tensor_value_info("c", TensorProto.INT32, [1, 32])],
+    )
+    model = helper.make_model(graph, producer_name="castlike_test")
+    tvm_model = from_onnx(model, opset=15, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            a: R.Tensor((1, 32), dtype="float32"),
+            b: R.Tensor((1,), dtype="int32"),
+        ) -> R.Tensor((1, 32), dtype="int32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 32), dtype="int32") = R.astype(a, "int32")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 def test_gather():
     def _verify_gather(data_shape, indices, out_shape, expected, axis=0):
         gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=axis)
@@ -3097,6 +3127,74 @@ def test_trilu_with_const_k(k_value: int):
 
     model = helper.make_model(graph, producer_name="trilu_graph")
     check_correctness(model)
+
+
+@pytest.mark.parametrize("upper", [True, False])
+def test_trilu_dynamic_k_ir(upper: bool):
+    graph = helper.make_graph(
+        [
+            helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"], upper=upper),
+        ],
+        "trilu_dynamic_k_graph",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("k", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(graph, producer_name="trilu_dynamic_k_graph")
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    if upper:
+
+        @I.ir_module
+        class ExpectedTriu:
+            @R.function
+            def main(
+                x: R.Tensor((2, 3), dtype="float32"),
+                k: R.Tensor((), dtype="int64"),
+            ) -> R.Tensor((2, 3), dtype="float32"):
+                R.func_attr({"num_input": 2})
+                with R.dataflow():
+                    lv: R.Tensor((3,), dtype="int64") = R.arange(0, 3, 1, dtype="int64")
+                    lv1: R.Tensor((1, 3), dtype="int64") = R.reshape(lv, R.shape([1, 3]))
+                    lv2: R.Tensor((2,), dtype="int64") = R.arange(0, 2, 1, dtype="int64")
+                    lv3: R.Tensor((2, 1), dtype="int64") = R.reshape(lv2, R.shape([2, 1]))
+                    lv4: R.Tensor((2, 3), dtype="int64") = R.subtract(lv1, lv3)
+                    lv5: R.Tensor((), dtype="int64") = R.astype(k, dtype="int64")
+                    lv6: R.Tensor((2, 3), dtype="bool") = R.greater_equal(lv4, lv5)
+                    lv7: R.Tensor((2, 3), dtype="bool") = R.broadcast_to(lv6, R.shape([2, 3]))
+                    gv: R.Tensor((2, 3), dtype="float32") = R.where(lv7, x, R.const(0.0, "float32"))
+                    R.output(gv)
+                return gv
+
+        expected = ExpectedTriu
+    else:
+
+        @I.ir_module
+        class ExpectedTril:
+            @R.function
+            def main(
+                x: R.Tensor((2, 3), dtype="float32"),
+                k: R.Tensor((), dtype="int64"),
+            ) -> R.Tensor((2, 3), dtype="float32"):
+                R.func_attr({"num_input": 2})
+                with R.dataflow():
+                    lv: R.Tensor((3,), dtype="int64") = R.arange(0, 3, 1, dtype="int64")
+                    lv1: R.Tensor((1, 3), dtype="int64") = R.reshape(lv, R.shape([1, 3]))
+                    lv2: R.Tensor((2,), dtype="int64") = R.arange(0, 2, 1, dtype="int64")
+                    lv3: R.Tensor((2, 1), dtype="int64") = R.reshape(lv2, R.shape([2, 1]))
+                    lv4: R.Tensor((2, 3), dtype="int64") = R.subtract(lv1, lv3)
+                    lv5: R.Tensor((), dtype="int64") = R.astype(k, dtype="int64")
+                    lv6: R.Tensor((2, 3), dtype="bool") = R.less_equal(lv4, lv5)
+                    lv7: R.Tensor((2, 3), dtype="bool") = R.broadcast_to(lv6, R.shape([2, 3]))
+                    gv: R.Tensor((2, 3), dtype="float32") = R.where(lv7, x, R.const(0.0, "float32"))
+                    R.output(gv)
+                return gv
+
+        expected = ExpectedTril
+
+    tvm.ir.assert_structural_equal(tvm_model, expected)
 
 
 def test_selu():
