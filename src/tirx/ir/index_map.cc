@@ -76,14 +76,16 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   ffi::Array<Var> output_vars;
   for (size_t i = 0; i < self->final_indices.size(); i++) {
     PrimExpr index = self->final_indices[i];
-    // TODO(Lunderberg): Better names for these variables.  A variable
-    // that is passed through unmodified (`index` is an element of
-    // `initial_indices`) should use that input index's name.  A pair
-    // of output indices variables split from a single input index
-    // should be named (X.outer,X.inner).
-    std::stringstream ss;
-    ss << "axis" << i;
-    Var var_index(ss.str(), index.ty());
+    // A pass-through index keeps the input variable's name for readability.
+    // TODO(Lunderberg): Name a pair of output indices split from a single
+    // input index as (X.outer, X.inner).
+    std::string name;
+    if (auto* var = index.as<VarNode>()) {
+      name = var->name_hint;
+    } else {
+      name = "axis" + std::to_string(i);
+    }
+    Var var_index(name, index.ty());
     output_vars.push_back(var_index);
   }
 
