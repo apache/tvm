@@ -3248,7 +3248,10 @@ class Resize(OnnxOpConverter):
 
         use_dynamic_roi = roi_dynamic_vec is not None
 
-        # Convert scales to sizes if needed.
+        # Convert scales to sizes if needed, preserving the original spatial scales so
+        # the coordinate transformation uses the exact ONNX scale value rather than the
+        # lossy ratio derived from floor(input * scale) / input.
+        original_spatial_scales = None
         if scales is not None:
             if isinstance(scales, relax.Constant):
                 scales = scales.data.numpy()
@@ -3256,6 +3259,7 @@ class Resize(OnnxOpConverter):
                 scales = [int(val.value) for val in scales.values]
             else:
                 raise ValueError(f"Type {type(scales)} for scale is currently unsupported.")
+            original_spatial_scales = [float(s) for s in scales[2:]]
             sizes = []
 
             for i, dim in enumerate(x.ty.shape):
@@ -3297,8 +3301,24 @@ class Resize(OnnxOpConverter):
                 cubic_coeff_a,
                 exclude_outside,
                 extrapolation_value,
+                scales=original_spatial_scales,
             )
         elif ndims == 4:
+            if original_spatial_scales is not None:
+                return bb.emit_te(
+                    topi.image.resize2d,
+                    x,
+                    roi_static,
+                    sizes,
+                    "NCHW",
+                    topi_mode,
+                    coord_mode,
+                    rounding_method,
+                    cubic_coeff_a,
+                    exclude_outside,
+                    extrapolation_value,
+                    scales=original_spatial_scales,
+                )
             return relax.op.image.resize2d(
                 x,
                 size=relax.ShapeExpr(sizes),
@@ -3313,6 +3333,21 @@ class Resize(OnnxOpConverter):
             )
         else:  # ndims == 5
             roi3d = _topi_resize3d_roi_from_onnx_ncdhw_spatial(roi_static)
+            if original_spatial_scales is not None:
+                return bb.emit_te(
+                    topi.image.resize3d,
+                    x,
+                    roi3d,
+                    sizes,
+                    "NCDHW",
+                    topi_mode,
+                    coord_mode,
+                    rounding_method,
+                    cubic_coeff_a,
+                    exclude_outside,
+                    extrapolation_value,
+                    scales=original_spatial_scales,
+                )
             return relax.op.image.resize3d(
                 x,
                 size=relax.ShapeExpr(sizes),
