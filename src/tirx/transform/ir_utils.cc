@@ -372,7 +372,7 @@ class IRConvertSSA final : public StmtExprMutator {
     // body-carrying statement's scope exits.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      PrimExpr value = this->VisitExpr(op->value);
+      Expr value = this->VisitExpr(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
       return Bind(new_var, value);

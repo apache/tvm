@@ -211,6 +211,8 @@ class TVM_DLL ExprVisitor : public ExprFunctor<void(const PrimExpr&)> {
 
  protected:
   using ExprFunctor::VisitExpr;
+  /*! \brief Visit an expression with an arbitrary semantic type. */
+  void VisitExpr(const Expr& expr);
   // list of functions to override.
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const SizeVarNode* op) override;
@@ -256,6 +258,12 @@ class TVM_DLL ExprMutator : protected ExprFunctor<PrimExpr(const PrimExpr&)> {
 
  protected:
   using ExprFunctor::VisitExpr;
+  /*! \brief Mutate an expression with an arbitrary semantic type. */
+  Expr VisitExpr(const Expr& expr);
+  /*! \brief Mutate a variable through its checked primitive typed view. */
+  PrimExpr VisitExpr(const Var& var) {
+    return ExprFunctor::VisitExpr(var.as_or_throw<PrimExpr>());
+  }
   // list of functions to override.
   PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const SizeVarNode* op) override;

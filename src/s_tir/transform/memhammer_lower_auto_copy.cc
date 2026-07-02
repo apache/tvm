@@ -467,14 +467,14 @@ class AutoPadder {
         if (v.same_as(var)) {
           return IntImm::Int32(0);
         } else {
-          return v;
+          return v.as_or_throw<PrimExpr>();
         }
       });
       PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
         if (v.same_as(var)) {
           return IntImm::Int32(1);
         } else {
-          return v;
+          return v.as_or_throw<PrimExpr>();
         }
       });
       arith::Analyzer analyzer;

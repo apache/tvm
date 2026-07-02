@@ -1180,7 +1180,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
         tensormap_is_cached = True
     else:
         tensor_map = T.Var(
-            g_buf.data.name + "_tensormap", dtype=T.handle("tensormap").type_annotation
+            g_buf.data.name + "_tensormap", dtype=T.handle("tensormap").ty
         )
         tensormap_is_cached = False
 

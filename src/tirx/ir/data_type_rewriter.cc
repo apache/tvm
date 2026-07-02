@@ -145,12 +145,14 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   Var var = op->var;
 
-  if (value.ty() != op->var.ty()) {
-    var = op->var.copy_with_dtype(value.ty());
-    var_remap_[op->var.get()] = var;
+  if (auto prim_value = value.as<PrimExpr>()) {
+    if (prim_value.value().ty() != op->var.ty()) {
+      var = op->var.copy_with_dtype(prim_value.value().ty());
+      var_remap_[op->var.get()] = var;
+    }
   }
 
   if (value.same_as(op->value) && var.same_as(op->var)) {
@@ -551,7 +553,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
   }
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  PrimExpr value = VisitExpr(op->value);
+  PrimExpr value = VisitExpr(op->value).as_or_throw<PrimExpr>();
   Var var = var_remap_[bind_stmt->var.get()];
   is_enabled_ = is_enabled;
   TVM_FFI_ICHECK(value.ty() == var.ty());

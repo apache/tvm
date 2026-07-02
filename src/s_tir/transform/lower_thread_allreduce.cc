@@ -665,8 +665,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
         std::vector<Stmt> in_let_statement;
         in_let_statement.emplace_back(SyncThread("warp"));
-        in_let_statement.emplace_back(
-            fstore({in_warp_local_vars.begin(), in_warp_local_vars.end()}));
+        ffi::Array<PrimExpr> prim_in_warp_local_vars = in_warp_local_vars.Map(
+            [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+        in_let_statement.emplace_back(fstore(prim_in_warp_local_vars));
         in_let_statement.emplace_back(SyncThread("warp"));
 
         ffi::Array<Stmt> bind_stmts;

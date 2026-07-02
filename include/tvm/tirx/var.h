@@ -102,8 +102,18 @@ class Var : public Expr {
    */
   TVM_DLL Var copy_with_dtype(PrimType dtype) const;
 
-  /*! \return The exact semantic type of this variable. */
-  Type ty() const { return get()->ExprNode::ty; }
+  /*! \return The runtime primitive type of this variable. */
+  PrimType ty() const {
+    if (auto prim = get()->ExprNode::ty.as<PrimType>()) {
+      return prim.value();
+    }
+    if (get()->ExprNode::ty.as<PointerTypeNode>()) {
+      return PrimType::Handle();
+    }
+    TVM_FFI_THROW(TypeError) << "Variable has no runtime primitive type: "
+                             << get()->ExprNode::ty;
+    TVM_FFI_UNREACHABLE();
+  }
 
   /*! \brief Checked conversion for scalar variables. */
   operator PrimExpr() const { return this->as_or_throw<PrimExpr>(); }
@@ -332,6 +342,57 @@ inline const char* IterVarType2String(IterVarType t) {
   return "Unknown";
 }
 }  // namespace tirx
+
+// Keep mixed Var/PrimExpr comparisons in the arithmetic expression domain.  Without these
+// exact-match overloads, ObjectRef's pointer-comparison operators compete with Var's checked
+// conversion to PrimExpr.
+#define TVM_TIRX_DEFINE_VAR_COMPARISON_OP(Op)                                      \
+  inline PrimExpr operator Op(tirx::Var a, tirx::Var b) {                          \
+    return operator Op(a.as_or_throw<PrimExpr>(), b.as_or_throw<PrimExpr>());       \
+  }                                                                                \
+  inline PrimExpr operator Op(tirx::Var a, PrimExpr b) {                           \
+    return operator Op(a.as_or_throw<PrimExpr>(), std::move(b));                   \
+  }                                                                                \
+  inline PrimExpr operator Op(PrimExpr a, tirx::Var b) {                           \
+    return operator Op(std::move(a), b.as_or_throw<PrimExpr>());                   \
+  }
+
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(==)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(!=)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(<)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(<=)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(>)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(>=)
+
+#undef TVM_TIRX_DEFINE_VAR_COMPARISON_OP
+
+#define TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(Op)                            \
+  inline PrimExpr operator Op(tirx::Var a, int b) {                            \
+    return operator Op(a.as_or_throw<PrimExpr>(), b);                          \
+  }                                                                            \
+  inline PrimExpr operator Op(int a, tirx::Var b) {                            \
+    return operator Op(a, b.as_or_throw<PrimExpr>());                          \
+  }                                                                            \
+  inline PrimExpr operator Op(tirx::Var a, float b) {                          \
+    return operator Op(a.as_or_throw<PrimExpr>(), b);                          \
+  }                                                                            \
+  inline PrimExpr operator Op(float a, tirx::Var b) {                          \
+    return operator Op(a, b.as_or_throw<PrimExpr>());                          \
+  }                                                                            \
+  inline PrimExpr operator Op(tirx::Var a, double b) {                         \
+    return operator Op(a.as_or_throw<PrimExpr>(),                              \
+                       FloatImm(PrimType::Float(64), b));                       \
+  }
+
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(==)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(!=)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(<)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(<=)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(>)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(>=)
+
+#undef TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP
+
 }  // namespace tvm
 
 /* \brief Allow tirx.Var as key in STL tables

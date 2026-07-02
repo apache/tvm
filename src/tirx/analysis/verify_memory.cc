@@ -162,7 +162,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   //@}
   tirx::PrimFunc func_{nullptr};                       ///< Function to be verified.
   int dev_type_{kDLCPU};                               ///< Device type
-  std::unordered_map<const VarNode*, PrimExpr> defs_;  ///< Variable definitions
+  std::unordered_map<const VarNode*, Expr> defs_;  ///< Variable definitions
 };
 }  // namespace
 

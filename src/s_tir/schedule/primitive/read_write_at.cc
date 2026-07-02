@@ -294,7 +294,7 @@ struct ReadWriteAtImpl {
         bindings.Set(var, Var(v));
         iter_values.push_back(var);
         iter_vars.push_back(IterVar(range, Var(v), IterVarType::kDataPar));
-        return Var(v);
+        return Var(v).as_or_throw<PrimExpr>();
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
       dom->min = Substitute(std::move(dom->min), f_substitute);

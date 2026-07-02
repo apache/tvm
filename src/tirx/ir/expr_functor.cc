@@ -27,6 +27,31 @@
 namespace tvm {
 namespace tirx {
 
+void ExprVisitor::VisitExpr(const Expr& expr) {
+  if (auto prim = expr.as<PrimExpr>()) {
+    return ExprFunctor::VisitExpr(prim.value());
+  }
+  if (const auto* op = expr.as<SizeVarNode>()) return VisitExpr_(op);
+  if (const auto* op = expr.as<VarNode>()) return VisitExpr_(op);
+  if (const auto* op = expr.as<CallNode>()) return VisitExpr_(op);
+  if (const auto* op = expr.as<StringImmNode>()) return VisitExpr_(op);
+  TVM_FFI_THROW(TypeError) << "Unsupported non-primitive expression: " << expr->GetTypeKey();
+}
+
+Expr ExprMutator::VisitExpr(const Expr& expr) {
+  if (auto prim = expr.as<PrimExpr>()) {
+    return ExprFunctor::VisitExpr(prim.value());
+  }
+  if (expr.as<VarNode>() || expr.as<StringImmNode>()) return expr;
+  if (const auto* op = expr.as<CallNode>()) {
+    ffi::Array<Expr> args =
+        op->args.Map([this](const Expr& arg) -> Expr { return this->VisitExpr(arg); });
+    if (args.same_as(op->args)) return expr;
+    return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
+  }
+  TVM_FFI_THROW(TypeError) << "Unsupported non-primitive expression: " << expr->GetTypeKey();
+}
+
 void ExprVisitor::VisitExpr_(const VarNode* op) {}
 
 void ExprVisitor::VisitExpr_(const SizeVarNode* op) {
@@ -47,7 +72,7 @@ void ExprVisitor::VisitExpr_(const LetNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const CallNode* op) {
-  VisitArray(op->args, [this](const Expr& e) { this->VisitExpr(e.as_or_throw<PrimExpr>()); });
+  VisitArray(op->args, [this](const Expr& e) { this->VisitExpr(e); });
 }
 
 #define DEFINE_BINOP_VISIT_(OP)                \
@@ -150,7 +175,7 @@ PrimExpr ExprMutator::VisitExpr_(const LetNode* op) {
 
 PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
   ffi::Array<Expr> args = op->args.Map(
-      [this](const Expr& arg) -> Expr { return this->VisitExpr(arg.as_or_throw<PrimExpr>()); });
+      [this](const Expr& arg) -> Expr { return this->VisitExpr(arg); });
 
   if (args.same_as(op->args)) {
     return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();

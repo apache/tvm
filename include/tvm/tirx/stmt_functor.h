@@ -153,6 +153,9 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    *       and redirect Visit to ExprMutator::VisitExpr(Expr)
    */
   virtual void VisitExpr(const PrimExpr& e) {}
+  virtual void VisitExpr(const Expr& e) {
+    if (auto prim = e.as<PrimExpr>()) VisitExpr(prim.value());
+  }
   /*!
    * \brief Visit buffer at definition site (AllocBuffer, DeclBuffer, SBlock alloc_buffers).
    *  Visits buffer shape, strides, elem_offset via VisitExpr.
@@ -269,6 +272,10 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
   virtual PrimExpr VisitExpr(const PrimExpr& e) { return e; }
+  virtual Expr VisitExpr(const Expr& e) {
+    if (auto prim = e.as<PrimExpr>()) return VisitExpr(prim.value());
+    return e;
+  }
   /*!
    * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via VisitExpr.
    *  If any field changes, creates a new buffer and records it in buffer_remap_.
@@ -336,6 +343,7 @@ class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
   using StmtVisitor::VisitStmt;
 
   void VisitExpr(const PrimExpr& e) override { return ExprVisitor::VisitExpr(e); }
+  void VisitExpr(const Expr& e) override { return ExprVisitor::VisitExpr(e); }
   void VisitExpr_(const BufferLoadNode* op) override;
 };
 
@@ -353,6 +361,7 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
   using StmtMutator::VisitStmt;
 
   PrimExpr VisitExpr(const PrimExpr& e) override { return ExprMutator::VisitExpr(e); }
+  Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
   PrimExpr VisitExpr_(const BufferLoadNode* op) override;
 };
 
@@ -450,11 +459,12 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
  * \return The modified object.
  */
 template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
+          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
+                                      std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
   auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto opt = vmap.Get(var)) {
-      return opt.value();
+      return opt.value().template as_or_throw<PrimExpr>();
     } else {
       return std::nullopt;
     }
@@ -472,11 +482,12 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
  * \return The modified object.
  */
 template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
+          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
+                                      std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap) {
   auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return it->second;
+      return it->second.template as_or_throw<PrimExpr>();
     } else {
       return std::nullopt;
     }
@@ -494,11 +505,12 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap)
  * \return The modified object.
  */
 template <typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
+          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
+                                      std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& vmap) {
   auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto it = vmap.find(var); it != vmap.end()) {
-      return it->second;
+      return it->second.template as_or_throw<PrimExpr>();
     } else {
       return std::nullopt;
     }
@@ -516,11 +528,12 @@ auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityC
  * \return The modified object.
  */
 template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
+          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
+                                      std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (const auto& [iter_var, expr] : iter_vmap) {
-    vmap[iter_var->var.get()] = expr;
+    vmap[iter_var->var.get()] = expr.template as_or_throw<PrimExpr>();
   }
 
   auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {

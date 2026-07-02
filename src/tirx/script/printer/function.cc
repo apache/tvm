@@ -116,7 +116,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             continue;
           }
         }
-        ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("type_annotation"));
+        ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
         args.push_back(AssignDoc(DefineVar(var, *f, d), std::nullopt, a));
       }
       // Step 2. Handle `func->attrs`

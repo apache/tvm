@@ -188,7 +188,8 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
       analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
     }
     // Step 5.1: Fuse all indices into a flattened one
-    PrimExpr index = f_flatten_index({indices.begin(), indices.end()});
+    PrimExpr index = f_flatten_index(
+        indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); }));
     int ndim = split_exprs.size();
     // Step 5.2. Split the flattened index according to `split_exprs`
     std::vector<PrimExpr> split;

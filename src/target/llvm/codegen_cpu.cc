@@ -210,7 +210,8 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
 
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
   std::string name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
-  return CreateDebugFunction(name, func->params.Map(GetType), func->ret_type);
+  return CreateDebugFunction(
+      name, func->params.Map([](const Var& var) { return GetType(var); }), func->ret_type);
 }
 
 void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
@@ -223,7 +224,7 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
           std::make_pair(global_symbol.value().operator std::string(), function_));
     }
   }
-  AddDebugInformation(function_, func->params.Map(GetType));
+  AddDebugInformation(function_, func->params.Map([](const Var& var) { return GetType(var); }));
 }
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
@@ -578,14 +579,16 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
 
   function_ = fcompute;
   di_subprogram_ =
-      CreateDebugFunction(MakeStringRef(value->value), vargs.Map(GetType), PrimType::Int(32));
+      CreateDebugFunction(MakeStringRef(value->value),
+                          vargs.Map([](const Var& var) { return GetType(var); }),
+                          PrimType::Int(32));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
   builder_->SetInsertPoint(compute_call_end);
 
-  AddDebugInformation(fcompute, vargs.Map(GetType));
+  AddDebugInformation(fcompute, vargs.Map([](const Var& var) { return GetType(var); }));
 }
 
 CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const ffi::Array<Var>& vfields,

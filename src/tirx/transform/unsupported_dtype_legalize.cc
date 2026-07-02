@@ -330,10 +330,14 @@ class ComputeLegalizer : public StmtExprMutator {
   DEFINE_BIOP_EXPR_LEGALIZE(NENode, operator!=);
 
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = PromoteToTarget(op->value);
+    auto prim_value = op->value.as<PrimExpr>();
+    if (!prim_value) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+    PrimExpr value = PromoteToTarget(prim_value.value());
     Var var = op->var;
-    if (value.ty() != op->value.ty()) {
-      var = op->var.copy_with_dtype(op->value.ty());
+    if (value.ty() != prim_value.value().ty()) {
+      var = op->var.copy_with_dtype(prim_value.value().ty());
       var_remap_[op->var] = var;
     }
 
@@ -621,7 +625,7 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = VisitExpr(op->value);
+    Expr value = VisitExpr(op->value);
     Var var = RemapVarDef(op->var);
 
     if (value.same_as(op->value) && var.same_as(op->var)) {

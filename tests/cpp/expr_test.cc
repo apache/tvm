@@ -43,7 +43,7 @@ TEST(Expr, VarTypeAnnotation) {
   Var y("y", PrimType::Float(32));
   tvm::ffi::StructuralEqual checker;
   TVM_FFI_ICHECK(checker(x.ty(), y.ty()));
-  TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
+  TVM_FFI_ICHECK(checker(x->ty, y->ty));
 }
 
 TEST(Expr, PrimTypeBoolLanes) {

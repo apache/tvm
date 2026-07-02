@@ -310,7 +310,13 @@ class DeviceInfoCollector : public StmtVisitor {
     // variables (e.g. CSE variables) can be inlined back to
     // expressions over function parameters.  Substitute earlier
     // bindings into the value to handle chains (cse_v2 = f(cse_v1)).
-    PrimExpr value = bind_map_.size() ? Substitute(op->value, bind_map_) : op->value;
+    auto prim_value = op->value.as<PrimExpr>();
+    if (!prim_value) {
+      StmtVisitor::VisitStmt_(op);
+      return;
+    }
+    PrimExpr value = bind_map_.size() ? Substitute(prim_value.value(), bind_map_)
+                                      : prim_value.value();
     bind_map_.Set(op->var, value);
     StmtVisitor::VisitStmt_(op);
   }

@@ -58,7 +58,7 @@ class SSAVerifier final : public StmtExprVisitor {
     // (let x = 1 in x + 1) * (let x = 1 in x + 1)
     auto it = def_map_.find(op->var);
     if (it != def_map_.end()) {
-      if (!deep_equal_(it->second, op->value)) {
+      if (!deep_equal_(it->second.as_or_throw<PrimExpr>(), op->value)) {
         is_ssa_ = false;
         return;
       }
@@ -117,7 +117,7 @@ class SSAVerifier final : public StmtExprVisitor {
   }
 
  private:
-  void MarkDef(const Var& var, PrimExpr value, bool allow_dup = false) {
+  void MarkDef(const Var& var, Expr value, bool allow_dup = false) {
     if (def_map_.count(var) != 0) {
       if (!allow_dup) {
         is_ssa_ = false;
@@ -132,7 +132,7 @@ class SSAVerifier final : public StmtExprVisitor {
   // deep equal
   ExprDeepEqual deep_equal_;
   // def map, for let, maps to the bind value, for others maps to self.
-  std::unordered_map<Var, PrimExpr> def_map_;
+  std::unordered_map<Var, Expr> def_map_;
 };
 
 bool VerifySSA(const PrimFunc& func) {

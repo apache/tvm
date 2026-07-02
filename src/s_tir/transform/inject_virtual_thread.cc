@@ -49,6 +49,10 @@ class ExprTouched final : public StmtExprVisitor {
     if (expr_touched_ && !check_write_) return;
     StmtExprVisitor::VisitExpr(n);
   }
+  void VisitExpr(const Expr& n) final {
+    if (expr_touched_ && !check_write_) return;
+    StmtExprVisitor::VisitExpr(n);
+  }
   void VisitStmt(const Stmt& n) final {
     // early stopping
     if (expr_touched_ && !check_write_) return;
@@ -102,7 +106,7 @@ class VarTouchedAnalysis : public StmtVisitor {
  public:
   void VisitStmt_(const BindNode* op) final {
     ExprTouched tc(touched_var_, false);
-    tc(op->value);
+    tc.VisitExpr(op->value);
     Record(op->var.get(), tc);
   }
 
@@ -304,7 +308,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Bind
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
+    Expr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }

@@ -1310,7 +1310,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
  public:
   static ffi::Array<tirx::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(expr);
+    collector.relax::ExprVisitor::VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.free_symbolic_var_.begin(),
                               collector.free_symbolic_var_.end()};
     return ret;
@@ -1318,7 +1318,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   static ffi::Array<tirx::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(expr);
+    collector.relax::ExprVisitor::VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.defined_symbolic_var_.begin(),
                               collector.defined_symbolic_var_.end()};
     return ret;

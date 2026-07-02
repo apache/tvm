@@ -921,17 +921,22 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // Bind
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
+    auto prim_value = op->value.as<PrimExpr>();
+    if (!prim_value) {
+      return StmtMutator::VisitStmt_(op);
+    }
+    PrimExpr value = this->VisitExpr(prim_value.value());
     // if visit of value triggers need scalarize
     // we need to scalarize the let
     if (need_scalarize_) {
       need_scalarize_ = false;
-      Scalarize(ffi::GetRef<Stmt>(op));
+      return Scalarize(ffi::GetRef<Stmt>(op));
     }
     TVM_FFI_ICHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
     let_binding_[op->var] = value;
 
-    if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(op->value.ty())) {
+    if (GetLanesOrVScaleFactor(value.ty()) !=
+        GetLanesOrVScaleFactor(prim_value.value().ty())) {
       Var new_var(op->var->name_hint, value.ty());
       let_binding_[op->var] = new_var;
       return Bind(new_var, value);

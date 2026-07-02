@@ -203,7 +203,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
-  Optional<PrimExpr> prim_value = op->value.as<PrimExpr>();
+  ffi::Optional<PrimExpr> prim_value = op->value.as<PrimExpr>();
   if (!prim_value.defined()) {
     return ffi::GetRef<Stmt>(op);
   }

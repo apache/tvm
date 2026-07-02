@@ -210,7 +210,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       TVM_FFI_ICHECK(!stmt->var->ty.IsMissing())
           << "Type annotation is required for variable: " << stmt->var->name_hint;
       ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->ty,  //
-                                                          p->Attr("var")->Attr("type_annotation"));
+                                                          p->Attr("var")->Attr("ty"));
       if (const auto* tuple_type = stmt->var->ty.as<TupleTypeNode>()) {
         if (tuple_type->fields.empty()) {
           type_doc = std::nullopt;

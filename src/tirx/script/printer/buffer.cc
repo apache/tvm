@@ -167,7 +167,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
       kwargs.Set(
           "scope",
           LiteralDoc::Str(scope,
-                          buffer_p->Attr("data")->Attr("type_annotation")->Attr("storage_scope")));
+                          buffer_p->Attr("data")->Attr("ty")->Attr("storage_scope")));
     }
   }
   // Step 7. Handle `buffer.data_alignment`

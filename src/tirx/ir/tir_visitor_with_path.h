@@ -55,10 +55,18 @@ class TIRVisitorWithPath
   virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
     VisitExpr(obj, path);
   }
-  // Core Call stores arguments as Expr. TIR path traversal still expects the
-  // primitive typed view for these children.
+  // Core Call stores arguments as Expr, including pointer-typed Vars.
   virtual inline void Visit(const Expr& obj, ffi::reflection::AccessPath path) {
-    Visit(obj.as_or_throw<PrimExpr>(), path);
+    if (auto prim = obj.as<PrimExpr>()) {
+      Visit(prim.value(), path);
+    } else if (auto* var = obj.as<VarNode>()) {
+      VisitExpr_(var, path);
+    } else if (auto* call = obj.as<CallNode>()) {
+      VisitExpr_(call, path);
+    } else {
+      TVM_FFI_THROW(TypeError) << "Unsupported non-primitive TIR expression "
+                               << obj.GetTypeKey();
+    }
   }
   // Delegate to ExprFunctor::VisitStmt for Stmt, and any subclasses
   virtual inline void Visit(const Stmt& obj, ffi::reflection::AccessPath path) {
@@ -239,7 +247,7 @@ class TIRVisitorWithPath
   std::vector<DefContext<Var>> WithMatchBufferDefs(Buffer buf, ffi::reflection::AccessPath path) {
     std::vector<DefContext<Var>> context;
 
-    auto try_visit_implicit_var_def = [this, &context](const PrimExpr& expr,
+    auto try_visit_implicit_var_def = [this, &context](const Expr& expr,
                                                        ffi::reflection::AccessPath path) {
       if (auto opt = expr.as<Var>()) {
         auto var = opt.value();

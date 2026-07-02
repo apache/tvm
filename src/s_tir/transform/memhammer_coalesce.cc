@@ -48,7 +48,10 @@ Stmt FuseNestLoops(Stmt body) {
     tot = floordiv(tot, loops[i]->extent);
   }
   auto f_substitute = [&](const Var& v) -> ffi::Optional<PrimExpr> {
-    return subst_map.Get(v).value_or(v);
+    if (auto replacement = subst_map.Get(v)) {
+      return replacement.value();
+    }
+    return v.as_or_throw<PrimExpr>();
   };
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {

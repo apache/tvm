@@ -977,7 +977,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     new_body =
         tirx::Substitute(new_body, [&var_subst_map](const tirx::Var& v) -> ffi::Optional<PrimExpr> {
           if (var_subst_map.count(v)) {
-            return var_subst_map.at(v);
+            return var_subst_map.at(v).as_or_throw<PrimExpr>();
           }
           return ffi::Optional<PrimExpr>();
         });

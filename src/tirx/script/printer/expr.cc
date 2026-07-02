@@ -26,7 +26,7 @@ namespace printer {
 
 ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
   Type type = var->ty;
-  AccessPath type_p = var_p->Attr("type_annotation");
+  AccessPath type_p = var_p->Attr("ty");
   ExprDoc rhs{ffi::UnsafeInit()};
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;

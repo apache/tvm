@@ -143,7 +143,11 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BindNode* op) override {
-    PrimExpr value = this->VisitExpr(op->value);
+    auto prim_value = op->value.as<PrimExpr>();
+    if (!prim_value) {
+      return Parent::VisitStmt_(op);
+    }
+    PrimExpr value = this->VisitExpr(prim_value.value());
     // Bind in analyzer for constraint proving and simplification of
     // subsequent expressions.  Don't remove the Bind statement --
     // with flat Bind there's no body to inspect for usage patterns,

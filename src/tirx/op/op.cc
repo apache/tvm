@@ -166,6 +166,8 @@ Type GetType(const PrimExpr& expr) {
   return expr.ty();
 }
 
+Type GetType(const tirx::Var& var) { return var->ty; }
+
 Type GetTypeFromRuntimeDataType(DLDataType dtype) { return PrimType(dtype); }
 
 // LargeUIntImm

@@ -73,7 +73,8 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
 }
 
 PrimExpr Tensor::operator()(ffi::Array<Var> indices) const {
-  ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
+  ffi::Array<PrimExpr> arr =
+      indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
   return operator()(arr);
 }
 
@@ -82,7 +83,8 @@ PrimExpr Tensor::operator()(ffi::Array<PrimExpr> indices) const {
 }
 
 PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<Var> indices) const {
-  ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
+  ffi::Array<PrimExpr> arr =
+      indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
   return IndexWithNegativeIndices(arr);
 }
 

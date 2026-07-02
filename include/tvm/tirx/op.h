@@ -69,6 +69,9 @@ namespace tvm {
  */
 TVM_DLL Type GetType(const PrimExpr& expr);
 
+/*! \brief Get the exact semantic type of a TIR variable. */
+TVM_DLL Type GetType(const tirx::Var& var);
+
 /*!
  * \brief Get the type corresponding to a runtime DLPack dtype.
  * \param dtype The runtime dtype.

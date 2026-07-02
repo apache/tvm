@@ -345,9 +345,9 @@ inline Tensor reshape(const Tensor& x, ffi::Array<PrimExpr> newshape,
     return compute(
         target_shape,
         [&](const ffi::Array<Var>& indices) {
-          return x(UnravelIndex(
-              RavelIndex(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, target_shape),
-              x_shape));
+          ffi::Array<PrimExpr> prim_indices = indices.Map(
+              [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+          return x(UnravelIndex(RavelIndex(prim_indices, target_shape), x_shape));
         },
         name, tag);
   }
@@ -508,7 +508,7 @@ inline Tensor concatenate(const ffi::Array<Tensor>& inputs, int axis = 0,
       out_shape,
       [&](const ffi::Array<Var>& indices) {
         auto ret = inputs[0](indices);
-        auto ind = indices[axis];
+        PrimExpr ind = indices[axis].as_or_throw<PrimExpr>();
         for (size_t i = 0; i < inputs.size() - 1; ++i) {
           ind -= axis_sizes[i];
 
@@ -1667,15 +1667,20 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
     iter_vars.push_back(reduce_axis(Range(0, B->shape[i]), "k" + std::to_string(i)));
 
   auto func = [&A, &B, &iter_vars, axes](const ffi::Array<Var>& input_indices) {
-    ffi::Array<PrimExpr> A_indices(input_indices.begin(),
-                                   input_indices.begin() + (A->shape.size() - axes));
+    ffi::Array<PrimExpr> A_indices;
+    for (auto it = input_indices.begin(); it != input_indices.begin() + (A->shape.size() - axes);
+         ++it) {
+      A_indices.push_back((*it).as_or_throw<PrimExpr>());
+    }
     for (auto& v : iter_vars) A_indices.push_back(v);
 
     ffi::Array<PrimExpr> B_indices;
     for (auto& v : iter_vars) B_indices.push_back(v);
 
     auto it = input_indices.begin() + (A->shape.size() - axes);
-    for (; it != input_indices.end(); ++it) B_indices.push_back(*it);
+    for (; it != input_indices.end(); ++it) {
+      B_indices.push_back((*it).as_or_throw<PrimExpr>());
+    }
 
     // Some passes don't like reductions with empty axis, so avoid it here
     if (iter_vars.empty()) {
@@ -1851,7 +1856,8 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   return compute(
       dst_shape,
       [&](const ffi::Array<Var>& dst_indices) {
-        ffi::Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+        ffi::Array<PrimExpr> dst_indices_expr = dst_indices.Map(
+            [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         ffi::Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
         PrimExpr in_range = PrimExpr(1) > PrimExpr(0);  // init with dtype=bool and value=true
         for (size_t i = 0; i < src.ndim(); ++i) {
@@ -1913,7 +1919,8 @@ inline Tensor auto_scheduler_layout_transform(
   return compute(
       dst_shape,
       [&](const ffi::Array<Var>& dst_indices) {
-        ffi::Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+        ffi::Array<PrimExpr> dst_indices_expr = dst_indices.Map(
+            [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         ffi::Array<PrimExpr> src_indices;
         for (const std::string& src_axis : src_axes) {
           PrimExpr src_index = 0;
@@ -1980,7 +1987,9 @@ inline Tensor meta_schedule_layout_transform(
       post_transform_shape,
       [src, inv = index_map.Inverse(iter_domain, analyzer),
        &analyzer](const ffi::Array<Var>& indices) -> PrimExpr {
-        return src(inv->MapIndices(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, analyzer));
+        ffi::Array<PrimExpr> prim_indices = indices.Map(
+            [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+        return src(inv->MapIndices(prim_indices, analyzer));
       },
       name, tag);
 }
