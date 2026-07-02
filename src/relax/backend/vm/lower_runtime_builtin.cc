@@ -52,6 +52,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       return Reshape(call);
     } else if (call->op == shape_of_op_) {
       return ShapeOf(call);
+    } else if (call->op == shape_to_tensor_op_) {
+      return ShapeToTensor(call);
     } else if (call->op == tensor_to_shape_op_) {
       return TensorToShape(call);
     } else if (call->op == call_py_func_op_) {
@@ -141,6 +143,13 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     return Call(Type::Missing(), builtin_shape_of_, call_node->args, Attrs(), {GetType(call_node)});
   }
 
+  Expr ShapeToTensor(const Call& call_node) {
+    TVM_FFI_ICHECK(call_node->args.size() == 1);
+    TVM_FFI_ICHECK(call_node->ty.defined());
+
+    return Call(builtin_shape_to_tensor_, call_node->args, Attrs(), {GetType(call_node)});
+  }
+
   Expr TensorToShape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(!call_node->ty.IsMissing());
@@ -224,6 +233,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& reshape_op_ = Op::Get("relax.reshape");
   const Op& shape_of_op_ = Op::Get("relax.shape_of");
+  const Op& shape_to_tensor_op_ = Op::Get("relax.shape_to_tensor");
   const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
   const Op& call_py_func_op_ = Op::Get("relax.call_py_func");
   const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
@@ -243,6 +253,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};
   const ExternFunc builtin_reshape_{"vm.builtin.reshape"};
   const ExternFunc builtin_shape_of_{"vm.builtin.shape_of"};
+  const ExternFunc builtin_shape_to_tensor_{"vm.builtin.shape_to_tensor"};
   const ExternFunc builtin_tensor_to_shape_{"vm.builtin.tensor_to_shape"};
   const ExternFunc builtin_call_py_func_{"vm.builtin.call_py_func"};
   const ExternFunc builtin_to_device_{"vm.builtin.to_device"};

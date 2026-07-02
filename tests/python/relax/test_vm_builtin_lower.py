@@ -148,5 +148,33 @@ def test_vm_reshape_using_tensor_to_shape():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_vm_shape_to_tensor():
+    """R.shape_to_tensor lowers to vm.builtin.shape_to_tensor"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(s: R.Shape([4, 4, 4])):
+            R.func_attr({"relax.force_pure": True})
+            t = R.shape_to_tensor(s)
+            return t
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(s: R.Shape([4, 4, 4])):
+            R.func_attr({"relax.force_pure": True})
+            t = R.call_packed(
+                "vm.builtin.shape_to_tensor",
+                s,
+                ty_args=R.Tensor([3], dtype="int64"),
+            )
+            return t
+
+    After = relax.transform.VMBuiltinLower()(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

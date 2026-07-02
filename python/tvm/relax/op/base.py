@@ -454,19 +454,6 @@ def render_object(val: tvm.Object) -> str:
     return str(val)
 
 
-@tvm.register_global_func("relax.run.shape_to_tensor")
-def relax_shape_to_tensor(shape_tuple: tvm_ffi.Shape) -> tvm.runtime.Tensor:
-    """
-    Takes a Shape and convert it to Tensor.
-
-    Parameters
-    ----------
-    shape_tuple: tvm_ffi.Shape
-        Shape tuple that we want to convert to Tensor at runtime
-    """
-    return tvm.runtime.tensor([int(v) for v in shape_tuple])
-
-
 @tvm.register_global_func("relax.run.print")
 def relax_print(format_str: str, *format_args: tvm.Object) -> None:
     """

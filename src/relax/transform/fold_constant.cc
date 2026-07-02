@@ -401,8 +401,9 @@ class ConstantFolder : public ExprMutator {
           is_known &= val.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64);
         }
         if (is_known) {
-          const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
-          runtime::Tensor vals = func(arr).cast<runtime::Tensor>();
+          ffi::Shape shape_obj(arr);
+          const auto func = tvm::ffi::Function::GetGlobalRequired("vm.builtin.shape_to_tensor");
+          runtime::Tensor vals = func(shape_obj).cast<runtime::Tensor>();
           return Constant(vals);
         }
       }
