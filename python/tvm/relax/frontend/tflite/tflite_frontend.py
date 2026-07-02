@@ -391,6 +391,7 @@ class OperatorConverter:
             "STABLEHLO_REDUCE": self._convert_stablehlo_reduce,
             "STABLEHLO_REDUCE_WINDOW": self._convert_stablehlo_reduce_window,
             "STABLEHLO_REMAINDER": self._convert_stablehlo_remainder,
+            "STABLEHLO_RESHAPE": self._convert_stablehlo_reshape,
             "STABLEHLO_RNG_BIT_GENERATOR": self._convert_stablehlo_rng_bit_generator,
             "STABLEHLO_RSQRT": functools.partial(self._convert_stablehlo_unary, relax_op=_op.rsqrt),
             "STABLEHLO_SCATTER": self._convert_stablehlo_scatter,
@@ -400,11 +401,13 @@ class OperatorConverter:
             "STABLEHLO_SHIFT_LEFT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.left_shift
             ),
+            "STABLEHLO_SLICE": self._convert_stablehlo_slice,
             "STABLEHLO_SORT": self._convert_stablehlo_sort,
             "STABLEHLO_SUBTRACT": functools.partial(
                 self._convert_stablehlo_binary, relax_op=_op.subtract
             ),
             "STABLEHLO_TANH": functools.partial(self._convert_stablehlo_unary, relax_op=_op.tanh),
+            "STABLEHLO_TRANSPOSE": self._convert_stablehlo_transpose,
             "STABLEHLO_WHILE": self._convert_stablehlo_while,
             "SQUEEZE": self.convert_squeeze,
             "STRIDED_SLICE": self.convert_strided_slice,
@@ -3187,6 +3190,50 @@ class OperatorConverter:
 
         reshaped = self.bb.normalize(relax.op.reshape(in_expr, intermediate_shape))
         return self.bb.normalize(relax.op.broadcast_to(reshaped, output_shape))
+
+    def _convert_stablehlo_reshape(self, op):
+        """Convert STABLEHLO_RESHAPE to Relax."""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        output_shape = [int(d) for d in self.get_tensor_shape(output_tensors[0])]
+        return self.bb.normalize(relax.op.reshape(in_expr, output_shape))
+
+    def _convert_stablehlo_slice(self, op):
+        """Convert STABLEHLO_SLICE to Relax."""
+        from tflite.StablehloSliceOptions import StablehloSliceOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloSliceOptions)
+        begin = [int(d) for d in opts.StartIndicesAsNumpy()]
+        end = [int(d) for d in opts.LimitIndicesAsNumpy()]
+        strides = [int(d) for d in opts.StridesAsNumpy()]
+        axes = list(range(len(begin)))
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(
+            relax.op.strided_slice(in_expr, axes=axes, begin=begin, end=end, strides=strides)
+        )
+
+    def _convert_stablehlo_transpose(self, op):
+        """Convert STABLEHLO_TRANSPOSE to Relax."""
+        from tflite.StablehloTransposeOptions import StablehloTransposeOptions
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1
+        assert len(self.get_output_tensors(op)) == 1
+
+        opts = self._get_stablehlo_options(op, StablehloTransposeOptions)
+        permutation = [int(d) for d in opts.PermutationAsNumpy()]
+
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        return self.bb.normalize(relax.op.permute_dims(in_expr, axes=permutation))
 
     def _convert_stablehlo_iota(self, op):
         """Convert STABLEHLO_IOTA to Relax (arange + broadcast)."""
