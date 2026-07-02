@@ -64,8 +64,7 @@ class TIRVisitorWithPath
     } else if (auto* call = obj.as<CallNode>()) {
       VisitExpr_(call, path);
     } else {
-      TVM_FFI_THROW(TypeError) << "Unsupported non-primitive TIR expression "
-                               << obj.GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Unsupported non-primitive TIR expression " << obj.GetTypeKey();
     }
   }
   // Delegate to ExprFunctor::VisitStmt for Stmt, and any subclasses

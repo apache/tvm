@@ -345,8 +345,8 @@ inline Tensor reshape(const Tensor& x, ffi::Array<PrimExpr> newshape,
     return compute(
         target_shape,
         [&](const ffi::Array<Var>& indices) {
-          ffi::Array<PrimExpr> prim_indices = indices.Map(
-              [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+          ffi::Array<PrimExpr> prim_indices =
+              indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
           return x(UnravelIndex(RavelIndex(prim_indices, target_shape), x_shape));
         },
         name, tag);
@@ -1856,8 +1856,8 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
   return compute(
       dst_shape,
       [&](const ffi::Array<Var>& dst_indices) {
-        ffi::Array<PrimExpr> dst_indices_expr = dst_indices.Map(
-            [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+        ffi::Array<PrimExpr> dst_indices_expr =
+            dst_indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         ffi::Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
         PrimExpr in_range = PrimExpr(1) > PrimExpr(0);  // init with dtype=bool and value=true
         for (size_t i = 0; i < src.ndim(); ++i) {
@@ -1919,8 +1919,8 @@ inline Tensor auto_scheduler_layout_transform(
   return compute(
       dst_shape,
       [&](const ffi::Array<Var>& dst_indices) {
-        ffi::Array<PrimExpr> dst_indices_expr = dst_indices.Map(
-            [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+        ffi::Array<PrimExpr> dst_indices_expr =
+            dst_indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         ffi::Array<PrimExpr> src_indices;
         for (const std::string& src_axis : src_axes) {
           PrimExpr src_index = 0;
@@ -1987,8 +1987,8 @@ inline Tensor meta_schedule_layout_transform(
       post_transform_shape,
       [src, inv = index_map.Inverse(iter_domain, analyzer),
        &analyzer](const ffi::Array<Var>& indices) -> PrimExpr {
-        ffi::Array<PrimExpr> prim_indices = indices.Map(
-            [](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+        ffi::Array<PrimExpr> prim_indices =
+            indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         return src(inv->MapIndices(prim_indices, analyzer));
       },
       name, tag);

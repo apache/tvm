@@ -315,8 +315,8 @@ class DeviceInfoCollector : public StmtVisitor {
       StmtVisitor::VisitStmt_(op);
       return;
     }
-    PrimExpr value = bind_map_.size() ? Substitute(prim_value.value(), bind_map_)
-                                      : prim_value.value();
+    PrimExpr value =
+        bind_map_.size() ? Substitute(prim_value.value(), bind_map_) : prim_value.value();
     bind_map_.Set(op->var, value);
     StmtVisitor::VisitStmt_(op);
   }

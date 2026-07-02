@@ -2168,8 +2168,7 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
   TVM_FFI_ICHECK(!var_map_.count(v));
   Type var_ty = v->ty;
   auto prim_var_ty = var_ty.as<PrimType>();
-  bool is_pointer = var_ty.as<PointerTypeNode>() ||
-                    (prim_var_ty && prim_var_ty.value().IsHandle());
+  bool is_pointer = var_ty.as<PointerTypeNode>() || (prim_var_ty && prim_var_ty.value().IsHandle());
   if (is_pointer) {
     if (!is_restricted_) {
       alias_var_set_.insert(v);
@@ -2182,9 +2181,9 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
   // need to introduce a pointer-cast, even though pointer-to-pointer
   // casts are not expressible with the `tirx::CastNode`.
   if (is_pointer && !v->ty.IsMissing()) {
-    TVM_FFI_ICHECK(op->value->ty.as<PointerTypeNode>() ||
-                   (op->value->ty.as<PrimTypeNode>() &&
-                    op->value->ty.as_or_throw<PrimType>().IsHandle()))
+    TVM_FFI_ICHECK(
+        op->value->ty.as<PointerTypeNode>() ||
+        (op->value->ty.as<PrimTypeNode>() && op->value->ty.as_or_throw<PrimType>().IsHandle()))
         << "Variable " << op->var << " is a pointer with type " << op->value
         << ", but is being bound to expression with type " << op->value->ty;
     auto* llvm_type = GetLLVMType(v->ty);

@@ -50,8 +50,8 @@ void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const BindNode* op) {
+  this->VisitExpr(op->value);
   if (ffi::Optional<PrimExpr> value = op->value.as<PrimExpr>()) {
-    this->VisitExpr(value.value());
     analyzer_->Bind(op->var, value.value());
   }
 }

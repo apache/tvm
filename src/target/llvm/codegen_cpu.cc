@@ -210,8 +210,8 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
 
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
   std::string name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
-  return CreateDebugFunction(
-      name, func->params.Map([](const Var& var) { return GetType(var); }), func->ret_type);
+  return CreateDebugFunction(name, func->params.Map([](const Var& var) { return GetType(var); }),
+                             func->ret_type);
 }
 
 void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
@@ -578,10 +578,9 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
 
   function_ = fcompute;
-  di_subprogram_ =
-      CreateDebugFunction(MakeStringRef(value->value),
-                          vargs.Map([](const Var& var) { return GetType(var); }),
-                          PrimType::Int(32));
+  di_subprogram_ = CreateDebugFunction(MakeStringRef(value->value),
+                                       vargs.Map([](const Var& var) { return GetType(var); }),
+                                       PrimType::Int(32));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
@@ -1052,8 +1051,8 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     TVM_FFI_ICHECK_EQ(args.size(), 4U);
     int kind = args[2].as<IntImm>().value()->value;
     llvm::Value* value = MakeValue(args[3]);
-    TypedPointer ref = CreateStructRefPtr(args[3].as_or_throw<PrimExpr>().ty(),
-                                          MakeValue(args[0]), MakeValue(args[1]), kind);
+    TypedPointer ref = CreateStructRefPtr(args[3].as_or_throw<PrimExpr>().ty(), MakeValue(args[0]),
+                                          MakeValue(args[1]), kind);
     TVM_FFI_ICHECK(kind != builtin::kDLTensorAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);

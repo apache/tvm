@@ -801,8 +801,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
   // ── Section: data pointer ────────────────────────────────────
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
-    PrimExpr raw_data =
-        TVMStructGet(PrimType::Handle(), handle, 0, builtin::kDLTensorData);
+    PrimExpr raw_data = TVMStructGet(PrimType::Handle(), handle, 0, builtin::kDLTensorData);
     Expr typed_data = Call(buffer->data->ty, builtin::reinterpret(), {raw_data});
     if (BindPointer(buffer->data, typed_data, data_path, true)) {
       Var vptr(buffer->data);

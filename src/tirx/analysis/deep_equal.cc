@@ -87,8 +87,7 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
     if (auto* lhs_call = lhs.as<CallNode>()) {
       auto* rhs_call = rhs.as<CallNode>();
       return ffi::StructuralEqual()(lhs_call->ty, rhs_call->ty) &&
-             lhs_call->op.same_as(rhs_call->op) &&
-             ArrayDeepEqual(lhs_call->args, rhs_call->args) &&
+             lhs_call->op.same_as(rhs_call->op) && ArrayDeepEqual(lhs_call->args, rhs_call->args) &&
              ffi::StructuralEqual()(lhs_call->attrs, rhs_call->attrs);
     }
     return false;

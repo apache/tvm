@@ -160,8 +160,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   bool in_thread_env_{false};
   std::vector<ffi::String> errs_;
   //@}
-  tirx::PrimFunc func_{nullptr};                       ///< Function to be verified.
-  int dev_type_{kDLCPU};                               ///< Device type
+  tirx::PrimFunc func_{nullptr};                   ///< Function to be verified.
+  int dev_type_{kDLCPU};                           ///< Device type
   std::unordered_map<const VarNode*, Expr> defs_;  ///< Variable definitions
 };
 }  // namespace

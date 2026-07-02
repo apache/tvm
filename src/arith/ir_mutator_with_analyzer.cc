@@ -203,13 +203,11 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
-  ffi::Optional<PrimExpr> prim_value = op->value.as<PrimExpr>();
-  if (!prim_value.defined()) {
-    return ffi::GetRef<Stmt>(op);
-  }
-  PrimExpr value = this->VisitExpr(prim_value.value());
-  if (SideEffect(value) <= CallEffectKind::kPure) {
-    analyzer_->Bind(op->var, value);
+  Expr value = this->VisitExpr(op->value);
+  if (auto prim_value = value.as<PrimExpr>()) {
+    if (SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
+      analyzer_->Bind(op->var, prim_value.value());
+    }
   }
   if (value.same_as(op->value)) return ffi::GetRef<Stmt>(op);
   auto n = this->CopyOnWrite(op);

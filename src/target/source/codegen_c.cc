@@ -109,8 +109,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     }
 
     bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
-    bool is_handle = v->ty.as<PointerTypeNode>() ||
-                     (v->ty.as<PrimTypeNode>() && v.ty().IsHandle());
+    bool is_handle = v->ty.as<PointerTypeNode>() || (v->ty.as<PrimTypeNode>() && v.ty().IsHandle());
     auto* ptr = v->ty.as<PointerTypeNode>();
     if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
       is_handle = false;
@@ -220,8 +219,7 @@ void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
   } else if (auto* call = n.as<CallNode>()) {
     VisitExpr_(call, os);
   } else {
-    TVM_FFI_THROW(TypeError) << "CodeGenC cannot print non-primitive expression "
-                             << n.GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "CodeGenC cannot print non-primitive expression " << n.GetTypeKey();
   }
 }
 
@@ -417,7 +415,12 @@ void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* v
   if (value == nullptr) return;
   auto* call = value->as<CallNode>();
   if (call == nullptr || !call->op.same_as(builtin::ptr_byte_offset())) return;
-  std::optional<PrimType> value_dtype = tirx::GetPointerType((*value)->ty);
+  std::optional<PrimType> value_dtype = [&]() {
+    if (auto prim_value = value->as<PrimExpr>()) {
+      return tirx::GetPointerType(GetType(prim_value.value()));
+    }
+    return tirx::GetPointerType((*value)->ty);
+  }();
   if (!value_dtype.has_value()) return;
   RegisterHandleType(var.get(), value_dtype.value());
   pointer_offset_vars_.insert(var.get());
@@ -1010,7 +1013,9 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    if (op->var->ty.as<PointerTypeNode>() && handle_data_type_.count(op->var.get())) {
+    bool is_pointer = op->var->ty.as<PointerTypeNode>() ||
+                      (op->var->ty.as<PrimTypeNode>() && op->var.ty().IsHandle());
+    if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
       this->stream << "* " << AllocVarID(op->var.get()) << " = (";
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
@@ -1135,7 +1140,9 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    if (op->var->ty.as<PointerTypeNode>() && handle_data_type_.count(op->var.get())) {
+    bool is_pointer = op->var->ty.as<PointerTypeNode>() ||
+                      (op->var->ty.as<PrimTypeNode>() && op->var.ty().IsHandle());
+    if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), stream);
       stream << "* " << AllocVarID(op->var.get()) << " = (";
       PrintType(handle_data_type_.at(op->var.get()), stream);

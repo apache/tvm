@@ -458,9 +458,9 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
-                                      std::is_same_v<Var, Expr>>>
+template <
+    typename Obj, typename Expr,
+    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
   auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto opt = vmap.Get(var)) {
@@ -481,9 +481,9 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
-                                      std::is_same_v<Var, Expr>>>
+template <
+    typename Obj, typename Expr,
+    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap) {
   auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
@@ -504,9 +504,9 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap)
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
-                                      std::is_same_v<Var, Expr>>>
+template <
+    typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
+    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& vmap) {
   auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto it = vmap.find(var); it != vmap.end()) {
@@ -527,9 +527,9 @@ auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityC
  * \param iter_vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> ||
-                                      std::is_same_v<Var, Expr>>>
+template <
+    typename Obj, typename Expr,
+    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
 auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (const auto& [iter_var, expr] : iter_vmap) {

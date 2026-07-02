@@ -42,7 +42,9 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
   if (auto prim = expr.as<PrimExpr>()) {
     return this->VisitExpr(prim.value());
   }
-  if (expr.as<VarNode>() || expr.as<StringImmNode>()) return expr;
+  if (const auto* op = expr.as<SizeVarNode>()) return VisitExpr(ffi::GetRef<SizeVar>(op));
+  if (const auto* op = expr.as<VarNode>()) return VisitExpr(ffi::GetRef<Var>(op));
+  if (expr.as<StringImmNode>()) return expr;
   if (const auto* op = expr.as<CallNode>()) {
     ffi::Array<Expr> args =
         op->args.Map([this](const Expr& arg) -> Expr { return this->VisitExpr(arg); });
@@ -174,8 +176,8 @@ PrimExpr ExprMutator::VisitExpr_(const LetNode* op) {
 }
 
 PrimExpr ExprMutator::VisitExpr_(const CallNode* op) {
-  ffi::Array<Expr> args = op->args.Map(
-      [this](const Expr& arg) -> Expr { return this->VisitExpr(arg); });
+  ffi::Array<Expr> args =
+      op->args.Map([this](const Expr& arg) -> Expr { return this->VisitExpr(arg); });
 
   if (args.same_as(op->args)) {
     return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();

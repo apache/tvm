@@ -211,11 +211,10 @@ class PVar : public Pattern<PVar<T>> {
     }
   }
 
-  template <typename NodeRefType,
-            typename = typename std::enable_if<
-                !std::is_same<NodeRefType, T>::value &&
-                std::is_base_of<ffi::ObjectRef, NodeRefType>::value &&
-                std::is_base_of<ffi::ObjectRef, T>::value>::type>
+  template <typename NodeRefType, typename = typename std::enable_if<
+                                      !std::is_same<NodeRefType, T>::value &&
+                                      std::is_base_of<ffi::ObjectRef, NodeRefType>::value &&
+                                      std::is_base_of<ffi::ObjectRef, T>::value>::type>
   bool Match_(const NodeRefType& value) const {
     if (auto typed_value = value.template as<T>()) {
       return Match_(*typed_value);

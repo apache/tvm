@@ -935,8 +935,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     TVM_FFI_ICHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
     let_binding_[op->var] = value;
 
-    if (GetLanesOrVScaleFactor(value.ty()) !=
-        GetLanesOrVScaleFactor(prim_value.value().ty())) {
+    if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(prim_value.value().ty())) {
       Var new_var(op->var->name_hint, value.ty());
       let_binding_[op->var] = new_var;
       return Bind(new_var, value);

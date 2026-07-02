@@ -52,9 +52,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   for (const PrimExpr& e : buffer->shape) {
     update_use_count(e);
   }
-  auto is_new_var = [&](const Expr& e) {
-    return e->IsInstance<VarNode>() && !d->IsVarDefined(e);
-  };
+  auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
     TVM_FFI_ICHECK(!d->IsVarDefined(var));
     ExprDoc lhs = DefineVar(var, frame, d);
@@ -164,10 +162,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   {
     ffi::String scope = buffer.scope();
     if (scope != "global") {
-      kwargs.Set(
-          "scope",
-          LiteralDoc::Str(scope,
-                          buffer_p->Attr("data")->Attr("ty")->Attr("storage_scope")));
+      kwargs.Set("scope",
+                 LiteralDoc::Str(scope, buffer_p->Attr("data")->Attr("ty")->Attr("storage_scope")));
     }
   }
   // Step 7. Handle `buffer.data_alignment`

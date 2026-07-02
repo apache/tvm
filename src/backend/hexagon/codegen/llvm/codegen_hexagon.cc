@@ -190,8 +190,8 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
   int num_lanes = arg_ty.lanes();
   int vector_length = native_vector_bits_ / arg_ty.bits();
   if (IsQHLFunction(global_symbol) && (num_lanes > vector_length))
-    return CreateCallExternQHL(ret_type, global_symbol,
-                               args.as_or_throw<ffi::Array<PrimExpr>>(), skip_first_arg);
+    return CreateCallExternQHL(ret_type, global_symbol, args.as_or_throw<ffi::Array<PrimExpr>>(),
+                               skip_first_arg);
   return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
