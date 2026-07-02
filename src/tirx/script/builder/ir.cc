@@ -616,6 +616,16 @@ Var Bind(ffi::Any value, ffi::Optional<Type> type_annotation, ffi::Optional<Var>
       return Var("v", value_expr->ty);
     }
   }();
+  if (!ffi::StructuralEqual()(value_expr->ty, bind_var->ty)) {
+    ffi::Optional<PrimType> value_prim_type = value_expr->ty.as<PrimType>();
+    if (bind_var->ty.as<PointerTypeNode>() && value_prim_type.defined() &&
+        value_prim_type.value().IsHandle()) {
+      if (auto call = value_expr.as<Call>()) {
+        value_expr = Call(bind_var->ty, call.value()->op, call.value()->args, call.value()->attrs,
+                          call.value()->ty_args, call.value()->span);
+      }
+    }
+  }
   AddToParent(tvm::tirx::Bind(bind_var, value_expr));
   return bind_var;
 }

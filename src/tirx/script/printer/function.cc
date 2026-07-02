@@ -70,10 +70,10 @@ int CountVarOccurrence(const tirx::PrimFunc& f, const tirx::Var& v) {
   OccurrenceCounter counter(v.get());
   counter(f->body);
   for (const tirx::Var& v : f->params) {
-    counter(v);
+    counter.VisitVar(v);
   }
   for (const auto& pair : f->buffer_map) {
-    counter(pair.first);
+    counter.VisitVar(pair.first);
     counter.VisitBuffer(pair.second.get());
   }
   return counter.count;

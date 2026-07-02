@@ -679,6 +679,9 @@ class IRApplyVisit : public StmtExprVisitor {
   explicit IRApplyVisit(std::function<void(const ffi::ObjectRef&)> f) : f_(f) {}
 
   void VisitExpr(const Expr& node) final {
+    if (auto prim = node.as<PrimExpr>()) {
+      return VisitExpr(prim.value());
+    }
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
     ExprVisitor::VisitExpr(node);

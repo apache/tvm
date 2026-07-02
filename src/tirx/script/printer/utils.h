@@ -335,6 +335,8 @@ class OccurrenceCounter : public tirx::StmtExprVisitor {
   /*! \brief The Var to count occurrence */
   const tirx::VarNode* v = nullptr;
 
+  void VisitVar(const tirx::Var& var) { VisitExpr(static_cast<const Expr&>(var)); }
+
   void VisitExpr_(const tirx::VarNode* op) final {
     if (op == v) {
       ++count;
