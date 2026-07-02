@@ -5627,9 +5627,9 @@ class OperatorConverter:
                     "TFLite avg_pool2dreshape requires input and output scale"
                     "and zero points to be equal"
                 )
-                out = relax.op.cast(in_expr, dtype="int32")
+                out = relax.op.astype(in_expr, "int32")
                 out = relax.op.nn.avg_pool2d(out, **params)
-                out = relax.op.cast(out, dtype=output_tensor_type_str)
+                out = relax.op.astype(out, output_tensor_type_str)
             else:
                 out = relax.op.nn.avg_pool2d(in_expr, **params)
         elif pool_type == "max":
@@ -7327,7 +7327,7 @@ class OperatorConverter:
             in_expr = self.exp_tab.new_const(
                 input_value, dtype=dtype, source_name=input_tensor.tensor.Name()
             )
-            out = relax.cast(in_expr, dtype="float32")
+            out = relax.op.astype(in_expr, "float32")
             return out
 
         in_expr = self.get_expr(input_tensor.tensor_idx)
