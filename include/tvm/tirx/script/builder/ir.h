@@ -337,7 +337,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The bound Var.
  */
-Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+Var Bind(ffi::Any value, ffi::Optional<Type> type_annotation = std::nullopt,
          ffi::Optional<Var> var = std::nullopt);
 
 /*!
@@ -482,7 +482,7 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */
-void Evaluate(PrimExpr value);
+void Evaluate(ffi::Any value);
 
 /*!
  * \brief Create a TIR var that represents a pointer

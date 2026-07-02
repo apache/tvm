@@ -652,12 +652,13 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
     if isinstance(obj, Buffer):
         n_dim = len(obj.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
-        return call_intrin("handle", "tirx.address_of", buffer_load, span=span)
+        return Call("tirx.address_of", [buffer_load], span=span, ret_ty=obj.data.ty)
     elif isinstance(obj, Var):
-        dtype = "uint64" if _is_tensormap_var(obj) else "handle"
-        return call_intrin(dtype, "tirx.address_of", obj, span=span)
+        if _is_tensormap_var(obj):
+            return call_intrin("uint64", "tirx.address_of", obj, span=span)
+        return Call("tirx.address_of", [obj], span=span, ret_ty=obj.ty)
     elif isinstance(obj, BufferLoad):
-        return call_intrin("handle", "tirx.address_of", obj, span=span)
+        return Call("tirx.address_of", [obj], span=span, ret_ty=obj.buffer.data.ty)
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
 

@@ -678,6 +678,13 @@ class IRApplyVisit : public StmtExprVisitor {
  public:
   explicit IRApplyVisit(std::function<void(const ffi::ObjectRef&)> f) : f_(f) {}
 
+  void VisitExpr(const Expr& node) final {
+    if (visited_.count(node.get()) != 0) return;
+    visited_.insert(node.get());
+    ExprVisitor::VisitExpr(node);
+    f_(node);
+  }
+
   void VisitExpr(const PrimExpr& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
@@ -706,7 +713,10 @@ void PostOrderVisit(const ffi::ObjectRef& node, std::function<void(const ffi::Ob
     visitor(node.as_or_throw<Stmt>());
   } else {
     IRApplyVisit visitor(fvisit);
-    visitor(node.as_or_throw<PrimExpr>());
+    const ExprNode* expr = node.as<ExprNode>();
+    TVM_FFI_CHECK(expr != nullptr, TypeError)
+        << "PostOrderVisit expected a Stmt or Expr, but got " << node->GetTypeKey();
+    visitor.VisitExpr(ffi::GetRef<Expr>(expr));
   }
 }
 

@@ -37,7 +37,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
 
   // Step 0. Set up statistics
   std::unordered_map<const ffi::Object*, int> use_count;
-  auto update_use_count = [&](const PrimExpr& e) {
+  auto update_use_count = [&](const Expr& e) {
     tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& n) {
       if (const VarNode* var = n.as<VarNode>()) {
         ++use_count[var];
@@ -52,7 +52,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   for (const PrimExpr& e : buffer->shape) {
     update_use_count(e);
   }
-  auto is_new_var = [&](const PrimExpr& e) {
+  auto is_new_var = [&](const Expr& e) {
     return e->IsInstance<VarNode>() && !d->IsVarDefined(e);
   };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
@@ -62,7 +62,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     var_def_lhs.push_back(lhs);
     var_def_rhs.push_back(PrintVarCreation(var, var_p, d));
   };
-  auto try_inline_def = [&](const PrimExpr& e, const AccessPath& e_p,
+  auto try_inline_def = [&](const Expr& e, const AccessPath& e_p,
                             std::function<ExprDoc()> inline_f) {
     TVM_FFI_ICHECK(is_new_var(e));
     Var var = e.as_or_throw<Var>();

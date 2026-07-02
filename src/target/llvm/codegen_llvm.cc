@@ -1420,8 +1420,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
         CreateBufferPtr(MakeValue(load->buffer->data), load->buffer->dtype, indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
-  } else if (op->op.same_as(builtin::reinterpret()) &&
-             is_zero(args[0].as_or_throw<PrimExpr>())) {
+  } else if (op->op.same_as(builtin::reinterpret()) && args[0].as<PrimExpr>() &&
+             is_zero(args[0].as<PrimExpr>().value())) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->op.same_as(builtin::isnullptr())) {
     return builder_->CreateIsNull(MakeValue(args[0]));

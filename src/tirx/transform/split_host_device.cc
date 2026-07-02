@@ -199,7 +199,7 @@ class HostDeviceSplitter : public StmtMutator {
     }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
-    ffi::Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
+    ffi::Array<Expr> args = params.Map([](const Var& var) -> Expr { return var; });
 
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success.ty());
@@ -572,9 +572,9 @@ class DeviceKernelMutator : public StmtExprMutator {
         // calling a custom TIRToRuntime target) do not require a kernel
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
-        ffi::Array<PrimExpr> args;
+        ffi::Array<Expr> args;
         args.push_back(StringImm(gvar->name_hint));
-        for (const PrimExpr& arg : node->args.as_or_throw<ffi::Array<PrimExpr>>()) {
+        for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
         return Call(node->ty.as_or_throw<PrimType>(), builtin::call_extern(), args)
@@ -593,23 +593,25 @@ class DeviceKernelMutator : public StmtExprMutator {
     // caller's parameters.  The param_map allows substitution of
     // parameter values into the thread extents, to generate
     // expressions that are valid within the caller.
-    ffi::Array<PrimExpr> prim_args = node->args.as_or_throw<ffi::Array<PrimExpr>>();
+    const ffi::Array<Expr>& args = node->args;
     ffi::Map<Var, PrimExpr> param_map = [&]() {
       ffi::Map<Var, PrimExpr> param_map;
-      TVM_FFI_ICHECK_EQ(prim_args.size(), dev_info.params.size())
+      TVM_FFI_ICHECK_EQ(args.size(), dev_info.params.size())
           << "Function " << gvar->name_hint << " accepts " << dev_info.params.size()
-          << " arguments as input, but is called using " << prim_args.size() << " arguments";
-      for (size_t i = 0; i < prim_args.size(); i++) {
-        param_map.Set(dev_info.params[i], prim_args[i]);
+          << " arguments as input, but is called using " << args.size() << " arguments";
+      for (size_t i = 0; i < args.size(); i++) {
+        if (auto prim_arg = args[i].as<PrimExpr>()) {
+          param_map.Set(dev_info.params[i], prim_arg.value());
+        }
       }
       return param_map;
     }();
 
     device_kernel_launch_.insert(gvar);
 
-    ffi::Array<PrimExpr> call_args;
+    ffi::Array<Expr> call_args;
     call_args.push_back(StringImm(dev_info.global_symbol));
-    for (const PrimExpr& arg : prim_args) {
+    for (const Expr& arg : args) {
       call_args.push_back(arg);
     }
     for (const auto& launch_arg : dev_info.launch_args) {

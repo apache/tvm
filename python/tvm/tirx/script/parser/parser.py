@@ -23,7 +23,7 @@ from functools import partial
 from typing import Any
 
 import tvm
-from tvm.ir import GlobalVar, PrimType
+from tvm.ir import Expr, GlobalVar, PrimType
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
@@ -531,7 +531,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         # T.let or T.let[type] -> immutable Bind var
         if rhs is None:
             self.report_error(node, "T.let annotation requires a value")
-        if not tvm.ir.is_prim_expr(rhs):
+        if not isinstance(rhs, Expr):
             if isinstance(rhs, str):
                 rhs = tvm.tirx.StringImm(rhs)
             else:
