@@ -501,6 +501,25 @@ class SeqExprNode : public ExprNode {
     refl::ObjectDef<SeqExprNode>()
         .def_ro("blocks", &SeqExprNode::blocks)
         .def_ro("body", &SeqExprNode::body);
+    refl::TypeAttrDef<SeqExprNode>()
+        .def("__s_equal__", &SeqExprNode::SEqual)
+        .def("__s_hash__", &SeqExprNode::SHash);
+  }
+
+  bool SEqual(const SeqExprNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    // Establish mappings for symbolic variables defined by bindings before
+    // comparing their uses in the SeqExpr result type and body.
+    return equal(blocks, other->blocks, false, "blocks") && equal(ty, other->ty, false, "ty") &&
+           equal(body, other->body, false, "body");
+  }
+
+  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
+    int64_t hash_value = init_hash;
+    hash_value = hash(blocks, hash_value, false);
+    hash_value = hash(ty, hash_value, false);
+    hash_value = hash(body, hash_value, false);
+    return hash_value;
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.SeqExpr", SeqExprNode, ExprNode);
 };

@@ -166,10 +166,9 @@ class DistributedBufferCompactor : StmtExprMutator {
     }
     Stmt new_body = compactor(prim_func->body);
     new_body = DistBufferReplacer::BufferReplace(new_body, replace_buffer_map);
-    ffi::ObjectPtr<PrimFuncNode> new_func = ffi::make_object<PrimFuncNode>(*prim_func.get());
-    new_func->buffer_map = new_func_buffer_map;
-    new_func->body = new_body;
-    return std::make_tuple(PrimFunc(new_func), compactor.add_allreduce_kind_);
+    PrimFunc new_func(prim_func->params, new_body, prim_func->ret_type, new_func_buffer_map,
+                      prim_func->attrs, prim_func->span);
+    return std::make_tuple(new_func, compactor.add_allreduce_kind_);
   }
 
  private:
