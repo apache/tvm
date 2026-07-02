@@ -966,13 +966,26 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       std::fill(is_chain_on_depths_.begin(), is_chain_on_depths_.end(), true);
     }
 
-    if (append_before_attn_) {
-      // Right now we use different kernels when depth is 1 or not 1.
-      // For the case where maximum depth is 1, we create the auxiliary
-      // data structure with regard to the page table after appending.
-      for (int i = 0; i < cur_batch_size_; ++i) {
-        ReserveAppendLengthInSeq(sequences[i], append_lengths[i]);
-      }
+    // Reserve pages BEFORE the aux-data loop unconditionally. The aux-data
+    // loop below reads `block.page_ids.size()` to populate page_indptr /
+    // page_indices / length_info, so pages must already be reserved in this
+    // call's blocks for the metadata to reflect the current prefill state.
+    //
+    // Previously the reserve was conditional on `append_before_attn_`: the
+    // `=true` branch reserved before the loop (correct), but the `=false`
+    // branch reserved after the loop, producing zero-page metadata for the
+    // first prefill into an empty cache. That broke models that perform
+    // intra-prefill shared-KV cross-attention (e.g. Gemma 4 layers 15-34
+    // reading the K/V written by layers 13/14 inside the same prefill call):
+    // MHACrossAttnInternal saw `page_indices->shape[0] == 0` and skipped
+    // the entire computation, leaving the model-supplied `o_data` as
+    // uninitialised memory.
+    //
+    // The K/V-append timing is unchanged: the actual append (via
+    // `f_transpose_append_mha`) is still controlled by `append_before_attn_`
+    // at attention time, not by when page slots are reserved here.
+    for (int i = 0; i < cur_batch_size_; ++i) {
+      ReserveAppendLengthInSeq(sequences[i], append_lengths[i]);
     }
 
     for (int d = 0; d < num_depths_; ++d) {
@@ -1111,15 +1124,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             }
           }
         }
-      }
-    }
-
-    if (!append_before_attn_) {
-      // Right now we use different kernels when depth is 1 or not 1.
-      // For the case where maximum depth is not 1, we create the auxiliary
-      // data structure with regard to the page table before appending.
-      for (int i = 0; i < cur_batch_size_; ++i) {
-        ReserveAppendLengthInSeq(sequences[i], append_lengths[i]);
       }
     }
 
@@ -1425,7 +1429,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // The auxiliary data structure on device must have been synchronized.
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
 
-    if (attn_kind == AttnKind::kMHA) {
+    if (attn_kind == AttnKind::kMHA || attn_kind == AttnKind::kMHASliding) {
       MHASelfAttnInternal(q_data, k_data, v_data, o_data, lse_data, sm_scale);
     } else {
       MLASelfAttnInternal(q_data, k_data, v_data, o_data, lse_data, sm_scale);
@@ -1464,7 +1468,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // The auxiliary data structure on device must have been synchronized.
     TVM_FFI_ICHECK(!dirty_aux_data_device_);
 
-    if (attn_kind == AttnKind::kMHA) {
+    if (attn_kind == AttnKind::kMHA || attn_kind == AttnKind::kMHASliding) {
       MHACrossAttnInternal(local_layer_id, q_data, o_data, lse_data, sm_scale,
                            /*is_first_kernel=*/true);
     } else {
