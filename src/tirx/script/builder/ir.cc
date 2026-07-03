@@ -597,16 +597,8 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-Var Bind(ffi::Any value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
-  Expr value_expr = [&]() {
-    if (value.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
-      return Expr(value.cast<PrimExpr>());
-    }
-    const ExprNode* value_node = value.as<ExprNode>();
-    TVM_FFI_CHECK(value_node != nullptr, TypeError)
-        << "Bind value must be an expression, but got " << value.GetTypeKey();
-    return ffi::GetRef<Expr>(value_node);
-  }();
+Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
+  Expr value_expr = value;
   Var bind_var = [&]() {
     if (var.defined()) {
       return var.value();

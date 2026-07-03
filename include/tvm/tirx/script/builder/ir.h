@@ -337,7 +337,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The bound Var.
  */
-Var Bind(ffi::Any value, ffi::Optional<Type> type_annotation = std::nullopt,
+Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
          ffi::Optional<Var> var = std::nullopt);
 
 /*!
