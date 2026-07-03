@@ -28,7 +28,7 @@
 Plus the support modules:
 
 - ``header`` — CUDA header generator and helper-tag table.
-- ``registry`` — codegen registry and manifest grouped by CUDA feature namespace.
+- ``registry`` — codegen registry.
 - ``types`` — PTX dtype enum.
 - ``utils`` — small parsing / validation helpers.
 """
@@ -36,22 +36,14 @@ Plus the support modules:
 # Import op modules to register their codegen functions.
 from . import cp_async, math, memory, misc, mma, nvshmem, sync, tcgen05, wgmma
 from .header import TAGS, header_generator
-from .registry import (
-    CODEGEN_MANIFEST,
-    CODEGEN_REGISTRY,
-    get_codegen,
-    list_registered_codegen,
-    register_codegen,
-)
+from .registry import CODEGEN_REGISTRY, get_codegen, register_codegen
 from .types import PTXDataType
 
 __all__ = [
     "CODEGEN_REGISTRY",
-    "CODEGEN_MANIFEST",
     "TAGS",
     "PTXDataType",
     "get_codegen",
     "header_generator",
-    "list_registered_codegen",
     "register_codegen",
 ]

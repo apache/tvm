@@ -26,7 +26,6 @@ import functools
 import tvm_ffi
 
 CODEGEN_REGISTRY = {}
-CODEGEN_MANIFEST = {}
 
 
 def _canonical_device_intrin_name(op_name: str) -> str:
@@ -46,49 +45,10 @@ def _canonical_device_intrin_name(op_name: str) -> str:
     return op_name
 
 
-def _codegen_namespace(op_name: str) -> str:
-    basename = op_name[len("tirx.") :] if op_name.startswith("tirx.") else op_name
-    if basename.startswith("_"):
-        return "internal"
-    if "." in basename:
-        return basename.split(".", 1)[0]
-    if "_" in basename:
-        return basename.split("_", 1)[0]
-    return basename
-
-
-def _record_codegen(canonical_op_name, op_names, backend):
-    CODEGEN_MANIFEST[canonical_op_name] = {
-        "aliases": tuple(sorted(op_names - {canonical_op_name})),
-        "backend": backend,
-        "namespace": _codegen_namespace(canonical_op_name),
-    }
-
-
 @tvm_ffi.register_global_func("tirx.intrinsics.cuda.get_codegen")
 def get_codegen(op):
     """get the codegen function for a given op"""
     return CODEGEN_REGISTRY.get(op, None)
-
-
-def list_registered_codegen(include_internal=False):
-    """Return registered codegen ops grouped by namespace.
-
-    The result is intended for inspection and tests.  The C++ codegen still
-    dispatches through ``get_codegen`` / ``CODEGEN_REGISTRY``.
-    """
-
-    result = {}
-    for op_name, metadata in sorted(CODEGEN_MANIFEST.items()):
-        if not include_internal and metadata["namespace"] == "internal":
-            continue
-        entry = {
-            "op": op_name,
-            "aliases": metadata["aliases"],
-            "backend": metadata["backend"],
-        }
-        result.setdefault(metadata["namespace"], []).append(entry)
-    return {namespace: tuple(entries) for namespace, entries in sorted(result.items())}
 
 
 def register_codegen(op, backend="cuda"):
@@ -112,7 +72,6 @@ def register_codegen(op, backend="cuda"):
 
         for op_name in op_names:
             CODEGEN_REGISTRY[op_name] = wrapper
-        _record_codegen(canonical_op_name, op_names, backend)
         return wrapper
 
     return decorator
