@@ -97,9 +97,9 @@ struct Namespace {
 
 }  // namespace
 
-class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
+class Z3Prover::Impl : ExprFunctor<z3::expr(const Expr&)> {
  public:
-  using Base = ExprFunctor<z3::expr(const PrimExpr&)>;
+  using Base = ExprFunctor<z3::expr(const Expr&)>;
   using Self = Z3Prover::Impl;
 
   AnalyzerObj* analyzer;
@@ -526,7 +526,8 @@ class Z3Prover::Impl : ExprFunctor<z3::expr(const PrimExpr&)> {
   }
 
   /// @brief Visit expression with memoization
-  z3::expr VisitExpr(const PrimExpr& e) override {
+  z3::expr VisitExpr(const Expr& expr) override {
+    PrimExpr e = expr.as_or_throw<PrimExpr>();
     if (memo_.count(e)) {
       return memo_.at(e);
     }

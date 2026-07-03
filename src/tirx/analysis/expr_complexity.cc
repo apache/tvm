@@ -39,7 +39,7 @@ class PrimExprSizeCounter : public ExprVisitor {
   }
 
  private:
-  void VisitExpr(const PrimExpr& expr) final {
+  void VisitExpr(const Expr& expr) final {
     counter_++;
     ExprVisitor::VisitExpr(expr);
   }

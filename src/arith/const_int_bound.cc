@@ -92,8 +92,7 @@ struct ConstIntBoundAnalyzer::Entry {
   }
 };
 
-class ConstIntBoundAnalyzer::Impl
-    : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
+class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
   /*! \brief additional bound info about expr in bound */
@@ -154,27 +153,28 @@ class ConstIntBoundAnalyzer::Impl
     return Everything(static_cast<const ExprNode*>(op)->ty.as_or_throw<PrimType>());
   }
 
-  Entry VisitExpr(const PrimExpr& expr) final {
+  Entry VisitExpr(const Expr& expr) final {
+    PrimExpr prim_expr = expr.as_or_throw<PrimExpr>();
     Entry res = ExprFunctor::VisitExpr(expr);
     tirx::ExprDeepEqual equal;
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {
-      if (equal(expr, info.expr)) {
+      if (equal(prim_expr, info.expr)) {
         res = Intersect(res, info.bound);
       }
     }
     if (bound_) {
-      auto val = bound_->find(expr);
+      auto val = bound_->find(prim_expr);
       if (val != bound_->end()) {
-        auto everything = Everything(expr.ty());
+        auto everything = Everything(prim_expr.ty());
         TVM_FFI_ICHECK(
             (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
              val->second->max_value == everything.max_value))
             << "Detected bound for " << expr << "conflicts with memorization";
       }
-      (*bound_)[expr] = ConstIntBound(res.min_value, res.max_value);
+      (*bound_)[prim_expr] = ConstIntBound(res.min_value, res.max_value);
     }
     return res;
   }

@@ -155,7 +155,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
     return load;

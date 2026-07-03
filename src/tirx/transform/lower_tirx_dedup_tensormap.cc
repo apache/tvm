@@ -190,7 +190,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_remap_.find(v);
     if (it != var_remap_.end()) {
@@ -200,8 +200,8 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
-    PrimExpr min = VisitExpr(op->min);
-    PrimExpr extent = VisitExpr(op->extent);
+    PrimExpr min = VisitPrimExpr(op->min);
+    PrimExpr extent = VisitPrimExpr(op->extent);
     emitted_keys_.emplace_back(std::vector<ffi::Array<PrimExpr>>());
     Stmt body = VisitStmt(op->body);
     emitted_keys_.pop_back();
@@ -217,7 +217,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const WhileNode* op) {
-    PrimExpr condition = VisitExpr(op->condition);
+    PrimExpr condition = VisitPrimExpr(op->condition);
     emitted_keys_.emplace_back(std::vector<ffi::Array<PrimExpr>>());
     Stmt body = VisitStmt(op->body);
     emitted_keys_.pop_back();
@@ -232,7 +232,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const IfThenElseNode* op) {
-    PrimExpr condition = VisitExpr(op->condition);
+    PrimExpr condition = VisitPrimExpr(op->condition);
     emitted_keys_.emplace_back(std::vector<ffi::Array<PrimExpr>>());
     Stmt then_case = VisitStmt(op->then_case);
     emitted_keys_.pop_back();
@@ -255,7 +255,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = VisitExpr(op->value);
+    PrimExpr value = VisitPrimExpr(op->value);
     if (IsTensorMapAlloca(op)) {
       // If this bind allocates a tensormap that is remapped to a canonical var, drop it.
       auto it = var_remap_.find(op->var);

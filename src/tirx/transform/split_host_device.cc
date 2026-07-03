@@ -399,7 +399,7 @@ class ReturnRemover : public StmtExprMutator {
     return Parent::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::ret())) {
       TVM_FFI_THROW(InternalError)
           << "Call to builtin::ret() should only appear within an Evaluate node";
@@ -508,7 +508,7 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
  private:
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     auto node = Parent::VisitExpr_(op).as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();

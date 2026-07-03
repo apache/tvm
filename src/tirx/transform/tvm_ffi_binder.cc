@@ -235,7 +235,7 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
  * and adds type annotations (e.g. T.int64(1)). This functor preserves original path
  * names and uses plain integer formatting for human-readable error messages.
  */
-class ExprPathRenderer : public ExprFunctor<std::string(const PrimExpr&)> {
+class ExprPathRenderer : public ExprFunctor<std::string(const Expr&)> {
  public:
   using FVarName = std::function<std::string(const VarNode*)>;
   explicit ExprPathRenderer(FVarName f_var_name) : f_var_name_(std::move(f_var_name)) {}
