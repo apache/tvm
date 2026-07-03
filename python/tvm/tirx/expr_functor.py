@@ -50,7 +50,6 @@ class ExprFunctor:
     def __init__(self):
         self._dispatch_map = {
             "tirx.Var": self.visit_var_,
-            "tirx.SizeVar": self.visit_size_var_,
             "tirx.BufferLoad": self.visit_buffer_load_,
             "tirx.ProducerLoad": self.visit_producer_load_,
             "tirx.Let": self.visit_let_,
@@ -113,10 +112,6 @@ class ExprFunctor:
     def visit_var_(self, op):
         """Default visitor for Var node."""
         return None
-
-    def visit_size_var_(self, op):
-        """Default visitor for SizeVar node."""
-        return self.visit_var_(op)
 
     def visit_buffer_load_(self, op):
         """Default visitor for BufferLoad node."""
@@ -272,10 +267,6 @@ class ExprVisitor(ExprFunctor):
     def visit_var_(self, op):
         """Visitor implementation for Var."""
         pass
-
-    def visit_size_var_(self, op):
-        """Visitor implementation for SizeVar."""
-        self.visit_var_(op)
 
     def visit_buffer_load_(self, op):
         """Visitor implementation for BufferLoad."""
@@ -454,10 +445,6 @@ class ExprMutator(ExprFunctor):
     def visit_var_(self, op):
         """Mutator implementation for Var."""
         return op
-
-    def visit_size_var_(self, op):
-        """Mutator implementation for SizeVar."""
-        return self.visit_var_(op)
 
     def visit_buffer_load_(self, op):
         """Mutator implementation for BufferLoad."""

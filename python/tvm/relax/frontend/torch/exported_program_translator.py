@@ -1615,10 +1615,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             for ph, operand in zip(placeholders, operands):
                 if hasattr(operand, "ty") and isinstance(operand.ty, relax.TensorType):
                     orig_si = operand.ty
-                    # Create fresh SizeVars to avoid sharing with the caller function.
+                    # Create fresh symbolic variables to avoid sharing with the caller function.
                     if orig_si.shape is not None:
                         new_shape = [
-                            tvm.tirx.SizeVar(s.name, s.ty) if isinstance(s, tvm.tirx.SizeVar) else s
+                            tvm.tirx.Var(s.name, s.ty) if isinstance(s, tvm.tirx.Var) else s
                             for s in orig_si.shape
                         ]
                         si = relax.TensorType(new_shape, orig_si.dtype)
@@ -2060,7 +2060,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 term = tvm.tirx.IntImm("int64", int(arg))
             elif isinstance(arg, sympy.Symbol):
                 term = torch_symbol_to_relax_var.setdefault(
-                    str(arg), tvm.tirx.SizeVar(str(arg), "int64")
+                    str(arg), tvm.tirx.Var(str(arg), "int64")
                 )
             else:
                 _, term = self._process_derived_symbol(arg, torch_symbol_to_relax_var)
@@ -2145,10 +2145,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         sympy_node, torch_symbol_to_relax_var
                     )
 
-                    size_var = torch_symbol_to_relax_var.setdefault(
-                        symbol_name, tvm.tirx.SizeVar(symbol_name, "int64")
+                    shape_var = torch_symbol_to_relax_var.setdefault(
+                        symbol_name, tvm.tirx.Var(symbol_name, "int64")
                     )
-                    relax_shape.append(size_var)
+                    relax_shape.append(shape_var)
                 else:
                     relax_shape.append(s)
             dtype = self._convert_data_type(torch_dtype)

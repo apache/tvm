@@ -462,7 +462,7 @@ def test_simplify_le():
 
     ck.verify(x * 8 + y + z < 16, x * 8 + y + z < 16)
 
-    n = tvm.tirx.SizeVar("n", "int32")
+    n = tvm.tirx.Var("n", "int32")
     ck.verify(x * 8 + y < n, x * 8 + y < n)
 
     # Case 2. Simplify the extra expr

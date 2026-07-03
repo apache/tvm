@@ -72,7 +72,6 @@ Doc PrintTIRVar(tirx::Var n, AccessPath n_p, IRDocsifier d) {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::Var>("relax", PrintTIRVar);
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::SizeVar>("relax", PrintTIRVar);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //

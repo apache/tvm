@@ -55,7 +55,6 @@ from .expr import (
     Reduce,
     Select,
     Shuffle,
-    SizeVar,
     StringImm,
     Sub,
     Var,
@@ -145,7 +144,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         f_visit_sblock_realize: Callable | None = None,
         # Expr
         f_visit_var: Callable | None = None,
-        f_visit_size_var: Callable | None = None,
         f_visit_buffer_load: Callable | None = None,
         f_visit_producer_load: Callable | None = None,
         f_visit_let: Callable | None = None,
@@ -199,7 +197,6 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_sblock_realize,
             # Expr
             f_visit_var,
-            f_visit_size_var,
             f_visit_buffer_load,
             f_visit_producer_load,
             f_visit_let,
@@ -262,7 +259,6 @@ class PyStmtExprVisitor:
             "visit_sblock_realize_",
             # Expr
             "visit_var_",
-            "visit_size_var_",
             "visit_buffer_load_",
             "visit_producer_load_",
             "visit_let_",
@@ -495,19 +491,6 @@ class PyStmtExprVisitor:
         ----------
         op : Var
             The Var to be visited.
-        """
-        _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_size_var_(self, op: SizeVar) -> None:
-        """Visit SizeVar.
-
-        Users can customize this function to overwrite VisitSizeVar_(const SizeVarNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : SizeVar
-            The SizeVar to be visited.
         """
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
@@ -946,7 +929,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         f_visit_sblock_realize: Callable | None = None,
         # Expr
         f_visit_var: Callable | None = None,
-        f_visit_size_var: Callable | None = None,
         f_visit_buffer_load: Callable | None = None,
         f_visit_producer_load: Callable | None = None,
         f_visit_let: Callable | None = None,
@@ -1000,7 +982,6 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_sblock_realize,
             # Expr
             f_visit_var,
-            f_visit_size_var,
             f_visit_buffer_load,
             f_visit_producer_load,
             f_visit_let,
@@ -1063,7 +1044,6 @@ class PyStmtExprMutator:
             "visit_sblock_realize_",
             # Expr
             "visit_var_",
-            "visit_size_var_",
             "visit_buffer_load_",
             "visit_producer_load_",
             "visit_let_",
@@ -1363,24 +1343,6 @@ class PyStmtExprMutator:
         ----------
         op : Var
             The Var to be visited.
-
-        Returns
-        -------
-        result : Expr
-            The mutated Expr.
-        """
-        return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_size_var_(self, op: SizeVar) -> Expr:
-        """Visit SizeVar.
-
-        Users can customize this function to overwrite VisitSizeVar_(const SizeVarNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : SizeVar
-            The SizeVar to be visited.
 
         Returns
         -------

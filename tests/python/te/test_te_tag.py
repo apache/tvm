@@ -41,9 +41,9 @@ def compute_conv(data, weight):
 
 
 def test_with():
-    n = te.size_var("n")
-    m = te.size_var("m")
-    l = te.size_var("l")
+    n = te.var("n")
+    m = te.var("m")
+    l = te.var("l")
 
     A = te.placeholder((n, l), name="A")
     B = te.placeholder((m, l), name="B")
@@ -67,12 +67,12 @@ def test_with():
 
 
 def test_decorator():
-    n = te.size_var("n")
-    c = te.size_var("c")
-    h = te.size_var("h")
-    w = te.size_var("w")
-    kh = te.size_var("kh")
-    kw = te.size_var("kw")
+    n = te.var("n")
+    c = te.var("c")
+    h = te.var("h")
+    w = te.var("w")
+    kh = te.var("kh")
+    kw = te.var("kw")
 
     A = te.placeholder((n, c, h, w), name="A")
     B = te.placeholder((c, c, kh, kw), name="B")
@@ -82,12 +82,12 @@ def test_decorator():
 
 
 def test_nested():
-    n = te.size_var("n")
-    c = te.size_var("c")
-    h = te.size_var("h")
-    w = te.size_var("w")
-    kh = te.size_var("kh")
-    kw = te.size_var("kw")
+    n = te.var("n")
+    c = te.var("c")
+    h = te.var("h")
+    w = te.var("w")
+    kh = te.var("kh")
+    kw = te.var("kw")
 
     A = te.placeholder((n, c, h, w), name="A")
     B = te.placeholder((c, c, kh, kw), name="B")

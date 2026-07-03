@@ -133,8 +133,8 @@ def get_constant(
         return var
 
 
-def get_value(token, value_dict: dict[str, tvm.tirx.SizeVar]) -> int | tvm.tirx.SizeVar:
-    """Converts to token to an integer value if it a constant, otherwise it generates a SizeVar
+def get_value(token, value_dict: dict[str, tvm.tirx.Var]) -> int | tvm.tirx.Var:
+    """Convert a token to an integer constant or symbolic variable.
 
     Parameters
     ----------
@@ -142,11 +142,11 @@ def get_value(token, value_dict: dict[str, tvm.tirx.SizeVar]) -> int | tvm.tirx.
         current token to decode.
 
     value_dict: Dict
-        The Dictionary mapping from the name of ValueInfoProto to SizeVar.
+        The dictionary mapping ValueInfoProto names to symbolic variables.
 
     Returns
     -------
-    Union[int, tvm.tirx.SizeVar]
+    Union[int, tvm.tirx.Var]
         The decoded token
     """
 
@@ -154,14 +154,12 @@ def get_value(token, value_dict: dict[str, tvm.tirx.SizeVar]) -> int | tvm.tirx.
         return int(token)
     except ValueError:
         if token not in value_dict or token == "?":
-            value_dict[token] = tvm.tirx.SizeVar(token, "int64")
+            value_dict[token] = tvm.tirx.Var(token, "int64")
         value = value_dict[token]
         return value
 
 
-def parse_shape_name(
-    name: str, value_dict: dict[str, tvm.tirx.SizeVar]
-) -> tirx.Expr | tvm.tirx.SizeVar:
+def parse_shape_name(name: str, value_dict: dict[str, tvm.tirx.Var]) -> tirx.Expr | tvm.tirx.Var:
     """Converts expressions in the shape dimension name to prim expressions.
 
     Parameters
@@ -170,11 +168,11 @@ def parse_shape_name(
         name of shape dimension.
 
     value_dict: Dict
-        The Dictionary mapping from the name of ValueInfoProto to SizeVar.
+        The dictionary mapping ValueInfoProto names to symbolic variables.
 
     Returns
     -------
-    Union[tirx.Expr, tvm.tirx.SizeVar]
+    Union[tirx.Expr, tvm.tirx.Var]
         The expression of the shape dimension.
     """
 
@@ -211,7 +209,7 @@ def parse_shape_name(
 
 
 def get_info(
-    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: dict[str, tvm.tirx.SizeVar]
+    info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: dict[str, tvm.tirx.Var]
 ) -> tuple[str, list, str, list, dict]:
     """Extract the shape from a ValueInfoProto.
 
@@ -221,7 +219,7 @@ def get_info(
         The ValueInfoProto to extract the info from.
 
     value_dict: Dict
-        The Dictionary mapping from the name of ValueInfoProto to SizeVar
+        The dictionary mapping ValueInfoProto names to symbolic variables.
 
     Returns
     -------
@@ -5399,15 +5397,26 @@ class ONNXGraphImporter:
         """
         has_if = any(node.op_type == "If" for node in graph.node)
 
-        with self.bb.function("main"):
+        self.opset = opset
+        self._parse_graph_initializers(graph)
+        self._parse_graph_input(graph)
+        self._check_for_unsupported_ops(graph)
+
+        func_attrs = {"num_input": self._num_input}
+        input_list = [value for value in self._inputs.values() if isinstance(value, relax.Var)]
+        if self._keep_params_in_input and self._params:
+            param_var_list, param_value_list = map(list, zip(*self._params.values()))
+            input_list = input_list + param_var_list
+            func_attrs["params"] = param_value_list
+
+        # Enter the function with its parameters already known.  This lets
+        # BlockBuilder derive non-negative constraints from shape positions
+        # before constructing and simplifying the body.
+        with self.bb.function("main", params=input_list):
             with contextlib.ExitStack() as stack:
                 if not has_if:
                     stack.enter_context(self.bb.dataflow())
 
-                self.opset = opset
-                self._parse_graph_initializers(graph)
-                self._parse_graph_input(graph)
-                self._check_for_unsupported_ops(graph)
                 self._construct_nodes(graph)
 
                 # now return the outputs
@@ -5430,14 +5439,7 @@ class ONNXGraphImporter:
                     output_var = self.bb.emit_output(outputs)
 
             # ExitStack closes here — dataflow block is now closed
-            func_attrs = {"num_input": self._num_input}
-            input_list = [value for value in self._inputs.values() if isinstance(value, relax.Var)]
-            if self._keep_params_in_input and self._params:
-                param_var_list, param_value_list = map(list, zip(*self._params.values()))
-                input_list = input_list + param_var_list
-                func_attrs["params"] = param_value_list
-
-            self.bb.emit_func_output(output_var, params=input_list)
+            self.bb.emit_func_output(output_var)
 
         relax_mod = self.bb.get()
         relax_mod["main"] = relax_mod["main"].with_attrs(func_attrs)

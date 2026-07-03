@@ -226,7 +226,7 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                 var_A = T_builder.arg("var_A", T_builder.handle())
                 var_B = T_builder.arg("var_B", T_builder.handle())
                 T_builder.func_attr({"tirx.noalias": True})
-                n_var = T_builder.int32(is_size_var=True)
+                n_var = T_builder.int32()
                 A = T_builder.match_buffer(var_A, (n_var,), dtype)
                 B = T_builder.match_buffer(var_B, (n_var,), dtype)
                 scalar_sum = scalar_vars[0]
@@ -606,7 +606,7 @@ def test_unary():
         class Module:
             @T.prim_func(s_tir=True)
             def main(var_A: T.handle, var_B: T.handle):
-                m = T.int32(is_size_var=True)
+                m = T.int32()
                 A = T.match_buffer(var_A, (m,), "float32")
                 B = T.match_buffer(var_B, (m,), "float32")
                 for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):

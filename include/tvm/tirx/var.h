@@ -127,54 +127,6 @@ class Var : public PrimExpr {
   static constexpr bool _type_container_is_exact = true;
 };
 
-/*!
- * \brief A variable node represent a tensor index size,
- * whose value must be non-negative.
- */
-class SizeVarNode : public VarNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SizeVarNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SizeVar", SizeVarNode, VarNode);
-};
-
-/*! \brief a named variable represents a tensor index size */
-class SizeVar : public Var {
- public:
-  explicit SizeVar(ffi::ObjectPtr<SizeVarNode> n) : Var(n) {}
-  explicit SizeVar(ffi::UnsafeInit tag) : Var(tag) {}
-  /*!
-   * \brief constructor
-   * \param name_hint variable name
-   * \param t data type
-   * \param span The location of this object in the source code.
-   */
-  TVM_DLL explicit SizeVar(ffi::String name_hint = "s", PrimType t = PrimType::Int(32),
-                           Span span = Span());
-  /*!
-   * \brief Constructor which provides a more detailed type annotation.
-   * \param name_hint variable name.
-   * \param type_annotation The type annotation.
-   * \param span The location of this object in the source code.
-   */
-  TVM_DLL explicit SizeVar(ffi::String name_hint, Type type_annotation, Span span = Span());
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the corresponding Variable.
-   */
-  const SizeVarNode* operator->() const { return get(); }
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the corresponding Variable.
-   */
-  const SizeVarNode* get() const { return static_cast<const SizeVarNode*>(data_.get()); }
-  /*! \brief type indicate the container type */
-  using ContainerType = SizeVarNode;
-  static constexpr bool _type_container_is_exact = true;
-};
-
 using Region = ffi::Array<Range>;
 
 /*!
