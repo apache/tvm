@@ -106,11 +106,6 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
     return plhs == rhs.get();
   }
 
-  bool VisitExpr_(const SizeVarNode* plhs, const PrimExpr& rhs) final {
-    // for var, we require pointer equality
-    return plhs == rhs.get();
-  }
-
   bool VisitExpr_(const BufferLoadNode* plhs, const PrimExpr& rhs) final {
     const auto* prhs = rhs.as<BufferLoadNode>();
     // we run pointer comparison of the buffer

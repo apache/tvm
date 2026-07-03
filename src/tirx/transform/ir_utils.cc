@@ -533,19 +533,10 @@ class IRConvertSSA final : public StmtExprMutator {
 
   /*! \brief Create a new variable with the same name and type as the original. */
   static Var MakeNewVar(const Var& old_var) {
-    bool is_size_var = old_var->IsInstance<SizeVarNode>();
     if (!old_var->type_annotation.IsMissing()) {
-      if (is_size_var) {
-        return SizeVar(old_var->name_hint, old_var->type_annotation);
-      } else {
-        return Var(old_var->name_hint, old_var->type_annotation);
-      }
+      return Var(old_var->name_hint, old_var->type_annotation);
     } else {
-      if (is_size_var) {
-        return SizeVar(old_var->name_hint, old_var.ty());
-      } else {
-        return Var(old_var->name_hint, old_var.ty());
-      }
+      return Var(old_var->name_hint, old_var.ty());
     }
   }
 

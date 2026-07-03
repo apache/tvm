@@ -31,11 +31,6 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
 
-  if (var->IsInstance<tirx::SizeVarNode>()) {
-    kwargs_keys.push_back("is_size_var");
-    kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
-  }
-
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
       ExprDoc element_type =
@@ -82,11 +77,6 @@ Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
     .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
-      return PrintVar(var, p, d);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
-    .set_dispatch<tirx::SizeVar>("", [](tirx::SizeVar var, AccessPath p, IRDocsifier d) -> Doc {
       return PrintVar(var, p, d);
     });
 
@@ -438,7 +428,6 @@ TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
 TVM_SCRIPT_REPR(tirx::VarNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SizeVarNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterVarNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::StringImmNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::CastNode, ReprPrintTIR);

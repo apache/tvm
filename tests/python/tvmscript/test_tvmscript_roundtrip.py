@@ -3254,9 +3254,9 @@ def relax_match_cast_ty_proxy():
         yield make_ir_generator(subclass)
 
 
-def relax_symbolic_size_var():
-    """Relax symbolic variables may be SizeVar"""
-    N = tvm.tirx.SizeVar("N", "int64")
+def relax_symbolic_var():
+    """Relax tensors may use symbolic variables."""
+    N = tvm.tirx.Var("N", "int64")
 
     @R.function
     def func(A: R.Tensor([N], "float16")):
@@ -3364,7 +3364,7 @@ ir_generator = tvm.testing.parameter(
     func_with_loop_steps,
     *op_of_literal(),
     *relax_match_cast_ty_proxy(),
-    relax_symbolic_size_var,
+    relax_symbolic_var,
     relax_float_symbolic_var,
 )
 

@@ -438,16 +438,6 @@ class ConstIntBoundAnalyzer::Impl
     }
   }
 
-  Entry VisitExpr_(const SizeVarNode* op) final {
-    SizeVar v = ffi::GetRef<SizeVar>(op);
-    auto it = var_map_.find(v);
-    if (it != var_map_.end()) {
-      return it->second;
-    } else {
-      return MakeBound(0, kPosInf);
-    }
-  }
-
   Entry VisitLeftShift(const CallNode* op) {
     Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());

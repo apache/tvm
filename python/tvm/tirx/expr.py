@@ -430,28 +430,6 @@ class Var(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.Var, name, dtype, span)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.SizeVar")
-class SizeVar(Var):
-    """Symbolic variable to represent a tensor index size
-       which is greater or equal to zero.
-
-    Parameters
-    ----------
-    name : str
-        The name
-
-    dtype : Union[str, ir.Type]
-        The data type
-
-    span : Optional[Span]
-        The location of this expression in the source code.
-    """
-
-    # pylint: disable=super-init-not-called
-    def __init__(self, name: str, dtype: str | ir.Type, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.SizeVar, name, dtype, span)  # type: ignore
-
-
 @tvm_ffi.register_object("tirx.IterVar")
 class IterVar(ExprOp, Object, Scriptable):
     """Represent iteration variable.

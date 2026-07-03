@@ -477,16 +477,6 @@ a""",
     )
 
 
-def test_size_var():
-    a = tirx.SizeVar("a", "float32")
-    _assert_print(
-        a,
-        """
-a = T.float32(is_size_var=True)
-a""",
-    )
-
-
 def test_iter_var():
     a = tirx.IterVar((0, 8), "a", iter_type=tirx.IterVar.DataPar)
     _assert_print(

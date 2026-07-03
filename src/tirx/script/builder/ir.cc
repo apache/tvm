@@ -860,10 +860,9 @@ Buffer AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String stora
 
 void Evaluate(PrimExpr value) { AddToParent(tvm::tirx::Evaluate(value)); }
 
-PrimExpr Ptr(PrimType dtype, ffi::String storage_scope = "global", bool is_size_var = false) {
+PrimExpr Ptr(PrimType dtype, ffi::String storage_scope = "global") {
   PointerType type_annotation(dtype, storage_scope);
-  return is_size_var ? tvm::tirx::SizeVar("", type_annotation)
-                     : tvm::tirx::Var("", type_annotation);
+  return tvm::tirx::Var("", type_annotation);
 }
 
 using tvm::script::ir_builder::details::Namer;
@@ -902,13 +901,6 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::tirx::TileLayoutNode>([](const ffi::ObjectRef& node,
                                                 ffi::String name) -> void {
 
-    });
-
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::SizeVarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
-      using namespace tvm::tirx;
-      SizeVarNode* var = const_cast<SizeVarNode*>(node.as<SizeVarNode>());
-      var->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
