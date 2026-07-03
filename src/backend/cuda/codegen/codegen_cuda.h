@@ -25,9 +25,12 @@
 #define TVM_TARGET_SOURCE_CODEGEN_CUDA_H_
 
 #include <tvm/target/codegen.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
+#include <cstddef>
 #include <string>
 #include <unordered_map>
 
@@ -56,9 +59,8 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitStmt_(const WhileNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
-  using CodeGenC::PrintType;
   void PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimExpr lhs, PrimExpr rhs,
-                        std::ostream& os) final;              // NOLINT(*)
+                        std::ostream& os) final;       // NOLINT(*)
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
   void PrintVecConstructor(const PrimType& t, std::ostream& os) final;
   void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
@@ -66,8 +68,7 @@ class CodeGenCUDA final : public CodeGenC {
   void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                          const std::string& value) final;
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
-  void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
-                            std::ostream& os) final;
+  void PrintVecElemLoadExpr(PrimType t, int i, const std::string& value, std::ostream& os) final;
   std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target) final;
   void AddUtilFunction(const std::string& name, const std::string& code);
   // overload visitor
@@ -95,6 +96,66 @@ class CodeGenCUDA final : public CodeGenC {
 
   // Whether scope such as "__shared__" or "__constant__"  is part of type.
   bool IsScopePartOfType() const final { return false; }
+
+  // CUDA type spelling and vector lane layout.
+  void PrintSpecialScalarType(const PrimType& t, std::ostream& os);
+  void PrintFloatType(const PrimType& t, std::ostream& os);
+  void PrintBFloat16Type(const PrimType& t, std::ostream& os);
+  void PrintSubByteFloatType(const PrimType& t, std::ostream& os);
+  void PrintBoolType(const PrimType& t, std::ostream& os);
+  void PrintIntegerType(const PrimType& t, std::ostream& os);
+  void PrintVecConstructorLane(const PrimType& t, int i, const std::string& value, std::ostream& os);
+
+  // Storage/barrier handling.
+  void EnsureGlobalBarrierStateDeclared();
+  void PrintGlobalBarrierSync(const CallNode* op);
+
+  // Statement attributes.
+  void RecordFragmentShapeAttr(const AttrStmtNode* op);
+  void RecordFragmentLayoutAttr(const AttrStmtNode* op);
+  void EmitAsyncCommitQueueAttr(const AttrStmtNode* op);
+  void EmitAsyncWaitQueueAttr(const AttrStmtNode* op);
+  void EmitDisableUnrollAttr(const AttrStmtNode* op);
+  void EmitPragmaUnrollAttr(const AttrStmtNode* op);
+
+  // Buffer allocation and WMMA fragment declarations.
+  bool IsWmmaScope(const std::string& scope) const;
+  bool IsSharedSubByteAllocation(const PrimType& dtype, const std::string& scope) const;
+  int GetBufferDataAlignment(const AllocBufferNode* op) const;
+  size_t GetStaticBufferSize(const AllocBufferNode* op, const std::string& scope,
+                             const VarNode* buffer);
+  void PrintAllocBufferType(const AllocBufferNode* op, const std::string& scope,
+                            const VarNode* buffer, std::ostream& os);
+  std::string GetWmmaFragmentElementType(const PrimType& t);
+
+  // CUDA-specific CallNode emitters, ordered from extension points to legacy
+  // builtins. Keep this list aligned with VisitExpr_(CallNode*) so the
+  // supported CUDA codegen surface is visible from the class definition.
+  void NoteCallRequirements(const CallNode* op);
+  ffi::Optional<ffi::Function> GetRegisteredDeviceIntrinsicCodegen(const CallNode* op);
+  void PrintCudaFuncCall(const CallNode* op, std::ostream& os);
+  void EmitRegisteredDeviceIntrinsic(const CallNode* op, const ffi::Function& codegen,
+                                     std::ostream& os);
+  void EmitWmmaFillFragmentCall(const CallNode* op, std::ostream& os);
+  void EmitWmmaLoadMatrixSyncCall(const CallNode* op, std::ostream& os);
+  void EmitWmmaStoreMatrixSyncCall(const CallNode* op, std::ostream& os);
+  void EmitWmmaMmaSyncCall(const CallNode* op, std::ostream& os);
+  void EmitWmmaBmmaSyncCall(const CallNode* op, std::ostream& os);
+  void EmitPtxMmaCall(const CallNode* op);
+  void EmitPtxMmaSpCall(const CallNode* op);
+  void EmitMmaStoreCall(const CallNode* op, std::ostream& os);
+  void EmitMmaFillCall(const CallNode* op, std::ostream& os);
+  void EmitLegacyPtxMmaCall(const CallNode* op);
+  void EmitLegacyPtxLdMatrixCall(const CallNode* op, std::ostream& os);
+  void EmitLegacyMmaStoreCall(const CallNode* op, std::ostream& os);
+  void EmitLegacyMmaFillCall(const CallNode* op, std::ostream& os);
+  void EmitPtxCpAsyncBulkCall(const CallNode* op);
+  void EmitPtxCpAsyncMBarrierArriveCall(const CallNode* op);
+  void EmitPtxLdg32Call(const CallNode* op);
+  void PrintReinterpretCall(const CallNode* op, std::ostream& os);
+  void PrintBufferCall(const CallNode* op, std::ostream& os);
+  void EmitMmaStore(int m, int n, const std::string& dst, const std::string& src,
+                    const std::string& src_offset, const PrimExpr& stride, std::ostream& os);
 
   // Whether global barrier is needed.
   bool need_global_barrier_{false};
