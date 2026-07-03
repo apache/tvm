@@ -73,12 +73,15 @@ def test_simplify_symbolic_comparison():
 
     i0 = tirx.Var("i0", "int64")
     i1 = tirx.Var("i1", "int64")
-    n, m = tvm.tirx.SizeVar("n", "int64"), tvm.tirx.SizeVar("m", "int64")
+    n, m = tvm.tirx.Var("n", "int64"), tvm.tirx.Var("m", "int64")
     outer = (n + 31) // 32
-    ana.bind(i0, tvm.ir.Range(0, outer))
-    ana.bind(i1, tvm.ir.Range(0, 32))
     PS = tvm.arith.ProofStrength
 
+    non_negative = tvm.arith.ConstIntBound(0, tvm.arith.ConstIntBound.POS_INF)
+    ana.update(n, non_negative)
+    ana.update(m, non_negative)
+    ana.bind(i0, tvm.ir.Range(0, outer))
+    ana.bind(i1, tvm.ir.Range(0, 32))
     assert not ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32, PS.DEFAULT)
     assert ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32, PS.SYMBOLIC_BOUND)
     assert ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32 + m, PS.SYMBOLIC_BOUND)

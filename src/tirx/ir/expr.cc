@@ -73,7 +73,6 @@ TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   VarNode::RegisterReflection();
-  SizeVarNode::RegisterReflection();
   IterVarNode::RegisterReflection();
   StringImmNode::RegisterReflection();
   CastNode::RegisterReflection();
@@ -118,7 +117,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.convert",
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
-  // Note: kRepr for VarNode/SizeVarNode is registered via TVM_REGISTER_SCRIPT_AS_REPR in
+  // Note: kRepr for VarNode is registered via TVM_REGISTER_SCRIPT_AS_REPR in
   // src/script/printer/tirx/expr.cc (-> ReprPrintTIR which delegates to TVMScriptPrinter).
 }
 
@@ -181,12 +180,7 @@ Var::Var(ffi::String name_hint, Type type_annotation, Span span) {
 
 Var Var::copy_with_name(const ffi::String& name) const {
   const VarNode* node = get();
-  ffi::ObjectPtr<VarNode> new_ptr;
-  if (auto* ptr = this->as<SizeVarNode>()) {
-    new_ptr = ffi::make_object<SizeVarNode>(*ptr);
-  } else {
-    new_ptr = ffi::make_object<VarNode>(*node);
-  }
+  ffi::ObjectPtr<VarNode> new_ptr = ffi::make_object<VarNode>(*node);
   new_ptr->name_hint = name;
   return Var(new_ptr);
 }
@@ -197,12 +191,7 @@ Var Var::copy_with_suffix(const ffi::String& suffix) const {
 
 Var Var::copy_with_dtype(PrimType dtype) const {
   const VarNode* node = get();
-  ffi::ObjectPtr<VarNode> new_ptr;
-  if (auto* ptr = this->as<SizeVarNode>()) {
-    new_ptr = ffi::make_object<SizeVarNode>(*ptr);
-  } else {
-    new_ptr = ffi::make_object<VarNode>(*node);
-  }
+  ffi::ObjectPtr<VarNode> new_ptr = ffi::make_object<VarNode>(*node);
   new_ptr->type_annotation = dtype;
   new_ptr->ExprNode::ty = dtype;
   return Var(new_ptr);
@@ -217,31 +206,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       return Var(name_hint, type.cast<PrimType>(), span);
     }
   });
-}
-
-// SizeVar
-SizeVar::SizeVar(ffi::String name_hint, PrimType dtype, Span span) {
-  auto n = ffi::make_object<SizeVarNode>();
-  n->name_hint = std::move(name_hint);
-  n->type_annotation = dtype;
-  n->ExprNode::ty = n->type_annotation;
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-SizeVar::SizeVar(ffi::String name_hint, Type type_annotation, Span span) {
-  auto n = ffi::make_object<SizeVarNode>();
-  n->name_hint = std::move(name_hint);
-  n->type_annotation = std::move(type_annotation);
-  n->ExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.SizeVar",
-                        [](ffi::String s, PrimType t, Span span) { return SizeVar(s, t, span); });
 }
 
 // IterVar

@@ -479,28 +479,6 @@ def const(value, dtype="int32", span=None):
     return tvm.tirx.const(value, dtype, span)
 
 
-def size_var(name="size", dtype="int32", span=None):
-    """Create a new variable represents a tensor shape size, which is non-negative.
-
-    Parameters
-    ----------
-    name : str
-        The name
-
-    dtype : str
-        The data type
-
-    span : Optional[Span]
-        The location of this variable in the source.
-
-    Returns
-    -------
-    var : SizeVar
-        The result symbolic shape variable.
-    """
-    return tvm.tirx.SizeVar(name, dtype, span)
-
-
 def thread_axis(dom=None, tag="", name="", span=None):
     """Create a new IterVar to represent thread index.
 

@@ -199,7 +199,7 @@ def rnn_state_get(
         var_history_slot_ids: T.handle,
         var_output: T.handle,
     ):
-        batch_size = T.int32(is_size_var=True)
+        batch_size = T.int32()
 
         storage = T.match_buffer(var_storage, (reserved_nseq, max_history, *shape), dtype)
         seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
@@ -234,7 +234,7 @@ def rnn_state_set(
         var_history_slot_ids: T.handle,
         var_data: T.handle,
     ):
-        batch_size = T.int32(is_size_var=True)
+        batch_size = T.int32()
 
         storage = T.match_buffer(var_storage, (reserved_nseq, max_history, *shape), dtype)
         seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")

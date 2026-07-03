@@ -46,8 +46,8 @@ def test_create_nv_fp4_nd_array(np_dtype, dtype_str):
 
 @pytest.mark.parametrize("np_dtype,dtype_str", nv_fp4_dtypes)
 def test_nv_fp4_buffer(np_dtype, dtype_str):
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     A = tvm.tirx.decl_buffer((m, n), dtype_str)
     assert A.dtype == dtype_str
 

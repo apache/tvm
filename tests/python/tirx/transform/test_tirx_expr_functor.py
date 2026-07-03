@@ -49,7 +49,6 @@ from tvm.tirx.expr import (
     Reduce,
     Select,
     Shuffle,
-    SizeVar,
     StringImm,
     Sub,
     Var,
@@ -97,9 +96,6 @@ class ASTPrinter(ExprVisitor):
 
     def visit_var_(self, op: Var) -> None:
         self.log.add("Var")
-
-    def visit_size_var_(self, op: SizeVar) -> None:
-        self.log.add("SizeVar")
 
     def visit_buffer_load_(self, op: BufferLoad) -> None:
         self.log.add("BufferLoad")
@@ -333,11 +329,6 @@ class ASTPostPrinterMutator(ExprMutator):
         self.log.add("Var")
         return result
 
-    def visit_size_var_(self, op: SizeVar) -> tir.Expr:
-        result = op
-        self.log.add("SizeVar")
-        return result
-
     def visit_buffer_load_(self, op: BufferLoad) -> tir.Expr:
         result = super().visit_buffer_load_(op)
         self.log.add("BufferLoad")
@@ -519,11 +510,6 @@ def basic_check(expr, visitor_str, mutator_str):
 
 def test_var():
     basic_check(n, "Var", "Var")
-
-
-def test_size_var():
-    sv = tir.SizeVar("sv", "int32")
-    basic_check(sv, "SizeVar", "SizeVar")
 
 
 def test_int_imm():

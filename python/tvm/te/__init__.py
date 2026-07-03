@@ -31,7 +31,7 @@ from tvm.tirx import add, subtract, multiply
 
 from .tensor import TensorSlice, Tensor
 from .tag import tag_scope
-from .operation import placeholder, compute, scan, extern, var, size_var, const
+from .operation import placeholder, compute, scan, extern, var, const
 from .operation import thread_axis, reduce_axis, AXIS_SEPARATOR
 from .operation import create_prim_func
 from .operation import extern_primfunc

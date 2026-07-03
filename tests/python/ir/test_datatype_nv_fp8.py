@@ -124,8 +124,8 @@ def test_fp8_unary_op(np_dtype, dtype_str):
 
 @pytest.mark.parametrize("np_dtype,dtype_str", nv_fp8_dtypes)
 def test_nv_fp8_buffer(np_dtype, dtype_str):
-    m = te.size_var("m")
-    n = te.size_var("n")
+    m = te.var("m")
+    n = te.var("n")
     A = tvm.tirx.decl_buffer((m, n), dtype_str)
     assert A.dtype == dtype_str
 

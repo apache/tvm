@@ -227,7 +227,7 @@ def test_llvm_vadd_pipeline():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,))
@@ -323,7 +323,7 @@ def test_multiple_func():
         @T.prim_func(s_tir=True)
         def fadd1(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,))
@@ -337,7 +337,7 @@ def test_multiple_func():
         @T.prim_func(s_tir=True)
         def fadd2(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,))
@@ -705,7 +705,7 @@ def test_llvm_fp_math():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             for i in range(n):
@@ -730,7 +730,7 @@ def test_llvm_fp_math():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             for i in range(n):

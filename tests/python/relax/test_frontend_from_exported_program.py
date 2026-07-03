@@ -5713,8 +5713,8 @@ def test_slice_with_symbolic_end():
         def main(x: R.Tensor(("s0", "s1", 4), dtype="float32")) -> R.Tuple(
             R.Tensor(("s0", "s1", 4), dtype="float32")
         ):
-            s0 = T.int64(is_size_var=True)
-            s1 = T.int64(is_size_var=True)
+            s0 = T.int64()
+            s1 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s27": 2, "s77": 2}})
             with R.dataflow():
                 lv: R.Tensor((s0, s1, 4), dtype="float32") = R.add(x, R.const(0.0, "float32"))
@@ -7896,7 +7896,7 @@ def test_dynamic_shape():
             lhs: R.Tensor(("s0", 4), dtype="float32"),
             rhs: R.Tensor(("s0", 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s24": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(lhs, rhs)
@@ -8620,7 +8620,7 @@ def test_dynamic_shape_with_range_constraints():
         def main(
             x1: R.Tensor(("s0", 4), dtype="float32"), x2: R.Tensor(("s0", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s24": 1}, "tir_var_upper_bound": {"s24": 64}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(x1, x2)
@@ -8653,8 +8653,8 @@ def test_dynamic_shape_with_addition_constraints():
         def main(
             x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0___1", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0 + s0___1", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
-            s0___1 = T.int64(is_size_var=True)
+            s0 = T.int64()
+            s0___1 = T.int64()
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s77": 1, "s77___1": 2},
@@ -8687,8 +8687,8 @@ def test_dynamic_shape_with_subtraction_constraints():
         def main(
             x: R.Tensor(("s0___1", 4), dtype="float32"), y: R.Tensor(("s0", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0___1 + s0", 4), dtype="float32")):
-            s0___1 = T.int64(is_size_var=True)
-            s0 = T.int64(is_size_var=True)
+            s0___1 = T.int64()
+            s0 = T.int64()
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s17": 0, "s17___1": 1},
@@ -8721,8 +8721,8 @@ def test_dynamic_shape_with_multiplication_constraints():
         def main(
             x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0_2", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0 + s0_2", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
-            s0_2 = T.int64(is_size_var=True)
+            s0 = T.int64()
+            s0_2 = T.int64()
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s77": 1, "s77_2": 2},
@@ -8755,7 +8755,7 @@ def test_dynamic_shape_with_unbounded_constraints():
         def main(x: R.Tensor(("s0", 4), dtype="float32")) -> R.Tuple(
             R.Tensor(("s0", 4), dtype="float32")
         ):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 2}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
@@ -8822,7 +8822,7 @@ def test_sym_size_int():
         def main(x: R.Tensor(("s0", 3, 4), dtype="float32")) -> R.Tuple(
             R.Tensor(("s0", 12), dtype="float32")
         ):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
@@ -9214,7 +9214,7 @@ def test_cond_shape_predicate():
         def cond_true_branch_0(
             x: R.Tensor(("s77", 4), dtype="float32"),
         ) -> R.Tensor(("s77", 4), dtype="float32"):
-            s77 = T.int64(is_size_var=True)
+            s77 = T.int64()
             gv: R.Tensor((s77, 4), dtype="float32") = R.add(x, R.const(1.0, "float32"))
             gv1: R.Tensor((s77, 4), dtype="float32") = gv
             return gv1
@@ -9223,7 +9223,7 @@ def test_cond_shape_predicate():
         def cond_false_branch_1(
             x: R.Tensor(("s77", 4), dtype="float32"),
         ) -> R.Tensor(("s77", 4), dtype="float32"):
-            s77 = T.int64(is_size_var=True)
+            s77 = T.int64()
             gv: R.Tensor((s77, 4), dtype="float32") = R.subtract(x, R.const(1.0, "float32"))
             gv1: R.Tensor((s77, 4), dtype="float32") = gv
             return gv1
@@ -9232,7 +9232,7 @@ def test_cond_shape_predicate():
         def main(
             x: R.Tensor(("s77", 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor(("s77", 4), dtype="float32")):
-            s77 = T.int64(is_size_var=True)
+            s77 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 1}})
             cls = expected
             gv: R.Tensor((), dtype="bool") = R.const(True, "bool")

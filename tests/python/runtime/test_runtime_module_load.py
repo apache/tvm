@@ -51,7 +51,7 @@ def test_dso_module_load(target):
     temp = utils.tempdir()
 
     def save_object(names):
-        n = te.size_var("n")
+        n = te.var("n")
         Ab = tvm.tirx.decl_buffer((n,), dtype)
         i = te.var("i")
         # for i in 0 to n-1:

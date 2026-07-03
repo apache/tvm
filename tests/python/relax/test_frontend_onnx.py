@@ -3819,8 +3819,8 @@ def test_dynamic_squeeze(axis, A, B):
             x: R.Tensor((1, "A", "B"), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("A", "B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B), dtype="float32") = R.squeeze(x, axis=[0])
@@ -3939,8 +3939,8 @@ def test_dynamic_shape_squeeze(axis):
     assert len(tvm_model["main"].attrs["params"]) == 1
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    # TVMScript cannot currently round-trip this SizeVar dataflow binding.
-    a = tvm.tirx.SizeVar("A", "int64")
+    # Use an ordinary symbolic Var for the dynamic shape binding.
+    a = tvm.tirx.Var("A", "int64")
     x = relax.Var("x", relax.TensorType([a], "float32"))
     axes = relax.Var("axes", relax.TensorType([1], "int64"))
     gv = relax.Var("gv", tvm.ir.PrimType("int64"))
@@ -4887,7 +4887,7 @@ def _make_composite_reduce_expected_ir(
     def expected_input_shape(shape):
         if not dynamic:
             return tuple(shape)
-        return tuple(tvm.tirx.SizeVar(f"reduce_dim_{i}", "int64") for i in range(len(shape)))
+        return tuple(f"reduce_dim_{i}" for i in range(len(shape)))
 
     axis = None if not axes else tuple(axes)
     parser_vars = {
@@ -5342,7 +5342,7 @@ def test_expand():
             in_: R.Tensor((1, 32, 32), dtype="float32"),
             in_2: R.Tensor(("batch", 32, 32), dtype="float32"),
         ) -> R.Tensor(("batch", 32, 32), dtype="float32"):
-            batch = T.int64(is_size_var=True)
+            batch = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 32, 32), dtype="float32") = R.broadcast_to(
@@ -5895,7 +5895,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, 10]) = R.shape([A, 10])
@@ -5911,8 +5911,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
@@ -5928,7 +5928,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
@@ -5944,9 +5944,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
@@ -5977,7 +5977,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
@@ -5993,8 +5993,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
@@ -6010,7 +6010,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
@@ -6026,9 +6026,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
@@ -6059,7 +6059,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
@@ -6075,8 +6075,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, 5]) = R.shape([B, 5])
@@ -6092,7 +6092,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([10, C]) = R.shape([10, C])
@@ -6108,9 +6108,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, C]) = R.shape([B, C])
@@ -6705,9 +6705,7 @@ def test_split():
             shape = shape_tuple(shape)
             if not dynamic:
                 return shape
-            return tuple(
-                tvm.tirx.SizeVar(f"split_input_dim_{i}", "int64") for i in range(len(shape))
-            )
+            return tuple(f"split_input_dim_{i}" for i in range(len(shape)))
 
         dtype = np.dtype(fp_arith).name
         input_shape = expected_input_shape(indata_shape)
@@ -6857,10 +6855,10 @@ def test_tile():
             ),
             dtype="float32",
         ):
-            tile_input_dim_0 = T.int64(is_size_var=True)
-            tile_input_dim_1 = T.int64(is_size_var=True)
-            tile_input_dim_2 = T.int64(is_size_var=True)
-            tile_input_dim_3 = T.int64(is_size_var=True)
+            tile_input_dim_0 = T.int64()
+            tile_input_dim_1 = T.int64()
+            tile_input_dim_2 = T.int64()
+            tile_input_dim_3 = T.int64()
             R.func_attr({"num_input": 1})
             cls = ExpectedTileDynamicInput
             with R.dataflow():
@@ -6950,9 +6948,7 @@ def test_tile_dynamic_repeats():
     def make_expected(dynamic_input, in_shape):
         rank = len(in_shape)
         input_shape = (
-            tuple(tvm.tirx.SizeVar(f"tile_data_dim_{i}", "int64") for i in range(rank))
-            if dynamic_input
-            else tuple(in_shape)
+            tuple(f"tile_data_dim_{i}" for i in range(rank)) if dynamic_input else tuple(in_shape)
         )
 
         if rank == 2:
@@ -8207,8 +8203,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             (1, "A * B * 32"), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1, A * B * 32), dtype="float32") = R.reshape(
@@ -8223,8 +8219,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             ("A * B", 32), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A * B, 32), dtype="float32") = R.reshape(x, R.shape([A * B, 32]))
@@ -8237,8 +8233,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             ("A", "B * 32"), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B * 32), dtype="float32") = R.reshape(x, R.shape([A, B * 32]))
@@ -9281,8 +9277,8 @@ def test_symbolic_shape_deduction():
             axes: R.Tensor((1,), dtype="int64"),
             target_shape: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64(is_size_var=True)
-            seq = T.int64(is_size_var=True)
+            batch = T.int64()
+            seq = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -9298,8 +9294,8 @@ def test_symbolic_shape_deduction():
             data: R.Tensor(("batch", "seq"), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64(is_size_var=True)
-            seq = T.int64(is_size_var=True)
+            batch = T.int64()
+            seq = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -9334,7 +9330,7 @@ def test_multi_inputs_with_same_symbolic_shape():
             data1: R.Tensor(("batch", 1), dtype="float32"),
             data2: R.Tensor(("batch", 1), dtype="float32"),
         ) -> R.Tensor(("batch", 2), dtype="float32"):
-            batch = T.int64(is_size_var=True)
+            batch = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 2), dtype="float32") = R.concat((data1, data2), axis=1)
@@ -9444,8 +9440,8 @@ def test_shape_dim_string_expression_graph_add():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A + B"), dtype="float32")) -> R.Tensor(("A", "B", "A + B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A + B), dtype="float32") = x
@@ -9478,8 +9474,8 @@ def test_shape_dim_string_expression_graph_subtract():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A - B"), dtype="float32")) -> R.Tensor(("A", "B", "A - B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A - B), dtype="float32") = x
@@ -9512,8 +9508,8 @@ def test_shape_dim_string_expression_graph_mul():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A * B"), dtype="float32")) -> R.Tensor(("A", "B", "A * B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A * B), dtype="float32") = x
@@ -9547,8 +9543,8 @@ def test_shape_dim_string_expression_graph_div_1():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
@@ -9582,8 +9578,8 @@ def test_shape_dim_string_expression_graph_div_2():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x

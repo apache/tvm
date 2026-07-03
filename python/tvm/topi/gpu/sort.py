@@ -967,7 +967,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     strides = [1] * ndim
     for i in range(ndim):
         if i == axis:
-            end.append(k if isinstance(k, int) else tvm.te.size_var("dim"))
+            end.append(k if isinstance(k, int) else tvm.te.var("dim"))
         else:
             end.append(dshape[i])
     if ret_type == "both":
@@ -1067,7 +1067,7 @@ def topk_thrust(
 
     if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
-        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
+        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.var("dim")]
         strides = [1] * ndim
         out = [strided_slice(o, beg, end, strides) for o in out]
 

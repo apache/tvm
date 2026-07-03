@@ -79,7 +79,6 @@ from tvm.tirx.expr import (
     Reduce,
     Select,
     Shuffle,
-    SizeVar,
     StringImm,
     Sub,
 )
@@ -1560,12 +1559,10 @@ class DtypeConstructor:
     def __call__(
         self,
         expr: "None | Expr | Literal['inf', '-inf', 'nan'] | int | float" = None,
-        *,
-        is_size_var: bool = False,
     ) -> "Expr":
         if isinstance(expr, str):
             expr = float(expr)
-        return getattr(_ffi_api, self._ffi_name)(expr, is_size_var)
+        return getattr(_ffi_api, self._ffi_name)(expr)
 
     def __getitem__(self, shape):
         if isinstance(shape, tuple):
@@ -2585,7 +2582,7 @@ u64 = uint64
 # pylint: enable=invalid-name
 
 
-def boolean(expr: Expr | None = None, is_size_var: bool = False) -> Expr:
+def boolean(expr: Expr | None = None) -> Expr:
     """Construct a new tirx.Var with type boolean or cast expression to type boolean.
 
     Parameters
@@ -2593,35 +2590,27 @@ def boolean(expr: Expr | None = None, is_size_var: bool = False) -> Expr:
     expr: Expr
         The expression to be cast.
 
-    is_size_var: bool
-        Whether or not to return a SizeVar instead of Var.
-
     Returns
     -------
     res : Expr
         The new tirx.Var with type boolean or casted expression with type boolean.
     """
-    return _ffi_api.Boolean(expr, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Boolean(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def handle(
     dtype: str | None = None,
     storage_scope: str = "global",
-    *,
-    is_size_var: bool = False,
 ) -> Var:
     """Create a TIR var that represents a pointer.
 
     Parameters
     ----------
-    dtype: str
-        The data type of the pointer.
+    dtype: str | None
+        The data type of the pointer. If omitted, construct an opaque handle.
 
     storage_scope: str
         The storage scope of the pointer.
-
-    is_size_var: bool
-        Whether or not to return a SizeVar instead of Var.
 
     Returns
     -------
@@ -2630,14 +2619,9 @@ def handle(
     """
     if dtype in ("TensorMap", "tensormap", "CUtensorMap", "cuTensorMap"):
         return _ffi_api.TensorMap()  # type: ignore[attr-defined] # pylint: disable=no-member
-    is_unknown_type = dtype is None
-    if dtype is None:
-        dtype = "void"
     return _ffi_api.Handle(  # type: ignore[attr-defined] # pylint: disable=no-member
         dtype,
         storage_scope,
-        is_size_var,
-        is_unknown_type,
     )
 
 
@@ -2651,7 +2635,7 @@ def TensorMap() -> Var:  # pylint: disable=invalid-name
     return _ffi_api.TensorMap()  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def void(expr: Expr | None = None, *, is_size_var: bool = False) -> Expr:
+def void(expr: Expr | None = None) -> Expr:
     """Construct a new tirx.Var with type void or cast expression to type void.
 
     Parameters
@@ -2664,7 +2648,7 @@ def void(expr: Expr | None = None, *, is_size_var: bool = False) -> Expr:
     res : Expr
         The new tirx.Var with type void or casted expression with type void.
     """
-    return _ffi_api.Void(expr, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Void(expr)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 @deprecated("T.var", "T.{dtype}")
@@ -2687,7 +2671,7 @@ def var(dtype: str, name: str = "") -> Var:
     return Var(name, dtype)  # pylint: disable=no-member
 
 
-def ptr(dtype: str, storage_scope: str = "global", is_size_var: bool = False) -> Var:
+def ptr(dtype: str, storage_scope: str = "global") -> Var:
     """The pointer declaration function.
 
     Parameters
@@ -2698,15 +2682,12 @@ def ptr(dtype: str, storage_scope: str = "global", is_size_var: bool = False) ->
     storage_scope : str
         The storage scope of the pointer.
 
-    is_size_var: bool
-        Whether or not to return a SizeVar instead of Var.
-
     Returns
     -------
     res : Var
         The pointer.
     """
-    return _ffi_api.Ptr(dtype, storage_scope, is_size_var)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 @deprecated("T.buffer_var", "T.handle")
@@ -3554,7 +3535,6 @@ __all__ = [
     "cast",
     # tvm.tirx.expr
     "Var",
-    "SizeVar",
     "Reduce",
     "FloatImm",
     "IntImm",

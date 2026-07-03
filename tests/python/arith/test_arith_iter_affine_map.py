@@ -139,8 +139,8 @@ def test_trivial():
 def test_fuse():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    c = tvm.tirx.SizeVar("c", "int32")
-    c0 = tvm.tirx.SizeVar("c0", "int32")
+    c = tvm.tirx.Var("c", "int32")
+    c0 = tvm.tirx.Var("c0", "int32")
 
     assert_iter_sum_pattern({y * 3 + 1 + c + x: (12, 1 + c)}, var_dom([(x, 3), (y, 4)]))
 
@@ -168,8 +168,8 @@ def test_fuse():
 def test_split():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    c0 = tvm.tirx.SizeVar("c0", "int32")
-    c1 = tvm.tirx.SizeVar("c1", "int32")
+    c0 = tvm.tirx.Var("c0", "int32")
+    c1 = tvm.tirx.Var("c1", "int32")
     fld = tvm.tirx.floordiv
     flm = tvm.tirx.floormod
 
@@ -553,7 +553,7 @@ def test_subspace_division():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
     z = tvm.tirx.Var("z", "int32")
-    c = tvm.tirx.SizeVar("c", "int32")
+    c = tvm.tirx.Var("c", "int32")
 
     # simple 1.1
     res = tvm.arith.subspace_divide(
@@ -1179,7 +1179,7 @@ def test_iter_map_simplify_symbolic_case():
     y = tvm.tirx.Var("y", "int64")
     z = x * 32 + y
 
-    n = tvm.tirx.SizeVar("n", "int64")
+    n = tvm.tirx.Var("n", "int64")
 
     def simple_fuse0(x):
         return (x // n) * n + x % n
@@ -1213,7 +1213,7 @@ def test_iter_map_simplify_symbolic_predicate():
     x = tvm.tirx.Var("x", "int64")
     y = tvm.tirx.Var("y", "int64")
 
-    n = tvm.tirx.SizeVar("n", "int64")
+    n = tvm.tirx.Var("n", "int64")
 
     def simple_fuse0(x):
         return (x // n) * n + x % n

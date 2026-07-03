@@ -346,10 +346,6 @@ void TIRVisitorWithPath::VisitStmt_(const ScopeIdDefStmtNode* op, AccessPath pat
 
 void TIRVisitorWithPath::VisitExpr_(const VarNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::VisitExpr_(const SizeVarNode* op, AccessPath path) {
-  VisitExpr_(static_cast<const VarNode*>(op), path);
-}
-
 void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, AccessPath path) {
   VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));

@@ -96,7 +96,7 @@ def batch_matmul(
     if oshape is None:
         assert XB == YB or XB == 1 or YB == 1, "batch dimension doesn't match"
         batch = (
-            tvm.tirx.expr.SizeVar("batch", "int32")
+            tvm.tirx.expr.Var("batch", "int32")
             if isinstance(XB, tvm.tirx.expr.Var) or isinstance(YB, tvm.tirx.expr.Var)
             else te.max(XB, YB)
         )
