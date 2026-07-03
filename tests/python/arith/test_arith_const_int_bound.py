@@ -71,8 +71,18 @@ class TestDataType(BaseCompare):
         TestCase(tvm.tirx.Var("x", "int64"), (NEG_INF, POS_INF)),
         TestCase(tvm.tirx.Var("x", "int8"), (-128, 127)),
         TestCase(tvm.tirx.Var("x", "uint8"), (0, 255)),
-        TestCase(tvm.tirx.SizeVar("x", "int32"), (0, POS_INF)),
+        TestCase(tvm.tirx.Var("x", "int32"), (-(2**31), 2**31 - 1)),
     )
+
+
+def test_plain_var_non_negative_bound_requires_context():
+    var = tvm.tirx.Var("x", "int64")
+    analyzer = tvm.arith.Analyzer()
+
+    assert analyzer.const_int_bound(var).min_value == NEG_INF
+    with analyzer.constraint_scope(var >= 0):
+        assert analyzer.const_int_bound(var).min_value == 0
+    assert analyzer.const_int_bound(var).min_value == NEG_INF
 
 
 class TestCastBound(BaseCompare):

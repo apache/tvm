@@ -66,7 +66,7 @@ def test_add_pipeline():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             D = T.match_buffer(var_D, (n,))
             C = T.sblock_alloc_buffer((n,))

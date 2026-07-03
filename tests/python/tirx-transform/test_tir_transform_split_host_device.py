@@ -304,13 +304,13 @@ def test_dynamic_launch_thread():
     tvm.ir.assert_structural_equal(expected, after)
 
 
-def test_size_var():
+def test_symbolic_var_parameter():
     @I.ir_module
     class Module:
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"target": T.target("cuda")})
-            m = T.int64(is_size_var=True)
+            m = T.int64()
             A = T.match_buffer(var_A, (m,))
             B = T.match_buffer(var_B, (m,))
             T.attr(T.target("cuda"), "target", 0)
@@ -321,7 +321,7 @@ def test_size_var():
 
     after = tvm.tirx.transform.SplitHostDevice()(Module)
     assert len(after["main_kernel"].params) == 3
-    assert isinstance(after["main_kernel"].params[2], tvm.tirx.SizeVar)
+    assert isinstance(after["main_kernel"].params[2], tvm.tirx.Var)
 
 
 def test_thread_extent_region_extracted_as_device_kernel():
