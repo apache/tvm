@@ -209,7 +209,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new block itervars
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& origin_iter = block->iter_vars[i];
-    Var new_var = origin_iter->var.copy_with_suffix("");
+    PrimVar new_var = origin_iter->var.copy_with_suffix("");
     new_iter_vars.push_back(IterVar(origin_iter->dom, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_iter->var, new_var);
   }
@@ -258,7 +258,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
     nest_stmt_root =
-        For(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
+        For(PrimVar(new_loop_vars[i]), loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -289,7 +289,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   for (size_t i = 0; i < info.in_bound_region.size(); ++i) {
     // add new block itervar
     const IterVar& origin_itervar = block->iter_vars[i];
-    Var new_var = origin_itervar->var.copy_with_suffix("");
+    PrimVar new_var = origin_itervar->var.copy_with_suffix("");
     Range new_range =
         Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));

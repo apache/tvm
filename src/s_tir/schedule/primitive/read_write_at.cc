@@ -293,7 +293,7 @@ struct ReadWriteAtImpl {
         v->name_hint = "v" + std::to_string(iter_vars.size());
         bindings.Set(var, Var(v));
         iter_values.push_back(var);
-        iter_vars.push_back(IterVar(range, Var(v), IterVarType::kDataPar));
+        iter_vars.push_back(IterVar(range, PrimVar(Var(v)), IterVarType::kDataPar));
         return Var(v).as_or_throw<PrimExpr>();
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
@@ -306,7 +306,8 @@ struct ReadWriteAtImpl {
     }
     Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
-      stmt = For(loop_vars[i], IntImm::Int32(0), domain[i]->extent, ForKind::kSerial, stmt);
+      stmt =
+          For(PrimVar(loop_vars[i]), IntImm::Int32(0), domain[i]->extent, ForKind::kSerial, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,

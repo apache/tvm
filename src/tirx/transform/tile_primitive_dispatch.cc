@@ -607,7 +607,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       PrimExpr shuffled = ScopeIdResolve::ComputeWarpIdInCta(launch_params_);
       Var warp_id_in_cta_var("warp_id_in_cta", shuffled.ty());
       scope_binds->push_back({warp_id_in_cta_var, shuffled});
-      IterVar warp_iv(Range::FromMinExtent(0, 1), warp_id_in_cta_var, kThreadIndex,
+      IterVar warp_iv(Range::FromMinExtent(0, 1), PrimVar(warp_id_in_cta_var), kThreadIndex,
                       "warp_id_in_cta");
       launch_params_.insert({"warp_id_in_cta", warp_iv});
     }
@@ -687,8 +687,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       TVM_FFI_ICHECK_LE(extents.size(), 3) << "ValueError: Only up to 3 extents are supported";
       for (size_t i = 0; i < extents.size(); i++) {
         std::string thread_tag = prefix + static_cast<char>('x' + i);
-        IterVar iv(Range::FromMinExtent(0, extents[i]), Var(thread_tag), IterVarType::kThreadIndex,
-                   thread_tag);
+        IterVar iv(Range::FromMinExtent(0, extents[i]), PrimVar(Var(thread_tag)),
+                   IterVarType::kThreadIndex, thread_tag);
         launch_params_.insert({ffi::String(thread_tag), iv});
       }
     };
@@ -709,7 +709,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         const auto& pref = cta_def->preferred_extents.value();
         for (size_t i = 0; i < pref.size(); i++) {
           std::string tag = "preferredClusterCtaIdx." + std::string(1, 'x' + i);
-          IterVar iv(Range::FromMinExtent(0, pref[i]), Var(tag), IterVarType::kThreadIndex, tag);
+          IterVar iv(Range::FromMinExtent(0, pref[i]), PrimVar(Var(tag)), IterVarType::kThreadIndex,
+                     tag);
           launch_params_.insert({ffi::String(tag), iv});
         }
       }

@@ -539,7 +539,9 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
       index_map_outputs.insert(index_map_outputs.begin(), IntImm::Int64(0));
     }
     try {
-      sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
+      sch->TransformBlockLayout(
+          block,
+          IndexMap(index_map_inputs.Map([](Var var) { return PrimVar(var); }), index_map_outputs));
     } catch (tvm::ffi::Error& e) {
       // Skip layout transformation when not transformable.
     }

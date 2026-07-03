@@ -197,13 +197,14 @@ inline PrimExpr ConstInt32(size_t index) {
 
 /*!
  * \brief Allocate TVMValues on the stack
+ * \param ret_type exact pointer type returned by the allocation
  * \param type type of allocation
  * \param num number of TVMValues to allocate
- * \return PrimExpr representing the TVMValue
+ * \return Call representing the allocated pointer
  */
-inline PrimExpr StackAlloca(std::string type, size_t num) {
+inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
   ffi::Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
-  return Call(PrimType::Handle(), builtin::tvm_stack_alloca(), args).as_or_throw<PrimExpr>();
+  return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
 }
 
 /*!

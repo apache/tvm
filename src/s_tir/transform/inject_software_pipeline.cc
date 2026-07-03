@@ -960,7 +960,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     if (!is_unit_loop) {
-      new_loop = For(new_loop_var.as_or_throw<Var>(), pipeline_loop_->min, extent,
+      new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
                      std::nullopt, preserved_annotations_, std::nullopt);
     }

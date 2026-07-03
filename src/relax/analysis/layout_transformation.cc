@@ -308,7 +308,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
 
   ffi::Array<tirx::Var> initial_array(initial_indices.begin(), initial_indices.end());
   ffi::Array<PrimExpr> final_array(final_indices.begin(), final_indices.end());
-  return IndexMap(initial_array, final_array);
+  return IndexMap(initial_array.Map([](tirx::Var var) { return tirx::PrimVar(var); }), final_array);
 }
 
 /*!
@@ -355,7 +355,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     for (const auto& iter_var : block->iter_vars) {
       auto var = iter_var->var;
       iter_var_to_block_index[var] = index++;
-      block_spatial_layout.push_back(var);
+      block_spatial_layout.push_back(static_cast<tirx::Var>(var));
     }
 
     // Helper to get the spatial layout of buffer from buffer access map.

@@ -474,7 +474,9 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_.ty());
       stmt = Substitute(stmt, {{var_, idx}});
-      return For(idx, IntImm(idx.ty(), 0), IntImm(idx.ty(), num_threads_), ForKind::kSerial, stmt);
+      PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
+      return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),
+                 MakeConst(idx_dtype, num_threads_), ForKind::kSerial, stmt);
     }
   }
 

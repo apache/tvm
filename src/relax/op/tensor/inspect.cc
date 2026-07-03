@@ -270,7 +270,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                                IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorNDim)})
                         .as_or_throw<PrimExpr>()),
          tirx::AssertStmt(
-             axis < tvm::cast(axis.ty(), ndim), tirx::StringImm("RuntimeError"),
+             axis.as_or_throw<PrimExpr>() < tvm::cast(axis.ty(), ndim),
+             tirx::StringImm("RuntimeError"),
              {tirx::StringImm(
                  "Specified axis may not be larger than the tensor's dimensionality")}),
          tirx::Bind(shape_buffer->data,

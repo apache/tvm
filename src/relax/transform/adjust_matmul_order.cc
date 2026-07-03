@@ -125,7 +125,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         if (auto opt_var = name_lookup.Get(tir_var_name)) {
           auto var = opt_var.value();
           auto expr_bound = obj_bound.cast<PrimExpr>();
-          symbolic_var_constraints = symbolic_var_constraints && (var < expr_bound);
+          symbolic_var_constraints =
+              symbolic_var_constraints && (var.as_or_throw<PrimExpr>() < expr_bound);
         }
       }
     }

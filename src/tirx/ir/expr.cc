@@ -202,7 +202,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // IterVar
-IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span span) {
+IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>();
   if (dom.defined() && dom->extent.defined()) {
     PrimType extent_ty = dom->extent.ty();
@@ -226,7 +226,7 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.IterVar", [](Range dom, Var var, int iter_type, ffi::String thread_tag, Span span) {
+      "tirx.IterVar", [](Range dom, PrimVar var, int iter_type, ffi::String thread_tag, Span span) {
         return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
       });
 }
@@ -650,8 +650,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // CommReducer
-CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
-                         ffi::Array<PrimExpr> identity_element, Span span) {
+CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
+                         ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
+                         Span span) {
   size_t n_group = result.size();
   TVM_FFI_CHECK_EQ(lhs.size(), n_group, ValueError)
       << "The number of vars in `lhs` must equal to the "
@@ -669,8 +670,8 @@ CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<Pr
   var_map.reserve(n_group * 2);
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
     PrimType dtype = identity_element[i].ty();
-    Var l = lhs[i].copy_with_dtype(dtype);
-    Var r = rhs[i].copy_with_dtype(dtype);
+    PrimVar l = lhs[i].copy_with_dtype(dtype);
+    PrimVar r = rhs[i].copy_with_dtype(dtype);
     var_map[lhs[i].get()] = l;
     var_map[rhs[i].get()] = r;
 
@@ -709,7 +710,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.CommReducer",
-           [](ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
+           [](ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
               ffi::Array<PrimExpr> identity_element,
               Span span) { return CommReducer(lhs, rhs, result, identity_element, span); })
       .def_method("tirx.CommReducerCombine", &tirx::CommReducerNode::operator());

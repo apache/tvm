@@ -213,7 +213,9 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
   // The def is visible to all subsequent stmts within the same enclosing
   // scope (PrimFunc body, AttrStmt body, ExecScope body, etc.).
-  tvm::tirx::ScopeIdDef def(scope_ids, extents, tvm::tirx::StringPairToScopeBinding(parent, cur));
+  tvm::tirx::ScopeIdDef def(
+      scope_ids.Map([](tvm::tirx::Var var) { return tvm::tirx::PrimVar(var); }), extents,
+      tvm::tirx::StringPairToScopeBinding(parent, cur));
   AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
 }
@@ -235,8 +237,9 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
     for (size_t i = 0; i < extents.value().size(); ++i) {
       scope_ids.push_back(tvm::tirx::Var(""));
     }
-    tvm::tirx::ScopeIdDef def(scope_ids, extents,
-                              tvm::tirx::StringPairToScopeBinding(parent, "cta"), preferred);
+    tvm::tirx::ScopeIdDef def(
+        scope_ids.Map([](tvm::tirx::Var var) { return tvm::tirx::PrimVar(var); }), extents,
+        tvm::tirx::StringPairToScopeBinding(parent, "cta"), preferred);
     AddToParent(tvm::tirx::ScopeIdDefStmt(def));
     return scope_ids;
   }
@@ -245,8 +248,9 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
 
 ffi::Array<tvm::tirx::Var> CtaIdInPair() {
   ffi::Array<tvm::tirx::Var> scope_ids{tvm::tirx::Var("")};
-  tvm::tirx::ScopeIdDef def(scope_ids, ffi::Array<PrimExpr>{IntImm::Int32(2)},
-                            tvm::tirx::ScopeBinding::kClusterCtaPair);
+  tvm::tirx::ScopeIdDef def(
+      scope_ids.Map([](tvm::tirx::Var var) { return tvm::tirx::PrimVar(var); }),
+      ffi::Array<PrimExpr>{IntImm::Int32(2)}, tvm::tirx::ScopeBinding::kClusterCtaPair);
   AddToParent(tvm::tirx::ScopeIdDefStmt(def));
   return scope_ids;
 }
@@ -425,8 +429,8 @@ IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
     PrimType extent_ty = dom->extent.ty();                                                \
     int bits = std::max({min_ty.bits(), extent_ty.bits(), dtype.bits()});                 \
     PrimType var_ty = dtype.WithBits(bits);                                               \
-    return PushBlockVar(IterVar(/*dom=*/dom, /*var=*/Var("", var_ty), /*iter_type=*/Kind, \
-                                /*thread_tag=*/""),                                       \
+    return PushBlockVar(IterVar(/*dom=*/dom, /*var=*/tvm::tirx::PrimVar(Var("", var_ty)), \
+                                /*iter_type=*/Kind, /*thread_tag=*/""),                   \
                         binding)                                                          \
         ->var;                                                                            \
   }
@@ -468,14 +472,14 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
     PrimType dtype = v->ty.as_or_throw<PrimType>();
     if (c == 'S') {
       results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
-                                             /*var=*/Var("", dtype),
+                                             /*var=*/tvm::tirx::PrimVar(Var("", dtype)),
                                              /*iter_type=*/IterVarType::kDataPar,
                                              /*thread_tag=*/""),
                                      e)
                             ->var);
     } else if (c == 'R') {
       results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
-                                             /*var=*/Var("", dtype),
+                                             /*var=*/tvm::tirx::PrimVar(Var("", dtype)),
                                              /*iter_type=*/IterVarType::kCommReduce,
                                              /*thread_tag=*/""),
                                      e)
@@ -508,7 +512,8 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
       TVM_FFI_ICHECK_EQ(vars.size(), 1);                                                      \
       TVM_FFI_ICHECK_EQ(doms.size(), 1);                                                      \
       TVM_FFI_ICHECK_EQ(steps.size(), 1);                                                     \
-      return tvm::tirx::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, std::nullopt, \
+      return tvm::tirx::For(tvm::tirx::PrimVar(vars[0]), doms[0]->min, doms[0]->extent, Kind, \
+                            body, std::nullopt,                                               \
                             annotations.value_or(ffi::Map<ffi::String, Any>()), steps[0]);    \
     };                                                                                        \
     return ForFrame(n);                                                                       \
@@ -540,9 +545,11 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || is_one(*steps[0])));
-    IterVar iter_var(Range(nullptr), Var("iter", dtype), IterVarType::kThreadIndex, thread);
-    return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
-               annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), std::nullopt);
+    IterVar iter_var(Range(nullptr), tvm::tirx::PrimVar(Var("iter", dtype)),
+                     IterVarType::kThreadIndex, thread);
+    return For(tvm::tirx::PrimVar(vars[0]), doms[0]->min, doms[0]->extent, ForKind::kThreadBinding,
+               body, iter_var, annotations.value_or(ffi::Map<ffi::String, ffi::Any>()),
+               std::nullopt);
   };
   return ForFrame(n);
 }
@@ -576,7 +583,7 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
     for (int i = n - 1; i >= 0; --i) {
       Range dom = doms[i];
       Var var = vars[i];
-      body = For(var, dom->min, dom->extent, ForKind::kSerial, std::move(body),
+      body = For(tvm::tirx::PrimVar(var), dom->min, dom->extent, ForKind::kSerial, std::move(body),
                  /*thread_binding=*/std::nullopt, /*annotations=*/{}, /*step=*/steps[i]);
     }
     return body;
@@ -739,8 +746,8 @@ ComposeOpFrame ComposeOp(ffi::Map<ffi::String, Buffer> workspace,
 }
 
 Var EnvThread(ffi::String thread_tag, PrimType dtype) {
-  IterVar iter_var(Range{nullptr}, Var("", dtype), tvm::tirx::IterVarType::kThreadIndex,
-                   thread_tag);
+  IterVar iter_var(Range{nullptr}, tvm::tirx::PrimVar(Var("", dtype)),
+                   tvm::tirx::IterVarType::kThreadIndex, thread_tag);
   Var var = iter_var->var;
   if (ffi::Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
     opt_frame.value()->env_threads.Set(var, iter_var);

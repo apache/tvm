@@ -50,6 +50,10 @@
 namespace tvm {
 namespace relax {
 
+struct ExprIdentityLess {
+  bool operator()(const Expr& lhs, const Expr& rhs) const { return lhs.get() < rhs.get(); }
+};
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   transform::FusionPatternNode::RegisterReflection();
   transform::PatternCheckContextNode::RegisterReflection();
@@ -408,8 +412,8 @@ class FunctionCreator : public ExprMutator {
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
       if (const auto* call = var_binding->value.as<CallNode>()) {
-        if (call->op == Op::Get("relax.call_tir") ||
-            call->op == Op::Get("relax.call_tir_inplace")) {
+        if (call->op.same_as(Op::Get("relax.call_tir")) ||
+            call->op.same_as(Op::Get("relax.call_tir_inplace"))) {
           // Update the name of the function.
           name_hint_ = name_hint_ + "_" + call->args[0].as_or_throw<GlobalVar>()->name_hint;
 
@@ -608,7 +612,9 @@ class FunctionCreator : public ExprMutator {
    */
   void CheckDefAndUpdateParam(const Expr& expr) {
     // If the expression has already served as an argument, no need to create another one for it.
-    if (std::find(arguments_.begin(), arguments_.end(), expr) != arguments_.end()) {
+    if (std::find_if(arguments_.begin(), arguments_.end(), [&](const Expr& argument) {
+          return argument.same_as(expr);
+        }) != arguments_.end()) {
       return;
     }
 
@@ -638,7 +644,8 @@ class FunctionCreator : public ExprMutator {
 
   Expr VisitExpr(const Expr& expr) final {
     // If the expression serves as an argument, return its correspondng parameter.
-    auto it = std::find(arguments_.begin(), arguments_.end(), expr);
+    auto it = std::find_if(arguments_.begin(), arguments_.end(),
+                           [&](const Expr& argument) { return argument.same_as(expr); });
     if (it != arguments_.end()) {
       return params_[it - arguments_.begin()];
     }
@@ -1128,7 +1135,7 @@ class PatternBasedPartitioner : ExprVisitor {
       }
 
       for (const auto& [pat, match] : matches_opt.value()) {
-        if ((pat->IsInstance<CallPatternNode>() && match != ffi::GetRef<Call>(call)) ||
+        if ((pat->IsInstance<CallPatternNode>() && !match.same_as(ffi::GetRef<Call>(call))) ||
             pat->IsInstance<TupleGetItemPatternNode>()) {
           auto g = GetGroup(match);
           if (g && g->FindRoot()->num_nodes > 1) {
@@ -1173,7 +1180,7 @@ class PatternBasedPartitioner : ExprVisitor {
         // the previous group. For example, when there are two back-to-back conv2d ops, the output
         // of the first conv2d is matched to the input of the second conv2d via a wildcard pattern.
         // But we must avoid merging the first conv2d into the group of the second conv2d.
-        if ((pat->IsInstance<CallPatternNode>() && match != ffi::GetRef<Call>(call)) ||
+        if ((pat->IsInstance<CallPatternNode>() && !match.same_as(ffi::GetRef<Call>(call))) ||
             pat->IsInstance<TupleGetItemPatternNode>()) {
           // Put the bound variable on the LHS into the same parent group.
           AddToGroup(value_to_bound_var_[match], parent_group);
@@ -1227,7 +1234,7 @@ class PatternBasedPartitioner : ExprVisitor {
   // check if a previous matched subgraph is subsumed by the current matched result
   bool GraphSubsumedInMatchedValues(const ffi::Array<Expr>& vars_in_graph,
                                     const ffi::Map<DFPattern, Expr>& matched_result) {
-    std::set<Expr> matched_vars;
+    std::set<Expr, ExprIdentityLess> matched_vars;
     for (const auto& [pat, match] : matched_result) {
       if ((pat->IsInstance<CallPatternNode>() || pat->IsInstance<TupleGetItemPatternNode>()))
         matched_vars.insert(value_to_bound_var_[match]);

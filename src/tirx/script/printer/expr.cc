@@ -187,13 +187,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return TIR(d, "comm_reducer")->Call({lambda.value(), id});
         });
 
-LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::Var>& vs,
+LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::PrimVar>& vs,
                         const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
                         const AccessPath& es_p, const IRDocsifier& d) {
   With<TIRFrame> f(d, map);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(DefineVar(vs[i], *f, d).as_or_throw<IdDoc>());
+    vars.push_back(DefineVar(static_cast<tirx::Var>(vs[i]), *f, d).as_or_throw<IdDoc>());
   }
   ffi::Array<ExprDoc> exprs;
   for (int i = 0, l = es.size(); i < l; ++i) {
@@ -219,13 +219,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
         });
 
-LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
+LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::PrimVar>& vs,
                          const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
                          const IRDocsifier& d) {
   With<TIRFrame> f(d, pred);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(DefineVar(vs[i], *f, d).as_or_throw<IdDoc>());
+    vars.push_back(DefineVar(static_cast<tirx::Var>(vs[i]), *f, d).as_or_throw<IdDoc>());
   }
   ExprDoc pred_doc = d->AsDoc<ExprDoc>(p, p_p);
   return LambdaDoc(vars, pred_doc);

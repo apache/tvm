@@ -959,7 +959,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_.ty());
     stmt = Substitute(stmt, {{var_, idx}});
-    return For(idx, IntImm(var_.ty(), 0), var_lanes_, ForKind::kSerial, stmt);
+    return For(PrimVar(idx), IntImm(var_.ty(), 0), var_lanes_, ForKind::kSerial, stmt);
   }
 
  private:
@@ -1115,10 +1115,11 @@ class LoopVectorizer : public StmtMutator {
     PrimExpr index = outer * scalable_lanes_index + inner_index;
     Stmt body = Substitute(op->body, {{op->loop_var, index}});
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
-    Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
-                           guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
-    Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
-                    std::nullopt, op->span);
+    Stmt vector_loop =
+        For(PrimVar(inner), IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
+            guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
+    Stmt loop = For(PrimVar(outer), zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt,
+                    {}, std::nullopt, op->span);
 
     return this->VisitStmt(loop);
   }

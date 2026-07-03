@@ -2101,7 +2101,8 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
         }
 
         auto idx = iter_vars[true_axis];
-        return tirx::Select(indices(indices_indices) == idx, on_value_cast, off_value_cast);
+        return tirx::Select(indices(indices_indices) == idx.as_or_throw<PrimExpr>(), on_value_cast,
+                            off_value_cast);
       },
       name, tag);
 }
@@ -2147,16 +2148,18 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices,
       [&](const ffi::Array<Var>& indices) {
         PrimExpr ret = default_value;
         if (0 == rank_sparse_indices) {
-          ret = if_then_else(indices[0] == sparse_indices(), sparse_values(), ret);
+          ret = if_then_else(indices[0].as_or_throw<PrimExpr>() == sparse_indices(),
+                             sparse_values(), ret);
         } else if (1 == rank_sparse_indices) {
           for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
-            ret = if_then_else(indices[0] == sparse_indices[j], sparse_values[j], ret);
+            ret = if_then_else(indices[0].as_or_throw<PrimExpr>() == sparse_indices[j],
+                               sparse_values[j], ret);
           }
         } else {
           for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
             PrimExpr aggregate_condition;
             for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
-              PrimExpr comparision = indices[k] == sparse_indices[j][k];
+              PrimExpr comparision = indices[k].as_or_throw<PrimExpr>() == sparse_indices[j][k];
               aggregate_condition = 0 == k ? comparision : aggregate_condition && comparision;
             }
             ret = if_then_else(aggregate_condition, sparse_values[j], ret);

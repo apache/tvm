@@ -23,6 +23,44 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 
+namespace {
+
+template <typename LHS, typename RHS>
+concept HasEqual = requires(const LHS& lhs, const RHS& rhs) { lhs == rhs; };
+
+template <typename LHS, typename RHS>
+concept HasNotEqual = requires(const LHS& lhs, const RHS& rhs) { lhs != rhs; };
+
+template <typename LHS, typename RHS>
+concept HasLess = requires(const LHS& lhs, const RHS& rhs) { lhs < rhs; };
+
+static_assert(!HasEqual<tvm::Expr, tvm::Expr>);
+static_assert(!HasNotEqual<tvm::Expr, tvm::Expr>);
+static_assert(!HasLess<tvm::Expr, tvm::Expr>);
+static_assert(!HasEqual<tvm::tirx::Var, tvm::tirx::Var>);
+static_assert(!HasNotEqual<tvm::tirx::Var, tvm::tirx::Var>);
+static_assert(!HasLess<tvm::tirx::Var, tvm::tirx::Var>);
+static_assert(!HasEqual<tvm::tirx::Var, tvm::PrimExpr>);
+static_assert(!HasEqual<tvm::PrimExpr, tvm::tirx::Var>);
+static_assert(!HasNotEqual<tvm::tirx::Var, tvm::PrimExpr>);
+static_assert(!HasNotEqual<tvm::PrimExpr, tvm::tirx::Var>);
+static_assert(!HasLess<tvm::tirx::Var, tvm::PrimExpr>);
+static_assert(!HasLess<tvm::PrimExpr, tvm::tirx::Var>);
+static_assert(HasEqual<tvm::PrimExpr, tvm::PrimExpr>);
+static_assert(HasNotEqual<tvm::PrimExpr, tvm::PrimExpr>);
+static_assert(HasLess<tvm::PrimExpr, tvm::PrimExpr>);
+static_assert(HasEqual<tvm::tirx::PrimVar, tvm::PrimExpr>);
+static_assert(HasEqual<tvm::PrimExpr, tvm::tirx::PrimVar>);
+static_assert(HasNotEqual<tvm::tirx::PrimVar, tvm::PrimExpr>);
+static_assert(HasNotEqual<tvm::PrimExpr, tvm::tirx::PrimVar>);
+static_assert(HasLess<tvm::tirx::PrimVar, tvm::PrimExpr>);
+static_assert(HasLess<tvm::PrimExpr, tvm::tirx::PrimVar>);
+static_assert(HasEqual<tvm::tirx::PrimVar, tvm::tirx::PrimVar>);
+static_assert(HasNotEqual<tvm::tirx::PrimVar, tvm::tirx::PrimVar>);
+static_assert(HasLess<tvm::tirx::PrimVar, tvm::tirx::PrimVar>);
+
+}  // namespace
+
 TEST(Expr, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
@@ -44,6 +82,20 @@ TEST(Expr, VarTypeAnnotation) {
   tvm::ffi::StructuralEqual checker;
   TVM_FFI_ICHECK(checker(x.ty(), y.ty()));
   TVM_FFI_ICHECK(checker(x->ty, y->ty));
+}
+
+TEST(Expr, PrimVarCheckedView) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  Var scalar("x", PrimType::Int(32));
+  PrimVar prim_var = scalar.as_or_throw<PrimVar>();
+  Var widened = prim_var;
+  EXPECT_TRUE(prim_var.same_as(scalar));
+  EXPECT_TRUE(widened.same_as(scalar));
+
+  Var pointer("p", PointerType(PrimType::Float(32)));
+  EXPECT_THROW(pointer.as_or_throw<PrimVar>(), ffi::Error);
 }
 
 TEST(Expr, PrimTypeBoolLanes) {

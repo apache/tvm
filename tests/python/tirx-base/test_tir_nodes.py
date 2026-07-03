@@ -147,6 +147,47 @@ def test_stmt():
     tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.SERIAL, x)
     tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.UNROLLED, x, step=2)
 
+    pointer = tvm.tirx.Var("p", ir.PointerType(ir.PrimType("int32")))
+    with pytest.raises(TypeError):
+        tvm.tirx.For(pointer, 0, 1, tvm.tirx.ForKind.SERIAL, x)
+    with pytest.raises(TypeError):
+        tvm.tirx.IterVar(None, pointer, tvm.tirx.IterVar.DataPar)
+
+
+def test_scalar_var_boundaries_reject_pointer_vars():
+    scalar = tvm.tirx.Var("x", "int32")
+    pointer = tvm.tirx.Var("p", ir.PointerType(ir.PrimType("int32")))
+
+    with pytest.raises(TypeError):
+        tvm.tirx.CommReducer([pointer], [scalar], [scalar + scalar], [0])
+    with pytest.raises(TypeError):
+        tvm.tirx.IndexMap([pointer], [0], None)
+    with pytest.raises(TypeError):
+        tvm.tirx.ScopeIdDef([pointer], [1], "kernel", "cta")
+
+
+def test_scalar_and_pointer_var_types_survive_json_round_trip():
+    scalar = tvm.tirx.Var("i", "int32")
+    pointer = tvm.tirx.Var("p", ir.PointerType(ir.PrimType("float32"), "global"))
+    stmt = tvm.tirx.For(
+        scalar,
+        0,
+        1,
+        tvm.tirx.ForKind.SERIAL,
+        tvm.tirx.Bind(pointer, pointer),
+    )
+
+    restored = tvm.ir.load_json(tvm.ir.save_json(stmt))
+
+    tvm.ir.assert_structural_equal(restored, stmt)
+    tvm.ir.assert_structural_equal(restored.loop_var.ty, ir.PrimType("int32"))
+    tvm.ir.assert_structural_equal(
+        restored.body.var.ty,
+        ir.PointerType(ir.PrimType("float32"), "global"),
+    )
+    assert restored.loop_var.same_as(restored.loop_var)
+    assert restored.body.var.same_as(restored.body.value)
+
 
 def test_dir():
     x = tvm.tirx.Var("x", "int32")

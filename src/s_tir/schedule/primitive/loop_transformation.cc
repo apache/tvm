@@ -449,7 +449,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   }
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
   for (int i = n - 1; i >= 0; i--) {
-    new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
+    new_stmt = For(PrimVar(new_loop_vars[i]), 0, factors[i], ForKind::kSerial, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
                                                            opaque_block_reuse.CopyOnWrite(),
@@ -560,7 +560,7 @@ class BlockMutator : public StmtExprMutator {
           // Create new Var instance for each IterVar
           Var new_var = Var(iter->var->name_hint, iter->var.ty());
           IterVar new_iter = iter;
-          new_iter.CopyOnWrite()->var = new_var;
+          new_iter.CopyOnWrite()->var = PrimVar(new_var);
           // Change the domain of IterVar corresponding to partitioned loop_var
           if (iter_var_.same_as(iter->var)) {
             new_iter.CopyOnWrite()->dom = Range(tvm::cast(dtype, min_), tvm::cast(dtype, extent_));
@@ -628,7 +628,7 @@ class BlockMutator : public StmtExprMutator {
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
       res.CopyOnWrite()->body = tirx::Substitute(res->body, {{op->loop_var, new_var}});
-      res.CopyOnWrite()->loop_var = new_var;
+      res.CopyOnWrite()->loop_var = PrimVar(new_var);
     }
     return res;
   }
@@ -681,8 +681,8 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
     // Create new block with new reference to each variable/stmt/expr in the existing block
     loop_body = BlockMutator(new_loop_var, min_value, extent_value)(std::move(loop_body));
     // Create new for loop with appropriate range
-    auto for_node =
-        For(new_loop_var, min_value, extent_value - min_value, ForKind::kSerial, loop_body);
+    auto for_node = For(PrimVar(new_loop_var), min_value, extent_value - min_value,
+                        ForKind::kSerial, loop_body);
 
     const auto& partition_block_name = block_name + std::to_string(i) + "_partition";
     // Create partition_block for the partitioned for loop
@@ -745,13 +745,13 @@ class LoopReconstructor : private StmtMutator {
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }
-    auto new_loop = For(new_loop_vars[0], IntImm::Int32(0), new_loop_extents[0], ForKind::kSerial,
-                        SeqStmt(std::move(new_stmts)));
+    auto new_loop = For(PrimVar(new_loop_vars[0]), IntImm::Int32(0), new_loop_extents[0],
+                        ForKind::kSerial, SeqStmt(std::move(new_stmts)));
     this->new_inner_loop_ = new_loop;
     for (size_t i = 1; i < new_loop_vars.size(); ++i) {
       const Var& loop_var = new_loop_vars[i];
       const PrimExpr& loop_extent = new_loop_extents[i];
-      new_loop = For(loop_var, IntImm::Int32(0), loop_extent, ForKind::kSerial, new_loop);
+      new_loop = For(PrimVar(loop_var), IntImm::Int32(0), loop_extent, ForKind::kSerial, new_loop);
     }
     this->new_outer_loop_ = new_loop;
   }
@@ -957,7 +957,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     fused_extent *= loops[i]->extent;
   }
   fused_extent = analyzer->Simplify(fused_extent);
-  new_stmt = For(fused_var, 0, fused_extent, ForKind::kSerial, new_stmt);
+  new_stmt = For(PrimVar(fused_var), 0, fused_extent, ForKind::kSerial, new_stmt);
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
       std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite(),
       preserve_unit_iters);
@@ -1143,8 +1143,8 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
 
 StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
   if (sref->stmt->IsInstance<ForNode>()) {
-    For new_loop =
-        For(Var("u", PrimType::Int(32)), 0, 1, ForKind::kSerial, ffi::GetRef<Stmt>(sref->stmt));
+    For new_loop = For(PrimVar(Var("u", PrimType::Int(32))), 0, 1, ForKind::kSerial,
+                       ffi::GetRef<Stmt>(sref->stmt));
     self->Replace(sref, new_loop, {});
     return self->stmt2ref.at(new_loop.get());
   }
@@ -1154,7 +1154,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
 
     Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
       if (realize->block.get() == src_block_) {
-        new_loop_ = For(Var("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
+        new_loop_ = For(PrimVar(Var("u", PrimType::Int(32))), 0, 1, ForKind::kSerial,
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_;
       }

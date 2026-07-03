@@ -38,6 +38,12 @@
 namespace tvm {
 namespace relax {
 
+struct VarIdentityLess {
+  bool operator()(const Var& lhs, const Var& rhs) const { return lhs.get() < rhs.get(); }
+};
+
+using VarIdentitySet = std::set<Var, VarIdentityLess>;
+
 TVM_FFI_STATIC_INIT_BLOCK() { DataflowBlockRewriteNode::RegisterReflection(); }
 
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
@@ -102,14 +108,18 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   // new_var -> {?}           | changed to old_var users
   for (Var user : to_users_[old_var]) {
     auto new_var_uses = to_users_[new_var];
-    if (new_var_uses.end() == std::find(new_var_uses.begin(), new_var_uses.end(), user)) {
+    if (new_var_uses.end() ==
+        std::find_if(new_var_uses.begin(), new_var_uses.end(),
+                     [&](const Var& candidate) { return candidate.same_as(user); })) {
       new_var_uses.push_back(user);
     }
   }
 
   to_users_.Set(old_var, {});
 
-  auto it_old_output = std::find(fn_outputs_.begin(), fn_outputs_.end(), old_var);
+  auto it_old_output =
+      std::find_if(fn_outputs_.begin(), fn_outputs_.end(),
+                   [&](const Var& candidate) { return candidate.same_as(old_var); });
   if (it_old_output != fn_outputs_.end()) {
     fn_outputs_.Set(std::distance(fn_outputs_.begin(), it_old_output), new_var);
   }
@@ -190,7 +200,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            });
 }
 
-std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array<Var> fn_outputs) {
+VarIdentitySet GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array<Var> fn_outputs) {
   std::vector<Var> unused;
 
   // iterative dataflow algorithm.
@@ -206,7 +216,9 @@ std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array
       //   user -> empty
       //   var is not output var
       if (users.empty() &&  // def is not used by fn outputs.
-          std::find(fn_outputs.begin(), fn_outputs.end(), def) == fn_outputs.end()) {
+          std::find_if(fn_outputs.begin(), fn_outputs.end(), [&](const Var& output) {
+            return output.same_as(def);
+          }) == fn_outputs.end()) {
         unused.push_back(def);
       } else {
         used.push_back(def);
@@ -220,7 +232,8 @@ std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array
         TVM_FFI_ICHECK(users_map.count(used_var));
         ffi::Array<Var> var_users = users_map[used_var];
         // remove the unused var from the use site.
-        if (auto it = std::find(var_users.begin(), var_users.end(), unused[i]);
+        if (auto it = std::find_if(var_users.begin(), var_users.end(),
+                                   [&](const Var& user) { return user.same_as(unused[i]); });
             it != var_users.end()) {
           var_users.erase(it);
           users_map.Set(used_var, std::move(var_users));
@@ -229,15 +242,15 @@ std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array
     }
   } while (prev_size != unused.size());  // changed? => continue.
 
-  return std::set<Var>(unused.begin(), unused.end());
+  return VarIdentitySet(unused.begin(), unused.end());
 }
 
 class RemoveUnusedVars : public ExprMutator {
  public:
-  std::set<Var> unused_vars;
+  VarIdentitySet unused_vars;
   ffi::Optional<DataflowBlock> caught_rewrite = std::nullopt;
 
-  explicit RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
+  explicit RemoveUnusedVars(VarIdentitySet unused_vars) : unused_vars(std::move(unused_vars)) {}
 
   RemoveUnusedVars(ffi::Map<Var, ffi::Array<Var>> users, ffi::Array<Var> fn_outputs)
       : RemoveUnusedVars(GetUnusedVars(users, fn_outputs)) {}

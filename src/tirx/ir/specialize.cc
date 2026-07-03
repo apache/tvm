@@ -426,17 +426,17 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& 
 
 /**************** Implementation ****************/
 
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, PrimExpr>>& param_map) {
+PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, Expr>>& param_map) {
   VarMap var_map;
   for (const auto& kv : param_map) {
     const Var& param = kv.first;
-    const ffi::Variant<Buffer, PrimExpr>& instance = kv.second;
+    const ffi::Variant<Buffer, Expr>& instance = kv.second;
     if (auto opt_buffer = instance.as<Buffer>()) {
       UpdateSpecializeVarMap(func, param, opt_buffer.value(), &var_map);
-    } else if (auto opt_expr = instance.as<PrimExpr>()) {
+    } else if (auto opt_expr = instance.as<Expr>()) {
       UpdateSpecializeVarMap(func, param, opt_expr.value(), &var_map);
     } else {
-      TVM_FFI_THROW(TypeError) << "specialize expected instance to be Buffer or PrimExpr";
+      TVM_FFI_THROW(TypeError) << "specialize expected instance to be Buffer or Expr";
     }
   }
   return PrimFuncSpecializer::Specialize(func, std::move(var_map));

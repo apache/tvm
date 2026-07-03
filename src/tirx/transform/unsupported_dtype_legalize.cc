@@ -418,18 +418,18 @@ class ComputeLegalizer : public StmtExprMutator {
       auto legalized_results =
           reducer->result.Map([this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
 
-      auto legalized_lhs = reducer->lhs.Map([this](Var var) {
+      auto legalized_lhs = reducer->lhs.Map([this](PrimVar var) {
         auto it = var_remap_.find(var);
         if (it != var_remap_.end()) {
-          return it->second;
+          return PrimVar(it->second);
         }
         return var;
       });
 
-      auto legalized_rhs = reducer->rhs.Map([this](Var var) {
+      auto legalized_rhs = reducer->rhs.Map([this](PrimVar var) {
         auto it = var_remap_.find(var);
         if (it != var_remap_.end()) {
-          return it->second;
+          return PrimVar(it->second);
         }
         return var;
       });

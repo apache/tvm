@@ -107,7 +107,8 @@ class LayoutConvertMutator : public ExprMutator {
       initial_indices_expr.push_back(var);
     }
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardIndex(initial_indices_expr);
-    return IndexMap(initial_indices, desired_shape, std::move(inverse_index_map));
+    return IndexMap(initial_indices.Map([](tvm::tirx::Var var) { return tvm::tirx::PrimVar(var); }),
+                    desired_shape, std::move(inverse_index_map));
   }
 
   Expr RewriteExpr(const Expr& expr, const NLayout& to) {

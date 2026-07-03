@@ -27,6 +27,7 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/type.h>
 
 #include <functional>
 #include <string>
@@ -132,6 +133,34 @@ class Var : public Expr {
   static constexpr bool _type_container_is_exact = true;
 };
 
+/*!
+ * \brief Checked scalar view over a VarNode.
+ *
+ * PrimVar is a zero-state reference view over the same VarNode as Var.  It additionally
+ * guarantees that the inherited ExprNode::ty is PrimType.
+ */
+class PrimVar : public PrimExpr {
+ public:
+  /*! \brief Explicit checked narrowing from a general Var. */
+  explicit PrimVar(Var var) : PrimExpr(var.as_or_throw<PrimExpr>()) {}
+
+  /*! \brief Safe widening to a general Var view over the same node. */
+  operator Var() const { return this->as_or_throw<Var>(); }
+
+  PrimVar copy_with_name(const ffi::String& name) const {
+    return PrimVar(static_cast<Var>(*this).copy_with_name(name));
+  }
+  PrimVar copy_with_suffix(const ffi::String& suffix) const {
+    return PrimVar(static_cast<Var>(*this).copy_with_suffix(suffix));
+  }
+  PrimVar copy_with_dtype(PrimType dtype) const {
+    return PrimVar(static_cast<Var>(*this).copy_with_dtype(dtype));
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
+  static constexpr bool _type_container_is_exact = true;
+};
+
 using Region = ffi::Array<Range>;
 
 /*!
@@ -218,7 +247,7 @@ class IterVarNode : public PrimExprConvertibleNode {
    */
   Range dom;
   /*! \brief The looping variable */
-  Var var;
+  PrimVar var;
   /*! \brief The type of the IterVar */
   IterVarType iter_type;
   /*!
@@ -255,7 +284,7 @@ class IterVarNode : public PrimExprConvertibleNode {
  */
 class IterVar : public PrimExprConvertible {
  public:
-  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, ffi::String thread_tag = "",
+  TVM_DLL IterVar(Range dom, PrimVar var, IterVarType iter_type, ffi::String thread_tag = "",
                   Span span = Span());
   /*!
    * \return the corresponding var in the IterVar.
@@ -294,56 +323,64 @@ inline const char* IterVarType2String(IterVarType t) {
 }
 }  // namespace tirx
 
-// Keep mixed Var/PrimExpr comparisons in the arithmetic expression domain.  Without these
-// exact-match overloads, ObjectRef's pointer-comparison operators compete with Var's checked
-// conversion to PrimExpr.
-#define TVM_TIRX_DEFINE_VAR_COMPARISON_OP(Op)                                 \
-  inline PrimExpr operator Op(tirx::Var a, tirx::Var b) {                     \
-    return operator Op(a.as_or_throw<PrimExpr>(), b.as_or_throw<PrimExpr>()); \
-  }                                                                           \
-  inline PrimExpr operator Op(tirx::Var a, PrimExpr b) {                      \
-    return operator Op(a.as_or_throw<PrimExpr>(), std::move(b));              \
-  }                                                                           \
-  inline PrimExpr operator Op(PrimExpr a, tirx::Var b) {                      \
-    return operator Op(std::move(a), b.as_or_throw<PrimExpr>());              \
+#define TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(Op)                \
+  inline PrimExpr operator Op(tirx::PrimVar a, tirx::PrimVar b) { \
+    return operator Op(PrimExpr(a), PrimExpr(b));                 \
   }
 
-TVM_TIRX_DEFINE_VAR_COMPARISON_OP(==)
-TVM_TIRX_DEFINE_VAR_COMPARISON_OP(!=)
-TVM_TIRX_DEFINE_VAR_COMPARISON_OP(<)
-TVM_TIRX_DEFINE_VAR_COMPARISON_OP(<=)
-TVM_TIRX_DEFINE_VAR_COMPARISON_OP(>)
-TVM_TIRX_DEFINE_VAR_COMPARISON_OP(>=)
+TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(==)
+TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(!=)
+TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(<)
+TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(<=)
+TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(>)
+TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(>=)
 
-#undef TVM_TIRX_DEFINE_VAR_COMPARISON_OP
-
-#define TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(Op)                                  \
-  inline PrimExpr operator Op(tirx::Var a, int b) {                                  \
-    return operator Op(a.as_or_throw<PrimExpr>(), b);                                \
-  }                                                                                  \
-  inline PrimExpr operator Op(int a, tirx::Var b) {                                  \
-    return operator Op(a, b.as_or_throw<PrimExpr>());                                \
-  }                                                                                  \
-  inline PrimExpr operator Op(tirx::Var a, float b) {                                \
-    return operator Op(a.as_or_throw<PrimExpr>(), b);                                \
-  }                                                                                  \
-  inline PrimExpr operator Op(float a, tirx::Var b) {                                \
-    return operator Op(a, b.as_or_throw<PrimExpr>());                                \
-  }                                                                                  \
-  inline PrimExpr operator Op(tirx::Var a, double b) {                               \
-    return operator Op(a.as_or_throw<PrimExpr>(), FloatImm(PrimType::Float(64), b)); \
-  }
-
-TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(==)
-TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(!=)
-TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(<)
-TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(<=)
-TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(>)
-TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(>=)
-
-#undef TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP
+#undef TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP
 
 }  // namespace tvm
+
+namespace tvm::ffi {
+
+template <>
+inline constexpr bool use_default_type_traits_v<tirx::PrimVar> = false;
+
+template <>
+struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar> {
+  using Base = ObjectRefTypeTraitsBase<tirx::PrimVar>;
+  using Base::CopyFromAnyViewAfterCheck;
+  using Base::CopyToAnyView;
+  using Base::GetMismatchTypeInfo;
+  using Base::MoveFromAnyAfterCheck;
+  using Base::MoveToAny;
+  using Base::TypeSchema;
+  using Base::TypeStr;
+
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return tirx::PrimVar::_type_is_nullable;
+    }
+    if (src->type_index < TypeIndex::kTVMFFIStaticObjectBegin ||
+        !details::IsObjectInstance<tirx::VarNode>(src->type_index)) {
+      return false;
+    }
+    const auto* var = static_cast<const tirx::VarNode*>(
+        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
+    return details::AnyUnsafe::CheckAnyStrict<PrimType>(var->ExprNode::ty);
+  }
+
+  TVM_FFI_INLINE static std::optional<tirx::PrimVar> TryCastFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyStrict(src)) {
+      if (src->type_index == TypeIndex::kTVMFFINone) {
+        return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::PrimVar>(nullptr);
+      }
+      return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::PrimVar>(
+          details::ObjectUnsafe::ObjectPtrFromUnowned<tirx::VarNode>(src->v_obj));
+    }
+    return std::nullopt;
+  }
+};
+
+}  // namespace tvm::ffi
 
 /* \brief Allow tirx.Var as key in STL tables
  *

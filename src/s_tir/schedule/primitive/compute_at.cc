@@ -299,7 +299,7 @@ class ScopeReconstructor : private StmtMutator {
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
-      new_subtree = For(/*loop_var=*/loop_var,
+      new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
                         /*min=*/IntImm::Int32(0),
                         /*extent=*/loop_extent,
                         /*ForKind=*/ForKind::kSerial,

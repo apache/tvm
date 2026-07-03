@@ -38,7 +38,7 @@ namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() { IndexMapNode::RegisterReflection(); }
 
-IndexMap::IndexMap(ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_indices,
+IndexMap::IndexMap(ffi::Array<PrimVar> initial_indices, ffi::Array<PrimExpr> final_indices,
                    ffi::Optional<IndexMap> inverse_index_map) {
   auto n = ffi::make_object<IndexMapNode>();
   n->initial_indices = std::move(initial_indices);
@@ -50,12 +50,16 @@ IndexMap::IndexMap(ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_i
 IndexMap IndexMap::FromFunc(int ndim,
                             ffi::TypedFunction<ffi::Array<PrimExpr>(ffi::Array<Var>)> func,
                             ffi::Optional<IndexMap> inverse_index_map) {
-  ffi::Array<Var> initial_indices;
+  ffi::Array<PrimVar> initial_indices;
+  ffi::Array<Var> callback_indices;
   initial_indices.reserve(ndim);
+  callback_indices.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
-    initial_indices.push_back(Var("i" + std::to_string(i), PrimType::Int(32)));
+    PrimVar index(Var("i" + std::to_string(i), PrimType::Int(32)));
+    initial_indices.push_back(index);
+    callback_indices.push_back(index);
   }
-  return IndexMap(initial_indices, func(initial_indices), std::move(inverse_index_map));
+  return IndexMap(initial_indices, func(callback_indices), std::move(inverse_index_map));
 }
 
 std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
@@ -73,7 +77,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   }
 
   // Dummy variables to represent the inverse's inputs.
-  ffi::Array<Var> output_vars;
+  ffi::Array<PrimVar> output_vars;
   for (size_t i = 0; i < self->final_indices.size(); i++) {
     PrimExpr index = self->final_indices[i];
     // TODO(Lunderberg): Better names for these variables.  A variable
@@ -83,7 +87,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // should be named (X.outer,X.inner).
     std::stringstream ss;
     ss << "axis" << i;
-    Var var_index(ss.str(), index.ty());
+    PrimVar var_index(Var(ss.str(), index.ty()));
     output_vars.push_back(var_index);
   }
 
@@ -106,14 +110,14 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   // Determine expressions for the input variables, in terms of the
   // output variables.
   ffi::Array<PrimExpr> prim_output_vars =
-      output_vars.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+      output_vars.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
   ffi::Map<Var, PrimExpr> inverse_exprs_map =
       InverseAffineIterMap(padded_iter_map->indices, prim_output_vars);
 
   // Unpack the map to an array, maintaining the same parameter order.
   ffi::Array<PrimExpr> inverse_exprs;
   for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {
-    Var index = self->initial_indices[i];
+    PrimVar index = self->initial_indices[i];
     PrimExpr expr;
     if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
       expr = initial_ranges[i]->min;
@@ -374,7 +378,7 @@ IndexMap IndexMap::RenameVariables(
     });
   }
 
-  for (const Var& initial_index : n->initial_indices) {
+  for (const PrimVar& initial_index : n->initial_indices) {
     if (var_remap.count(initial_index)) {
       // The name of the variable is pre-defined.
       continue;
@@ -387,7 +391,7 @@ IndexMap IndexMap::RenameVariables(
   }
 
   auto new_initial_indices = n->initial_indices.Map(
-      [&](const Var& var) { return Substitute(var, var_remap).as_or_throw<Var>(); });
+      [&](const PrimVar& var) { return Substitute(var, var_remap).as_or_throw<PrimVar>(); });
   auto new_final_indices =
       n->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, var_remap); });
   ffi::Optional<IndexMap> new_inverse_index_map = std::nullopt;
@@ -404,7 +408,7 @@ IndexMap IndexMap::RenameVariables(
  * \param final_indices The final indices in the index map.
  * \return The lambda expression string.
  */
-std::string IndexMap2PythonLambdaExpr(const ffi::Array<Var>& initial_indices,
+std::string IndexMap2PythonLambdaExpr(const ffi::Array<PrimVar>& initial_indices,
                                       const ffi::Array<PrimExpr>& final_indices) {
   std::unordered_set<std::string> used_names;
   ffi::Map<Var, PrimExpr> var_remap;
@@ -462,7 +466,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.IndexMap",
-           [](ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_indices,
+           [](ffi::Array<PrimVar> initial_indices, ffi::Array<PrimExpr> final_indices,
               ffi::Optional<IndexMap> inverse_index_map) {
              return IndexMap(initial_indices, final_indices, inverse_index_map);
            })

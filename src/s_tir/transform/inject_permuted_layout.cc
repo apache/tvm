@@ -253,13 +253,13 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     auto call = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<Call>();
 
     if (!permute_) {
-      return call.as_or_throw<PrimExpr>();
+      return call;
     }
 
     static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix_legacy");
     static const Op& mma_store_op = Op::Get("tirx.mma_store_legacy");
     if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
-      return call.as_or_throw<PrimExpr>();
+      return call;
     }
 
     if (call->op.same_as(ptx_ldmatrix_op)) {
@@ -271,7 +271,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(5, new_access_ptr);
       new_call->args.Set(6, IntImm(smem_offset.ty(), 0));
-      return call.as_or_throw<PrimExpr>();
+      return call;
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet
       // because we will directly store result to Buffer instead of calling mma_store now
@@ -279,7 +279,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr);
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(2, new_access_ptr);
-      return call.as_or_throw<PrimExpr>();
+      return call;
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid call node: " << call;
     }

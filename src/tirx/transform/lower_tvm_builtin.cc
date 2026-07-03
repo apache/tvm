@@ -169,19 +169,21 @@ class BuiltinLower : public StmtExprMutator {
       ffi::Array<Stmt> alloca_stmts;
       if (scope.max_sizes.arg_stack != 0) {
         alloca_stmts.push_back(
-            Bind(scope.stack_ffi_any, StackAlloca("tvm_ffi_any", scope.max_sizes.arg_stack)));
+            Bind(scope.stack_ffi_any,
+                 StackAlloca(scope.stack_ffi_any->ty, "tvm_ffi_any", scope.max_sizes.arg_stack)));
       }
 
       if (scope.max_sizes.array_stack != 0) {
-        alloca_stmts.push_back(
-            Bind(scope.stack_array, StackAlloca("array", scope.max_sizes.array_stack)));
+        alloca_stmts.push_back(Bind(scope.stack_array, StackAlloca(scope.stack_array->ty, "array",
+                                                                   scope.max_sizes.array_stack)));
       }
 
       if (scope.max_sizes.shape_stack != -1) {
         scope.stack_shape = decl_buffer({IntImm::Int64(scope.max_sizes.shape_stack)},
                                         PrimType::Int(64), "stack_shape");
         alloca_stmts.push_back(
-            Bind(scope.stack_shape->data, StackAlloca("shape", scope.max_sizes.shape_stack)));
+            Bind(scope.stack_shape->data,
+                 StackAlloca(scope.stack_shape->data->ty, "shape", scope.max_sizes.shape_stack)));
         stmt = SeqStmt::Flatten(DeclBuffer(scope.stack_shape), stmt);
       }
 
@@ -502,11 +504,20 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<CallNode>();
 
+    auto as_runtime_handle = [](const Expr& value) -> PrimExpr {
+      if (auto prim_value = value.as<PrimExpr>()) {
+        return prim_value.value();
+      }
+      TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
+          << "Expected a primitive or pointer expression, but got " << value->ty;
+      return Call(PrimType::Handle(), builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
+    };
+
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorData,
-                                       op->args[0].as_or_throw<PrimExpr>()));
+                                       as_runtime_handle(op->args[0])));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorShape,
-                                       op->args[1].as_or_throw<PrimExpr>()));
-    PrimExpr strides = op->args[2].as_or_throw<PrimExpr>();
+                                       as_runtime_handle(op->args[1])));
+    PrimExpr strides = as_runtime_handle(op->args[2]);
     if (!strides.defined() || is_zero(strides)) {
       strides = ConstHandle(0);
     }

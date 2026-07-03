@@ -252,7 +252,7 @@ class IRConvertSSA final : public StmtExprMutator {
         if (defined_.count(iter_var->var.get())) {
           Var new_var = MakeNewVar(iter_var->var);
           PushVarRemap(iter_var->var, new_var);
-          iter_var.CopyOnWrite()->var = new_var;
+          iter_var.CopyOnWrite()->var = PrimVar(new_var);
         } else {
           defined_.insert(iter_var->var.get());
         }
@@ -406,7 +406,7 @@ class IRConvertSSA final : public StmtExprMutator {
         PushVarRemap(v, new_var);
         Stmt stmt = StmtExprMutator::VisitStmt_(op);
         auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
-        n->loop_var = new_var;
+        n->loop_var = PrimVar(new_var);
         return For(n);
       });
     } else {
@@ -489,7 +489,8 @@ class IRConvertSSA final : public StmtExprMutator {
       if (dom.same_as(iter_var->dom) && var.same_as(iter_var->var)) {
         new_iter_var = ffi::GetRef<IterVar>(iter_var);
       } else {
-        new_iter_var = IterVar(dom, var, iter_var->iter_type, iter_var->thread_tag, iter_var->span);
+        new_iter_var =
+            IterVar(dom, PrimVar(var), iter_var->iter_type, iter_var->thread_tag, iter_var->span);
       }
 
       auto value = VisitPrimExpr(op->value);

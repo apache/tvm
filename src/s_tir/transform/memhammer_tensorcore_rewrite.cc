@@ -67,10 +67,10 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
         /*3:*/ 16,                          //
         /*4:*/ 16,                          //
     };
-    body = For(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[3]), 0, factor[3], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[2]), 0, factor[2], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[1]), 0, factor[1], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[0]), 0, factor[0], ForKind::kSerial, std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
   for (int i = n - 3; i >= 0; i--) {
@@ -406,10 +406,10 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
         /*3:*/ 8,                          //
         /*4:*/ 8,                          //
     };
-    body = For(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[3]), 0, factor[3], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[2]), 0, factor[2], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[1]), 0, factor[1], ForKind::kSerial, std::move(body));
+    body = For(PrimVar(new_loop_vars[0]), 0, factor[0], ForKind::kSerial, std::move(body));
   }
   For compute_location = body.as_or_throw<For>();
   for (int i = n - 3; i >= 0; i--) {
@@ -507,13 +507,13 @@ Stmt RewriteMmaStore(Stmt stmt) {
              AttrStmt(
                  /*node=*/IterVar(
                      /*dom=*/Range::FromMinExtent(0, 32),
-                     /*var=*/tx,
+                     /*var=*/PrimVar(tx),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/"threadIdx.x"),
                  /*attr_key=*/"thread_extent",
                  /*value=*/IntImm::Int32(32),
                  /*body=*/
-                 For(vec, 0, 2, ForKind::kVectorized,
+                 For(PrimVar(vec), 0, 2, ForKind::kVectorized,
                      /*body=*/
                      BufferStore(
                          new_tgt_buffer,

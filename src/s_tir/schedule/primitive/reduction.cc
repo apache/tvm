@@ -273,7 +273,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     For old_loop = ffi::GetRef<For>(TVM_SREF_TO_FOR(loops[i]));
     // Create a new equivalent to the chosen loop
     Var old_loop_var = old_loop->loop_var;
-    Var new_loop_var = old_loop_var.copy_with_suffix("_init");
+    PrimVar new_loop_var = old_loop->loop_var.copy_with_suffix("_init");
     loop_var_map[old_loop_var] = new_loop_var;
     ffi::Optional<IterVar> opt_thread_binding = old_loop->thread_binding;
     if (opt_thread_binding) {
@@ -420,13 +420,20 @@ struct ReducerRegistry {
       if (static_cast<int>(values.size()) != n_buffers) {
         return std::nullopt;
       }
-      ffi::Array<Var> lhs;
-      ffi::Array<Var> rhs;
+      ffi::Array<PrimVar> lhs;
+      ffi::Array<PrimVar> rhs;
+      ffi::Array<Var> callback_lhs;
+      ffi::Array<Var> callback_rhs;
       for (int i = 0; i < n_buffers; ++i) {
-        lhs.push_back(Var("x" + std::to_string(i), values[i].ty()));
-        rhs.push_back(Var("y" + std::to_string(i), values[i].ty()));
+        PrimVar lhs_var(Var("x" + std::to_string(i), values[i].ty()));
+        PrimVar rhs_var(Var("y" + std::to_string(i), values[i].ty()));
+        lhs.push_back(lhs_var);
+        rhs.push_back(rhs_var);
+        callback_lhs.push_back(lhs_var);
+        callback_rhs.push_back(rhs_var);
       }
-      return CommReducer(lhs, rhs, combiner_getter(lhs, rhs), identity_getter(values));
+      return CommReducer(lhs, rhs, combiner_getter(callback_lhs, callback_rhs),
+                         identity_getter(values));
     };
   }
 
@@ -1074,7 +1081,7 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
   Stmt rf_body = rf_block_realize;
   for (int i = n_loops - 1; i >= 0; --i) {
     ffi::ObjectPtr<ForNode> p_loop = ffi::make_object<ForNode>(*loops[i].get());
-    p_loop->loop_var = new_loop_var_map[loops[i]->loop_var.get()].as_or_throw<Var>();
+    p_loop->loop_var = new_loop_var_map[loops[i]->loop_var.get()].as_or_throw<PrimVar>();
     p_loop->body = rf_body;
     rf_body = For(std::move(p_loop));
   }

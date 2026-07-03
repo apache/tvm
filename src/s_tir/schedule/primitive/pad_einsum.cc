@@ -176,7 +176,7 @@ struct BufferPadding {
       Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
       loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
-      IterVar iter_var(dom, Var("v" + std::to_string(i), dim.ty()), kDataPar);
+      IterVar iter_var(dom, PrimVar(Var("v" + std::to_string(i), dim.ty())), kDataPar);
       instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim.ty(), 1)));
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);
@@ -208,7 +208,7 @@ struct BufferPadding {
     for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
     body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
+      body = For(PrimVar(loop_vars[i]), loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
                  std::move(body));
     }
     return body;

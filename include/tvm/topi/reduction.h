@@ -274,17 +274,22 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
                                    std::string name = "reduce") {
   return [fcombine, fidentity, name](ffi::Array<PrimExpr> exprs, const ffi::Array<IterVar>& axis,
                                      PrimExpr* condition) {
-    ffi::Array<Var> lhs, rhs;
+    ffi::Array<PrimVar> lhs, rhs;
+    ffi::Array<Var> callback_lhs, callback_rhs;
     std::vector<PrimType> dtypes;
 
     for (size_t i = 0; i < exprs.size(); ++i) {
       PrimType dtype = exprs[i].ty();
       dtypes.push_back(dtype);
-      lhs.push_back(var(name + "_lhs_" + std::to_string(i), dtype));
-      rhs.push_back(var(name + "_rhs_" + std::to_string(i), dtype));
+      PrimVar lhs_var(var(name + "_lhs_" + std::to_string(i), dtype));
+      PrimVar rhs_var(var(name + "_rhs_" + std::to_string(i), dtype));
+      lhs.push_back(lhs_var);
+      rhs.push_back(rhs_var);
+      callback_lhs.push_back(lhs_var);
+      callback_rhs.push_back(rhs_var);
     }
 
-    auto result = fcombine(lhs, rhs);
+    auto result = fcombine(callback_lhs, callback_rhs);
     auto id_elem = fidentity(dtypes);
     auto cond = condition != nullptr ? *condition : IntImm::Bool(true);
 

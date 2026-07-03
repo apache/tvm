@@ -1606,6 +1606,10 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto it = rewrite_map_.find(op->var.get());
     Expr value = this->VisitExpr(op->value);
     Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
+    if (!ffi::StructuralEqual()(value->ty, var->ty)) {
+      auto call = value.as_or_throw<Call>();
+      value = Call(var->ty, call->op, call->args, call->attrs, call->ty_args, call->span);
+    }
     if (var.same_as(op->var) && value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
     }

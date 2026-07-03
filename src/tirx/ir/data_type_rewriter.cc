@@ -106,7 +106,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                                   << ", but get " << op->node.GetTypeKey();
     PrimExpr e = VisitExpr(iv->var).as_or_throw<PrimExpr>();
-    Var var = e.as_or_throw<Var>();
+    PrimVar var = e.as_or_throw<PrimVar>();
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
       if (dom.defined()) {
@@ -409,7 +409,7 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
 IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_var = VisitPrimExpr(iter_var->var).as_or_throw<Var>();
+  PrimVar new_var = VisitPrimExpr(iter_var->var).as_or_throw<PrimVar>();
   PrimExpr min = VisitPrimExpr(iter_var->dom->min);
   PrimExpr extent = VisitPrimExpr(iter_var->dom->extent);
   is_enabled_ = is_enabled;
@@ -517,7 +517,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
 Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_loop_var = VisitPrimExpr(op->loop_var).as_or_throw<Var>();
+  PrimVar new_loop_var = VisitPrimExpr(op->loop_var).as_or_throw<PrimVar>();
   PrimExpr min = VisitPrimExpr(op->min);
   PrimExpr extent = VisitPrimExpr(op->extent);
   is_enabled_ = is_enabled;

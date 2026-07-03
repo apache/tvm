@@ -843,7 +843,12 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
       TVM_FFI_ICHECK(var != nullptr);
       sub_index_map_tgt.push_back(rhs_to_index_map_tgt[ffi::GetRef<tirx::Var>(var)]);
     }
-    return tirx::IndexMap(sub_index_map_src, sub_index_map_tgt);
+    ffi::Array<tirx::PrimVar> prim_sub_index_map_src;
+    prim_sub_index_map_src.reserve(sub_index_map_src.size());
+    for (const tirx::Var& var : sub_index_map_src) {
+      prim_sub_index_map_src.push_back(tirx::PrimVar(var));
+    }
+    return tirx::IndexMap(prim_sub_index_map_src, sub_index_map_tgt);
   };
 
   std::unordered_set<tirx::Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_buffers;

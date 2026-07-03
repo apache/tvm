@@ -508,7 +508,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
           extent = Substitute(extent, scope_repl);
         }
         Range dom = Range::FromMinExtent(analyzer->Simplify(min), analyzer->Simplify(extent));
-        IterVar new_block_iter(dom, block_var, axis->iter_type, axis->thread_tag, axis->span);
+        IterVar new_block_iter(dom, PrimVar(block_var), axis->iter_type, axis->thread_tag,
+                               axis->span);
         cur_scope.loop_vars.emplace_back(loop_var, dom);
         cur_scope.AddBlockIter(axis, new_block_iter, loop_var);
         defined_axes.insert(axis->var);
@@ -517,14 +518,15 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         TVM_FFI_ICHECK(scopes[i - 1].axes_remap.count(axis->var));
         PrimExpr prev_binding = scopes[i - 1].axes_remap.at(axis->var);
         Var block_var("v_" + axis->var->name_hint, index_type);
-        Range dom = Range::FromMinExtent(prev_binding, IntImm(index_type, 1));
-        IterVar new_block_iter(dom, block_var, axis->iter_type, axis->thread_tag, axis->span);
+        Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
+        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                               axis->thread_tag, axis->span);
         cur_scope.AddBlockIter(axis, new_block_iter, prev_binding);
       }
     }
     if (i == axes_levels.size() - 1 && cur_scope.block_iters.empty()) {
       // for the leaf scope, we ensure at least one block var exists
-      IterVar dummy(Range::FromMinExtent(0, 1), Var("vi", PrimType::Int(32)),
+      IterVar dummy(Range::FromMinExtent(0, 1), PrimVar(Var("vi", PrimType::Int(32))),
                     IterVarType::kDataPar);
       cur_scope.AddBlockIter(std::nullopt, dummy, 0);
     }
@@ -614,7 +616,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For(loop_var, dom->min, dom->extent, ForKind::kSerial, body);
+      body = For(PrimVar(loop_var), dom->min, dom->extent, ForKind::kSerial, body);
     }
   }
   return body;

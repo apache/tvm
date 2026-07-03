@@ -69,7 +69,7 @@ class SpecializeTIRCallArgs : ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       return SpecializeTirPrimFunc(call);
     }
     return call;
@@ -80,7 +80,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto gv = call->args[0].as_or_throw<GlobalVar>();
     auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
     auto args = call->args[1].as_or_throw<Tuple>()->fields;
-    ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
+    ffi::Map<tirx::Var, ffi::Variant<Buffer, Expr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);

@@ -228,7 +228,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         // b < 0 && rmod < 0 -> rmod
         // b < 0 && rmod > 0 -> rmod + b
         return Let(
-            rmod, truncmod(op->a, op->b),
+            PrimVar(rmod), truncmod(op->a, op->b),
             Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b));
       }
     }

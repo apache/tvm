@@ -33,15 +33,15 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-#define STMT_REGENERATE_VAR_DEF(NODE, FIELD)     \
-  Stmt VisitStmt_(const NODE* op) final {        \
-    Var new_var = this->ReDefineVar(op->FIELD);  \
-    Stmt stmt = StmtExprMutator::VisitStmt_(op); \
-    op = stmt.as<NODE>();                        \
-    TVM_FFI_ICHECK(op != nullptr);               \
-    auto n = ffi::make_object<NODE>(*op);        \
-    n->FIELD = std::move(new_var);               \
-    return Stmt(n);                              \
+#define STMT_REGENERATE_VAR_DEF(NODE, FIELD)           \
+  Stmt VisitStmt_(const NODE* op) final {              \
+    Var new_var = this->ReDefineVar(op->FIELD);        \
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);       \
+    op = stmt.as<NODE>();                              \
+    TVM_FFI_ICHECK(op != nullptr);                     \
+    auto n = ffi::make_object<NODE>(*op);              \
+    n->FIELD = decltype(n->FIELD)(std::move(new_var)); \
+    return Stmt(n);                                    \
   }
 
 class RenewDefMutator : public StmtExprMutator {
@@ -233,8 +233,8 @@ class RenewDefMutator : public StmtExprMutator {
     }
     PrimExpr min = VisitPrimExpr(iter_var->dom->min);
     PrimExpr extent = VisitPrimExpr(iter_var->dom->extent);
-    IterVar new_iter_var(Range(min, extent), ReDefineVar(iter_var->var), iter_var->iter_type,
-                         iter_var->thread_tag);
+    IterVar new_iter_var(Range(min, extent), PrimVar(ReDefineVar(iter_var->var)),
+                         iter_var->iter_type, iter_var->thread_tag);
     this->AddDefRemap(iter_var, new_iter_var);
     return new_iter_var;
   }

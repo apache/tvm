@@ -78,7 +78,7 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op != call_tir_op) {
+    if (!call->op.same_as(call_tir_op)) {
       return ffi::GetRef<Call>(call);
     }
 

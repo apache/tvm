@@ -2095,7 +2095,7 @@ class AutoTensorizeMappingProposer {
       index_map_tgt.push_back(analyzer_->Simplify(fused_lhs_iters[iter->var]));
     }
     // At most one mapping is supported.
-    return {IndexMap(index_map_src, index_map_tgt)};
+    return {IndexMap(index_map_src.Map([](Var var) { return PrimVar(var); }), index_map_tgt)};
   }
 
  private:

@@ -403,6 +403,12 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const V
 TVM_DLL PrimExpr Substitute(PrimExpr expr,
                             std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
 
+/*! \brief Substitute general expressions, including pointer-valued variables. */
+TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
+
+/*! \brief Substitute a general expression, including pointer-valued variables. */
+TVM_DLL Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
+
 /*!
  * \brief Substitute the var specified by vmap.
  * \param arr The array of Stmt/PrimExpr to be substituted
@@ -452,18 +458,20 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <
-    typename Obj, typename Expr,
-    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
-auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto opt = vmap.Get(var)) {
-      return opt.value().template as_or_throw<PrimExpr>();
-    } else {
+template <typename Obj, typename Replacement,
+          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
+                                      std::is_same_v<Var, Replacement>>>
+auto Substitute(Obj&& obj, const ffi::Map<Var, Replacement>& vmap) {
+  if constexpr (std::is_base_of_v<PrimExpr, Replacement>) {
+    auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> { return vmap.Get(var); };
+    return Substitute(std::forward<Obj>(obj), func);
+  } else {
+    auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
+      if (auto replacement = vmap.Get(var)) return Expr(replacement.value());
       return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
+    };
+    return Substitute(std::forward<Obj>(obj), func);
+  }
 }
 
 /*!
@@ -475,18 +483,23 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <
-    typename Obj, typename Expr,
-    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return it->second.template as_or_throw<PrimExpr>();
-    } else {
+template <typename Obj, typename Replacement,
+          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
+                                      std::is_same_v<Var, Replacement>>>
+auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Replacement>& vmap) {
+  if constexpr (std::is_base_of_v<PrimExpr, Replacement>) {
+    auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+      if (auto it = vmap.find(var.get()); it != vmap.end()) return it->second;
       return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
+    };
+    return Substitute(std::forward<Obj>(obj), func);
+  } else {
+    auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
+      if (auto it = vmap.find(var.get()); it != vmap.end()) return it->second;
+      return std::nullopt;
+    };
+    return Substitute(std::forward<Obj>(obj), func);
+  }
 }
 
 /*!
@@ -498,18 +511,24 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap)
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <
-    typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
-    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto it = vmap.find(var); it != vmap.end()) {
-      return it->second.template as_or_throw<PrimExpr>();
-    } else {
+template <typename Obj, typename Replacement, typename Hasher, typename EqualityChecker,
+          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
+                                      std::is_same_v<Var, Replacement>>>
+auto Substitute(Obj&& obj,
+                const std::unordered_map<Var, Replacement, Hasher, EqualityChecker>& vmap) {
+  if constexpr (std::is_base_of_v<PrimExpr, Replacement>) {
+    auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+      if (auto it = vmap.find(var); it != vmap.end()) return it->second;
       return std::nullopt;
-    }
-  };
-  return Substitute(std::forward<Obj>(obj), func);
+    };
+    return Substitute(std::forward<Obj>(obj), func);
+  } else {
+    auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
+      if (auto it = vmap.find(var); it != vmap.end()) return it->second;
+      return std::nullopt;
+    };
+    return Substitute(std::forward<Obj>(obj), func);
+  }
 }
 
 /*!

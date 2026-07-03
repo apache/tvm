@@ -204,7 +204,8 @@ class HostDeviceSplitter : public StmtMutator {
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success.ty());
       Call kernel_call(success.ty(), kernel_symbol_global, args);
-      AssertStmt assert_success(kernel_error_code == success, StringImm("RuntimeError"),
+      AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
+                                StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
       return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
                                       assert_success});

@@ -587,7 +587,7 @@ enum class ForKind : int {
 class ForNode : public StmtNode {
  public:
   /*! \brief The loop variable. */
-  Var loop_var;
+  PrimVar loop_var;
   /*! \brief The minimum value of iteration. */
   PrimExpr min;
   /*! \brief The extent of the iteration. */
@@ -640,7 +640,7 @@ class ForNode : public StmtNode {
  */
 class For : public Stmt {
  public:
-  TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+  TVM_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
               ffi::Optional<IterVar> thread_binding = std::nullopt,
               ffi::Map<ffi::String, ffi::Any> annotations = {},
               ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());

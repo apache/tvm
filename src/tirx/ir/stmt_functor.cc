@@ -766,7 +766,7 @@ Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Funct
 
 class IRSubstitute : public StmtExprMutator {
  public:
-  explicit IRSubstitute(std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
+  explicit IRSubstitute(std::function<ffi::Optional<Expr>(const Var&)> vmap) : vmap_(vmap) {}
 
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
@@ -774,10 +774,11 @@ class IRSubstitute : public StmtExprMutator {
     if (ret.defined()) {
       // Allow substitution of void variables with any expression. The TVM script parser
       // uses void variables for lambda parameters (since exact types are not known yet).
-      if (!var.ty().IsVoid()) {
-        PrimExpr ret_ex = ret.value().as_or_throw<PrimExpr>();
-        TVM_FFI_ICHECK(ret_ex.ty() == var.ty()) << "substituting " << var << ":" << var.ty()->dtype
-                                                << " -> " << ret_ex << ":" << ret_ex.ty()->dtype;
+      if (auto var_prim_type = var->ty.as<PrimType>();
+          !var_prim_type.has_value() || !var_prim_type.value().IsVoid()) {
+        TVM_FFI_ICHECK(ffi::StructuralEqual()(ret.value()->ty, var->ty))
+            << "substituting " << var << ":" << var->ty << " -> " << ret.value() << ":"
+            << ret.value()->ty;
       }
       return ret.value();
     }
@@ -817,15 +818,31 @@ class IRSubstitute : public StmtExprMutator {
 
  private:
   // Caller provided function that defines the variables to be remapped.
-  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
 };
 
 Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(stmt));
+  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap(var)) return Expr(replacement.value());
+    return std::nullopt;
+  };
+  return IRSubstitute(std::move(general_vmap))(std::move(stmt));
 }
 
 PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(expr)).as_or_throw<PrimExpr>();
+  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap(var)) return Expr(replacement.value());
+    return std::nullopt;
+  };
+  return IRSubstitute(std::move(general_vmap))(std::move(expr)).as_or_throw<PrimExpr>();
+}
+
+Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(stmt));
+}
+
+Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(expr));
 }
 
 void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,

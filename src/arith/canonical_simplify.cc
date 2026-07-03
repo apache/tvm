@@ -1334,8 +1334,8 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
   int new_value_index = op->value_index;
   ffi::Array<PrimExpr> new_result;
   ffi::Array<PrimExpr> new_identity;
-  ffi::Array<Var> new_lhs;
-  ffi::Array<Var> new_rhs;
+  ffi::Array<PrimVar> new_lhs;
+  ffi::Array<PrimVar> new_rhs;
   ffi::Array<PrimExpr> new_source;
   ffi::Array<PrimExpr> new_init;
 

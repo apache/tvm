@@ -213,19 +213,20 @@ inline tvm::te::Tensor pad(
         indices.push_back(ovars[i]);
       }
       if (!topi::detail::EqualCheck(pad_after_int32[i], 0)) {
-        sel.push_back(analyzer->Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
+        sel.push_back(analyzer->Simplify(ovars[i].as_or_throw<PrimExpr>() <
+                                         pad_before_int32[i] + t->shape[i]));
       }
       if (pad_mode == "edge") {
         pad_idx.push_back(
-            tvm::if_then_else(ovars[i] < pad_before[i], 0,
+            tvm::if_then_else(ovars[i].as_or_throw<PrimExpr>() < pad_before[i], 0,
                               tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
                                                 t->shape[i] - 1, ovars[i] - pad_before[i])));
       } else if (pad_mode == "reflect") {
-        pad_idx.push_back(
-            tvm::if_then_else(ovars[i] < pad_before[i], pad_before[i] - ovars[i],
-                              tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
-                                                t->shape[i] * 2 - ovars[i] + pad_before[i] - 2,
-                                                ovars[i] - pad_before[i])));
+        pad_idx.push_back(tvm::if_then_else(
+            ovars[i].as_or_throw<PrimExpr>() < pad_before[i], pad_before[i] - ovars[i],
+            tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
+                              t->shape[i] * 2 - ovars[i] + pad_before[i] - 2,
+                              ovars[i] - pad_before[i])));
       }
     }
     if (sel.size() != 0) {

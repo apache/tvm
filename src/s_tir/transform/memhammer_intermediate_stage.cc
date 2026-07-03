@@ -317,7 +317,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
       use_rank_promotion = true;
     }
   }
-  ffi::Array<Var> new_loop_vars;
+  ffi::Array<PrimVar> new_loop_vars;
   ffi::Map<Var, PrimExpr> subst_map;
   if (!use_rank_promotion) {
     cache_indices.clear();
@@ -331,7 +331,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
 
   for (int i = 0; i < static_cast<int>(relaxed_thread_loops.size()); i++) {
     const ForNode* loop = relaxed_thread_loops[i];
-    Var new_loop_var = loop->loop_var.copy_with_suffix("_cache");
+    PrimVar new_loop_var = loop->loop_var.copy_with_suffix("_cache");
     new_loop_vars.push_back(new_loop_var);
     subst_map.Set(loop->loop_var, new_loop_var);
     if (!use_rank_promotion) {
@@ -340,7 +340,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
   for (int i = 0; i < static_cast<int>(loops_under_compute_location.size()); i++) {
     const ForNode* loop = loops_under_compute_location[i];
-    Var new_loop_var = loop->loop_var.copy_with_suffix("_cache");
+    PrimVar new_loop_var = loop->loop_var.copy_with_suffix("_cache");
     new_loop_vars.push_back(new_loop_var);
     subst_map.Set(loop->loop_var, new_loop_var);
     if (!use_rank_promotion) {

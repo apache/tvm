@@ -227,7 +227,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
                         ffi::Map<SBlock, SBlock>* new_block_to_old, arith::AnalyzerObj* analyzer)
         : info(info),
           new_buffer(new_buffer),
-          new_indices(inverse->initial_indices),
+          new_indices(
+              inverse->initial_indices.Map([](PrimVar var) { return static_cast<Var>(var); })),
           padding_predicate(padding_predicate),
           inverse(inverse),
           pad_value(pad_value),
@@ -313,8 +314,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         Var virtual_var = new_indices[i];
         PrimExpr dim = new_buffer->shape[i];
         new_iter_values.push_back(var);
-        new_iter_vars.push_back(
-            IterVar(Range::FromMinExtent(IntImm(dim.ty(), 0), dim), virtual_var, kDataPar));
+        new_iter_vars.push_back(IterVar(Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
+                                        PrimVar(virtual_var), kDataPar));
         loop_var_to_virtual_var.Set(var, virtual_var);
       }
 
@@ -477,7 +478,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
       Var block_var("v_" + loop_var->name_hint, loop_var.ty());
-      IterVar iter_var(Range(0, dim), block_var, kDataPar);
+      IterVar iter_var(Range(0, dim), PrimVar(block_var), kDataPar);
       loop_indices_to_block_indices.Set(loop_var, block_var);
       indices.push_back(iter_var->var);
       iter_vars.push_back(iter_var);
@@ -500,7 +501,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+      stmt = For(PrimVar(loop_var), 0, extent, ForKind::kSerial, stmt);
     }
     return ProloguePlan{stmt};
   }
@@ -533,7 +534,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         size_t i = (inverse->initial_indices.size() - 1) - rev_i;
         Var loop_var = inverse->initial_indices[i];
         PrimExpr extent = new_buffer->shape[i];
-        stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+        stmt = For(PrimVar(loop_var), 0, extent, ForKind::kSerial, stmt);
       }
 
       return stmt;
@@ -572,7 +573,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
       Var block_var("v_" + loop_var->name_hint, loop_var.ty());
-      IterVar iter_var(Range(0, dim), block_var, kDataPar);
+      IterVar iter_var(Range(0, dim), PrimVar(block_var), kDataPar);
       indices.push_back(iter_var->var);
       iter_vars.push_back(iter_var);
       iter_values.push_back(loop_var);
@@ -593,7 +594,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+      stmt = For(PrimVar(loop_var), 0, extent, ForKind::kSerial, stmt);
     }
 
     const auto& info = write_info_.back();
@@ -1156,7 +1157,8 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
     if (opt_inverse_index_map.defined()) {
       opt_inverse_index_map = LegalizeIndexMapDType(opt_inverse_index_map.value(), final_indices);
     }
-    return IndexMap(initial_indices, final_indices, opt_inverse_index_map);
+    return IndexMap(initial_indices.Map([](Var var) { return PrimVar(var); }), final_indices,
+                    opt_inverse_index_map);
   }
   return index_map;
 }
@@ -1432,7 +1434,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     PrimType dtype = new_block_var.ty();
     new_block_iters.push_back(IterVar(
         /*dom=*/Range::FromMinExtent(IntImm(dtype, 0), cast(dtype, new_block_iter_range[i])),
-        /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
+        /*var=*/PrimVar(std::move(new_block_var)), /*iter_type=*/iter_type));
   }
 
   // Step 5.2: Update the block body. Use the inverse map f^{-1} to replace the original block iters
@@ -1478,8 +1480,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Generate outer loops
   Stmt body = ffi::GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
-    body = For(new_loop_vars[i].as_or_throw<Var>(), 0, new_block_iter_range[i], ForKind::kSerial,
-               std::move(body));
+    body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, new_block_iter_range[i],
+               ForKind::kSerial, std::move(body));
   }
 
   // Step 6: Do the actual replacement

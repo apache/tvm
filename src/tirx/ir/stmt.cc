@@ -139,7 +139,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // For
-For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
          ffi::Optional<PrimExpr> step, Span span) {
   TVM_FFI_ICHECK(loop_var.defined());
@@ -204,7 +204,7 @@ bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.For", [](Var loop_var, PrimExpr min, PrimExpr extent, int kind,
+  refl::GlobalDef().def("tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind,
                                        Stmt body, ffi::Optional<IterVar> thread_binding,
                                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
                                        ffi::Optional<PrimExpr> step, Span span) {

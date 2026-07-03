@@ -435,7 +435,7 @@ class LambdaLifter : public ExprMutator {
       } else if (auto global_var = op.as<GlobalVar>()) {
         return IsClosure(global_var.value());
       } else {
-        return make_closure_op_ == op;
+        return make_closure_op_.same_as(op);
       }
 
     } else if (const auto* global_var = val.as<GlobalVarNode>()) {

@@ -318,6 +318,12 @@ class ExprNode : public ffi::Object {
  */
 class Expr : public ffi::ObjectRef {
  public:
+  // Expressions do not implicitly compare by object identity or address.  Callers must name
+  // whether they intend object identity, structural equality, or primitive symbolic comparison.
+  bool operator==(const Expr& other) const = delete;
+  bool operator!=(const Expr& other) const = delete;
+  bool operator<(const Expr& other) const = delete;
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Expr, ffi::ObjectRef, ExprNode);
 };
 
