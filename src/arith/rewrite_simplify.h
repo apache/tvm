@@ -87,35 +87,36 @@ struct RewriteSimplifierStats : ffi::ObjectRef {
 class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
+  using IRMutatorWithAnalyzer::VisitPrimExpr;
 
   explicit Impl(AnalyzerObj* parent) : IRMutatorWithAnalyzer(parent) {}
 
-  PrimExpr VisitExpr(const PrimExpr& e) override;
+  Expr VisitExpr(const Expr& e) override;
 
   void Update(const Var& var, const PrimExpr& info, bool override_info);
-  PrimExpr VisitExpr_(const AddNode* op) override;
-  PrimExpr VisitExpr_(const SubNode* op) override;
-  PrimExpr VisitExpr_(const MulNode* op) override;
-  PrimExpr VisitExpr_(const DivNode* op) override;
-  PrimExpr VisitExpr_(const ModNode* op) override;
-  PrimExpr VisitExpr_(const FloorDivNode* op) override;
-  PrimExpr VisitExpr_(const FloorModNode* op) override;
-  PrimExpr VisitExpr_(const MinNode* op) override;
-  PrimExpr VisitExpr_(const MaxNode* op) override;
-  PrimExpr VisitExpr_(const EQNode* op) override;
-  PrimExpr VisitExpr_(const NENode* op) override;
-  PrimExpr VisitExpr_(const LTNode* op) override;
-  PrimExpr VisitExpr_(const LENode* op) override;
-  PrimExpr VisitExpr_(const GTNode* op) override;
-  PrimExpr VisitExpr_(const GENode* op) override;
-  PrimExpr VisitExpr_(const AndNode* op) override;
-  PrimExpr VisitExpr_(const OrNode* op) override;
-  PrimExpr VisitExpr_(const NotNode* op) override;
-  PrimExpr VisitExpr_(const SelectNode* op) override;
-  PrimExpr VisitExpr_(const CallNode* op) override;
-  PrimExpr VisitExpr_(const VarNode* op) override;
-  PrimExpr VisitExpr_(const CastNode* op) override;
-  PrimExpr VisitExpr_(const LetNode* op) override;
+  Expr VisitExpr_(const AddNode* op) override;
+  Expr VisitExpr_(const SubNode* op) override;
+  Expr VisitExpr_(const MulNode* op) override;
+  Expr VisitExpr_(const DivNode* op) override;
+  Expr VisitExpr_(const ModNode* op) override;
+  Expr VisitExpr_(const FloorDivNode* op) override;
+  Expr VisitExpr_(const FloorModNode* op) override;
+  Expr VisitExpr_(const MinNode* op) override;
+  Expr VisitExpr_(const MaxNode* op) override;
+  Expr VisitExpr_(const EQNode* op) override;
+  Expr VisitExpr_(const NENode* op) override;
+  Expr VisitExpr_(const LTNode* op) override;
+  Expr VisitExpr_(const LENode* op) override;
+  Expr VisitExpr_(const GTNode* op) override;
+  Expr VisitExpr_(const GENode* op) override;
+  Expr VisitExpr_(const AndNode* op) override;
+  Expr VisitExpr_(const OrNode* op) override;
+  Expr VisitExpr_(const NotNode* op) override;
+  Expr VisitExpr_(const SelectNode* op) override;
+  Expr VisitExpr_(const CallNode* op) override;
+  Expr VisitExpr_(const VarNode* op) override;
+  Expr VisitExpr_(const CastNode* op) override;
+  Expr VisitExpr_(const LetNode* op) override;
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
@@ -252,7 +253,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
     if (recur_depth_ >= kMaxRecurDepth) return x;
     ++recur_depth_;
     stats_.max_recursive_depth = std::max(recur_depth_, stats_.max_recursive_depth);
-    PrimExpr res = this->VisitExpr(x);
+    PrimExpr res = this->VisitPrimExpr(x);
     --recur_depth_;
     return res;
   }

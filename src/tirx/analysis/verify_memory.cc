@@ -69,7 +69,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const PrimExpr& n) final { StmtExprVisitor::VisitExpr(n); }
+  void VisitExpr(const Expr& n) final { StmtExprVisitor::VisitExpr(n); }
 
   void VisitStmt(const Stmt& n) final { StmtExprVisitor::VisitStmt(n); }
 

@@ -313,8 +313,8 @@ class IterMapRewriter : public ExprMutator {
   }
 
   // override the original mutate function.
-  PrimExpr VisitExpr(const PrimExpr& input_expr) final {
-    auto expr = ExprMutator::VisitExpr(input_expr);
+  Expr VisitExpr(const Expr& input_expr) final {
+    Expr expr = ExprMutator::VisitExpr(input_expr);
     if (expr->IsInstance<IterMapExprNode>()) {
       ErrorLogger(this) << "IterMapExpr or subclasses should only result from calls in "
                         << "IterMapRewriter using DirectMutate.  "
@@ -325,14 +325,16 @@ class IterMapRewriter : public ExprMutator {
   }
 
   // Normal mutation without normalization.
-  PrimExpr DirectMutate(const PrimExpr& expr) { return ExprMutator::VisitExpr(expr); }
+  PrimExpr DirectMutate(const PrimExpr& expr) {
+    return ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
+  }
 
-  PrimExpr VisitExpr_(const VarNode* op) final;
-  PrimExpr VisitExpr_(const AddNode* op) final;
-  PrimExpr VisitExpr_(const SubNode* op) final;
-  PrimExpr VisitExpr_(const MulNode* op) final;
-  PrimExpr VisitExpr_(const FloorDivNode* op) final;
-  PrimExpr VisitExpr_(const FloorModNode* op) final;
+  Expr VisitExpr_(const VarNode* op) final;
+  Expr VisitExpr_(const AddNode* op) final;
+  Expr VisitExpr_(const SubNode* op) final;
+  Expr VisitExpr_(const MulNode* op) final;
+  Expr VisitExpr_(const FloorDivNode* op) final;
+  Expr VisitExpr_(const FloorModNode* op) final;
 
  private:
   /* \brief Preprocessing common to both FloorDiv and FloorMod
@@ -1557,14 +1559,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
+Expr IterMapRewriter::VisitExpr_(const VarNode* op) {
   auto var = ffi::GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) return it->second;
   return var;
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
+Expr IterMapRewriter::VisitExpr_(const AddNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -1597,7 +1599,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
   return ret;
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
+Expr IterMapRewriter::VisitExpr_(const SubNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -1632,7 +1634,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
   return ret;
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
+Expr IterMapRewriter::VisitExpr_(const MulNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -1945,7 +1947,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   }
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
+Expr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -2029,7 +2031,7 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
                        /* scale = */ padded->scale);
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
+Expr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
@@ -2075,11 +2077,11 @@ class IterMapToExprNormalizer : public ExprMutator {
  public:
   explicit IterMapToExprNormalizer(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
-  PrimExpr Convert(const PrimExpr& expr) { return VisitExpr(expr); }
+  PrimExpr Convert(const PrimExpr& expr) { return VisitExpr(expr).as_or_throw<PrimExpr>(); }
 
  private:
   /*! \brief Override VisitExpr for iter expr type processing */
-  PrimExpr VisitExpr(const PrimExpr& expr) override {
+  Expr VisitExpr(const Expr& expr) override {
     if (auto op = expr.as<IterSplitExpr>()) {
       return ConvertIterSplitExpr(op.value());
     } else if (auto op = expr.as<IterSumExpr>()) {
@@ -2105,7 +2107,7 @@ class IterMapToExprNormalizer : public ExprMutator {
     } else if (auto opt = expr->source->source.as<IterSumExpr>()) {
       source = ConvertIterSumExpr(opt.value());
     } else {
-      source = VisitExpr(expr->source->source);
+      source = VisitPrimExpr(expr->source->source);
     }
     if (analyzer_->CanProve(expr->extent == expr->source->extent) && is_one(expr->lower_factor)) {
       return source * expr->scale;
