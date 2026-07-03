@@ -90,10 +90,10 @@ class RenewDefMutator : public StmtExprMutator {
     return VisitStmt(stmt);
   }
 
-  PrimExpr VisitExpr(const PrimExpr& expr) final {
+  Expr VisitExpr(const Expr& expr) final {
     auto it = remap_.find(expr);
     if (it != remap_.end()) {
-      return (*it).second.as_or_throw<PrimExpr>();
+      return (*it).second.as_or_throw<Expr>();
     } else {
       return ExprMutator::VisitExpr(expr);
     }
@@ -178,7 +178,7 @@ class RenewDefMutator : public StmtExprMutator {
       } else if (auto var = expr.as<Var>()) {
         return this->ReDefineVar(var.value());
       } else {
-        return ExprMutator::VisitExpr(expr);
+        return ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
       }
     };
 
@@ -186,7 +186,7 @@ class RenewDefMutator : public StmtExprMutator {
     Var data = redefine_if_is_var(buffer->data).as_or_throw<Var>();
     // shape is USED (references existing definitions like buffer_map shape vars),
     // remap via VisitExpr to avoid creating spurious new var definitions
-    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitExpr(e); };
+    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
     ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
     // strides/elem_offset may define NEW vars (e.g. in match_buffer),
     // so use redefine_if_is_var to create fresh copies for unknown vars
@@ -210,12 +210,11 @@ class RenewDefMutator : public StmtExprMutator {
     if (it != remap_.end()) {
       return (*it).second.as_or_throw<Buffer>();
     }
-    Var data = VisitExpr(buffer->data).as_or_throw<Var>();
-    ffi::Array<PrimExpr> shape =
-        buffer->shape.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
-    ffi::Array<PrimExpr> strides =
-        buffer->strides.Map(std::bind(&RenewDefMutator::VisitExpr, this, std::placeholders::_1));
-    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
+    Var data = VisitPrimExpr(buffer->data).as_or_throw<Var>();
+    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
+    ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
+    ffi::Array<PrimExpr> strides = buffer->strides.Map(visit_expr);
+    PrimExpr elem_offset = VisitPrimExpr(buffer->elem_offset);
 
     auto n = ffi::make_object<BufferNode>(*buffer.get());
     n->data = std::move(data);
@@ -232,8 +231,8 @@ class RenewDefMutator : public StmtExprMutator {
     if (it != remap_.end()) {
       return (*it).second.as_or_throw<IterVar>();
     }
-    PrimExpr min = VisitExpr(iter_var->dom->min);
-    PrimExpr extent = VisitExpr(iter_var->dom->extent);
+    PrimExpr min = VisitPrimExpr(iter_var->dom->min);
+    PrimExpr extent = VisitPrimExpr(iter_var->dom->extent);
     IterVar new_iter_var(Range(min, extent), ReDefineVar(iter_var->var), iter_var->iter_type,
                          iter_var->thread_tag);
     this->AddDefRemap(iter_var, new_iter_var);
@@ -247,8 +246,8 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
   Range VisitRange(const Range& range) {
-    PrimExpr min = VisitExpr(range->min);
-    PrimExpr extent = VisitExpr(range->extent);
+    PrimExpr min = VisitPrimExpr(range->min);
+    PrimExpr extent = VisitPrimExpr(range->extent);
     if (min.same_as(range->min) && extent.same_as(range->extent)) {
       return range;
     } else {

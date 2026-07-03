@@ -366,9 +366,9 @@ class ConditionEliminator : public StmtExprMutator {
   explicit ConditionEliminator(const ExpressionSet& ps, bool cond_value = true)
       : ps_(ps), cond_value_(cond_value) {}
 
-  PrimExpr VisitExpr(const PrimExpr& e) final {
-    if (ps_.find(e) != ps_.end()) {
-      return VisitExpr(cond_value_ ? IntImm::Bool(true) : IntImm::Bool(false));
+  Expr VisitExpr(const Expr& e) final {
+    if (auto prim_expr = e.as<PrimExpr>(); prim_expr && ps_.find(prim_expr.value()) != ps_.end()) {
+      return cond_value_ ? IntImm::Bool(true) : IntImm::Bool(false);
     }
     return StmtExprMutator::VisitExpr(e);
   }
@@ -392,7 +392,7 @@ class ThreadPartitionInserter : public StmtMutator {
       if (innermost_thread_scope_) {
         Stmt simplified_body = ConditionEliminator(ps_)(op->body);
         Stmt body = IfThenElse(cond_, simplified_body, op->body);
-        PrimExpr value = this->VisitExpr(op->value);
+        PrimExpr value = this->VisitPrimExpr(op->value);
         stmt = AttrStmt(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
@@ -783,7 +783,7 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
 
 class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());

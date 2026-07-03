@@ -59,7 +59,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = vmap_.find(op);
     if (it != vmap_.end()) return it->second;
     return StmtExprMutator::VisitExpr_(op);

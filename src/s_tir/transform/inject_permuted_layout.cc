@@ -200,7 +200,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     // Rewrite load from shared or shared.dyn to global
     auto load = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
 
@@ -248,7 +248,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return access_ptr_call.as_or_throw<PrimExpr>();
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     // Rewrite from/to shared or shared.dyn to/from local
     auto call = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<Call>();
 

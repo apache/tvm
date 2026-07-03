@@ -93,7 +93,7 @@ class MatchBufferLower : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var v = ffi::GetRef<Var>(op);
     auto it = var_map_.find(v);
     if (it != var_map_.end()) {
@@ -127,10 +127,10 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     // Save the original buffer before base class mutation may remap it
     Buffer orig_buffer = op->buffer;
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<BufferLoadNode>();
     TVM_FFI_ICHECK(op != nullptr);
 

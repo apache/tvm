@@ -203,7 +203,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
+  PrimExpr value = this->VisitPrimExpr(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
   }
@@ -218,7 +218,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const BindNode* op) {
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
   return constraint_scope_.WithNewScope([&]() -> Stmt {
-    PrimExpr condition = this->VisitExpr(op->condition);
+    PrimExpr condition = this->VisitPrimExpr(op->condition);
     PrimExpr real_condition = condition;
 
     if (auto call = condition.as<CallNode>()) {
@@ -273,7 +273,7 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
 }
 
 Stmt IRMutatorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {
-  PrimExpr condition = this->VisitExpr(op->condition);
+  PrimExpr condition = this->VisitPrimExpr(op->condition);
   constraint_scope_.Current().Emplace(analyzer_, condition);
 
   if (condition.same_as(op->condition)) {
@@ -290,23 +290,24 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const SeqStmtNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
-PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
+Expr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
   static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
-    PrimExpr cond = this->VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+    PrimExpr cond = this->VisitPrimExpr(op->args[0].as_or_throw<PrimExpr>());
     PrimExpr true_value, false_value;
     constraint_scope_.WithNewScope([&]() {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
       WithRecordIterPredicate(
-          cond, [&] { true_value = this->VisitExpr(op->args[1].as_or_throw<PrimExpr>()); });
+          cond, [&] { true_value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>()); });
     });
     {
       PrimExpr not_cond = Not(cond);
       constraint_scope_.WithNewScope([&]() {
         constraint_scope_.Current().Emplace(analyzer_, not_cond);
-        WithRecordIterPredicate(
-            not_cond, [&] { false_value = this->VisitExpr(op->args[2].as_or_throw<PrimExpr>()); });
+        WithRecordIterPredicate(not_cond, [&] {
+          false_value = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
+        });
       });
     }
     if (is_zero(cond)) {
@@ -327,14 +328,14 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   return StmtExprMutator::VisitExpr_(op);
 }
 
-PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
+Expr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
+  PrimExpr value = this->VisitPrimExpr(op->value);
   if (SideEffect(value) <= CallEffectKind::kPure) {
     analyzer_->Bind(op->var, value);
   }
   // We keep the let-binding here
   // as sub-class may or maynot choose to replace it.
-  PrimExpr body = this->VisitExpr(op->body);
+  PrimExpr body = this->VisitPrimExpr(op->body);
   if (value.same_as(op->value) && body.same_as(op->body)) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
@@ -342,18 +343,18 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const LetNode* op) {
   }
 }
 
-PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
-  PrimExpr cond = this->VisitExpr(op->condition);
+Expr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
+  PrimExpr cond = this->VisitPrimExpr(op->condition);
   PrimExpr true_value, false_value;
   constraint_scope_.WithNewScope([&]() {
     EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
-    true_value = VisitExpr(op->true_value);
+    true_value = VisitPrimExpr(op->true_value);
   });
   {
     PrimExpr neg_cond = analyzer_->rewrite_simplify(Not(cond));
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, neg_cond);
-      false_value = VisitExpr(op->false_value);
+      false_value = VisitPrimExpr(op->false_value);
     });
   }
   if (is_zero(cond)) {
@@ -371,7 +372,7 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const SelectNode* op) {
   }
 }
 
-PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const ReduceNode* op) {
+Expr IRMutatorWithAnalyzer::VisitExpr_(const ReduceNode* op) {
   // Setup the domain information before simplification.
   for (const IterVar& iv : op->axis) {
     analyzer_->Bind(iv->var, iv->dom);

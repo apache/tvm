@@ -61,13 +61,13 @@ namespace tirx {
     self->StmtExprVisitor::VisitStmt_(static_cast<const OP*>(n.get()));       \
   });
 
-#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)  \
-  PrimExpr VisitExpr_(const OP* op) override { \
-    if (PY_FUNC != nullptr) {                  \
-      return PY_FUNC(op).cast<PrimExpr>();     \
-    } else {                                   \
-      return StmtExprMutator::VisitExpr_(op);  \
-    }                                          \
+#define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC) \
+  Expr VisitExpr_(const OP* op) override {    \
+    if (PY_FUNC != nullptr) {                 \
+      return PY_FUNC(op).cast<Expr>();        \
+    } else {                                  \
+      return StmtExprMutator::VisitExpr_(op); \
+    }                                         \
   }
 
 #define PY_EXPR_MUTATOR_DEFAULT_DISPATCH(OP)                                   \
@@ -198,7 +198,7 @@ class PyStmtExprVisitorNode : public ffi::Object, public StmtExprVisitor {
   using StmtExprVisitor::VisitExpr;
   using StmtExprVisitor::VisitStmt;
 
-  void DefaultVisitExpr(const PrimExpr& expr) {
+  void DefaultVisitExpr(const Expr& expr) {
     static FExprType vtable = InitExprVTable();
     vtable(expr, this);
   }
@@ -442,7 +442,7 @@ class PyStmtExprVisitor : public ffi::ObjectRef {
 class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
  private:
   using TSelf = PyStmtExprMutatorNode;
-  using FExprType = tvm::NodeFunctor<PrimExpr(const ffi::ObjectRef& n, TSelf* self)>;
+  using FExprType = tvm::NodeFunctor<Expr(const ffi::ObjectRef& n, TSelf* self)>;
   using FStmtType = tvm::NodeFunctor<Stmt(const ffi::ObjectRef& n, TSelf* self)>;
 
  public:
@@ -547,9 +547,9 @@ class PyStmtExprMutatorNode : public ffi::Object, public StmtExprMutator {
   using StmtExprMutator::VisitExpr;
   using StmtExprMutator::VisitStmt;
 
-  void DefaultVisitExpr(const PrimExpr& expr) {
+  Expr DefaultVisitExpr(const Expr& expr) {
     static FExprType vtable = InitExprVTable();
-    vtable(expr, this);
+    return vtable(expr, this);
   }
 
   void DefaultVisitStmt(const Stmt& stmt) {
@@ -809,13 +809,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.PyStmtExprVisitorDefaultVisitExpr",
-           [](PyStmtExprVisitor visitor, const PrimExpr& expr) { visitor->DefaultVisitExpr(expr); })
+           [](PyStmtExprVisitor visitor, const Expr& expr) { visitor->DefaultVisitExpr(expr); })
       .def("tirx.PyStmtExprVisitorDefaultVisitStmt",
            [](PyStmtExprVisitor visitor, const Stmt& stmt) { visitor->DefaultVisitStmt(stmt); })
       .def("tirx.PyStmtExprVisitorVisitStmt",
            [](PyStmtExprVisitor visitor, const Stmt& stmt) { visitor->VisitStmt(stmt); })
       .def("tirx.PyStmtExprVisitorVisitExpr",
-           [](PyStmtExprVisitor visitor, const PrimExpr& expr) { visitor->VisitExpr(expr); });
+           [](PyStmtExprVisitor visitor, const Expr& expr) { visitor->VisitExpr(expr); });
 }
 
 // StmtExprMutator
@@ -823,7 +823,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.PyStmtExprMutatorDefaultVisitExpr",
-           [](PyStmtExprMutator mutator, const PrimExpr& expr) {
+           [](PyStmtExprMutator mutator, const Expr& expr) {
              return mutator->DefaultVisitExpr(expr);
            })
       .def("tirx.PyStmtExprMutatorDefaultVisitStmt",
@@ -831,7 +831,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return mutator->DefaultVisitStmt(stmt);
            })
       .def("tirx.PyStmtExprMutatorVisitExpr",
-           [](PyStmtExprMutator mutator, const PrimExpr& expr) { return mutator->VisitExpr(expr); })
+           [](PyStmtExprMutator mutator, const Expr& expr) { return mutator->VisitExpr(expr); })
       .def("tirx.PyStmtExprMutatorVisitStmt",
            [](PyStmtExprMutator mutator, const Stmt& stmt) { return mutator->VisitStmt(stmt); });
 }

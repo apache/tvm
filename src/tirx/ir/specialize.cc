@@ -52,9 +52,9 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
 
 // Try fold constants if op's child get specialized to constant.
 #define DEFINE_SPECIALIZER_BINARY_OP_MUTATE(BinaryNode, BinaryFunc) \
-  PrimExpr VisitExpr_(const BinaryNode* op) final {                 \
-    PrimExpr a = VisitExpr(op->a);                                  \
-    PrimExpr b = VisitExpr(op->b);                                  \
+  Expr VisitExpr_(const BinaryNode* op) final {                     \
+    PrimExpr a = VisitPrimExpr(op->a);                              \
+    PrimExpr b = VisitPrimExpr(op->b);                              \
     if (a.same_as(op->a) && b.same_as(op->b)) {                     \
       return ffi::GetRef<PrimExpr>(op);                             \
     } else {                                                        \
@@ -62,8 +62,8 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
     }                                                               \
   }
 #define DEFINE_SPECIALIZER_UNARY_OP_MUTATE(UnaryNode, UnaryFunc) \
-  PrimExpr VisitExpr_(const UnaryNode* op) final {               \
-    PrimExpr a = VisitExpr(op->a);                               \
+  Expr VisitExpr_(const UnaryNode* op) final {                   \
+    PrimExpr a = VisitPrimExpr(op->a);                           \
     if (a.same_as(op->a)) {                                      \
       return ffi::GetRef<PrimExpr>(op);                          \
     } else {                                                     \
@@ -170,7 +170,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Stmt stmt = std::move(node);
 
     if (new_buffer_var.same_as(old_buffer_var)) {
-      auto remapped_data = VisitExpr(old_buffer_var);
+      auto remapped_data = VisitPrimExpr(old_buffer_var);
       if (!remapped_data.same_as(old_buffer_var)) {
         stmt = SeqStmt({Bind(old_buffer_var, remapped_data), stmt});
       }
@@ -182,7 +182,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
   // Override VisitBufferUse to use our own buffer_map_ instead of base class field visiting.
   Buffer VisitBufferUse(const Buffer& buffer) final { return GetNewBuffer(buffer); }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_map_.find(ffi::GetRef<Var>(op));
     if (it == var_map_.end()) {
       return ffi::GetRef<Var>(op);
@@ -215,14 +215,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
     // For the data variable, only Var-to-Var remapping can be handled
     // in MutateBuffer.  See the DeclBuffer visitor for the handling
     // of Var-to-PrimExpr remapping.
-    Var data = VisitExpr(buffer->data).as<Var>().value_or(buffer->data);
+    Var data = VisitPrimExpr(buffer->data).as<Var>().value_or(buffer->data);
 
     ffi::Array<PrimExpr> shape =
-        buffer->shape.Map([this](const PrimExpr& e) { return VisitExpr(e); });
+        buffer->shape.Map([this](const PrimExpr& e) { return VisitPrimExpr(e); });
     ffi::Array<PrimExpr> strides =
-        buffer->strides.Map([this](const PrimExpr& e) { return VisitExpr(e); });
+        buffer->strides.Map([this](const PrimExpr& e) { return VisitPrimExpr(e); });
 
-    PrimExpr elem_offset = VisitExpr(buffer->elem_offset);
+    PrimExpr elem_offset = VisitPrimExpr(buffer->elem_offset);
 
     // Layout iter extents/strides may reference the same shape vars; remap
     // them in lock-step with shape (otherwise the specialized buffer keeps
@@ -232,8 +232,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
     if (buffer->layout.defined()) {
       if (auto opt_tile = buffer->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [this](const Iter& it) -> Iter {
-          PrimExpr new_extent = VisitExpr(it->extent);
-          PrimExpr new_stride = VisitExpr(it->stride);
+          PrimExpr new_extent = VisitPrimExpr(it->extent);
+          PrimExpr new_stride = VisitPrimExpr(it->stride);
           if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
             return it;
           }
@@ -265,8 +265,8 @@ class PrimFuncSpecializer : public StmtExprMutator {
   }
 
   Range MutateRange(const Range& range) {
-    PrimExpr min = this->VisitExpr(range->min);
-    PrimExpr extent = this->VisitExpr(range->extent);
+    PrimExpr min = this->VisitPrimExpr(range->min);
+    PrimExpr extent = this->VisitPrimExpr(range->extent);
     if (min.same_as(range->min) && extent.same_as(range->extent)) {
       return range;
     } else {

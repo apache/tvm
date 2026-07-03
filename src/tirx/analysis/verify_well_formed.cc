@@ -63,7 +63,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr(const PrimExpr& expr) final {
+  void VisitExpr(const Expr& expr) final {
     if (!has_error_) {
       StmtExprVisitor::VisitExpr(expr);
     }

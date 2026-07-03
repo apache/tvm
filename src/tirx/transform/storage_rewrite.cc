@@ -313,7 +313,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     if (!result_) return;
     StmtExprVisitor::VisitStmt(n);
   }
-  void VisitExpr(const PrimExpr& n) final {
+  void VisitExpr(const Expr& n) final {
     if (!result_) return;
     StmtExprVisitor::VisitExpr(n);
   }
@@ -479,12 +479,12 @@ class StoragePlanRewriter : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = alloc_map_.find(op);
     if (it != alloc_map_.end()) {
       if (it->second->bits_offset != 0) {
@@ -495,7 +495,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       return ffi::GetRef<Var>(op);
     }
   }
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
@@ -506,8 +506,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         return StmtExprMutator::VisitExpr_(op);
       }
       const StorageEntry* se = it->second;
-      PrimExpr offset = this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
-      PrimExpr extent = this->VisitExpr(op->args[3].as_or_throw<PrimExpr>());
+      PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
+      PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
       uint64_t elem_bits = dtype.bits() * dtype.lanes();
       TVM_FFI_ICHECK_EQ(se->bits_offset % elem_bits, 0U);
       if (se->bits_offset != 0) {
@@ -1576,7 +1576,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     return {node, shuffle_index};
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto [modified, shuffle_index] = VisitBufferAccess(node);
 
@@ -1604,7 +1604,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BindNode* op) final {
     auto it = rewrite_map_.find(op->var.get());
-    PrimExpr value = this->VisitExpr(op->value);
+    PrimExpr value = this->VisitPrimExpr(op->value);
     Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
     if (var.same_as(op->var) && value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);
@@ -1649,9 +1649,9 @@ class VectorTypeRewriter : public StmtExprMutator {
     return buf;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+      PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
       op = expr.as<CallNode>();
 
       if (!rewrite_indices_) {

@@ -52,7 +52,7 @@ class OpaqueBlockLower : public StmtExprMutator {
            "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
     SBlock new_block = this->VisitStmt(op->block).as_or_throw<SBlock>();
-    PrimExpr predicate = this->VisitExpr(op->predicate);
+    PrimExpr predicate = this->VisitPrimExpr(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
     if (!is_one(predicate)) {
@@ -87,8 +87,8 @@ class OpaqueBlockLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
+    PrimExpr min = this->VisitPrimExpr(op->min);
+    PrimExpr extent = this->VisitPrimExpr(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
       unit_loop_vars_[op->loop_var] = min;
@@ -123,7 +123,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {

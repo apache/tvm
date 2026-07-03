@@ -298,7 +298,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
         .as_or_throw<PrimExpr>();
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     static const Op& ptx_mma_op = Op::Get("tirx.ptx.mma");
     static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix");
     static const Op& mma_store_op = Op::Get("tirx.mma_store");
@@ -345,7 +345,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) override {
+  Expr VisitExpr_(const VarNode* op) override {
     TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -367,7 +367,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override {
+  Expr VisitExpr_(const BufferLoadNode* op) override {
     auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
 
     if (load->buffer->data.get() != buffer_) {

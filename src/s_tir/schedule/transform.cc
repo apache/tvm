@@ -142,7 +142,7 @@ ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<Buffer, Buffer>& buffe
   }
 }
 
-PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
+Expr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second->data : ffi::GetRef<Var>(var);
 }
@@ -152,7 +152,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
   return VisitBufferAccess(std::move(node));
 }
 
-PrimExpr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
+Expr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
   auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
   return VisitBufferAccess(std::move(node));
 }
@@ -178,8 +178,8 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   };
   auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
     auto region = MutateArray(buffer_region->region, [this](const Range& range) {
-      PrimExpr min = VisitExpr(range->min);
-      PrimExpr extent = VisitExpr(range->extent);
+      PrimExpr min = VisitPrimExpr(range->min);
+      PrimExpr extent = VisitPrimExpr(range->extent);
       if (min.same_as(range->min) && extent.same_as(range->extent)) {
         return range;
       } else {
@@ -475,7 +475,7 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
   return node;
 }
 
-PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
+Expr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
   BufferLoad node = arith::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;

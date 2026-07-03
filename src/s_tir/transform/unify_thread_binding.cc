@@ -166,7 +166,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     return result;
   }
 
-  PrimExpr VisitExpr_(const VarNode* var) final {
+  Expr VisitExpr_(const VarNode* var) final {
     // If this variable appears as a key in `var_substitution_map_`, we substitute it with its
     // corresponding value in the mapping.
     ffi::Map<Var, PrimExpr>::iterator it = var_substitution_map_.find(ffi::GetRef<Var>(var));

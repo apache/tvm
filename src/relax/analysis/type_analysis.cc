@@ -192,7 +192,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
 
   PrimExpr VisitPrimitiveExpr(const PrimExpr& expr) {
     // apply eager simplification
-    PrimExpr val = tirx::ExprMutator::VisitExpr(expr);
+    PrimExpr val = tirx::ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
     if (!val.same_as(expr)) {
       return ana_->Simplify(val);
     } else {
@@ -222,7 +222,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
     return ret.value_or(ffi::GetRef<Expr>(var));
   }
 
-  PrimExpr VisitExpr_(const tirx::VarNode* var) final {
+  Expr VisitExpr_(const tirx::VarNode* var) final {
     ffi::Optional<PrimExpr> ret;
     if (f_shape_var_map_ != nullptr) {
       ret = f_shape_var_map_(ffi::GetRef<tirx::Var>(var));
@@ -1310,7 +1310,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
  public:
   static ffi::Array<tirx::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(expr);
+    collector.relax::ExprVisitor::VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.free_symbolic_var_.begin(),
                               collector.free_symbolic_var_.end()};
     return ret;
@@ -1318,7 +1318,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   static ffi::Array<tirx::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(expr);
+    collector.relax::ExprVisitor::VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.defined_symbolic_var_.begin(),
                               collector.defined_symbolic_var_.end()};
     return ret;

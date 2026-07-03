@@ -359,7 +359,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
+  Expr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
     BufferLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<BufferLoad>();
     if (ffi::Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
       return BufferLoad(buffer.value(), load->indices);

@@ -47,7 +47,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
  private:
   OpaqueBlockConverter() = default;
 
-  PrimExpr VisitExpr_(const VarNode* var) final {
+  Expr VisitExpr_(const VarNode* var) final {
     TVM_FFI_ICHECK(!forbidden_iter_vars_.count(var))
         << "Variable " << var->name_hint << " occurs in the predicate or iter_values of a block, "
         << "but isn't defined until the body of the block";
@@ -75,16 +75,16 @@ class OpaqueBlockConverter : public StmtExprMutator {
 
     // Step 1. Visit the predicate and iter_values, without any variable bindings
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.insert(iter->var.get());
-    PrimExpr predicate = VisitExpr(realize->predicate);
+    PrimExpr predicate = VisitPrimExpr(realize->predicate);
     ffi::Array<PrimExpr> iter_values = realize->iter_values;
-    iter_values.MutateByApply([this](PrimExpr expr) { return VisitExpr(std::move(expr)); });
+    iter_values.MutateByApply([this](PrimExpr expr) { return VisitPrimExpr(std::move(expr)); });
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.erase(iter->var.get());
 
     // Step 2. Update "block vars => binding values" for substitution.
     TVM_FFI_ICHECK_EQ(block_op->iter_vars.size(), iter_values.size());
     for (int i = 0, n = block_op->iter_vars.size(); i < n; ++i) {
       IterVar block_var = block_op->iter_vars[i];
-      PrimExpr v = this->VisitExpr(iter_values[i]);
+      PrimExpr v = this->VisitPrimExpr(iter_values[i]);
       var_substitutes_.emplace(block_var->var.get(), v);
     }
     // Step 3. Visit recursively.

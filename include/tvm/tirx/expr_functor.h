@@ -86,9 +86,9 @@ class ExprFunctor;
   });
 
 template <typename R, typename... Args>
-class ExprFunctor<R(const PrimExpr& n, Args...)> {
+class ExprFunctor<R(const Expr& n, Args...)> {
  private:
-  using TSelf = ExprFunctor<R(const PrimExpr& n, Args...)>;
+  using TSelf = ExprFunctor<R(const Expr& n, Args...)>;
   using FType = NodeFunctor<R(const ffi::ObjectRef& n, TSelf* self, Args...)>;
 
  public:
@@ -102,16 +102,14 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  R operator()(const PrimExpr& n, Args... args) {
-    return VisitExpr(n, std::forward<Args>(args)...);
-  }
+  R operator()(const Expr& n, Args... args) { return VisitExpr(n, std::forward<Args>(args)...); }
   /*!
    * \brief The functor call.
    * \param n The expression node.
    * \param args Additional arguments.
    * \return The result of the call
    */
-  virtual R VisitExpr(const PrimExpr& n, Args... args) {
+  virtual R VisitExpr(const Expr& n, Args... args) {
     static FType vtable = InitVTable();
     return vtable(n, this, std::forward<Args>(args)...);
   }
@@ -201,7 +199,7 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
 /*!
  * \brief ExprVisitor
  */
-class TVM_DLL ExprVisitor : public ExprFunctor<void(const PrimExpr&)> {
+class TVM_DLL ExprVisitor : public ExprFunctor<void(const Expr&)> {
  public:
   using ExprFunctor::operator();
 
@@ -245,45 +243,47 @@ class TVM_DLL ExprVisitor : public ExprFunctor<void(const PrimExpr&)> {
 /*!
  * \brief ExprMutator that mutates expressions.
  */
-class TVM_DLL ExprMutator : protected ExprFunctor<PrimExpr(const PrimExpr&)> {
+class TVM_DLL ExprMutator : protected ExprFunctor<Expr(const Expr&)> {
  public:
   using ExprFunctor::operator();
 
  protected:
   using ExprFunctor::VisitExpr;
+  /*! \brief Visit a primitive expression and verify that it remains primitive. */
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) { return VisitExpr(expr).as_or_throw<PrimExpr>(); }
   // list of functions to override.
-  PrimExpr VisitExpr_(const VarNode* op) override;
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
-  PrimExpr VisitExpr_(const ProducerLoadNode* op) override;
-  PrimExpr VisitExpr_(const LetNode* op) override;
-  PrimExpr VisitExpr_(const CallNode* op) override;
-  PrimExpr VisitExpr_(const AddNode* op) override;
-  PrimExpr VisitExpr_(const SubNode* op) override;
-  PrimExpr VisitExpr_(const MulNode* op) override;
-  PrimExpr VisitExpr_(const DivNode* op) override;
-  PrimExpr VisitExpr_(const ModNode* op) override;
-  PrimExpr VisitExpr_(const FloorDivNode* op) override;
-  PrimExpr VisitExpr_(const FloorModNode* op) override;
-  PrimExpr VisitExpr_(const MinNode* op) override;
-  PrimExpr VisitExpr_(const MaxNode* op) override;
-  PrimExpr VisitExpr_(const EQNode* op) override;
-  PrimExpr VisitExpr_(const NENode* op) override;
-  PrimExpr VisitExpr_(const LTNode* op) override;
-  PrimExpr VisitExpr_(const LENode* op) override;
-  PrimExpr VisitExpr_(const GTNode* op) override;
-  PrimExpr VisitExpr_(const GENode* op) override;
-  PrimExpr VisitExpr_(const AndNode* op) override;
-  PrimExpr VisitExpr_(const OrNode* op) override;
-  PrimExpr VisitExpr_(const ReduceNode* op) override;
-  PrimExpr VisitExpr_(const CastNode* op) override;
-  PrimExpr VisitExpr_(const NotNode* op) override;
-  PrimExpr VisitExpr_(const SelectNode* op) override;
-  PrimExpr VisitExpr_(const RampNode* op) override;
-  PrimExpr VisitExpr_(const BroadcastNode* op) override;
-  PrimExpr VisitExpr_(const ShuffleNode* op) override;
-  PrimExpr VisitExpr_(const IntImmNode* op) override;
-  PrimExpr VisitExpr_(const FloatImmNode* op) override;
-  PrimExpr VisitExpr_(const StringImmNode* op) override;
+  Expr VisitExpr_(const VarNode* op) override;
+  Expr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const ProducerLoadNode* op) override;
+  Expr VisitExpr_(const LetNode* op) override;
+  Expr VisitExpr_(const CallNode* op) override;
+  Expr VisitExpr_(const AddNode* op) override;
+  Expr VisitExpr_(const SubNode* op) override;
+  Expr VisitExpr_(const MulNode* op) override;
+  Expr VisitExpr_(const DivNode* op) override;
+  Expr VisitExpr_(const ModNode* op) override;
+  Expr VisitExpr_(const FloorDivNode* op) override;
+  Expr VisitExpr_(const FloorModNode* op) override;
+  Expr VisitExpr_(const MinNode* op) override;
+  Expr VisitExpr_(const MaxNode* op) override;
+  Expr VisitExpr_(const EQNode* op) override;
+  Expr VisitExpr_(const NENode* op) override;
+  Expr VisitExpr_(const LTNode* op) override;
+  Expr VisitExpr_(const LENode* op) override;
+  Expr VisitExpr_(const GTNode* op) override;
+  Expr VisitExpr_(const GENode* op) override;
+  Expr VisitExpr_(const AndNode* op) override;
+  Expr VisitExpr_(const OrNode* op) override;
+  Expr VisitExpr_(const ReduceNode* op) override;
+  Expr VisitExpr_(const CastNode* op) override;
+  Expr VisitExpr_(const NotNode* op) override;
+  Expr VisitExpr_(const SelectNode* op) override;
+  Expr VisitExpr_(const RampNode* op) override;
+  Expr VisitExpr_(const BroadcastNode* op) override;
+  Expr VisitExpr_(const ShuffleNode* op) override;
+  Expr VisitExpr_(const IntImmNode* op) override;
+  Expr VisitExpr_(const FloatImmNode* op) override;
+  Expr VisitExpr_(const StringImmNode* op) override;
 };
 
 }  // namespace tirx

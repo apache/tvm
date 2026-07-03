@@ -202,7 +202,7 @@ class PrimFuncInliner : StmtExprMutator {
     return VisitStmt(inlined);
   }
 
-  PrimExpr VisitExpr_(const CallNode* call) override {
+  Expr VisitExpr_(const CallNode* call) override {
     // Because the current implementation inlines a subroutine inserts
     // the `tirx::Stmt` body at the point of use, replacement must
     // occur in a context where a `tirx::Stmt` can be returned. Support

@@ -35,7 +35,7 @@ using namespace tvm::tirx;
 
 // For now, rewrite unsafe select expression to if_then_else
 // TODO(tqchen) pattern matching to support masked load
-class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
+class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
@@ -113,8 +113,8 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
 
 class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  PrimExpr VisitExpr_(const SelectNode* op) {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+  Expr VisitExpr_(const SelectNode* op) {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     PrimType cond_ty = op->condition.ty();

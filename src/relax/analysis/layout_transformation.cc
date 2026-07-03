@@ -68,7 +68,7 @@ class IndexAnalyzer : public ExprVisitor {
 
  private:
   /*! \brief Override VisitExpr for iter expr type processing */
-  void VisitExpr(const PrimExpr& expr) override {
+  void VisitExpr(const Expr& expr) override {
     if (const auto* op = expr.as<arith::IterSumExprNode>()) {
       for (const auto& arg : op->args) VisitExpr(arg);
       VisitExpr(op->base);

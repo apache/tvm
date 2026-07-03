@@ -222,7 +222,7 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const PrimExpr& n) final {
+  void VisitExpr(const Expr& n) final {
     ++level_;
     ExprVisitor::VisitExpr(n);
     --level_;

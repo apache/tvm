@@ -43,7 +43,7 @@ class VariablePathFinder : public ExprVisitor {
  public:
   explicit VariablePathFinder(PrimExpr target) : target_(target) {}
 
-  void VisitExpr(const PrimExpr& node) final {
+  void VisitExpr(const Expr& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
 
@@ -72,7 +72,7 @@ std::vector<const ffi::Object*> GetPath(PrimExpr target, PrimExpr expr) {
 enum CompareOp { kGreater, kLess, kEqual };
 
 // a visitor to deduce the bound of a variable from a expression
-class BoundDeducer : public ExprFunctor<void(const PrimExpr&)> {
+class BoundDeducer : public ExprFunctor<void(const Expr&)> {
  public:
   friend class BoundDeduceInputChecker;
   friend class Converter;
@@ -83,7 +83,7 @@ class BoundDeducer : public ExprFunctor<void(const PrimExpr&)> {
 
   void Deduce();
 
-  void VisitExpr(const PrimExpr& e) final {
+  void VisitExpr(const Expr& e) final {
     if (!success_) return;
     if (iter_ < path_.size() && e.get() == path_[iter_++]) {
       ExprFunctor::VisitExpr(e);
@@ -239,7 +239,7 @@ class BoundDeduceInputChecker : public ExprVisitor {
     return target_count == 1;
   }
 
-  void VisitExpr(const PrimExpr& e) final {
+  void VisitExpr(const Expr& e) final {
     if (e.same_as(deducer_->target_)) ++target_count;
     ExprVisitor::VisitExpr(e);
   }

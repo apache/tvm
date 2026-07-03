@@ -51,7 +51,7 @@ PrimExpr ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
     const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside) {
   ReplaceSelectedExpr replace_expr_selected(predicate_selector, new_expr, can_replace_inside);
-  return replace_expr_selected.VisitExpr(expr);
+  return replace_expr_selected.VisitPrimExpr(expr);
 }
 
 /*!
@@ -88,14 +88,18 @@ ReplaceSelectedExpr::ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> pr
  * \brief The method which overrides the generic dispatcher of StmtExprMutator
  * \param expr The expression to mutate
  */
-PrimExpr ReplaceSelectedExpr::VisitExpr(const PrimExpr& expr) {
+Expr ReplaceSelectedExpr::VisitExpr(const Expr& expr) {
+  auto prim_expr = expr.as<PrimExpr>();
+  if (!prim_expr) {
+    return StmtExprMutator::VisitExpr(expr);
+  }
   // If the current expression is selected by the predicate
-  if (predicate_selector_(expr)) {
+  if (predicate_selector_(prim_expr.value())) {
     // Then simply return the new expression
     return new_expr_;
   } else {
     // If replacing inside the current expression is allowed
-    if (can_replace_inside_(expr)) {
+    if (can_replace_inside_(prim_expr.value())) {
       // then we continue the exploration recursively
       return StmtExprMutator::VisitExpr(expr);
     } else {

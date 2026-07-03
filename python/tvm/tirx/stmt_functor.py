@@ -994,28 +994,34 @@ def ir_transform(stmt, preorder, postorder, only_enable=None):
     return _ffi_api.IRTransform(stmt, preorder, postorder, only_enable)  # type: ignore
 
 
-def post_order_visit(stmt, fvisit):
-    """Recursively visit the ir in post DFS order node, apply fvisit
+def post_order_visit(node, fvisit):
+    """Recursively visit a statement or expression in post DFS order, applying fvisit.
        Each node is guaranteed to be visited only once.
 
     Parameters
     ----------
+    node : tvm.tirx.Stmt or tvm.ir.Expr
+        The statement or expression to visit.
+
     fvisit: function
         The visitor function.
     """
-    return _ffi_api.PostOrderVisit(stmt, fvisit)  # type: ignore
+    return _ffi_api.PostOrderVisit(node, fvisit)  # type: ignore
 
 
-def pre_order_visit(stmt, fvisit):
-    """Recursive pre-order visit on stmt AST, applying fvisit on each node.
+def pre_order_visit(node, fvisit):
+    """Recursively visit a statement or expression in pre-order, applying fvisit.
        If fvisit returns False, it won't visit the children of the node.
 
     Parameters
     ----------
+    node : tvm.tirx.Stmt or tvm.ir.Expr
+        The statement or expression to visit.
+
     fvisit: function of the signature Object -> bool
         The visitor function.
     """
-    return _ffi_api.PreOrderVisit(stmt, fvisit)  # type: ignore
+    return _ffi_api.PreOrderVisit(node, fvisit)  # type: ignore
 
 
 def substitute(node, vmap):

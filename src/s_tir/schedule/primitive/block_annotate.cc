@@ -335,7 +335,7 @@ class DTypeMutator : private ReplaceBufferMutator {
     return node;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_var_map_.find(node->buffer->data.get());
     if (it != buffer_var_map_.end()) {

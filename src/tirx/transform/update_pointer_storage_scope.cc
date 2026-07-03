@@ -52,7 +52,7 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
   }
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
+Expr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
   auto it = new_var_remap_.find(op);
   if (it == new_var_remap_.end()) {
     return ffi::GetRef<Var>(op);
@@ -100,7 +100,7 @@ Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
   return UpdateBufferAccess(node);
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
+Expr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
   auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
   return UpdateBufferAccess(node);
 }

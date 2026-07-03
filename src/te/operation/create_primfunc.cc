@@ -50,7 +50,7 @@ class ProducerToBufferTransformer : public StmtExprMutator {
   explicit ProducerToBufferTransformer(const std::unordered_map<te::Tensor, Buffer>& tensor2buffers)
       : tensor2buffers_(tensor2buffers) {}
 
-  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+  Expr VisitExpr_(const ProducerLoadNode* op) final {
     auto visited_op = StmtExprMutator::VisitExpr_(op).as_or_throw<ProducerLoad>();
     te::Tensor tensor = visited_op->producer.as_or_throw<te::Tensor>();
     auto it = tensor2buffers_.find(tensor);
@@ -71,7 +71,7 @@ class BufferSubstituter : public StmtExprMutator {
                              const std::unordered_map<const BufferNode*, Buffer>& buffer_map)
       : var_map_(var_map), buffer_map_(buffer_map) {}
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_map_.find(op);
     if (it != var_map_.end()) {
       return it->second;
@@ -79,7 +79,7 @@ class BufferSubstituter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_map_.find(load->buffer.get());
     if (it != buffer_map_.end()) {
@@ -337,7 +337,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                       CreateFuncInfo* info) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
-    return Substitute(info->transformer(e), var_map);
+    return Substitute(info->transformer(e).as_or_throw<PrimExpr>(), var_map);
   };
   ffi::Optional<Stmt> init = std::nullopt;
   Stmt body;
@@ -367,7 +367,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                       CreateFuncInfo* info, arith::AnalyzerObj* analyzer) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
-    return Substitute(info->transformer(e), var_map);
+    return Substitute(info->transformer(e).as_or_throw<PrimExpr>(), var_map);
   };
   Stmt body;
   if (const auto* reduce = expr_body.as<ReduceNode>()) {

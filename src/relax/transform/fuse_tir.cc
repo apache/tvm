@@ -39,7 +39,7 @@ namespace tirx {
  * \brief Match symbolic vars according to the given PrimExpr, and update the var_remap.
  * Will throw errors if there is a mismatch.
  */
-class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& other)> {
+class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> {
  public:
   explicit SymbolicMatcher(arith::AnalyzerObj* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
       : analyzer_(analyzer), var_remap_(var_remap) {}
@@ -178,11 +178,11 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
   Buffer SubstituteAllocatedBuffer(Buffer buffer) {
     TVM_FFI_ICHECK(buffer_remap_.find(buffer) == buffer_remap_.end());
-    ffi::Array<PrimExpr> shape =
-        MutateArray(buffer->shape, [this](const PrimExpr& expr) { return this->VisitExpr(expr); });
+    ffi::Array<PrimExpr> shape = MutateArray(
+        buffer->shape, [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); });
     ffi::Array<PrimExpr> strides = MutateArray(
-        buffer->strides, [this](const PrimExpr& expr) { return this->VisitExpr(expr); });
-    PrimExpr elem_offset = this->VisitExpr(buffer->elem_offset);
+        buffer->strides, [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); });
+    PrimExpr elem_offset = this->VisitPrimExpr(buffer->elem_offset);
     if (shape.same_as(buffer->shape) && strides.same_as(buffer->strides) &&
         elem_offset.same_as(buffer->elem_offset)) {
       return buffer;
@@ -198,7 +198,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   }
 
  private:
-  PrimExpr VisitExpr_(const VarNode* _op) final {
+  Expr VisitExpr_(const VarNode* _op) final {
     if (auto it = var_remap_.find(ffi::GetRef<Var>(_op)); it != var_remap_.end()) {
       return (*it).second;
     } else {
@@ -206,7 +206,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
+  Expr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
     const Buffer& buffer = SubstituteBuffer(load->buffer);
     if (buffer.same_as(load->buffer)) {
@@ -333,8 +333,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
   inline ffi::Array<Range> MutateRegion(const ffi::Array<Range>& region) {
     return MutateArray(region, [this](const Range& range) {
-      const PrimExpr& min = this->VisitExpr(range->min);
-      const PrimExpr& extent = this->VisitExpr(range->extent);
+      PrimExpr min = this->VisitPrimExpr(range->min);
+      PrimExpr extent = this->VisitPrimExpr(range->extent);
       if (min.same_as(range->min) && extent.same_as(range->extent)) {
         return range;
       } else {
