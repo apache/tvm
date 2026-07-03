@@ -432,7 +432,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
       std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
       return [lookup = std::move(lookup)](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
         if (lookup.count(var)) {
-          return var;
+          return var.as_or_throw<PrimExpr>();
         } else {
           return std::nullopt;
         }

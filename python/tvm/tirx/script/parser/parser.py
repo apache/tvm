@@ -23,7 +23,7 @@ from functools import partial
 from typing import Any
 
 import tvm
-from tvm.ir import GlobalVar, PrimType
+from tvm.ir import Expr, GlobalVar, PrimType
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
@@ -531,7 +531,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         # T.let or T.let[type] -> immutable Bind var
         if rhs is None:
             self.report_error(node, "T.let annotation requires a value")
-        if not tvm.ir.is_prim_expr(rhs):
+        if not isinstance(rhs, Expr):
             if isinstance(rhs, str):
                 rhs = tvm.tirx.StringImm(rhs)
             else:
@@ -548,7 +548,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         ann_var = raw_ann() if callable(raw_ann) else raw_ann
         if not isinstance(ann_var, Var):
             self.report_error(node.annotation, "Annotation should resolve to Var")
-        if not isinstance(ann_var.type_annotation, PrimType):
+        if not isinstance(ann_var.ty, PrimType):
             self.report_error(
                 node.annotation,
                 "Use T.let[...] for non-PrimType annotations (e.g. PointerType, handle)",
@@ -744,11 +744,10 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         T.evaluate(res)
     elif isinstance(res, int | bool):
         T.evaluate(tvm.tirx.const(res))
-    elif isinstance(res, tvm.ir.Call) and not tvm.ir.is_prim_expr(res) and not res.args:
-        # Using GlobalVar.__call__ with no arguments is ambiguous, as
-        # each IR has a different function Call representation.  If
-        # this occurs, convert to the TIR representation.
-        T.evaluate(tvm.tirx.call_tir(res.op))
+    elif isinstance(res, tvm.ir.Call) and not tvm.ir.is_prim_expr(res):
+        # GlobalVar calls with a missing return type are ambiguous, as each IR has a
+        # different function Call representation. Convert to the TIR representation.
+        T.evaluate(tvm.tirx.call_tir(res.op, *res.args))
     elif isinstance(res, str):
         # Ignore docstrings
         pass

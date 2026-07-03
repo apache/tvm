@@ -149,9 +149,6 @@ def _normalize_prim_type(dtype) -> ir.PrimType:
         ty = getattr(value, "ty", None)
         if isinstance(ty, ir.PrimType):
             return ty
-        type_annotation = getattr(value, "type_annotation", None)
-        if isinstance(type_annotation, ir.PrimType):
-            return type_annotation
     return ir.PrimType(dtype)
 
 
@@ -1472,7 +1469,7 @@ def Bind(  # pylint: disable=invalid-name
         if callable(type_annotation):
             type_annotation = type_annotation()
         if isinstance(type_annotation, Var):
-            type_annotation = type_annotation.type_annotation
+            type_annotation = type_annotation.ty
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 

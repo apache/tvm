@@ -181,8 +181,8 @@ class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
   }
 
   TResult VisitStmt_(const BindNode* let) override {
-    TResult value = VisitExpr(let->value);
-    return value;
+    if (auto value = let->value.as<PrimExpr>()) return VisitExpr(value.value());
+    return TResult();
   }
 
   TResult VisitExpr_(const SelectNode* op) override {

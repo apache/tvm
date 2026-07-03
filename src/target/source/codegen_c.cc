@@ -97,7 +97,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     }
 
     auto is_tensormap_ptr = [&]() -> bool {
-      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+      if (auto* ptr = v->ty.as<PointerTypeNode>()) {
         return ptr->element_type.as<TensorMapTypeNode>();
       }
       return false;
@@ -109,8 +109,8 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     }
 
     bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
-    bool is_handle = v.ty().IsHandle();
-    auto* ptr = v->type_annotation.as<PointerTypeNode>();
+    bool is_handle = v->ty.as<PointerTypeNode>() || (v->ty.as<PrimTypeNode>() && v.ty().IsHandle());
+    auto* ptr = v->ty.as<PointerTypeNode>();
     if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
       is_handle = false;
     }
@@ -126,7 +126,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
   // TODO(tvm-team): consider simply keep type info in the
   // type annotation(via a normalizing rewriting).
   for (const auto& param : func->params) {
-    if (auto* ptr = param->type_annotation.as<PointerTypeNode>()) {
+    if (auto* ptr = param->ty.as<PointerTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
         RegisterHandleType(param.get(), ffi::GetRef<PrimType>(prim));
       }
@@ -208,6 +208,18 @@ void CodeGenC::PrintExpr(const PrimExpr& n, std::ostream& os) {  // NOLINT(*)
     os << SSAGetID(temp.str(), n.ty());
   } else {
     VisitExpr(n, os);
+  }
+}
+
+void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
+  if (auto prim = n.as<PrimExpr>()) {
+    PrintExpr(prim.value(), os);
+  } else if (auto* var = n.as<VarNode>()) {
+    VisitExpr_(var, os);
+  } else if (auto* call = n.as<CallNode>()) {
+    VisitExpr_(call, os);
+  } else {
+    TVM_FFI_THROW(TypeError) << "CodeGenC cannot print non-primitive expression " << n.GetTypeKey();
   }
 }
 
@@ -399,11 +411,16 @@ void CodeGenC::RegisterHandleType(const VarNode* buf_var, const PrimType& t) {
   }
 }
 
-void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExpr* value) {
+void CodeGenC::RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value) {
   if (value == nullptr) return;
   auto* call = value->as<CallNode>();
   if (call == nullptr || !call->op.same_as(builtin::ptr_byte_offset())) return;
-  std::optional<PrimType> value_dtype = tirx::GetPointerType(GetType(*value));
+  std::optional<PrimType> value_dtype = [&]() {
+    if (auto prim_value = value->as<PrimExpr>()) {
+      return tirx::GetPointerType(GetType(prim_value.value()));
+    }
+    return tirx::GetPointerType((*value)->ty);
+  }();
   if (!value_dtype.has_value()) return;
   RegisterHandleType(var.get(), value_dtype.value());
   pointer_offset_vars_.insert(var.get());
@@ -631,7 +648,7 @@ void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               const ffi::Array<Expr>& args, bool skip_first_arg,
                                std::ostream& os) {  // NOLINT(*)
   os << global_symbol << "(";
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
@@ -657,7 +674,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
       auto func = op->args[0].as_or_throw<StringImm>();
-      ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+      ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, func->value, args, true, os);
 
       // If the call_extern refers to an function within the IRModule, then
@@ -665,14 +682,20 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       if (!func_name_supply_->ContainsName(func->value)) {
         ffi::Array<Type> arg_types;
         for (size_t i = 1; i < op->args.size(); i++) {
-          arg_types.push_back(GetType(op->args[i].as_or_throw<PrimExpr>()));
+          if (auto prim = op->args[i].as<PrimExpr>()) {
+            arg_types.push_back(GetType(prim.value()));
+          } else if (auto var = op->args[i].as<Var>()) {
+            arg_types.push_back(GetType(var.value()));
+          } else {
+            arg_types.push_back(op->args[i]->ty);
+          }
         }
         Type ret_type = op->ty;
         this->GenerateForwardFunctionDeclarations(func->value, arg_types, ret_type);
       }
     } else if (op_attr_global_symbol_.count(call_op)) {
       // call extern if the op itself have a global symbol.
-      ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+      ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, op_attr_global_symbol_[call_op], args, false, os);
     } else if (op->op.same_as(builtin::bitwise_and())) {
       PrintBinaryIntrinsic(op, " & ", os, this);
@@ -745,7 +768,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         TVM_FFI_ICHECK(var)
             << "Builtin address_of() expects the argument to be a BufferLoad or Var, but "
             << "received argument " << op->args[0];
-        if (auto* ptr = var->type_annotation.as<PointerTypeNode>()) {
+        if (auto* ptr = var->ty.as<PointerTypeNode>()) {
           if (ptr->element_type.as<TensorMapTypeNode>()) {
             os << "((unsigned long long)(&(";
             this->PrintExpr(op->args[0], os);
@@ -787,6 +810,18 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintExpr(op->args[1], os);
       os << "))";
     } else if (op->op.same_as(builtin::reinterpret())) {
+      if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
+        os << "((";
+        if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>()) {
+          this->PrintType(ffi::GetRef<PrimType>(element_type), os);
+        } else {
+          os << "void";
+        }
+        os << "*)";
+        this->PrintExpr(op->args[0], os);
+        os << ")";
+        return;
+      }
       PrimType target_dtype = op->ty.as_or_throw<PrimType>();
       PrimType source_dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       TVM_FFI_ICHECK_EQ(target_dtype.lanes() * target_dtype.bits(),
@@ -819,7 +854,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   } else if (auto opt = op->op.as<GlobalVar>()) {
     auto gvar = opt.value();
     auto callee_name = GetFunctionName(gvar);
-    ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+    ffi::Array<Expr> args = op->args;
     PrintCallExtern(op->ty, callee_name, args, false, os);
   } else {
     TVM_FFI_THROW(InternalError) << "CodeGenC: Unknown operation " << op->op
@@ -996,13 +1031,15 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    if (op->var.ty().IsHandle() && handle_data_type_.count(op->var.get())) {
+    bool is_pointer = op->var->ty.as<PointerTypeNode>() ||
+                      (op->var->ty.as<PrimTypeNode>() && op->var.ty().IsHandle());
+    if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
       this->stream << "* " << AllocVarID(op->var.get()) << " = (";
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
       this->stream << "*)" << value << ";\n";
     } else {
-      PrintType(op->var.ty(), this->stream);
+      PrintType(GetType(op->var), this->stream);
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
@@ -1121,13 +1158,15 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    if (op->var.ty().IsHandle() && handle_data_type_.count(op->var.get())) {
+    bool is_pointer = op->var->ty.as<PointerTypeNode>() ||
+                      (op->var->ty.as<PrimTypeNode>() && op->var.ty().IsHandle());
+    if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), stream);
       stream << "* " << AllocVarID(op->var.get()) << " = (";
       PrintType(handle_data_type_.at(op->var.get()), stream);
       stream << "*)" << value << ";\n";
     } else {
-      PrintType(op->var.ty(), this->stream);
+      PrintType(GetType(op->var), this->stream);
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }

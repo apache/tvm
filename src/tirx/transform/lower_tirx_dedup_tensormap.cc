@@ -174,7 +174,8 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
       Stmt new_stmt = VisitStmt(stmt);
       // Dropped statements are represented as Evaluate(0).
       if (const auto* eval = new_stmt.as<EvaluateNode>()) {
-        if (is_zero(eval->value)) {
+        auto value = eval->value.as<PrimExpr>();
+        if (value && is_zero(value.value())) {
           changed = true;
           continue;
         }
@@ -255,7 +256,7 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = VisitPrimExpr(op->value);
+    Expr value = VisitExpr(op->value);
     if (IsTensorMapAlloca(op)) {
       // If this bind allocates a tensormap that is remapped to a canonical var, drop it.
       auto it = var_remap_.find(op->var);

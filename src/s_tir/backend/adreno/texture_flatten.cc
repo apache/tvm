@@ -72,7 +72,7 @@ class TextureLoweringBase : public StmtExprMutator {
 
  protected:
   std::string GetStorageScope(const Buffer& buffer) {
-    auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+    auto* ptr = buffer->data->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }

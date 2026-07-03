@@ -46,7 +46,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   Stmt s = StmtExprMutator::VisitStmt_(op);
   op = s.as<ForNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
-  PrimExpr e = VisitPrimExpr(op->loop_var);
+  PrimExpr e = VisitExpr(op->loop_var).as_or_throw<PrimExpr>();
   Var var = e.as_or_throw<Var>();
   auto n = CopyOnWrite(op);
   n->min = cast(var.ty(), op->min);
@@ -105,7 +105,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     const IterVarNode* iv = op->node.as<IterVarNode>();
     TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                                   << ", but get " << op->node.GetTypeKey();
-    PrimExpr e = VisitPrimExpr(iv->var);
+    PrimExpr e = VisitExpr(iv->var).as_or_throw<PrimExpr>();
     Var var = e.as_or_throw<Var>();
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
@@ -145,12 +145,14 @@ Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
-  PrimExpr value = this->VisitPrimExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   Var var = op->var;
 
-  if (value.ty() != op->var.ty()) {
-    var = op->var.copy_with_dtype(value.ty());
-    var_remap_[op->var.get()] = var;
+  if (auto prim_value = value.as<PrimExpr>()) {
+    if (prim_value.value().ty() != op->var.ty()) {
+      var = op->var.copy_with_dtype(prim_value.value().ty());
+      var_remap_[op->var.get()] = var;
+    }
   }
 
   if (value.same_as(op->value) && var.same_as(op->var)) {
@@ -550,7 +552,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
   }
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  PrimExpr value = VisitPrimExpr(op->value);
+  PrimExpr value = VisitExpr(op->value).as_or_throw<PrimExpr>();
   Var var = var_remap_[bind_stmt->var.get()];
   is_enabled_ = is_enabled;
   TVM_FFI_ICHECK(value.ty() == var.ty());

@@ -123,7 +123,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     auto mp_argmax = tvm::te::compute(
         out_shape,
         [&](const ffi::Array<Var>& inds) {
-          ffi::Array<PrimExpr> window_inds{inds.begin(), inds.end()};
+          ffi::Array<PrimExpr> window_inds =
+              inds.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
           window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight);
           window_inds.Set(width_axis, inds[width_axis] * stride_width + dwidth);
           auto idx = detail::RavelIndex(window_inds, ravel_shape);
@@ -136,12 +137,14 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
     return tvm::te::compute(
         data_shape,
         [&](const ffi::Array<Var>& inds) {
-          ffi::Array<PrimExpr> pad_inds{inds.begin(), inds.end()};
+          ffi::Array<PrimExpr> pad_inds =
+              inds.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
           pad_inds.Set(height_axis, pad_inds[height_axis] + pad_top);
           pad_inds.Set(width_axis, pad_inds[width_axis] + pad_left);
           auto idx = detail::RavelIndex(pad_inds, ravel_shape);
 
-          ffi::Array<PrimExpr> out_idx{inds.begin(), inds.end()};
+          ffi::Array<PrimExpr> out_idx =
+              inds.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
           out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
@@ -172,7 +175,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           PrimExpr pad_w_idx = inds[width_axis] + pad_left;
 
           // output indices whose pooling windows cover current input element (can be out-of-bound)
-          ffi::Array<PrimExpr> out_idx{inds.begin(), inds.end()};
+          ffi::Array<PrimExpr> out_idx =
+              inds.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
           out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh));
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 

@@ -102,7 +102,7 @@ class VarTouchedAnalysis : public StmtVisitor {
  public:
   void VisitStmt_(const BindNode* op) final {
     ExprTouched tc(touched_var_, false);
-    tc(op->value);
+    tc.VisitExpr(op->value);
     Record(op->var.get(), tc);
   }
 
@@ -124,7 +124,7 @@ class VarTouchedAnalysis : public StmtVisitor {
   // external function call
   void VisitStmt_(const EvaluateNode* op) final {
     ExprTouched tc(touched_var_, true);
-    tc(op->value);
+    tc.VisitExpr(op->value);
     for (const VarNode* var : tc.write_vars_) {
       Record(var, tc);
     }
@@ -229,8 +229,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       offset = RewriteIndex(offset, stride);
 
       return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op,
-                  {op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>(), offset,
-                   extent, op->args[4].as_or_throw<PrimExpr>()})
+                  {op->args[0], op->args[1], offset, extent, op->args[4]})
           .as_or_throw<PrimExpr>();
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? ffi::GetRef<Call>(op).as_or_throw<PrimExpr>() : var_;
@@ -304,7 +303,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Bind
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = this->VisitPrimExpr(op->value);
+    Expr value = this->VisitExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }

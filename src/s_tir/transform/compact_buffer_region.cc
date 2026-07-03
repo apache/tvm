@@ -181,9 +181,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const BindNode* op) final {
     StmtExprVisitor::VisitExpr(op->value);
-    if (arith::IsIndexTypedExpr(op->value)) {
-      dom_analyzer_->Bind(op->var, op->value);
-      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    if (auto value = op->value.as<PrimExpr>(); value && arith::IsIndexTypedExpr(value.value())) {
+      dom_analyzer_->Bind(op->var, value.value());
+      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(value.value()));
     }
   }
 

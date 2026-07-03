@@ -1236,7 +1236,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // If a pointer parameter isn't in the buffer map, then we want to
     // track the parameter itself.
     for (Var buffer_var : params) {
-      auto pointer_type = GetPointerType(buffer_var->type_annotation);
+      auto pointer_type = GetPointerType(buffer_var->ty);
       if (pointer_type.has_value() && (buffer_map.count(buffer_var) == 0)) {
         PrimType dtype = pointer_type.value();
         PrimExpr extent = 0;
@@ -1296,7 +1296,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
 
   void HandleLetNode(Var let_var) {
     if (let_var.ty().IsHandle()) {
-      auto pointer_type = GetPointerType(let_var->type_annotation);
+      auto pointer_type = GetPointerType(let_var->ty);
       if (pointer_type.has_value()) {
         OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
       } else if (allow_untyped_pointers_) {
@@ -1604,7 +1604,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   Stmt VisitStmt_(const BindNode* op) final {
     auto it = rewrite_map_.find(op->var.get());
-    PrimExpr value = this->VisitPrimExpr(op->value);
+    Expr value = this->VisitExpr(op->value);
     Var var = (it == rewrite_map_.end()) ? op->var : it->second.new_buffer_var;
     if (var.same_as(op->var) && value.same_as(op->value)) {
       return ffi::GetRef<Stmt>(op);

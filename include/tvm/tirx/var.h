@@ -52,20 +52,10 @@ class VarNode : public ExprNode {
    * \note Each variable is uniquely identified by its address.
    */
   ffi::String name_hint;
-  /*!
-   * \brief type annotation of the variable.
-   *
-   * It is an optional field that provides a refined type of the variable than dtype.
-   *
-   * \sa tvm/ir/type.h for discussion of relations between DLPack dtype and Type.
-   */
-  Type type_annotation = Type::Missing();
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>()
-        .def_ro("name", &VarNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("type_annotation", &VarNode::type_annotation);
+    refl::ObjectDef<VarNode>().def_ro("name", &VarNode::name_hint,
+                                      refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
@@ -74,10 +64,10 @@ class VarNode : public ExprNode {
 };
 
 /*! \brief a named variable in TIR */
-class Var : public PrimExpr {
+class Var : public Expr {
  public:
-  explicit Var(ffi::UnsafeInit tag) : PrimExpr(tag) {}
-  explicit Var(ffi::ObjectPtr<VarNode> n) : PrimExpr(n) {}
+  explicit Var(ffi::UnsafeInit tag) : Expr(tag) {}
+  explicit Var(ffi::ObjectPtr<VarNode> n) : Expr(n) {}
   /*!
    * \brief Constructor
    * \param name_hint variable name
@@ -111,6 +101,21 @@ class Var : public PrimExpr {
    * \return The new variable
    */
   TVM_DLL Var copy_with_dtype(PrimType dtype) const;
+
+  /*! \return The runtime primitive type of this variable. */
+  PrimType ty() const {
+    if (auto prim = get()->ExprNode::ty.as<PrimType>()) {
+      return prim.value();
+    }
+    if (get()->ExprNode::ty.as<PointerTypeNode>()) {
+      return PrimType::Handle();
+    }
+    TVM_FFI_THROW(TypeError) << "Variable has no runtime primitive type: " << get()->ExprNode::ty;
+    TVM_FFI_UNREACHABLE();
+  }
+
+  /*! \brief Checked conversion for scalar variables. */
+  operator PrimExpr() const { return this->as_or_throw<PrimExpr>(); }
 
   /*!
    * \brief Get pointer to the internal value.
@@ -288,6 +293,56 @@ inline const char* IterVarType2String(IterVarType t) {
   return "Unknown";
 }
 }  // namespace tirx
+
+// Keep mixed Var/PrimExpr comparisons in the arithmetic expression domain.  Without these
+// exact-match overloads, ObjectRef's pointer-comparison operators compete with Var's checked
+// conversion to PrimExpr.
+#define TVM_TIRX_DEFINE_VAR_COMPARISON_OP(Op)                                 \
+  inline PrimExpr operator Op(tirx::Var a, tirx::Var b) {                     \
+    return operator Op(a.as_or_throw<PrimExpr>(), b.as_or_throw<PrimExpr>()); \
+  }                                                                           \
+  inline PrimExpr operator Op(tirx::Var a, PrimExpr b) {                      \
+    return operator Op(a.as_or_throw<PrimExpr>(), std::move(b));              \
+  }                                                                           \
+  inline PrimExpr operator Op(PrimExpr a, tirx::Var b) {                      \
+    return operator Op(std::move(a), b.as_or_throw<PrimExpr>());              \
+  }
+
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(==)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(!=)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(<)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(<=)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(>)
+TVM_TIRX_DEFINE_VAR_COMPARISON_OP(>=)
+
+#undef TVM_TIRX_DEFINE_VAR_COMPARISON_OP
+
+#define TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(Op)                                  \
+  inline PrimExpr operator Op(tirx::Var a, int b) {                                  \
+    return operator Op(a.as_or_throw<PrimExpr>(), b);                                \
+  }                                                                                  \
+  inline PrimExpr operator Op(int a, tirx::Var b) {                                  \
+    return operator Op(a, b.as_or_throw<PrimExpr>());                                \
+  }                                                                                  \
+  inline PrimExpr operator Op(tirx::Var a, float b) {                                \
+    return operator Op(a.as_or_throw<PrimExpr>(), b);                                \
+  }                                                                                  \
+  inline PrimExpr operator Op(float a, tirx::Var b) {                                \
+    return operator Op(a, b.as_or_throw<PrimExpr>());                                \
+  }                                                                                  \
+  inline PrimExpr operator Op(tirx::Var a, double b) {                               \
+    return operator Op(a.as_or_throw<PrimExpr>(), FloatImm(PrimType::Float(64), b)); \
+  }
+
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(==)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(!=)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(<)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(<=)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(>)
+TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP(>=)
+
+#undef TVM_TIRX_DEFINE_VAR_CONST_COMPARISON_OP
+
 }  // namespace tvm
 
 /* \brief Allow tirx.Var as key in STL tables

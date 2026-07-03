@@ -92,7 +92,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
 
  protected:
   std::string GetStorageScope(const Var& buffer_var) {
-    auto* ptr = buffer_var->type_annotation.as<PointerTypeNode>();
+    auto* ptr = buffer_var->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }

@@ -108,7 +108,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param os The output stream
    */
   void PrintExpr(const PrimExpr& n, std::ostream& os);
-  void PrintExpr(const Expr& n, std::ostream& os) { PrintExpr(n.as_or_throw<PrimExpr>(), os); }
+  void PrintExpr(const Expr& n, std::ostream& os);
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
@@ -118,7 +118,11 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
     PrintExpr(n, os);
     return os.str();
   }
-  std::string PrintExpr(const Expr& n) { return PrintExpr(n.as_or_throw<PrimExpr>()); }
+  std::string PrintExpr(const Expr& n) {
+    std::ostringstream os;
+    PrintExpr(n, os);
+    return os.str();
+  }
 
   // The following parts are overloadable print operations.
 
@@ -295,7 +299,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param os The output stream.
    */
   virtual void PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               const ffi::Array<Expr>& args, bool skip_first_arg,
                                std::ostream& os);  // NOLINT(*)
   /*!
    * \brief If buffer is allocated as type t.
@@ -316,7 +320,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
    * code shape.  Only explicit pointer-offset values opt into typed pointer
    * arithmetic.
    */
-  void RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExpr* value);
+  void RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value);
   // override
   void PrintSSAAssign(const std::string& target, const std::string& src,
                       const PrimType& t) override;

@@ -159,7 +159,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Var::Var(ffi::String name_hint, PrimType dtype, Span span) {
   auto n = ffi::make_object<VarNode>();
   n->name_hint = std::move(name_hint);
-  n->type_annotation = dtype;
   n->ExprNode::ty = dtype;
   n->span = std::move(span);
   data_ = std::move(n);
@@ -168,12 +167,7 @@ Var::Var(ffi::String name_hint, PrimType dtype, Span span) {
 Var::Var(ffi::String name_hint, Type type_annotation, Span span) {
   auto n = ffi::make_object<VarNode>();
   n->name_hint = std::move(name_hint);
-  n->type_annotation = std::move(type_annotation);
-  if (n->type_annotation.as<PrimTypeNode>()) {
-    n->ExprNode::ty = n->type_annotation;
-  } else {
-    n->ExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
-  }
+  n->ExprNode::ty = std::move(type_annotation);
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -192,7 +186,6 @@ Var Var::copy_with_suffix(const ffi::String& suffix) const {
 Var Var::copy_with_dtype(PrimType dtype) const {
   const VarNode* node = get();
   ffi::ObjectPtr<VarNode> new_ptr = ffi::make_object<VarNode>(*node);
-  new_ptr->type_annotation = dtype;
   new_ptr->ExprNode::ty = dtype;
   return Var(new_ptr);
 }

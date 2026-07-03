@@ -635,10 +635,13 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   // binding must remain visible to subsequent sibling statements.
   struct BindVariableDefinition {
     BindVariableDefinition() {}
-    BindVariableDefinition(TransformLayoutPlanner* self, Var var, PrimExpr value) {
-      if (auto loop_depth = self->LoopDependencyRange(value); loop_depth.has_value()) {
+    BindVariableDefinition(TransformLayoutPlanner* self, Var var, Expr value) {
+      auto prim_value = value.as<PrimExpr>();
+      if (!prim_value) return;
+      if (auto loop_depth = self->LoopDependencyRange(prim_value.value()); loop_depth.has_value()) {
         self->loop_depth_lookup_[var.get()] = loop_depth.value();
-        self->active_var_bindings_[var.get()] = Substitute(value, self->active_var_bindings_);
+        self->active_var_bindings_[var.get()] =
+            Substitute(prim_value.value(), self->active_var_bindings_);
       }
     }
     ~BindVariableDefinition() {}

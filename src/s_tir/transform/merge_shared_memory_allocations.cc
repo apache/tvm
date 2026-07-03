@@ -507,7 +507,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     } else if (op->op.same_as(ptx_cp_async_op)) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
       Var buffer = op->args[0].as_or_throw<Var>();
-      const auto* ptr_type = buffer->type_annotation.as<PointerTypeNode>();
+      const auto* ptr_type = buffer->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr_type) << "The buffer should be a pointer type.";
       const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim_type) << "The buffer should be a pointer to a primitive type.";

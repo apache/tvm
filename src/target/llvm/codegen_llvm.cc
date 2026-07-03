@@ -274,7 +274,7 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   std::vector<llvm::Type*> param_types;
   is_restricted_ = func->HasNonzeroAttr(tirx::attr::kNoAlias);
   for (Var param : func->params) {
-    param_types.push_back(GetLLVMType(param));
+    param_types.push_back(GetLLVMType(param->ty));
     if (!is_restricted_ && PrimType(param.ty()->dtype).IsHandle()) {
       alias_var_set_.insert(param.get());
     }
@@ -1079,7 +1079,7 @@ llvm::Value* CodeGenLLVM::CreateLookupReturnAddress(unsigned int level) {
 }
 
 llvm::Value* CodeGenLLVM::CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                           const ffi::Array<PrimExpr>& args, bool skip_first_arg) {
+                                           const ffi::Array<Expr>& args, bool skip_first_arg) {
   std::vector<llvm::Value*> arg_value;
   std::vector<llvm::Type*> arg_type;
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
@@ -1356,8 +1356,8 @@ void CodeGenLLVM::EmitFloat16ConversionBuiltins(bool use_float16_abi) {
 }
 
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
-  ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
-  PrimType ret_ty = op->ty.as_or_throw<PrimType>();
+  const ffi::Array<Expr>& args = op->args;
+  PrimType ret_ty(GetRuntimeDLDataType(op->ty));
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
     TVM_FFI_ICHECK_GE(args.size(), 1U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(args[0].as_or_throw<IntImm>()->value);
@@ -1395,7 +1395,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(builtin::shift_left())) {
     return builder_->CreateShl(MakeValue(args[0]), MakeValue(args[1]));
   } else if (op->op.same_as(builtin::shift_right())) {
-    if (args[0].ty().MatchesCode(DLDataTypeCode::kDLInt)) {
+    if (args[0].as_or_throw<PrimExpr>().ty().MatchesCode(DLDataTypeCode::kDLInt)) {
       return builder_->CreateAShr(MakeValue(args[0]), MakeValue(args[1]));
     } else {
       return builder_->CreateLShr(MakeValue(args[0]), MakeValue(args[1]));
@@ -1420,7 +1420,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
         CreateBufferPtr(MakeValue(load->buffer->data), load->buffer->dtype, indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
-  } else if (op->op.same_as(builtin::reinterpret()) && is_zero(args[0])) {
+  } else if (op->op.same_as(builtin::reinterpret()) && args[0].as<PrimExpr>() &&
+             is_zero(args[0].as<PrimExpr>().value())) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->op.same_as(builtin::isnullptr())) {
     return builder_->CreateIsNull(MakeValue(args[0]));
@@ -1435,7 +1436,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     uint64_t val = (high << 32U) | low;
     return llvm::ConstantInt::get(DTypeToLLVMType(ret_ty), val);
   } else if (op->op.same_as(builtin::if_then_else())) {
-    TVM_FFI_ICHECK_EQ(args[0].ty().lanes(), 1) << "if_then_else can only take scalar condition";
+    TVM_FFI_ICHECK_EQ(args[0].as_or_throw<PrimExpr>().ty().lanes(), 1)
+        << "if_then_else can only take scalar condition";
     llvm::LLVMContext* ctx = llvm_target_->GetContext();
     auto* then_block = llvm::BasicBlock::Create(*ctx, "if_then", function_);
     auto* else_block = llvm::BasicBlock::Create(*ctx, "if_else", function_);
@@ -1881,7 +1883,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
-  ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+  const ffi::Array<Expr>& args = op->args;
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
     if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
@@ -1904,7 +1906,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
     TVM_FFI_ICHECK(it != functions_.end()) << "Call to undefined GlobalVar \"" << gvar << "\"";
     llvm::Function* callee = it->second;
     std::vector<llvm::Value*> arg_value;
-    for (const PrimExpr& arg : args) {
+    for (const Expr& arg : args) {
       arg_value.push_back(MakeValue(arg));
     }
     return builder_->CreateCall(callee, arg_value);
@@ -2164,8 +2166,10 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
   TVM_FFI_ICHECK(!var_map_.count(v));
-  PrimType var_ty = v->ty.as_or_throw<PrimType>();
-  if (var_ty.IsHandle()) {
+  Type var_ty = v->ty;
+  auto prim_var_ty = var_ty.as<PrimType>();
+  bool is_pointer = var_ty.as<PointerTypeNode>() || (prim_var_ty && prim_var_ty.value().IsHandle());
+  if (is_pointer) {
     if (!is_restricted_) {
       alias_var_set_.insert(v);
     }
@@ -2176,11 +2180,13 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
   // Therefore, to have the correct LLVM type for pointers, we may
   // need to introduce a pointer-cast, even though pointer-to-pointer
   // casts are not expressible with the `tirx::CastNode`.
-  if (var_ty.IsHandle() && !v->type_annotation.IsMissing()) {
-    TVM_FFI_ICHECK(op->value.ty().IsHandle())
+  if (is_pointer && !v->ty.IsMissing()) {
+    TVM_FFI_ICHECK(
+        op->value->ty.as<PointerTypeNode>() ||
+        (op->value->ty.as<PrimTypeNode>() && op->value->ty.as_or_throw<PrimType>().IsHandle()))
         << "Variable " << op->var << " is a pointer with type " << op->value
-        << ", but is being bound to expression with type " << op->value.ty();
-    auto* llvm_type = GetLLVMType(v->type_annotation);
+        << ", but is being bound to expression with type " << op->value->ty;
+    auto* llvm_type = GetLLVMType(v->ty);
     if (llvm_type != value->getType()) {
       value->setName((v->name_hint + "_void_ptr").c_str());
       value = builder_->CreatePointerCast(value, llvm_type);
@@ -2189,7 +2195,9 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
 
   AddDebugInformation(value, op->var);
   var_map_[v] = value;
-  analyzer_->Bind(op->var, op->value);
+  if (auto prim_value = op->value.as<PrimExpr>()) {
+    analyzer_->Bind(op->var, prim_value.value());
+  }
   if (alloc_storage_info_.count(v) && alloc_storage_info_[v].alignment > 1) {
     builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
                                         alloc_storage_info_[v].alignment);

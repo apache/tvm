@@ -376,7 +376,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     if (bind == nullptr) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
     }
-    let_values.push_back(bind->value);
+    let_values.push_back(bind->value.as_or_throw<PrimExpr>());
     auto insert_result = var2index.insert(std::make_pair(bind->var.get(), i));
     if (!insert_result.second) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/4);

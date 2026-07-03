@@ -93,6 +93,15 @@ def test_let():
     y = tvm.tirx.Var("y", "int32")
     stmt = tvm.tirx.Bind(x, 10)
 
+    pointer_type = ir.PointerType(ir.PrimType("float32"), "global")
+    pointer_var = tvm.tirx.Var("pointer_var", pointer_type)
+    pointer_value = tvm.tirx.Var("pointer_value", pointer_type)
+    pointer_stmt = tvm.tirx.Bind(pointer_var, pointer_value)
+    assert pointer_stmt.value.same_as(pointer_value)
+
+    with pytest.raises(RuntimeError):
+        tvm.tirx.Bind(pointer_var, x)
+
 
 def test_cast():
     x = tvm.tirx.Var("x", "float32")
@@ -321,10 +330,13 @@ def test_prim_func():
 def test_vars():
     x = tvm.tirx.Var("xyz", "int8")
     assert x.ty.dtype == "int8"
+    assert isinstance(x + 1, tvm.tirx.Add)
     ptype = tvm.ir.PointerType(tvm.ir.PrimType("float"))
     x = tvm.tirx.Var("xyz", ptype)
-    assert x.ty.dtype == "handle"
-    assert x.type_annotation == ptype
+    assert x.ty == ptype
+    assert not hasattr(x, "type_annotation")
+    with pytest.raises(TypeError):
+        x + 1
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
@@ -333,9 +345,8 @@ def test_scoped_storage_vars():
     storage_scope = "global.texture"
     ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
     x = tvm.tirx.Var("xyz", ptype)
-    assert x.ty.dtype == "handle"
-    assert x.type_annotation == ptype
-    assert x.type_annotation.storage_scope == storage_scope
+    assert x.ty == ptype
+    assert x.ty.storage_scope == storage_scope
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 

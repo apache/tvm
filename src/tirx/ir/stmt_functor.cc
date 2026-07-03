@@ -287,7 +287,7 @@ class StmtMutator::Internal {
 
 Stmt StmtMutator::VisitStmt_(const BindNode* op) {
   // Bind has no body -- only mutate the value expression.
-  PrimExpr value = this->VisitPrimExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -554,7 +554,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
-  PrimExpr value = this->VisitPrimExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -789,7 +789,7 @@ class IRSubstitute : public StmtExprMutator {
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
     Buffer new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
     // Additionally handle data var substitution (base does not visit data).
-    PrimExpr new_data_expr = VisitPrimExpr(new_buf->data);
+    Expr new_data_expr = VisitExpr(new_buf->data);
     TVM_FFI_ICHECK(new_data_expr->IsInstance<VarNode>())
         << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
         << ", which was substituted into the expression " << new_data_expr

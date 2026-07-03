@@ -182,6 +182,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
    * \return created value.
    */
   llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const Expr& e) {
+    if (auto prim = e.as<PrimExpr>()) return MakeValue(prim.value());
+    if (const auto* var = e.as<VarNode>()) return GetVarValue(var);
+    if (const auto* call = e.as<CallNode>()) return VisitExpr_(call);
+    TVM_FFI_THROW(TypeError) << "Cannot lower non-primitive expression " << e->GetTypeKey();
+    TVM_FFI_UNREACHABLE();
+  }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -285,7 +292,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   // create extern function call
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                        const ffi::Array<PrimExpr>& args, bool skip_first_arg);
+                                        const ffi::Array<Expr>& args, bool skip_first_arg);
 
   /*! \brief Insert a printf() call to the generated LLVM
    *

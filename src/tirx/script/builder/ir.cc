@@ -597,18 +597,36 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
   return AssertFrame(n);
 }
 
-Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
-  TVM_FFI_ICHECK(value.defined()) << "ValueError: Bind value must be defined";
+Var Bind(ffi::Any value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
+  Expr value_expr = [&]() {
+    if (value.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+      return Expr(value.cast<PrimExpr>());
+    }
+    const ExprNode* value_node = value.as<ExprNode>();
+    TVM_FFI_CHECK(value_node != nullptr, TypeError)
+        << "Bind value must be an expression, but got " << value.GetTypeKey();
+    return ffi::GetRef<Expr>(value_node);
+  }();
   Var bind_var = [&]() {
     if (var.defined()) {
       return var.value();
     } else if (type_annotation.defined()) {
       return Var("v", type_annotation.value());
     } else {
-      return Var("v", value.ty());
+      return Var("v", value_expr->ty);
     }
   }();
-  AddToParent(tvm::tirx::Bind(bind_var, value));
+  if (!ffi::StructuralEqual()(value_expr->ty, bind_var->ty)) {
+    ffi::Optional<PrimType> value_prim_type = value_expr->ty.as<PrimType>();
+    if (bind_var->ty.as<PointerTypeNode>() && value_prim_type.defined() &&
+        value_prim_type.value().IsHandle()) {
+      if (auto call = value_expr.as<Call>()) {
+        value_expr = Call(bind_var->ty, call.value()->op, call.value()->args, call.value()->attrs,
+                          call.value()->ty_args, call.value()->span);
+      }
+    }
+  }
+  AddToParent(tvm::tirx::Bind(bind_var, value_expr));
   return bind_var;
 }
 
@@ -858,9 +876,18 @@ Buffer AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String stora
   return buffer;
 }
 
-void Evaluate(PrimExpr value) { AddToParent(tvm::tirx::Evaluate(value)); }
+void Evaluate(ffi::Any value) {
+  if (value.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+    AddToParent(tvm::tirx::Evaluate(value.cast<PrimExpr>()));
+    return;
+  }
+  const ExprNode* value_node = value.as<ExprNode>();
+  TVM_FFI_CHECK(value_node != nullptr, TypeError)
+      << "Evaluate value must be an expression, but got " << value.GetTypeKey();
+  AddToParent(tvm::tirx::Evaluate(ffi::GetRef<Expr>(value_node)));
+}
 
-PrimExpr Ptr(PrimType dtype, ffi::String storage_scope = "global") {
+Var Ptr(PrimType dtype, ffi::String storage_scope = "global") {
   PointerType type_annotation(dtype, storage_scope);
   return tvm::tirx::Var("", type_annotation);
 }

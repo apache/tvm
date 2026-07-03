@@ -859,7 +859,7 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                                  const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                                  const ffi::Array<Expr>& args, bool skip_first_arg,
                                   std::ostream& os) {  // NOLINT(*)
   DLDataType ret_dtype = GetRuntimeDataType(ret_type);
   PrimType ret_ty(ret_dtype);
@@ -892,7 +892,8 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
       std::vector<std::string> sargs;
       size_t arg_begin = static_cast<size_t>(skip_first_arg);
       for (size_t i = arg_begin; i < args.size(); ++i) {
-        std::string val = SSAGetID(PrintExpr(args[i]), args[i].ty());
+        PrimExpr arg = args[i].as_or_throw<PrimExpr>();
+        std::string val = SSAGetID(PrintExpr(arg), arg.ty());
         sargs.push_back(std::move(val));
       }
 
@@ -902,7 +903,7 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
         scall << global_symbol << "(";
         for (size_t j = 0; j < sargs.size(); ++j) {
           if (j > 0) scall << ", ";
-          PrintVecElemLoad(sargs[j], args[arg_begin + j].ty(), i, scall);
+          PrintVecElemLoad(sargs[j], args[arg_begin + j].as_or_throw<PrimExpr>().ty(), i, scall);
         }
         scall << ")";
         PrintVecElemStore(sret, ret_ty, i, scall.str());

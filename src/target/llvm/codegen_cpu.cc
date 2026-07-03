@@ -217,7 +217,8 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
 
 llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
   std::string name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
-  return CreateDebugFunction(name, func->params.Map(GetType), func->ret_type);
+  return CreateDebugFunction(name, func->params.Map([](const Var& var) { return GetType(var); }),
+                             func->ret_type);
 }
 
 void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
@@ -230,7 +231,7 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
           std::make_pair(global_symbol.value().operator std::string(), function_));
     }
   }
-  AddDebugInformation(function_, func->params.Map(GetType));
+  AddDebugInformation(function_, func->params.Map([](const Var& var) { return GetType(var); }));
 }
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
@@ -401,7 +402,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(PrimType t, llvm::Value
 }
 
 llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                          const ffi::Array<PrimExpr>& args, bool skip_first_arg) {
+                                          const ffi::Array<Expr>& args, bool skip_first_arg) {
   std::vector<llvm::Value*> arg_values;
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
     arg_values.push_back(MakeValue(args[i]));
@@ -587,15 +588,16 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   }
 
   function_ = fcompute;
-  di_subprogram_ =
-      CreateDebugFunction(MakeStringRef(value->value), vargs.Map(GetType), PrimType::Int(32));
+  di_subprogram_ = CreateDebugFunction(MakeStringRef(value->value),
+                                       vargs.Map([](const Var& var) { return GetType(var); }),
+                                       PrimType::Int(32));
   auto* compute_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
   builder_->SetInsertPoint(compute_call_end);
 
-  AddDebugInformation(fcompute, vargs.Map(GetType));
+  AddDebugInformation(fcompute, vargs.Map([](const Var& var) { return GetType(var); }));
 }
 
 CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const ffi::Array<Var>& vfields,
@@ -998,7 +1000,7 @@ void CodeGenCPU::AddStartupFunction() {
 }
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
-  ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+  const ffi::Array<Expr>& args = op->args;
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     return CreateCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
@@ -1034,8 +1036,8 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     TVM_FFI_ICHECK_EQ(args.size(), 4U);
     int kind = args[2].as<IntImm>().value()->value;
     llvm::Value* value = MakeValue(args[3]);
-    TypedPointer ref =
-        CreateStructRefPtr(args[3].ty(), MakeValue(args[0]), MakeValue(args[1]), kind);
+    TypedPointer ref = CreateStructRefPtr(args[3].as_or_throw<PrimExpr>().ty(), MakeValue(args[0]),
+                                          MakeValue(args[1]), kind);
     TVM_FFI_ICHECK(kind != builtin::kDLTensorAddr);
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
@@ -1056,7 +1058,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     TVM_FFI_ICHECK_EQ(args.size(), 2U);
     std::string type = args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
-      const int64_t* pval = as_const_int(args[1]);
+      const int64_t* pval = as_const_int(args[1].as_or_throw<PrimExpr>());
       TVM_FFI_ICHECK(pval) << "require stack alloca to contain constant value";
       llvm::Value* num = ConstInt32(pval[0]);
       if (type == "shape") {

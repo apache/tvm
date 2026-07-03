@@ -38,7 +38,7 @@
 namespace tvm {
 namespace tirx {
 
-using VarMap = std::unordered_map<Var, PrimExpr>;
+using VarMap = std::unordered_map<Var, Expr>;
 
 /**************** Helper functions ****************/
 
@@ -170,7 +170,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     Stmt stmt = std::move(node);
 
     if (new_buffer_var.same_as(old_buffer_var)) {
-      auto remapped_data = VisitPrimExpr(old_buffer_var);
+      auto remapped_data = VisitExpr(old_buffer_var);
       if (!remapped_data.same_as(old_buffer_var)) {
         stmt = SeqStmt({Bind(old_buffer_var, remapped_data), stmt});
       }
@@ -215,7 +215,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     // For the data variable, only Var-to-Var remapping can be handled
     // in MutateBuffer.  See the DeclBuffer visitor for the handling
     // of Var-to-PrimExpr remapping.
-    Var data = VisitPrimExpr(buffer->data).as<Var>().value_or(buffer->data);
+    Var data = VisitExpr(buffer->data).as<Var>().value_or(buffer->data);
 
     ffi::Array<PrimExpr> shape =
         buffer->shape.Map([this](const PrimExpr& e) { return VisitPrimExpr(e); });
@@ -351,15 +351,22 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
   const Buffer& buf_to_specialize = (*it).second;
 
   // build var mapping using specific_buf's parameters
-  auto build_var_mapping = [&](const PrimExpr& new_expr, const PrimExpr& old_expr) {
-    if (!equal(new_expr, old_expr)) {
+  auto build_var_mapping = [&](const Expr& new_expr, const Expr& old_expr) {
+    auto expr_equal = [&](const Expr& lhs, const Expr& rhs) {
+      if (auto lhs_prim = lhs.as<PrimExpr>()) {
+        auto rhs_prim = rhs.as<PrimExpr>();
+        return rhs_prim && equal(lhs_prim.value(), rhs_prim.value());
+      }
+      return lhs.same_as(rhs);
+    };
+    if (!expr_equal(new_expr, old_expr)) {
       TVM_FFI_CHECK(old_expr->IsInstance<VarNode>(), TypeError)
           << "The signature of target buffer exprected an independent Var, but got " << old_expr
           << ".";
       const Var& var = old_expr.as_or_throw<Var>();
       auto it = var_map->find(var);
       if (it != var_map->end()) {
-        TVM_FFI_CHECK(equal(it->second, new_expr), ValueError)
+        TVM_FFI_CHECK(expr_equal(it->second, new_expr), ValueError)
             << "The assigned value of var " << var << " mismatched. " << it->second << " vs. "
             << new_expr << ".";
       } else {
@@ -405,7 +412,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
  * \param specific_expr The parameter value.
  * \param var_map The var mapping to be updated.
  */
-void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const PrimExpr& specific_expr,
+void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& specific_expr,
                             VarMap* var_map) {
   // check param is in PrimFunc's parameters
   TVM_FFI_CHECK(IsParam(func, param), ValueError)
@@ -439,7 +446,23 @@ PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, Prim
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Specialize", Specialize);
+  refl::GlobalDef().def("tirx.Specialize", [](PrimFunc func,
+                                              const ffi::Map<Var, ffi::Any>& param_map) {
+    VarMap var_map;
+    for (const auto& [param, instance] : param_map) {
+      if (auto buffer = instance.as<Buffer>()) {
+        UpdateSpecializeVarMap(func, param, buffer.value(), &var_map);
+      } else if (const ExprNode* expr = instance.as<ExprNode>()) {
+        UpdateSpecializeVarMap(func, param, ffi::GetRef<Expr>(expr), &var_map);
+      } else if (instance.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+        UpdateSpecializeVarMap(func, param, instance.cast<PrimExpr>(), &var_map);
+      } else {
+        TVM_FFI_THROW(TypeError) << "specialize expected instance to be Buffer or Expr, but got "
+                                 << instance.GetTypeKey();
+      }
+    }
+    return PrimFuncSpecializer::Specialize(func, std::move(var_map));
+  });
 }
 
 }  // namespace tirx

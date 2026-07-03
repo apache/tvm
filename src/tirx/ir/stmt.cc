@@ -34,6 +34,18 @@
 namespace tvm {
 namespace tirx {
 
+namespace {
+Expr AsExpr(const ffi::Any& value) {
+  if (value.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+    return value.cast<PrimExpr>();
+  }
+  const ExprNode* node = value.as<ExprNode>();
+  TVM_FFI_CHECK(node != nullptr, TypeError)
+      << "Expected an expression, but got " << value.GetTypeKey();
+  return ffi::GetRef<Expr>(node);
+}
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
   BindNode::RegisterReflection();
@@ -58,15 +70,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Bind
-Bind::Bind(Var var, PrimExpr value, Span span) {
+Bind::Bind(Var var, Expr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
-  PrimType value_ty = value.ty();
-  // It is still valid to bind a pointer type var to a value that is of type handle.
-  if (var->type_annotation.as<PointerTypeNode>()) {
-    TVM_FFI_ICHECK(value_ty.IsHandle());
-  } else {
-    TVM_FFI_ICHECK(value.ty() == var.ty());
-  }
+  TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
   ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
   node->var = std::move(var);
@@ -77,8 +83,9 @@ Bind::Bind(Var var, PrimExpr value, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Bind",
-                        [](Var var, PrimExpr value, Span span) { return Bind(var, value, span); });
+  refl::GlobalDef().def("tirx.Bind", [](Var var, ffi::Any value, Span span) {
+    return Bind(var, AsExpr(value), span);
+  });
 }
 
 // AttrStmt
@@ -373,7 +380,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Evaluate
-Evaluate::Evaluate(PrimExpr value, Span span) {
+Evaluate::Evaluate(Expr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
 
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
@@ -385,7 +392,7 @@ Evaluate::Evaluate(PrimExpr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.Evaluate",
-                        [](PrimExpr value, Span span) { return Evaluate(value, span); });
+                        [](ffi::Any value, Span span) { return Evaluate(AsExpr(value), span); });
 }
 
 // BufferStore

@@ -105,8 +105,10 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
 
   // Determine expressions for the input variables, in terms of the
   // output variables.
-  ffi::Map<Var, PrimExpr> inverse_exprs_map = InverseAffineIterMap(
-      padded_iter_map->indices, ffi::Array<PrimExpr>(output_vars.begin(), output_vars.end()));
+  ffi::Array<PrimExpr> prim_output_vars =
+      output_vars.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+  ffi::Map<Var, PrimExpr> inverse_exprs_map =
+      InverseAffineIterMap(padded_iter_map->indices, prim_output_vars);
 
   // Unpack the map to an array, maintaining the same parameter order.
   ffi::Array<PrimExpr> inverse_exprs;

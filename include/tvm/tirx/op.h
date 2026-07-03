@@ -69,6 +69,9 @@ namespace tvm {
  */
 TVM_DLL Type GetType(const PrimExpr& expr);
 
+/*! \brief Get the exact semantic type of a TIR variable. */
+TVM_DLL Type GetType(const tirx::Var& var);
+
 /*!
  * \brief Get the type corresponding to a runtime DLPack dtype.
  * \param dtype The runtime dtype.
@@ -940,6 +943,11 @@ TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
 // Implementation details after this
 inline bool is_const_int(const PrimExpr& x) { return as_const_int(x); }
 
+inline bool is_const_int(const Expr& x) {
+  auto prim = x.as<PrimExpr>();
+  return prim && is_const_int(prim.value());
+}
+
 inline bool is_const_number(const PrimExpr& x) {
   if (x.as<tirx::IntImmNode>()) {
     return true;
@@ -970,7 +978,8 @@ inline bool is_const_int(const PrimExpr& x, int64_t value) {
 inline bool is_no_op(const tirx::Stmt& stmt) {
   if (!stmt.defined()) return true;
   if (const auto* op = stmt.as<tirx::EvaluateNode>()) {
-    return is_const_int(op->value);
+    auto value = op->value.as<PrimExpr>();
+    return value && is_const_int(value.value());
   }
   if (const auto* op = stmt.as<tirx::SeqStmtNode>()) {
     return op->seq.size() == 0;

@@ -78,7 +78,7 @@ class BindNode : public StmtNode {
   /*! \brief The variable being bound. */
   Var var;
   /*! \brief The value to bind to the variable. */
-  PrimExpr value;
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -96,7 +96,7 @@ class BindNode : public StmtNode {
  */
 class Bind : public Stmt {
  public:
-  TVM_DLL Bind(Var var, PrimExpr value, Span span = Span());
+  TVM_DLL Bind(Var var, Expr value, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
@@ -337,7 +337,7 @@ class SeqStmtNode : public StmtNode {
 class EvaluateNode : public StmtNode {
  public:
   /*! \brief The expression to be evaluated. */
-  PrimExpr value;
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -352,7 +352,7 @@ class EvaluateNode : public StmtNode {
  */
 class Evaluate : public Stmt {
  public:
-  TVM_DLL explicit Evaluate(PrimExpr value, Span span = Span());
+  TVM_DLL explicit Evaluate(Expr value, Span span = Span());
 
   explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
 

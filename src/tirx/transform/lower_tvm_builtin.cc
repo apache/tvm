@@ -259,8 +259,7 @@ class BuiltinLower : public StmtExprMutator {
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
-      auto storage_scope =
-          op->buffer->data->type_annotation.as_or_throw<PointerType>()->storage_scope;
+      auto storage_scope = op->buffer->data->ty.as_or_throw<PointerType>()->storage_scope;
       if (storage_scope == "global") {
         auto constant_size = stmt.as_or_throw<AllocBuffer>().ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
@@ -295,11 +294,10 @@ class BuiltinLower : public StmtExprMutator {
 
     Stmt alloc_bind = Bind(
         op->buffer->data,
-        Call(op->buffer->data.ty(), alloc_workspace_op,
+        Call(op->buffer->data->ty, alloc_workspace_op,
              {cast(PrimType::Int(32), device_type_.value()),
               cast(PrimType::Int(32), device_id_.value()), total_bytes,
-              IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())})
-            .as_or_throw<PrimExpr>());
+              IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())}));
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -646,8 +644,14 @@ class BuiltinLower : public StmtExprMutator {
     op = expr.as<CallNode>();
 
     for (size_t i = 0; i < num_args; ++i) {
-      this->SetPackedArg(op->args[args_begin + i].as_or_throw<PrimExpr>(), scope.stack_ffi_any,
-                         arg_stack_begin + i, &prep_seq);
+      const Expr& arg = op->args[args_begin + i];
+      PrimExpr runtime_arg = [&]() {
+        if (auto prim = arg.as<PrimExpr>()) return prim.value();
+        TVM_FFI_CHECK(arg->ty.as<PointerTypeNode>(), TypeError)
+            << "Packed call argument must have a primitive or pointer type, but got " << arg->ty;
+        return Call(PrimType::Handle(), builtin::reinterpret(), {arg}).as_or_throw<PrimExpr>();
+      }();
+      this->SetPackedArg(runtime_arg, scope.stack_ffi_any, arg_stack_begin + i, &prep_seq);
     }
     // explicitly set return value to None to avoid bad state interpretation
     prep_seq.emplace_back(TVMStructSet(scope.stack_ffi_any, num_args, builtin::kTVMFFIAnyTypeIndex,
@@ -682,8 +686,7 @@ class BuiltinLower : public StmtExprMutator {
     Stmt throw_last_error = Evaluate(
         Call(PrimType::Int(32), builtin::tvm_throw_last_error(), {}).as_or_throw<PrimExpr>());
 
-    const auto* dtype_node =
-        let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>();
+    const auto* dtype_node = let->var->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>();
     TVM_FFI_ICHECK(dtype_node);
     PrimType dtype = ffi::GetRef<PrimType>(dtype_node);
 

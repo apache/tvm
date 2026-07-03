@@ -49,7 +49,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
         return relax::TensorType(shape, buf->dtype);
       }
 
-      if (auto prim_type = param->type_annotation.as<PrimTypeNode>()) {
+      if (auto prim_type = param->ty.as<PrimTypeNode>()) {
         const DLDataType& dtype = prim_type->dtype;
         if (dtype.code == kDLOpaqueHandle && (dtype.bits != 0 || dtype.lanes != 0)) {
           return relax::AnyType();

@@ -79,7 +79,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   this->SetTextureScope(InferTextureAccess().Infer(f->body));
   for (Var arg : f->params) {
-    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
+    auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
       // Storage scope qualifiers for textures are inferred
       // and set prior to function codegen.
@@ -94,7 +94,7 @@ void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 
 void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
   for (Var arg : f->params) {
-    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
+    auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
       this->stream << "  const sampler_t image_sampler = "
                       "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;\n";
@@ -373,7 +373,7 @@ void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os
 
 void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
   // Apply restrict qualifer for non-texture types only
-  if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+  if (auto* ptr = v->ty.as<PointerTypeNode>()) {
     if (!runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
       os << ' ' << restrict_keyword_;
     }
@@ -433,7 +433,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {
-    auto* ptr_type = op->args[0].as<VarNode>()->type_annotation.as<PointerTypeNode>();
+    auto* ptr_type = op->args[0].as<VarNode>()->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
     TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
         << "builtin::texture2d_store() only supports storing to texture buffers";

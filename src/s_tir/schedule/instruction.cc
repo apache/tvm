@@ -83,7 +83,7 @@ ffi::String InstructionAsPythonRepr(const InstructionNode* self) {
       PrimExpr new_expr = Substitute(expr.value(), [](const Var& var) -> ffi::Optional<PrimExpr> {
         ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*var.get());
         new_var->name_hint = "_";
-        return Var(new_var);
+        return Var(new_var).as_or_throw<PrimExpr>();
       });
       std::ostringstream os;
       os << new_expr;

@@ -515,8 +515,10 @@ class ComputeInliner : public BaseInliner {
     for (size_t i = 0; i < idx_vars_.size(); ++i) {
       idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].ty());
     }
-    auto inverse_iter_map = arith::InverseAffineIterMap(
-        res->indices, ffi::Array<PrimExpr>(idx_vars_.begin(), idx_vars_.end()));
+    ffi::Array<PrimExpr> prim_idx_vars;
+    prim_idx_vars.reserve(idx_vars_.size());
+    for (const Var& var : idx_vars_) prim_idx_vars.push_back(var.as_or_throw<PrimExpr>());
+    auto inverse_iter_map = arith::InverseAffineIterMap(res->indices, prim_idx_vars);
     for (const auto& iter : producer_block->iter_vars) {
       if (is_const_int(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
         // fallback mapping for constant iters

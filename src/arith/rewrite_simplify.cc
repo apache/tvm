@@ -2418,7 +2418,11 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 
 Expr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
-  PrimType op_ty = op->ty.as_or_throw<PrimType>();
+  auto opt_op_ty = op->ty.as<PrimType>();
+  if (!opt_op_ty) {
+    return var;
+  }
+  PrimType op_ty = opt_op_ty.value();
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !op_ty.IsScalableVector() &&
       !op_ty.IsFixedLengthVector()) {
     if (auto match = TryMatchLiteralConstraint(var)) {

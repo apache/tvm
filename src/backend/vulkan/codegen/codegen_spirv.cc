@@ -76,7 +76,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
   for (Var arg : f->params) {
     PrimType t = PrimType(arg.ty()->dtype);
     if (t.IsHandle()) {
-      auto* ptr = arg->type_annotation.as<PointerTypeNode>();
+      auto* ptr = arg->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr)
           << "All handles passed to the Vulkan codegen must have a type_annotation as a "
              "PointerType, "

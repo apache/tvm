@@ -48,6 +48,12 @@ def unknown_bounds(A: T.Buffer((2, 3), "float32"), B: T.Buffer((3, 2), "float32"
         B[0, N] = A[1, i]
 
 
+@T.prim_func(s_tir=True)
+def bad_load_in_pointer_bind(A: T.Buffer((2,), "float32")):
+    pointer: T.let[T.handle("float32")] = T.address_of(A[2])
+    T.evaluate(pointer)
+
+
 def test_oob_load():
     with pytest.raises(tvm.s_tir.ScheduleError) as err:
         tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_load))
@@ -55,6 +61,10 @@ def test_oob_load():
 
     with pytest.raises(tvm.s_tir.ScheduleError) as err:
         tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_load_loop))
+    assert "buffer A" in err.value.args[0]
+
+    with pytest.raises(tvm.s_tir.ScheduleError) as err:
+        tvm.s_tir.analysis.OOBChecker()(tvm.IRModule.from_expr(bad_load_in_pointer_bind))
     assert "buffer A" in err.value.args[0]
 
 

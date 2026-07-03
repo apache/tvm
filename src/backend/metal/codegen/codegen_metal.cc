@@ -108,7 +108,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
     // type annotation(via a normalizing rewriting).
-    if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+    if (auto* ptr = v->ty.as<PointerTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
         RegisterHandleType(v.get(), ffi::GetRef<PrimType>(prim));
       }

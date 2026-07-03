@@ -178,7 +178,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
     func_arg_types.push_back(t->dtype);
 
     if (t.IsHandle()) {
-      auto* ptr = arg->type_annotation.as<PointerTypeNode>();
+      auto* ptr = arg->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr)
           << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
              "PointerType, "
