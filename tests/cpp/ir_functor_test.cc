@@ -96,7 +96,7 @@ TEST(IRF, ExprTransform) {
   Var x("x");
   auto z = x + 1;
 
-  class MyExprFunctor : public tirx::ExprFunctor<int(const PrimExpr&, int)> {
+  class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
    public:
     int VisitExpr_(const VarNode* op, int b) final { return b; }
     int VisitExpr_(const IntImmNode* op, int b) final { return op->value; }
@@ -120,7 +120,7 @@ TEST(IRF, ExprVisit) {
   Var x("x");
   auto z = x + 1;
 
-  class MyVisitor : public tirx::ExprFunctor<void(const PrimExpr&)>,
+  class MyVisitor : public tirx::ExprFunctor<void(const Expr&)>,
                     public tirx::StmtFunctor<void(const Stmt&)> {
    public:
     int count = 0;
@@ -200,9 +200,9 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    PrimExpr VisitExpr_(const AddNode* op) final { return op->a; }
+    Expr VisitExpr_(const AddNode* op) final { return op->a; }
     Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
-    PrimExpr VisitExpr(const PrimExpr& expr) final { return ExprMutator::VisitExpr(expr); }
+    Expr VisitExpr(const Expr& expr) final { return ExprMutator::VisitExpr(expr); }
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;

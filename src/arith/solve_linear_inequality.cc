@@ -80,12 +80,12 @@ void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
  */
 class NormalizeComparisons : public ExprMutator {
  public:
-  PrimExpr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
-  PrimExpr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
-  PrimExpr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
-  PrimExpr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
+  Expr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
+  Expr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
+  Expr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
+  Expr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
+  Expr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
+  Expr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
 
  private:
   template <class T>
@@ -216,10 +216,10 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(
-        &current_ineq_set_to_solve,
-        NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
-        analyzer.get());
+    AddInequality(&current_ineq_set_to_solve,
+                  NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite))
+                      .as_or_throw<PrimExpr>(),
+                  analyzer.get());
   }
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
@@ -260,7 +260,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
         new_ineq =
-            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
+            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite))
+                .as_or_throw<PrimExpr>();
         AddInequality(&next_ineq_set_to_solve, new_ineq, analyzer.get());
       }
     }

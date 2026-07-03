@@ -338,8 +338,8 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const ForNode* op) final {
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
+    PrimExpr min = this->VisitPrimExpr(op->min);
+    PrimExpr extent = this->VisitPrimExpr(op->extent);
     Stmt body;
 
     if (op->kind == ForKind::kParallel) {
@@ -363,7 +363,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    PrimExpr condition = this->VisitExpr(op->condition);
+    PrimExpr condition = this->VisitPrimExpr(op->condition);
     // Each branch gets its own scope to prevent frees from leaking across branches.
     Stmt then_case = scope_.WithNewScope([&]() -> Stmt {
       Stmt visited = this->VisitStmt(op->then_case);
@@ -383,7 +383,7 @@ class BuiltinLower : public StmtExprMutator {
     return IfThenElse(condition, then_case, else_case, op->span);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
                                    /* use_last_value_as_traced_value*/ false)
@@ -443,7 +443,7 @@ class BuiltinLower : public StmtExprMutator {
     auto method_name = GetDeviceMethodName("dma_copy");
     Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(),
                             {method_name, queue_id, dst, src, size, bypass_cache});
-    return VisitExpr(call_packed.as_or_throw<PrimExpr>());
+    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
   }
 
   PrimExpr MakeDMAWait(const CallNode* op) {
@@ -453,7 +453,7 @@ class BuiltinLower : public StmtExprMutator {
     auto method_name = GetDeviceMethodName("dma_wait");
     Call call_packed =
         Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id, inflight});
-    return VisitExpr(call_packed.as_or_throw<PrimExpr>());
+    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
   }
 
   PrimExpr MakeDMAStartGroup(const CallNode* op) {
@@ -461,7 +461,7 @@ class BuiltinLower : public StmtExprMutator {
 
     auto method_name = GetDeviceMethodName("dma_start_group");
     Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return VisitExpr(call_packed.as_or_throw<PrimExpr>());
+    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
   }
 
   PrimExpr MakeDMAEndGroup(const CallNode* op) {
@@ -469,7 +469,7 @@ class BuiltinLower : public StmtExprMutator {
 
     auto method_name = GetDeviceMethodName("dma_end_group");
     Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return VisitExpr(call_packed.as_or_throw<PrimExpr>());
+    return VisitPrimExpr(call_packed.as_or_throw<PrimExpr>());
   }
 
   // call shape
@@ -483,7 +483,7 @@ class BuiltinLower : public StmtExprMutator {
     }
     int64_t stack_begin = scope.run_sizes.shape_stack;
     scope.run_sizes.shape_stack += op->args.size();
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
@@ -501,7 +501,7 @@ class BuiltinLower : public StmtExprMutator {
 
     size_t idx = scope.run_sizes.array_stack;
     scope.run_sizes.array_stack += 1;
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<CallNode>();
 
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorData,
@@ -642,7 +642,7 @@ class BuiltinLower : public StmtExprMutator {
     // The extra one slot is for return value.
     scope.run_sizes.arg_stack += num_args + 1;
     // Specially handle the buffer packed intrinsic
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<CallNode>();
 
     for (size_t i = 0; i < num_args; ++i) {

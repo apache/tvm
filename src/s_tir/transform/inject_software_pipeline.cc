@@ -292,7 +292,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_remap_.find(load->buffer);
     if (it == buffer_remap_.end()) {
@@ -307,7 +307,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return load;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
     return opaque_access_rewriter_.Rewrite(call);
   }

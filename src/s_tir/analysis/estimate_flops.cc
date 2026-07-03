@@ -84,12 +84,12 @@ struct TResult {
   std::unordered_map<int32_t, double> data_;
 };
 
-class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
+class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
   arith::Analyzer ana;
 
  public:
-  TResult VisitExpr(const PrimExpr& expr) override { return ExprFunctor::VisitExpr(expr); }
+  TResult VisitExpr(const Expr& expr) override { return ExprFunctor::VisitExpr(expr); }
   TResult VisitStmt(const Stmt& stmt) override { return StmtFunctor::VisitStmt(stmt); }
 
 #define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node)       \

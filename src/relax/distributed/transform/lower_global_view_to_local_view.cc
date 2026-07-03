@@ -57,7 +57,7 @@ class DistBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+  Expr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
     if (buffer_map_.count(load->buffer)) {
       ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());

@@ -164,7 +164,7 @@ class IRConvertSSA final : public StmtExprMutator {
       for (const auto& [key, old_value] : func->attrs->dict) {
         auto value = old_value;
         if (auto expr = value.as<PrimExpr>()) {
-          value = VisitExpr(expr.value());
+          value = VisitPrimExpr(expr.value());
         } else if (auto* stmt = value.as<StmtNode>()) {
           value = VisitStmt(ffi::GetRef<Stmt>(stmt));
         }
@@ -204,14 +204,14 @@ class IRConvertSSA final : public StmtExprMutator {
   // undefined SSA-renamed variables.
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
 
-  PrimExpr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
-  PrimExpr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
+  Expr VisitExpr_(const LetNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      PrimExpr value = this->VisitExpr(op->value);
+      PrimExpr value = this->VisitPrimExpr(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
-      PrimExpr body = this->VisitExpr(op->body);
+      PrimExpr body = this->VisitPrimExpr(op->body);
       PopVarRemap(v, new_var);
       return Let(new_var, value, body);
     } else {
@@ -220,7 +220,7 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
@@ -302,8 +302,8 @@ class IRConvertSSA final : public StmtExprMutator {
     // given the current scope.  If no redefines are present, then the
     // buffer var is unchanged.
     Var new_buffer_var = GetRemappedVar(buf->data);
-    PrimExpr elem_offset = VisitExpr(buf->elem_offset);
-    auto visit_expr = [this](const PrimExpr& expr) { return VisitExpr(expr); };
+    PrimExpr elem_offset = VisitPrimExpr(buf->elem_offset);
+    auto visit_expr = [this](const PrimExpr& expr) { return VisitPrimExpr(expr); };
     ffi::Array<PrimExpr> shape = buf->shape.Map(visit_expr);
     ffi::Array<PrimExpr> strides = buf->strides.Map(visit_expr);
 
@@ -317,8 +317,8 @@ class IRConvertSSA final : public StmtExprMutator {
     if (buf->layout.defined()) {
       if (auto opt_tile = buf->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [&](const Iter& it) -> Iter {
-          PrimExpr new_extent = VisitExpr(it->extent);
-          PrimExpr new_stride = VisitExpr(it->stride);
+          PrimExpr new_extent = VisitPrimExpr(it->extent);
+          PrimExpr new_stride = VisitPrimExpr(it->stride);
           if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
             return it;
           }
@@ -372,7 +372,7 @@ class IRConvertSSA final : public StmtExprMutator {
     // body-carrying statement's scope exits.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      PrimExpr value = this->VisitExpr(op->value);
+      PrimExpr value = this->VisitPrimExpr(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
       return Bind(new_var, value);
@@ -385,7 +385,7 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     // Each branch gets its own scope so Bind remaps in one branch
     // do not leak into the other.
-    PrimExpr condition = VisitExpr(op->condition);
+    PrimExpr condition = VisitPrimExpr(op->condition);
     Stmt then_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->then_case); });
     ffi::Optional<Stmt> else_case;
     if (op->else_case) {
@@ -442,8 +442,8 @@ class IRConvertSSA final : public StmtExprMutator {
     if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
       Range dom = iter_var->dom;
       if (dom.defined()) {
-        auto min = VisitExpr(dom->min);
-        auto extent = VisitExpr(dom->extent);
+        auto min = VisitPrimExpr(dom->min);
+        auto extent = VisitPrimExpr(dom->extent);
         if (!min.same_as(iter_var->dom->min) || !extent.same_as(iter_var->dom->extent)) {
           dom = Range::FromMinExtent(min, extent);
         }
@@ -492,7 +492,7 @@ class IRConvertSSA final : public StmtExprMutator {
         new_iter_var = IterVar(dom, var, iter_var->iter_type, iter_var->thread_tag, iter_var->span);
       }
 
-      auto value = VisitExpr(op->value);
+      auto value = VisitPrimExpr(op->value);
       auto body = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->body); });
 
       Stmt output;

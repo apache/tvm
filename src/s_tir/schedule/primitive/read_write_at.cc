@@ -99,7 +99,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+  Expr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
     if (load->buffer.same_as(src_)) {
       ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());

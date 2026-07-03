@@ -30,7 +30,7 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-using ExprComparator = ExprFunctor<bool(const PrimExpr& n, const PrimExpr& other)>;
+using ExprComparator = ExprFunctor<bool(const Expr& n, const PrimExpr& other)>;
 using StmtComparator = StmtFunctor<bool(const Stmt& n, const Stmt& other)>;
 
 /*! \brief Deep comparison to check if two IR ASTs are equivalent for tensorization*/
@@ -44,7 +44,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   explicit TensorizeComparator(IRModule lhs_mod, bool assert_mode = true)
       : lhs_mod_(std::move(lhs_mod)), assert_mode_(assert_mode) {}
 
-  bool VisitExpr(const PrimExpr& n, const PrimExpr& other) override;
+  bool VisitExpr(const Expr& n, const PrimExpr& other) override;
   bool VisitStmt(const Stmt& n, const Stmt& other) override;
 
   bool VisitExpr_(const CallNode* op, const PrimExpr& other) override;

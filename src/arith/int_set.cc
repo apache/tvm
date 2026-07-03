@@ -401,7 +401,7 @@ using namespace tirx;
 
 // Simplified version of int set evaluator that operates on IntervalSet
 // We might use better set analysis in the future to replace the intervalset.
-class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
+class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
  public:
   IntervalSetEvaluator(AnalyzerObj* analyzer, const ffi::Map<Var, IntSet>& dom_map,
                        const std::vector<std::pair<Var, IntSet>>* dom_constraints = nullptr,
@@ -1119,9 +1119,9 @@ class SubExprIntervalSetEvaluator : public IntervalSetEvaluator {
   explicit SubExprIntervalSetEvaluator(AnalyzerObj* analyzer, const ffi::Map<Var, IntSet>& dom_map)
       : IntervalSetEvaluator(analyzer, dom_map) {}
 
-  IntervalSet VisitExpr(const PrimExpr& n) final {
+  IntervalSet VisitExpr(const Expr& n) final {
     IntervalSet ret = IntervalSetEvaluator::VisitExpr(n);
-    expr_map[n] = ret;
+    expr_map[n.as_or_throw<PrimExpr>()] = ret;
     return ret;
   }
 

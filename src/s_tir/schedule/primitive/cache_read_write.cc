@@ -1024,7 +1024,7 @@ class CacheReadRewriter : public StmtExprMutator {
     return ret;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* load) override {
+  Expr VisitExpr_(const BufferLoadNode* load) override {
     if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
       ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
       n->buffer = info_->write_buffer;
@@ -1036,7 +1036,7 @@ class CacheReadRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     if (op == info_->read_buffer->data.get()) {
       return info_->write_buffer->data;
     }
@@ -1117,7 +1117,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
     };
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* load) final {
+  Expr VisitExpr_(const BufferLoadNode* load) final {
     if (load->buffer.same_as(info_->read_buffer) && current_block_consumes) {
       ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
       n->buffer = info_->write_buffer;
@@ -1308,7 +1308,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* load) override {
+  Expr VisitExpr_(const BufferLoadNode* load) override {
     if (load->buffer.same_as(info_->write_buffer)) {
       ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
       n->buffer = info_->read_buffer;
@@ -1320,7 +1320,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     return ExprMutator::VisitExpr_(load);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     if (op == info_->write_buffer->data.get()) {
       return info_->read_buffer->data;
     }
@@ -1418,7 +1418,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* load) final {
+  Expr VisitExpr_(const BufferLoadNode* load) final {
     if (load->buffer.same_as(info_->write_buffer)) {
       ffi::ObjectPtr<BufferLoadNode> n = ffi::make_object<BufferLoadNode>(*load);
       n->buffer = info_->read_buffer;
@@ -1659,7 +1659,7 @@ class ReIndexRewriter : public StmtExprMutator {
     return VisitBufferAccess(std::move(buffer_store));
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad buffer_load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(buffer_load));
   }

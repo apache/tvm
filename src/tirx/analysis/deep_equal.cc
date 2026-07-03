@@ -44,7 +44,7 @@ namespace tirx {
            plhs->value == prhs->value;                                             \
   }
 
-class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const PrimExpr&)> {
+class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExpr&)> {
  public:
   static bool Check(const PrimExpr& lhs, const PrimExpr& rhs) {
     // quick path without constructing the object
@@ -60,7 +60,8 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const PrimExpr&, const Pri
     return ExprDeepEqualChecker().VisitExpr(lhs, rhs);
   }
 
-  bool VisitExpr(const PrimExpr& lhs, const PrimExpr& rhs) final {
+  bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
+    PrimExpr lhs = expr.as_or_throw<PrimExpr>();
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() && rhs.defined()) return false;
     if (!rhs.defined() && lhs.defined()) return false;

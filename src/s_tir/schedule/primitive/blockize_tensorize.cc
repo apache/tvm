@@ -388,15 +388,15 @@ Stmt Substitute(const Stmt& stmt, const ffi::Map<Var, PrimExpr>& sub,
                       ffi::Map<SBlock, SBlock>* block_sref_reuse, arith::AnalyzerObj* analyzer)
         : sub_(sub), block_sref_reuse_(block_sref_reuse), analyzer_(analyzer) {}
 
-    PrimExpr VisitExpr(const PrimExpr& op) final {
-      PrimExpr result = StmtExprMutator::VisitExpr(op);
-      if (!result.same_as(op)) {
-        return analyzer_->Simplify(result);
+    Expr VisitExpr(const Expr& op) final {
+      Expr result = StmtExprMutator::VisitExpr(op);
+      if (auto prim_result = result.as<PrimExpr>(); prim_result && !result.same_as(op)) {
+        return analyzer_->Simplify(prim_result.value());
       }
       return result;
     }
 
-    PrimExpr VisitExpr_(const VarNode* op) final {
+    Expr VisitExpr_(const VarNode* op) final {
       if (ffi::Optional<PrimExpr> e = sub_.Get(ffi::GetRef<Var>(op))) {
         return e.value();
       }

@@ -156,7 +156,7 @@ class ThreadBindingLifter : public StmtExprMutator {
     this->var_subst = std::move(result.second);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_subst.find(ffi::GetRef<Var>(op));
     if (it != var_subst.end()) {
       return (*it).second;

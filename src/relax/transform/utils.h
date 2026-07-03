@@ -237,7 +237,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
   using tirx::ExprMutator::VisitExpr_;
 
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
-    return tirx::ExprMutator::VisitExpr(expr);
+    return tirx::ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
   }
 
   Expr VisitExprFallback_(const ExprNode* op) final {
@@ -250,7 +250,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
   // TODO(Siyuan): enhance the method to the following steps:
   // 1. Visit and replace all tirx::Vars at the definition point
   // 2. Revisit the function again and update the use side.
-  PrimExpr VisitExpr_(const tirx::VarNode* op) final {
+  Expr VisitExpr_(const tirx::VarNode* op) final {
     auto it = var_map_.find(ffi::GetRef<tirx::Var>(op));
     if (it != var_map_.end()) {
       return (*it).second;

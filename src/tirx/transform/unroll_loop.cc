@@ -165,7 +165,7 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     if (unroll_local_access_) {
       auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
       if (storage_scope.rank == runtime::StorageRank::kLocal ||

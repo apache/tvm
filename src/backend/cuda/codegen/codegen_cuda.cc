@@ -1146,11 +1146,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // to the plain ones here.
     class LowerFloorDivMod : public ExprMutator {
      public:
-      PrimExpr VisitExpr_(const FloorDivNode* op) {
-        return tirx::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorDivNode* op) {
+        return tirx::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      PrimExpr VisitExpr_(const FloorModNode* op) {
-        return tirx::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorModNode* op) {
+        return tirx::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
 
@@ -1248,11 +1248,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     class LowerFloorDivMod : public ExprMutator {
      public:
-      PrimExpr VisitExpr_(const FloorDivNode* op) {
-        return tirx::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorDivNode* op) {
+        return tirx::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      PrimExpr VisitExpr_(const FloorModNode* op) {
-        return tirx::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorModNode* op) {
+        return tirx::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
 

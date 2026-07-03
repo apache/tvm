@@ -771,7 +771,7 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
 
     tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
 
-    PrimExpr VisitExpr_(const tirx::BufferLoadNode* op) final {
+    Expr VisitExpr_(const tirx::BufferLoadNode* op) final {
       auto node = tirx::StmtExprMutator::VisitExpr_(op).as_or_throw<tirx::BufferLoad>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);

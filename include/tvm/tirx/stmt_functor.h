@@ -152,7 +152,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    *       or have a class sub-class both StmtVisitor and ExprVisitor
    *       and redirect Visit to ExprMutator::VisitExpr(Expr)
    */
-  virtual void VisitExpr(const PrimExpr& e) {}
+  virtual void VisitExpr(const Expr& e) {}
   /*!
    * \brief Visit buffer at definition site (AllocBuffer, DeclBuffer, SBlock alloc_buffers).
    *  Visits buffer shape, strides, elem_offset via VisitExpr.
@@ -268,7 +268,9 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *       or have a class sub-class both StmtMutator and ExprMutator
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
-  virtual PrimExpr VisitExpr(const PrimExpr& e) { return e; }
+  virtual Expr VisitExpr(const Expr& e) { return e; }
+  /*! \brief Mutate a primitive expression and verify that it remains primitive. */
+  PrimExpr VisitPrimExpr(const PrimExpr& e) { return VisitExpr(e).as_or_throw<PrimExpr>(); }
   /*!
    * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via VisitExpr.
    *  If any field changes, creates a new buffer and records it in buffer_remap_.
@@ -335,7 +337,7 @@ class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
   using ExprVisitor::VisitExpr_;
   using StmtVisitor::VisitStmt;
 
-  void VisitExpr(const PrimExpr& e) override { return ExprVisitor::VisitExpr(e); }
+  void VisitExpr(const Expr& e) override { return ExprVisitor::VisitExpr(e); }
   void VisitExpr_(const BufferLoadNode* op) override;
 };
 
@@ -350,10 +352,11 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
  protected:
   using ExprMutator::VisitExpr;
   using ExprMutator::VisitExpr_;
+  using ExprMutator::VisitPrimExpr;
   using StmtMutator::VisitStmt;
 
-  PrimExpr VisitExpr(const PrimExpr& e) override { return ExprMutator::VisitExpr(e); }
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
+  Expr VisitExpr_(const BufferLoadNode* op) override;
 };
 
 /*!
@@ -375,9 +378,9 @@ TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Fu
                          ffi::Optional<ffi::Array<ffi::String>> only_enable = std::nullopt);
 
 /*!
- * \brief Recursively visit the ir in post DFS order node, apply fvisit
+ * \brief Recursively visit a statement or expression in post DFS order, applying fvisit.
  * Each node is guaranteed to be visited only once.
- * \param node The ir to be visited.
+ * \param node The statement or expression to be visited.
  * \param fvisit The visitor function to be applied.
  */
 TVM_DLL void PostOrderVisit(const ffi::ObjectRef& node,
@@ -560,9 +563,9 @@ TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
 
 /*!
- * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
+ * \brief Recursively visit a statement or expression in pre DFS order, applying fvisit.
  * If fvisit returns false, it won't visit the children of the node.
- * \param stmt_or_expr The ir to be visited.
+ * \param stmt_or_expr The statement or expression to be visited.
  * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
  * children of the node
  */

@@ -67,7 +67,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     return For(n);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = new_iter_info_.find(op);
     if (it != new_iter_info_.end()) {
       const auto& [stride, offset] = it->second;

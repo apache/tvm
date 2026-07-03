@@ -131,7 +131,12 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   // to prevent inlining LetStmt vars that appear in buffer definitions.
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
 
-  PrimExpr VisitExpr(const PrimExpr& expr) final { return analyzer_->Simplify(expr); }
+  Expr VisitExpr(const Expr& expr) final {
+    if (auto prim_expr = expr.as<PrimExpr>()) {
+      return analyzer_->Simplify(prim_expr.value());
+    }
+    return Parent::VisitExpr(expr);
+  }
 
   Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
 
@@ -143,7 +148,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BindNode* op) override {
-    PrimExpr value = this->VisitExpr(op->value);
+    PrimExpr value = this->VisitPrimExpr(op->value);
     // Bind in analyzer for constraint proving and simplification of
     // subsequent expressions.  Don't remove the Bind statement --
     // with flat Bind there's no body to inspect for usage patterns,
@@ -182,7 +187,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     }
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::if_then_else())) {
       if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
         if (cond.value()) {
@@ -195,7 +200,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     return Parent::VisitExpr_(op);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override { return Parent::VisitExpr_(op); }
+  Expr VisitExpr_(const BufferLoadNode* op) override { return Parent::VisitExpr_(op); }
 
   // eliminate useless stores
   Stmt VisitStmt_(const BufferStoreNode* op) override {

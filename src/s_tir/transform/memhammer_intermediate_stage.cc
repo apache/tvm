@@ -205,7 +205,7 @@ class BufferLoadReplacer : public StmtExprMutator {
   BufferLoadReplacer(const Buffer& tgt_buffer, const BufferLoad& new_buffer_load)
       : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) {
+  Expr VisitExpr_(const BufferLoadNode* op) {
     if (op->buffer.same_as(tgt_buffer_)) {
       return new_buffer_load_;
     }

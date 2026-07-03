@@ -197,7 +197,7 @@ class AutoPadder {
       explicit Rewriter(const ffi::Map<Buffer, Buffer>& buffer_map) : buffer_map_(buffer_map) {}
 
      private:
-      PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
+      Expr VisitExpr_(const BufferLoadNode* _op) final {
         BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
         BufferLoadNode* op = load.CopyOnWrite();
         if (buffer_map_.count(op->buffer)) {

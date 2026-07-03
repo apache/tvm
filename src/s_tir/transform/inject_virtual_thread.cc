@@ -44,7 +44,7 @@ class ExprTouched final : public StmtExprVisitor {
   explicit ExprTouched(const std::unordered_set<const VarNode*>& touched, bool check_write)
       : touched_var_(touched), check_write_(check_write) {}
 
-  void VisitExpr(const PrimExpr& n) final {
+  void VisitExpr(const Expr& n) final {
     // early stopping
     if (expr_touched_ && !check_write_) return;
     StmtExprVisitor::VisitExpr(n);
@@ -204,7 +204,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return stmt;
   }
   // Variable
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     TVM_FFI_ICHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
@@ -215,7 +215,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return analyzer_->Simplify(index + var_ * alloc_extent);
   }
   // Expression.
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
@@ -223,8 +223,8 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       auto it = alloc_remap_.find(buffer);
       if (it == alloc_remap_.end()) return StmtExprMutator::VisitExpr_(op);
       visit_touched_var_ = true;
-      PrimExpr offset = this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
-      PrimExpr extent = this->VisitExpr(op->args[3].as_or_throw<PrimExpr>());
+      PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
+      PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
       PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
 
@@ -243,7 +243,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return StmtExprMutator::VisitStmt_(op);
   }
   // BufferLoad
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(node));
   }
@@ -290,7 +290,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
   // Attribute
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
+    PrimExpr value = this->VisitPrimExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     } else {
@@ -304,7 +304,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Bind
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = this->VisitExpr(op->value);
+    PrimExpr value = this->VisitPrimExpr(op->value);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
@@ -318,7 +318,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   // For
   Stmt VisitStmt_(const ForNode* op) final {
     TVM_FFI_ICHECK(is_zero(op->min));
-    PrimExpr extent = this->VisitExpr(op->extent);
+    PrimExpr extent = this->VisitPrimExpr(op->extent);
     if (visit_touched_var_ && !vt_loop_injected_) {
       Stmt stmt = InjectVTLoop(ffi::GetRef<Stmt>(op), true);
       ++max_loop_depth_;
@@ -338,7 +338,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // IfThenElse
   Stmt VisitStmt_(const IfThenElseNode* op) final {
-    PrimExpr condition = this->VisitExpr(op->condition);
+    PrimExpr condition = this->VisitPrimExpr(op->condition);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
     }
@@ -425,7 +425,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     AllocBuffer node = ffi::GetRef<AllocBuffer>(op);
 
     ffi::Array<PrimExpr> shape =
-        op->buffer->shape.Map([this](const PrimExpr& s) { return this->VisitExpr(s); });
+        op->buffer->shape.Map([this](const PrimExpr& s) { return this->VisitPrimExpr(s); });
 
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(ffi::GetRef<Stmt>(op), true);

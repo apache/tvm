@@ -216,7 +216,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     return node;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
 
     auto it = dbuffer_info_.find(node->buffer->data.get());
@@ -258,7 +258,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     return buf;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     TVM_FFI_ICHECK(!dbuffer_info_.count(op));
     return ffi::GetRef<Var>(op);
   }

@@ -106,8 +106,8 @@ class TextureFlattener : public TextureLoweringBase {
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<BufferLoadNode>();
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(op->buffer);

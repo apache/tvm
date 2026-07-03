@@ -41,9 +41,8 @@ namespace tvm {
 namespace tirx {
 
 /*! \brief Visit TIR while tracking the ffi::reflection::AccessPath */
-class TIRVisitorWithPath
-    : protected ExprFunctor<void(const PrimExpr&, ffi::reflection::AccessPath)>,
-      protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
+class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflection::AccessPath)>,
+                           protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
  public:
   template <typename TObjectRef>
   void operator()(TObjectRef&& obj) {

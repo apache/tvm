@@ -96,7 +96,8 @@ class ForMatcher : public TensorizeComparator {
     return std::nullopt;
   }
 
-  bool VisitExpr(const PrimExpr& lhs, const PrimExpr& rhs) final {
+  bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
+    PrimExpr lhs = expr.as_or_throw<PrimExpr>();
     if (const auto* op = rhs.as<VarNode>()) {
       if (pattern_vars_.count(ffi::GetRef<Var>(op))) {
         // special case for pattern vars

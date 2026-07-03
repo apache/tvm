@@ -180,7 +180,7 @@ class BufferReplacer : private StmtExprMutator {
   explicit BufferReplacer(ffi::Map<Buffer, Buffer> buffer_map)
       : buffer_map_(std::move(buffer_map)) {}
 
-  PrimExpr VisitExpr_(const BufferLoadNode* load) final {
+  Expr VisitExpr_(const BufferLoadNode* load) final {
     auto it = buffer_map_.find(load->buffer);
     return it != buffer_map_.end() ? BufferLoad((*it).second, {0}) : ffi::GetRef<BufferLoad>(load);
   }
@@ -188,7 +188,7 @@ class BufferReplacer : private StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* store) final {
     auto it = buffer_map_.find(store->buffer);
     if (it != buffer_map_.end()) {
-      PrimExpr value = StmtExprMutator::VisitExpr(store->value);
+      PrimExpr value = StmtExprMutator::VisitPrimExpr(store->value);
       return BufferStore((*it).second, std::move(value), {0});
     } else {
       return StmtMutator::VisitStmt_(store);

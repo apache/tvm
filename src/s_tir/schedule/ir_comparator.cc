@@ -92,7 +92,8 @@ bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
   return equal;
 }
 
-bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
+bool TensorizeComparator::VisitExpr(const Expr& expr, const PrimExpr& other) {
+  PrimExpr n = expr.as_or_throw<PrimExpr>();
   bool equal = n.same_as(other) ||
                ((n->type_index() == other->type_index()) && n.ty().code() == other.ty().code() &&
                 ExprComparator::VisitExpr(n, other)) ||

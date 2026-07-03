@@ -50,7 +50,7 @@ using namespace tirx;
 /*!
  * \brief Code generator into SPIRV
  */
-class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
+class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
                      public StmtFunctor<void(const Stmt&)> {
  public:
   /*!

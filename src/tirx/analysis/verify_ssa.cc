@@ -41,7 +41,7 @@ class SSAVerifier final : public StmtExprVisitor {
  public:
   bool is_ssa_{true};
 
-  void VisitExpr(const PrimExpr& n) final {
+  void VisitExpr(const Expr& n) final {
     if (!is_ssa_) return;
     StmtExprVisitor::VisitExpr(n);
   }

@@ -542,7 +542,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  PrimExpr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const LetNode* op) final {
     if (hoisted_let_bindings.count(op->var.get())) {
       return this->VisitExpr(op->body);
     } else {

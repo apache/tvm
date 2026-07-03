@@ -564,30 +564,35 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   explicit Impl(AnalyzerObj* parent) : Rewriter(parent) {}
 
   PrimExpr CanonicalSimplify(PrimExpr expr) {
-    expr = operator()(expr);
+    expr = VisitPrimExpr(expr);
     return expr;
   }
 
   // override the original mutate function.
-  PrimExpr VisitExpr(const PrimExpr& input_expr) final {
-    auto expr = Rewriter::VisitExpr(input_expr);
-    return Normalize(expr);
+  Expr VisitExpr(const Expr& input_expr) final {
+    Expr expr = Rewriter::VisitExpr(input_expr);
+    if (auto prim_expr = expr.as<PrimExpr>()) {
+      return Normalize(prim_expr.value());
+    }
+    return expr;
   }
 
   // Normal mutation without normalization.
-  PrimExpr CanonicalMutate(PrimExpr expr) { return Rewriter::VisitExpr(expr); }
+  PrimExpr CanonicalMutate(PrimExpr expr) {
+    return Rewriter::VisitExpr(expr).as_or_throw<PrimExpr>();
+  }
 
   using Rewriter::VisitExpr_;
-  PrimExpr VisitExpr_(const AddNode* op) final;
-  PrimExpr VisitExpr_(const SubNode* op) final;
-  PrimExpr VisitExpr_(const MulNode* op) final;
-  PrimExpr VisitExpr_(const DivNode* op) final;
-  PrimExpr VisitExpr_(const ModNode* op) final;
-  PrimExpr VisitExpr_(const FloorDivNode* op) final;
-  PrimExpr VisitExpr_(const FloorModNode* op) final;
-  PrimExpr VisitExpr_(const ReduceNode* op) final;
-  PrimExpr VisitExpr_(const CastNode* op) final;
-  PrimExpr VisitExpr_(const LTNode* op) final;
+  Expr VisitExpr_(const AddNode* op) final;
+  Expr VisitExpr_(const SubNode* op) final;
+  Expr VisitExpr_(const MulNode* op) final;
+  Expr VisitExpr_(const DivNode* op) final;
+  Expr VisitExpr_(const ModNode* op) final;
+  Expr VisitExpr_(const FloorDivNode* op) final;
+  Expr VisitExpr_(const FloorModNode* op) final;
+  Expr VisitExpr_(const ReduceNode* op) final;
+  Expr VisitExpr_(const CastNode* op) final;
+  Expr VisitExpr_(const LTNode* op) final;
 
  private:
   /*!
@@ -714,7 +719,7 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
   PrimExpr SimplifyReduceCombiner(const ReduceNode* op);
 };
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -738,7 +743,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
   return ret;
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -762,7 +767,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
   return ret;
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -932,7 +937,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   return true;
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -996,7 +1001,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
   }
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -1066,7 +1071,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
             }
             // Apply floormod(floordiv_result, m) to complete the identity
             PrimExpr div_result = Normalize(lhs);
-            return this->VisitExpr(floormod(div_result, IntImm(a.ty(), new_mod)));
+            return this->VisitPrimExpr(floormod(div_result, IntImm(a.ty(), new_mod)));
           }
         }
       }
@@ -1113,7 +1118,7 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
       // Do a recursive call to simplify the mod with the new factor.
       if (new_upper_factor < lhs->upper_factor && lhs->upper_factor != SplitExprNode::kPosInf) {
         auto updated = ToSplitExpr(
-            this->VisitExpr(ModImpl(lhs->index, IntImm(lhs.ty(), new_upper_factor), div_mode)));
+            this->VisitPrimExpr(ModImpl(lhs->index, IntImm(lhs.ty(), new_upper_factor), div_mode)));
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
           auto ret = SplitDivConst(updated, lhs->lower_factor, div_mode);
@@ -1142,7 +1147,7 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
   return lhs;
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -1216,7 +1221,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ModNode* op) {
   }
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -1286,7 +1291,7 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
   // First simplify the results
   ffi::Array<PrimExpr> simplified_result;
   for (const auto& res : op->combiner->result) {
-    PrimExpr new_res = this->VisitExpr(res);
+    PrimExpr new_res = this->VisitPrimExpr(res);
     simplified_result.push_back(new_res);
   }
 
@@ -1339,7 +1344,7 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
     if (used[i]) {
       // We simplify the result and identity, but not the source
       new_result.push_back(simplified_result[i]);
-      new_identity.push_back(this->VisitExpr(op->combiner->identity_element[i]));
+      new_identity.push_back(this->VisitPrimExpr(op->combiner->identity_element[i]));
       new_lhs.push_back(op->combiner->lhs[i]);
       new_rhs.push_back(op->combiner->rhs[i]);
       new_source.push_back(op->source[i]);
@@ -1354,31 +1359,31 @@ PrimExpr CanonicalSimplifier::Impl::SimplifyReduceCombiner(const ReduceNode* op)
   return Reduce(new_combiner, new_source, op->axis, op->condition, new_value_index, new_init);
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const ReduceNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const ReduceNode* op) {
   // Recursively call simplification when necessary.
-  PrimExpr ret = RewriteSimplifier::Impl::VisitExpr_(op);
+  PrimExpr ret = RewriteSimplifier::Impl::VisitExpr_(op).as_or_throw<PrimExpr>();
   op = ret.as<ReduceNode>();
   // already been simplified by const reduction axis removal
   if (op == nullptr) return ret;
   if (op->axis.empty()) {
     if (!op->init.empty()) {
-      return this->VisitExpr(Select(op->condition,
-                                    (*op->combiner.get())(op->init, op->source)[op->value_index],
-                                    op->init[op->value_index]));
+      return this->VisitPrimExpr(
+          Select(op->condition, (*op->combiner.get())(op->init, op->source)[op->value_index],
+                 op->init[op->value_index]));
     }
     // Note that here we assume that the identity element is indeed identity. Without this
     // assumption we would have to perform a single iteration of the loop, i.e. use
     // `(*op->combiner.get())(op->combineop->identity_element, op->source)[op->value_index]`
     // instead of `op->source[op->value_index]`. The former may be more difficult to simplify.
-    return this->VisitExpr(Select(op->condition, op->source[op->value_index],
-                                  op->combiner->identity_element[op->value_index]));
+    return this->VisitPrimExpr(Select(op->condition, op->source[op->value_index],
+                                      op->combiner->identity_element[op->value_index]));
   }
   // combiner simplification.
   ret = SimplifyReduceCombiner(op);
   return ret;
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   if (!IsIndexTypedExpr(op)) {
     return Rewriter::VisitExpr_(op);
   }
@@ -1402,7 +1407,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
   return Rewriter::VisitExpr_(op);
 }
 
-PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
+Expr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
   // First convert a < b into a - b < 0
   PrimExpr expr = this->CanonicalMutate(op->a - op->b);
   // Case: x0 * s0 + x1 * s1 + ... + xn + c < 0, let d = gcd(s0, s1, ..., s{n-1}, c)

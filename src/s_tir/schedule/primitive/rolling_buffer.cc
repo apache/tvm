@@ -373,7 +373,7 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad stmt = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     if (stmt->buffer.same_as(info_->old_buffer)) {
       BufferLoadNode* n = stmt.CopyOnWrite();
