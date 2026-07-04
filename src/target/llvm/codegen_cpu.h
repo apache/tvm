@@ -92,15 +92,12 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_ffi_c_func_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_lambda_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_func_call_{nullptr};
-  llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_by_c_str_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_from_c_str_parts_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
-  // Lazy entry for function call.
-  llvm::FunctionType* ftype_tvm_static_init_callback_{nullptr};
-  llvm::FunctionType* ftype_tvm_static_init_{nullptr};
 
  private:
   // the parallel group information
@@ -117,7 +114,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
   llvm::Value* RuntimeTVMFFIFunctionCall();
-  llvm::Value* RuntimeTVMGetFuncFromEnv();
+  llvm::Value* RuntimeTVMFFIEnvModLookupFromImports();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStr();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStrParts();
   // Create a temp function to simplify error raising.
@@ -143,8 +140,6 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* CreateCallPacked(const CallNode* op);
   // Create trace call into tvm packed function.
   llvm::Value* CreateCallTracePacked(const CallNode* op);
-  // Create static initialization
-  void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch
   void CreateParallelLaunch(const Stmt& body, int num_task, std::string name = "");
   // Create a new compute scope.
@@ -161,14 +156,14 @@ class CodeGenCPU : public CodeGenLLVM {
   // Context for injection lookup
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   llvm::GlobalVariable* gv_tvm_ffi_func_call_{nullptr};
-  llvm::GlobalVariable* gv_tvm_get_func_from_env_{nullptr};
+  llvm::GlobalVariable* gv_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
   llvm::GlobalVariable* gv_tvm_ffi_set_last_error_c_str_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
   std::unordered_map<ffi::String, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_ffi_func_call_{nullptr};
-  llvm::Function* f_tvm_get_func_from_env_{nullptr};
+  llvm::Function* f_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_by_c_str_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_from_c_str_parts_{nullptr};
   llvm::Function* f_tvm_parallel_launch_{nullptr};

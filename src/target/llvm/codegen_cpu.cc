@@ -128,9 +128,10 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
       t_void_,
       {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(llvmGetPointerTo(t_char_, 0), 0), t_int_},
       false);
-  // Defined in include/tvm/runtime/c_backend_api.h:
-  // int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
-  ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
+  // Defined in include/tvm/ffi/extra/c_env_api.h:
+  // int TVMFFIEnvModLookupFromImports(TVMFFIObjectHandle library_ctx, const char* func_name,
+  //                                   TVMFFIObjectHandle* out);
+  ftype_tvm_ffi_env_mod_lookup_from_imports_ = llvm::FunctionType::get(
       t_int_, {t_void_p_, llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_tvm_func_handle_, 0)},
       false);
   // Defined in include/tvm/runtime/c_backend_api.h:
@@ -141,12 +142,6 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   // int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
   ftype_tvm_parallel_barrier_ = llvm::FunctionType::get(
       t_int_, {t_int_, llvmGetPointerTo(t_tvm_parallel_group_env_, 0)}, false);
-  ftype_tvm_static_init_callback_ = llvm::FunctionType::get(t_int_, {t_void_p_}, false);
-  ftype_tvm_static_init_ = llvm::FunctionType::get(
-      t_int_,
-      {llvmGetPointerTo(t_void_p_, 0), llvmGetPointerTo(ftype_tvm_static_init_callback_, 0),
-       t_void_p_, t_int_},
-      false);
   // initialize TVM runtime API
   if (system_lib_prefix_.has_value() && !target_c_runtime) {
     // We will need this in environment for backward registration.
@@ -168,9 +163,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
     f_tvm_ffi_set_raised_from_c_str_parts_ = llvm::Function::Create(
         ftype_tvm_ffi_error_set_raised_from_c_str_parts_, llvm::Function::ExternalLinkage,
         "TVMFFIErrorSetRaisedFromCStrParts", module_.get());
-    f_tvm_get_func_from_env_ =
-        llvm::Function::Create(ftype_tvm_get_func_from_env_, llvm::Function::ExternalLinkage,
-                               "TVMBackendGetFuncFromEnv", module_.get());
+    f_tvm_ffi_env_mod_lookup_from_imports_ = llvm::Function::Create(
+        ftype_tvm_ffi_env_mod_lookup_from_imports_, llvm::Function::ExternalLinkage,
+        "TVMFFIEnvModLookupFromImports", module_.get());
     f_tvm_parallel_launch_ =
         llvm::Function::Create(ftype_tvm_parallel_launch_, llvm::Function::ExternalLinkage,
                                "TVMBackendParallelLaunch", module_.get());
@@ -462,8 +457,9 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
     if (!dynamic_lookup) {
       gv_tvm_ffi_func_call_ =
           InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_func_call_, 0), "__TVMFFIFunctionCall");
-      gv_tvm_get_func_from_env_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_get_func_from_env_, 0),
-                                                 "__TVMBackendGetFuncFromEnv");
+      gv_tvm_ffi_env_mod_lookup_from_imports_ =
+          InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_env_mod_lookup_from_imports_, 0),
+                         "__TVMFFIEnvModLookupFromImports");
       gv_tvm_ffi_set_last_error_c_str_ =
           InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_error_set_raised_by_c_str_, 0),
                          "__TVMFFIErrorSetRaisedFromCStr");
@@ -689,46 +685,6 @@ llvm::Value* CodeGenCPU::CreateStaticHandle() {
   return gv;
 }
 
-void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& body) {
-  // closure data
-  llvm::Function* f =
-      llvm::Function::Create(ftype_tvm_static_init_callback_, llvm::Function::PrivateLinkage,
-                             "__tvm_static_init_lambda", module_.get());
-  SetTargetAttributes(f);
-  llvm::Value* gv = CreateStaticHandle();
-  llvm::Function* finit = module_->getFunction(init_fname);
-  if (finit == nullptr) {
-    finit = llvm::Function::Create(ftype_tvm_static_init_, llvm::Function::ExternalLinkage,
-                                   init_fname, module_.get());
-  }
-  // allocate and setup the closure, call the closure.
-  uint64_t nbytes;
-  ffi::Array<Var> vfields = tirx::UndefinedVars(body, {});
-  TypedPointer cdata = PackClosureData(vfields, &nbytes);
-  llvm::BasicBlock* init_end = CheckCallSuccess(builder_->CreateCall(
-      finit, {gv, f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(nbytes)}));
-  // Setup the closure function.
-  auto* lambda_entry = llvm::BasicBlock::Create(*llvm_target_->GetContext(), "entry", f);
-  builder_->SetInsertPoint(lambda_entry);
-  auto it = f->arg_begin();
-  cdata.addr = builder_->CreatePointerCast(&(*it++), cdata.addr->getType());
-  // setup new variable map, swap it with current var context.
-  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
-  UnpackClosureData(cdata, vfields, &new_vmap);
-  TVM_FFI_ICHECK(parallel_env_.penv == nullptr);
-  auto new_analyzer = arith::Analyzer();
-  std::swap(function_, f);
-  std::swap(analyzer_, new_analyzer);
-  std::swap(var_map_, new_vmap);
-  this->VisitStmt(body);
-  builder_->CreateRet(ConstInt32(0));
-  // swap the var map back, now we are back on track.
-  std::swap(var_map_, new_vmap);
-  std::swap(analyzer_, new_analyzer);
-  std::swap(function_, f);
-  builder_->SetInsertPoint(init_end);
-}
-
 llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   // We will store the packed function handle in global space.
   // Initialize it during the first call.
@@ -770,7 +726,8 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
                                                          llvm::Align(gv_mod_ctx_->getAlignment()));
   ctx_load->setMetadata(
       "tbaa", md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
-  auto env_callee = llvm::FunctionCallee(ftype_tvm_get_func_from_env_, RuntimeTVMGetFuncFromEnv());
+  auto env_callee = llvm::FunctionCallee(ftype_tvm_ffi_env_mod_lookup_from_imports_,
+                                         RuntimeTVMFFIEnvModLookupFromImports());
   llvm::Value* retcode = builder_->CreateCall(env_callee, {ctx_load, GetConstString(fname), out});
   init_block = CheckCallSuccess(retcode);
   llvm::Value* loaded_handle =
@@ -899,9 +856,11 @@ llvm::Value* CodeGenCPU::RuntimeTVMFFIFunctionCall() {
   return GetContextPtr(gv_tvm_ffi_func_call_);
 }
 
-llvm::Value* CodeGenCPU::RuntimeTVMGetFuncFromEnv() {
-  if (f_tvm_get_func_from_env_ != nullptr) return f_tvm_get_func_from_env_;
-  return GetContextPtr(gv_tvm_get_func_from_env_);
+llvm::Value* CodeGenCPU::RuntimeTVMFFIEnvModLookupFromImports() {
+  if (f_tvm_ffi_env_mod_lookup_from_imports_ != nullptr) {
+    return f_tvm_ffi_env_mod_lookup_from_imports_;
+  }
+  return GetContextPtr(gv_tvm_ffi_env_mod_lookup_from_imports_);
 }
 llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStr() {
   if (f_tvm_ffi_set_raised_by_c_str_ != nullptr) return f_tvm_ffi_set_raised_by_c_str_;

@@ -266,11 +266,3 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   DeviceAPIManager::Get(dev)->FreeWorkspace(dev, ptr);
   return 0;
 }
-
-int TVMBackendRunOnce(void** handle, int (*f)(void*), void* cdata, int nbytes) {
-  if (*handle == nullptr) {
-    *handle = reinterpret_cast<void*>(1);
-    return (*f)(cdata);
-  }
-  return 0;
-}
