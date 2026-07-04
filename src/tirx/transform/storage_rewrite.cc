@@ -1706,7 +1706,12 @@ class VectorTypeRewriter : public StmtExprMutator {
       const auto& info = pair.second;
       var_remap.Set(info.old_buffer_var, info.new_buffer_var);
     }
-    n->body = Substitute(n->body, var_remap);
+    auto remap_var = [&var_remap](const Var& var) -> ffi::Optional<Expr> {
+      if (auto replacement = var_remap.Get(var)) return Expr(replacement.value());
+      return std::nullopt;
+    };
+    n->body = SubstituteWithDataTypeLegalization(
+        n->body, std::function<ffi::Optional<Expr>(const Var&)>(remap_var));
 
     // Remap the argument list to use the new buffer variables.
     ffi::Array<Var> new_params;

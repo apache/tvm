@@ -519,7 +519,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto node = Parent::VisitExpr_(op).as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();
-    if (!gvar) return node.as_or_throw<PrimExpr>();
+    if (!gvar) return node;
 
     auto it = device_info_map_.find(gvar);
     TVM_FFI_ICHECK(it != device_info_map_.end())
@@ -563,7 +563,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       if (same_target) {
         // Calls within the same target may be handled at codegen time
         // as internal subroutine calls.
-        return node.as_or_throw<PrimExpr>();
+        return node;
       }
 
       bool same_device_type =
@@ -578,8 +578,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
-        return Call(node->ty.as_or_throw<PrimType>(), builtin::call_extern(), args)
-            .as_or_throw<PrimExpr>();
+        return Call(node->ty, builtin::call_extern(), args);
       }
     }
 

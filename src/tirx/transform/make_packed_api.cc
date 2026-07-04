@@ -148,22 +148,20 @@ class SubroutineCallRewriter : public StmtExprMutator {
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
       if (auto symbol = packed_func_methods.Get(gvar)) {
-        ffi::Array<PrimExpr> cpacked_args;
+        ffi::Array<Expr> cpacked_args;
         cpacked_args.push_back(tirx::StringImm(symbol.value()));
-        for (const PrimExpr& arg : node->args.as_or_throw<ffi::Array<PrimExpr>>()) {
+        for (const Expr& arg : node->args) {
           cpacked_args.push_back(arg);
         }
 
         // push an empty handle to be compatible with current cpacked convention
         cpacked_args.push_back(tirx::ConstHandle(0));
         made_change_ = true;
-        return Call(node->ty.as_or_throw<PrimType>(), tirx::builtin::tvm_call_cpacked(),
-                    cpacked_args)
-            .as_or_throw<PrimExpr>();
+        return Call(node->ty, tirx::builtin::tvm_call_cpacked(), cpacked_args);
       }
     }
 
-    return node.as_or_throw<PrimExpr>();
+    return node;
   }
   const ffi::Map<GlobalVar, ffi::String>& packed_func_methods;
   bool made_change_{false};

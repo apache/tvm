@@ -766,9 +766,8 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
 }
 
 CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimExpr>& args,
-                                                         const PrimType& r_type,
-                                                         const int64_t begin, const int64_t end,
-                                                         bool use_env_lookup) {
+                                                         const Type& r_type, const int64_t begin,
+                                                         const int64_t end, bool use_env_lookup) {
   std::string func_name = [&]() {
     auto ptr = args[0].as<StringImmNode>();
     TVM_FFI_ICHECK(ptr) << "Expected first argument of Call to be "
@@ -814,17 +813,31 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
 
   PackedCall pc = {nullptr};
 
-  if (!r_type.IsVoid()) {
-    // Load the return value and cast it to the designated type (r_type).
-    PrimType r_api_type = tirx::APIType(r_type);
-    llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
+  auto prim_r_type = r_type.as<PrimType>();
+  bool is_void = IsVoidType(r_type) || (prim_r_type && prim_r_type.value().IsVoid());
+  if (!is_void) {
+    // Load the return value using its packed-ABI representation, then cast it
+    // to the exact type requested by the TIR call.
+    llvm::Type* llvm_r_api_type = [&]() -> llvm::Type* {
+      if (prim_r_type) {
+        return DTypeToLLVMType(tirx::APIType(prim_r_type.value()));
+      }
+      TVM_FFI_ICHECK(r_type.as<PointerTypeNode>())
+          << "Packed calls may return only primitive or pointer types, but got " << r_type;
+      return t_void_p_;
+    }();
     llvm::Value* result_value =
         builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(2)});
     llvm::Value* load_ptr =
         builder_->CreatePointerCast(result_value, llvmGetPointerTo(llvm_r_api_type, 0));
     llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
 
-    pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
+    if (prim_r_type) {
+      PrimType r_api_type = tirx::APIType(prim_r_type.value());
+      pc.ret_value = CreateCast(r_api_type, prim_r_type.value(), rvalue);
+    } else {
+      pc.ret_value = builder_->CreatePointerCast(rvalue, GetLLVMType(r_type));
+    }
     llvm::Value* result_type_index =
         builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(0)});
 
@@ -839,17 +852,17 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimEx
 llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 4U);
   bool use_string_lookup = op->op.same_as(builtin::tvm_call_packed_lowered());
-  PackedCall pc = MakeCallPackedLowered(
-      op->args.as_or_throw<ffi::Array<PrimExpr>>(), op->ty.as_or_throw<PrimType>(),
-      op->args[2].as<IntImmNode>()->value, op->args[3].as<IntImmNode>()->value, use_string_lookup);
+  PackedCall pc = MakeCallPackedLowered(op->args.as_or_throw<ffi::Array<PrimExpr>>(), op->ty,
+                                        op->args[2].as<IntImmNode>()->value,
+                                        op->args[3].as<IntImmNode>()->value, use_string_lookup);
   return pc.ret_value;
 }
 
 llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
   TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-  PackedCall pc = MakeCallPackedLowered(
-      op->args.as_or_throw<ffi::Array<PrimExpr>>(), op->ty.as_or_throw<PrimType>(),
-      op->args[2].as<IntImmNode>()->value, op->args[3].as<IntImmNode>()->value, true);
+  PackedCall pc = MakeCallPackedLowered(op->args.as_or_throw<ffi::Array<PrimExpr>>(), op->ty,
+                                        op->args[2].as<IntImmNode>()->value,
+                                        op->args[3].as<IntImmNode>()->value, true);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   // Get traced value.
   llvm::Value* traced_value = MakeValue(op->args[4].as_or_throw<PrimExpr>());

@@ -386,16 +386,13 @@ class BuiltinLower : public StmtExprMutator {
   Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_call_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
-                                   /* use_last_value_as_traced_value*/ false)
-          .as_or_throw<PrimExpr>();
+                                   /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered(),
-                                   /* use_last_value_as_traced_value*/ false)
-          .as_or_throw<PrimExpr>();
+                                   /* use_last_value_as_traced_value*/ false);
     } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_trace_packed_lowered(),
-                                   /* use_last_value_as_traced_value*/ true)
-          .as_or_throw<PrimExpr>();
+                                   /* use_last_value_as_traced_value*/ true);
     } else if (op->op.same_as(builtin::anylist_setitem_call_packed())) {
       return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered());
     } else if (op->op.same_as(builtin::anylist_setitem_call_cpacked())) {
@@ -473,7 +470,7 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   // call shape
-  PrimExpr MakeShape(const CallNode* op) {
+  Expr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()
     TVM_FFI_ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
@@ -483,7 +480,7 @@ class BuiltinLower : public StmtExprMutator {
     }
     int64_t stack_begin = scope.run_sizes.shape_stack;
     scope.run_sizes.shape_stack += op->args.size();
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
@@ -504,21 +501,12 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<CallNode>();
 
-    auto as_runtime_handle = [](const Expr& value) -> PrimExpr {
-      if (auto prim_value = value.as<PrimExpr>()) {
-        return prim_value.value();
-      }
-      TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
-          << "Expected a primitive or pointer expression, but got " << value->ty;
-      return Call(PrimType::Handle(), builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
-    };
-
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorData,
-                                       as_runtime_handle(op->args[0])));
-    prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorShape,
-                                       as_runtime_handle(op->args[1])));
-    PrimExpr strides = as_runtime_handle(op->args[2]);
-    if (!strides.defined() || is_zero(strides)) {
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_array, idx, builtin::kDLTensorData, op->args[0]));
+    prep_seq.emplace_back(
+        TVMStructSet(scope.stack_array, idx, builtin::kDLTensorShape, op->args[1]));
+    Expr strides = op->args[2];
+    if (auto prim_strides = strides.as<PrimExpr>(); prim_strides && is_zero(prim_strides.value())) {
       strides = ConstHandle(0);
     }
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorStrides, strides));
@@ -651,7 +639,7 @@ class BuiltinLower : public StmtExprMutator {
     // The extra one slot is for return value.
     scope.run_sizes.arg_stack += num_args + 1;
     // Specially handle the buffer packed intrinsic
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
 
     for (size_t i = 0; i < num_args; ++i) {
@@ -688,7 +676,7 @@ class BuiltinLower : public StmtExprMutator {
       // used by call_packed_traced
       packed_args.push_back(op->args[op->args.size() - 1].as_or_throw<PrimExpr>());
     }
-    return Call(op->ty.as_or_throw<PrimType>(), lowered_packed_op, packed_args);
+    return Call(op->ty, lowered_packed_op, packed_args);
   }
 
   Stmt MakeNdMemAllocWithScope(const BindNode* let, const CallNode* call) {

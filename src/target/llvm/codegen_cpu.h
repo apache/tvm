@@ -138,7 +138,7 @@ class CodeGenCPU : public CodeGenLLVM {
     llvm::Value* ret_type_index;
     llvm::BasicBlock* end_block;
   };
-  PackedCall MakeCallPackedLowered(const ffi::Array<PrimExpr>& args, const PrimType& r_type,
+  PackedCall MakeCallPackedLowered(const ffi::Array<PrimExpr>& args, const Type& r_type,
                                    const int64_t begin, const int64_t end, bool use_string_lookup);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);

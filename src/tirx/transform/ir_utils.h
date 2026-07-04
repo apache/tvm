@@ -107,14 +107,14 @@ inline PrimExpr TVMStructGet(PrimType dtype, Var handle, int index,
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, PrimType dtype, int offset) {
+inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
   Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name_hint, 0, 0, kDefault, {}, Span(),
                    std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset_expr});
 
-  return Call(PrimType::Handle(), builtin::address_of(), {buf_load}).as_or_throw<PrimExpr>();
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -123,7 +123,7 @@ inline PrimExpr AddressOffset(Var handle, PrimType dtype, int offset) {
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
+inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     PrimType offset_ty = offset.ty();
     offset = offset * IntImm(offset_ty, dtype.lanes());
@@ -135,7 +135,7 @@ inline PrimExpr AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
                    Span(), std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset});
 
-  return Call(PrimType::Handle(), builtin::address_of(), {buf_load}).as_or_throw<PrimExpr>();
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -146,9 +146,9 @@ inline PrimExpr AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
  * \param value The value to be set.
  * \return the set stmt.
  */
-inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, PrimExpr value) {
-  ffi::Array<PrimExpr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
-                               value};
+inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, Expr value) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
+                           value};
   return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args).as_or_throw<PrimExpr>());
 }
 

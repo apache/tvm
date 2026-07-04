@@ -374,11 +374,18 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   auto it = equal_map_.find(lhs);
   // If there is already a mapping
   if (it != equal_map_.end()) return it->second.same_as(rhs);
+  auto lhs_prim_type = lhs->ty.as<PrimType>();
+  auto rhs_prim_type = rhs->ty.as<PrimType>();
+  if (!lhs_prim_type || !rhs_prim_type) {
+    if (!ffi::StructuralEqual()(lhs->ty, rhs->ty)) return false;
+    equal_map_[lhs] = rhs;
+    return true;
+  }
   // Otherwise remap lhs to rhs
   equal_map_[lhs] = rhs;
   // Cast if necessary. This allows the workload and the tensor intrin to have different dtypes in
   // the indices.
-  analyzer_->Bind(lhs, cast(lhs.ty(), rhs));
+  analyzer_->Bind(lhs, cast(lhs_prim_type.value(), rhs.as_or_throw<PrimExpr>()));
   return true;
 }
 

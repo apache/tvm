@@ -238,10 +238,14 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   Call before = ffi::GetRef<Call>(op);
-  PrimExpr e = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be CallNode"
                                 << ", but get " << e->GetTypeKey();
+  if (!op->ty.as<PrimTypeNode>()) {
+    return e;
+  }
+  PrimExpr prim_e = e.as_or_throw<PrimExpr>();
   if (op->op.same_as(builtin::shift_right())) {
     return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::shift_left())) {
@@ -276,9 +280,9 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
                    (after_dtype.bits() == 32 || after_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
         << after_dtype;
-    return e - after_dtype.bits() + before_dtype.bits();
+    return prim_e - after_dtype.bits() + before_dtype.bits();
   }
-  return e;
+  return prim_e;
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
@@ -661,7 +665,11 @@ Expr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 Expr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  PrimType dtype = op->ty.as_or_throw<PrimType>();
+  auto dtype_opt = op->ty.as<PrimType>();
+  if (!dtype_opt) {
+    return DataTypeLegalizer::VisitExpr_(op);
+  }
+  PrimType dtype = dtype_opt.value();
   if (is_enabled_ && CanRewriteDType(dtype) && dtype->dtype != target_data_type_->dtype &&
       !var_remap_.count(op)) {
     var_remap_[op] = ffi::GetRef<Var>(op).copy_with_dtype(target_data_type_);

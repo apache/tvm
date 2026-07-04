@@ -531,7 +531,6 @@ PrimExpr TVMFFIABIBuilder::DecodeParamFloat(int param_index, const Var& type_ind
 
 void TVMFFIABIBuilder::DecodeParam(int param_index) {
   Var param = params_[param_index];
-  PrimType dtype = param.ty();
 
   // Extract type_index from packed_args
   Var type_index(param->name_hint + ".type_index", PrimType::Int(32));
@@ -539,6 +538,18 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
                                              {v_packed_args_, IntImm::Int32(param_index),
                                               IntImm::Int32(builtin::kTVMFFIAnyTypeIndex)})
                                             .as_or_throw<PrimExpr>()));
+
+  ffi::reflection::AccessPath param_path =
+      ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
+
+  if (param->ty.as<PointerTypeNode>()) {
+    PrimExpr handle_value = DecodeParamOpaqueHandle(param_index, type_index);
+    Expr pointer_value = Call(param->ty, builtin::reinterpret(), {handle_value});
+    BindPointer(param, pointer_value, param_path, true);
+    return;
+  }
+
+  PrimType dtype = param.ty();
 
   // Type-check and load value via per-dtype dispatch
   PrimExpr arg_value;
@@ -554,8 +565,6 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   }
 
   // Bind scalar param to loaded value (defines vars before buffer binds reference them)
-  ffi::reflection::AccessPath param_path =
-      ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
   BindScalar(param, arg_value, param_path, true);
 }
 
