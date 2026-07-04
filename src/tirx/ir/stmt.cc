@@ -153,7 +153,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
 
   // When extent, min or step is an IntImm but has narrower dtype than loop_var
   // we directly promote them without raising errors.
-  auto try_promote_imm_dtype = [&](const PrimExpr& e) {
+  auto try_promote_imm_dtype = [&](const PrimExpr& e) -> PrimExpr {
     PrimType e_ty = e.ty();
     PrimType loop_var_ty = loop_var.ty();
     TVM_FFI_ICHECK(e_ty.bits() <= loop_var_ty.bits())
