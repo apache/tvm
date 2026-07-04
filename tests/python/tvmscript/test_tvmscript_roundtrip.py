@@ -2499,12 +2499,25 @@ def test_void_ptr_vs_handle():
     def void_ptr(out_ret_value: T.handle("void")):
         T.evaluate(out_ret_value)
 
-    # Generates PointerType::VoidPointer()
+    # Generates PointerType::VoidPointerTy()
     @T.prim_func(s_tir=True)
     def handle(out_ret_value: T.handle):
         T.evaluate(out_ret_value)
 
     tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
+    script = void_ptr.script()
+    assert "out_ret_value: T.handle" in script
+    assert 'T.handle("void")' not in script
+    tvm.ir.assert_structural_equal(void_ptr, tvm.script.from_source(script))
+
+    @T.prim_func(s_tir=True)
+    def scoped_void_ptr(out_ret_value: T.handle("void", "shared")):
+        T.evaluate(out_ret_value)
+
+    scoped_script = scoped_void_ptr.script()
+    assert 'out_ret_value: T.handle(storage_scope="shared")' in scoped_script
+    assert 'T.handle("void"' not in scoped_script
+    tvm.ir.assert_structural_equal(scoped_void_ptr, tvm.script.from_source(scoped_script))
 
 
 def void_ptr():

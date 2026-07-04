@@ -217,7 +217,7 @@ class Buffer : public ffi::ObjectRef {
    * \param offset The offset of ptr.
    * \param input_extent The extent of ptr.
    */
-  TVM_DLL Expr access_ptr(int access_mask, PointerType ptr_type = PointerType::VoidPointer(),
+  TVM_DLL Expr access_ptr(int access_mask, PointerType ptr_type = PointerType::VoidPointerTy(),
                           int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
                           ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
   /*!

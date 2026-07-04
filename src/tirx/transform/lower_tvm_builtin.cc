@@ -107,8 +107,8 @@ class BuiltinLower : public StmtExprMutator {
   // Record stack frame for existing scope.
   struct AllocaScope {
     Buffer stack_shape;
-    Var stack_array = Var("stack_array", PointerType::VoidPointer());
-    Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointer());
+    Var stack_array = Var("stack_array", PointerType::VoidPointerTy());
+    Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointerTy());
 
     StackSizes max_sizes;
     StackSizes run_sizes;
@@ -536,7 +536,8 @@ class BuiltinLower : public StmtExprMutator {
                                        cast(PrimType::Int(32), device_id_.value())));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorDeviceType,
                                        cast(PrimType::Int(32), device_type_.value())));
-    return TVMStructGet(PointerType::VoidPointer(), scope.stack_array, idx, builtin::kDLTensorAddr);
+    return TVMStructGet(PointerType::VoidPointerTy(), scope.stack_array, idx,
+                        builtin::kDLTensorAddr);
   }
 
   void SetPackedArg(Expr arg, const Var& args_stack, size_t stack_offset,

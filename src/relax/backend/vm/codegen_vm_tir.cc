@@ -88,19 +88,19 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
 
   Expr RegListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tvm::Call(tvm::PointerType::VoidPointer(), tirx::builtin::anylist_getitem(),
+    return tvm::Call(tvm::PointerType::VoidPointerTy(), tirx::builtin::anylist_getitem(),
                      {reg_anylist_handle_, ConstInt32(slot)});
   }
 
   Expr ConstListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tvm::Call(tvm::PointerType::VoidPointer(), tirx::builtin::anylist_getitem(),
+    return tvm::Call(tvm::PointerType::VoidPointerTy(), tirx::builtin::anylist_getitem(),
                      {const_anylist_handle_, ConstInt32(slot)});
   }
 
   Expr FuncListGet(int64_t slot) const {
     // use 128 bits to represent any
-    return tvm::Call(tvm::PointerType::VoidPointer(), tirx::builtin::anylist_getitem(),
+    return tvm::Call(tvm::PointerType::VoidPointerTy(), tirx::builtin::anylist_getitem(),
                      {func_anylist_handle_, ConstInt32(slot)});
   }
 
@@ -164,10 +164,10 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     stmt_stack_ = {};
     registers_num_ = 0;
     var_map_.clear();
-    ctx_ptr_ = tirx::Var("ctx_ptr", PointerType::VoidPointer());
-    reg_anylist_handle_ = tirx::Var("r", PointerType::VoidPointer());
-    func_anylist_handle_ = tirx::Var("f", PointerType::VoidPointer());
-    const_anylist_handle_ = tirx::Var("c", PointerType::VoidPointer());
+    ctx_ptr_ = tirx::Var("ctx_ptr", PointerType::VoidPointerTy());
+    reg_anylist_handle_ = tirx::Var("r", PointerType::VoidPointerTy());
+    func_anylist_handle_ = tirx::Var("f", PointerType::VoidPointerTy());
+    const_anylist_handle_ = tirx::Var("c", PointerType::VoidPointerTy());
 
     ffi::Array<ffi::String> param_names;
     for (Var param : func->params) {
@@ -235,7 +235,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     Call call = ffi::GetRef<Call>(call_node);
 
     if (call_node->op.same_as(null_value_op_)) {
-      return tvm::Call(tvm::PointerType::VoidPointer(), tirx::builtin::reinterpret(),
+      return tvm::Call(tvm::PointerType::VoidPointerTy(), tirx::builtin::reinterpret(),
                        {IntImm::Int64(0)});
     }
     int64_t dst_reg = HasVoidType(call) ? -1 : NewRegister();

@@ -78,7 +78,7 @@ class PointerType : public Type {
   TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
 
   /*! \brief Construct an opaque pointer with void element type. */
-  TVM_DLL static PointerType VoidPointer(ffi::String storage_scope = "");
+  TVM_DLL static PointerType VoidPointerTy(ffi::String storage_scope = "");
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PointerType, Type, PointerTypeNode);
 };

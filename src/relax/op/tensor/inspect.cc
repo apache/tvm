@@ -89,7 +89,7 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
 }
 
 tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimType field_ty) {
-  tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointer());
+  tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
 
   tirx::Var value("value", field_ty);
 
@@ -252,7 +252,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   tirx::PrimFunc getter = [&]() -> tirx::PrimFunc {
-    tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointer());
+    tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
     tirx::Var axis("axis", PrimType::Int(64));
 
     tirx::Var ndim("ndim", PrimType::Int(32));

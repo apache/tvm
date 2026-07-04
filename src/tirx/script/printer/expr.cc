@@ -33,17 +33,27 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
 
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
-      ExprDoc element_type =
-          LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
       rhs = TIR(d, "handle");
       rhs->source_paths.push_back(var_p->Attr("dtype"));
-      if (ptr_type->storage_scope == "") {
-        rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
+      if (ffi::GetRef<PrimType>(prim_type).IsVoid()) {
+        if (ptr_type->storage_scope == "global") {
+          rhs = rhs->Call({}, kwargs_keys, kwargs_values);
+        } else {
+          rhs =
+              rhs->Call({}, {"storage_scope"},
+                        {LiteralDoc::Str(ptr_type->storage_scope, type_p->Attr("storage_scope"))});
+        }
       } else {
-        rhs = rhs->Call({element_type,
-                         LiteralDoc::Str(ptr_type->storage_scope,  //
-                                         type_p->Attr("storage_scope"))},
-                        kwargs_keys, kwargs_values);
+        ExprDoc element_type =
+            LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+        if (ptr_type->storage_scope == "") {
+          rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
+        } else {
+          rhs = rhs->Call({element_type,
+                           LiteralDoc::Str(ptr_type->storage_scope,  //
+                                           type_p->Attr("storage_scope"))},
+                          kwargs_keys, kwargs_values);
+        }
       }
     } else if (ptr_type->element_type->IsInstance<TensorMapTypeNode>()) {
       rhs = TIR(d, "TensorMap")->Call({}, {}, {});

@@ -65,11 +65,11 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<Var, Buffer> buffer_map;
 
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.pre_rewrite_buffer->name, PointerType::VoidPointer()));
+      params.push_back(Var(info.pre_rewrite_buffer->name, PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.pre_rewrite_buffer);
     }
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.post_rewrite_buffer->name, PointerType::VoidPointer()));
+      params.push_back(Var(info.post_rewrite_buffer->name, PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.post_rewrite_buffer);
     }
 

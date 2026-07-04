@@ -156,7 +156,7 @@ Type GetType(const PrimExpr& expr) {
 Type GetTypeFromRuntimeDataType(DLDataType dtype) {
   if (dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLOpaqueHandle) &&
       (dtype.bits != 0 || dtype.lanes != 0)) {
-    return PointerType::VoidPointer();
+    return PointerType::VoidPointerTy();
   }
   return PrimType(dtype);
 }

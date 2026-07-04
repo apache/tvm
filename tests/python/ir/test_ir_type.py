@@ -33,7 +33,7 @@ def test_prim_type():
     x = tvm.ir.PrimType("int32")
     assert isinstance(x, tvm.ir.PrimType)
     assert x.dtype == "int32"
-    with pytest.raises(TypeError, match="PointerType::VoidPointer"):
+    with pytest.raises(TypeError, match="PointerType::VoidPointerTy"):
         tvm.ir.PrimType("handle")
 
 

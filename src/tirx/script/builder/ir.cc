@@ -102,7 +102,7 @@ Buffer Arg(ffi::String name, Buffer buffer) {
   details::Namer::Name(buffer, name);
   // A Buffer parameter is an opaque ABI handle.  The Buffer's data Var
   // carries the exact pointee type used within the function body.
-  Var handle(buffer->name + "_handle", PointerType::VoidPointer());
+  Var handle(buffer->name + "_handle", PointerType::VoidPointerTy());
   frame->args.push_back(handle);
   frame->buffer_map.Set(handle, buffer);
   return buffer;

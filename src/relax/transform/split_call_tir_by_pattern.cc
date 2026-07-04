@@ -623,7 +623,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(Var("output", PointerType::VoidPointer()));
+  new_params1.push_back(Var("output", PointerType::VoidPointerTy()));
   ffi::Map<Var, Buffer> new_buffer_map1;
   for (const auto& kv : func->buffer_map) {
     if (partitioner.input1.count(kv.second)) {
@@ -636,7 +636,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(Var("input", PointerType::VoidPointer()));
+  new_params2.push_back(Var("input", PointerType::VoidPointerTy()));
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
     if (partitioner.input2.count(func->buffer_map[param])) {

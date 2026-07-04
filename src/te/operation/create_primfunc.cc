@@ -745,7 +745,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   for (const te::Tensor& tensor : arg_list) {
     auto it = info->tensor2buffers.find(tensor);
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
-    Var arg("var_" + tensor->GetNameHint(), PointerType::VoidPointer());
+    Var arg("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
     parameters.push_back(arg);
     buffer_map.Set(arg, it->second);
   }
@@ -813,7 +813,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       te::Tensor tensor = opt_tensor.value();
       auto it = info->tensor2buffers.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2buffers.end());
-      Var param("var_" + tensor->GetNameHint(), PointerType::VoidPointer());
+      Var param("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
       parameters.push_back(param);
       buffer_map.Set(param, it->second);
     } else if (auto var = arg.as<tirx::Var>()) {

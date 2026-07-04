@@ -617,7 +617,7 @@ class VMShapeLowerMutator
     // construct a PrimFunc that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
     tirx::Buffer buffer = tirx::decl_buffer(buffer_shape, PrimType(ShapeDType()), "H", "global");
-    tirx::Var heap("heap", PointerType::VoidPointer());
+    tirx::Var heap("heap", PointerType::VoidPointerTy());
     ffi::Map<tirx::Var, tirx::Buffer> buffer_map;
     buffer_map.Set(heap, buffer);
 

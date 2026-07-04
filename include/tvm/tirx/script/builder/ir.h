@@ -497,7 +497,7 @@ void Evaluate(Expr value);
 inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
                   ffi::String storage_scope = "global") {
   Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
-                                           : Type(PointerType::VoidPointer(storage_scope));
+                                           : Type(PointerType::VoidPointerTy(storage_scope));
   return tvm::tirx::Var("", type_annotation);
 }
 

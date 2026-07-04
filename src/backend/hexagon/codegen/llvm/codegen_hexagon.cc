@@ -285,7 +285,7 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_pt
       << "-d buffer indices";
 
   // Use the first index to identify the pointer.
-  Type type_void_ptr = PointerType::VoidPointer();
+  Type type_void_ptr = PointerType::VoidPointerTy();
   CodeGenLLVM::TypedPointer buffer_chunk_ptr_ptr =
       CodeGenCPU::CreateBufferPtr(buffer_ptr, type_void_ptr, {indices[0]}, type_void_ptr);
   llvm::Value* buffer_chunk_ptr =

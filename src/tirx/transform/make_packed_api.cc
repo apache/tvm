@@ -229,10 +229,10 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   const Stmt nop = Evaluate(0);
 
   // Data field definitions
-  Var v_self_handle("self_handle", PointerType::VoidPointer());
-  Var v_packed_args("args", PointerType::VoidPointer());
+  Var v_self_handle("self_handle", PointerType::VoidPointerTy());
+  Var v_packed_args("args", PointerType::VoidPointerTy());
   Var v_num_packed_args("num_args", PrimType::Int(32));
-  Var v_result("result", PointerType(PrimType::Void()));
+  Var v_result("result", PointerType::VoidPointerTy());
 
   // The device context
   Var device_id("dev_id");

@@ -494,11 +494,12 @@ Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& 
   // ── Load value and apply tensor offset ─────────────────────
   const int64_t object_cell_offset = sizeof(TVMFFIObject);
   static_assert(sizeof(TVMFFIObject) == 24);
-  Expr arg_value = LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PointerType::VoidPointer());
+  Expr arg_value =
+      LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PointerType::VoidPointerTy());
   Expr handle_from_tensor =
-      Call(PointerType::VoidPointer(), tirx::builtin::handle_add_byte_offset(),
+      Call(PointerType::VoidPointerTy(), tirx::builtin::handle_add_byte_offset(),
            {arg_value, IntImm::Int32(object_cell_offset)});
-  return Call(PointerType::VoidPointer(), tirx::builtin::if_then_else(),
+  return Call(PointerType::VoidPointerTy(), tirx::builtin::if_then_else(),
               {type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value});
 }
 
@@ -820,7 +821,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
   // ── Section: data pointer ────────────────────────────────────
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
-    Expr raw_data = TVMStructGet(PointerType::VoidPointer(), handle, 0, builtin::kDLTensorData);
+    Expr raw_data = TVMStructGet(PointerType::VoidPointerTy(), handle, 0, builtin::kDLTensorData);
     Expr typed_data = Call(buffer->data->ty, builtin::reinterpret(), {raw_data});
     if (BindPointer(buffer->data, typed_data, data_path, true)) {
       Var vptr(buffer->data);
@@ -848,7 +849,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
         // Check data pointer alignment
         if (buffer->data_alignment > 1) {
           Expr handle =
-              Call(PointerType::VoidPointer(), builtin::reinterpret(), ffi::Array<Expr>{vptr});
+              Call(PointerType::VoidPointerTy(), builtin::reinterpret(), ffi::Array<Expr>{vptr});
           PrimExpr ptr_as_int =
               Call(PrimType::UInt(64), builtin::reinterpret(), ffi::Array<Expr>{handle})
                   .as_or_throw<PrimExpr>();

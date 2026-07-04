@@ -1024,7 +1024,7 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
 }
 
 inline Expr ConstHandle(int64_t value, Span span) {
-  return reinterpret(PointerType::VoidPointer(), IntImm(PrimType::UInt(64), value, span), span);
+  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, span), span);
 }
 
 }  // namespace tirx

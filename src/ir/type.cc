@@ -95,7 +95,7 @@ PrimType::PrimType(DLDataType dtype) : Type(ffi::UnsafeInit{}) {
   bool is_opaque_handle = dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLOpaqueHandle);
   bool is_void = is_opaque_handle && dtype.bits == 0 && dtype.lanes == 0;
   TVM_FFI_CHECK(!is_opaque_handle || is_void, TypeError)
-      << "PrimType cannot represent an opaque pointer; use PointerType::VoidPointer()";
+      << "PrimType cannot represent an opaque pointer; use PointerType::VoidPointerTy()";
   data_ = GetCachedPrimTypeNode(dtype);
 }
 
@@ -167,7 +167,7 @@ PointerType::PointerType(Type element_type, ffi::String storage_scope) : Type(ff
   data_ = std::move(n);
 }
 
-PointerType PointerType::VoidPointer(ffi::String storage_scope) {
+PointerType PointerType::VoidPointerTy(ffi::String storage_scope) {
   return PointerType(PrimType::Void(), std::move(storage_scope));
 }
 

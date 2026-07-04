@@ -115,7 +115,7 @@ inline Expr pack_buffer(Buffer buf) {
                              IntImm::Int32(static_cast<int64_t>(buf->shape.size())),
                              MakeConst(PrimType(buf->dtype), 0),
                              buf->elem_offset};
-  return Call(PointerType::VoidPointer(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);
+  return Call(PointerType::VoidPointerTy(), tvm::tirx::builtin::tvm_stack_make_array(), pack_args);
 }
 
 /*!
