@@ -1774,6 +1774,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "round.decimals": self._round,
             "rsqrt.default": self._rsqrt,
             "scalar_tensor.default": self._scalar_tensor,
+            "scatter.src": self._scatter,
             "scatter.value": self._scatter_value,
             "rsub.Tensor": self._rsub,
             "rsub.Scalar": self._rsub,
