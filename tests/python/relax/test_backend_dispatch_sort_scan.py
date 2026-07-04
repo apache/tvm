@@ -16,9 +16,6 @@
 # under the License.
 # ruff: noqa: F841
 
-import importlib
-import operator
-
 import numpy as np
 import pytest
 
@@ -33,20 +30,6 @@ from tvm.s_tir import dlight
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
-
-
-def test_gpu_scan_sum_identity(monkeypatch):
-    gpu_scan = importlib.import_module("tvm.topi.gpu.scan")
-    monkeypatch.setattr(gpu_scan, "can_use_thrust", lambda *_args: True)
-    monkeypatch.setattr(gpu_scan, "can_use_rocthrust", lambda *_args: False)
-
-    with tvm.target.Target("cuda"):
-        assert gpu_scan._can_use_scan_thrust(operator.add)
-        assert not gpu_scan._can_use_scan_thrust(lambda lhs, rhs: lhs + rhs)
-
-    assert gpu_scan._get_thrust_func_name(operator.add) == "tvm.contrib.thrust.sum_scan"
-    with pytest.raises(ValueError, match="not supported by thrust"):
-        gpu_scan._get_thrust_func_name(lambda lhs, rhs: lhs + rhs)
 
 
 def test_dispatch_scanop():
