@@ -366,21 +366,7 @@ void DocPrinter::PrintDoc(const Doc& doc) {
   }
 }
 
-void DocPrinter::PrintDocWithoutSourcePathTracking(const Doc& doc) {
-  bool previous_record_source_paths = record_source_paths_;
-  record_source_paths_ = false;
-  try {
-    PrintDoc(doc);
-  } catch (...) {
-    record_source_paths_ = previous_record_source_paths;
-    throw;
-  }
-  record_source_paths_ = previous_record_source_paths;
-}
-
 void DocPrinter::MarkSpan(const ByteSpan& span, const AccessPath& path) {
-  if (!record_source_paths_) return;
-
   int n = path_to_underline_.size();
   for (int i = 0; i < n; ++i) {
     AccessPath p = path_to_underline_[i];

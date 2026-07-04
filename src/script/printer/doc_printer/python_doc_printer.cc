@@ -27,6 +27,7 @@
 #include <map>
 #include <optional>
 #include <sstream>
+#include <streambuf>
 #include <string>
 
 #include "../../../support/str_escape.h"
@@ -38,20 +39,63 @@ namespace script {
 namespace printer {
 namespace {
 
-/*! \brief Temporarily redirect an output stream to an isolated sink. */
-class ScopedOutputSink {
+/*! \brief Escape an ExprStringDoc child while preserving final output positions. */
+class ScopedExprStringEscapeBuf : public std::streambuf {
  public:
-  ScopedOutputSink(std::ostream* output, std::streambuf* sink)
-      : output_(output), original_buffer_(output->rdbuf(sink)) {}
+  explicit ScopedExprStringEscapeBuf(std::ostream* output)
+      : output_(output), destination_(output->rdbuf()) {
+    TVM_FFI_ICHECK(output_->good()) << "Cannot escape into a failed output stream";
+    output_->rdbuf(this);
+  }
 
-  ~ScopedOutputSink() { output_->rdbuf(original_buffer_); }
+  ~ScopedExprStringEscapeBuf() noexcept {
+    std::ios_base::iostate state = output_->rdstate();
+    output_->rdbuf(destination_);
+    try {
+      output_->setstate(state);
+    } catch (...) {
+      // Preserve the stream state without replacing an exception already in flight.
+    }
+  }
 
-  ScopedOutputSink(const ScopedOutputSink&) = delete;
-  ScopedOutputSink& operator=(const ScopedOutputSink&) = delete;
+  ScopedExprStringEscapeBuf(const ScopedExprStringEscapeBuf&) = delete;
+  ScopedExprStringEscapeBuf& operator=(const ScopedExprStringEscapeBuf&) = delete;
+
+  bool saw_newline() const { return saw_newline_; }
+
+ protected:
+  std::streamsize xsputn(const char* data, std::streamsize count) final {
+    if (count <= 0) return 0;
+    saw_newline_ = saw_newline_ || std::find(data, data + count, '\n') != data + count;
+    std::string escaped = support::StrEscape(data, static_cast<size_t>(count));
+    return destination_->sputn(escaped.data(), escaped.size()) ==
+                   static_cast<std::streamsize>(escaped.size())
+               ? count
+               : 0;
+  }
+
+  int_type overflow(int_type ch) final {
+    if (traits_type::eq_int_type(ch, traits_type::eof())) {
+      return traits_type::not_eof(ch);
+    }
+    char value = traits_type::to_char_type(ch);
+    return xsputn(&value, 1) == 1 ? ch : traits_type::eof();
+  }
+
+  int sync() final { return destination_->pubsync(); }
+
+  pos_type seekoff(off_type offset, std::ios_base::seekdir direction,
+                   std::ios_base::openmode mode) final {
+    if (offset == 0 && direction == std::ios_base::cur && (mode & std::ios_base::out)) {
+      return destination_->pubseekoff(offset, direction, mode);
+    }
+    return pos_type(off_type(-1));
+  }
 
  private:
   std::ostream* output_;
-  std::streambuf* original_buffer_;
+  std::streambuf* destination_;
+  bool saw_newline_{false};
 };
 
 ffi::String RenderInvisiblePathInfo(const ffi::String& script,
@@ -413,18 +457,15 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const ExprStringDoc& doc) {
-  std::ostringstream value_output;
+  this->output_ << '"';
   {
-    ScopedOutputSink output_scope(&this->output_, value_output.rdbuf());
-    // Child spans use offsets in the unescaped sink. The enclosing ExprStringDoc records the
-    // final escaped wrapper span after this handler returns.
-    this->PrintDocWithoutSourcePathTracking(doc->value);
+    ScopedExprStringEscapeBuf escaping_scope(&this->output_);
+    this->PrintDoc(doc->value);
+    TVM_FFI_ICHECK(this->output_.good()) << "Failed to render an expression string literal";
+    TVM_FFI_ICHECK(!escaping_scope.saw_newline())
+        << "An expression rendered inside a Python string literal must be one line";
   }
-  std::string value = value_output.str();
-  TVM_FFI_ICHECK(value.find('\n') == std::string::npos)
-      << "An expression rendered inside a Python string literal must be one line";
-  std::string escaped = support::StrEscape(value);
-  this->output_ << '"' << escaped << '"';
+  this->output_ << '"';
 }
 
 void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
