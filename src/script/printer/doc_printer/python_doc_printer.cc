@@ -39,7 +39,34 @@ namespace script {
 namespace printer {
 namespace {
 
-/*! \brief Escape an ExprStringDoc child while preserving final output positions. */
+/*!
+ * \brief Escape an ExprStringDoc child while preserving final output positions.
+ *
+ * ExprStringDoc must print its child through the active PythonDocPrinter so that the child's
+ * precedence, printer configuration, and source-path bookkeeping stay in the current traversal.
+ * However, escaping after printing into a temporary buffer would make PrintDoc record positions
+ * in that unescaped buffer, rather than the final Python source. This scoped adapter instead
+ * replaces the output stream's buffer only while the child is printed. It escapes each write and
+ * forwards it immediately to the original final buffer; the caller emits the surrounding quotes
+ * outside the scope so that only the child is transformed.
+ *
+ * The adapter owns neither the output stream nor its original buffer. Both outlive this stack
+ * object. The constructor saves the original buffer in destination_ and installs this adapter;
+ * the destructor restores the original buffer before the caller continues writing to the stream.
+ *
+ * PrintDoc uses tellp() before and after every child to record source spans. tellp() reaches
+ * seekoff(0, cur, out), which is the only seek this adapter accepts and delegates directly to the
+ * original buffer. Because that buffer already contains the preceding output and advances by the
+ * escaped byte count, child spans use absolute positions in the final source, including any
+ * expansion introduced by StrEscape.
+ *
+ * A raw newline violates the one-line expression-string contract. xsputn records its presence
+ * while still escaping and forwarding the write, and the caller checks saw_newline() together
+ * with the stream state before completing the literal. A destination short write is reported as
+ * an input write failure so that the output stream records the error. On every exit path,
+ * including exception unwinding, the noexcept destructor restores the original buffer and then
+ * reapplies the child traversal's stream state, which rdbuf() would otherwise clear.
+ */
 class ScopedExprStringEscapeBuf : public std::streambuf {
  public:
   explicit ScopedExprStringEscapeBuf(std::ostream* output)
@@ -49,6 +76,9 @@ class ScopedExprStringEscapeBuf : public std::streambuf {
   }
 
   ~ScopedExprStringEscapeBuf() noexcept {
+    // Swapping rdbuf resets rdstate, so retain the child's state across restoration. setstate may
+    // throw under the stream's exception mask; suppress that throw so an in-flight exception is
+    // never replaced, while setstate still records the bits before throwing.
     std::ios_base::iostate state = output_->rdstate();
     output_->rdbuf(destination_);
     try {
@@ -67,6 +97,9 @@ class ScopedExprStringEscapeBuf : public std::streambuf {
   std::streamsize xsputn(const char* data, std::streamsize count) final {
     if (count <= 0) return 0;
     saw_newline_ = saw_newline_ || std::find(data, data + count, '\n') != data + count;
+    // StrEscape is byte-wise, so each write can be transformed independently and forwarded
+    // without retaining or copying the complete output. Report consumed input bytes, not the
+    // potentially larger number of escaped bytes written to the destination.
     std::string escaped = support::StrEscape(data, static_cast<size_t>(count));
     return destination_->sputn(escaped.data(), escaped.size()) ==
                    static_cast<std::streamsize>(escaped.size())
@@ -86,6 +119,8 @@ class ScopedExprStringEscapeBuf : public std::streambuf {
 
   pos_type seekoff(off_type offset, std::ios_base::seekdir direction,
                    std::ios_base::openmode mode) final {
+    // Support the current-position query used by tellp(), preserving the destination's absolute
+    // escaped offset. ExprStringDoc rendering never needs to reposition the output sequence.
     if (offset == 0 && direction == std::ios_base::cur && (mode & std::ios_base::out)) {
       return destination_->pubseekoff(offset, direction, mode);
     }
