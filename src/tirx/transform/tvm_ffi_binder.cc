@@ -719,7 +719,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
     if (BindScalar(buffer->elem_offset,
                    cast(buffer->elem_offset.ty(),
                         (TVMStructGet(PrimType::UInt(64), handle, 0, builtin::kDLTensorByteOffset) /
-                         IntImm(PrimType::UInt(64), data_bytes))),
+                         MakeConst(PrimType::UInt(64), data_bytes))),
                    byte_offset_path, true)) {
       if (buffer->offset_factor > 1) {
         PrimExpr offset = buffer->elem_offset;
