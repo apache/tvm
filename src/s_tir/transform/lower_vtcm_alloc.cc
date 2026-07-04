@@ -46,8 +46,7 @@ class VtcmAllocator : public StmtExprMutator {
       args.push_back(Call(PrimType::Handle(), builtin::tvm_stack_make_shape(), op->buffer->shape)
                          .as_or_throw<PrimExpr>());
       return Bind(op->buffer->data,
-                  Call(op->buffer->data.ty(), builtin::nd_mem_alloc_with_scope(), args)
-                      .as_or_throw<PrimExpr>());
+                  Call(op->buffer->data->ty, builtin::nd_mem_alloc_with_scope(), args));
     }
     return StmtExprMutator::VisitStmt_(op);
   }

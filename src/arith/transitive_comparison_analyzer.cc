@@ -576,7 +576,7 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const Range&
     if (differs_from_previous) {
       TVM_FFI_ICHECK(allow_override) << "Binding of variable " << var << " as " << range
                                      << " conflicts with previous binding as " << (*it).second;
-      if (auto key = ExprToPreviousKey(var)) {
+      if (auto key = ExprToPreviousKey(var.as_or_throw<PrimExpr>())) {
         knowns_.erase(std::remove_if(knowns_.begin(), knowns_.end(),
                                      [&](const auto& known) { return known.lhs_ == key.value(); }),
                       knowns_.end());

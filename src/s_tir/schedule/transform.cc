@@ -529,7 +529,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
       Var var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
       if (!is_one(iter->dom->extent)) {
-        index_map_outputs.push_back(var);
+        index_map_outputs.push_back(var.as_or_throw<PrimExpr>());
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;
         }
@@ -540,8 +540,8 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
     }
     try {
       sch->TransformBlockLayout(
-          block,
-          IndexMap(index_map_inputs.Map([](Var var) { return PrimVar(var); }), index_map_outputs));
+          block, IndexMap(index_map_inputs.Map([](Var var) { return var.as_or_throw<PrimVar>(); }),
+                          index_map_outputs));
     } catch (tvm::ffi::Error& e) {
       // Skip layout transformation when not transformable.
     }

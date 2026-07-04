@@ -387,7 +387,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     auto writer = load.CopyOnWrite();
     writer->indices = {local_index};
 
-    if (analyzer_->CanProveEqual(group, warp_index_)) {
+    if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
     }
 

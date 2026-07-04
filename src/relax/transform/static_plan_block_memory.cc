@@ -456,9 +456,9 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
       ana->Bind(tir_var, range);
       dom_map->Set(tir_var, arith::IntSet::FromRange(range));
     } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
-      ana->MarkGlobalNonNegValue(tir_var);
+      ana->MarkGlobalNonNegValue(tir_var.as_or_throw<PrimExpr>());
     } else if (non_negative_var_attr.count(tir_var->name_hint)) {
-      ana->MarkGlobalNonNegValue(tir_var);
+      ana->MarkGlobalNonNegValue(tir_var.as_or_throw<PrimExpr>());
     }
   }
 }

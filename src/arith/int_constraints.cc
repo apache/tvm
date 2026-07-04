@@ -55,7 +55,7 @@ ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
   for (const auto v : variables) {
     TVM_FFI_ICHECK(bounds.count(v));
     const auto& bnds = bounds[v];
-    PrimExpr lhs = bnds->coef * v;
+    PrimExpr lhs = bnds->coef * v.as_or_throw<PrimExpr>();
     for (const PrimExpr& rhs : bnds->equal) {
       res.push_back(lhs == rhs);
     }
@@ -233,7 +233,7 @@ IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> r
   }
   TVM_FFI_ICHECK(relations.defined());
   for (const auto& var : variables) {
-    PrimType var_ty = var.ty();
+    PrimType var_ty = var->ty.as_or_throw<PrimType>();
     TVM_FFI_ICHECK(var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
         << "Variables in IntConstraints must be integers";
   }

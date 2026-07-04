@@ -135,14 +135,15 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
   tvm::IntImm one(tvm::PrimType::Int(32), 1);
   tirx::Var loop_var("u", tvm::PrimType::Int(32));
   tirx::Var iter_var_var("vu", tvm::PrimType::Int(32));
-  tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), tirx::PrimVar(iter_var_var),
-                         tirx::IterVarType::kDataPar);
+  tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one),
+                         iter_var_var.as_or_throw<tirx::PrimVar>(), tirx::IterVarType::kDataPar);
   tirx::SBlock inner_block = realize->block;
   inner_block.CopyOnWrite()->iter_vars = ffi::Array<tirx::IterVar>{new_iter};
-  tirx::SBlockRealize inner_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var},
-                                    /*predicate=*/realize->predicate, inner_block);
-  tirx::Stmt for_stmt =
-      tirx::For(tirx::PrimVar(loop_var), zero, one, tirx::ForKind::kSerial, inner_realize);
+  tirx::SBlockRealize inner_realize(
+      /*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var.as_or_throw<tvm::PrimExpr>()},
+      /*predicate=*/realize->predicate, inner_block);
+  tirx::Stmt for_stmt = tirx::For(loop_var.as_or_throw<tirx::PrimVar>(), zero, one,
+                                  tirx::ForKind::kSerial, inner_realize);
   tirx::SBlock root_block(/*iter_vars=*/ffi::Array<tirx::IterVar>{},
                           /*reads=*/ffi::Array<tirx::BufferRegion>{},
                           /*writes=*/ffi::Array<tirx::BufferRegion>{},

@@ -109,7 +109,8 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     }
 
     bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
-    bool is_handle = v->ty.as<PointerTypeNode>() || (v->ty.as<PrimTypeNode>() && v.ty().IsHandle());
+    bool is_handle = v->ty.as<PointerTypeNode>() ||
+                     (v->ty.as<PrimTypeNode>() && PrimType(GetRuntimeDataType(v->ty)).IsHandle());
     auto* ptr = v->ty.as<PointerTypeNode>();
     if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
       is_handle = false;
@@ -1031,8 +1032,9 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    bool is_pointer = op->var->ty.as<PointerTypeNode>() ||
-                      (op->var->ty.as<PrimTypeNode>() && op->var.ty().IsHandle());
+    bool is_pointer =
+        op->var->ty.as<PointerTypeNode>() ||
+        (op->var->ty.as<PrimTypeNode>() && PrimType(GetRuntimeDataType(op->var->ty)).IsHandle());
     if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
       this->stream << "* " << AllocVarID(op->var.get()) << " = (";
@@ -1158,8 +1160,9 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    bool is_pointer = op->var->ty.as<PointerTypeNode>() ||
-                      (op->var->ty.as<PrimTypeNode>() && op->var.ty().IsHandle());
+    bool is_pointer =
+        op->var->ty.as<PointerTypeNode>() ||
+        (op->var->ty.as<PrimTypeNode>() && PrimType(GetRuntimeDataType(op->var->ty)).IsHandle());
     if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), stream);
       stream << "* " << AllocVarID(op->var.get()) << " = (";

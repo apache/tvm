@@ -879,13 +879,15 @@ class PipelineRewriter : public StmtExprMutator {
       // This variable corresponds to
       // - "producer_head" if this stage is an async producer
       // - "consumer_head" if this stage reads from asynchronously written buffers.
-      PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_var : skewed_loop_var + delta;
+      PrimExpr skewed_loop_prim = skewed_loop_var.as_or_throw<PrimExpr>();
+      PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_prim : skewed_loop_prim + delta;
 
       // Adjust the block predicate and the body according to the final loop bound
       //  [pipeline_loop_->min, extent).
       if (!is_unit_loop) {
         Var loop_iter = new_loop_var.as_or_throw<Var>();
-        inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
+        inbound = Substitute(
+            inbound, ffi::Map<Var, Expr>{{loop_iter, loop_iter.as_or_throw<PrimExpr>() + delta}});
       }
 
       new_block = Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}})

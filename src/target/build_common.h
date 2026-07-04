@@ -30,6 +30,7 @@
 #include <tvm/target/codegen.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
 #include <string>
@@ -50,7 +51,7 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
     ffi::Array<DLDataType> arg_types;
     ffi::Array<runtime::ArgExtraTags> arg_extra_tags;
     for (size_t i = 0; i < f->params.size(); ++i) {
-      arg_types.push_back(f->params[i].ty()->dtype);
+      arg_types.push_back(GetRuntimeDataType(f->params[i]->ty));
       auto is_tensormap = [](const tirx::Var& var) -> bool {
         const auto* type = var->ty.as<PointerTypeNode>();
         if (type == nullptr) {

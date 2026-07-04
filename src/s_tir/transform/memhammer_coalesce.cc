@@ -47,7 +47,7 @@ Stmt FuseNestLoops(Stmt body) {
     subst_map.Set(loops[i]->loop_var, floormod(tot, loops[i]->extent));
     tot = floordiv(tot, loops[i]->extent);
   }
-  auto f_substitute = [&](const Var& v) -> ffi::Optional<PrimExpr> {
+  auto f_substitute = [&](const Var& v) -> ffi::Optional<Expr> {
     if (auto replacement = subst_map.Get(v)) {
       return replacement.value();
     }
@@ -115,10 +115,10 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   PrimExpr substitute_value = 0;
   for (int i = 0; i < n; i++) {
     substitute_value *= factors[i];
-    substitute_value += new_loop_vars[i];
+    substitute_value += new_loop_vars[i].as_or_throw<PrimExpr>();
   }
   // Construct the new loop nest
-  Stmt body = Substitute(loop->body, [&](const Var& v) -> ffi::Optional<PrimExpr> {
+  Stmt body = Substitute(loop->body, [&](const Var& v) -> ffi::Optional<Expr> {
     if (v.same_as(loop->loop_var)) {
       return substitute_value;
     } else {
@@ -129,14 +129,17 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   if (!analyzer->CanProve(predicate)) {
     body = IfThenElse(predicate, body);
   }
-  body = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, std::move(body));
+  body = For(new_loop_vars.back().as_or_throw<PrimVar>(), 0, vector_len, ForKind::kVectorized,
+             std::move(body));
   for (int i = n - 2; i >= 1; i--) {
     body =
-        For(new_loop_vars[i], 0, factors[i], ForKind::kThreadBinding, std::move(body),
+        For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kThreadBinding,
+            std::move(body),
             IterVar(Range(nullptr), PrimVar(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]),
             {}, std::nullopt);
   }
-  return For(new_loop_vars[0], 0, factors[0], ForKind::kSerial, std::move(body));
+  return For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factors[0], ForKind::kSerial,
+             std::move(body));
 }
 
 Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
@@ -210,7 +213,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     if (is_one(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->min);
     } else {
-      PrimVar var = PrimVar(loop_vars[j].as_or_throw<Var>()).CopyWithSuffix("_inverse");
+      PrimVar var = loop_vars[j].as_or_throw<PrimVar>().CopyWithSuffix("_inverse");
       new_loop_vars.push_back(var);
       substitute_map.Set(loop_vars[j++].as_or_throw<Var>(), var);
       write_index.push_back(write_region->region[i]->min + var);

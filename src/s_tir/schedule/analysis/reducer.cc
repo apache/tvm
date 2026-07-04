@@ -71,7 +71,7 @@ class PatternMatcher : public ExprVisitor {
       match_success_ = false;
     } else {
       PrimExpr tmp = expr_to_match_;
-      expr_to_match_ = ptr->var;
+      expr_to_match_ = ptr->var.as_or_throw<PrimExpr>();
       VisitExpr(op->var);
       expr_to_match_ = ptr->value;
       VisitExpr(op->value);

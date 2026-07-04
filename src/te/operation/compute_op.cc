@@ -96,7 +96,7 @@ Tensor compute(ffi::Array<PrimExpr> shape, FCompute fcompute, std::string name, 
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
-  std::vector<Var> args;
+  std::vector<PrimVar> args;
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
@@ -113,7 +113,7 @@ ffi::Array<Tensor> compute(ffi::Array<PrimExpr> shape, FBatchCompute fcompute, s
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
-  std::vector<Var> args;
+  std::vector<PrimVar> args;
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;

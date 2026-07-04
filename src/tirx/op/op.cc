@@ -1407,7 +1407,7 @@ PrimExpr PrintOpPacked(Var data, DLDataType dtype, bool is_string, bool is_scala
                        ffi::Array<PrimExpr> shape) {
   PrimType value_ty(dtype);
   PrimType u32_ty = PrimType::UInt(32);
-  ffi::Array<PrimExpr> args;
+  ffi::Array<Expr> args;
   args.push_back(data);
   args.push_back(tirx::StringImm(ffi::DLDataTypeToString(dtype)));
   args.push_back(IntImm::Bool(is_string));

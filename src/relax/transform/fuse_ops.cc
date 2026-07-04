@@ -570,8 +570,8 @@ class FunctionCreator : public ExprMutator {
                                    /*ret_ty=*/std::nullopt,  //
                                    /*is_pure=*/true,         //
                                    /*attrs=*/DictAttrs(group_attrs));
-      ffi::Array<PrimExpr> free_vars =
-          FreeSymbolicVars(function).Map([](const tirx::Var& var) -> PrimExpr { return var; });
+      ffi::Array<PrimExpr> free_vars = FreeSymbolicVars(function).Map(
+          [](const tirx::Var& var) { return var.as_or_throw<PrimExpr>(); });
       if (!free_vars.empty()) {
         params_.push_back(Var("tir_vars", ShapeType(free_vars)));
         arguments_.push_back(ShapeExpr(free_vars));

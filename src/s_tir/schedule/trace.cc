@@ -64,7 +64,7 @@ ffi::Array<Any> TranslateInputRVs(
     const std::unordered_map<const ffi::Object*, const ffi::Object*>& rv_map) {
   ffi::Array<Any> result;
   result.reserve(inputs.size());
-  auto f_subst_with_rv_map = [&rv_map](const Var& var) -> ffi::Optional<PrimExpr> {
+  auto f_subst_with_rv_map = [&rv_map](const Var& var) -> ffi::Optional<Expr> {
     auto it = rv_map.find(var.get());
     if (it == rv_map.end()) {
       return std::nullopt;
@@ -73,6 +73,12 @@ ffi::Array<Any> TranslateInputRVs(
     TVM_FFI_CHECK(dst->IsInstance<VarNode>(), TypeError)
         << "Expect 'tirx.Var', but gets: " << dst->GetTypeKey();
     return ffi::GetRef<Var>(static_cast<const VarNode*>(dst)).as_or_throw<PrimExpr>();
+  };
+  auto f_subst_with_rv_map_prim = [&](const Var& var) -> ffi::Optional<PrimExpr> {
+    if (auto replacement = f_subst_with_rv_map(var)) {
+      return replacement.value().as_or_throw<PrimExpr>();
+    }
+    return std::nullopt;
   };
 
   for (const Any& input : inputs) {
@@ -90,7 +96,7 @@ ffi::Array<Any> TranslateInputRVs(
     } else if (auto expr = input.try_cast<PrimExpr>()) {  // RV: Expr
       result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
     } else if (auto index_map = input.as<IndexMap>()) {
-      result.push_back(Substitute(index_map.value(), f_subst_with_rv_map));
+      result.push_back(Substitute(index_map.value(), f_subst_with_rv_map_prim));
     } else if (auto arr = input.as<ffi::Array<Any>>()) {
       // Recursively convert elements of the array into a new list of ObjectRefs.
       result.push_back(TranslateInputRVs(arr.value(), rv_map));

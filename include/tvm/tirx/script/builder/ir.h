@@ -482,7 +482,7 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */
-void Evaluate(ffi::Any value);
+void Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
@@ -503,10 +503,11 @@ inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
 
 inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType())); }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                             \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {               \
-    PrimType dtype = DType;                                                             \
-    return expr.defined() ? tvm::cast(dtype, expr.value()) : tvm::tirx::Var("", dtype); \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                    \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {      \
+    PrimType dtype = DType;                                                    \
+    return expr.defined() ? tvm::cast(dtype, expr.value())                     \
+                          : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \

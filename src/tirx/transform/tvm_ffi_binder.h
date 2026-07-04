@@ -194,7 +194,7 @@ class TVMFFIABIBuilder {
    * \param type_index The variable holding the FFI type index.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamOpaqueHandle(int param_index, const Var& type_index);
+  PrimExpr DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index);
 
   /*!
    * \brief Type-check and load a boolean argument.
@@ -202,7 +202,7 @@ class TVMFFIABIBuilder {
    * \param type_index The variable holding the FFI type index.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamBool(int param_index, const Var& type_index);
+  PrimExpr DecodeParamBool(int param_index, const PrimExpr& type_index);
 
   /*!
    * \brief Type-check and load an integer argument.
@@ -211,7 +211,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamInt(int param_index, const Var& type_index, PrimType dtype);
+  PrimExpr DecodeParamInt(int param_index, const PrimExpr& type_index, PrimType dtype);
 
   /*!
    * \brief Type-check and load a float argument.
@@ -220,7 +220,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamFloat(int param_index, const Var& type_index, PrimType dtype);
+  PrimExpr DecodeParamFloat(int param_index, const PrimExpr& type_index, PrimType dtype);
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 

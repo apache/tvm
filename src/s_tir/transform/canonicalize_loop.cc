@@ -71,7 +71,7 @@ class LoopCanonicalizer : public StmtExprMutator {
     auto it = new_iter_info_.find(op);
     if (it != new_iter_info_.end()) {
       const auto& [stride, offset] = it->second;
-      return ffi::GetRef<Var>(op) * stride + offset;
+      return ffi::GetRef<Var>(op).as_or_throw<PrimExpr>() * stride + offset;
     }
     return ffi::GetRef<Var>(op);
   }

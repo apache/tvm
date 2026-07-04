@@ -172,11 +172,12 @@ class DoubleBufferInjector : public StmtExprMutator {
         std::unordered_map<const VarNode*, PrimExpr> vmap;
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
-          vmap[old_loop->loop_var.get()] = outer_var * factor + IntImm(factor.ty(), i);
+          vmap[old_loop->loop_var.get()] =
+              outer_var.as_or_throw<PrimExpr>() * factor + IntImm(factor.ty(), i);
           loop_seq.emplace_back(Substitute(old_loop->body, vmap));
         }
-        Stmt loop =
-            For(PrimVar(outer_var), zero, outer_ext, old_loop->kind, SeqStmt::Flatten(loop_seq));
+        Stmt loop = For(outer_var.as_or_throw<PrimVar>(), zero, outer_ext, old_loop->kind,
+                        SeqStmt::Flatten(loop_seq));
         // tail
         std::vector<Stmt> tail_seq;
         Stmt tail_body = StripDoubleBufferWrite()(old_loop->body);
@@ -211,7 +212,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
       auto writer = node.CopyOnWrite();
       writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
-      writer->indices = {e.switch_write_var * e.stride + node->indices[0]};
+      writer->indices = {e.switch_write_var.as_or_throw<PrimExpr>() * e.stride + node->indices[0]};
     }
 
     return node;

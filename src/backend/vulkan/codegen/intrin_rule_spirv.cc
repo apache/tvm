@@ -168,7 +168,7 @@ TVM_REGISTER_OP("tirx.clz")
       TVM_FFI_ICHECK(call != nullptr);
       TVM_FFI_ICHECK_EQ(call->args.size(), 1);
       PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
-      PrimType arg_ty = arg.ty();
+      PrimType arg_ty = PrimType(GetRuntimeDataType(arg->ty));
       PrimExpr msb;
       if (arg_ty.bits() == 64) {
         // SPIR-V FindUMsb intrinsic only supports 32 bit input

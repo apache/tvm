@@ -49,7 +49,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
       rhs = TIR(d, "TensorMap")->Call({}, {}, {});
     }
   } else {
-    rhs = TIR(d, DType2Str(var.ty()->dtype));
+    rhs = TIR(d, DType2Str(var->ty.as_or_throw<PrimType>()->dtype));
     rhs->source_paths.push_back(var_p->Attr("dtype"));
     rhs = rhs->Call({}, kwargs_keys, kwargs_values);
   }

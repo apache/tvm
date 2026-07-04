@@ -238,7 +238,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   for (const For& loop : loops) {
     Var new_var = loop->loop_var.CopyWithSuffix("");
     new_loop_vars.push_back(new_var);
-    repl_dict.Set(loop->loop_var, new_var);
+    repl_dict.Set(loop->loop_var, new_var.as_or_throw<PrimExpr>());
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -257,8 +257,8 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   Stmt nest_stmt_root = new_realize;
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
-    nest_stmt_root =
-        For(PrimVar(new_loop_vars[i]), loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
+    nest_stmt_root = For(new_loop_vars[i].as_or_throw<PrimVar>(), loop->min, loop->extent,
+                         ForKind::kSerial, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -302,7 +302,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
       auto loop_var = opt.value();
       new_loop_ranges.Set(loop_var, new_range);
       new_iter_binding.push_back(realize->iter_values[i]);
-      repl_dict.Set(loop_var, loop_var + info.in_bound_region[i]->min);
+      repl_dict.Set(loop_var, loop_var.as_or_throw<PrimExpr>() + info.in_bound_region[i]->min);
       analyzer->Bind(loop_var, new_range, /*allow_override=*/true);
     } else {
       new_iter_binding.push_back(

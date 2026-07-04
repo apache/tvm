@@ -60,8 +60,11 @@ FindLoopLCA(const Stmt& root) {
       IterVar& iter_var = iters[thread_tag];
       if (!iter_var.defined()) {
         iter_var = IterVar(Range::FromMinExtent(loop->min, loop->extent),  //
-                           loop->loop_var.copy_with_name(thread_tag),      //
-                           loop->thread_binding.value()->iter_type,        //
+                           loop->loop_var
+                               .as_or_throw<Var>()                   //
+                               .copy_with_name(thread_tag)           //
+                               .as_or_throw<PrimVar>(),              //
+                           loop->thread_binding.value()->iter_type,  //
                            thread_tag);
         lca[thread_tag] = stack;
         var_subst.Set(loop->loop_var, iter_var->var);

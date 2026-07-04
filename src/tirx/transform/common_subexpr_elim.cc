@@ -677,7 +677,8 @@ class CSEPlanner : public StmtExprVisitor {
       // recomputing the sub-expression.
       for (auto& [other_expr, other_entry] : all_entries) {
         if (other_entry->expr_depth <= entry->expr_depth) continue;
-        other_entry->repr = SubstituteSubexpr(other_entry->repr, entry->repr, cse_var);
+        other_entry->repr =
+            SubstituteSubexpr(other_entry->repr, entry->repr, cse_var.as_or_throw<PrimExpr>());
       }
     }
 

@@ -607,8 +607,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       PrimExpr shuffled = ScopeIdResolve::ComputeWarpIdInCta(launch_params_);
       Var warp_id_in_cta_var("warp_id_in_cta", shuffled.ty());
       scope_binds->push_back({warp_id_in_cta_var, shuffled});
-      IterVar warp_iv(Range::FromMinExtent(0, 1), PrimVar(warp_id_in_cta_var), kThreadIndex,
-                      "warp_id_in_cta");
+      IterVar warp_iv(Range::FromMinExtent(0, 1), warp_id_in_cta_var.as_or_throw<PrimVar>(),
+                      kThreadIndex, "warp_id_in_cta");
       launch_params_.insert({"warp_id_in_cta", warp_iv});
     }
   }
@@ -664,8 +664,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         // to map Vars back to their ScopeBinding.
         Var bind_var = def->def_ids[i];
         PrimExpr value = resolved[i];
-        if (bind_var.ty() != value.ty()) {
-          value = Cast(bind_var.ty(), value);
+        PrimType bind_var_ty = bind_var->ty.as_or_throw<PrimType>();
+        if (bind_var_ty != value.ty()) {
+          value = Cast(bind_var_ty, value);
         }
         scope_binds->push_back({bind_var, value});
         if (is_implicit(bind_var)) {
@@ -1260,7 +1261,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   int TryPushCanonicalCtx(const PrimExpr& cond) {
     if (ctx_stack_.empty()) return -1;
     ScopeIdPredicate is_scope_id = [this](const Var& v) {
-      return ResolveScopeIdTarget(v).has_value();
+      return ResolveScopeIdTarget(v.as_or_throw<PrimExpr>()).has_value();
     };
     auto canonical = TryClassifyCanonical(cond, is_scope_id);
     if (!canonical) {
@@ -1273,7 +1274,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (!lane) return -1;
         ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
         PrimExpr selector =
-            Call(lane->ty(), tirx::builtin::selector(), {*lane, cond}).as_or_throw<PrimExpr>();
+            Call((*lane)->ty, tirx::builtin::selector(), ffi::Array<Expr>{*lane, cond})
+                .as_or_throw<PrimExpr>();
         return TryPushSelectorForTarget(target, selector) ? 1 : 0;
       }
       return -1;
@@ -1291,7 +1293,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         elect_atoms.push_back(&atom);
         continue;
       }
-      auto target = ResolveScopeIdTarget(atom.scopeid_var);
+      auto target = ResolveScopeIdTarget(atom.scopeid_var.as_or_throw<PrimExpr>());
       if (!target) continue;  // atom recognized but target not in scope
       bool merged = false;
       for (auto& g : groups) {
@@ -1340,8 +1342,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     auto lane = FindLaneScopeVar();
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-    PrimExpr selector = Call(lane->ty(), tirx::builtin::selector(), {*lane, atom.elect_sync_call})
-                            .as_or_throw<PrimExpr>();
+    PrimExpr selector =
+        Call((*lane)->ty, tirx::builtin::selector(), ffi::Array<Expr>{*lane, atom.elect_sync_call})
+            .as_or_throw<PrimExpr>();
     return TryPushSelectorForTarget(target, selector);
   }
 

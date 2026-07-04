@@ -208,8 +208,8 @@ struct BufferPadding {
     for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
     body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(PrimVar(loop_vars[i]), loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
-                 std::move(body));
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
+                 ForKind::kSerial, std::move(body));
     }
     return body;
   }

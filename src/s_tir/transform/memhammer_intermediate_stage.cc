@@ -123,7 +123,7 @@ class IndexPatternFinder : public ExprVisitor {
       return;
     }
     if (ffi::Optional<Range> range = var_range_.Get(ffi::GetRef<Var>(op))) {
-      PrimExpr index = ffi::GetRef<Var>(op);
+      PrimExpr index = ffi::GetRef<Var>(op).as_or_throw<PrimExpr>();
       int64_t max = range.value()->extent.as<IntImmNode>()->value;
       int64_t extent = max;
       for (int i = static_cast<int>(operator_stack.size()) - 1; i >= 0; i--) {

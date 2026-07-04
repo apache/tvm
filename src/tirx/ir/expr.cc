@@ -581,7 +581,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(body.defined());
-  TVM_FFI_ICHECK(value.ty() == var.ty());
+  TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
 
   ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>();
   node->ExprNode::ty = body.ty();

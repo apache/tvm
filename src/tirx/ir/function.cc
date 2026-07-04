@@ -56,7 +56,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
         }
       }
 
-      return param.ty();
+      return param->ty;
     }();
     params.push_back(param_ty);
   }
@@ -100,7 +100,7 @@ PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
 FuncType PrimFuncNode::func_type_annotation() const {
   ffi::Array<Type> param_types;
   for (auto param : this->params) {
-    param_types.push_back(GetType(param));
+    param_types.push_back(param->ty);
   }
   return FuncType(param_types, ret_type);
 }
@@ -121,10 +121,10 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
       << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
   for (size_t i = 0; i < desc->params.size(); i++) {
-    TVM_FFI_CHECK(desc->params[i].ty().IsHandle(), ValueError)
+    TVM_FFI_CHECK(PrimType(GetRuntimeDataType(desc->params[i]->ty)).IsHandle(), ValueError)
         << "Parameters of the description of the "
            "tensor intrinsic should be handle only.";
-    TVM_FFI_CHECK(impl->params[i].ty().IsHandle(), ValueError)
+    TVM_FFI_CHECK(PrimType(GetRuntimeDataType(impl->params[i]->ty)).IsHandle(), ValueError)
         << "Parameters of the implementation of "
            "the tensor intrinsic should be handle only.";
   }

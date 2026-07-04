@@ -212,7 +212,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return ffi::GetRef<Var>(op);
   }
   PrimExpr RewriteIndex(PrimExpr index, PrimExpr alloc_extent) const {
-    return analyzer_->Simplify(index + var_ * alloc_extent);
+    return analyzer_->Simplify(index + var_.as_or_throw<PrimExpr>() * alloc_extent);
   }
   // Expression.
   Expr VisitExpr_(const CallNode* op) final {
@@ -232,7 +232,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
                   {op->args[0], op->args[1], offset, extent, op->args[4]})
           .as_or_throw<PrimExpr>();
     } else if (op->op.same_as(builtin::tvm_context_id())) {
-      return allow_share_ ? ffi::GetRef<Call>(op).as_or_throw<PrimExpr>() : var_;
+      return allow_share_ ? Expr(ffi::GetRef<Call>(op)) : Expr(var_);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -467,13 +467,14 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       // do unrolling if it is inside innermost content.
       ffi::Array<Stmt> seq;
       for (int i = 0; i < num_threads_; ++i) {
-        seq.push_back(Substitute(stmt, {{var_, IntImm(var_.ty(), i)}}));
+        PrimType var_ty = var_->ty.as_or_throw<PrimType>();
+        seq.push_back(Substitute(stmt, ffi::Map<Var, Expr>{{var_, IntImm(var_ty, i)}}));
       }
       return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
-      Var idx(var_->name_hint + ".s", var_.ty());
-      stmt = Substitute(stmt, {{var_, idx}});
+      Var idx(var_->name_hint + ".s", var_->ty);
+      stmt = Substitute(stmt, ffi::Map<Var, Expr>{{var_, idx}});
       PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
       return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),
                  MakeConst(idx_dtype, num_threads_), ForKind::kSerial, stmt);

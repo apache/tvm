@@ -50,8 +50,8 @@ using tirx::MakeConst;
 
 TVM_FFI_STATIC_INIT_BLOCK() { IntervalSetNode::RegisterReflection(); }
 
-PrimExpr SymbolicLimits::pos_inf_ = Var("pos_inf", PrimType::Handle());
-PrimExpr SymbolicLimits::neg_inf_ = Var("neg_inf", PrimType::Handle());
+PrimExpr SymbolicLimits::pos_inf_ = Var("pos_inf", PrimType::Handle()).as_or_throw<PrimExpr>();
+PrimExpr SymbolicLimits::neg_inf_ = Var("neg_inf", PrimType::Handle()).as_or_throw<PrimExpr>();
 
 IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) {
   auto node = ffi::make_object<IntervalSetNode>();
@@ -446,7 +446,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     }
 
     if (values.empty()) {
-      return IntervalSet::SinglePoint(var);
+      return IntervalSet::SinglePoint(var.as_or_throw<PrimExpr>());
     }
 
     IntSet intersection = [&]() {

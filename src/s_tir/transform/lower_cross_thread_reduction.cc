@@ -446,7 +446,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
         {
           ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
           ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*iter_var->var.get());
-          n->var = PrimVar(v);
+          n->var = Var(v).as_or_throw<PrimVar>();
           new_iter_var = IterVar(n);
         }
         iter_vars.push_back(new_iter_var);
@@ -877,14 +877,14 @@ class CrossThreadReductionTransformer : public StmtMutator {
     for (int i = 0; i < static_cast<int>(unbound_thread2range.size()); ++i) {
       std::string dim_index(1, static_cast<char>(unbound_thread2range[i].first.dim_index + 'x'));
       body = For(
-          /*loop_var=*/PrimVar(loop_vars[i]),                 //
+          /*loop_var=*/loop_vars[i].as_or_throw<PrimVar>(),   //
           /*min=*/unbound_thread2range[i].second->min,        //
           /*extent=*/unbound_thread2range[i].second->extent,  //
           /*kind=*/ForKind::kThreadBinding,                   //
           /*body=*/body,                                      //
           /*thread_binding=*/
-          IterVar(Range(), PrimVar("", loop_vars[i].ty()), IterVarType::kThreadIndex,
-                  "threadIdx." + dim_index),
+          IterVar(Range(), PrimVar("", loop_vars[i]->ty.as_or_throw<PrimType>()),
+                  IterVarType::kThreadIndex, "threadIdx." + dim_index),
           /*annotations=*/{},
           /*step=*/std::nullopt);
     }

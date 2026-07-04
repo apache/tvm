@@ -168,7 +168,9 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   explicit FuseTIRBufferSubstitutor(const ffi::Map<Buffer, Buffer>& buffer_map,
                                     const ffi::Map<Var, PrimExpr>& var_map) {
     buffer_remap_ = buffer_map;
-    var_remap_ = var_map;
+    for (const auto& [var, value] : var_map) {
+      var_remap_.Set(var, value);
+    }
     for (const auto& [src, tgt] : buffer_map) {
       var_remap_.Set(src->data, tgt->data);
     }
@@ -297,7 +299,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   /*! \brief Mapping from src buffer to tgt buffer. */
   ffi::Map<tirx::Buffer, tirx::Buffer> buffer_remap_;
   /*! \brief Mapping from src tirx var to tgt var. */
-  ffi::Map<tirx::Var, PrimExpr> var_remap_;
+  ffi::Map<tirx::Var, Expr> var_remap_;
 
   ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
     // For now we only allow Buffer access the same elements.
@@ -717,7 +719,7 @@ class FusedTIRConstructor : public ExprVisitor {
         TVM_FFI_ICHECK_GE(num_params, args.size());
         for (size_t i = 0; i < args.size(); ++i) {
           const tirx::Var& param = prim_func->params[num_params - args.size() + i];
-          func_info_.symbolic_var_matcher.Match(param, args[i]);
+          func_info_.symbolic_var_matcher.Match(param.as_or_throw<PrimExpr>(), args[i]);
         }
       } else {
         TVM_FFI_THROW(InternalError)
@@ -856,7 +858,7 @@ class FusedTIRConstructor : public ExprVisitor {
     for (int64_t idx : output_indices) {
       int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
-      tvm::PrimType param_ty = param.ty();
+      tvm::PrimType param_ty = param->ty.as_or_throw<PrimType>();
       if (param_ty.code() == DLDataTypeCode::kDLInt || param_ty.code() == DLDataTypeCode::kDLUInt) {
         if (symbolic_var_index == -1) symbolic_var_index = i;
       } else if (param_ty.IsHandle()) {
@@ -1257,7 +1259,8 @@ class TIRFuseMutator : public ExprMutator {
         }
       } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
         if (const auto* var = arg.as<VarNode>()) {
-          tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype)));
+          tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype))
+                                 .as_or_throw<PrimExpr>());
         } else if (auto literal = arg.as<PrimExpr>()) {
           tir_vars.push_back(literal.value());
         } else {

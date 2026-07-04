@@ -570,7 +570,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if (var.ty().IsHandle() && !alias_var_set_.count(var.get())) {
+    if (PrimType(GetRuntimeDataType(var->ty)).IsHandle() && !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean
@@ -1184,8 +1184,8 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
       TVM_FFI_ICHECK(parallel_env_.num_task.defined());
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
       PrimType t(op->extent.ty()->dtype);
-      PrimExpr num_task = cast(t, parallel_env_.num_task);
-      PrimExpr task_id = cast(t, parallel_env_.task_id);
+      PrimExpr num_task = cast(t, parallel_env_.num_task.as_or_throw<PrimExpr>());
+      PrimExpr task_id = cast(t, parallel_env_.task_id.as_or_throw<PrimExpr>());
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;

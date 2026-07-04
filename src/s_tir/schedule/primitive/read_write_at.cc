@@ -283,7 +283,7 @@ struct ReadWriteAtImpl {
     indices.reserve(n);
     for (int i = 0; i < n; ++i) {
       auto f_substitute = [&loop_domain, &bindings, &iter_vars,
-                           &iter_values](const Var& var) -> ffi::Optional<PrimExpr> {
+                           &iter_values](const Var& var) -> ffi::Optional<Expr> {
         auto it = bindings.find(var);
         if (it != bindings.end()) {
           return (*it).second;
@@ -291,9 +291,9 @@ struct ReadWriteAtImpl {
         Range range = loop_domain.at(var);
         ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*var.get());
         v->name_hint = "v" + std::to_string(iter_vars.size());
-        bindings.Set(var, Var(v));
-        iter_values.push_back(var);
-        iter_vars.push_back(IterVar(range, PrimVar(v), IterVarType::kDataPar));
+        bindings.Set(var, Var(v).as_or_throw<PrimExpr>());
+        iter_values.push_back(var.as_or_throw<PrimExpr>());
+        iter_vars.push_back(IterVar(range, Var(v).as_or_throw<PrimVar>(), IterVarType::kDataPar));
         return Var(v).as_or_throw<PrimExpr>();
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
@@ -302,12 +302,12 @@ struct ReadWriteAtImpl {
       domain.Set(i, Range(dom));
     }
     for (int i = 0; i < n; ++i) {
-      indices.push_back(domain[i]->min + loop_vars[i]);
+      indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
     Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
-      stmt =
-          For(PrimVar(loop_vars[i]), IntImm::Int32(0), domain[i]->extent, ForKind::kSerial, stmt);
+      stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
+                 ForKind::kSerial, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,

@@ -392,7 +392,7 @@ TVM_DLL void PostOrderVisit(const ffi::ObjectRef& node,
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  * \return The converted form.
  */
-TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
+TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
 
 /*!
  * \brief Substitute the var specified by vmap.
@@ -400,8 +400,11 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const V
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  * \return The result.
  */
-TVM_DLL PrimExpr Substitute(PrimExpr expr,
-                            std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
+TVM_DLL Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
+
+inline PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
+  return Substitute(Expr(expr), std::move(vmap)).as_or_throw<PrimExpr>();
+}
 
 /*!
  * \brief Substitute the var specified by vmap.
@@ -411,7 +414,7 @@ TVM_DLL PrimExpr Substitute(PrimExpr expr,
  */
 template <typename T>
 ffi::Array<T> Substitute(const ffi::Array<T>& arr,
-                         std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
+                         std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
   return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
 }
 
@@ -422,7 +425,7 @@ ffi::Array<T> Substitute(const ffi::Array<T>& arr,
  * \return The modified Range.
  */
 inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
+                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
   return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
 }
 
@@ -438,8 +441,8 @@ inline Range Substitute(const Range& range,
  * \return The modified object.
  */
 template <typename Obj>
-auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> { return vmap.Get(var); };
+auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> { return vmap.Get(var); };
   return Substitute(std::forward<Obj>(obj), func);
 }
 
@@ -452,14 +455,10 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Replacement,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
-                                      std::is_same_v<Var, Replacement>>>
+template <typename Obj, typename Replacement>
 auto Substitute(Obj&& obj, const ffi::Map<Var, Replacement>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto replacement = vmap.Get(var)) {
-      return replacement.value().template as_or_throw<PrimExpr>();
-    }
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap.Get(var)) return Expr(replacement.value());
     return std::nullopt;
   };
   return Substitute(std::forward<Obj>(obj), func);
@@ -474,13 +473,11 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, Replacement>& vmap) {
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Replacement,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
-                                      std::is_same_v<Var, Replacement>>>
+template <typename Obj, typename Replacement>
 auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Replacement>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return it->second.template as_or_throw<PrimExpr>();
+      return Expr(it->second);
     }
     return std::nullopt;
   };
@@ -496,14 +493,12 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Replacement>
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Replacement, typename Hasher, typename EqualityChecker,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
-                                      std::is_same_v<Var, Replacement>>>
+template <typename Obj, typename Replacement, typename Hasher, typename EqualityChecker>
 auto Substitute(Obj&& obj,
                 const std::unordered_map<Var, Replacement, Hasher, EqualityChecker>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
     if (auto it = vmap.find(var); it != vmap.end()) {
-      return it->second.template as_or_throw<PrimExpr>();
+      return Expr(it->second);
     }
     return std::nullopt;
   };
@@ -519,16 +514,14 @@ auto Substitute(Obj&& obj,
  * \param iter_vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <
-    typename Obj, typename Expr,
-    typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr> || std::is_same_v<Var, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
+template <typename Obj, typename Replacement>
+auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Replacement>& iter_vmap) {
+  std::unordered_map<const VarNode*, Expr> vmap;
   for (const auto& [iter_var, expr] : iter_vmap) {
-    vmap[iter_var->var.get()] = expr.template as_or_throw<PrimExpr>();
+    vmap[iter_var->var.get()] = Expr(expr);
   }
 
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {

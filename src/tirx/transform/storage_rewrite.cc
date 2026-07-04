@@ -1295,12 +1295,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void HandleLetNode(Var let_var) {
-    if (let_var.ty().IsHandle()) {
+    PrimType runtime_ty(GetRuntimeDataType(let_var->ty));
+    if (runtime_ty.IsHandle()) {
       auto pointer_type = GetPointerType(let_var->ty);
       if (pointer_type.has_value()) {
         OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
       } else if (allow_untyped_pointers_) {
-        OnArrayDeclaration(let_var, let_var.ty(), 0, BufferVarInfo::kLetNode);
+        OnArrayDeclaration(let_var, runtime_ty, 0, BufferVarInfo::kLetNode);
       } else {
         TVM_FFI_THROW(InternalError) << "Let statement of variable " << let_var->name_hint
                                      << " is missing a type annotation, "
@@ -1677,7 +1678,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       int factor = info.factor();
       extent = extent / MakeConst(extent.ty(), factor);
       index = index / MakeConst(index.ty(), factor);
-      ffi::Array<PrimExpr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
+      ffi::Array<Expr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
       // tvm_access_ptr produces a pointer; its Call.dtype must be handle
       // (the lowering rule in src/target/intrin_rule.cc ICHECKs this).
       // The element dtype is conveyed via the first arg (e_dtype marker).

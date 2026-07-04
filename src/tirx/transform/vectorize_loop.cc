@@ -341,8 +341,8 @@ class VecAllocAccess : public StmtExprMutator {
     // Extend the last index by the number of lanes in the vectorized
     // variable.
     ffi::Array<PrimExpr> indices = node->indices;
-    indices.Set(indices.size() - 1,
-                analyzer_->Simplify(indices[indices.size() - 1] * var_lanes_ + var_));
+    indices.Set(indices.size() - 1, analyzer_->Simplify(indices[indices.size() - 1] * var_lanes_ +
+                                                        var_.as_or_throw<PrimExpr>()));
 
     auto writer = node.CopyOnWrite();
     writer->buffer = buf;
@@ -372,7 +372,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
 
   Vectorizer(Var var, PrimExpr var_lanes, Target target)
       : var_(var), var_lanes_(var_lanes), target_(target) {
-    ramp_ = Ramp(IntImm(var.ty(), 0), IntImm(var.ty(), 1), var_lanes);
+    PrimType var_ty = var->ty.as_or_throw<PrimType>();
+    ramp_ = Ramp(IntImm(var_ty, 0), IntImm(var_ty, 1), var_lanes);
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {
@@ -730,10 +731,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
     }
     if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(op->value.ty())) {
       Var new_var(op->var->name_hint, value.ty());
-      let_binding_[op->var] = new_var;
+      let_binding_[op->var] = new_var.as_or_throw<PrimExpr>();
       return Let(new_var, value, this->VisitPrimExpr(op->body));
     } else {
-      let_binding_[op->var] = op->var;
+      let_binding_[op->var] = op->var.as_or_throw<PrimExpr>();
       PrimExpr body = this->VisitPrimExpr(op->body);
       if (value.same_as(op->value) && body.same_as(op->body)) {
         return ffi::GetRef<PrimExpr>(op);
@@ -795,11 +796,13 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
     TVM_FFI_ICHECK(f_check_index(updated_index));
 
     if (new_vec_length == 1) {
-      return tirx::Substitute(op->vectors[0], {{var_, tvm::IntImm(var_.ty(), 0)}});
+      PrimType var_ty = var_->ty.as_or_throw<PrimType>();
+      return tirx::Substitute(op->vectors[0], ffi::Map<Var, Expr>{{var_, tvm::IntImm(var_ty, 0)}});
     } else {
       PrimExpr prev_ramp = ramp_;
       PrimExpr prev_var_lanes = var_lanes_;
-      ramp_ = Ramp(IntImm(var_.ty(), 0), IntImm(var_.ty(), 2), new_vec_length);
+      PrimType var_ty = var_->ty.as_or_throw<PrimType>();
+      ramp_ = Ramp(IntImm(var_ty, 0), IntImm(var_ty, 2), new_vec_length);
       var_lanes_ = tvm::IntImm(var_lanes_.ty(), new_vec_length);
       lane_vectors = 0;
       vectors = MutateArray(op->vectors, &lane_vectors);
@@ -941,10 +944,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
 
     if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(prim_value.value().ty())) {
       Var new_var(op->var->name_hint, value.ty());
-      let_binding_[op->var] = new_var;
+      let_binding_[op->var] = new_var.as_or_throw<PrimExpr>();
       return Bind(new_var, value);
     } else {
-      let_binding_[op->var] = op->var;
+      let_binding_[op->var] = op->var.as_or_throw<PrimExpr>();
       if (value.same_as(op->value)) {
         return ffi::GetRef<Stmt>(op);
       } else {
@@ -957,9 +960,10 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
 
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
-    Var idx(var_->name_hint + ".s", var_.ty());
-    stmt = Substitute(stmt, {{var_, idx}});
-    return For(PrimVar(idx), IntImm(var_.ty(), 0), var_lanes_, ForKind::kSerial, stmt);
+    PrimType var_ty = var_->ty.as_or_throw<PrimType>();
+    Var idx(var_->name_hint + ".s", var_ty);
+    stmt = Substitute(stmt, ffi::Map<Var, Expr>{{var_, idx}});
+    return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, ForKind::kSerial, stmt);
   }
 
  private:
@@ -1106,8 +1110,8 @@ class LoopVectorizer : public StmtMutator {
     }
     PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
 
-    Var outer(op->loop_var->name_hint + ".vla.o", index_dtype);
-    Var inner(op->loop_var->name_hint + ".vla.i", lane_dtype);
+    PrimVar outer(op->loop_var->name_hint + ".vla.o", index_dtype);
+    PrimVar inner(op->loop_var->name_hint + ".vla.i", lane_dtype);
     PrimExpr inner_index = inner;
     if (inner_index.ty() != index_dtype) {
       inner_index = Cast(index_dtype, inner_index);
@@ -1115,11 +1119,10 @@ class LoopVectorizer : public StmtMutator {
     PrimExpr index = outer * scalable_lanes_index + inner_index;
     Stmt body = Substitute(op->body, {{op->loop_var, index}});
     Stmt guarded_body = IfThenElse(index < fixed_extent, body, std::nullopt, op->span);
-    Stmt vector_loop =
-        For(PrimVar(inner), IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
-            guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
-    Stmt loop = For(PrimVar(outer), zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt,
-                    {}, std::nullopt, op->span);
+    Stmt vector_loop = For(inner, IntImm(lane_dtype, 0), scalable_lanes, ForKind::kVectorized,
+                           guarded_body, std::nullopt, op->annotations, std::nullopt, op->span);
+    Stmt loop = For(outer, zero, num_chunks, ForKind::kSerial, vector_loop, std::nullopt, {},
+                    std::nullopt, op->span);
 
     return this->VisitStmt(loop);
   }

@@ -275,7 +275,7 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   is_restricted_ = func->HasNonzeroAttr(tirx::attr::kNoAlias);
   for (Var param : func->params) {
     param_types.push_back(GetLLVMType(param->ty));
-    if (!is_restricted_ && PrimType(param.ty()->dtype).IsHandle()) {
+    if (!is_restricted_ && PrimType(GetRuntimeDataType(param->ty)).IsHandle()) {
       alias_var_set_.insert(param.get());
     }
   }
@@ -326,7 +326,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
     var_map_[var.get()] = v;
     v->setName(std::string(var->name_hint));
     if (is_restricted_) {
-      if (PrimType(var.ty()->dtype).IsHandle() && !alias_var_set_.count(var.get())) {
+      if (PrimType(GetRuntimeDataType(var->ty)).IsHandle() && !alias_var_set_.count(var.get())) {
         // set non alias.
         function_->addParamAttr(i, llvm::Attribute::NoAlias);
       }
@@ -894,7 +894,7 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   TVM_FFI_ICHECK(!var_map_.count(loop_var.get()));
   var_map_[loop_var.get()] = loop_value;
 
-  auto lt = CreateLT(PrimType(loop_var.ty()->dtype), loop_value, end);
+  auto lt = CreateLT(PrimType(GetRuntimeDataType(loop_var->ty)), loop_value, end);
   builder_->CreateCondBr(lt, for_body, for_end, md_very_likely_branch_);
   builder_->SetInsertPoint(for_body);
   EmitDebugLocation(body->span);
@@ -906,7 +906,8 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
 
   builder_->CreateBr(for_next);
   builder_->SetInsertPoint(for_next);
-  llvm::Value* loop_next = CreateAdd(PrimType(loop_var.ty()->dtype), loop_value, stride);
+  llvm::Value* loop_next =
+      CreateAdd(PrimType(GetRuntimeDataType(loop_var->ty)), loop_value, stride);
   loop_value->addIncoming(loop_next, builder_->GetInsertBlock());
   builder_->CreateBr(for_begin);
   builder_->SetInsertPoint(for_end);

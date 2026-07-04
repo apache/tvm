@@ -142,9 +142,9 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func,
                            const std::vector<int>& reduce_axes,
                            const std::vector<int>& squeeze_axes, Span span = Span()) {
   auto r_axes = MakeReduceAxes(reduce_axes, data);
-  auto compute = [&](const ffi::Array<Var>& indices) {
+  auto compute = [&](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> eval_range;
-    ffi::Array<Var> eval_indices;
+    ffi::Array<PrimVar> eval_indices;
     int arg_counter = 0;
     int red_counter = 0;
 
@@ -216,7 +216,7 @@ inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<i
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func,
-                  &data](const ffi::Array<Var>& indices) {
+                  &data](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> eval_range;
     ffi::Array<PrimExpr> eval_indices;
     int arg_counter = 0;
@@ -251,12 +251,13 @@ inline Tensor CommReduceIdx(const Tensor& data, const ffi::Optional<ffi::Array<i
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
   return tvm::te::compute(
-      target_shape, [&temp_idx](const ffi::Array<Var>& indices) { return temp_idx(indices); },
+      target_shape, [&temp_idx](const ffi::Array<PrimVar>& indices) { return temp_idx(indices); },
       data->op->name + "_red", kCommReduceIdx);
 }
 
 /*! \brief A combiner function for a reduction */
-using FCombine = std::function<ffi::Array<PrimExpr>(ffi::Array<Var> lhs, ffi::Array<Var> rhs)>;
+using FCombine =
+    std::function<ffi::Array<PrimExpr>(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs)>;
 
 /*! \brief An initializer function for a reduction */
 using FIdentity = std::function<ffi::Array<PrimExpr>(std::vector<PrimType> types)>;
@@ -275,14 +276,14 @@ inline FCommReduce MakeCommReducer(FCombine fcombine, FIdentity fidentity,
   return [fcombine, fidentity, name](ffi::Array<PrimExpr> exprs, const ffi::Array<IterVar>& axis,
                                      PrimExpr* condition) {
     ffi::Array<PrimVar> lhs, rhs;
-    ffi::Array<Var> callback_lhs, callback_rhs;
+    ffi::Array<PrimVar> callback_lhs, callback_rhs;
     std::vector<PrimType> dtypes;
 
     for (size_t i = 0; i < exprs.size(); ++i) {
       PrimType dtype = exprs[i].ty();
       dtypes.push_back(dtype);
-      PrimVar lhs_var(var(name + "_lhs_" + std::to_string(i), dtype));
-      PrimVar rhs_var(var(name + "_rhs_" + std::to_string(i), dtype));
+      PrimVar lhs_var(name + "_lhs_" + std::to_string(i), dtype);
+      PrimVar rhs_var(name + "_rhs_" + std::to_string(i), dtype);
       lhs.push_back(lhs_var);
       rhs.push_back(rhs_var);
       callback_lhs.push_back(lhs_var);
@@ -455,7 +456,7 @@ inline Tensor max(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>& 
 
 inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
-  auto fcombine = [=](ffi::Array<Var> lhs, ffi::Array<Var> rhs) {
+  auto fcombine = [=](ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs) {
     ffi::Array<PrimExpr> result;
 
     // Casting to avoid operator ambiguity
@@ -517,7 +518,7 @@ inline Tensor argmin(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>
 
 inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
   // Create a Commutative Reducer with a comparison operation, and method to get the initial value.
-  auto fcombine = [=](ffi::Array<Var> lhs, ffi::Array<Var> rhs) {
+  auto fcombine = [=](ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs) {
     ffi::Array<PrimExpr> result;
 
     // Casting to avoid operator ambiguity
@@ -598,7 +599,7 @@ inline Tensor prod(const Tensor& data, const ffi::Optional<ffi::Array<int64_t>>&
  * \brief Create communitive reducer summing over tuples
  */
 inline FCommReduce MakeTupleSumReducer() {
-  auto fcombine = [](ffi::Array<Var> lhs, ffi::Array<Var> rhs) {
+  auto fcombine = [](ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs) {
     ffi::Array<PrimExpr> result;
     TVM_FFI_ICHECK_EQ(lhs.size(), rhs.size());
     result.reserve(lhs.size());

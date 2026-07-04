@@ -81,7 +81,7 @@ inline Tensor dilate(const Tensor& x, ffi::Array<PrimExpr> strides, double dilat
 
   return tvm::te::compute(
       out_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         ffi::Array<PrimExpr> not_zero;
         ffi::Array<PrimExpr> index_tuple;
         for (size_t i = 0; i < n; ++i) {

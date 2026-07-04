@@ -49,10 +49,11 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   PrimExpr e = VisitExpr(op->loop_var).as_or_throw<PrimExpr>();
   Var var = e.as_or_throw<Var>();
   auto n = CopyOnWrite(op);
-  n->min = cast(var.ty(), op->min);
-  n->extent = cast(var.ty(), op->extent);
+  PrimType var_ty = var->ty.as_or_throw<PrimType>();
+  n->min = cast(var_ty, op->min);
+  n->extent = cast(var_ty, op->extent);
   if (op->step.has_value()) {
-    n->step = cast(var.ty(), *op->step);
+    n->step = cast(var_ty, *op->step);
   }
   return For(n);
 }
@@ -130,7 +131,7 @@ Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitPrimExpr(op->value);
   Var var = op->var;
 
-  if (value.ty() != op->var.ty()) {
+  if (value.ty() != op->var->ty.as_or_throw<PrimType>()) {
     var = op->var.copy_with_dtype(value.ty());
     var_remap_[op->var.get()] = var;
   }
@@ -149,7 +150,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
   Var var = op->var;
 
   if (auto prim_value = value.as<PrimExpr>()) {
-    if (prim_value.value().ty() != op->var.ty()) {
+    if (prim_value.value().ty() != op->var->ty.as_or_throw<PrimType>()) {
       var = op->var.copy_with_dtype(prim_value.value().ty());
       var_remap_[op->var.get()] = var;
     }
@@ -559,7 +560,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
   PrimExpr value = VisitExpr(op->value).as_or_throw<PrimExpr>();
   Var var = var_remap_[bind_stmt->var.get()];
   is_enabled_ = is_enabled;
-  TVM_FFI_ICHECK(value.ty() == var.ty());
+  TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
   return Bind(var, value, bind_stmt->span);
 }
 
@@ -637,8 +638,9 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   bool is_enabled = true;
   std::swap(is_enabled_, is_enabled);
   ffi::Array<Var> params = func->params.Map([this](Var param) {
-    if (param.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
-      return this->VisitPrimExpr(param).as_or_throw<Var>();
+    if (auto param_ty = param->ty.as<PrimType>();
+        param_ty && param_ty.value().MatchesCode(DLDataTypeCode::kDLInt)) {
+      return this->VisitPrimExpr(param.as_or_throw<PrimExpr>()).as_or_throw<Var>();
     } else {
       return param;
     }

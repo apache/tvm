@@ -158,8 +158,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
-        auto rmod = tirx::Var("rmod", dtype);
-        auto rdiv = tirx::Var("rdiv", dtype);
+        PrimVar rmod("rmod", dtype);
+        PrimVar rdiv("rdiv", dtype);
         // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
         // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
         PrimExpr let_rdiv =
@@ -222,13 +222,13 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
-        auto rmod = tirx::Var("rmod", dtype);
+        PrimVar rmod("rmod", dtype);
         // b > 0 && rmod >= 0 -> rmod
         // b > 0 && rmod < 0  -> rmod + b
         // b < 0 && rmod < 0 -> rmod
         // b < 0 && rmod > 0 -> rmod + b
         return Let(
-            PrimVar(rmod), truncmod(op->a, op->b),
+            rmod, truncmod(op->a, op->b),
             Select((op->b >= 0 && rmod >= 0) || (op->b < 0 && rmod <= 0), rmod, rmod + op->b));
       }
     }

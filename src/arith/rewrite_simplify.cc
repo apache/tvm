@@ -2425,7 +2425,7 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   PrimType op_ty = opt_op_ty.value();
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !op_ty.IsScalableVector() &&
       !op_ty.IsFixedLengthVector()) {
-    if (auto match = TryMatchLiteralConstraint(var)) {
+    if (auto match = TryMatchLiteralConstraint(var.as_or_throw<PrimExpr>())) {
       return match.value();
     }
   }

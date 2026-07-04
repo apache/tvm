@@ -628,7 +628,7 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   n->buffer_type = buffer_type;
   if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
     for (size_t i = 0; i < n->shape.size(); ++i) {
-      n->strides.push_back(Var("stride", n->shape[i].ty()));
+      n->strides.push_back(PrimVar("stride", n->shape[i].ty()));
     }
   }
   n->span = std::move(span);
@@ -659,7 +659,7 @@ tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtyp
 
   PrimExpr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = tirx::Var(name + "_elem_offset", shape[0].ty());
+    elem_offset = tirx::PrimVar(name + "_elem_offset", shape[0].ty());
   } else {
     elem_offset = PrimExpr();
   }

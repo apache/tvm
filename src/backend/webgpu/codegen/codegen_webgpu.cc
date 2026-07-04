@@ -68,7 +68,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var.ty().IsHandle()) {
+    if (PrimType(GetRuntimeDataType(buffer_var->ty)).IsHandle()) {
       info_.write_access_set.insert(buffer_var);
     }
   }
@@ -119,7 +119,7 @@ void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg.ty().IsHandle()) {
+    if (PrimType(GetRuntimeDataType(arg->ty)).IsHandle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -174,7 +174,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   os_param_access << "paramWriteAccess:[";
   // setup buffer argumemts
   for (Var arg : f->params) {
-    PrimType t = arg.ty();
+    PrimType t = PrimType(GetRuntimeDataType(arg->ty));
     func_arg_types.push_back(t->dtype);
 
     if (t.IsHandle()) {
@@ -228,17 +228,18 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 
   for (size_t i = 0; i < pod_args.size(); ++i) {
     Var v = pod_args[i];
-    TVM_FFI_ICHECK(!v.ty().IsHandle());
+    TVM_FFI_ICHECK(!PrimType(GetRuntimeDataType(v->ty)).IsHandle());
     std::string vid = AllocVarID(v.get());
 
-    if (v.ty() == PrimType::Int(32)) {
+    if (PrimType(GetRuntimeDataType(v->ty)) == PrimType::Int(32)) {
       this->decl_stream << "  " << vid << ": i32";
-    } else if (v.ty() == PrimType::UInt(32)) {
+    } else if (PrimType(GetRuntimeDataType(v->ty)) == PrimType::UInt(32)) {
       this->decl_stream << "  " << vid << ": u32";
-    } else if (v.ty() == PrimType::Float(32)) {
+    } else if (PrimType(GetRuntimeDataType(v->ty)) == PrimType::Float(32)) {
       this->decl_stream << "  " << vid << ": f32";
     } else {
-      TVM_FFI_THROW(InternalError) << "Do not support pod argument type " << v.ty()->dtype;
+      TVM_FFI_THROW(InternalError)
+          << "Do not support pod argument type " << PrimType(GetRuntimeDataType(v->ty))->dtype;
     }
     this->decl_stream << ",\n";
     // value ref
@@ -480,7 +481,7 @@ void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT
     PrintIndent();
     std::string value = PrintExpr(op->value);
     this->stream << "let " << AllocVarID(op->var.get()) << " : ";
-    PrintType(op->var.ty()->dtype, this->stream);
+    PrintType(PrimType(GetRuntimeDataType(op->var->ty))->dtype, this->stream);
     this->stream << " = " << value << ";\n";
   }
   os << PrintExpr(op->body);
@@ -599,7 +600,7 @@ void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
     PrintIndent();
     std::string value = PrintExpr(op->value);
     this->stream << "let " << AllocVarID(op->var.get()) << " : ";
-    PrintType(op->var.ty()->dtype, this->stream);
+    PrintType(PrimType(GetRuntimeDataType(op->var->ty))->dtype, this->stream);
     this->stream << " = " << value << ";\n";
   }
 }

@@ -893,7 +893,7 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
       size_t arg_begin = static_cast<size_t>(skip_first_arg);
       for (size_t i = arg_begin; i < args.size(); ++i) {
         PrimExpr arg = args[i].as_or_throw<PrimExpr>();
-        std::string val = SSAGetID(PrintExpr(arg), arg.ty());
+        std::string val = SSAGetID(PrintExpr(arg), PrimType(GetRuntimeDataType(arg->ty)));
         sargs.push_back(std::move(val));
       }
 
@@ -1379,7 +1379,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         // and finally reinterpret the result as fp4x2.
         value =
             Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
-        tirx::Var temp_var("temp_var", PrimType::UInt(16));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = tirx::Let(temp_var, value,
                           tirx::Cast(PrimType::UInt(8),
                                      (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
@@ -1388,7 +1388,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value = tirx::Cast(
             PrimType::UInt(16),
             Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
-        tirx::Var temp_var("temp_var", PrimType::UInt(16));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = tirx::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
@@ -1400,7 +1400,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         // and finally reinterpret the result as fp4x4.
         value =
             Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
-        tirx::Var temp_var("temp_var", PrimType::UInt(32));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = tirx::Let(temp_var, value,
                           tirx::Cast(PrimType::UInt(16),
                                      (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
@@ -1411,7 +1411,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value = tirx::Cast(PrimType::UInt(32),
                            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
                                .as_or_throw<PrimExpr>());
-        tirx::Var temp_var("temp_var", PrimType::UInt(32));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = tirx::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF0)) << 4) |

@@ -271,8 +271,9 @@ class ScopeReconstructor : private StmtMutator {
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
         loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
-        iter_values.push_back(iter_dom->min + var);
-        analyzer->Bind(var, Range::FromMinExtent(IntImm(var.ty(), 0), iter_dom->extent));
+        iter_values.push_back(iter_dom->min + var.as_or_throw<PrimExpr>());
+        analyzer->Bind(var, Range::FromMinExtent(IntImm(var->ty.as_or_throw<PrimType>(), 0),
+                                                 iter_dom->extent));
       } else {
         iter_values.push_back(iter_dom->min);
       }

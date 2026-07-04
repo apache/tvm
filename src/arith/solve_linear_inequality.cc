@@ -250,7 +250,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     for (const auto& pos : coef_pos) {
       for (const auto& neg : coef_neg) {
         auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
-        PrimType v_ty = v.ty();
+        PrimType v_ty = v->ty.as_or_throw<PrimType>();
         PrimExpr c_pos = MakeConst(v_ty, neg.first / first_gcd);
         PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
         // eliminate the current variable
@@ -285,7 +285,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     lower_bounds.reserve(coef_neg.size());
 
     for (const auto& pos : coef_pos) {
-      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / pos.first) * pos.second;
+      PrimExpr bound = MakeConst(v->ty.as_or_throw<PrimType>(), -coef_lcm / pos.first) * pos.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(upper_bounds.begin(), upper_bounds.end(),
@@ -306,7 +306,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       upper_bounds.push_back(bound);
     }
     for (const auto& neg : coef_neg) {
-      PrimExpr bound = IntImm(v.ty(), -coef_lcm / neg.first) * neg.second;
+      PrimExpr bound = MakeConst(v->ty.as_or_throw<PrimType>(), -coef_lcm / neg.first) * neg.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(lower_bounds.begin(), lower_bounds.end(),
@@ -334,7 +334,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     std::sort(equal_list.begin(), equal_list.end(), ExprLess());
 
     // Write it to the result.
-    IntGroupBounds bnds(IntImm(v.ty(), coef_lcm),
+    IntGroupBounds bnds(MakeConst(v->ty.as_or_throw<PrimType>(), coef_lcm),
                         ffi::Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
                         ffi::Array<PrimExpr>(equal_list.begin(), equal_list.end()),
                         ffi::Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
@@ -490,8 +490,8 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
       Var new_var = var.CopyWithSuffix(".shifted");
       if (!best_range.defined()) {
-        res_src_to_dst.Set(var, var);
-        res_dst_to_src.Set(var, var);
+        res_src_to_dst.Set(var, var.as_or_throw<PrimExpr>());
+        res_dst_to_src.Set(var, var.as_or_throw<PrimExpr>());
         res_variables.push_back(var);
       } else if (is_const_int(best_range->extent, 1)) {
         // Don't create an itervar, just replace it everywhere with its min
@@ -506,14 +506,15 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
                                        {}, {});
       } else {
         // created new_var starts from 0
-        res_src_to_dst.Set(var, new_var + best_range->min);
+        res_src_to_dst.Set(var, new_var.as_or_throw<PrimExpr>() + best_range->min);
         // Note that we are substituting old with new, so best_range contains new var,
         // that is we have to substitute new with old in best_range here
         res_dst_to_src.Set(new_var,
-                           analyzer->Simplify(var - Substitute(best_range->min, res_dst_to_src)));
+                           analyzer->Simplify(var.as_or_throw<PrimExpr>() -
+                                              Substitute(best_range->min, res_dst_to_src)));
 
         // Add the new var to the resulting axis
-        auto range = Range(IntImm(new_var.ty(), 0), best_range->extent);
+        auto range = Range(IntImm(new_var->ty.as_or_throw<PrimType>(), 0), best_range->extent);
         res_variables.push_back(new_var);
         res_ranges.Set(new_var, range);
 

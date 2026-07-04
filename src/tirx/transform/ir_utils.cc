@@ -252,7 +252,7 @@ class IRConvertSSA final : public StmtExprMutator {
         if (defined_.count(iter_var->var.get())) {
           Var new_var = MakeNewVar(iter_var->var);
           PushVarRemap(iter_var->var, new_var);
-          iter_var.CopyOnWrite()->var = PrimVar(new_var);
+          iter_var.CopyOnWrite()->var = new_var.as_or_throw<PrimVar>();
         } else {
           defined_.insert(iter_var->var.get());
         }
@@ -406,7 +406,7 @@ class IRConvertSSA final : public StmtExprMutator {
         PushVarRemap(v, new_var);
         Stmt stmt = StmtExprMutator::VisitStmt_(op);
         auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
-        n->loop_var = PrimVar(new_var);
+        n->loop_var = new_var.as_or_throw<PrimVar>();
         return For(n);
       });
     } else {
@@ -455,13 +455,7 @@ class IRConvertSSA final : public StmtExprMutator {
           it != function_scope_var_remap_.end()) {
         var = it->second;
       } else if (defined_.count(var.get())) {
-        Var new_var = [&]() {
-          if (!var->ty.IsMissing()) {
-            return Var(var->name_hint, var->ty);
-          } else {
-            return Var(var->name_hint, var.ty());
-          }
-        }();
+        Var new_var(var->name_hint, var->ty);
 
         function_scope_var_remap_.insert({var.get(), new_var});
         var = new_var;
@@ -489,8 +483,8 @@ class IRConvertSSA final : public StmtExprMutator {
       if (dom.same_as(iter_var->dom) && var.same_as(iter_var->var)) {
         new_iter_var = ffi::GetRef<IterVar>(iter_var);
       } else {
-        new_iter_var =
-            IterVar(dom, PrimVar(var), iter_var->iter_type, iter_var->thread_tag, iter_var->span);
+        new_iter_var = IterVar(dom, var.as_or_throw<PrimVar>(), iter_var->iter_type,
+                               iter_var->thread_tag, iter_var->span);
       }
 
       auto value = VisitPrimExpr(op->value);
@@ -533,13 +527,7 @@ class IRConvertSSA final : public StmtExprMutator {
   };
 
   /*! \brief Create a new variable with the same name and type as the original. */
-  static Var MakeNewVar(const Var& old_var) {
-    if (!old_var->ty.IsMissing()) {
-      return Var(old_var->name_hint, old_var->ty);
-    } else {
-      return Var(old_var->name_hint, old_var.ty());
-    }
-  }
+  static Var MakeNewVar(const Var& old_var) { return Var(old_var->name_hint, old_var->ty); }
 
   /*! \brief Push a variable remap to the current scope and the var_remap_ stack. */
   void PushVarRemap(const Var& old_var, const Var& new_var) {

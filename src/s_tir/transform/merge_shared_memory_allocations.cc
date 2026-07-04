@@ -525,16 +525,15 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (op->args.size() == 5)
         return Call(op->ty.as_or_throw<PrimType>(), op->op,
                     {scope_stack_.back().merged_buf_var,
-                     mul(extra_offset + offset, PrimExpr(index_factor)),
-                     op->args[2].as_or_throw<PrimExpr>(), op->args[3].as_or_throw<PrimExpr>(),
-                     op->args[4].as_or_throw<PrimExpr>()})
+                     mul(extra_offset + offset, PrimExpr(index_factor)), op->args[2],
+                     op->args[3].as_or_throw<PrimExpr>(), op->args[4].as_or_throw<PrimExpr>()})
             .as_or_throw<PrimExpr>();
       else
         return Call(op->ty.as_or_throw<PrimType>(), op->op,
                     {scope_stack_.back().merged_buf_var,
-                     mul(extra_offset + offset, PrimExpr(index_factor)),
-                     op->args[2].as_or_throw<PrimExpr>(), op->args[3].as_or_throw<PrimExpr>(),
-                     op->args[4].as_or_throw<PrimExpr>(), op->args[5].as_or_throw<PrimExpr>()})
+                     mul(extra_offset + offset, PrimExpr(index_factor)), op->args[2],
+                     op->args[3].as_or_throw<PrimExpr>(), op->args[4].as_or_throw<PrimExpr>(),
+                     op->args[5].as_or_throw<PrimExpr>()})
             .as_or_throw<PrimExpr>();
     } else {
       return StmtExprMutator::VisitExpr_(op);

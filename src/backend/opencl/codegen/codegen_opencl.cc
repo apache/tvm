@@ -84,7 +84,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
       // Storage scope qualifiers for textures are inferred
       // and set prior to function codegen.
       continue;
-    } else if (arg.ty().IsHandle()) {
+    } else if (PrimType(GetRuntimeDataType(arg->ty)).IsHandle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }

@@ -97,7 +97,8 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  */
 inline PrimExpr TVMStructGet(PrimType dtype, Var handle, int index,
                              builtin::TVMStructFieldKind kind) {
-  ffi::Array<PrimExpr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
+  ffi::Array<PrimExpr> args = {handle.as_or_throw<PrimExpr>(), IntImm::Int32(index),
+                               IntImm::Int32(static_cast<int>(kind))};
   return Call(dtype, builtin::tvm_struct_get(), args).as_or_throw<PrimExpr>();
 }
 

@@ -315,7 +315,8 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  return ffi::Array<PrimExpr>{x[0] + y[0]};
+                  return ffi::Array<PrimExpr>{x[0].as_or_throw<PrimExpr>() +
+                                              y[0].as_or_throw<PrimExpr>()};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
                   return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), 0)};
@@ -323,7 +324,8 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  return ffi::Array<PrimExpr>{x[0] * y[0]};
+                  return ffi::Array<PrimExpr>{x[0].as_or_throw<PrimExpr>() *
+                                              y[0].as_or_throw<PrimExpr>()};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
                   return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), 1)};
@@ -331,7 +333,8 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  return ffi::Array<PrimExpr>{min(x[0], y[0])};
+                  return ffi::Array<PrimExpr>{
+                      min(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>())};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
                   return ffi::Array<PrimExpr>{max_value(values[0].ty())};
@@ -339,7 +342,8 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/1,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  return ffi::Array<PrimExpr>{max(x[0], y[0])};
+                  return ffi::Array<PrimExpr>{
+                      max(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>())};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
                   return ffi::Array<PrimExpr>{min_value(values[0].ty())};
@@ -347,7 +351,9 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  return ffi::Array<PrimExpr>{x[0] + y[0], x[1] + y[1]};
+                  return ffi::Array<PrimExpr>{
+                      x[0].as_or_throw<PrimExpr>() + y[0].as_or_throw<PrimExpr>(),
+                      x[1].as_or_throw<PrimExpr>() + y[1].as_or_throw<PrimExpr>()};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
                   return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), 0),
@@ -356,8 +362,29 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  PrimExpr idx = Select(x[1] >= y[1], x[0], y[0]);
-                  PrimExpr val = Select(x[1] >= y[1], x[1], y[1]);
+                  PrimExpr idx =
+                      Select(x[1].as_or_throw<PrimExpr>() >= y[1].as_or_throw<PrimExpr>(),
+                             x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>());
+                  PrimExpr val =
+                      Select(x[1].as_or_throw<PrimExpr>() >= y[1].as_or_throw<PrimExpr>(),
+                             x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>());
+                  return ffi::Array<PrimExpr>{idx, val};
+                },
+                [](const ffi::Array<PrimExpr>& values) {
+                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
+                                              min_value(values[1].ty())};
+                }),
+            CreateReducerGetter(
+                /*n_buffers=*/2,
+                [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
+                  PrimExpr idx = Select(
+                      Or(greater(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                         And(equal(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             less(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>()))),
+                      x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>());
+                  PrimExpr val =
+                      Select(greater(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>());
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
@@ -368,20 +395,11 @@ struct ReducerRegistry {
                 /*n_buffers=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx =
-                      Select(Or(greater(x[1], y[1]), And(equal(x[1], y[1]), less(x[0], y[0]))),
-                             x[0], y[0]);
-                  PrimExpr val = Select(greater(x[1], y[1]), x[1], y[1]);
-                  return ffi::Array<PrimExpr>{idx, val};
-                },
-                [](const ffi::Array<PrimExpr>& values) {
-                  return ffi::Array<PrimExpr>{MakeConst(values[0].ty(), -1),
-                                              min_value(values[1].ty())};
-                }),
-            CreateReducerGetter(
-                /*n_buffers=*/2,
-                [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  PrimExpr idx = Select(x[1] <= y[1], x[0], y[0]);
-                  PrimExpr val = Select(x[1] <= y[1], x[1], y[1]);
+                      Select(x[1].as_or_throw<PrimExpr>() <= y[1].as_or_throw<PrimExpr>(),
+                             x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>());
+                  PrimExpr val =
+                      Select(x[1].as_or_throw<PrimExpr>() <= y[1].as_or_throw<PrimExpr>(),
+                             x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>());
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
@@ -392,8 +410,13 @@ struct ReducerRegistry {
                 /*n_buffers=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
                   PrimExpr idx = Select(
-                      Or(less(x[1], y[1]), And(equal(x[1], y[1]), less(x[0], y[0]))), x[0], y[0]);
-                  PrimExpr val = Select(less(x[1], y[1]), x[1], y[1]);
+                      Or(less(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                         And(equal(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             less(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>()))),
+                      x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>());
+                  PrimExpr val =
+                      Select(less(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>());
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
@@ -750,7 +773,8 @@ class BaseBlockCreator {
     for (int i = 0; i < n_buffers_; ++i) {
       Var var("v_" + update_buffers_[i]->name, stored_values[i].ty());
       let_vars.push_back(var);
-      buf_stores.push_back(BufferStore(update_buffers_[i], var, update_indices_[i]));
+      buf_stores.push_back(
+          BufferStore(update_buffers_[i], var.as_or_throw<PrimExpr>(), update_indices_[i]));
     }
     ffi::Array<Stmt> stmts;
     for (int i = 0; i < n_buffers_; ++i) {
@@ -902,7 +926,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
             IterVarFromLoop(loop, "v" + loop->loop_var->name_hint, IterVarType::kCommReduce);
         loop_var2block_binding_[var.get()] = new_iter_var->var;
         iter_vars_.push_back(new_iter_var);
-        iter_values_.push_back(var);
+        iter_values_.push_back(var.as_or_throw<PrimExpr>());
       }
     }
     // Substitute the original binding with new block iters. Store the result expression

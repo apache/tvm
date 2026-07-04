@@ -233,7 +233,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   // Create TVMFFIABIBuilder and decode all packed args
   TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
-                          v_num_packed_args, device_type, device_id);
+                          v_num_packed_args, device_type, device_id.as_or_throw<PrimExpr>());
   binder.DecodeAllParams();
 
   auto result = binder.Finalize();
@@ -255,14 +255,14 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Set device context
   if (need_set_device) {
     ffi::Any node = ffi::String("default");
-    seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
+    seq_check.push_back(AttrStmt(node, attr::device_id, device_id.as_or_throw<PrimExpr>(), nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
-      Stmt set_device =
-          Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                        {StringImm(runtime::symbol::tvm_set_device), device_type, device_id})
-                       .as_or_throw<PrimExpr>());
+      Stmt set_device = Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
+                                      {StringImm(runtime::symbol::tvm_set_device), device_type,
+                                       device_id.as_or_throw<PrimExpr>()})
+                                     .as_or_throw<PrimExpr>());
       body = SeqStmt({set_device, body});
     }
   }

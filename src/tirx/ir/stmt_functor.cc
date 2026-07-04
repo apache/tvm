@@ -821,20 +821,12 @@ class IRSubstitute : public StmtExprMutator {
   std::function<ffi::Optional<Expr>(const Var&)> vmap_;
 };
 
-Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
-    if (auto replacement = vmap(var)) return Expr(replacement.value());
-    return std::nullopt;
-  };
-  return IRSubstitute(std::move(general_vmap))(std::move(stmt));
+Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(stmt));
 }
 
-PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
-    if (auto replacement = vmap(var)) return Expr(replacement.value());
-    return std::nullopt;
-  };
-  return IRSubstitute(std::move(general_vmap))(std::move(expr)).as_or_throw<PrimExpr>();
+Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(expr));
 }
 
 void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
@@ -944,14 +936,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::ObjectRef node, ffi::Function f) {
              tirx::PreOrderVisit(node, [f](const ffi::ObjectRef& n) { return f(n).cast<bool>(); });
            })
-      .def("tirx.Substitute",
-           [](ffi::ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ffi::ObjectRef {
-             if (node->IsInstance<StmtNode>()) {
-               return Substitute(node.as_or_throw<Stmt>(), vmap);
-             } else {
-               return Substitute(node.as_or_throw<PrimExpr>(), vmap);
-             }
-           });
+      .def("tirx.Substitute", [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
+        if (node->IsInstance<StmtNode>()) {
+          return Substitute(node.as_or_throw<Stmt>(), vmap);
+        } else {
+          return Substitute(node.as_or_throw<Expr>(), vmap);
+        }
+      });
 }
 
 }  // namespace tirx

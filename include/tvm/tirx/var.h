@@ -103,21 +103,6 @@ class Var : public Expr {
    */
   TVM_DLL Var copy_with_dtype(PrimType dtype) const;
 
-  /*! \return The runtime primitive type of this variable. */
-  PrimType ty() const {
-    if (auto prim = get()->ExprNode::ty.as<PrimType>()) {
-      return prim.value();
-    }
-    if (get()->ExprNode::ty.as<PointerTypeNode>()) {
-      return PrimType::Handle();
-    }
-    TVM_FFI_THROW(TypeError) << "Variable has no runtime primitive type: " << get()->ExprNode::ty;
-    TVM_FFI_UNREACHABLE();
-  }
-
-  /*! \brief Checked conversion for scalar variables. */
-  operator PrimExpr() const { return this->as_or_throw<PrimExpr>(); }
-
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -143,26 +128,22 @@ class PrimVar : public PrimExpr {
  public:
   /*! \brief Construct a scalar variable directly from a primitive type. */
   explicit PrimVar(ffi::String name_hint, PrimType dtype = PrimType::Int(32), Span span = Span())
-      : PrimVar(Var(std::move(name_hint), std::move(dtype), std::move(span))) {}
+      : PrimExpr(
+            Var(std::move(name_hint), std::move(dtype), std::move(span)).as_or_throw<PrimExpr>()) {}
 
   /*! \brief Construct a scalar variable directly from a checked type annotation. */
   explicit PrimVar(ffi::String name_hint, Type type_annotation, Span span = Span())
-      : PrimVar(Var(std::move(name_hint), std::move(type_annotation), std::move(span))) {}
-
-  /*! \brief Explicit checked narrowing from a general Var. */
-  explicit PrimVar(Var var) : PrimExpr(var.as_or_throw<PrimExpr>()) {}
+      : PrimExpr(Var(std::move(name_hint), std::move(type_annotation), std::move(span))
+                     .as_or_throw<PrimExpr>()) {}
 
   /*! \brief Safe widening to a general Var view over the same node. */
   operator Var() const { return this->as_or_throw<Var>(); }
 
-  PrimVar copy_with_name(const ffi::String& name) const {
-    return PrimVar(static_cast<Var>(*this).copy_with_name(name));
-  }
   PrimVar CopyWithSuffix(const ffi::String& suffix) const {
-    return PrimVar(static_cast<Var>(*this).CopyWithSuffix(suffix));
+    return this->as_or_throw<Var>().CopyWithSuffix(suffix).as_or_throw<PrimVar>();
   }
   PrimVar copy_with_dtype(PrimType dtype) const {
-    return PrimVar(static_cast<Var>(*this).copy_with_dtype(dtype));
+    return this->as_or_throw<Var>().copy_with_dtype(dtype).as_or_throw<PrimVar>();
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
@@ -330,20 +311,6 @@ inline const char* IterVarType2String(IterVarType t) {
   return "Unknown";
 }
 }  // namespace tirx
-
-#define TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(Op)                \
-  inline PrimExpr operator Op(tirx::PrimVar a, tirx::PrimVar b) { \
-    return operator Op(PrimExpr(a), PrimExpr(b));                 \
-  }
-
-TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(==)
-TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(!=)
-TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(<)
-TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(<=)
-TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(>)
-TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP(>=)
-
-#undef TVM_TIRX_DEFINE_PRIM_VAR_COMPARISON_OP
 
 }  // namespace tvm
 

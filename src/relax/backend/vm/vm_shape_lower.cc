@@ -131,7 +131,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
     }
     for (tirx::Var var : tirx::UndefinedVars(expr)) {
       if (!var.same_as(expr)) {
-        CollectPrimExprSlot(var);
+        CollectPrimExprSlot(var.as_or_throw<PrimExpr>());
       }
     }
   }
@@ -357,7 +357,7 @@ class VMShapeLowerMutator
       if (!slot->expr.as<tirx::VarNode>()) {
         ffi::Array<tirx::Var> dep_vars = tirx::UndefinedVars(slot->expr);
         for (auto var : dep_vars) {
-          auto it = slot_map_.find(var);
+          auto it = slot_map_.find(var.as_or_throw<PrimExpr>());
           TVM_FFI_ICHECK(it != slot_map_.end())
               << "Var " << var << "is not defined in the function but is referenced by "
               << slot->expr;

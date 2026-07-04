@@ -111,7 +111,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
     Var var = ffi::GetRef<Var>(var_ptr);
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value
-    if (!IsIndexTypedExpr(var)) return;
+    if (!IsIndexTypedExpr(var.as_or_throw<PrimExpr>())) return;
     bool allow_override = true;
     // mark the constant bound is sufficient
     // we cannot mark interval set as that will cause relaxation of the var

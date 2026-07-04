@@ -46,7 +46,7 @@ void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg.ty().IsHandle()) {
+    if (PrimType(GetRuntimeDataType(arg->ty)).IsHandle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -97,7 +97,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   }
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v.ty().IsHandle()) break;
+    if (!PrimType(GetRuntimeDataType(v->ty)).IsHandle()) break;
     this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
@@ -126,24 +126,24 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     decl_stream << "struct " << arg_buf_type << " {\n";
     for (size_t i = num_buffer; i < func->params.size(); ++i) {
       Var v = func->params[i];
-      TVM_FFI_ICHECK(!v.ty().IsHandle());
+      TVM_FFI_ICHECK(!PrimType(GetRuntimeDataType(v->ty)).IsHandle());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
-      if (v.ty().bits() == 32) {
+      if (PrimType(GetRuntimeDataType(v->ty)).bits() == 32) {
         decl_stream << "  ";
-        PrintType(v.ty()->dtype, decl_stream);
+        PrintType(PrimType(GetRuntimeDataType(v->ty))->dtype, decl_stream);
         decl_stream << " " << vid << "[2];\n";
         vref << varg << "." << vid << "[0]";
-      } else if (v.ty().bits() == 64) {
+      } else if (PrimType(GetRuntimeDataType(v->ty)).bits() == 64) {
         decl_stream << "  ";
-        PrintType(v.ty()->dtype, decl_stream);
+        PrintType(PrimType(GetRuntimeDataType(v->ty))->dtype, decl_stream);
         decl_stream << " " << vid << ";\n";
         vref << varg << "." << vid;
       } else {
         // For non 32bit type, ref through arg union.
         decl_stream << "  __TVMArgUnion " << vid << ";\n";
         vref << varg << "." << vid << ".v_";
-        PrintType(v.ty()->dtype, vref);
+        PrintType(PrimType(GetRuntimeDataType(v->ty))->dtype, vref);
       }
       var_idmap_[v.get()] = vref.str();
     }

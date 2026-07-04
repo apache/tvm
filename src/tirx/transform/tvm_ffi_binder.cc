@@ -72,7 +72,12 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
       os << "], " << buf->dtype->dtype << ")";
       param_names_[static_cast<int>(i)] = buf_name;
     } else {
-      os << param->name_hint << ": " << param.ty()->dtype;
+      os << param->name_hint << ": ";
+      if (const auto* prim_type = param->ty.as<PrimTypeNode>()) {
+        os << prim_type->dtype;
+      } else {
+        os << param->ty;
+      }
       param_names_[static_cast<int>(i)] = param->name_hint;
     }
   }
@@ -82,15 +87,15 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
 
   // Emit argument count check (early check — must execute before any loads)
   int num_args = static_cast<int>(params.size());
-  EmitAssert(v_num_packed_args == num_args, "TypeError",  //
+  EmitAssert(v_num_packed_args.as_or_throw<PrimExpr>() == num_args, "TypeError",  //
              "Expected ", std::to_string(num_args), " arguments", when_calling_imm_, sig_imm_, "`");
 
   // Emit null-pointer check for packed args (early check)
   if (num_args > 0) {
-    EmitAssert(
-        !Call(PrimType::Bool(), builtin::isnullptr(), {v_packed_args}).as_or_throw<PrimExpr>(),
-        "TypeError",  //
-        "args pointer is NULL", when_calling_imm_, sig_imm_, "`");
+    EmitAssert(!Call(PrimType::Bool(), builtin::isnullptr(), ffi::Array<Expr>{v_packed_args})
+                    .as_or_throw<PrimExpr>(),
+               "TypeError",  //
+               "args pointer is NULL", when_calling_imm_, sig_imm_, "`");
   }
 }
 
@@ -399,7 +404,7 @@ void TVMFFIABIBuilder::BindBuffer(const Buffer& arg, const Buffer& value,
           << ", provided elem_offset=" << value->elem_offset;
     }
     ffi::reflection::AccessPath data_path = base_path->Attr(ffi::String("data"));
-    BindScalar(arg->data, value->data, data_path, false);
+    BindPointer(arg->data, value->data, data_path, false);
     ffi::reflection::AccessPath offset_path = base_path->Attr(ffi::String("elem_offset"));
     if (BindScalar(arg->elem_offset, value->elem_offset, offset_path, false)) {
       if (arg->offset_factor > 1) {
@@ -461,8 +466,8 @@ void TVMFFIABIBuilder::BindBuffer(const Buffer& arg, const Buffer& value,
 /*! \brief Load the i-th packed argument as the given type. */
 PrimExpr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
                                                    PrimType arg_type) {
-  ffi::Array<PrimExpr> call_args{v_packed_args, IntImm::Int32(param_index),
-                                 IntImm::Int32(builtin::kTVMFFIAnyUnionValue)};
+  ffi::Array<Expr> call_args{v_packed_args, IntImm::Int32(param_index),
+                             IntImm::Int32(builtin::kTVMFFIAnyUnionValue)};
   PrimType api_type = APIType(arg_type);
   PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args).as_or_throw<PrimExpr>();
   if (api_type->dtype != arg_type->dtype) {
@@ -471,7 +476,7 @@ PrimExpr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int
   return res;
 }
 
-PrimExpr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const Var& type_index) {
+PrimExpr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
   // ── Type check: accept handle-like types ───────────────────
   std::string expected_type = buffer_map_.count(params_[param_index]) ? "Tensor" : "pointer";
   EmitTypeIndexCheck(param_index,
@@ -484,15 +489,15 @@ PrimExpr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const Var& t
   // ── Load value and apply tensor offset ─────────────────────
   const int64_t object_cell_offset = sizeof(TVMFFIObject);
   static_assert(sizeof(TVMFFIObject) == 24);
-  PrimExpr arg_value =
-      LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, params_[param_index].ty());
+  PrimExpr arg_value = LoadTVMFFIAnyUnionValue(
+      v_packed_args_, param_index, PrimType(GetRuntimeDataType(params_[param_index]->ty)));
   PrimExpr handle_from_tensor = Call(PrimType::Handle(), tirx::builtin::handle_add_byte_offset(),
                                      {arg_value, IntImm::Int32(object_cell_offset)})
                                     .as_or_throw<PrimExpr>();
   return Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
 }
 
-PrimExpr TVMFFIABIBuilder::DecodeParamBool(int param_index, const Var& type_index) {
+PrimExpr TVMFFIABIBuilder::DecodeParamBool(int param_index, const PrimExpr& type_index) {
   // ── Type check: accept bool or int ─────────────────────────
   EmitTypeIndexCheck(
       param_index,
@@ -502,7 +507,8 @@ PrimExpr TVMFFIABIBuilder::DecodeParamBool(int param_index, const Var& type_inde
               LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Int(64)));
 }
 
-PrimExpr TVMFFIABIBuilder::DecodeParamInt(int param_index, const Var& type_index, PrimType dtype) {
+PrimExpr TVMFFIABIBuilder::DecodeParamInt(int param_index, const PrimExpr& type_index,
+                                          PrimType dtype) {
   // ── Type check: accept int or bool ─────────────────────────
   EmitTypeIndexCheck(
       param_index,
@@ -510,7 +516,7 @@ PrimExpr TVMFFIABIBuilder::DecodeParamInt(int param_index, const Var& type_index
   return LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, dtype);
 }
 
-PrimExpr TVMFFIABIBuilder::DecodeParamFloat(int param_index, const Var& type_index,
+PrimExpr TVMFFIABIBuilder::DecodeParamFloat(int param_index, const PrimExpr& type_index,
                                             PrimType dtype) {
   // ── Type check: accept float, int, or bool ─────────────────
   EmitTypeIndexCheck(param_index,
@@ -543,29 +549,30 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
   if (param->ty.as<PointerTypeNode>()) {
-    PrimExpr handle_value = DecodeParamOpaqueHandle(param_index, type_index);
+    PrimExpr handle_value =
+        DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     Expr pointer_value = Call(param->ty, builtin::reinterpret(), {handle_value});
     BindPointer(param, pointer_value, param_path, true);
     return;
   }
 
-  PrimType dtype = param.ty();
+  PrimType dtype = param->ty.as_or_throw<PrimType>();
 
   // Type-check and load value via per-dtype dispatch
   PrimExpr arg_value;
   if (dtype.IsHandle()) {
-    arg_value = DecodeParamOpaqueHandle(param_index, type_index);
+    arg_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
-    arg_value = DecodeParamBool(param_index, type_index);
+    arg_value = DecodeParamBool(param_index, type_index.as_or_throw<PrimExpr>());
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-    arg_value = DecodeParamInt(param_index, type_index, dtype);
+    arg_value = DecodeParamInt(param_index, type_index.as_or_throw<PrimExpr>(), dtype);
   } else {
     TVM_FFI_ICHECK_EQ(dtype.code(), DLDataTypeCode::kDLFloat);
-    arg_value = DecodeParamFloat(param_index, type_index, dtype);
+    arg_value = DecodeParamFloat(param_index, type_index.as_or_throw<PrimExpr>(), dtype);
   }
 
   // Bind scalar param to loaded value (defines vars before buffer binds reference them)
-  BindScalar(param, arg_value, param_path, true);
+  BindScalar(param.as_or_throw<PrimExpr>(), arg_value, param_path, true);
 }
 
 // ============================================================
@@ -837,8 +844,9 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
       if (check_alignment_) {
         // Check data pointer alignment
         if (buffer->data_alignment > 1) {
+          Expr handle = Call(PrimType::Handle(), builtin::reinterpret(), ffi::Array<Expr>{vptr});
           PrimExpr ptr_as_int =
-              Call(PrimType::UInt(64), builtin::reinterpret(), {cast(PrimType::Handle(), vptr)})
+              Call(PrimType::UInt(64), builtin::reinterpret(), ffi::Array<Expr>{handle})
                   .as_or_throw<PrimExpr>();
           PrimExpr align_cond =
               truncmod(ptr_as_int, IntImm(PrimType::UInt(64), buffer->data_alignment)) ==

@@ -132,8 +132,8 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
     if (c >= 'A' && c <= 'Z') {
       TVM_FFI_ICHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                                    << factor << " before dimension " << c;
-      IterVar axis(Range(IntImm(index_ty, 0), Var(std::string(1, c), index_ty)),
-                   PrimVar(std::string(1, c), index_ty), tirx::kDataPar);
+      PrimVar axis_var(std::string(1, c), index_ty);
+      IterVar axis(Range(IntImm(index_ty, 0), axis_var), axis_var, tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -245,8 +245,8 @@ ffi::Array<IterVar> SLayout::UnpackIterVar(IterVar packed_iter) {
       factor = 0;
     } else if (ch >= 'A' && ch <= 'Z') {
       TVM_FFI_ICHECK(factor == 0) << "Can't have non-zero factors for primal axis";
-      result.push_back(IterVar(Range(IntImm(index_ty, 0), Var(std::string(1, ch), index_ty)),
-                               PrimVar(std::string(1, ch), index_ty), tirx::kDataPar));
+      PrimVar axis_var(std::string(1, ch), index_ty);
+      result.push_back(IterVar(Range(IntImm(index_ty, 0), axis_var), axis_var, tirx::kDataPar));
     }
   }
 

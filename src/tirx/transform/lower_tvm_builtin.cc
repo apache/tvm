@@ -668,13 +668,13 @@ class BuiltinLower : public StmtExprMutator {
     scope.run_sizes.shape_stack = restore_shape_stack;
     scope.run_sizes.array_stack = restore_array_stack;
     scope.run_sizes.arg_stack = arg_stack_begin;
-    ffi::Array<PrimExpr> packed_args = {op->args[name_offset].as_or_throw<PrimExpr>(),
-                                        scope.stack_ffi_any, ConstInt32(arg_stack_begin),
-                                        ConstInt32(arg_stack_begin + num_args)};
+    ffi::Array<Expr> packed_args = {op->args[name_offset], scope.stack_ffi_any,
+                                    ConstInt32(arg_stack_begin),
+                                    ConstInt32(arg_stack_begin + num_args)};
     if (pass_last_arg_as_traced_value) {
       // pass in last element as traced value
       // used by call_packed_traced
-      packed_args.push_back(op->args[op->args.size() - 1].as_or_throw<PrimExpr>());
+      packed_args.push_back(op->args[op->args.size() - 1]);
     }
     return Call(op->ty, lowered_packed_op, packed_args);
   }
@@ -698,9 +698,10 @@ class BuiltinLower : public StmtExprMutator {
       args.push_back(call->args[i].as_or_throw<PrimExpr>());
     }
 
-    Call call_packed = Call(let->var.ty(), builtin::tvm_call_packed(), args);
+    Call call_packed = Call(let->var->ty, builtin::tvm_call_packed(), args);
     Stmt null_check =
-        IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), {let->var}).as_or_throw<PrimExpr>(),
+        IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), ffi::Array<Expr>{let->var})
+                       .as_or_throw<PrimExpr>(),
                    throw_last_error);
 
     // Construct free_nd call and register in current scope.

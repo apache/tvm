@@ -117,7 +117,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     ffi::Array<PrimExpr> all_args;
     // negative index indicate return value can be discarded, emit call_packed
     if (dst_anylist_slot >= 0) {
-      all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
+      all_args = {reg_anylist_handle_.as_or_throw<PrimExpr>(), ConstInt32(dst_anylist_slot)};
     }
     all_args.push_back(tirx::StringImm(name));
     for (PrimExpr arg : args) {
@@ -141,7 +141,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     ffi::Array<PrimExpr> all_args;
     // negative index indicate return value can be discarded, emit call_packed
     if (dst_anylist_slot >= 0) {
-      all_args = {reg_anylist_handle_, ConstInt32(dst_anylist_slot)};
+      all_args = {reg_anylist_handle_.as_or_throw<PrimExpr>(), ConstInt32(dst_anylist_slot)};
     }
     all_args.push_back(tirx::StringImm(gsymbol.value()));
     for (PrimExpr arg : args) {
@@ -411,7 +411,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   void EmitAllocStorage(const Call& call_node, int64_t dst_reg) {
     // Handle args of the call
     ffi::Array<PrimExpr> args;
-    args.push_back(ctx_ptr_);
+    args.push_back(ctx_ptr_.as_or_throw<PrimExpr>());
     for (Expr arg : call_node->args) {
       args.push_back(this->VisitExpr(arg).value());
     }
@@ -460,7 +460,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
   void EmitCallBuiltinWithCtx(const Call& call_node, int64_t dst_reg) {
     ffi::Array<PrimExpr> args;
     // if context is required, pass as first argument.
-    args.push_back(ctx_ptr_);
+    args.push_back(ctx_ptr_.as_or_throw<PrimExpr>());
     auto* func = call_node->args[0].as<ExternFuncNode>();
     TVM_FFI_ICHECK(func) << "CallBuiltin comes with extern func";
 
@@ -492,7 +492,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<PrimExpr>(const Expr&)> {
     } else {
       // Default path, leverage function table and invoke as closure
       ffi::Array<PrimExpr> all_args;
-      all_args.push_back(ctx_ptr_);
+      all_args.push_back(ctx_ptr_.as_or_throw<PrimExpr>());
       all_args.push_back(this->VisitExpr(call_node->op).value());
       for (auto arg : args) {
         all_args.push_back(arg);

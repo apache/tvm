@@ -72,7 +72,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   PrimType f32_ty = PrimType::Float(32);
 
   auto make_eval_range = [&real_axis, &reduce_axes,
-                          ndim](const ffi::Array<Var>& non_reduce_indices) {
+                          ndim](const ffi::Array<PrimVar>& non_reduce_indices) {
     ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
@@ -92,7 +92,8 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
 
   Tensor temp_sum = te::compute(
       target_shape,
-      [is_float16, &data, &reduce_axes, &make_eval_range, f32_ty](const ffi::Array<Var>& indices) {
+      [is_float16, &data, &reduce_axes, &make_eval_range,
+       f32_ty](const ffi::Array<PrimVar>& indices) {
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
@@ -109,7 +110,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   }
   Tensor temp_mean = te::compute(
       target_shape,
-      [&temp_sum, &reduce_extent](const ffi::Array<Var>& indices) {
+      [&temp_sum, &reduce_extent](const ffi::Array<PrimVar>& indices) {
         return temp_sum(indices) / reduce_extent;
       },
       data->op->name + "_mean", kInjective);
@@ -117,7 +118,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   Tensor temp_var_sum = te::compute(
       target_shape,
       [is_float16, &data, &reduce_axes, &make_eval_range, &temp_mean,
-       f32_ty](const ffi::Array<Var>& indices) {
+       f32_ty](const ffi::Array<PrimVar>& indices) {
         auto eval_range = make_eval_range(indices);
         PrimExpr x = data(eval_range);
         if (is_float16) {
@@ -128,8 +129,8 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
       },
       data->op->name + "_var_sum", kCommReduce);
 
-  auto layer_norm_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> reduce_indices, non_reduce_indices;
+  auto layer_norm_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> reduce_indices, non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         reduce_indices.push_back(indices[i]);

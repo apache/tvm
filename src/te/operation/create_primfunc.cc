@@ -67,7 +67,7 @@ class ProducerToBufferTransformer : public StmtExprMutator {
 /*! \brief The helper mutator to rewrite buffer and buffer var accessed by block body */
 class BufferSubstituter : public StmtExprMutator {
  public:
-  explicit BufferSubstituter(const std::unordered_map<const VarNode*, PrimExpr>& var_map,
+  explicit BufferSubstituter(const std::unordered_map<const VarNode*, Expr>& var_map,
                              const std::unordered_map<const BufferNode*, Buffer>& buffer_map)
       : var_map_(var_map), buffer_map_(buffer_map) {}
 
@@ -98,7 +98,7 @@ class BufferSubstituter : public StmtExprMutator {
   }
 
  private:
-  const std::unordered_map<const VarNode*, PrimExpr>& var_map_;
+  const std::unordered_map<const VarNode*, Expr>& var_map_;
   const std::unordered_map<const BufferNode*, Buffer>& buffer_map_;
 };
 
@@ -405,7 +405,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
       PrimExpr value{nullptr};
       if (n_buffers > 1) {
         temp_vars.push_back(Var("v_" + buffer->name, lhs[i].ty()));
-        value = temp_vars.back();
+        value = temp_vars.back().as_or_throw<PrimExpr>();
       } else {
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
         value = f_transform_and_remap(combined);
@@ -468,9 +468,9 @@ struct NestedScopeInfo {
     for (size_t i = 0; i < origin_axes.size(); ++i) {
       Var block_var = block_iters[i]->var;
       if (origin_axes[i]->iter_type != IterVarType::kCommReduce) {
-        store_indices.Set(i, block_var);
+        store_indices.Set(i, block_var.as_or_throw<PrimExpr>());
       }
-      axes_remap.Set(origin_axes[i]->var, block_var);
+      axes_remap.Set(origin_axes[i]->var, block_var.as_or_throw<PrimExpr>());
     }
   }
 };
@@ -508,10 +508,10 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
           extent = Substitute(extent, scope_repl);
         }
         Range dom = Range::FromMinExtent(analyzer->Simplify(min), analyzer->Simplify(extent));
-        IterVar new_block_iter(dom, PrimVar(block_var), axis->iter_type, axis->thread_tag,
-                               axis->span);
+        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                               axis->thread_tag, axis->span);
         cur_scope.loop_vars.emplace_back(loop_var, dom);
-        cur_scope.AddBlockIter(axis, new_block_iter, loop_var);
+        cur_scope.AddBlockIter(axis, new_block_iter, loop_var.as_or_throw<PrimExpr>());
         defined_axes.insert(axis->var);
       } else if (defined_axes.count(axis->var)) {
         TVM_FFI_ICHECK_GT(i, 0);
@@ -616,7 +616,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For(PrimVar(loop_var), dom->min, dom->extent, ForKind::kSerial, body);
+      body = For(loop_var.as_or_throw<PrimVar>(), dom->min, dom->extent, ForKind::kSerial, body);
     }
   }
   return body;
@@ -624,7 +624,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
 
 Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info) {
   // Step 1. Check all inputs are visited before and update var_map.
-  std::unordered_map<const VarNode*, PrimExpr> var_map;
+  std::unordered_map<const VarNode*, Expr> var_map;
   std::unordered_map<const BufferNode*, Buffer> input_buffer_map;
   TVM_FFI_ICHECK_EQ(extern_op->inputs.size(), extern_op->input_placeholders.size());
   for (size_t i = 0; i < extern_op->inputs.size(); ++i) {

@@ -74,7 +74,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
   const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
-    PrimType t = PrimType(arg.ty()->dtype);
+    PrimType t = PrimType(PrimType(GetRuntimeDataType(arg->ty))->dtype);
     if (t.IsHandle()) {
       auto* ptr = arg->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr)
@@ -934,7 +934,7 @@ void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const BindNode* op) {
   TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
-  TVM_FFI_ICHECK(!PrimType(op->var.ty()->dtype).IsHandle());
+  TVM_FFI_ICHECK(!PrimType(PrimType(GetRuntimeDataType(op->var->ty))->dtype).IsHandle());
   var_map_[op->var.get()] = MakeValue(op->value);
   analyzer_->Bind(op->var, op->value);
 }

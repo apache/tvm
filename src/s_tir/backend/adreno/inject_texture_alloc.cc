@@ -84,8 +84,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
                          .as_or_throw<PrimExpr>());
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->buffer->data,
-                  Call(op->buffer->data.ty(), builtin::nd_mem_alloc_with_scope(), args)
-                      .as_or_throw<PrimExpr>());
+                  Call(op->buffer->data->ty, builtin::nd_mem_alloc_with_scope(), args));
     }
     return stmt;
   }

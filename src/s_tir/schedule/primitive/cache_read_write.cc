@@ -165,7 +165,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   ffi::Map<Var, Var> var_map;
   for (size_t i = 0; i < info->loop_vars.size(); ++i) {
     Var original_var = info->loop_vars[i];
-    PrimVar loop_var(original_var->name_hint, original_var.ty());
+    PrimVar loop_var(original_var->name_hint, original_var->ty.as_or_throw<PrimType>());
     var_map.Set(original_var, loop_var);
     loop_vars.push_back(loop_var);
   }

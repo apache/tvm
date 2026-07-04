@@ -319,10 +319,10 @@ TVM_DLL IterVar thread_axis(Range dom, std::string tag);
 TVM_DLL IterVar reduce_axis(Range dom, std::string name = "rv");
 
 /*! \brief The compute function to specify the input source of a Tensor */
-using FCompute = std::function<PrimExpr(const ffi::Array<Var>& i)>;
+using FCompute = std::function<PrimExpr(const ffi::Array<PrimVar>& i)>;
 
 /*! \brief The compute function to specify the inputs source of Tensors */
-using FBatchCompute = std::function<ffi::Array<PrimExpr>(const ffi::Array<Var>& i)>;
+using FBatchCompute = std::function<ffi::Array<PrimExpr>(const ffi::Array<PrimVar>& i)>;
 
 /*!
  * \brief create a place holder tensor.
@@ -377,28 +377,30 @@ TVM_DLL ffi::Array<Tensor> scan(ffi::Array<Tensor> init, ffi::Array<Tensor> upda
                                 ffi::Map<ffi::String, ffi::Any> attrs = {});
 
 // same as compute, specialized for different fcompute function
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var, Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(PrimVar, PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0], i[1]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0], i[1]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var, Var, Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape,
+                      std::function<PrimExpr(PrimVar, PrimVar, PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0], i[1], i[2]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0], i[1], i[2]); };
   return compute(shape, fc, name, tag, attrs);
 }
-inline Tensor compute(ffi::Array<PrimExpr> shape, std::function<PrimExpr(Var, Var, Var, Var)> f,
+inline Tensor compute(ffi::Array<PrimExpr> shape,
+                      std::function<PrimExpr(PrimVar, PrimVar, PrimVar, PrimVar)> f,
                       std::string name = "tensor", std::string tag = "",
                       ffi::Map<ffi::String, ffi::Any> attrs = {}) {
-  FCompute fc = [f](const ffi::Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
+  FCompute fc = [f](const ffi::Array<PrimVar>& i) { return f(i[0], i[1], i[2], i[3]); };
   return compute(shape, fc, name, tag, attrs);
 }
 

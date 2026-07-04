@@ -372,7 +372,7 @@ IndexMap IndexMap::RenameVariables(
           ffi::String name = opt_name.value();
           TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
           name_supply->ReserveName(name, /*add_prefix=*/false);
-          var_remap.Set(var, Var(name, var.ty()));
+          var_remap.Set(var, Var(name, var->ty));
         }
       });
     });
@@ -452,8 +452,12 @@ ffi::String IndexMapNode::ToPythonString(
 
 IndexMap Substitute(const IndexMap& index_map,
                     std::function<ffi::Optional<PrimExpr>(const Var& var)> f_subst) {
-  ffi::Array<PrimExpr> new_output =
-      index_map->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, f_subst); });
+  auto general_subst = [&](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = f_subst(var)) return replacement.value();
+    return std::nullopt;
+  };
+  ffi::Array<PrimExpr> new_output = index_map->final_indices.Map(
+      [&](const PrimExpr& expr) { return Substitute(expr, general_subst); });
   ffi::Optional<IndexMap> new_inverse_map = std::nullopt;
   if (index_map->inverse_index_map.defined()) {
     new_inverse_map =

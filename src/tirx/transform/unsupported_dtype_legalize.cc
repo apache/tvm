@@ -133,7 +133,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var.ty().IsHandle()) {
+    if (PrimType(GetRuntimeDataType(buffer_var->ty)).IsHandle()) {
       opaque_var_access_.insert(buffer_var);
     }
   }
@@ -406,11 +406,11 @@ class ComputeLegalizer : public StmtExprMutator {
       // Remap input variables
       for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
         Var lhs_var = reducer->lhs[i];
-        if (lhs_var.ty() != legalized_identity_elements[i].ty()) {
+        if (lhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
           var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
         }
         Var rhs_var = reducer->rhs[i];
-        if (rhs_var.ty() != legalized_identity_elements[i].ty()) {
+        if (rhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
           var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
         }
       }
@@ -421,7 +421,7 @@ class ComputeLegalizer : public StmtExprMutator {
       auto legalized_lhs = reducer->lhs.Map([this](PrimVar var) {
         auto it = var_remap_.find(var);
         if (it != var_remap_.end()) {
-          return PrimVar(it->second);
+          return it->second.as_or_throw<PrimVar>();
         }
         return var;
       });
@@ -429,7 +429,7 @@ class ComputeLegalizer : public StmtExprMutator {
       auto legalized_rhs = reducer->rhs.Map([this](PrimVar var) {
         auto it = var_remap_.find(var);
         if (it != var_remap_.end()) {
-          return PrimVar(it->second);
+          return it->second.as_or_throw<PrimVar>();
         }
         return var;
       });
@@ -732,7 +732,7 @@ class StorageLegalizer : public StmtExprMutator {
 
   Var RemapVarDef(Var var) {
     // remap the var
-    if (var.ty().IsHandle()) {
+    if (PrimType(GetRuntimeDataType(var->ty)).IsHandle()) {
       if (auto* ptr_type = var->ty.as<PointerTypeNode>()) {
         if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
           PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
