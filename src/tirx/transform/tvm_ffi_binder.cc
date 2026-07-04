@@ -581,7 +581,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const Buffer& buffer, const Var& strid
                                           const PrimExpr& v_strides_is_null,
                                           const ffi::reflection::AccessPath& param_path) {
   PrimType stype(buffer->DefaultIndexType());
-  PrimExpr expect_stride = MakeConst(stype, 1);
+  PrimExpr expect_stride = IntImm(stype, 1);
   ffi::Array<PrimExpr> conds;
   for (size_t i = buffer->shape.size(); i != 0; --i) {
     size_t k = i - 1;
@@ -608,7 +608,7 @@ void TVMFFIABIBuilder::BindAutoBroadcastStrides(const Buffer& buffer, const Var&
                                                 const PrimExpr& v_strides_is_null,
                                                 const ffi::reflection::AccessPath& param_path) {
   PrimType stype(buffer->DefaultIndexType());
-  PrimExpr stride = MakeConst(stype, 1);
+  PrimExpr stride = IntImm(stype, 1);
   for (size_t i = buffer->shape.size(); i != 0; --i) {
     size_t k = i - 1;
     PrimExpr value = cast(buffer->shape[k].ty(), LoadInt64ArrayElem(strides_ptr, k));
@@ -657,7 +657,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
 
   // ── Section: ndim ────────────────────────────────────────────
   PrimExpr v_ndim = TVMStructGet(tvm_ndim_type, handle, 0, builtin::kDLTensorNDim);
-  PrimExpr a_ndim = MakeConst(tvm_ndim_type, static_cast<int64_t>(buffer->shape.size()));
+  PrimExpr a_ndim = IntImm(tvm_ndim_type, static_cast<int64_t>(buffer->shape.size()));
   EmitAssert(a_ndim == v_ndim, "ValueError",  //
              "Mismatched ", buf_name, ".ndim on argument #", std::to_string(param_index),
              when_calling_imm_, sig_imm_, "`,\n  expected ", std::to_string(buffer->shape.size()));

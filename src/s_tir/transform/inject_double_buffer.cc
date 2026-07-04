@@ -164,15 +164,15 @@ class DoubleBufferInjector : public StmtExprMutator {
             << "It is better to split with multiple of 2";
         TVM_FFI_ICHECK(is_zero(old_loop->min));
         PrimExpr zero = old_loop->min;
-        PrimExpr new_ext = old_loop->extent - MakeConst(old_loop->loop_var.ty(), 1);
-        PrimExpr factor = MakeConst(new_ext.ty(), split_loop_);
+        PrimExpr new_ext = old_loop->extent - IntImm(old_loop->loop_var.ty(), 1);
+        PrimExpr factor = IntImm(new_ext.ty(), split_loop_);
         PrimExpr outer_ext = new_ext / factor;
         PrimExpr tail_base = outer_ext * factor;
         Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.ty());
         std::unordered_map<const VarNode*, PrimExpr> vmap;
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
-          vmap[old_loop->loop_var.get()] = outer_var * factor + MakeConst(factor.ty(), i);
+          vmap[old_loop->loop_var.get()] = outer_var * factor + IntImm(factor.ty(), i);
           loop_seq.emplace_back(Substitute(old_loop->body, vmap));
         }
         Stmt loop = For(outer_var, zero, outer_ext, old_loop->kind, SeqStmt::Flatten(loop_seq));
@@ -180,7 +180,7 @@ class DoubleBufferInjector : public StmtExprMutator {
         std::vector<Stmt> tail_seq;
         Stmt tail_body = StripDoubleBufferWrite()(old_loop->body);
         for (int32_t i = 0; i < split_loop_; ++i) {
-          PrimExpr idx = tail_base + MakeConst(tail_base.ty(), i);
+          PrimExpr idx = tail_base + IntImm(tail_base.ty(), i);
           vmap[old_loop->loop_var.get()] = idx;
           tail_seq.emplace_back(IfThenElse(idx < old_loop->extent, Substitute(tail_body, vmap)));
         }

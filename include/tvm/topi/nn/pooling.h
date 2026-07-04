@@ -194,7 +194,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
             PrimExpr w_end = min(w_start + kernel_width, width);
             h_start = max(h_start, IntImm(h_start.ty(), 0));
             w_start = max(w_start, IntImm(w_start.ty(), 0));
-            divide_factor = max((h_end - h_start) * (w_end - w_start), MakeConst(h_end.ty(), 1));
+            divide_factor = max((h_end - h_start) * (w_end - w_start), IntImm(h_end.ty(), 1));
           }
           return tvm::sum(
               tvm::if_then_else(tirx::And(tirx::And(out_idx[height_axis] >= out_idx_lower_h,
