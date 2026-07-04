@@ -266,11 +266,12 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
   if (const auto& v =
           target.Get("jit").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>()) {
     ffi::String value = v.value();
-    if ((value == "mcjit") || (value == "orcjit")) {
-      jit_engine_ = value;
-    } else {
+    if (value == "mcjit") {
+      TVM_FFI_THROW(InternalError) << "LLVM MCJIT has been removed; use the `orcjit` JIT engine.";
+    }
+    if (value != "orcjit") {
       TVM_FFI_THROW(InternalError)
-          << "invalid jit option " << value << " (can be `orcjit` or `mcjit`).";
+          << "invalid jit option " << value << " (the only supported value is `orcjit`).";
     }
   }
 
@@ -583,10 +584,6 @@ std::string LLVMTargetInfo::str() const {
       arr.push_back(ffi::String(opt_s.str()));
     }
     obj.Set(ffi::String("cl-opt"), arr);
-  }
-
-  if (jit_engine_ != "orcjit") {
-    obj.Set(ffi::String("jit"), ffi::String(jit_engine_));
   }
 
   return std::string(ffi::json::Stringify(obj));

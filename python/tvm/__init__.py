@@ -19,8 +19,9 @@
 """TVM: Open Deep Learning Compiler Stack."""
 
 import multiprocessing
-import sys
 import os
+import sys
+import warnings
 
 # ffi module must load first
 from tvm_ffi import register_object, register_global_func, get_global_func
@@ -72,6 +73,38 @@ from . import support
 
 # Side-effect imports: register CUDA/ROCm FFI callbacks at TVM startup
 from .support import rocm as _rocm, nvcc as _nvcc
+
+# Load the separately installed ORC JIT package when available.  Its native
+# library registers the runtime boundary consumed by LLVMModule through FFI.
+try:
+    import tvm_ffi_orcjit as _tvm_ffi_orcjit
+except ModuleNotFoundError as _orcjit_error:
+    if _orcjit_error.name != "tvm_ffi_orcjit":
+        warnings.warn(
+            "Unable to load apache-tvm-ffi-orcjit; LLVMModule execution will be unavailable: "
+            f"{_orcjit_error}",
+            RuntimeWarning,
+        )
+    _tvm_ffi_orcjit = None
+except Exception as _orcjit_error:  # pylint: disable=broad-exception-caught
+    warnings.warn(
+        "Unable to load apache-tvm-ffi-orcjit; LLVMModule execution will be unavailable: "
+        f"{_orcjit_error}",
+        RuntimeWarning,
+    )
+    _tvm_ffi_orcjit = None
+else:
+
+    @register_global_func("tvm.codegen.llvm.CreateOrcJITModule")
+    def _create_orcjit_module(object_bytes):
+        """Create an external ORC JIT module from an in-memory object."""
+        if not hasattr(_tvm_ffi_orcjit, "default_session"):
+            raise RuntimeError(
+                "LLVMModule execution requires apache-tvm-ffi-orcjit>=0.1.1; "
+                "upgrade it with `pip install --upgrade apache-tvm-ffi-orcjit`"
+            )
+        return _tvm_ffi_orcjit.default_session().load_module(bytes(object_bytes))
+
 
 # Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only

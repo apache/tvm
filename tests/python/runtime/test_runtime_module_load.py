@@ -45,7 +45,7 @@ print("Finish runtime checking...")
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "mcjit"}])
+@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm", "jit": "orcjit"}])
 def test_dso_module_load(target):
     dtype = "int64"
     temp = utils.tempdir()

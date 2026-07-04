@@ -98,8 +98,6 @@ def test_target_llvm_options():
 
 
 def test_target_llvm_jit_options():
-    target = tvm.target.Target({"kind": "llvm", "jit": "mcjit"})
-    assert target.attrs["jit"] == "mcjit"
     target = tvm.target.Target({"kind": "llvm", "jit": "orcjit"})
     assert target.attrs["jit"] == "orcjit"
 
