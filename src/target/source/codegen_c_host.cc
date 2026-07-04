@@ -46,6 +46,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
+  decl_stream << "#include \"tvm/ffi/extra/c_env_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/base.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include \"tvm/ffi/c_api.h\"\n";
@@ -209,8 +210,8 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
   this->stream << "if (" << packed_func_name << " == NULL) {\n";
   int packed_func_if_scope = this->BeginScope();
   this->PrintIndent();
-  this->stream << "if (TVMBackendGetFuncFromEnv(" << module_name_ << ", \"" << func_name << "\""
-               << ", &" << packed_func_name << ") != 0) {\n";
+  this->stream << "if (TVMFFIEnvModLookupFromImports(" << module_name_ << ", \"" << func_name
+               << "\", &" << packed_func_name << ") != 0) {\n";
   int get_func_env_scope = this->BeginScope();
   this->PrintIndent();
   this->stream << "return -1;\n";
