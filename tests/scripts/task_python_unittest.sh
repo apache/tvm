@@ -60,6 +60,9 @@ TEST_FILES=(
   "relax"
 )
 
-for TEST_FILE in ${TEST_FILES[@]}; do
-    run_pytest ${TEST_FILE}, tests/python/${TEST_FILE}
+PYTEST_TARGETS=()
+for TEST_FILE in "${TEST_FILES[@]}"; do
+    PYTEST_TARGETS+=("tests/python/${TEST_FILE}")
 done
+
+run_pytest "${TVM_UNITTEST_TESTSUITE_NAME}" "${PYTEST_TARGETS[@]}"
