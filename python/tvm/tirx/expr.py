@@ -58,6 +58,8 @@ def _dtype_is_int(value):
         return True
     if isinstance(value, ExprOp):
         return value.expr_ty().matches_code(DataTypeCode.INT)
+    if ir.is_prim_expr(value):
+        return value.ty.matches_code(DataTypeCode.INT)
     return False
 
 
@@ -66,7 +68,15 @@ def _dtype_is_float(value):
         return True
     if isinstance(value, ExprOp):
         return value.expr_ty().matches_code(DataTypeCode.FLOAT)
+    if ir.is_prim_expr(value):
+        return value.ty.matches_code(DataTypeCode.FLOAT)
     return False
+
+
+def _is_scalar_operand(value):
+    return (isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value)) and not isinstance(
+        value, DataProducer
+    )
 
 
 class ExprOp:
@@ -82,58 +92,58 @@ class ExprOp:
         raise TypeError(f"Cannot determine PrimType for {type(self).__name__}")
 
     def __add__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         return _ffi_api._OpAdd(self, other, None)  # type: ignore
 
     def __radd__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         return _ffi_api._OpAdd(other, self, None)  # type: ignore
 
     def __sub__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         return _ffi_api._OpSub(self, other, None)  # type: ignore
 
     def __rsub__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         return _ffi_api._OpSub(other, self, None)  # type: ignore
 
     def __mul__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         return _ffi_api._OpMul(self, other, None)  # type: ignore
 
     def __rmul__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         return _ffi_api._OpMul(other, self, None)  # type: ignore
 
     def __div__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
         return _ffi_api._OpDiv(self, other, None)  # type: ignore
 
     def __rdiv__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
         return _ffi_api._OpDiv(other, self, None)  # type: ignore
 
     def __truediv__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
         return _ffi_api._OpDiv(self, other, None)  # type: ignore
 
     def __rtruediv__(self, other: Expr) -> Expr:
-        if isinstance(self, DataProducer) or isinstance(other, DataProducer):
+        if not _is_scalar_operand(other):
             return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()

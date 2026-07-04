@@ -23,23 +23,10 @@ from tvm.runtime import Object, ObjectConvertible
 from tvm.tirx import DataProducer
 from tvm.tirx import expr as _expr
 
-from . import _ffi_api
+from . import _ffi_api, _te_tensor_overload
 
 
-def _topi_binary(name, lhs, rhs):
-    # Import at call time because tvm initializes te before topi, while topi imports te.
-    from tvm import topi  # pylint: disable=import-outside-toplevel
-
-    return getattr(topi, name)(lhs, rhs)
-
-
-def _topi_divide(lhs, rhs):
-    if _expr._dtype_is_int(lhs) and _expr._dtype_is_int(rhs):
-        raise _expr.div_ambiguity_error()
-    return _topi_binary("divide", lhs, rhs)
-
-
-class TensorSlice(ObjectConvertible, _expr.ExprOp):
+class TensorSlice(ObjectConvertible):
     """Auxiliary data structure for enable slicing syntax from tensor."""
 
     def __init__(self, tensor, indices):
@@ -66,6 +53,127 @@ class TensorSlice(ObjectConvertible, _expr.ExprOp):
         """Compile-time element type of the tensor."""
         return self.tensor.expr_ty()
 
+    def _scalar_op(self, name, *args):
+        args = tuple(arg.asobject() if isinstance(arg, TensorSlice) else arg for arg in args)
+        return getattr(self.asobject(), name)(*args)
+
+    def _binary_op(self, name, other):
+        result = getattr(_te_tensor_overload, name)(self, other)
+        if result is NotImplemented:
+            return self._scalar_op(name, other)
+        return result
+
+    def __add__(self, other):
+        return self._binary_op("__add__", other)
+
+    def __radd__(self, other):
+        return self._binary_op("__radd__", other)
+
+    def __sub__(self, other):
+        return self._binary_op("__sub__", other)
+
+    def __rsub__(self, other):
+        return self._binary_op("__rsub__", other)
+
+    def __mul__(self, other):
+        return self._binary_op("__mul__", other)
+
+    def __rmul__(self, other):
+        return self._binary_op("__rmul__", other)
+
+    def __div__(self, other):
+        return self._binary_op("__div__", other)
+
+    def __rdiv__(self, other):
+        return self._binary_op("__rdiv__", other)
+
+    def __truediv__(self, other):
+        return self._binary_op("__truediv__", other)
+
+    def __rtruediv__(self, other):
+        return self._binary_op("__rtruediv__", other)
+
+    def __floordiv__(self, other):
+        return self._scalar_op("__floordiv__", other)
+
+    def __rfloordiv__(self, other):
+        return self._scalar_op("__rfloordiv__", other)
+
+    def __mod__(self, other):
+        return self._scalar_op("__mod__", other)
+
+    def __rmod__(self, other):
+        return self._scalar_op("__rmod__", other)
+
+    def __neg__(self):
+        return self._scalar_op("__neg__")
+
+    def __lshift__(self, other):
+        return self._scalar_op("__lshift__", other)
+
+    def __rlshift__(self, other):
+        return self._scalar_op("__rlshift__", other)
+
+    def __rshift__(self, other):
+        return self._scalar_op("__rshift__", other)
+
+    def __rrshift__(self, other):
+        return self._scalar_op("__rrshift__", other)
+
+    def __and__(self, other):
+        return self._scalar_op("__and__", other)
+
+    def __rand__(self, other):
+        return self._scalar_op("__rand__", other)
+
+    def __or__(self, other):
+        return self._scalar_op("__or__", other)
+
+    def __ror__(self, other):
+        return self._scalar_op("__ror__", other)
+
+    def __xor__(self, other):
+        return self._scalar_op("__xor__", other)
+
+    def __rxor__(self, other):
+        return self._scalar_op("__rxor__", other)
+
+    def __invert__(self):
+        return self._scalar_op("__invert__")
+
+    def __lt__(self, other):
+        return self._scalar_op("__lt__", other)
+
+    def __le__(self, other):
+        return self._scalar_op("__le__", other)
+
+    def __eq__(self, other):
+        return self._scalar_op("__eq__", other)
+
+    def __ne__(self, other):
+        return self._scalar_op("__ne__", other)
+
+    def __gt__(self, other):
+        return self._scalar_op("__gt__", other)
+
+    def __ge__(self, other):
+        return self._scalar_op("__ge__", other)
+
+    def __nonzero__(self):
+        return self._scalar_op("__nonzero__")
+
+    def __bool__(self):
+        return self.__nonzero__()
+
+    def equal(self, other, span=None):
+        return self._scalar_op("equal", other, span)
+
+    def astype(self, dtype, span=None):
+        result = _te_tensor_overload.astype(self, dtype, span)
+        if result is NotImplemented:
+            return self._scalar_op("astype", dtype, span)
+        return result
+
 
 @tvm_ffi.register_object("te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
@@ -83,39 +191,40 @@ class Tensor(DataProducer, _expr.ExprOp):
         return TensorSlice(self, indices)
 
     def __add__(self, other):
-        return _topi_binary("add", self, other)
+        return _te_tensor_overload.__add__(self, other)
 
     def __radd__(self, other):
-        return _topi_binary("add", other, self)
+        return _te_tensor_overload.__radd__(self, other)
 
     def __sub__(self, other):
-        return _topi_binary("subtract", self, other)
+        return _te_tensor_overload.__sub__(self, other)
 
     def __rsub__(self, other):
-        return _topi_binary("subtract", other, self)
+        return _te_tensor_overload.__rsub__(self, other)
 
     def __mul__(self, other):
-        return _topi_binary("multiply", self, other)
+        return _te_tensor_overload.__mul__(self, other)
 
     def __rmul__(self, other):
-        return _topi_binary("multiply", other, self)
+        return _te_tensor_overload.__rmul__(self, other)
 
     def __div__(self, other):
-        return _topi_divide(self, other)
+        return _te_tensor_overload.__div__(self, other)
 
     def __rdiv__(self, other):
-        return _topi_divide(other, self)
+        return _te_tensor_overload.__rdiv__(self, other)
 
     def __truediv__(self, other):
-        return _topi_divide(self, other)
+        return _te_tensor_overload.__truediv__(self, other)
 
     def __rtruediv__(self, other):
-        return _topi_divide(other, self)
+        return _te_tensor_overload.__rtruediv__(self, other)
 
     def astype(self, dtype, span=None):
-        from tvm import topi  # pylint: disable=import-outside-toplevel
-
-        return topi.cast(self, dtype, span)
+        result = _te_tensor_overload.astype(self, dtype, span)
+        if result is NotImplemented:
+            raise TypeError("TE Tensor overload astype is not registered")
+        return result
 
     def __hash__(self):
         return _ffi_api.TensorHash(self)

@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: E741, F401, F821, F841
 import importlib
+import operator
 import os
 import subprocess
 import sys
@@ -26,6 +27,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import te, topi
+from tvm.te import _te_tensor_overload
 from tvm.topi.nn.pooling import pool2d
 
 
@@ -222,73 +224,57 @@ def test_tensor_inputs():
 
 
 @pytest.mark.parametrize(
-    "topi_name,direct,reflected",
+    "operation,direct,reflected",
     [
-        ("add", "__add__", "__radd__"),
-        ("subtract", "__sub__", "__rsub__"),
-        ("multiply", "__mul__", "__rmul__"),
-        ("divide", "__div__", "__rdiv__"),
-        ("divide", "__truediv__", "__rtruediv__"),
+        (operator.add, "__add__", "__radd__"),
+        (operator.sub, "__sub__", "__rsub__"),
+        (operator.mul, "__mul__", "__rmul__"),
+        (operator.truediv, "__truediv__", "__rtruediv__"),
     ],
 )
-def test_tensor_operator_ownership(monkeypatch, topi_name, direct, reflected):
+def test_tensor_operator_ownership(monkeypatch, operation, direct, reflected):
     tensor = te.placeholder((4,), name="tensor", dtype="float32")
     other_tensor = te.placeholder((4,), name="other_tensor", dtype="float32")
     scalar = tvm.tirx.Var("scalar", "float32")
+    tensor_slice = other_tensor[0]
     calls = []
     sentinel = object()
 
-    def record(lhs, rhs):
-        calls.append((lhs, rhs))
+    def record_direct(lhs, rhs):
+        calls.append(("direct", lhs, rhs))
         return sentinel
 
-    monkeypatch.setattr(topi, topi_name, record)
+    def record_reflected(lhs, rhs):
+        calls.append(("reflected", lhs, rhs))
+        return sentinel
 
-    assert getattr(tensor, direct)(other_tensor) is sentinel
-    lhs, rhs = calls.pop()
+    monkeypatch.setattr(_te_tensor_overload, direct, record_direct)
+    monkeypatch.setattr(_te_tensor_overload, reflected, record_reflected)
+
+    # Python does not retry the reflected method for two objects of the same type.
+    assert operation(tensor, other_tensor) is sentinel
+    kind, lhs, rhs = calls.pop()
+    assert kind == "direct"
     assert lhs is tensor
     assert rhs is other_tensor
-    assert getattr(tensor, direct)(scalar) is sentinel
-    lhs, rhs = calls.pop()
+
+    assert operation(tensor, scalar) is sentinel
+    kind, lhs, rhs = calls.pop()
+    assert kind == "direct"
     assert lhs is tensor
     assert rhs is scalar
-    assert getattr(tensor, direct)(2.0) is sentinel
-    lhs, rhs = calls.pop()
+
+    assert operation(scalar, tensor) is sentinel
+    kind, lhs, rhs = calls.pop()
+    assert kind == "reflected"
     assert lhs is tensor
-    assert rhs == 2.0
-    assert getattr(tensor, reflected)(scalar) is sentinel
-    lhs, rhs = calls.pop()
-    assert lhs is scalar
-    assert rhs is tensor
+    assert rhs is scalar
 
-
-def test_tensor_operator_python_fallback(monkeypatch):
-    tensor = te.placeholder((4,), name="tensor", dtype="float32")
-    scalar = tvm.tirx.Var("scalar", "float32")
-    tensor_slice = te.placeholder((4,), name="sliced", dtype="float32")[0]
-    calls = []
-
-    def record(lhs, rhs):
-        calls.append((lhs, rhs))
-        return object()
-
-    monkeypatch.setattr(topi, "subtract", record)
-
-    scalar - tensor
-    lhs, rhs = calls.pop()
-    assert lhs is scalar
-    assert rhs is tensor
-    2.0 - tensor
-    lhs, rhs = calls.pop()
-    assert lhs == 2.0
-    assert rhs is tensor
-    tensor_slice - tensor
-    lhs, rhs = calls.pop()
+    assert operation(tensor_slice, tensor) is sentinel
+    kind, lhs, rhs = calls.pop()
+    assert kind == "direct"
     assert lhs is tensor_slice
     assert rhs is tensor
-
-    scalar_result = tensor_slice - scalar
-    assert isinstance(scalar_result, tvm.ir.Expr)
 
 
 @pytest.mark.parametrize(
@@ -308,21 +294,130 @@ def test_scalar_operator_smart_constructors(operation, expected_type):
     assert isinstance(lhs.astype("float16"), tvm.tirx.Cast)
 
 
+@pytest.mark.parametrize(
+    "operation,expected_type",
+    [
+        (operator.add, tvm.tirx.Add),
+        (operator.sub, tvm.tirx.Sub),
+        (operator.mul, tvm.tirx.Mul),
+        (operator.truediv, tvm.tirx.Div),
+    ],
+)
+def test_tensor_and_slice_operator_behavior(operation, expected_type):
+    tensor = te.placeholder((4,), name="tensor", dtype="float32")
+    other_tensor = te.placeholder((4,), name="other_tensor", dtype="float32")
+    scalar = tvm.tirx.Var("scalar", "float32")
+    tensor_slice = tensor[0]
+    other_slice = other_tensor[0]
+
+    for result in [
+        operation(tensor, other_tensor),
+        operation(tensor, scalar),
+        operation(scalar, tensor),
+        operation(tensor, tensor_slice),
+        operation(tensor_slice, tensor),
+        operation(tensor, 2.0),
+        operation(2.0, tensor),
+    ]:
+        assert isinstance(result, te.Tensor)
+        assert tuple(result.shape) == (4,)
+
+    assert not isinstance(tensor_slice, tvm.tirx.expr.ExprOp)
+    for result in [
+        operation(tensor_slice, other_slice),
+        operation(tensor_slice, scalar),
+        operation(scalar, tensor_slice),
+        operation(tensor_slice, 2.0),
+        operation(2.0, tensor_slice),
+    ]:
+        assert isinstance(result, expected_type)
+
+
+@pytest.mark.parametrize("operation", [operator.sub, operator.truediv])
+def test_tensor_noncommutative_operand_order(operation):
+    tensor = te.placeholder((4,), name="tensor", dtype="float32")
+    scalar = tvm.tirx.Var("scalar", "float32")
+
+    direct = operation(tensor, scalar).op.body[0]
+    assert isinstance(direct.a, tvm.tirx.ProducerLoad)
+    assert direct.b.same_as(scalar)
+
+    reflected = operation(scalar, tensor).op.body[0]
+    assert reflected.a.same_as(scalar)
+    assert isinstance(reflected.b, tvm.tirx.ProducerLoad)
+
+    slice_direct = operation(tensor[0], scalar)
+    assert isinstance(slice_direct.a, tvm.tirx.ProducerLoad)
+    assert slice_direct.b.same_as(scalar)
+
+    slice_reflected = operation(scalar, tensor[0])
+    assert slice_reflected.a.same_as(scalar)
+    assert isinstance(slice_reflected.b, tvm.tirx.ProducerLoad)
+
+
+def test_tensor_slice_scalar_surface():
+    tensor = te.placeholder((4,), name="tensor", dtype="int32")
+    tensor_slice = tensor[0]
+
+    assert not isinstance(tensor_slice, tvm.tirx.expr.ExprOp)
+    assert isinstance(tensor_slice // 2, tvm.tirx.FloorDiv)
+    assert isinstance(tensor_slice % 2, tvm.tirx.FloorMod)
+    assert isinstance(tensor_slice << 1, tvm.ir.Expr)
+    assert isinstance(tensor_slice < 2, tvm.tirx.LT)
+    assert isinstance(tensor_slice.astype("float32"), tvm.tirx.Cast)
+    with pytest.raises(ValueError, match="Cannot use and / or / not operator"):
+        bool(tensor_slice)
+
+    partial_slice = te.placeholder((4, 4), name="matrix", dtype="float32")[0]
+    with pytest.raises(ValueError, match="Need to provide 2 index"):
+        partial_slice + 1.0
+
+
+def test_tensor_slice_scalar_fallback_without_topi_hook(monkeypatch):
+    tensor_slice = te.placeholder((4,), name="tensor", dtype="float32")[0]
+    scalar = tvm.tirx.Var("scalar", "float32")
+
+    monkeypatch.setattr(_te_tensor_overload, "__add__", lambda _lhs, _rhs: NotImplemented)
+    monkeypatch.setattr(_te_tensor_overload, "__radd__", lambda _lhs, _rhs: NotImplemented)
+    monkeypatch.setattr(
+        _te_tensor_overload, "astype", lambda _value, _dtype, _span=None: NotImplemented
+    )
+
+    assert isinstance(tensor_slice + scalar, tvm.tirx.Add)
+    assert isinstance(scalar + tensor_slice, tvm.tirx.Add)
+    assert isinstance(tensor_slice.astype("float16"), tvm.tirx.Cast)
+
+
+def test_primitive_call_scalar_operand():
+    scalar = tvm.tirx.Var("scalar", "float32")
+    call = tvm.ir.Call(tvm.ir.GlobalVar("f"), [], ret_ty="float32")
+
+    assert tvm.ir.is_prim_expr(call)
+    assert isinstance(scalar + call, tvm.tirx.Add)
+    assert isinstance(call + scalar, tvm.tirx.Add)
+    assert isinstance(call + call, tvm.tirx.Add)
+
+
 def test_tensor_rank_zero_and_astype(monkeypatch):
     tensor = te.placeholder((), name="tensor", dtype="float32")
     other_tensor = te.placeholder((), name="other_tensor", dtype="float32")
+    scalar = tvm.tirx.Var("scalar", "float32")
     cast_sentinel = object()
     cast_calls = []
 
-    result = tensor + other_tensor
-    assert isinstance(result, te.Tensor)
-    assert tuple(result.shape) == ()
+    for result in [tensor + other_tensor, tensor + scalar, scalar + tensor]:
+        assert isinstance(result, te.Tensor)
+        assert tuple(result.shape) == ()
+
+    tensor_slice = tensor[()]
+    assert isinstance(tensor_slice + scalar, tvm.tirx.Add)
+    assert isinstance(scalar + tensor_slice, tvm.tirx.Add)
 
     def record_cast(value, dtype, span=None):
         cast_calls.append((value, dtype, span))
         return cast_sentinel
 
-    monkeypatch.setattr(topi, "cast", record_cast)
+    monkeypatch.setattr(_te_tensor_overload, "astype", record_cast)
     assert tensor.astype("float16") is cast_sentinel
     value, dtype, span = cast_calls.pop()
     assert value is tensor
@@ -330,19 +425,16 @@ def test_tensor_rank_zero_and_astype(monkeypatch):
     assert span is None
 
 
-def test_tensor_operator_call_time_topi_import():
+def test_tensor_operator_hook_import_order():
     script = """
-import sys
+import inspect
 import tvm
-from tvm import te
+from tvm import te, topi
+from tvm.te import _te_tensor_overload
+import tvm.te.tensor as tensor_module
 
-for name in list(sys.modules):
-    if name == "tvm.topi" or name.startswith("tvm.topi."):
-        del sys.modules[name]
-if hasattr(tvm, "topi"):
-    del tvm.topi
-
-assert "tvm.topi" not in sys.modules
+assert _te_tensor_overload.__add__.__module__ == "tvm.topi._te_tensor_overload"
+assert "from tvm import topi" not in inspect.getsource(tensor_module)
 tensor = te.placeholder((4,), name="tensor", dtype="float32")
 other = te.placeholder((4,), name="other", dtype="float32")
 assert isinstance(tensor + other, te.Tensor)
@@ -359,15 +451,12 @@ assert isinstance(tensor.astype("float16"), te.Tensor)
     )
 
 
-def test_tensor_integer_division_remains_ambiguous(monkeypatch):
+def test_tensor_integer_division_remains_ambiguous():
     tensor = te.placeholder((4,), name="tensor", dtype="int32")
     other_tensor = te.placeholder((4,), name="other_tensor", dtype="int32")
     scalar = tvm.tirx.Var("scalar", "int32")
-
-    def unexpected_divide(*_args):
-        pytest.fail("Integer Tensor division must fail before TOPI dispatch")
-
-    monkeypatch.setattr(topi, "divide", unexpected_divide)
+    tensor_slice = tensor[0]
+    other_slice = other_tensor[0]
 
     # ExprOp must decline a whole DataProducer before applying scalar-only
     # integer-division ambiguity checks.  Tensor then owns the final decision.
@@ -379,6 +468,11 @@ def test_tensor_integer_division_remains_ambiguous(monkeypatch):
         lambda: 2 / tensor,
         lambda: tensor / scalar,
         lambda: scalar / tensor,
+        lambda: tensor / tensor_slice,
+        lambda: tensor_slice / tensor,
+        lambda: tensor_slice / other_slice,
+        lambda: tensor_slice / scalar,
+        lambda: scalar / tensor_slice,
     ]:
         with pytest.raises(RuntimeError, match="multiple types of integer divisions"):
             divide()

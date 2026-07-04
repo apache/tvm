@@ -30,13 +30,11 @@ from ..math import cast, ceil_log2
 from ..transform import expand_dims, reshape, squeeze, transpose
 from ..utils import ceil_div, get_const_int, prod, swap
 
-_SUM_SCAN = operator.add
-_PRODUCT_SCAN = operator.mul
 _THRUST_SUM_SCAN = "tvm.contrib.thrust.sum_scan"
 
 
 def _get_thrust_func_name(tvmop):
-    if tvmop is not _SUM_SCAN:
+    if tvmop is not operator.add:
         raise ValueError(f"{tvmop} not supported by thrust")
     return _THRUST_SUM_SCAN
 
@@ -48,7 +46,7 @@ def _can_use_scan_thrust(binop):
     target = tvm.target.Target.current()
     if target is None:
         return False
-    return binop is _SUM_SCAN and any(
+    return binop is operator.add and any(
         [
             can_use_thrust(target, _THRUST_SUM_SCAN),
             can_use_rocthrust(target, _THRUST_SUM_SCAN),
@@ -56,7 +54,7 @@ def _can_use_scan_thrust(binop):
     )
 
 
-def exclusive_scan_ir(data, output, reduction=None, binop=_SUM_SCAN, identity_value=0):
+def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity_value=0):
     """Low level IR to do exclusive sum scan along rows of 2D input.
 
     Parameters
@@ -218,7 +216,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=_SUM_SCAN, identity_va
         return ib.get()
 
 
-def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=_SUM_SCAN):
+def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
     """Return the sum of the last element of data and the exclusive scan output.
     The is the reduction of data along each row (for 2-D case).
 
@@ -312,7 +310,7 @@ def scan_thrust(
     output_dtype,
     exclusive=True,
     return_reduction=False,
-    binop=_SUM_SCAN,
+    binop=operator.add,
     workspace=None,
 ):
     """Do exclusive or inclusive scan on 1D or multidimensional input, using thrust.
@@ -397,7 +395,7 @@ def exclusive_scan(
     axis=-1,
     return_reduction=False,
     output_dtype=None,
-    binop=_SUM_SCAN,
+    binop=operator.add,
     identity_value=0,
     workspace=None,
 ):
@@ -534,7 +532,7 @@ def exclusive_scan(
 
 
 def inclusive_scan(
-    data, axis=-1, output_dtype=None, binop=_SUM_SCAN, identity_value=0, workspace=None
+    data, axis=-1, output_dtype=None, binop=operator.add, identity_value=0, workspace=None
 ):
     """Do inclusive scan on 1D or multidimensional input.
 
@@ -717,7 +715,7 @@ def cumsum(
     """
     return scanop(
         data=data,
-        binop=_SUM_SCAN,
+        binop=operator.add,
         identity_value=0,
         axis=axis,
         dtype=dtype,
@@ -767,7 +765,7 @@ def cumprod(
     """
     return scanop(
         data=data,
-        binop=_PRODUCT_SCAN,
+        binop=operator.mul,
         identity_value=1,
         axis=axis,
         dtype=dtype,
