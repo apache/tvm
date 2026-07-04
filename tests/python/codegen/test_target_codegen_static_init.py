@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import ctypes
+import gc
 
 import numpy as np
 
@@ -69,7 +70,39 @@ def test_generated_lookup_uses_tvm_ffi_symbol():
 
     llvm_source = tvm.compile(mod, target="llvm").mod.inspect_source("ll")
     assert "@__TVMFFIEnvModLookupFromImports" in llvm_source
+    assert "@__TVMFFIHandleInitOnce" in llvm_source
+    assert "@__TVMFFIHandleDeinitOnce" in llvm_source
+    assert "@__TVMFFIObjectIncRef" in llvm_source
+    assert "@__TVMFFIObjectDecRef" in llvm_source
+    assert "@llvm.global_dtors" in llvm_source
+    assert "define internal i32 @__tvm_func_handle_init" in llvm_source
+    assert "define internal i32 @__tvm_func_handle_release" in llvm_source
+    assert "define hidden void @__tvm_func_handle_deinit" in llvm_source
     assert "@__TVMBackendGetFuncFromEnv" not in llvm_source
+
+
+def test_generated_lookup_handle_lifecycle():
+    call_count = 0
+
+    @tvm.register_global_func("test_codegen_lookup", override=True)
+    def test_codegen_lookup(_):
+        nonlocal call_count
+        call_count += 1
+
+    built = tvm.compile(_lookup_module(), target="llvm")
+    function = built.mod["ramp"]
+    argument = tvm.runtime.tensor(np.zeros(1, dtype="int64"))
+    function(argument)
+    function(argument)
+    assert call_count == 2
+
+    # Dropping the generated module runs its global destructor.  The retained packed-function
+    # handle must be released exactly once without invalidating the registry-owned function.
+    del function
+    del built
+    gc.collect()
+    tvm.get_global_func("test_codegen_lookup")(argument)
+    assert call_count == 3
 
 
 def test_legacy_lookup_context_slot_is_still_populated():
@@ -88,6 +121,10 @@ def test_legacy_lookup_context_slot_is_still_populated():
 extern "C" {
 TVM_TEST_EXPORT void* __TVMBackendGetFuncFromEnv = nullptr;
 TVM_TEST_EXPORT void* __TVMFFIEnvModLookupFromImports = nullptr;
+TVM_TEST_EXPORT void* __TVMFFIHandleInitOnce = nullptr;
+TVM_TEST_EXPORT void* __TVMFFIHandleDeinitOnce = nullptr;
+TVM_TEST_EXPORT void* __TVMFFIObjectIncRef = nullptr;
+TVM_TEST_EXPORT void* __TVMFFIObjectDecRef = nullptr;
 TVM_TEST_EXPORT void* __tvm_ffi__library_ctx = nullptr;
 }
 """
@@ -99,6 +136,10 @@ TVM_TEST_EXPORT void* __tvm_ffi__library_ctx = nullptr;
     assert loaded_module is not None
     assert ctypes.c_void_p.in_dll(loaded_library, "__TVMBackendGetFuncFromEnv").value
     assert ctypes.c_void_p.in_dll(loaded_library, "__TVMFFIEnvModLookupFromImports").value
+    assert ctypes.c_void_p.in_dll(loaded_library, "__TVMFFIHandleInitOnce").value
+    assert ctypes.c_void_p.in_dll(loaded_library, "__TVMFFIHandleDeinitOnce").value
+    assert ctypes.c_void_p.in_dll(loaded_library, "__TVMFFIObjectIncRef").value
+    assert ctypes.c_void_p.in_dll(loaded_library, "__TVMFFIObjectDecRef").value
 
 
 if __name__ == "__main__":
