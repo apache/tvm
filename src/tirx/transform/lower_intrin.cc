@@ -135,8 +135,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         if (auto opt_c_value = TryFindShiftCoefficientForPositiveRange(op->a, b_value)) {
           int64_t c_value = *opt_c_value;
           // now we can safely lower to truncdiv
-          return truncdiv(op->a + IntImm(dtype, b_value * c_value), op->b) -
-                 IntImm(dtype, c_value);
+          return truncdiv(op->a + IntImm(dtype, b_value * c_value), op->b) - IntImm(dtype, c_value);
         }
       }
       DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divident";
