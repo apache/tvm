@@ -76,10 +76,18 @@ function run_pytest() {
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
 
-    DEFAULT_PARALLELISM=1
+    DEFAULT_PARALLELISM=auto
 
-    if [[ ! "${extra_args[*]}" == *" -n"* ]] && [[ ! "${extra_args[*]}" == *" -dist"* ]]; then
-        extra_args+=("-n=$DEFAULT_PARALLELISM")
+    # Keep the default scoped to run_pytest so nested and one-off pytest
+    # invocations do not recursively start workers.  Explicit options from
+    # either the environment or the caller remain authoritative.
+    pytest_args=" ${PYTEST_ADDOPTS:-} ${extra_args[*]} "
+    if [[ "${pytest_args}" != *" -n"* ]] &&
+       [[ "${pytest_args}" != *" --numprocesses"* ]] &&
+       [[ "${pytest_args}" != *" --dist"* ]] &&
+       [[ "${pytest_args}" != *" -d "* ]] &&
+       [[ "${pytest_args}" != *" --tx"* ]]; then
+        extra_args+=("-n=$DEFAULT_PARALLELISM" "--dist=loadgroup")
     fi
 
     exit_code=0
