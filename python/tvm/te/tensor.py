@@ -230,7 +230,7 @@ class TensorOpBase:
         return _te_tensor_overload.__rtruediv__(self, other)
 
     def __neg__(self):
-        return self.__mul__(const(-1, self.expr_ty().dtype))
+        return self.__mul__(const(-1, self.expr_ty()))
 
     def __nonzero__(self):
         return _expr.ExprOp.__nonzero__(self)
