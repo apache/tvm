@@ -33,6 +33,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   StmtDocNode::RegisterReflection();
   StmtBlockDocNode::RegisterReflection();
   LiteralDocNode::RegisterReflection();
+  ExprStringDocNode::RegisterReflection();
   IdDocNode::RegisterReflection();
   AttrAccessDocNode::RegisterReflection();
   IndexDocNode::RegisterReflection();
@@ -87,6 +88,15 @@ StmtBlockDoc::StmtBlockDoc(ffi::Array<StmtDoc> stmts) {
 
 LiteralDoc::LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path) {
   ffi::ObjectPtr<LiteralDocNode> n = ffi::make_object<LiteralDocNode>();
+  n->value = value;
+  if (object_path.defined()) {
+    n->source_paths.push_back(object_path.value());
+  }
+  this->data_ = std::move(n);
+}
+
+ExprStringDoc::ExprStringDoc(ExprDoc value, const ffi::Optional<AccessPath>& object_path) {
+  ffi::ObjectPtr<ExprStringDocNode> n = ffi::make_object<ExprStringDocNode>();
   n->value = value;
   if (object_path.defined()) {
     n->source_paths.push_back(object_path.value());
