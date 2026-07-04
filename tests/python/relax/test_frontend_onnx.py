@@ -3945,6 +3945,8 @@ def test_dynamic_shape_squeeze(axis):
     axes = relax.Var("axes", relax.TensorType([1], "int64"))
     gv = relax.Var("gv", tvm.ir.PrimType("int64"))
     body = relax.SeqExpr([relax.DataflowBlock([relax.VarBinding(gv, a)])], gv)
+    # Match the importer boundary, where BlockBuilder populates the SeqExpr result type.
+    body = relax.BlockBuilder().normalize(body)
     expected_func = relax.Function([x, axes], body, tvm.ir.PrimType("int64")).with_attrs(
         {"num_input": 1, "global_symbol": "main"}
     )

@@ -108,6 +108,31 @@ class PrimFuncNode : public BaseFuncNode {
         .def_ro("ret_type", &PrimFuncNode::ret_type)
         .def_ro("buffer_map", &PrimFuncNode::buffer_map)
         .def_ro("body", &PrimFuncNode::body);
+    refl::TypeAttrDef<PrimFuncNode>()
+        .def("__s_equal__", &PrimFuncNode::SEqual)
+        .def("__s_hash__", &PrimFuncNode::SHash);
+  }
+
+  bool SEqual(const PrimFuncNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    // `ty` is derived from the fields below.  PrimFunc transformations update
+    // those source fields without maintaining this redundant cache eagerly.
+    // Remove this exception once all PrimFunc mutation paths recompute `ty`.
+    return equal(attrs, other->attrs, false, "attrs") &&
+           equal(params, other->params, true, "params") &&
+           equal(ret_type, other->ret_type, false, "ret_type") &&
+           equal(buffer_map, other->buffer_map, false, "buffer_map") &&
+           equal(body, other->body, false, "body");
+  }
+
+  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
+    int64_t hash_value = init_hash;
+    hash_value = hash(attrs, hash_value, false);
+    hash_value = hash(params, hash_value, true);
+    hash_value = hash(ret_type, hash_value, false);
+    hash_value = hash(buffer_map, hash_value, false);
+    hash_value = hash(body, hash_value, false);
+    return hash_value;
   }
 
   /*!
