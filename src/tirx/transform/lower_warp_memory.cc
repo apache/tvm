@@ -422,7 +422,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return std::make_pair(x, z);
     } else {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
-      PrimExpr y = index / IntImm(index_ty, warp_coeff_ * width_);
+      PrimExpr y = index / MakeConst(index_ty, warp_coeff_ * width_);
       y = y * m + x;
       PrimExpr z = indexdiv(indexmod(index, IntImm(index_ty, warp_coeff_ * width_)), m);
       return std::make_pair(analyzer_->canonical_simplify(y), analyzer_->canonical_simplify(z));

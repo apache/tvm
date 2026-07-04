@@ -565,8 +565,8 @@ PrimExpr Buffer::access_ptr(int access_mask, PrimType ptr_type, int content_lane
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
     e_dtype = tirx::TypeAnnotation(PrimType(self->dtype).WithLanes(content_lanes));
-    extent = extent / IntImm(self->elem_offset.ty(), content_lanes);
-    elem_offset = self->elem_offset / IntImm(self->elem_offset.ty(), content_lanes);
+    extent = extent / MakeConst(self->elem_offset.ty(), content_lanes);
+    elem_offset = self->elem_offset / MakeConst(self->elem_offset.ty(), content_lanes);
   } else {
     e_dtype = tirx::TypeAnnotation(self->dtype);
   }

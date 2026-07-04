@@ -225,7 +225,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       visit_touched_var_ = true;
       PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
       PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
-      PrimExpr stride = it->second / IntImm(offset.ty(), dtype.lanes());
+      PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
 
       return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op,
