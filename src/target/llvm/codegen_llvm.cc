@@ -2037,7 +2037,7 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
   } else {
     TVM_FFI_ICHECK(op->kind == ForKind::kSerial);
   }
-  PrimExpr step = op->step.value_or(MakeConst(op->extent.ty(), 1));
+  PrimExpr step = op->step.value_or(IntImm(op->extent.ty(), 1));
   PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
   llvm::Value* begin_value = MakeValue(op->min);
   llvm::Value* end_value = MakeValue(end);

@@ -55,10 +55,10 @@ void AppendFloorDivConstraints(const FloorDivNode* div, int64_t value, CompareKi
   if (!TryGetIntImm(div->b, &divisor_value) || divisor_value <= 0) return;
 
   PrimType dtype = div->a.ty();
-  PrimExpr divisor = MakeConst(dtype, divisor_value);
-  PrimExpr k = MakeConst(dtype, value);
+  PrimExpr divisor = IntImm(dtype, divisor_value);
+  PrimExpr k = IntImm(dtype, value);
   PrimExpr lo = k * divisor;
-  PrimExpr hi = (k + MakeConst(dtype, 1)) * divisor;
+  PrimExpr hi = (k + IntImm(dtype, 1)) * divisor;
 
   switch (kind) {
     case CompareKind::kEQ:
