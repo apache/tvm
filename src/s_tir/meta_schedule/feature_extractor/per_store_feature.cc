@@ -583,19 +583,24 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
 #undef TVM_FEATURE_SIMPLE
 
     void VisitExpr_(const CallNode* op) final {
+      auto result_type = op->ty.as<PrimType>();
+      if (!result_type) {
+        ExprVisitor::VisitExpr_(op);
+        return;
+      }
       static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
       CallEffectKind effect_kind =
           static_cast<CallEffectKind>(op_call_effect_[op->op.as_or_throw<Op>()]);
       bool is_pure =
           effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
       if (is_pure) {
-        if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLFloat)) {
+        if (result_type.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
           result_.float_math_func += prod_loop_extent_;
         } else {
           result_.int_math_func += prod_loop_extent_;
         }
       } else {
-        if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLFloat)) {
+        if (result_type.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
           result_.float_other_func += prod_loop_extent_;
         } else {
           result_.int_other_func += prod_loop_extent_;

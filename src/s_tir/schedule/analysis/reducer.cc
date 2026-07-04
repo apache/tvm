@@ -59,8 +59,10 @@ class PatternMatcher : public ExprVisitor {
     if (it == filled_map_.end()) {
       filled_map_[op] = expr_to_match_;
     } else {
-      ExprDeepEqual equal;
-      if (it->second.same_as(expr_to_match_) || equal(it->second, expr_to_match_)) return;
+      if (it->second.same_as(expr_to_match_) ||
+          ffi::StructuralEqual()(it->second, expr_to_match_)) {
+        return;
+      }
       match_success_ = false;
     }
   }
@@ -70,8 +72,8 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      PrimExpr tmp = expr_to_match_;
-      expr_to_match_ = ptr->var.as_or_throw<PrimExpr>();
+      Expr tmp = expr_to_match_;
+      expr_to_match_ = ptr->var;
       VisitExpr(op->var);
       expr_to_match_ = ptr->value;
       VisitExpr(op->value);
@@ -86,13 +88,13 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (!op->op.same_as(ptr->op)) {
+      if (!op->op.same_as(ptr->op) || op->args.size() != ptr->args.size()) {
         match_success_ = false;
       } else {
-        PrimExpr tmp = expr_to_match_;
+        Expr tmp = expr_to_match_;
         for (size_t i = 0; i < op->args.size(); ++i) {
-          expr_to_match_ = ptr->args[i].as_or_throw<PrimExpr>();
-          VisitExpr(op->args[i].as_or_throw<PrimExpr>());
+          expr_to_match_ = ptr->args[i];
+          VisitExpr(op->args[i]);
         }
         std::swap(expr_to_match_, tmp);
       }
@@ -105,7 +107,7 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {                          \
       match_success_ = false;                      \
     } else {                                       \
-      PrimExpr current = expr_to_match_;           \
+      Expr current = expr_to_match_;               \
       expr_to_match_ = ptr->a;                     \
       VisitExpr(op->a);                            \
       expr_to_match_ = ptr->b;                     \
@@ -140,7 +142,7 @@ class PatternMatcher : public ExprVisitor {
       if (op->ty.as_or_throw<PrimType>() != ptr->ty.as_or_throw<PrimType>()) {
         match_success_ = false;
       } else {
-        PrimExpr tmp = expr_to_match_;
+        Expr tmp = expr_to_match_;
         expr_to_match_ = ptr->value;
         VisitExpr(op->value);
         std::swap(expr_to_match_, tmp);
@@ -153,7 +155,7 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      PrimExpr tmp = expr_to_match_;
+      Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->a;
       VisitExpr(op->a);
       std::swap(expr_to_match_, tmp);
@@ -165,7 +167,7 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      PrimExpr tmp = expr_to_match_;
+      Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->condition;
       VisitExpr(op->condition);
       expr_to_match_ = ptr->true_value;
@@ -181,7 +183,7 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      PrimExpr tmp = expr_to_match_;
+      Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->base;
       VisitExpr(op->base);
       expr_to_match_ = ptr->stride;
@@ -197,7 +199,7 @@ class PatternMatcher : public ExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      PrimExpr tmp = expr_to_match_;
+      Expr tmp = expr_to_match_;
       expr_to_match_ = ptr->value;
       VisitExpr(op->value);
       expr_to_match_ = ptr->lanes;
@@ -214,7 +216,7 @@ class PatternMatcher : public ExprVisitor {
       if (op->vectors.size() != ptr->vectors.size() || op->indices.size() != ptr->indices.size()) {
         match_success_ = false;
       } else {
-        PrimExpr tmp = expr_to_match_;
+        Expr tmp = expr_to_match_;
         for (size_t i = 0; i < op->indices.size(); ++i) {
           expr_to_match_ = ptr->indices[i];
           VisitExpr(op->indices[i]);
@@ -251,7 +253,7 @@ class PatternMatcher : public ExprVisitor {
       if (!op->buffer.same_as(ptr->buffer) || op->indices.size() != ptr->indices.size()) {
         match_success_ = false;
       } else {
-        PrimExpr tmp = expr_to_match_;
+        Expr tmp = expr_to_match_;
         for (size_t i = 0; i < op->indices.size(); ++i) {
           expr_to_match_ = ptr->indices[i];
           VisitExpr(op->indices[i]);
@@ -277,7 +279,7 @@ class PatternMatcher : public ExprVisitor {
     auto it = filled_map_.find(var.operator->());
     TVM_FFI_ICHECK(it != filled_map_.end()) << "Unknown pattern variable";
     TVM_FFI_ICHECK(match_success_) << "Match failed";
-    return it->second;
+    return it->second.as_or_throw<PrimExpr>();
   }
 
   bool Success() const { return match_success_; }
@@ -285,8 +287,8 @@ class PatternMatcher : public ExprVisitor {
  private:
   bool match_success_{true};
   ffi::Array<PrimExpr> pattern_;
-  PrimExpr expr_to_match_;
-  std::unordered_map<const VarNode*, PrimExpr> filled_map_;
+  Expr expr_to_match_;
+  std::unordered_map<const VarNode*, Expr> filled_map_;
 };
 
 /******** Reduction SBlock Related ********/

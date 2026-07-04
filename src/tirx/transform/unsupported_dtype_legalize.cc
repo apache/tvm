@@ -133,8 +133,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    auto prim_type = buffer_var->ty.as<PrimType>();
-    if (buffer_var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle())) {
+    if (buffer_var->ty.as<PointerTypeNode>()) {
       opaque_var_access_.insert(buffer_var);
     }
   }
@@ -691,6 +690,17 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
+      Expr ret = StmtExprMutator::VisitExpr_(op);
+      const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
+      if (!element_type || !MatchType(ffi::GetRef<PrimType>(element_type))) {
+        return ret;
+      }
+      Call call = ret.as_or_throw<Call>();
+      Type new_element_type = GetStorageUIntDType(ffi::GetRef<PrimType>(element_type));
+      return Call(PointerType(new_element_type, pointer_type->storage_scope), call->op, call->args,
+                  call->attrs, call->ty_args, call->span);
+    }
     if (!op->ty.as<PrimTypeNode>()) {
       return StmtExprMutator::VisitExpr_(op);
     }

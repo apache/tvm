@@ -193,9 +193,12 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::address_of())) {
-      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      for (const auto& index : load->indices) {
-        this->VisitExpr(index);
+      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+        for (const auto& index : load->indices) {
+          this->VisitExpr(index);
+        }
+      } else {
+        this->VisitExpr(op->args[0]);
       }
     } else {
       StmtExprVisitor::VisitExpr_(op);
@@ -491,7 +494,11 @@ class SharedMemoryRewriter : public StmtExprMutator {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DLDataType dtype = op->args[0].as_or_throw<PrimExpr>().ty()->dtype;
-      Var buffer = op->args[1].as_or_throw<Var>();
+      auto buffer_opt = op->args[1].as<Var>();
+      if (!buffer_opt.has_value()) {
+        return StmtExprMutator::VisitExpr_(op);
+      }
+      Var buffer = buffer_opt.value();
       if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
           !scope_stack_.back().shmem_allocs.count(buffer.get())) {
         return StmtExprMutator::VisitExpr_(op);
@@ -500,10 +507,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
       PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
       PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
-      return Call(op->ty.as_or_throw<PrimType>(), op->op,
-                  {op->args[0].as_or_throw<PrimExpr>(), scope_stack_.back().merged_buf_var,
-                   extra_offset + offset, extent, op->args[4].as_or_throw<PrimExpr>()})
-          .as_or_throw<PrimExpr>();
+      return Call(op->ty, op->op,
+                  {op->args[0], scope_stack_.back().merged_buf_var, extra_offset + offset, extent,
+                   op->args[4]});
     } else if (op->op.same_as(ptx_cp_async_op)) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
       Var buffer = op->args[0].as_or_throw<Var>();

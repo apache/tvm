@@ -70,6 +70,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       TVM_FFI_ICHECK(!ty->element_type.IsMissing())
           << "InternalError: PointerType.element_type is missing";
       if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
+        if (ffi::GetRef<PrimType>(prim_type).IsVoid() && ty->storage_scope == "global") {
+          return TIR(d, "handle");
+        }
         element_type = LiteralDoc::DataType(prim_type->dtype,  //
                                             ty_p->Attr("element_type")->Attr("dtype"));
       } else if (ty->element_type.as<TensorMapTypeNode>()) {

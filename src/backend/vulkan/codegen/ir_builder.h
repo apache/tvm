@@ -50,7 +50,7 @@ struct SType {
   /*! \brief The Id to represent type */
   uint32_t id{0};
   /*! \brief corresponding TVM type */
-  tvm::PrimType type{tvm::PrimType::Void()};
+  tvm::Type type{tvm::PrimType::Void()};
   /*! \brief content type id if it is a pointer/struct-array class */
   uint32_t element_type_id{0};
   /*! \brief The storage class, if it is a pointer */

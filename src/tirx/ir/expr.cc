@@ -234,7 +234,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // StringImm
 StringImm::StringImm(ffi::String value, Span span) {
   ffi::ObjectPtr<StringImmNode> node = ffi::make_object<StringImmNode>();
-  node->ExprNode::ty = PrimType::Handle();
+  node->ExprNode::ty = PrimType::Void();
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);

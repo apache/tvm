@@ -77,9 +77,19 @@ def _primexpr_dtype(expr):
 
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
-    shape = Call("tirx.tvm_stack_make_shape", buf.shape, span=span, ret_ty="handle")
+    shape = Call(
+        "tirx.tvm_stack_make_shape",
+        buf.shape,
+        span=span,
+        ret_ty=PointerType(tvm.ir.PrimType("int64")),
+    )
     strides = (
-        Call("tirx.tvm_stack_make_shape", buf.strides, span=span, ret_ty="handle")
+        Call(
+            "tirx.tvm_stack_make_shape",
+            buf.strides,
+            span=span,
+            ret_ty=PointerType(tvm.ir.PrimType("int64")),
+        )
         if buf.strides
         else 0
     )
@@ -207,7 +217,7 @@ def call_cpacked(*args, span=None):
     return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ret_ty="int32")
 
 
-def call_intrin(dtype: str | tvm.ir.PrimType, func_name, *args, attrs=None, span=None):
+def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=None):
     """Build expression by calling an intrinsic function.
 
     Intrinsics can be overloaded with multiple data types via
@@ -215,7 +225,7 @@ def call_intrin(dtype: str | tvm.ir.PrimType, func_name, *args, attrs=None, span
 
     Parameters
     ----------
-    dtype : str
+    dtype : str or tvm.ir.Type
         The data type of the result.
 
     func_name: str
@@ -408,7 +418,15 @@ def tvm_stack_alloca(dtype_str, num):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.tvm_stack_alloca", dtype_str, num)
+    if dtype_str == "shape":
+        ret_ty = PointerType(tvm.ir.PrimType("int64"))
+    elif dtype_str == "arg_tcode":
+        ret_ty = PointerType(tvm.ir.PrimType("int32"))
+    elif dtype_str == "tensormap":
+        ret_ty = PointerType(TensorMapType())
+    else:
+        ret_ty = PointerType(tvm.ir.PrimType("void"))
+    return call_intrin(ret_ty, "tirx.tvm_stack_alloca", dtype_str, num)
 
 
 def tvm_stack_make_shape(*args):
@@ -424,7 +442,7 @@ def tvm_stack_make_shape(*args):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.tvm_stack_make_shape", *args)
+    return call_intrin(PointerType(tvm.ir.PrimType("int64")), "tirx.tvm_stack_make_shape", *args)
 
 
 def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
@@ -527,7 +545,7 @@ def start_profile_intrinsic(id):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.start_profile_intrinsic", id)
+    return call_intrin("void", "tirx.start_profile_intrinsic", id)
 
 
 def end_profile_intrinsic(id):
@@ -541,7 +559,7 @@ def end_profile_intrinsic(id):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.end_profile_intrinsic", id)
+    return call_intrin("void", "tirx.end_profile_intrinsic", id)
 
 
 def tvm_tuple(*value):
@@ -557,7 +575,7 @@ def tvm_tuple(*value):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.tvm_tuple", *value)
+    return call_intrin("void", "tirx.tvm_tuple", *value)
 
 
 def handle_add_byte_offset(handle, offset):
@@ -576,7 +594,14 @@ def handle_add_byte_offset(handle, offset):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.handle_add_byte_offset", handle, offset)
+    handle_type = getattr(handle, "ty", None)
+    storage_scope = handle_type.storage_scope if isinstance(handle_type, PointerType) else "global"
+    return call_intrin(
+        PointerType(tvm.ir.PrimType("void"), storage_scope),
+        "tirx.handle_add_byte_offset",
+        handle,
+        offset,
+    )
 
 
 def tvm_struct_get(arr, index, field, dtype):
@@ -656,7 +681,9 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
             return call_intrin("uint64", "tirx.address_of", obj, span=span)
-        return Call("tirx.address_of", [obj], span=span, ret_ty=obj.ty)
+        if not isinstance(obj.ty, tvm.ir.PrimType):
+            raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
+        return Call("tirx.address_of", [obj], span=span, ret_ty=PointerType(obj.ty))
     elif isinstance(obj, BufferLoad):
         return Call("tirx.address_of", [obj], span=span, ret_ty=obj.buffer.data.ty)
     else:
@@ -695,7 +722,7 @@ def tvm_thread_allreduce(*freduce_args):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.tvm_thread_allreduce", *freduce_args)
+    return call_intrin("void", "tirx.tvm_thread_allreduce", *freduce_args)
 
 
 def tvm_thread_invariant(cond):
@@ -916,7 +943,17 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
     """
     if isinstance(ptype, str):
         ptype = type_annotation(ptype)
-    return call_intrin("handle", "tirx.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
+    data_type = getattr(data, "ty", None)
+    storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
+    return call_intrin(
+        PointerType(_primexpr_ty(ptype), storage_scope),
+        "tirx.tvm_access_ptr",
+        ptype,
+        data,
+        offset,
+        extent,
+        rw_mask,
+    )
 
 
 def ptr_byte_offset(data, byte_offset, dtype):
@@ -927,7 +964,15 @@ def ptr_byte_offset(data, byte_offset, dtype):
     """
     if isinstance(dtype, str):
         dtype = type_annotation(dtype)
-    return call_intrin("handle", "tirx.ptr_byte_offset", data, byte_offset, dtype)
+    data_type = getattr(data, "ty", None)
+    storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
+    return call_intrin(
+        PointerType(_primexpr_ty(dtype), storage_scope),
+        "tirx.ptr_byte_offset",
+        data,
+        byte_offset,
+        dtype,
+    )
 
 
 def tvm_throw_last_error():
@@ -938,7 +983,7 @@ def tvm_throw_last_error():
     ret : Expr
         The return expression
     """
-    return call_intrin("handle", "tirx.tvm_throw_last_error")
+    return call_intrin("void", "tirx.tvm_throw_last_error")
 
 
 def print_buffer(buffer_var, dtype, is_string, is_scalar, dim_num, *shape):
@@ -961,7 +1006,7 @@ def cooperative_tensor_fill(
     rows: int,
     cols: int,
 ):
-    return call_intrin("handle", "tirx.cooperative_tensor_fill", d, index, value, rows, cols)
+    return call_intrin("void", "tirx.cooperative_tensor_fill", d, index, value, rows, cols)
 
 
 def cooperative_tensor_load(
@@ -978,7 +1023,7 @@ def cooperative_tensor_load(
     operand_role: int = 0,
 ):
     return call_intrin(
-        "handle",
+        "void",
         "tirx.cooperative_tensor_load",
         d,
         index,
@@ -1008,7 +1053,7 @@ def cooperative_tensor_store(
     operand_role: int = 0,
 ):
     return call_intrin(
-        "handle",
+        "void",
         "tirx.cooperative_tensor_store",
         d,
         index,
@@ -1040,7 +1085,7 @@ def cooperative_tensor_multiply_accumulate(
     transpose_b: bool = False,
 ):
     return call_intrin(
-        "handle",
+        "void",
         "tirx.cooperative_tensor_multiply_accumulate",
         d,
         index_d,
@@ -1153,8 +1198,9 @@ def ret(val, span=None):
     ret : Expr
         The return expression
     """
-    val = tirx.convert(val)
-    return Call(Op.get("tirx.ret"), [val], span=span, ret_ty=_primexpr_ty(val))
+    if not isinstance(val, Expr):
+        val = tirx.convert(val)
+    return Call(Op.get("tirx.ret"), [val], span=span, ret_ty=val.ty)
 
 
 def any(*args, span=None):
@@ -1244,8 +1290,9 @@ def trace(args, trace_action="tvm.default_trace_action"):
         raise Exception("tvm.tirx.trace consumes the args as list type")
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     call_args.insert(0, tvm.tirx.StringImm(trace_action))
-    dtype = _primexpr_ty(args[-1]) if tvm.ir.is_prim_expr(args[-1]) else args[-1].dtype
-    return tvm.ir.Call(Op.get("tirx.tvm_call_trace_packed"), call_args, ret_ty=dtype)
+    tracing_value = args[-1]
+    ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype
+    return tvm.ir.Call(Op.get("tirx.tvm_call_trace_packed"), call_args, ret_ty=ret_ty)
 
 
 def min_value(dtype, span=None):
@@ -1305,12 +1352,12 @@ def infinity(dtype: str, span: Span | None = None) -> Any:
     return _ffi_api.infinity(dtype, span)  # type: ignore
 
 
-def reinterpret(dtype, value, span: Span | None = None) -> Any:
-    """infinity value of dtype
+def reinterpret(dtype, value, span: Span | None = None) -> Expr:
+    """Reinterpret a value as an exact primitive or pointer type.
 
     Parameters
     ----------
-    dtype : str
+    dtype : str or tvm.ir.Type
         The data type.
 
     value : Expr
@@ -1324,6 +1371,10 @@ def reinterpret(dtype, value, span: Span | None = None) -> Any:
     value : tvm.Expr
         The reinterpret cast value of dtype.
     """
+    if isinstance(dtype, str):
+        dtype = (
+            PointerType(tvm.ir.PrimType("void")) if dtype == "handle" else tvm.ir.PrimType(dtype)
+        )
     return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
@@ -3021,7 +3072,7 @@ def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
         The call expression.
     """
     return call_intrin(
-        "handle", "tirx.tvm_load_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
+        "void", "tirx.tvm_load_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
     )
 
 
@@ -3062,7 +3113,7 @@ def tvm_mma_sync(
         The call expression.
     """
     return call_intrin(
-        "handle",
+        "void",
         "tirx.tvm_mma_sync",
         fragment_d,
         index_d,
@@ -3112,7 +3163,7 @@ def tvm_bmma_sync(
         The call expression.
     """
     return call_intrin(
-        "handle",
+        "void",
         "tirx.tvm_bmma_sync",
         fragment_d,
         index_d,
@@ -3153,7 +3204,7 @@ def tvm_fill_fragment(fragment, m, n, k, index, value):
     call : Expr
         The call expression.
     """
-    return call_intrin("handle", "tirx.tvm_fill_fragment", fragment, m, n, k, index, value)
+    return call_intrin("void", "tirx.tvm_fill_fragment", fragment, m, n, k, index, value)
 
 
 def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
@@ -3191,7 +3242,7 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
         The call expression.
     """
     return call_intrin(
-        "handle", "tirx.tvm_store_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
+        "void", "tirx.tvm_store_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
     )
 
 

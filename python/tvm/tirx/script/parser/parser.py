@@ -745,9 +745,14 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, int | bool):
         T.evaluate(tvm.tirx.const(res))
     elif isinstance(res, tvm.ir.Call) and not tvm.ir.is_prim_expr(res):
-        # GlobalVar calls with a missing return type are ambiguous, as each IR has a
-        # different function Call representation. Convert to the TIR representation.
-        T.evaluate(tvm.tirx.call_tir(res.op, *res.args))
+        if isinstance(res.op, tvm.ir.GlobalVar) and res.ty.is_missing():
+            # GlobalVar calls with a missing return type are ambiguous, as each IR has a
+            # different function Call representation. Convert to the TIR representation.
+            T.evaluate(tvm.tirx.call_tir(res.op, *res.args))
+        else:
+            # Pointer-valued TIR calls are general Expr rather than PrimExpr,
+            # but are still valid standalone Evaluate statements.
+            T.evaluate(res)
     elif isinstance(res, str):
         # Ignore docstrings
         pass

@@ -236,8 +236,15 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
-    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-    StmtExprVisitor::VisitExpr_(load);
+    if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+      // Taking an address does not read the buffer value.  Visit only the
+      // load's children so index expressions still contribute accesses.
+      StmtExprVisitor::VisitExpr_(load);
+    } else {
+      // address_of also accepts scalar variables (e.g. tcgen registers).
+      // Recurse without assuming the argument is a BufferLoad.
+      StmtExprVisitor::VisitExpr_(op);
+    }
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
     PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();

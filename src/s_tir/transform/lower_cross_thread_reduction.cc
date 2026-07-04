@@ -422,9 +422,9 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*body=*/
                AttrStmt(/*node=*/reducer,
                         /*attr_key=*/s_tir::attr::reduce_scope,
-                        /*value=*/ConstHandle(0),
+                        /*value=*/IntImm::Int32(0),
                         /*body=*/
-                        Evaluate(Call(/*dtype=*/PrimType::Handle(),
+                        Evaluate(Call(/*dtype=*/PrimType::Void(),
                                       /*op=*/tirx::builtin::tvm_thread_allreduce(),
                                       /*args=*/std::move(parameters))
                                      .as_or_throw<PrimExpr>())))));

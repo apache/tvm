@@ -153,7 +153,13 @@ Type GetType(const PrimExpr& expr) {
   return expr.ty();
 }
 
-Type GetTypeFromRuntimeDataType(DLDataType dtype) { return PrimType(dtype); }
+Type GetTypeFromRuntimeDataType(DLDataType dtype) {
+  if (dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLOpaqueHandle) &&
+      (dtype.bits != 0 || dtype.lanes != 0)) {
+    return PointerType::VoidPointer();
+  }
+  return PrimType(dtype);
+}
 
 // LargeUIntImm
 PrimExpr LargeUIntImm(PrimType value_ty, int64_t low, int64_t high, Span span) {
@@ -286,6 +292,14 @@ PrimExpr ret(PrimExpr value, Span span) {
   return Call(value.ty(), tirx::builtin::ret(), {value}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
+Expr ret(Expr value, Span span) {
+  TVM_FFI_ICHECK(value.defined());
+  if (auto prim_value = value.as<PrimExpr>()) {
+    return ret(prim_value.value(), span);
+  }
+  return Call(value->ty, tirx::builtin::ret(), {value}, {}, {}, span);
+}
+
 PrimExpr thread_return(Span span) {
   return Call(PrimType::Void(), tirx::builtin::thread_return(), {}, {}, {}, span)
       .as_or_throw<PrimExpr>();
@@ -304,7 +318,7 @@ PrimExpr break_loop(Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tirx.ret", ret)
+      .def("tirx.ret", [](Expr value, Span span) { return ret(value, span); })
       .def("tirx.thread_return", thread_return)
       .def("tirx.continue_loop", continue_loop)
       .def("tirx.break_loop", break_loop);
@@ -469,6 +483,8 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
   using tirx::FloatImmNode;
   PrimType dtype = t;
   if (value.ty() == dtype) return value;
+  TVM_FFI_CHECK(!value.ty().IsVoid(), TypeError)
+      << "Cannot cast an expression with the void sentinel type";
   // const fold IntImm as they are used in index computations
   if (dtype.IsScalar()) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
@@ -476,7 +492,6 @@ PrimExpr cast(PrimType t, PrimExpr value, Span span) {
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
       return MakeConst(dtype, op->value, op->span);
     }
-    TVM_FFI_ICHECK(!value.ty().IsHandle()) << "Can't cast a handle to other types.";
     return tirx::Cast(std::move(t), value, span);
   } else {
     PrimType elem_ty = dtype.WithLanes(1);
@@ -544,6 +559,38 @@ PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
   }
   return Call(std::move(t), tirx::builtin::reinterpret(), {value}, {}, {}, span)
       .as_or_throw<PrimExpr>();
+}
+
+Expr reinterpret(Type t, Expr value, Span span) {
+  if (auto target_dtype = t.as<PrimType>()) {
+    if (auto prim_value = value.as<PrimExpr>()) {
+      return reinterpret(target_dtype.value(), prim_value.value(), std::move(span));
+    }
+    TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
+        << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
+    TVM_FFI_CHECK(
+        target_dtype.value().IsScalar() && target_dtype.value().bits() == 64 &&
+            target_dtype.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+        TypeError)
+        << "Pointer reinterpret requires a scalar 64-bit integer target, but got "
+        << target_dtype.value();
+  } else {
+    TVM_FFI_CHECK(t.as<PointerTypeNode>(), TypeError)
+        << "Reinterpret target must be PrimType or PointerType, but got " << t;
+    if (auto source_dtype = value->ty.as<PrimType>()) {
+      TVM_FFI_CHECK(
+          source_dtype.value().IsScalar() && source_dtype.value().bits() == 64 &&
+              source_dtype.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+          TypeError)
+          << "Pointer reinterpret requires a scalar 64-bit integer source, but got "
+          << source_dtype.value();
+    } else {
+      TVM_FFI_CHECK(value->ty.as<PointerTypeNode>(), TypeError)
+          << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
+    }
+  }
+  return Call(std::move(t), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},
+              std::move(span));
 }
 
 PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span) {
@@ -1257,9 +1304,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tirx.trunc", tvm::trunc)
       .def("tirx._cast",
            [](PrimType dtype, PrimExpr value, Span span) { return tvm::cast(dtype, value, span); })
-      .def("tirx.reinterpret", [](PrimType dtype, PrimExpr value, Span span) {
-        return tvm::reinterpret(dtype, value, span);
-      });
+      .def("tirx.reinterpret",
+           [](Type dtype, Expr value, Span span) { return tvm::reinterpret(dtype, value, span); });
 }
 
 // operator overloading, smarter than make

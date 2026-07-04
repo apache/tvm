@@ -66,7 +66,7 @@ bool IsAncestorOfAllVarUse(const tirx::Stmt& node, const ffi::ObjectRef& var,
   return false;
 }
 
-ffi::Optional<PrimExpr> FindReturnValue(const tirx::Stmt& node) {
+ffi::Optional<Expr> FindReturnValue(const tirx::Stmt& node) {
   auto eval = node.as<tirx::EvaluateNode>();
   if (!eval) return std::nullopt;
 
@@ -77,7 +77,7 @@ ffi::Optional<PrimExpr> FindReturnValue(const tirx::Stmt& node) {
 
   if (call->args.size() != 1) return std::nullopt;
 
-  return call->args[0].as_or_throw<PrimExpr>();
+  return call->args[0];
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

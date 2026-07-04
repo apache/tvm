@@ -170,7 +170,7 @@ bool AnalyzerObj::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   const auto* clhs = lhs.as<IntImmNode>();
   const auto* crhs = rhs.as<IntImmNode>();
   if (clhs && crhs) return clhs->value == crhs->value;
-  if (lhs.ty().IsHandle() || rhs.ty().IsHandle()) {
+  if (is_pos_inf(lhs) || is_neg_inf(lhs) || is_pos_inf(rhs) || is_neg_inf(rhs)) {
     return lhs.same_as(rhs);
   }
   return CanProve(lhs - rhs == 0);

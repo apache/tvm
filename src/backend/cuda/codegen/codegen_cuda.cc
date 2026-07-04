@@ -326,12 +326,6 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
 
 void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_ICHECK(t.IsScalar()) << "do not yet support vector types";
-    os << "void*";
-    return;
-  }
-
   if (t.IsVoid()) {
     os << "void";
     return;
@@ -1336,24 +1330,26 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
            << guard << ")\n";
     stream << ");\n";
   } else if (op->op.same_as(builtin::reinterpret())) {
+    auto tgt_prim_type = op->ty.as<PrimType>();
+    auto src_prim_type = op->args[0]->ty.as<PrimType>();
+
+    if (op->args[0]->ty.as<PointerTypeNode>() && tgt_prim_type &&
+        tgt_prim_type.value().IsScalar() &&
+        tgt_prim_type.value().MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
+        tgt_prim_type.value().bits() == 64) {
+      os << "reinterpret_cast<";
+      this->PrintType(tgt_prim_type.value(), os);
+      os << ">(" << PrintExpr(op->args[0]) << ")";
+      return;
+    }
+
+    if (!tgt_prim_type || !src_prim_type) {
+      return CodeGenC::VisitExpr_(op, os);
+    }
+
     PrimType tgt_ty = op->ty.as_or_throw<PrimType>();
     PrimExpr value = op->args[0].as_or_throw<PrimExpr>();
     PrimType src_ty = value.ty();
-
-    if (src_ty.IsHandle() && tgt_ty.IsScalar() &&
-        tgt_ty.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
-        tgt_ty.bits() == 64) {
-      os << "reinterpret_cast<";
-      this->PrintType(tgt_ty, os);
-      os << ">(" << PrintExpr(value) << ")";
-      return;
-    }
-    if (tgt_ty.IsHandle() && src_ty.IsScalar() &&
-        src_ty.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
-        src_ty.bits() == 64) {
-      os << "reinterpret_cast<void*>(" << PrintExpr(value) << ")";
-      return;
-    }
 
     // Handle float4_e2m1fn reinterpret
     if (!IsFloat4(src_ty) && !IsFloat4(tgt_ty)) {
@@ -1433,7 +1429,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::print_buffer())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 5U) << "Print operation expects at least 5 arguments";
 
-    PrimExpr arg = op->args[0].as_or_throw<PrimExpr>();
+    Expr arg = op->args[0];
     const auto* var_node = arg.as<VarNode>();
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
     bool is_string = op->args[2].as<IntImmNode>()->value;

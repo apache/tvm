@@ -250,8 +250,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
   /*! \brief Print a C string literal with proper escaping of special chars. */
   void PrintEscapedCString(const std::string& str, std::ostream& os);
   // Print reference to struct location
-  std::string GetStructRef(const PrimType& t, const PrimExpr& buffer, const PrimExpr& index,
-                           int kind);
+  std::string GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
   virtual std::string GetBufferRef(const PrimType& t, const BufferNode* buffer, PrimExpr index);
 
@@ -322,8 +321,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
    */
   void RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value);
   // override
-  void PrintSSAAssign(const std::string& target, const std::string& src,
-                      const PrimType& t) override;
+  void PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) override;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 

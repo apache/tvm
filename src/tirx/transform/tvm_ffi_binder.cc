@@ -464,19 +464,24 @@ void TVMFFIABIBuilder::BindBuffer(const Buffer& arg, const Buffer& value,
 // ============================================================
 
 /*! \brief Load the i-th packed argument as the given type. */
-PrimExpr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
-                                                   PrimType arg_type) {
+Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
+                                               Type arg_type) {
   ffi::Array<Expr> call_args{v_packed_args, IntImm::Int32(param_index),
                              IntImm::Int32(builtin::kTVMFFIAnyUnionValue)};
-  PrimType api_type = APIType(arg_type);
-  PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args).as_or_throw<PrimExpr>();
-  if (api_type->dtype != arg_type->dtype) {
-    res = Cast(arg_type, res);
+  if (auto prim_type = arg_type.as<PrimType>()) {
+    PrimType api_type = APIType(prim_type.value());
+    PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args).as_or_throw<PrimExpr>();
+    if (api_type != prim_type.value()) {
+      res = Cast(prim_type.value(), res);
+    }
+    return res;
   }
-  return res;
+  TVM_FFI_CHECK(arg_type.as<PointerTypeNode>(), TypeError)
+      << "Packed union values must have primitive or pointer type, but got " << arg_type;
+  return Call(std::move(arg_type), builtin::tvm_struct_get(), call_args);
 }
 
-PrimExpr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
+Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
   // ── Type check: accept handle-like types ───────────────────
   std::string expected_type = buffer_map_.count(params_[param_index]) ? "Tensor" : "pointer";
   EmitTypeIndexCheck(param_index,
@@ -489,11 +494,12 @@ PrimExpr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimEx
   // ── Load value and apply tensor offset ─────────────────────
   const int64_t object_cell_offset = sizeof(TVMFFIObject);
   static_assert(sizeof(TVMFFIObject) == 24);
-  PrimExpr arg_value = LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Handle());
-  PrimExpr handle_from_tensor = Call(PrimType::Handle(), tirx::builtin::handle_add_byte_offset(),
-                                     {arg_value, IntImm::Int32(object_cell_offset)})
-                                    .as_or_throw<PrimExpr>();
-  return Select(type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value);
+  Expr arg_value = LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PointerType::VoidPointer());
+  Expr handle_from_tensor =
+      Call(PointerType::VoidPointer(), tirx::builtin::handle_add_byte_offset(),
+           {arg_value, IntImm::Int32(object_cell_offset)});
+  return Call(PointerType::VoidPointer(), tirx::builtin::if_then_else(),
+              {type_index == ffi::TypeIndex::kTVMFFITensor, handle_from_tensor, arg_value});
 }
 
 PrimExpr TVMFFIABIBuilder::DecodeParamBool(int param_index, const PrimExpr& type_index) {
@@ -548,8 +554,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
   if (param->ty.as<PointerTypeNode>()) {
-    PrimExpr handle_value =
-        DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
+    Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     Expr pointer_value = Call(param->ty, builtin::reinterpret(), {handle_value});
     BindPointer(param, pointer_value, param_path, true);
     return;
@@ -559,9 +564,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
 
   // Type-check and load value via per-dtype dispatch
   PrimExpr arg_value;
-  if (dtype.IsHandle()) {
-    arg_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
-  } else if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
+  if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     arg_value = DecodeParamBool(param_index, type_index.as_or_throw<PrimExpr>());
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     arg_value = DecodeParamInt(param_index, type_index.as_or_throw<PrimExpr>(), dtype);
@@ -608,10 +611,11 @@ void TVMFFIABIBuilder::DecodeAllParams() {
 
 Var TVMFFIABIBuilder::DLTensorGetFieldPtr(const Var& handle, int field_kind,
                                           const std::string& var_name) {
-  Var ptr(var_name, PrimType::Handle());
-  init_nest_.emplace_back(
-      Bind(ptr, TVMStructGet(PrimType::Handle(), handle, 0,
-                             static_cast<builtin::TVMStructFieldKind>(field_kind))));
+  Type pointer_type = PointerType(DefaultIndexPrimType());
+  Var ptr(var_name, pointer_type);
+  init_nest_.emplace_back(Bind(
+      ptr,
+      TVMStructGet(pointer_type, handle, 0, static_cast<builtin::TVMStructFieldKind>(field_kind))));
   return ptr;
 }
 
@@ -816,7 +820,7 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
   // ── Section: data pointer ────────────────────────────────────
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
-    PrimExpr raw_data = TVMStructGet(PrimType::Handle(), handle, 0, builtin::kDLTensorData);
+    Expr raw_data = TVMStructGet(PointerType::VoidPointer(), handle, 0, builtin::kDLTensorData);
     Expr typed_data = Call(buffer->data->ty, builtin::reinterpret(), {raw_data});
     if (BindPointer(buffer->data, typed_data, data_path, true)) {
       Var vptr(buffer->data);
@@ -843,7 +847,8 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
       if (check_alignment_) {
         // Check data pointer alignment
         if (buffer->data_alignment > 1) {
-          Expr handle = Call(PrimType::Handle(), builtin::reinterpret(), ffi::Array<Expr>{vptr});
+          Expr handle =
+              Call(PointerType::VoidPointer(), builtin::reinterpret(), ffi::Array<Expr>{vptr});
           PrimExpr ptr_as_int =
               Call(PrimType::UInt(64), builtin::reinterpret(), ffi::Array<Expr>{handle})
                   .as_or_throw<PrimExpr>();

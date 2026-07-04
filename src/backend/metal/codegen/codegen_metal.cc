@@ -46,8 +46,7 @@ void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    auto prim_type = arg->ty.as<PrimType>();
-    if (arg->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle())) {
+    if (arg->ty.as<PointerTypeNode>()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -98,9 +97,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   }
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    auto prim_type = v->ty.as<PrimType>();
-    bool is_handle = v->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
-    if (!is_handle) break;
+    if (!v->ty.as<PointerTypeNode>()) break;
     this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
@@ -130,7 +127,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     for (size_t i = num_buffer; i < func->params.size(); ++i) {
       Var v = func->params[i];
       PrimType value_type = v->ty.as_or_throw<PrimType>();
-      TVM_FFI_ICHECK(!value_type.IsHandle());
+      TVM_FFI_ICHECK(!value_type.IsVoid());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
       if (value_type.bits() == 32) {
@@ -205,12 +202,6 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
 void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
-    os << "void*";
-    return;
-  }
-
   if (t.IsVoid()) {
     os << "void";
     return;
@@ -436,6 +427,9 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
        << PrintExpr(op->args[4]) << "[" << PrintExpr(op->args[5]) << "], "  //
        << PrintExpr(op->args[6]) << "[" << PrintExpr(op->args[7]) << "])";
   } else if (op->op.same_as(builtin::reinterpret())) {
+    if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
+      return CodeGenC::VisitExpr_(op, os);
+    }
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
     this->PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);

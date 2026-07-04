@@ -42,9 +42,18 @@ def test_buffer_access_ptr():
     n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw")
+    assert isinstance(aptr.ty, tvm.ir.PointerType)
+    assert aptr.ty.element_type == tvm.ir.PrimType("void")
     tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m)
     assert aptr.args[0].ty == Ab.dtype
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
+    typed_ptr = Ab.access_ptr("r", ptr_type="uint8")
+    assert typed_ptr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
+    shared = tvm.tirx.decl_buffer((m, n), "float32", scope="shared")
+    assert shared.access_ptr("r").ty == tvm.ir.PointerType(tvm.ir.PrimType("void"), "shared")
+    assert shared.access_ptr("r", ptr_type="uint8").ty == tvm.ir.PointerType(
+        tvm.ir.PrimType("uint8"), "shared"
+    )
     aptr = Ab.access_ptr("w")
     assert aptr.args[4].value == Buffer.WRITE
 

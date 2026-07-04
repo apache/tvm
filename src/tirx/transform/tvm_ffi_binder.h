@@ -179,8 +179,12 @@ class TVMFFIABIBuilder {
   void DecodeParam(int param_index);
 
   /*! \brief Load the i-th packed argument as the given type from the union value. */
+  static Expr LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index, Type arg_type);
   static PrimExpr LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
-                                          PrimType arg_type);
+                                          PrimType arg_type) {
+    return LoadTVMFFIAnyUnionValue(v_packed_args, param_index, Type(arg_type))
+        .as_or_throw<PrimExpr>();
+  }
 
   // ── Per-dtype type-check + value-load methods ──────────────────
   //
@@ -194,7 +198,7 @@ class TVMFFIABIBuilder {
    * \param type_index The variable holding the FFI type index.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index);
+  Expr DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index);
 
   /*!
    * \brief Type-check and load a boolean argument.

@@ -217,9 +217,9 @@ class Buffer : public ffi::ObjectRef {
    * \param offset The offset of ptr.
    * \param input_extent The extent of ptr.
    */
-  TVM_DLL PrimExpr access_ptr(int access_mask, PrimType ptr_type = PrimType::Handle(),
-                              int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
-                              ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
+  TVM_DLL Expr access_ptr(int access_mask, PointerType ptr_type = PointerType::VoidPointer(),
+                          int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
+                          ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index

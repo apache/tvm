@@ -609,7 +609,25 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
   }
   // Call
   Expr VisitExpr_(const CallNode* op) final {
-    PrimType ret_ty = op->ty.as_or_throw<PrimType>();
+    auto optional_ret_ty = op->ty.as<PrimType>();
+    if (!optional_ret_ty) {
+      ffi::Array<Expr> new_args;
+      for (const Expr& arg : op->args) {
+        Expr new_arg = this->VisitExpr(arg);
+        if (auto prim_arg = new_arg.as<PrimExpr>();
+            prim_arg && (prim_arg.value().ty().IsScalableVector() ||
+                         prim_arg.value().ty().IsFixedLengthVector())) {
+          need_scalarize_ = true;
+          return ffi::GetRef<Call>(op);
+        }
+        new_args.push_back(new_arg);
+      }
+      if (op->args.same_as(new_args)) {
+        return ffi::GetRef<Call>(op);
+      }
+      return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
+    }
+    PrimType ret_ty = optional_ret_ty.value();
     if (op->op.same_as(builtin::if_then_else())) {
       return MutateIfThenElseExpr_(op);
     } else if (op->op.same_as(builtin::texture2d_load())) {
@@ -626,14 +644,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
       auto new_args = op->args;
       new_args.pop_back();
       new_args.push_back(fcd[0]);
-      ffi::Array<PrimExpr> prim_args = new_args.as_or_throw<ffi::Array<PrimExpr>>();
-      return Call(ret_ty.WithLanes(lane), op->op, prim_args, op->attrs, {}, op->span)
+      return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->span)
           .as_or_throw<PrimExpr>();
     } else if (op->op.same_as(builtin::texture2d_store())) {
       int lane = 0;
-      ffi::Array<PrimExpr> prim_args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
       // Vectorize the value to store
-      ffi::Array<PrimExpr> value{prim_args.back()};
+      ffi::Array<PrimExpr> value{op->args.back().as_or_throw<PrimExpr>()};
       ffi::Array<PrimExpr> mutated_value = MutateArray(value, &lane);
       DLDataType dtype = op->args[0]
                              .as<VarNode>()
@@ -642,10 +658,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
                              ->dtype;
       TVM_FFI_ICHECK(lane * dtype.bits == op->args[4].as<IntImmNode>()->value)
           << "Expected Data to be Written equal to Texture Store length";
-      ffi::Array<PrimExpr> new_args{prim_args[0], prim_args[1], prim_args[2],
-                                    prim_args[3], prim_args[4], mutated_value[0]};
-      return Call(ret_ty.WithLanes(lane), op->op, new_args, op->attrs, {}, op->span)
-          .as_or_throw<PrimExpr>();
+      ffi::Array<Expr> new_args = op->args;
+      new_args.Set(new_args.size() - 1, mutated_value[0]);
+      return Call(ret_ty, op->op, new_args, op->attrs, {}, op->span).as_or_throw<PrimExpr>();
     } else if (op->op.same_as(builtin::reinterpret())) {
       return MutateReinterpretExpr_(op);
     }
@@ -655,10 +670,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
 
     if (!vectorizable) {
       // Cannot vectorize this op
-      ffi::Array<PrimExpr> new_args;
-      for (const PrimExpr& arg : op->args.as_or_throw<ffi::Array<PrimExpr>>()) {
-        auto new_arg = this->VisitPrimExpr(arg);
-        if (new_arg.ty().IsScalableVector() || new_arg.ty().IsFixedLengthVector()) {
+      ffi::Array<Expr> new_args;
+      for (const Expr& arg : op->args) {
+        Expr new_arg = this->VisitExpr(arg);
+        if (auto prim_arg = new_arg.as<PrimExpr>();
+            prim_arg && (prim_arg.value().ty().IsScalableVector() ||
+                         prim_arg.value().ty().IsFixedLengthVector())) {
           need_scalarize_ = true;
           return ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
         }
@@ -671,25 +688,23 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
       }
     } else {
       int lane = 0;
-      ffi::Array<PrimExpr> new_args;
+      ffi::Array<Expr> new_args;
       if (op->op.same_as(builtin::call_llvm_pure_intrin())) {
         // op->args[1], will give us total number of arguments to intrinsic
-        ffi::Array<PrimExpr> op_expr_args;
-        ffi::Array<PrimExpr> prim_args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
-        for (size_t i = 1; i < prim_args.size(); ++i) {
+        ffi::Array<Expr> op_expr_args;
+        for (size_t i = 1; i < op->args.size(); ++i) {
           // Collect all intrinsic arguments
-          op_expr_args.push_back(prim_args[i]);
+          op_expr_args.push_back(op->args[i]);
         }
         // Generate RAMP nodes for intrinsic arguments
-        ffi::Array<PrimExpr> updated_args = MutateArray(op_expr_args, &lane);
-        new_args.push_back(prim_args[0]);
+        ffi::Array<Expr> updated_args = MutateCallArgs(op_expr_args, &lane);
+        new_args.push_back(op->args[0]);
         // Collect updated intrinsic arguments
         for (size_t i = 0; i < updated_args.size(); ++i) {
           new_args.push_back(updated_args[i]);
         }
       } else {
-        ffi::Array<PrimExpr> prim_args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
-        new_args = MutateArray(prim_args, &lane);
+        new_args = MutateCallArgs(op->args, &lane);
       }
       // normal code path.
       if (op->args.same_as(new_args)) {
@@ -1009,6 +1024,35 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
     }
     if (!changed) return arr;
     return ffi::Array<PrimExpr>(new_arr);
+  }
+
+  // Mutate primitive call operands together so their lanes stay aligned, while
+  // preserving pointer-valued operands as general Expr.  Pointer expressions
+  // may themselves request scalarization if an address depends on the
+  // vectorized loop variable.
+  ffi::Array<Expr> MutateCallArgs(const ffi::Array<Expr>& arr, int* p_lanes) {
+    if (arr.empty()) return arr;
+    int& lanes = *p_lanes;
+    bool changed = false;
+    std::vector<Expr> new_arr(arr.size());
+    for (size_t i = 0; i < arr.size(); ++i) {
+      const Expr& old_elem = arr[i];
+      Expr new_elem = this->VisitExpr(old_elem);
+      changed = changed || !new_elem.same_as(old_elem);
+      new_arr[i] = new_elem;
+      if (auto prim_elem = new_elem.as<PrimExpr>()) {
+        lanes = std::max(lanes, prim_elem.value().ty().lanes());
+      }
+    }
+    for (size_t i = 0; i < new_arr.size(); ++i) {
+      if (auto prim_elem = new_arr[i].as<PrimExpr>();
+          prim_elem && prim_elem.value().ty().lanes() != lanes) {
+        new_arr[i] = BroadcastTo(prim_elem.value(), lanes, false);
+        changed = true;
+      }
+    }
+    if (!changed) return arr;
+    return ffi::Array<Expr>(new_arr);
   }
   template <typename TOp, typename T>
   PrimExpr BinaryVec(const T* op) {

@@ -54,8 +54,9 @@ class RenewDefMutator : public StmtExprMutator {
       params.push_back(generator.ReDefineVar(param));
     }
     for (const auto& param : func->params) {
-      if (param->ty.as_or_throw<PrimType>().IsHandle()) {
-        const Buffer& buffer = func->buffer_map.at(param);
+      auto it = func->buffer_map.find(param);
+      if (it != func->buffer_map.end()) {
+        const Buffer& buffer = (*it).second;
         for (const PrimExpr& e : buffer->shape) {
           if (const auto* v = e.as<VarNode>()) {
             if (generator.remap_.count(ffi::GetRef<Var>(v)) == 0) {
@@ -69,8 +70,9 @@ class RenewDefMutator : public StmtExprMutator {
     // TODO(Siyuan Feng): checking var is used after define
     ffi::Map<tirx::Var, Buffer> buffer_map;
     for (const auto& param : func->params) {
-      if (param->ty.as_or_throw<PrimType>().IsHandle()) {
-        const Buffer& buffer = func->buffer_map.at(param);
+      auto it = func->buffer_map.find(param);
+      if (it != func->buffer_map.end()) {
+        const Buffer& buffer = (*it).second;
         Var new_param = generator.VisitExpr(param).as_or_throw<Var>();
         Buffer new_buffer = generator.DefineBuffer(buffer);
         buffer_map.Set(new_param, new_buffer);

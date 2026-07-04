@@ -1398,16 +1398,18 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         return RewriteFilterCalls(RewriteFilterCall(call));
       }
       bool changed = false;
-      ffi::Array<PrimExpr> args;
+      ffi::Array<Expr> args;
       args.reserve(call->args.size());
-      for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
-        PrimExpr new_arg = RewriteFilterCalls(arg);
+      for (const Expr& arg : call->args) {
+        Expr new_arg = arg;
+        if (auto prim_arg = arg.as<PrimExpr>()) {
+          new_arg = RewriteFilterCalls(prim_arg.value());
+        }
         changed = changed || !new_arg.same_as(arg);
         args.push_back(new_arg);
       }
       if (changed) {
-        return Call(call->ty.as_or_throw<PrimType>(), call->op, args, call->attrs, {}, call->span)
-            .as_or_throw<PrimExpr>();
+        return Call(call->ty, call->op, args, call->attrs, {}, call->span).as_or_throw<PrimExpr>();
       }
     }
     return pred;

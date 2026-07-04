@@ -596,7 +596,7 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // Buffer is used more than param it gets the name with better
         // readability.
-        tirx::Var param = tirx::Var("p_" + buffer->name, tvm::PrimType::Handle());
+        tirx::Var param = tirx::Var("p_" + buffer->name, PointerType::VoidPointer());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
       }
@@ -640,7 +640,7 @@ class FusedTIRConstructor : public ExprVisitor {
         continue;
       }
 
-      tirx::Var param = tirx::Var("p_output" + std::to_string(out_idx), tvm::PrimType::Handle());
+      tirx::Var param = tirx::Var("p_output" + std::to_string(out_idx), PointerType::VoidPointer());
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);
@@ -858,10 +858,11 @@ class FusedTIRConstructor : public ExprVisitor {
     for (int64_t idx : output_indices) {
       int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
-      tvm::PrimType param_ty = param->ty.as_or_throw<PrimType>();
-      if (param_ty.code() == DLDataTypeCode::kDLInt || param_ty.code() == DLDataTypeCode::kDLUInt) {
+      auto param_ty = param->ty.as<PrimType>();
+      if (param_ty && (param_ty.value().code() == DLDataTypeCode::kDLInt ||
+                       param_ty.value().code() == DLDataTypeCode::kDLUInt)) {
         if (symbolic_var_index == -1) symbolic_var_index = i;
-      } else if (param_ty.IsHandle()) {
+      } else if (param->ty.as<PointerTypeNode>()) {
         TVM_FFI_ICHECK(symbolic_var_index == -1)
             << "The scalar input should be at the ending of the "
                "parameter list.";
@@ -869,7 +870,7 @@ class FusedTIRConstructor : public ExprVisitor {
       } else {
         TVM_FFI_THROW(InternalError)
             << "The params of PrimFunc are expected to be Buffer handle or scalar, but got: "
-            << param_ty->dtype;
+            << param->ty;
       }
     }
 

@@ -3039,7 +3039,7 @@ class Schedule(Object):
                             B.elem_offset // 256,
                             C.data,
                             C.elem_offset // 256,
-                            dtype="handle",
+                            dtype="void",
                         )
                     )
 
@@ -3104,7 +3104,7 @@ class Schedule(Object):
                                 B_1.elem_offset // 256,
                                 C_1.data,
                                 C_1.elem_offset // 256,
-                                dtype="handle",
+                                dtype="void",
                             )
                         )
         """

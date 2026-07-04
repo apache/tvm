@@ -86,6 +86,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
 
  protected:
   bool DefEqual(const Var& lhs, const Var& rhs);
+  bool CompareExpr(const Expr& lhs, const Expr& rhs);
   virtual bool CompareBuffer(const Buffer& lhs, const Buffer& rhs);
   bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs);
   bool CompareAnnotation(const std::pair<ffi::String, ffi::Any>& lhs,

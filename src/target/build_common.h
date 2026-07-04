@@ -55,7 +55,7 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
       if (auto prim_type = param_type.as<PrimType>()) {
         arg_types.push_back(prim_type.value()->dtype);
       } else if (param_type.as<PointerTypeNode>()) {
-        arg_types.push_back(PrimType::Handle()->dtype);
+        arg_types.push_back(DLDataType{kDLOpaqueHandle, 64, 1});
       } else {
         TVM_FFI_THROW(InternalError) << "Unsupported PrimFunc parameter type " << param_type;
       }

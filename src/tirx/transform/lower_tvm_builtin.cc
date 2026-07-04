@@ -107,8 +107,8 @@ class BuiltinLower : public StmtExprMutator {
   // Record stack frame for existing scope.
   struct AllocaScope {
     Buffer stack_shape;
-    Var stack_array = Var("stack_array", PrimType::Handle());
-    Var stack_ffi_any = Var("stack_ffi_any", PrimType::Handle());
+    Var stack_array = Var("stack_array", PointerType::VoidPointer());
+    Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointer());
 
     StackSizes max_sizes;
     StackSizes run_sizes;
@@ -432,8 +432,8 @@ class BuiltinLower : public StmtExprMutator {
 
   PrimExpr MakeDMACopy(const CallNode* op) {
     PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr dst = op->args[1].as_or_throw<PrimExpr>();
-    PrimExpr src = op->args[2].as_or_throw<PrimExpr>();
+    Expr dst = op->args[1];
+    Expr src = op->args[2];
     PrimExpr size = op->args[3].as_or_throw<PrimExpr>();
     PrimExpr bypass_cache = op->args[4].as_or_throw<PrimExpr>();
 
@@ -491,14 +491,14 @@ class BuiltinLower : public StmtExprMutator {
     return AddressOffset(scope.stack_shape->data, PrimType::Int(64), stack_begin);
   }
   // make array
-  PrimExpr MakeArray(const CallNode* op) {
+  Expr MakeArray(const CallNode* op) {
     TVM_FFI_ICHECK(!alloca_scope_.empty());
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
     size_t idx = scope.run_sizes.array_stack;
     scope.run_sizes.array_stack += 1;
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+    Expr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
 
     prep_seq.emplace_back(
@@ -536,43 +536,42 @@ class BuiltinLower : public StmtExprMutator {
                                        cast(PrimType::Int(32), device_id_.value())));
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorDeviceType,
                                        cast(PrimType::Int(32), device_type_.value())));
-    return TVMStructGet(PrimType::Handle(), scope.stack_array, idx, builtin::kDLTensorAddr);
+    return TVMStructGet(PointerType::VoidPointer(), scope.stack_array, idx, builtin::kDLTensorAddr);
   }
 
-  void SetPackedArg(PrimExpr arg, const Var& args_stack, size_t stack_offset,
+  void SetPackedArg(Expr arg, const Var& args_stack, size_t stack_offset,
                     std::vector<tirx::Stmt>* prep_seq) {
     auto* call_pattern = arg.as<CallNode>();
     if (call_pattern && call_pattern->op.same_as(builtin::anylist_getitem())) {
       // call runtime function to set anylist
       static const Op& anylist_set_packed_arg_op = Op::Get("tirx.TVMBackendAnyListSetPackedArg");
-      prep_seq->emplace_back(Evaluate(Call(PrimType::Int(32), anylist_set_packed_arg_op,
-                                           {call_pattern->args[0].as_or_throw<PrimExpr>(),
-                                            call_pattern->args[1].as_or_throw<PrimExpr>(),
-                                            args_stack, ConstInt32(stack_offset)})
-                                          .as_or_throw<PrimExpr>()));
+      prep_seq->emplace_back(Evaluate(Call(
+          PrimType::Int(32), anylist_set_packed_arg_op,
+          {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
     } else {
-      PrimType arg_ty = arg.ty();
-      PrimType api_ty = APIType(arg_ty);
-      if (arg_ty != api_ty) {
-        arg = Cast(api_ty, arg);
-      }
-
-      int arg_type_index = [&]() {
-        if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) return ffi::TypeIndex::kTVMFFIBool;
-        if (api_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
-          return ffi::TypeIndex::kTVMFFIInt;
-        if (api_ty.code() == DLDataTypeCode::kDLFloat) return ffi::TypeIndex::kTVMFFIFloat;
-        if (api_ty.IsHandle() && arg.as<StringImmNode>()) {
-          return ffi::TypeIndex::kTVMFFIRawStr;
-        } else if (IsArrayHandle(arg)) {
-          return ffi::TypeIndex::kTVMFFIDLTensorPtr;
-        } else if (api_ty.IsHandle()) {
-          return ffi::TypeIndex::kTVMFFIOpaquePtr;
+      int arg_type_index;
+      if (arg.as<StringImmNode>()) {
+        arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
+      } else if (arg->ty.as<PointerTypeNode>()) {
+        arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
+                                            : ffi::TypeIndex::kTVMFFIOpaquePtr;
+      } else {
+        PrimExpr prim_arg = arg.as_or_throw<PrimExpr>();
+        PrimType arg_ty = prim_arg.ty();
+        PrimType api_ty = APIType(arg_ty);
+        if (arg_ty != api_ty) {
+          arg = Cast(api_ty, prim_arg);
+        }
+        if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
+          arg_type_index = ffi::TypeIndex::kTVMFFIBool;
+        } else if (api_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+          arg_type_index = ffi::TypeIndex::kTVMFFIInt;
+        } else if (api_ty.code() == DLDataTypeCode::kDLFloat) {
+          arg_type_index = ffi::TypeIndex::kTVMFFIFloat;
         } else {
           TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_ty;
-          TVM_FFI_UNREACHABLE();
         }
-      }();
+      }
 
       // opaque handle need to set the kind properly
       if (arg_type_index == ffi::TypeIndex::kTVMFFIOpaquePtr) {
@@ -598,11 +597,11 @@ class BuiltinLower : public StmtExprMutator {
   }
 
   PrimExpr MakeAnyListSetItemCallPacked(const CallNode* op, const Op& lowered_op) {
-    PrimExpr list_handle = op->args[0].as_or_throw<PrimExpr>();
+    Expr list_handle = op->args[0];
     PrimExpr list_index = op->args[1].as_or_throw<PrimExpr>();
 
     Call call = MakeCallPackedGeneric(op, 2, lowered_op, false);
-    PrimExpr args_stack = call->args[1].as_or_throw<PrimExpr>();
+    Expr args_stack = call->args[1];
     // The stack offset of return value stack_end
     PrimExpr ret_offset = call->args[3].as_or_throw<PrimExpr>();
     auto& prep_seq = prep_seq_stack_.back();
@@ -644,13 +643,9 @@ class BuiltinLower : public StmtExprMutator {
 
     for (size_t i = 0; i < num_args; ++i) {
       const Expr& arg = op->args[args_begin + i];
-      PrimExpr runtime_arg = [&]() {
-        if (auto prim = arg.as<PrimExpr>()) return prim.value();
-        TVM_FFI_CHECK(arg->ty.as<PointerTypeNode>(), TypeError)
-            << "Packed call argument must have a primitive or pointer type, but got " << arg->ty;
-        return Call(PrimType::Handle(), builtin::reinterpret(), {arg}).as_or_throw<PrimExpr>();
-      }();
-      this->SetPackedArg(runtime_arg, scope.stack_ffi_any, arg_stack_begin + i, &prep_seq);
+      TVM_FFI_CHECK(arg.as<PrimExpr>() || arg->ty.as<PointerTypeNode>(), TypeError)
+          << "Packed call argument must have a primitive or pointer type, but got " << arg->ty;
+      this->SetPackedArg(arg, scope.stack_ffi_any, arg_stack_begin + i, &prep_seq);
     }
     // explicitly set return value to None to avoid bad state interpretation
     prep_seq.emplace_back(TVMStructSet(scope.stack_ffi_any, num_args, builtin::kTVMFFIAnyTypeIndex,
@@ -689,13 +684,13 @@ class BuiltinLower : public StmtExprMutator {
     TVM_FFI_ICHECK(dtype_node);
     PrimType dtype = ffi::GetRef<PrimType>(dtype_node);
 
-    ffi::Array<PrimExpr> args = {
+    ffi::Array<Expr> args = {
         GetDeviceMethodName("alloc_nd"), device_type_.value(),        device_id_.value(),
         IntImm::Int32(dtype.code()),     IntImm::Int32(dtype.bits()),
     };
 
     for (size_t i = 0; i < call->args.size(); ++i) {
-      args.push_back(call->args[i].as_or_throw<PrimExpr>());
+      args.push_back(call->args[i]);
     }
 
     Call call_packed = Call(let->var->ty, builtin::tvm_call_packed(), args);
@@ -717,12 +712,11 @@ class BuiltinLower : public StmtExprMutator {
     scope_.Current().pending_frees.push_back(free_stmt);
 
     // Re-visit so tvm_call_packed in the Bind value and null_check get lowered.
-    return StmtExprMutator::VisitStmt(
-        SeqStmt({Bind(let->var, call_packed.as_or_throw<PrimExpr>()), null_check}));
+    return StmtExprMutator::VisitStmt(SeqStmt({Bind(let->var, call_packed), null_check}));
   }
 
  private:
-  bool IsArrayHandle(const PrimExpr& arg) {
+  bool IsArrayHandle(const Expr& arg) {
     // specially set array handle.
     if (const CallNode* buf = arg.as<CallNode>()) {
       if (buf->op.same_as(builtin::tvm_struct_get()) &&

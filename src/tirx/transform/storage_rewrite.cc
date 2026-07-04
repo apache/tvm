@@ -501,6 +501,9 @@ class StoragePlanRewriter : public StmtExprMutator {
       PrimExpr dtype_marker = op->args[0].as_or_throw<PrimExpr>();
       PrimType dtype = dtype_marker.ty();
       const VarNode* buffer = op->args[1].as<VarNode>();
+      if (buffer == nullptr) {
+        return StmtExprMutator::VisitExpr_(op);
+      }
       auto it = alloc_map_.find(buffer);
       if (it == alloc_map_.end()) {
         return StmtExprMutator::VisitExpr_(op);
@@ -514,10 +517,9 @@ class StoragePlanRewriter : public StmtExprMutator {
         offset = MakeConst(offset.ty(), se->bits_offset / elem_bits) + offset;
       }
       return Call(
-                 op->ty.as_or_throw<PrimType>(), op->op,
-                 {dtype_marker, se->alloc_var, offset, extent, op->args[4].as_or_throw<PrimExpr>()},
-                 op->attrs, {}, op->span)
-          .as_or_throw<PrimExpr>();
+          op->ty, op->op,
+          {dtype_marker, se->alloc_var, offset, extent, op->args[4].as_or_throw<PrimExpr>()},
+          op->attrs, {}, op->span);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -1010,9 +1012,8 @@ class StoragePlanRewriter : public StmtExprMutator {
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
-    bool is_small_array = (scope.tag.length() == 0) &&
-                          (scope.rank >= StorageRank::kWarp || op->buffer->dtype.IsHandle() ||
-                           (is_known_size && const_nbits <= 32));
+    bool is_small_array = (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp ||
+                                                        (is_known_size && const_nbits <= 32));
 
     if (is_scalable_vector || !enable_reuse || is_small_array || !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
@@ -1075,8 +1076,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // This rules only apply if we are using non special memory
     if (e->scope.tag.length() == 0) {
       // Disable sharing of local memory.
-      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->buffer->dtype.IsHandle() ||
-          e->allocs[0]->buffer->dtype.IsScalableVector()) {
+      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->buffer->dtype.IsScalableVector()) {
         return;
       }
       // disable reuse of small arrays
@@ -1237,10 +1237,14 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // track the parameter itself.
     for (Var buffer_var : params) {
       auto pointer_type = GetPointerType(buffer_var->ty);
-      if (pointer_type.has_value() && (buffer_map.count(buffer_var) == 0)) {
+      if (pointer_type.has_value() && !pointer_type.value().IsVoid() &&
+          (buffer_map.count(buffer_var) == 0)) {
         PrimType dtype = pointer_type.value();
         PrimExpr extent = 0;
         OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kPrimFuncBufferMap);
+      } else if (pointer_type.has_value() && allow_untyped_pointers_ &&
+                 (buffer_map.count(buffer_var) == 0)) {
+        OnArrayDeclaration(buffer_var, PrimType::Void(), 0, BufferVarInfo::kPrimFuncBufferMap);
       }
     }
   }
@@ -1268,9 +1272,10 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
         OnArrayAccess(dtype, buffer, {index}, false);
       }
     } else if (op->op.same_as(builtin::address_of())) {
-      BufferLoad load = op->args[0].as_or_throw<BufferLoad>();
-      OnArrayAccess(load->ty.as_or_throw<PrimType>(), load->buffer->data.get(), load->indices,
-                    /*is_buffer_load=*/false);
+      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+        OnArrayAccess(load->ty.as_or_throw<PrimType>(), load->buffer->data.get(), load->indices,
+                      /*is_buffer_load=*/false);
+      }
     }
     StmtExprVisitor::VisitExpr_(op);
   }
@@ -1297,21 +1302,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void HandleLetNode(Var let_var) {
     auto pointer_type = GetPointerType(let_var->ty);
     if (pointer_type.has_value()) {
-      OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
+      if (!pointer_type.value().IsVoid()) {
+        OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
+      } else if (allow_untyped_pointers_) {
+        OnArrayDeclaration(let_var, PrimType::Void(), 0, BufferVarInfo::kLetNode);
+      }
       return;
-    }
-
-    auto prim_type = let_var->ty.as<PrimType>();
-    bool is_untyped_pointer =
-        let_var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
-    if (!is_untyped_pointer) return;
-
-    if (allow_untyped_pointers_) {
-      OnArrayDeclaration(let_var, PrimType::Handle(), 0, BufferVarInfo::kLetNode);
-    } else {
-      TVM_FFI_THROW(InternalError)
-          << "Let statement of variable " << let_var->name_hint << " is missing a type annotation, "
-          << "or type annotation is not a pointer to primitive";
     }
   }
 
@@ -1320,8 +1316,8 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    * @param buffer The VarNode representing the buffer.
    *
    * @param element_dtype The dtype of a single element of the buffer.
-   * If unknown, when used with the allow_untyped_handles option,
-   * should be a handle dtype.
+   * If unknown, when used with the allow_untyped_pointers option,
+   * should be the primitive void sentinel.
    *
    * @param extent The extent of the buffer.  Zero if size is unknown.
    *
@@ -1369,7 +1365,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       value_dtype = PrimType::Int(8, value_dtype.lanes());
     }
 
-    if (var_info.element_dtype.IsHandle()) {
+    if (var_info.element_dtype.IsVoid()) {
       TVM_FFI_ICHECK(allow_untyped_pointers_)
           << "Variable " << buffer->name_hint
           << " was missing a type annotation in its declaration";
@@ -1661,7 +1657,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
-      PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+      Expr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<CallNode>();
 
       if (!rewrite_indices_) {
@@ -1669,6 +1665,9 @@ class VectorTypeRewriter : public StmtExprMutator {
       }
 
       const VarNode* buffer_var = op->args[1].as<VarNode>();
+      if (buffer_var == nullptr) {
+        return expr;
+      }
       auto it = rewrite_map_.find(buffer_var);
       if (it == rewrite_map_.end()) {
         return expr;
@@ -1684,10 +1683,9 @@ class VectorTypeRewriter : public StmtExprMutator {
       extent = extent / MakeConst(extent.ty(), factor);
       index = index / MakeConst(index.ty(), factor);
       ffi::Array<Expr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
-      // tvm_access_ptr produces a pointer; its Call.dtype must be handle
-      // (the lowering rule in src/target/intrin_rule.cc ICHECKs this).
-      // The element dtype is conveyed via the first arg (e_dtype marker).
-      return Call(PrimType::Handle(), builtin::tvm_access_ptr(), acc_args).as_or_throw<PrimExpr>();
+      auto old_pointer_type = op->ty.as_or_throw<PointerType>();
+      Type new_pointer_type = PointerType(info.new_element_dtype, old_pointer_type->storage_scope);
+      return Call(new_pointer_type, builtin::tvm_access_ptr(), acc_args);
 
     } else {
       return StmtExprMutator::VisitExpr_(op);
@@ -1710,7 +1708,6 @@ class VectorTypeRewriter : public StmtExprMutator {
     for (const auto& [_, info] : rewrite_map_) {
       var_remap.emplace(info.old_buffer_var.get(), info.new_buffer_var);
     }
-
     class PointerVarSubstituter : public StmtExprMutator {
      public:
       explicit PointerVarSubstituter(const std::unordered_map<const VarNode*, Var>& var_remap)
@@ -1770,7 +1767,6 @@ class VectorTypeRewriter : public StmtExprMutator {
     for (const auto& pair : n->buffer_map) {
       Var key = pair.first;
       Buffer old_buffer = pair.second;
-      Var old_var = old_buffer->data;
       Buffer new_buffer = RemapBuffer(old_buffer);
       new_buffer_map.Set(key, new_buffer);
     }

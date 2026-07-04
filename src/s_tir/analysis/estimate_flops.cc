@@ -215,7 +215,7 @@ class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
 
   TResult VisitExpr_(const CallNode* op) override {
     TResult ret;
-    for (const PrimExpr& arg : op->args.as_or_throw<ffi::Array<PrimExpr>>()) {
+    for (const Expr& arg : op->args) {
       ret += VisitExpr(arg);
     }
     return ret;

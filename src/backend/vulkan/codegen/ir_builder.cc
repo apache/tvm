@@ -29,6 +29,12 @@ namespace tvm {
 namespace codegen {
 namespace spirv {
 
+namespace {
+
+PrimType AsPrimType(const SType& type) { return type.type.as_or_throw<PrimType>(); }
+
+}  // namespace
+
 // implementations
 
 IRBuilder::IRBuilder(const SPIRVSupport& support) : spirv_support_(support) {}
@@ -151,7 +157,7 @@ SType IRBuilder::GetPointerType(const SType& value_type, spv::StorageClass stora
   }
   SType t;
   t.id = id_counter_++;
-  t.type = PrimType::Handle();
+  t.type = PointerType::VoidPointer();
   t.element_type_id = value_type.id;
   t.storage_class = storage_class;
   ib_.Begin(spv::OpTypePointer).AddSeq(t, storage_class, value_type).Commit(&global_);
@@ -169,7 +175,7 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
 
   SType arr_type;
   arr_type.id = id_counter_++;
-  arr_type.type = PrimType::Handle();
+  arr_type.type = PointerType::VoidPointer();
   arr_type.element_type_id = value_type.id;
 
   if (num_elems != 0) {
@@ -179,7 +185,8 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
     ib_.Begin(spv::OpTypeRuntimeArray).AddSeq(arr_type, value_type).Commit(&global_);
   }
   if (interface_block) {
-    int nbits = value_type.type.bits() * value_type.type.lanes();
+    PrimType primitive_type = AsPrimType(value_type);
+    int nbits = primitive_type.bits() * primitive_type.lanes();
     TVM_FFI_ICHECK_EQ(nbits % 8, 0);
     uint32_t nbytes = static_cast<uint32_t>(nbits) / 8;
     // Explicit layout is required for descriptor-backed interface blocks.
@@ -188,7 +195,7 @@ SType IRBuilder::GetStructArrayType(const SType& value_type, uint32_t num_elems,
   // declare struct of array
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = PrimType::Handle();
+  struct_type.type = PointerType::VoidPointer();
   struct_type.element_type_id = value_type.id;
   ib_.Begin(spv::OpTypeStruct).AddSeq(struct_type, arr_type).Commit(&global_);
 
@@ -226,15 +233,16 @@ Value IRBuilder::IntImm(const SType& dtype, int64_t value) {
 Value IRBuilder::UIntImm(const SType& dtype, uint64_t value) { return GetConst_(dtype, &value); }
 
 Value IRBuilder::FloatImm(const SType& dtype, double value) {
-  if (dtype.type.bits() == 64) {
+  PrimType primitive_type = AsPrimType(dtype);
+  if (primitive_type.bits() == 64) {
     return GetConst_(dtype, reinterpret_cast<uint64_t*>(&value));
-  } else if (dtype.type.bits() == 32) {
+  } else if (primitive_type.bits() == 32) {
     float fvalue = static_cast<float>(value);
     uint32_t* ptr = reinterpret_cast<uint32_t*>(&fvalue);
     uint64_t data = ptr[0];
     return GetConst_(dtype, &data);
   } else {
-    TVM_FFI_ICHECK_EQ(dtype.type.bits(), 16);
+    TVM_FFI_ICHECK_EQ(primitive_type.bits(), 16);
     float fvalue = static_cast<float>(value);
     uint32_t* ptr = reinterpret_cast<uint32_t*>(&fvalue);
     uint64_t data = ptr[0];
@@ -270,7 +278,7 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
                                         spv::StorageClass storage_class, ValueKind kind) {
   SType struct_type;
   struct_type.id = id_counter_++;
-  struct_type.type = PrimType::Handle();
+  struct_type.type = PointerType::VoidPointer();
   ib_.Begin(spv::OpTypeStruct).Add(struct_type);
   for (const SType& vtype : value_types) {
     ib_.Add(vtype);
@@ -282,7 +290,7 @@ Value IRBuilder::DeclareStorageVariable(const std::vector<SType>& value_types,
     ib_.Begin(spv::OpMemberDecorate)
         .AddSeq(struct_type, i, spv::DecorationOffset, offset)
         .Commit(&decorate_);
-    PrimType t = value_types[i].type;
+    PrimType t = AsPrimType(value_types[i]);
     uint32_t nbits = t.bits() * t.lanes();
     TVM_FFI_ICHECK_EQ(nbits % 8, 0);
     uint32_t bytes = (nbits / 8);
@@ -459,14 +467,15 @@ Value IRBuilder::GetBuiltInValue(spv::BuiltIn built_in, uint32_t index, const st
 }
 
 Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
+  PrimType primitive_type = AsPrimType(dtype);
   auto key = std::make_pair(dtype.id, pvalue[0]);
   auto it = const_tbl_.find(key);
   if (it != const_tbl_.end()) {
     return it->second;
   }
-  TVM_FFI_ICHECK_LE(dtype.type.bits(), 64);
+  TVM_FFI_ICHECK_LE(primitive_type.bits(), 64);
   Value ret = NewValue(dtype, kConstant);
-  if (dtype.type == PrimType::Bool()) {
+  if (primitive_type == PrimType::Bool()) {
     // bool types.
     if (*pvalue) {
       ib_.Begin(spv::OpConstantTrue).AddSeq(dtype, ret);
@@ -478,8 +487,8 @@ Value IRBuilder::GetConst_(const SType& dtype, const uint64_t* pvalue) {
     ib_.Begin(spv::OpConstant).AddSeq(dtype, ret);
     uint64_t mask = 0xFFFFFFFFUL;
     ib_.Add(static_cast<uint32_t>(pvalue[0] & mask));
-    if (dtype.type.bits() > 32) {
-      if (dtype.type.MatchesCode(DLDataTypeCode::kDLInt)) {
+    if (primitive_type.bits() > 32) {
+      if (primitive_type.MatchesCode(DLDataTypeCode::kDLInt)) {
         int64_t sign_mask = 0xFFFFFFFFL;
         const int64_t* sign_ptr = reinterpret_cast<const int64_t*>(pvalue);
         ib_.Add(static_cast<uint32_t>((sign_ptr[0] >> 32L) & sign_mask));
@@ -509,7 +518,7 @@ SType IRBuilder::DeclareType(const PrimType& dtype, uint32_t row, uint32_t col) 
     } else if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
       ib_.Begin(spv::OpTypeFloat).AddSeq(t, dtype.bits()).Commit(&global_);
     } else {
-      TVM_FFI_THROW(InternalError) << "declare type do not support handle";
+      TVM_FFI_THROW(InternalError) << "Unsupported primitive type " << dtype;
     }
     return t;
   } else {
@@ -672,12 +681,13 @@ Value IRBuilder::CallKHRIntegerDotProduct(const SType& ret_type, const std::vect
 
 Value IRBuilder::Concat(const std::vector<Value>& vec) {
   bool is_const = vec[0].flag == kConstant;
-  PrimType etype = vec[0].stype.type;
+  PrimType etype = AsPrimType(vec[0].stype);
   int lanes = etype.lanes();
   for (size_t i = 1; i < vec.size(); ++i) {
-    TVM_FFI_ICHECK_EQ(etype, vec[i].stype.type.WithLanes(1))
+    PrimType vector_type = AsPrimType(vec[i].stype);
+    TVM_FFI_ICHECK_EQ(etype, vector_type.WithLanes(1))
         << "Cannot concat vector of different element type";
-    lanes += vec[i].stype.type.lanes();
+    lanes += vector_type.lanes();
     is_const = is_const && (vec[i].flag == kConstant);
   }
   Value ret = NewValue(GetSType(etype.WithLanes(lanes)), kNormal);
@@ -702,8 +712,8 @@ Value IRBuilder::Concat(const std::vector<Value>& vec) {
 Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
   TVM_FFI_ICHECK_NE(value.stype.id, 0U);
   if (value.stype.id == dst_type.id) return value;
-  const tvm::PrimType& from = value.stype.type;
-  const tvm::PrimType& to = dst_type.type;
+  PrimType from = AsPrimType(value.stype);
+  PrimType to = AsPrimType(dst_type);
   TVM_FFI_ICHECK_EQ(from.lanes(), to.lanes());
   if (from == PrimType::Bool()) {
     if (to.MatchesCode(DLDataTypeCode::kDLInt)) {
@@ -775,7 +785,7 @@ Value IRBuilder::GetCompositeConst(const SType& ele_stype, const SType& composit
 }
 
 Value IRBuilder::GetSpecConst(const SType& dtype, uint64_t value) {
-  TVM_FFI_ICHECK_LE(dtype.type.bits(), 32);
+  TVM_FFI_ICHECK_LE(AsPrimType(dtype).bits(), 32);
   Value ret = NewValue(dtype, kSpecConst);
   ib_.Begin(spv::OpSpecConstant).AddSeq(dtype, ret);
   ib_.Add(static_cast<uint32_t>(value));
@@ -783,28 +793,30 @@ Value IRBuilder::GetSpecConst(const SType& dtype, uint64_t value) {
   return ret;
 }
 
-#define DEFINE_BUILDER_BINARY_USIGN_OP(_OpName, _Op)                                 \
-  Value IRBuilder::_OpName(Value a, Value b) {                                       \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                       \
-    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) { \
-      return MakeValue(spv::OpI##_Op, a.stype, a, b);                                \
-    } else {                                                                         \
-      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));            \
-      return MakeValue(spv::OpF##_Op, a.stype, a, b);                                \
-    }                                                                                \
+#define DEFINE_BUILDER_BINARY_USIGN_OP(_OpName, _Op)                         \
+  Value IRBuilder::_OpName(Value a, Value b) {                               \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                               \
+    PrimType type = AsPrimType(a.stype);                                     \
+    if (type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) { \
+      return MakeValue(spv::OpI##_Op, a.stype, a, b);                        \
+    } else {                                                                 \
+      TVM_FFI_ICHECK(type.MatchesCode(DLDataTypeCode::kDLFloat));            \
+      return MakeValue(spv::OpF##_Op, a.stype, a, b);                        \
+    }                                                                        \
   }
 
-#define DEFINE_BUILDER_BINARY_SIGN_OP(_OpName, _Op)                       \
-  Value IRBuilder::_OpName(Value a, Value b) {                            \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                            \
-    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt)) {               \
-      return MakeValue(spv::OpS##_Op, a.stype, a, b);                     \
-    } else if (a.stype.type.MatchesCode(DLDataTypeCode::kDLUInt)) {       \
-      return MakeValue(spv::OpU##_Op, a.stype, a, b);                     \
-    } else {                                                              \
-      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat)); \
-      return MakeValue(spv::OpF##_Op, a.stype, a, b);                     \
-    }                                                                     \
+#define DEFINE_BUILDER_BINARY_SIGN_OP(_OpName, _Op)               \
+  Value IRBuilder::_OpName(Value a, Value b) {                    \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                    \
+    PrimType type = AsPrimType(a.stype);                          \
+    if (type.MatchesCode(DLDataTypeCode::kDLInt)) {               \
+      return MakeValue(spv::OpS##_Op, a.stype, a, b);             \
+    } else if (type.MatchesCode(DLDataTypeCode::kDLUInt)) {       \
+      return MakeValue(spv::OpU##_Op, a.stype, a, b);             \
+    } else {                                                      \
+      TVM_FFI_ICHECK(type.MatchesCode(DLDataTypeCode::kDLFloat)); \
+      return MakeValue(spv::OpF##_Op, a.stype, a, b);             \
+    }                                                             \
   }
 
 DEFINE_BUILDER_BINARY_USIGN_OP(Add, Add);
@@ -814,29 +826,32 @@ DEFINE_BUILDER_BINARY_SIGN_OP(Div, Div);
 
 Value IRBuilder::Mod(Value a, Value b) {
   TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);
-  if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt)) {
+  PrimType type = AsPrimType(a.stype);
+  if (type.MatchesCode(DLDataTypeCode::kDLInt)) {
     return MakeValue(spv::OpSRem, a.stype, a, b);
-  } else if (a.stype.type.MatchesCode(DLDataTypeCode::kDLUInt)) {
+  } else if (type.MatchesCode(DLDataTypeCode::kDLUInt)) {
     return MakeValue(spv::OpUMod, a.stype, a, b);
   } else {
-    TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));
+    TVM_FFI_ICHECK(type.MatchesCode(DLDataTypeCode::kDLFloat));
     return MakeValue(spv::OpFRem, a.stype, a, b);
   }
 }
 
-#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                                                   \
-  Value IRBuilder::_OpName(Value a, Value b) {                                                \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                                \
-    TVM_FFI_ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                            \
-    const auto& bool_type = this->GetSType(PrimType::Bool().WithLanes(a.stype.type.lanes())); \
-    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt)) {                                   \
-      return MakeValue(spv::OpS##_Op, bool_type, a, b);                                       \
-    } else if (a.stype.type.MatchesCode(DLDataTypeCode::kDLUInt)) {                           \
-      return MakeValue(spv::OpU##_Op, bool_type, a, b);                                       \
-    } else {                                                                                  \
-      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));                     \
-      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                    \
-    }                                                                                         \
+#define DEFINE_BUILDER_CMP_OP(_OpName, _Op)                                             \
+  Value IRBuilder::_OpName(Value a, Value b) {                                          \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                          \
+    PrimType a_type = AsPrimType(a.stype);                                              \
+    PrimType b_type = AsPrimType(b.stype);                                              \
+    TVM_FFI_ICHECK_EQ(a_type.lanes(), b_type.lanes());                                  \
+    const auto& bool_type = this->GetSType(PrimType::Bool().WithLanes(a_type.lanes())); \
+    if (a_type.MatchesCode(DLDataTypeCode::kDLInt)) {                                   \
+      return MakeValue(spv::OpS##_Op, bool_type, a, b);                                 \
+    } else if (a_type.MatchesCode(DLDataTypeCode::kDLUInt)) {                           \
+      return MakeValue(spv::OpU##_Op, bool_type, a, b);                                 \
+    } else {                                                                            \
+      TVM_FFI_ICHECK(a_type.MatchesCode(DLDataTypeCode::kDLFloat));                     \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                              \
+    }                                                                                   \
   }
 
 DEFINE_BUILDER_CMP_OP(LT, LessThan);
@@ -844,17 +859,19 @@ DEFINE_BUILDER_CMP_OP(LE, LessThanEqual);
 DEFINE_BUILDER_CMP_OP(GT, GreaterThan);
 DEFINE_BUILDER_CMP_OP(GE, GreaterThanEqual);
 
-#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                                                  \
-  Value IRBuilder::_OpName(Value a, Value b) {                                                \
-    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                                \
-    TVM_FFI_ICHECK_EQ(a.stype.type.lanes(), b.stype.type.lanes());                            \
-    const auto& bool_type = this->GetSType(PrimType::Bool().WithLanes(a.stype.type.lanes())); \
-    if (a.stype.type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {          \
-      return MakeValue(spv::OpI##_Op, bool_type, a, b);                                       \
-    } else {                                                                                  \
-      TVM_FFI_ICHECK(a.stype.type.MatchesCode(DLDataTypeCode::kDLFloat));                     \
-      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                                    \
-    }                                                                                         \
+#define DEFINE_BUILDER_CMP_UOP(_OpName, _Op)                                            \
+  Value IRBuilder::_OpName(Value a, Value b) {                                          \
+    TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);                                          \
+    PrimType a_type = AsPrimType(a.stype);                                              \
+    PrimType b_type = AsPrimType(b.stype);                                              \
+    TVM_FFI_ICHECK_EQ(a_type.lanes(), b_type.lanes());                                  \
+    const auto& bool_type = this->GetSType(PrimType::Bool().WithLanes(a_type.lanes())); \
+    if (a_type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {          \
+      return MakeValue(spv::OpI##_Op, bool_type, a, b);                                 \
+    } else {                                                                            \
+      TVM_FFI_ICHECK(a_type.MatchesCode(DLDataTypeCode::kDLFloat));                     \
+      return MakeValue(spv::OpFOrd##_Op, bool_type, a, b);                              \
+    }                                                                                   \
   }
 
 DEFINE_BUILDER_CMP_UOP(EQ, Equal);
@@ -862,7 +879,7 @@ DEFINE_BUILDER_CMP_UOP(NE, NotEqual);
 
 Value IRBuilder::Select(Value cond, Value a, Value b) {
   TVM_FFI_ICHECK_EQ(a.stype.id, b.stype.id);
-  TVM_FFI_ICHECK_EQ(cond.stype.type.WithLanes(1), PrimType::Bool());
+  TVM_FFI_ICHECK_EQ(AsPrimType(cond.stype).WithLanes(1), PrimType::Bool());
   return MakeValue(spv::OpSelect, a.stype, cond, a, b);
 }
 

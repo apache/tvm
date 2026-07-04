@@ -100,7 +100,9 @@ Var Arg(ffi::String name, Var var) {
 Buffer Arg(ffi::String name, Buffer buffer) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
   details::Namer::Name(buffer, name);
-  Var handle(buffer->name + "_handle", PrimType::Handle());
+  // A Buffer parameter is an opaque ABI handle.  The Buffer's data Var
+  // carries the exact pointee type used within the function body.
+  Var handle(buffer->name + "_handle", PointerType::VoidPointer());
   frame->args.push_back(handle);
   frame->buffer_map.Set(handle, buffer);
   return buffer;
@@ -616,16 +618,6 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var
       return Var("v", value_expr->ty);
     }
   }();
-  if (!ffi::StructuralEqual()(value_expr->ty, bind_var->ty)) {
-    ffi::Optional<PrimType> value_prim_type = value_expr->ty.as<PrimType>();
-    if (bind_var->ty.as<PointerTypeNode>() && value_prim_type.defined() &&
-        value_prim_type.value().IsHandle()) {
-      if (auto call = value_expr.as<Call>()) {
-        value_expr = Call(bind_var->ty, call.value()->op, call.value()->args, call.value()->attrs,
-                          call.value()->ty_args, call.value()->span);
-      }
-    }
-  }
   AddToParent(tvm::tirx::Bind(bind_var, value_expr));
   return bind_var;
 }
@@ -806,15 +798,9 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                    << "`, indexing lanes: " << index_lanes;
     }
     if (lhs_dtype.code() != rhs_dtype.code()) {
-      if (
-          // Case 1. lhs is handle, and rhs needs to be casted to handle.
-          (lhs_dtype.code() == DLDataTypeCode::kDLOpaqueHandle) ||
-          // Case 2. rhs is handle, and it needs to be casted to non-handle.
-          (rhs_dtype.code() == DLDataTypeCode::kDLOpaqueHandle) ||
-          // Case 3. rhs is float or bfloat, and casting to non-float can lose precision.
-          ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&
-           (rhs_dtype.code() == DLDataTypeCode::kDLFloat ||
-            rhs_dtype.code() == DLDataTypeCode::kDLBfloat))) {
+      if ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&
+          (rhs_dtype.code() == DLDataTypeCode::kDLFloat ||
+           rhs_dtype.code() == DLDataTypeCode::kDLBfloat)) {
         LOG(WARNING) << "Casting in BufferStore may lose precision"
                      << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                      << "`, indexing lanes: " << index_lanes;

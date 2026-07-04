@@ -343,9 +343,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                             T.attr(
                                                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                                                 "reduce_scope",
-                                                T.reinterpret("handle", T.uint64(0)),
+                                                T.int32(0),
                                             )
-                                            T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="handle")
+                                            T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="void")
 
                                         S_local[j] = -5e4
                                         if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j < kv_chunk_len[0]:

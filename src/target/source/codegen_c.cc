@@ -109,8 +109,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     }
 
     bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
-    auto prim_type = v->ty.as<PrimType>();
-    bool is_handle = v->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
+    bool is_handle = v->ty.as<PointerTypeNode>();
     auto* ptr = v->ty.as<PointerTypeNode>();
     if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
       is_handle = false;
@@ -226,8 +225,7 @@ void CodeGenC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
 
 static bool CheckOutermostBracketMatch(const std::string& s);
 
-void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src,
-                              const PrimType& t) {
+void CodeGenC::PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) {
   PrintType(t, stream);
   stream << ' ' << target << " = ";
   if (CheckOutermostBracketMatch(src)) {
@@ -302,7 +300,7 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const BufferNode* buffer, 
 }
 
 // Print a reference expression to a buffer.
-std::string CodeGenC::GetStructRef(const PrimType& t, const PrimExpr& buffer, const PrimExpr& index,
+std::string CodeGenC::GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index,
                                    int kind) {
   if (kind < builtin::kDLTensorKindBound_) {
     std::ostringstream os;
@@ -372,11 +370,12 @@ std::string CodeGenC::GetStructRef(const PrimType& t, const PrimExpr& buffer, co
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].";
-    if (t.IsHandle()) {
+    if (t.as<PointerTypeNode>()) {
       os << "v_ptr";
-    } else if (t.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    } else if (PrimType prim_type = t.as_or_throw<PrimType>();
+               prim_type.MatchesCode(DLDataTypeCode::kDLFloat)) {
       os << "v_float64";
-    } else if (t.MatchesCode(DLDataTypeCode::kDLInt)) {
+    } else if (prim_type.MatchesCode(DLDataTypeCode::kDLInt)) {
       os << "v_int64";
     } else {
       TVM_FFI_THROW(InternalError) << "Do not know how to handle type" << t;
@@ -724,7 +723,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       std::string result = name_supply_->FreshName("condval");
       std::string cond = PrintExpr(op->args[0]);
       this->PrintIndent();
-      PrintType(op->ty.as_or_throw<PrimType>(), this->stream);
+      PrintType(op->ty, this->stream);
       this->stream << " " << result << ";\n";
       this->PrintIndent();
       this->stream << "if (" << cond << ") {\n";
@@ -787,8 +786,8 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       }
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 3U);
-      os << GetStructRef(op->ty.as_or_throw<PrimType>(), op->args[0].as_or_throw<PrimExpr>(),
-                         op->args[1].as_or_throw<PrimExpr>(), op->args[2].as<IntImmNode>()->value);
+      os << GetStructRef(op->ty, op->args[0], op->args[1].as_or_throw<PrimExpr>(),
+                         op->args[2].as<IntImmNode>()->value);
     } else if (op->op.same_as(builtin::isnullptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       os << "(";
@@ -824,6 +823,18 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         return;
       }
       PrimType target_dtype = op->ty.as_or_throw<PrimType>();
+      if (op->args[0]->ty.as<PointerTypeNode>()) {
+        TVM_FFI_ICHECK(target_dtype.IsScalar() && target_dtype.bits() == 64 &&
+                       target_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+            << "Pointer reinterpret requires a scalar 64-bit integer target, but got "
+            << target_dtype;
+        os << "((";
+        this->PrintType(target_dtype, os);
+        os << ")(uintptr_t)(";
+        this->PrintExpr(op->args[0], os);
+        os << "))";
+        return;
+      }
       PrimType source_dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       TVM_FFI_ICHECK_EQ(target_dtype.lanes() * target_dtype.bits(),
                         source_dtype.lanes() * source_dtype.bits())
@@ -939,7 +950,7 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
         std::ostringstream value_temp;
         if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           value_temp << "((";
-          if (buffer_var->ty.as_or_throw<PrimType>().IsHandle()) {
+          if (buffer_var->ty.as<PointerTypeNode>()) {
             auto it = alloc_storage_scope_.find(buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, value_temp);
@@ -995,7 +1006,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
         PrimType elem_type = value_ty.WithLanes(1);
         if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           stream << "((";
-          if (buffer_var->ty.as_or_throw<PrimType>().IsHandle()) {
+          if (buffer_var->ty.as<PointerTypeNode>()) {
             auto it = alloc_storage_scope_.find(buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, stream);
@@ -1032,9 +1043,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    auto prim_type = op->var->ty.as<PrimType>();
-    bool is_pointer =
-        op->var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
+    bool is_pointer = op->var->ty.as<PointerTypeNode>();
     if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
       this->stream << "* " << AllocVarID(op->var.get()) << " = (";
@@ -1160,9 +1169,7 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
     var_idmap_[op->var.get()] = value;
   } else {
     PrintIndent();
-    auto prim_type = op->var->ty.as<PrimType>();
-    bool is_pointer =
-        op->var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
+    bool is_pointer = op->var->ty.as<PointerTypeNode>();
     if (is_pointer && handle_data_type_.count(op->var.get())) {
       PrintType(handle_data_type_.at(op->var.get()), stream);
       stream << "* " << AllocVarID(op->var.get()) << " = (";
@@ -1381,24 +1388,27 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       TVM_FFI_ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value;
-      PrimType store_ty = call->args[3].as_or_throw<PrimExpr>().ty();
-      std::string ref = GetStructRef(store_ty, call->args[0].as_or_throw<PrimExpr>(),
-                                     call->args[1].as_or_throw<PrimExpr>(), kind);
+      Type store_ty = call->args[3]->ty;
+      std::string ref =
+          GetStructRef(store_ty, call->args[0], call->args[1].as_or_throw<PrimExpr>(), kind);
       std::string value = PrintExpr(call->args[3]);
       std::string cast;
 
-      if (kind == builtin::kTVMFFIAnyUnionValue && (store_ty.bits() < 64 || store_ty.IsHandle())) {
+      auto store_prim_type = store_ty.as<PrimType>();
+      bool clears_union = store_ty.as<PointerTypeNode>() ||
+                          (store_prim_type && store_prim_type.value().bits() < 64);
+      if (kind == builtin::kTVMFFIAnyUnionValue && clears_union) {
         this->PrintIndent();
         // when we set any union value, we need to be careful to
         // clear off the union value to zero if the set size is less than 64 bits
-        this->stream << GetStructRef(PrimType::Int(64), call->args[0].as_or_throw<PrimExpr>(),
+        this->stream << GetStructRef(PrimType::Int(64), call->args[0],
                                      call->args[1].as_or_throw<PrimExpr>(), kind)
                      << " = 0;\n";
       }
 
       if (kind == builtin::kDLTensorStrides) {
         // cast void* to int64_t*
-        cast = call->args[3].as_or_throw<PrimExpr>().ty().IsHandle() ? "(int64_t*)" : "";
+        cast = store_ty.as<PointerTypeNode>() ? "(int64_t*)" : "";
       } else if (kind == builtin::kDLTensorDeviceType) {
         // cast int to enum
         cast = "(DLDeviceType)";

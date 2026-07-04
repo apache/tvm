@@ -742,12 +742,11 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   ffi::Map<Var, Buffer> buffer_map;
-  PrimType handle_ty = PrimType::Handle();
   for (const te::Tensor& tensor : arg_list) {
-    Var arg("var_" + tensor->GetNameHint(), handle_ty);
-    parameters.push_back(arg);
     auto it = info->tensor2buffers.find(tensor);
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
+    Var arg("var_" + tensor->GetNameHint(), PointerType::VoidPointer());
+    parameters.push_back(arg);
     buffer_map.Set(arg, it->second);
   }
   PrimFunc func = WithAttrs(
@@ -809,15 +808,14 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   ffi::Map<Var, Buffer> buffer_map;
-  PrimType handle_ty = PrimType::Handle();
   for (const ffi::ObjectRef& arg : arg_tir_var_list) {
     if (auto opt_tensor = arg.as<te::Tensor>()) {
       te::Tensor tensor = opt_tensor.value();
-      Var arg("var_" + tensor->GetNameHint(), handle_ty);
-      parameters.push_back(arg);
       auto it = info->tensor2buffers.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2buffers.end());
-      buffer_map.Set(arg, it->second);
+      Var param("var_" + tensor->GetNameHint(), PointerType::VoidPointer());
+      parameters.push_back(param);
+      buffer_map.Set(param, it->second);
     } else if (auto var = arg.as<tirx::Var>()) {
       parameters.push_back(var.value());
     }

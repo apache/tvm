@@ -43,7 +43,7 @@ class MatchBufferLower : public StmtExprMutator {
     for (const Var& param : func->params) {
       // Mark input var as const variable.
       auto prim_type = param->ty.as<PrimType>();
-      if (prim_type && !prim_type.value().IsHandle()) {
+      if (prim_type) {
         var_map_.Set(param, param.as_or_throw<PrimExpr>());
       }
     }

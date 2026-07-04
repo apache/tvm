@@ -95,11 +95,14 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline PrimExpr TVMStructGet(PrimType dtype, Var handle, int index,
+inline Expr TVMStructGet(Type type, Var handle, int index, builtin::TVMStructFieldKind kind) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
+  return Call(std::move(type), builtin::tvm_struct_get(), args);
+}
+
+inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
                              builtin::TVMStructFieldKind kind) {
-  ffi::Array<PrimExpr> args = {handle.as_or_throw<PrimExpr>(), IntImm::Int32(index),
-                               IntImm::Int32(static_cast<int>(kind))};
-  return Call(dtype, builtin::tvm_struct_get(), args).as_or_throw<PrimExpr>();
+  return TVMStructGet(Type(type), std::move(handle), index, kind).as_or_throw<PrimExpr>();
 }
 
 /*!
@@ -160,7 +163,6 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  */
 inline PrimType APIType(const PrimType& t) {
   TVM_FFI_ICHECK(!t.IsVoid()) << "Cannot pass void type through packed API.";
-  if (t.IsHandle()) return t;
   TVM_FFI_ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
   if (t.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
     return PrimType::Int(64);

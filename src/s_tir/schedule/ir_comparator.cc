@@ -107,6 +107,31 @@ bool TensorizeComparator::VisitExpr(const Expr& expr, const PrimExpr& other) {
   return equal;
 }
 
+bool TensorizeComparator::CompareExpr(const Expr& lhs, const Expr& rhs) {
+  if (lhs.same_as(rhs)) return true;
+  if (auto rhs_prim = rhs.as<PrimExpr>()) {
+    if (!lhs.as<PrimExpr>()) return false;
+    return VisitExpr(lhs, rhs_prim.value());
+  }
+  if (!ffi::StructuralEqual()(lhs->ty, rhs->ty)) return false;
+  if (auto lhs_var = lhs.as<Var>()) {
+    auto rhs_var = rhs.as<Var>();
+    return rhs_var && DefEqual(lhs_var.value(), rhs_var.value());
+  }
+  if (auto lhs_call = lhs.as<Call>()) {
+    auto rhs_call = rhs.as<Call>();
+    if (!rhs_call || !lhs_call.value()->op.same_as(rhs_call.value()->op) ||
+        lhs_call.value()->args.size() != rhs_call.value()->args.size()) {
+      return false;
+    }
+    for (size_t i = 0; i < lhs_call.value()->args.size(); ++i) {
+      if (!CompareExpr(lhs_call.value()->args[i], rhs_call.value()->args[i])) return false;
+    }
+    return true;
+  }
+  return ffi::StructuralEqual()(lhs, rhs);
+}
+
 bool TensorizeComparator::VisitExpr_(const CallNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<CallNode>();
   if (!rhs->op.same_as(op->op)) return false;
@@ -130,7 +155,7 @@ bool TensorizeComparator::VisitExpr_(const CallNode* op, const PrimExpr& other) 
     return false;
   }
   for (size_t i = 0; i < op->args.size(); ++i) {
-    if (!VisitExpr(op->args[i].as_or_throw<PrimExpr>(), rhs->args[i].as_or_throw<PrimExpr>())) {
+    if (!CompareExpr(op->args[i], rhs->args[i])) {
       if (assert_mode_) {
         std::ostringstream os;
         os << "CallNode args do not match at index " << i << ": op->args[i]=" << op->args[i]

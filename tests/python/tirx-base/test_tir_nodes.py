@@ -103,12 +103,8 @@ def test_cast():
     assert z.lanes == 4
 
     s = tvm.tirx.StringImm("s")
-    with pytest.raises(RuntimeError):
-        try:
-            s.astype("int")
-        except Exception as e:
-            assert "Can't cast a handle to other types" in str(e)
-            raise
+    with pytest.raises(TypeError, match="Cannot cast an expression with the void sentinel type"):
+        s.astype("int")
 
 
 def test_attr():

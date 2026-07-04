@@ -63,7 +63,14 @@ class ExprTouched final : public StmtExprVisitor {
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       const auto* rw_mask = op->args[4].as<IntImmNode>();
       const VarNode* buffer_var = op->args[1].as<VarNode>();
-      TVM_FFI_ICHECK(buffer_var);
+      if (buffer_var == nullptr) {
+        // Nested access pointers are valid pointer expressions.  Visit the
+        // inner pointer and this access's offset instead of assuming a raw
+        // buffer Var at every level.
+        this->VisitExpr(op->args[1]);
+        this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
+        return;
+      }
       TVM_FFI_ICHECK(rw_mask);
       // read
       if (rw_mask->value & 1) {
@@ -220,6 +227,9 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
       const VarNode* buffer = op->args[1].as<VarNode>();
+      if (buffer == nullptr) {
+        return StmtExprMutator::VisitExpr_(op);
+      }
       auto it = alloc_remap_.find(buffer);
       if (it == alloc_remap_.end()) return StmtExprMutator::VisitExpr_(op);
       visit_touched_var_ = true;
@@ -228,9 +238,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
 
-      return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op,
-                  {op->args[0], op->args[1], offset, extent, op->args[4]})
-          .as_or_throw<PrimExpr>();
+      return Call(op->ty, op->op, {op->args[0], op->args[1], offset, extent, op->args[4]});
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return allow_share_ ? Expr(ffi::GetRef<Call>(op)) : Expr(var_);
     } else {

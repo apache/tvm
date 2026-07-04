@@ -40,11 +40,11 @@ class VtcmAllocator : public StmtExprMutator {
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     std::string storage_scope = GetStorageScope(op->buffer->data);
     if (IsVtcmStorage(storage_scope)) {
-      ffi::Array<PrimExpr> args;
+      ffi::Array<Expr> args;
       args.push_back(StringImm(storage_scope));
       args.push_back(IntImm::Int64(op->buffer->shape.size()));
-      args.push_back(Call(PrimType::Handle(), builtin::tvm_stack_make_shape(), op->buffer->shape)
-                         .as_or_throw<PrimExpr>());
+      args.push_back(
+          Call(PointerType(PrimType::Int(64)), builtin::tvm_stack_make_shape(), op->buffer->shape));
       return Bind(op->buffer->data,
                   Call(op->buffer->data->ty, builtin::nd_mem_alloc_with_scope(), args));
     }

@@ -105,11 +105,11 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
     this->VisitExpr(cond);
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, cond);
-      this->VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+      this->VisitExpr(op->args[1]);
     });
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
-      this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
+      this->VisitExpr(op->args[2]);
     });
   } else {
     StmtExprVisitor::VisitExpr_(op);

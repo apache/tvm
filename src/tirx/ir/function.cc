@@ -49,11 +49,12 @@ tvm::Type InferType(const PrimFunc& prim_func) {
         return relax::TensorType(shape, buf->dtype);
       }
 
-      if (auto prim_type = param->ty.as<PrimTypeNode>()) {
-        const DLDataType& dtype = prim_type->dtype;
-        if (dtype.code == kDLOpaqueHandle && (dtype.bits != 0 || dtype.lanes != 0)) {
-          return relax::AnyType();
-        }
+      // A pointer parameter without a buffer annotation is an opaque runtime
+      // object from Relax's perspective (for example, a DLTensor*).  Keep the
+      // same Relax-facing wildcard semantics that opaque handle parameters had
+      // before pointers became exact IR types.
+      if (param->ty.as<PointerTypeNode>()) {
+        return relax::AnyType();
       }
 
       return param->ty;
@@ -120,10 +121,7 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   TVM_FFI_CHECK_EQ(desc->params.size(), impl->params.size(), ValueError)
       << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
-  auto is_handle = [](const Var& param) {
-    auto prim_type = param->ty.as<PrimType>();
-    return param->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
-  };
+  auto is_handle = [](const Var& param) { return param->ty.as<PointerTypeNode>() != nullptr; };
   for (size_t i = 0; i < desc->params.size(); i++) {
     TVM_FFI_CHECK(is_handle(desc->params[i]), ValueError)
         << "Parameters of the description of the "

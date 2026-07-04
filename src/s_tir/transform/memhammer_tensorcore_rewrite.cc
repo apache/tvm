@@ -166,35 +166,31 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
           /*writes=*/{BufferRegion(tgt_buffer, write_region)},
           /*name_hint=*/"wmma_load",
           /*body=*/
-          Evaluate(
-              Call(
-                  /*data=*/PrimType::Handle(),
-                  /*op=*/tvm_load_matrix_sync_op,
-                  ffi::Array<Expr>{
-                      /*0:*/ new_tgt_buffer->data,
-                      /*1:*/ PrimExpr(16),
-                      /*2:*/ PrimExpr(16),
-                      /*3:*/ PrimExpr(16),
-                      /*4:*/ floordiv(new_tgt_buffer->elem_offset, 256) +
-                          floordiv(floormod(new_tgt_buffer->elem_offset, 256), 16),
-                      /*5:*/
-                      Call(
-                          /*dtype=*/PrimType::Handle(),
-                          /*op=*/builtin::tvm_access_ptr(),
-                          /*args=*/
-                          ffi::Array<Expr>{
-                              /*0:*/ TypeAnnotation(new_src_buffer->dtype),
-                              /*1:*/ new_src_buffer->data,
-                              /*2:*/ new_src_buffer->elem_offset,
-                              /*3:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2] *
-                                  16,
-                              /*4:*/ PrimExpr(1),
-                          })
-                          .as_or_throw<PrimExpr>(),
-                      /*6:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2],
-                      /*7:*/ StringImm(layout),
-                  })
-                  .as_or_throw<PrimExpr>()),
+          Evaluate(Call(
+              /*data=*/PrimType::Void(),
+              /*op=*/tvm_load_matrix_sync_op,
+              ffi::Array<Expr>{
+                  /*0:*/ new_tgt_buffer->data,
+                  /*1:*/ PrimExpr(16),
+                  /*2:*/ PrimExpr(16),
+                  /*3:*/ PrimExpr(16),
+                  /*4:*/ floordiv(new_tgt_buffer->elem_offset, 256) +
+                      floordiv(floormod(new_tgt_buffer->elem_offset, 256), 16),
+                  /*5:*/
+                  Call(
+                      /*dtype=*/new_src_buffer->data->ty,
+                      /*op=*/builtin::tvm_access_ptr(),
+                      /*args=*/
+                      ffi::Array<Expr>{
+                          /*0:*/ TypeAnnotation(new_src_buffer->dtype),
+                          /*1:*/ new_src_buffer->data,
+                          /*2:*/ new_src_buffer->elem_offset,
+                          /*3:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2] * 16,
+                          /*4:*/ PrimExpr(1),
+                      }),
+                  /*6:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2],
+                  /*7:*/ StringImm(layout),
+              })),
           /*init=*/std::nullopt,
           /*alloc_buffers=*/{},
           /*match_buffers=*/
@@ -279,31 +275,28 @@ Stmt RewriteWmmaStore(Stmt stmt) {
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
              /*name_hint=*/"wmma_store",
-             Evaluate(
-                 Call(
-                     /*data=*/PrimType::Handle(),
-                     /*op=*/tvm_store_matrix_sync_op,
-                     ffi::Array<Expr>{/*0:*/ new_src_buffer->data,
-                                      /*1:*/ PrimExpr(16),
-                                      /*2:*/ PrimExpr(16),
-                                      /*3:*/ PrimExpr(16),
-                                      /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
-                                          floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
-                                      /*5:*/
-                                      Call(
-                                          /*data=*/PrimType::Handle(),
-                                          /*op=*/builtin::tvm_access_ptr(),
-                                          ffi::Array<Expr>{
-                                              /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
-                                              /*1:*/ new_tgt_buffer->data,
-                                              /*2:*/ new_tgt_buffer->elem_offset,
-                                              /*3:*/ new_tgt_buffer->strides[0] * 16,
-                                              /*4:*/ PrimExpr(2),
-                                          })
-                                          .as_or_throw<PrimExpr>(),
-                                      /*6:*/ new_tgt_buffer->strides[0],
-                                      /*7:*/ StringImm("row_major")})
-                     .as_or_throw<PrimExpr>()),
+             Evaluate(Call(
+                 /*data=*/PrimType::Void(),
+                 /*op=*/tvm_store_matrix_sync_op,
+                 ffi::Array<Expr>{/*0:*/ new_src_buffer->data,
+                                  /*1:*/ PrimExpr(16),
+                                  /*2:*/ PrimExpr(16),
+                                  /*3:*/ PrimExpr(16),
+                                  /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
+                                      floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
+                                  /*5:*/
+                                  Call(
+                                      /*data=*/new_tgt_buffer->data->ty,
+                                      /*op=*/builtin::tvm_access_ptr(),
+                                      ffi::Array<Expr>{
+                                          /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
+                                          /*1:*/ new_tgt_buffer->data,
+                                          /*2:*/ new_tgt_buffer->elem_offset,
+                                          /*3:*/ new_tgt_buffer->strides[0] * 16,
+                                          /*4:*/ PrimExpr(2),
+                                      }),
+                                  /*6:*/ new_tgt_buffer->strides[0],
+                                  /*7:*/ StringImm("row_major")})),
              /*init=*/std::nullopt,
              /*alloc_buffers=*/{},
              /*match_buffers=*/

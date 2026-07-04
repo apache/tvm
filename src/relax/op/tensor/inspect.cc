@@ -89,7 +89,7 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
 }
 
 tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimType field_ty) {
-  tirx::Var dlpack_handle("dlpack_handle", PrimType::Handle());
+  tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointer());
 
   tirx::Var value("value", field_ty);
 
@@ -252,7 +252,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   tirx::PrimFunc getter = [&]() -> tirx::PrimFunc {
-    tirx::Var dlpack_handle("dlpack_handle", PrimType::Handle());
+    tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointer());
     tirx::Var axis("axis", PrimType::Int(64));
 
     tirx::Var ndim("ndim", PrimType::Int(32));
@@ -277,10 +277,9 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
              {tirx::StringImm(
                  "Specified axis may not be larger than the tensor's dimensionality")}),
          tirx::Bind(shape_buffer->data,
-                    tvm::Call(tvm::PrimType::Handle(), tirx::builtin::tvm_struct_get(),
+                    tvm::Call(shape_buffer->data->ty, tirx::builtin::tvm_struct_get(),
                               {dlpack_handle, IntImm::Int32(0),
-                               IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)})
-                        .as_or_throw<PrimExpr>()),
+                               IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)})),
          tirx::DeclBuffer(shape_buffer),
          tirx::Bind(extent, tirx::BufferLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tirx::Evaluate(tvm::ret(extent.as_or_throw<PrimExpr>()))});

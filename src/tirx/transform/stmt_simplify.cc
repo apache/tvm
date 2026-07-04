@@ -195,9 +195,9 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     if (op->op.same_as(builtin::if_then_else())) {
       if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
         if (cond.value()) {
-          return this->VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+          return this->VisitExpr(op->args[1]);
         } else {
-          return this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
+          return this->VisitExpr(op->args[2]);
         }
       }
     }

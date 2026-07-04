@@ -64,7 +64,7 @@ class ReturnRewriter : public StmtMutator {
       if (call->op.same_as(builtin::ret())) {
         TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "tirx.ret cannot be used in parallel scope.";
         TVM_FFI_ICHECK_EQ(call->args.size(), 1) << "tirx.ret expect a single argument.";
-        ret = WriteToOut(call->args[0].as_or_throw<PrimExpr>());
+        ret = WriteToOut(call->args[0]);
       }
     }
     return ret;
@@ -73,34 +73,41 @@ class ReturnRewriter : public StmtMutator {
  private:
   struct ConvertedInfo {
     int type_index{-1};
-    PrimExpr expr;
+    Expr expr;
   };
 
-  ConvertedInfo ConvertForFFI(PrimExpr val) {
+  ConvertedInfo ConvertForFFI(Expr val) {
     ConvertedInfo info;
 
     // convert val's data type to FFI data type, return type code
-    PrimType dtype = val.ty();
+    if (val->ty.as<PointerTypeNode>()) {
+      info.type_index = ffi::TypeIndex::kTVMFFIOpaquePtr;
+      info.expr = val;
+      return info;
+    }
+
+    PrimExpr prim_val = val.as_or_throw<PrimExpr>();
+    PrimType dtype = prim_val.ty();
     if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
       info.type_index = ffi::TypeIndex::kTVMFFIBool;
-      info.expr = Cast(PrimType::Int(64), val);
+      info.expr = Cast(PrimType::Int(64), prim_val);
 
     } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       info.type_index = ffi::TypeIndex::kTVMFFIInt;
-      info.expr = Cast(PrimType::Int(64), val);
+      info.expr = Cast(PrimType::Int(64), prim_val);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat) {
       info.type_index = ffi::TypeIndex::kTVMFFIFloat;
-      info.expr = Cast(PrimType::Float(64), val);
+      info.expr = Cast(PrimType::Float(64), prim_val);
     } else if (dtype.IsVoid()) {
       info.type_index = ffi::TypeIndex::kTVMFFINone;
-      info.expr = val;
+      info.expr = prim_val;
     } else {
       TVM_FFI_THROW(InternalError) << "data type " << dtype->dtype << " not supported yet";
     }
     return info;
   }
 
-  Stmt WriteToOut(PrimExpr val) {
+  Stmt WriteToOut(Expr val) {
     auto info = ConvertForFFI(val);
     Stmt store_tindex = tirx::Evaluate(
         Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
@@ -222,8 +229,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   const Stmt nop = Evaluate(0);
 
   // Data field definitions
-  Var v_self_handle("self_handle", PrimType::Handle());
-  Var v_packed_args("args", PrimType::Handle());
+  Var v_self_handle("self_handle", PointerType::VoidPointer());
+  Var v_packed_args("args", PointerType::VoidPointer());
   Var v_num_packed_args("num_args", PrimType::Int(32));
   Var v_result("result", PointerType(PrimType::Void()));
 

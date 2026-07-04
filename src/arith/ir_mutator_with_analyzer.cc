@@ -294,19 +294,16 @@ Expr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
   static const Op& if_then_else_op = Op::Get("tirx.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = this->VisitPrimExpr(op->args[0].as_or_throw<PrimExpr>());
-    PrimExpr true_value, false_value;
+    Expr true_value, false_value;
     constraint_scope_.WithNewScope([&]() {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
-      WithRecordIterPredicate(
-          cond, [&] { true_value = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>()); });
+      WithRecordIterPredicate(cond, [&] { true_value = this->VisitExpr(op->args[1]); });
     });
     {
       PrimExpr not_cond = Not(cond);
       constraint_scope_.WithNewScope([&]() {
         constraint_scope_.Current().Emplace(analyzer_, not_cond);
-        WithRecordIterPredicate(not_cond, [&] {
-          false_value = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
-        });
+        WithRecordIterPredicate(not_cond, [&] { false_value = this->VisitExpr(op->args[2]); });
       });
     }
     if (is_zero(cond)) {
@@ -317,11 +314,9 @@ Expr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
     }
     if (cond.same_as(op->args[0]) && true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {
-      return ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>();
+      return ffi::GetRef<Expr>(op);
     } else {
-      return Call(op->ty.as_or_throw<PrimType>(), op->op, {cond, true_value, false_value},
-                  op->attrs, {}, op->span)
-          .as_or_throw<PrimExpr>();
+      return Call(op->ty, op->op, {cond, true_value, false_value}, op->attrs, {}, op->span);
     }
   }
   return StmtExprMutator::VisitExpr_(op);

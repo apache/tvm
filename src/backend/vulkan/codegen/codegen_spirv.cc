@@ -93,8 +93,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
       var_map_[arg.get()] = arg_value;
     } else {
       PrimType pod_type = arg->ty.as_or_throw<PrimType>();
-      TVM_FFI_ICHECK(!pod_type.IsHandle())
-          << "Opaque handles passed to Vulkan codegen must use PointerType";
+      TVM_FFI_ICHECK(!pod_type.IsVoid()) << "Vulkan POD arguments cannot have void type";
       pod_args.push_back(arg);
     }
   }
@@ -839,7 +838,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(!op->buffer->dtype.IsHandle());
+  TVM_FFI_ICHECK(!op->buffer->dtype.IsVoid());
   const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
   size_t constant_size = static_cast<size_t>(dim_imm->value);
@@ -932,12 +931,14 @@ void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
 void CodeGenSPIRV::VisitStmt_(const BindNode* op) {
   TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
   if (auto prim_type = op->var->ty.as<PrimType>()) {
-    TVM_FFI_ICHECK(!prim_type.value().IsHandle());
+    TVM_FFI_ICHECK(!prim_type.value().IsVoid());
   } else {
     TVM_FFI_ICHECK(op->var->ty.as<PointerTypeNode>());
   }
   var_map_[op->var.get()] = MakeValue(op->value);
-  analyzer_->Bind(op->var, op->value);
+  if (auto prim_value = op->value.as<PrimExpr>()) {
+    analyzer_->Bind(op->var, prim_value.value());
+  }
 }
 
 void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {

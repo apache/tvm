@@ -477,8 +477,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* CreateAdd(PrimType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateSub(PrimType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(PrimType t, llvm::Value* a, llvm::Value* b);
-  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, PrimType buffer_element_dtype,
-                                       llvm::ArrayRef<llvm::Value*> indices, PrimType value_dtype);
+  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, Type buffer_element_type,
+                                       llvm::ArrayRef<llvm::Value*> indices, Type value_type);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);

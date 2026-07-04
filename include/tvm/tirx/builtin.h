@@ -300,7 +300,7 @@ TVM_DLL const Op& tvm_context_id();
  *  It is used to represent tuple structure in value field of AttrStmt,
  *  for the sake of giving hint to optimization.
  *
- *  Handle tvm_tuple(value0, value1, ..., value_n);
+ *  void tvm_tuple(value0, value1, ..., value_n);
  */
 TVM_DLL const Op& tvm_tuple();
 

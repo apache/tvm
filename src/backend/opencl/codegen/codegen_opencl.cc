@@ -85,8 +85,7 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
       // and set prior to function codegen.
       continue;
     }
-    auto prim_type = arg->ty.as<PrimType>();
-    if (ptr_type || (prim_type && prim_type.value().IsHandle())) {
+    if (ptr_type) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -197,11 +196,6 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
 void CodeGenOpenCL::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
-    os << "void*";
-    return;
-  }
   if (t.IsVoid()) {
     os << "void";
     return;
@@ -448,8 +442,8 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::stringstream ss;
     this->PrintExpr(op->args[5].as_or_throw<PrimExpr>(), ss);
     std::string value;
-    value = this->SSAGetID(ss.str(),
-                           PrimType(buffer_type).WithLanes(channel_size / buffer_type.bits)->dtype);
+    value =
+        this->SSAGetID(ss.str(), PrimType(buffer_type).WithLanes(channel_size / buffer_type.bits));
     if (channel_size == 64) {
       os << "write_imageh(";
     } else if (channel_size == 128) {
@@ -457,7 +451,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
-    this->PrintExpr(op->args[0].as_or_throw<PrimExpr>(), os);
+    this->PrintExpr(op->args[0], os);
     os << ", ";
     os << "(int4)(";
     this->PrintExpr(op->args[1].as_or_throw<PrimExpr>(), os);
@@ -490,7 +484,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
-    this->PrintExpr(op->args[0].as_or_throw<PrimExpr>(), ss);
+    this->PrintExpr(op->args[0], ss);
     ss << ", ";
     ss << "image_sampler, ";
     ss << "((int4)(";
@@ -503,7 +497,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(IntImm::Int32(0), ss);
     ss << "))))";
 
-    std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes)->dtype);
+    std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes));
     if (auto ramp = op->args.back().as<RampNode>()) {
       if (ramp->base.as<IntImmNode>() && *tirx::as_const_int(ramp->base) == 0 &&
           *tirx::as_const_int(ramp->lanes) == data_lanes &&
@@ -534,10 +528,10 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     if (func->value == "atomic_add" &&
         op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
       enable_atomics_ = true;
-      ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+      ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, "atomic_add_float_emu", args, true, os);
     } else if (func->value == "nearbyint") {
-      ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+      ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, "rint", args, true, os);
     } else {
       if (func->value == "atomic_add") {

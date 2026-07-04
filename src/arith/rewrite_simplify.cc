@@ -2329,7 +2329,12 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const SelectNode* op) {
 
 Expr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr expr = IRMutatorWithAnalyzer::VisitExpr_(op);
+  auto opt_ret = expr.as<PrimExpr>();
+  if (!opt_ret) {
+    return expr;
+  }
+  PrimExpr ret = opt_ret.value();
   op = ret.as<CallNode>();
   if (op == nullptr) return ret;
 

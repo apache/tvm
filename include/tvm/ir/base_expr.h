@@ -88,8 +88,7 @@ class Type : public ffi::ObjectRef {
 /*!
  * \brief Primitive data types used in the low-level IR.
  *
- * PrimType represents POD-values and handles that are
- * not automatically managed by the runtime.
+ * PrimType represents primitive POD values and the void sentinel.
  *
  * \sa PrimType
  */
@@ -137,8 +136,6 @@ class PrimType final : public Type {
   TVM_DLL static PrimType BFloat(int bits, int lanes = 1);
   /*! \brief Construct a boolean type with fixed lanes. */
   TVM_DLL static PrimType Bool(int lanes = 1);
-  /*! \brief Construct an opaque handle type. */
-  TVM_DLL static PrimType Handle(int bits = 64, int lanes = 1);
   /*! \brief Construct the void sentinel type, encoded as handle(0, 0). */
   TVM_DLL static PrimType Void();
   /*!
@@ -200,11 +197,6 @@ class PrimType final : public Type {
     DLDataType dtype = get()->dtype;
     return dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLOpaqueHandle) && dtype.bits == 0 &&
            static_cast<int16_t>(dtype.lanes) == 0;
-  }
-
-  /*! \brief Whether this type is an opaque handle, excluding the void sentinel. */
-  TVM_FFI_INLINE bool IsHandle() const {
-    return this->code() == DLDataTypeCode::kDLOpaqueHandle && !this->IsVoid();
   }
 
   /*! \brief Whether this type is a scalable vector. */

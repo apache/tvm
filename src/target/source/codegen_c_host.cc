@@ -306,7 +306,9 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     }
     this->PrintIndent();
     this->stream << "TVMFFIAny " << stack_name << "[" << size << "];\n";
-    os << stack_name;
+    os << "((";
+    PrintType(op->ty, os);
+    os << ")" << stack_name << ")";
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     this->PrintCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
@@ -358,10 +360,10 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
                                                std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp_a;
   VisitExpr(op->a, temp_a);
-  std::string a_id = SSAGetID(temp_a.str(), op->a.ty()->dtype);
+  std::string a_id = SSAGetID(temp_a.str(), op->a.ty());
   std::ostringstream temp_b;
   VisitExpr(op->b, temp_b);
-  std::string b_id = SSAGetID(temp_b.str(), op->b.ty()->dtype);
+  std::string b_id = SSAGetID(temp_b.str(), op->b.ty());
 
   os << "((" << a_id << ") " << compare << " (" << b_id << ") "
      << "? (" << a_id << ") : (" << b_id << "))";
