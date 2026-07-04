@@ -74,7 +74,13 @@ def _dtype_is_float(value):
 
 
 def _is_scalar_operand(value):
-    return isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value)
+    if isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value):
+        return True
+
+    # BufferRegion is a C++ PrimExprConvertible, but its Python wrapper is not an ExprOp.
+    from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
+
+    return isinstance(value, BufferRegion)
 
 
 class ExprOp:
