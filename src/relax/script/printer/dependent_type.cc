@@ -19,7 +19,6 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/tirx/stmt_functor.h>
 
-#include "../../../script/printer/doc_printer/expr_string_doc.h"
 #include "./utils.h"
 
 namespace tvm {
