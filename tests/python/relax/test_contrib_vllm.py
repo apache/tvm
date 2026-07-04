@@ -755,34 +755,36 @@ def test_reconstruct_from_cache():
     num_tokens = 8
     num_blocks = 1
 
-    dev = tvm.device("cuda", 0)
-
-    key = tvm.runtime.tensor(
-        np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
-    )
-    value = tvm.runtime.tensor(
-        np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
-    )
-    slot_mapping = tvm.runtime.tensor(np.arange(num_tokens).astype("int32"), dev)
-
-    k_cache = tvm.runtime.tensor(
-        np.random.randn(num_blocks, num_heads, head_dim // vec_size, block_size, vec_size).astype(
-            "float16"
-        ),
-        dev,
-    )
-    v_cache = tvm.runtime.tensor(
-        np.random.randn(num_blocks, num_heads, head_dim, block_size).astype("float16"), dev
-    )
-
     reshape_and_cache_func = tvm.get_global_func("tvm.contrib.vllm.reshape_and_cache")
     reconstruct_from_cache_func = tvm.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
 
-    reshape_and_cache_func(key, value, k_cache, v_cache, slot_mapping)
-    out = reconstruct_from_cache_func(k_cache, v_cache, slot_mapping)
+    def run_and_check():
+        dev = tvm.device("cuda", 0)
+        key = tvm.runtime.tensor(
+            np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
+        )
+        value = tvm.runtime.tensor(
+            np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
+        )
+        slot_mapping = tvm.runtime.tensor(np.arange(num_tokens).astype("int32"), dev)
 
-    np.testing.assert_equal(key.numpy(), out[0].numpy())
-    np.testing.assert_equal(value.numpy(), out[1].numpy())
+        k_cache = tvm.runtime.tensor(
+            np.random.randn(
+                num_blocks, num_heads, head_dim // vec_size, block_size, vec_size
+            ).astype("float16"),
+            dev,
+        )
+        v_cache = tvm.runtime.tensor(
+            np.random.randn(num_blocks, num_heads, head_dim, block_size).astype("float16"), dev
+        )
+
+        reshape_and_cache_func(key, value, k_cache, v_cache, slot_mapping)
+        out = reconstruct_from_cache_func(k_cache, v_cache, slot_mapping)
+
+        np.testing.assert_equal(key.numpy(), out[0].numpy())
+        np.testing.assert_equal(value.numpy(), out[1].numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

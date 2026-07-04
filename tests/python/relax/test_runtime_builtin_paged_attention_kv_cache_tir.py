@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, E741
+import functools
 import itertools
 
 import pytest
@@ -56,7 +57,7 @@ rope_theta = 1e4
 rope_scaling = {}
 dtype = None
 dtype_torch = None
-device = tvm.cuda()
+device = None
 device_torch = torch.device("cuda")
 fclear = None
 fadd_sequence = None
@@ -87,7 +88,7 @@ fcopy_single_page = None
 fcompact_copy = None
 
 
-def set_global_func(head_dim, dtype):
+def set_global_func(head_dim, dtype, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
@@ -118,7 +119,6 @@ def set_global_func(head_dim, dtype):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    target = tvm.target.Target.from_device(device)
     builts = []
     for tir_func in [
         _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
@@ -230,8 +230,31 @@ def kv_cache_and_config(request):
     head_dim, dtype, rope_mode, support_sliding_window = request.param
     dtype_torch = getattr(torch, dtype)
     sm_scale = head_dim ** (-0.5)
-    set_global_func(head_dim, dtype)
-    return create_kv_cache(*request.param), rope_mode, support_sliding_window
+    target = tvm.testing.run_with_gpu_lock(_get_cuda_target)
+    set_global_func(head_dim, dtype, target)
+    return request.param
+
+
+def _get_cuda_target():
+    return tvm.target.Target.from_device(tvm.cuda())
+
+
+def _run_with_kv_cache(test):
+    @functools.wraps(test)
+    def wrapper(kv_cache_and_config):
+        def run_and_check():
+            global device
+            device = tvm.cuda()
+            head_dim, dtype, rope_mode, support_sliding_window = kv_cache_and_config
+            try:
+                cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
+                return test((cache, rope_mode, support_sliding_window))
+            finally:
+                device = None
+
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+
+    return wrapper
 
 
 def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
@@ -590,6 +613,7 @@ def apply_attention(
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -615,6 +639,7 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -642,6 +667,7 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -720,6 +746,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -771,6 +798,7 @@ def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -806,6 +834,7 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if not support_sliding_window or rope_mode == RopeMode.NORMAL:
@@ -858,6 +887,7 @@ def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if not support_sliding_window or rope_mode == RopeMode.NORMAL:
@@ -931,6 +961,7 @@ def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window:
@@ -1014,22 +1045,4 @@ def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
 
 
 if __name__ == "__main__":
-    HEAD_DIMS = [64, 128]
-    DTYPES = ["float16", "float32"]
-    ROPE_MODES = [RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE]
-    SUPPORT_SLIDING_WINDOW = [False, True]
-    for head_dim, dtype, rope_mode, support_sliding_window in itertools.product(
-        HEAD_DIMS, DTYPES, ROPE_MODES, SUPPORT_SLIDING_WINDOW
-    ):
-        dtype_torch = getattr(torch, dtype)
-        sm_scale = head_dim ** (-0.5)
-        set_global_func(head_dim, dtype)
-        cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
-        cache_and_config = (cache, rope_mode, support_sliding_window)
-        test_paged_attention_kv_cache_prefill_and_decode(cache_and_config)
-        test_paged_attention_kv_cache_remove_sequence(cache_and_config)
-        test_paged_attention_kv_cache_fork_sequence(cache_and_config)
-        test_paged_attention_kv_cache_popn(cache_and_config)
-        test_paged_attention_kv_cache_sliding_window(cache_and_config)
-        test_paged_attention_kv_cache_tree_attn(cache_and_config)
-        test_paged_attention_kv_cache_unlimited_depth(cache_and_config)
+    tvm.testing.main()

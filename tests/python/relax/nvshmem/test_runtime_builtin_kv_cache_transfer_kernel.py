@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501
+import functools
+
 import numpy as np
 import pytest
 from tvm_ffi import Shape
@@ -40,7 +41,27 @@ def get_comm_rank():
     return comm, rank
 
 
+def _run_rank_group_with_gpu_lock(test):
+    @functools.wraps(test)
+    def wrapper():
+        comm, rank = get_comm_rank()
+
+        def run_and_check():
+            comm.Barrier()
+            try:
+                return test()
+            finally:
+                comm.Barrier()
+
+        if rank == 0:
+            return tvm.testing.run_with_gpu_lock(run_and_check)
+        return run_and_check()
+
+    return wrapper
+
+
 @pytest.mark.skip(reason="Require NVSHMEM")
+@_run_rank_group_with_gpu_lock
 def test_kv_transfer_without_disco():
     comm, rank = get_comm_rank()
     layer_id = 1
@@ -95,6 +116,7 @@ def test_kv_transfer_without_disco():
 
 
 @pytest.mark.skip(reason="Require NVSHMEM")
+@_run_rank_group_with_gpu_lock
 def test_kv_transfer_page_to_page_without_disco():
     comm, rank = get_comm_rank()
     layer_id = 1
@@ -161,6 +183,7 @@ def test_kv_transfer_page_to_page_without_disco():
 
 
 @pytest.mark.skip(reason="Require NVSHMEM")
+@_run_rank_group_with_gpu_lock
 def test_kv_transfer_with_disco():
     comm, rank = get_comm_rank()
     layer_id = 1
@@ -241,12 +264,8 @@ def test_kv_transfer_with_disco():
     finalize_dfunc()
     for i in range(2):
         sess._sync_worker(i)
+    sess.shutdown()
 
 
 if __name__ == "__main__":
-    # To run this test, install mpi4py first, and then run
-    # mpirun -np 2 python tests/python/relax/nvshmem/test_runtime_builtin_kv_cache_transfer_kernel.py  # pylint: disable=line-too-long
-    # FIXME: only one test can be run at a time
-    test_kv_transfer_without_disco()
-    # test_kv_transfer_with_disco()
-    # test_kv_transfer_page_to_page_without_disco()
+    tvm.testing.main()

@@ -29,7 +29,6 @@ from tvm.tirx.cuda.operator.tile_primitive.copy._common import (
     copy_ptx_ld_return_type,
 )
 
-DEV = tvm.cuda(0)
 TARGET = tvm.target.Target("cuda")
 
 # num_bytes → kernel layout. ``fill_offset`` fills lane i with ``i + fill_offset``.
@@ -44,9 +43,14 @@ _SHARED_COPY_CASES = {
 
 def _build_and_run(func, *np_args):
     mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")
-    rt_args = [tvm.runtime.tensor(a, device=DEV) for a in np_args]
-    mod(*rt_args)
-    return (*tuple(a.numpy() for a in rt_args), mod)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        rt_args = [tvm.runtime.tensor(a, device=dev) for a in np_args]
+        mod(*rt_args)
+        return tuple(a.numpy() for a in rt_args)
+
+    return (*tvm.testing.run_with_gpu_lock(run_and_check), mod)
 
 
 def _expected_values(num_bytes: int) -> np.ndarray:

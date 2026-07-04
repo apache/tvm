@@ -23,6 +23,8 @@ import pytest
 
 import tvm.testing
 
+pytestmark = pytest.mark.xdist_group(name="tvm-testing-features")
+
 # This file tests features in tvm.testing, such as verifying that
 # cached fixtures are run an appropriate number of times.  As a
 # result, the order of the tests is important.  Use of --last-failed

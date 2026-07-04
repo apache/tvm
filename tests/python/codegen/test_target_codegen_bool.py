@@ -30,7 +30,6 @@ from tvm.script import tirx as T
 def test_cmp_load_store(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
-    dev = tvm.device(target)
 
     @I.ir_module(s_tir=True)
     class GPUModule:
@@ -88,14 +87,22 @@ def test_cmp_load_store(target):
 
     a_np = np.random.uniform(size=arr_size).astype("float32")
     b_np = np.random.uniform(size=arr_size).astype("float32")
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    d = tvm.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)
-    f(a, b, d)
-    np.testing.assert_equal(
-        d.numpy(),
-        np.logical_and(a_np > b_np, a_np > 1).astype("float32"),
-    )
+
+    def run_and_check():
+        dev = tvm.device(target)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        d = tvm.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)
+        f(a, b, d)
+        np.testing.assert_equal(
+            d.numpy(),
+            np.logical_and(a_np > b_np, a_np > 1).astype("float32"),
+        )
+
+    if is_gpu:
+        tvm.testing.run_with_gpu_lock(run_and_check)
+    else:
+        run_and_check()
 
 
 if __name__ == "__main__":

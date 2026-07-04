@@ -146,6 +146,45 @@ marks are as follows.
   not installed.  Use this instead of a ``skipif`` for package
   dependencies.
 
+Tests that execute on a local GPU must put the complete live-device
+lifetime in a small callback passed to
+:py:func:`tvm.testing.run_with_gpu_lock`.  Target construction and
+compilation remain outside so that pytest-xdist workers can compile in
+parallel.  Device creation, allocation, execution, synchronization,
+host conversion, result checks, and child-process teardown remain inside
+the callback so no device-backed object outlives the lock.
+
+.. code-block:: python
+
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+    def test_cuda_add_one():
+        target = tvm.target.Target("cuda -arch=sm_90")
+        executable = tvm.compile(make_add_one_module(), target)
+        host_input = np.arange(16, dtype="float32")
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            device_input = tvm.runtime.tensor(host_input, dev)
+            device_output = tvm.runtime.empty(host_input.shape, "float32", dev)
+            executable(device_input, device_output)
+            dev.sync()
+            tvm.testing.assert_allclose(device_output.numpy(), host_input + 1)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+The wrapper uses the existing :py:class:`tvm_ffi.utils.FileLock` with a
+persistent machine-local path.  A process exit releases the kernel lock;
+the remaining file is not stale ownership.  Test startup must never
+delete or rotate it, because another process could then lock a different
+inode.  Set ``TVM_TEST_LOCK_DIR`` only when all cooperating processes need
+an explicitly configured shared machine-local directory.  The default
+temporary path coordinates processes running as the same user.  Multi-user
+runners sharing a GPU must use one administrator-provisioned directory and
+persistent lock file that every contender can write, or enforce exclusivity
+through the runner.  A per-user lock path cannot protect a GPU shared across
+users because each user would lock a different file.
+
 There also exists a ``tvm.testing.enabled_targets()`` that returns
 all targets that are enabled and runnable on the current machine,
 based on the environment variable ``TVM_TEST_TARGETS``, the build
