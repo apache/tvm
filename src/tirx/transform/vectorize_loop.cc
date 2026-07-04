@@ -611,6 +611,9 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const CallNode* op) final {
     auto optional_ret_ty = op->ty.as<PrimType>();
     if (!optional_ret_ty) {
+      // Non-primitive calls are not vectorized themselves.  Visit their general Expr operands
+      // to preserve pointer values and rewrite scalar values, scalarizing the surrounding
+      // statement if rewriting produces a vector operand.
       ffi::Array<Expr> new_args;
       for (const Expr& arg : op->args) {
         Expr new_arg = this->VisitExpr(arg);

@@ -155,7 +155,7 @@ TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Span span = Span());
  */
 TVM_DLL PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span());
 /*! \brief Perform a reinterpret cast involving an exact primitive or pointer type. */
-TVM_DLL Expr reinterpret(Type t, Expr value, Span span = Span());
+TVM_DLL Expr reinterpret(Type target_ty, Expr value, Span span = Span());
 /*!
  * \brief add operator
  *

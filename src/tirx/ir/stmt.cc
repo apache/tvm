@@ -34,18 +34,6 @@
 namespace tvm {
 namespace tirx {
 
-namespace {
-Expr AsExpr(const ffi::Any& value) {
-  if (value.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
-    return value.cast<PrimExpr>();
-  }
-  const ExprNode* node = value.as<ExprNode>();
-  TVM_FFI_CHECK(node != nullptr, TypeError)
-      << "Expected an expression, but got " << value.GetTypeKey();
-  return ffi::GetRef<Expr>(node);
-}
-}  // namespace
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   StmtNode::RegisterReflection();
   BindNode::RegisterReflection();
@@ -83,9 +71,8 @@ Bind::Bind(Var var, Expr value, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Bind", [](Var var, ffi::Any value, Span span) {
-    return Bind(var, AsExpr(value), span);
-  });
+  refl::GlobalDef().def("tirx.Bind",
+                        [](Var var, Expr value, Span span) { return Bind(var, value, span); });
 }
 
 // AttrStmt
@@ -392,7 +379,7 @@ Evaluate::Evaluate(Expr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.Evaluate",
-                        [](ffi::Any value, Span span) { return Evaluate(AsExpr(value), span); });
+                        [](Expr value, Span span) { return Evaluate(value, span); });
 }
 
 // BufferStore

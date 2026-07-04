@@ -561,8 +561,8 @@ PrimExpr reinterpret(PrimType t, PrimExpr value, Span span) {
       .as_or_throw<PrimExpr>();
 }
 
-Expr reinterpret(Type t, Expr value, Span span) {
-  if (auto target_dtype = t.as<PrimType>()) {
+Expr reinterpret(Type target_ty, Expr value, Span span) {
+  if (auto target_dtype = target_ty.as<PrimType>()) {
     if (auto prim_value = value.as<PrimExpr>()) {
       return reinterpret(target_dtype.value(), prim_value.value(), std::move(span));
     }
@@ -575,8 +575,8 @@ Expr reinterpret(Type t, Expr value, Span span) {
         << "Pointer reinterpret requires a scalar 64-bit integer target, but got "
         << target_dtype.value();
   } else {
-    TVM_FFI_CHECK(t.as<PointerTypeNode>(), TypeError)
-        << "Reinterpret target must be PrimType or PointerType, but got " << t;
+    TVM_FFI_CHECK(target_ty.as<PointerTypeNode>(), TypeError)
+        << "Reinterpret target must be PrimType or PointerType, but got " << target_ty;
     if (auto source_dtype = value->ty.as<PrimType>()) {
       TVM_FFI_CHECK(
           source_dtype.value().IsScalar() && source_dtype.value().bits() == 64 &&
@@ -589,7 +589,7 @@ Expr reinterpret(Type t, Expr value, Span span) {
           << "Reinterpret source must be PrimType or PointerType, but got " << value->ty;
     }
   }
-  return Call(std::move(t), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},
+  return Call(std::move(target_ty), tirx::builtin::reinterpret(), {std::move(value)}, {}, {},
               std::move(span));
 }
 
