@@ -28,6 +28,8 @@
 #include <utility>
 #include <vector>
 
+#include "./expr_string_doc.h"
+
 namespace tvm {
 namespace script {
 namespace printer {
@@ -104,6 +106,11 @@ class DocPrinter {
    * \brief Virtual method to print a LiteralDoc
    */
   virtual void PrintTypedDoc(const LiteralDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print an internal ExprStringDoc
+   */
+  virtual void PrintTypedDoc(const ExprStringDoc& doc) = 0;
 
   /*!
    * \brief Virtual method to print an IdDoc

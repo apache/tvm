@@ -301,6 +301,8 @@ void DocPrinter::PrintDoc(const Doc& doc) {
 
   if (auto doc_node = doc.as<LiteralDoc>()) {
     PrintTypedDoc(doc_node.value());
+  } else if (auto doc_node = doc.as<ExprStringDoc>()) {
+    PrintTypedDoc(doc_node.value());
   } else if (auto doc_node = doc.as<IdDoc>()) {
     PrintTypedDoc(doc_node.value());
   } else if (auto doc_node = doc.as<AttrAccessDoc>()) {

@@ -27,6 +27,7 @@
 #include <map>
 #include <optional>
 #include <sstream>
+#include <streambuf>
 #include <string>
 
 #include "../../../support/str_escape.h"
@@ -61,6 +62,64 @@ ffi::String RenderInvisiblePathInfo(const ffi::String& script,
   os << "\n\n" << script;
   return ffi::String(os.str());
 }
+
+class PythonStringEscapeBuf : public std::streambuf {
+ public:
+  explicit PythonStringEscapeBuf(std::streambuf* destination) : destination_(destination) {}
+
+  bool saw_newline() const { return saw_newline_; }
+
+ protected:
+  std::streamsize xsputn(const char* data, std::streamsize count) final {
+    if (count <= 0) return 0;
+    saw_newline_ = saw_newline_ || std::find(data, data + count, '\n') != data + count;
+    std::string escaped = support::StrEscape(data, static_cast<size_t>(count));
+    return destination_->sputn(escaped.data(), escaped.size()) ==
+                   static_cast<std::streamsize>(escaped.size())
+               ? count
+               : 0;
+  }
+
+  int_type overflow(int_type ch) final {
+    if (traits_type::eq_int_type(ch, traits_type::eof())) {
+      return traits_type::not_eof(ch);
+    }
+    char value = traits_type::to_char_type(ch);
+    return xsputn(&value, 1) == 1 ? ch : traits_type::eof();
+  }
+
+  int sync() final { return destination_->pubsync(); }
+
+  pos_type seekoff(off_type offset, std::ios_base::seekdir direction,
+                   std::ios_base::openmode mode) final {
+    return destination_->pubseekoff(offset, direction, mode);
+  }
+
+  pos_type seekpos(pos_type position, std::ios_base::openmode mode) final {
+    return destination_->pubseekpos(position, mode);
+  }
+
+ private:
+  std::streambuf* destination_;
+  bool saw_newline_{false};
+};
+
+class WithPythonStringEscaping {
+ public:
+  explicit WithPythonStringEscaping(std::ostream* stream)
+      : stream_(stream), original_(stream->rdbuf()), escaped_(original_) {
+    stream_->rdbuf(&escaped_);
+  }
+
+  ~WithPythonStringEscaping() { stream_->rdbuf(original_); }
+
+  bool saw_newline() const { return escaped_.saw_newline(); }
+
+ private:
+  std::ostream* stream_;
+  std::streambuf* original_;
+  PythonStringEscapeBuf escaped_;
+};
 
 }  // namespace
 
@@ -147,6 +206,7 @@ ExprPrecedence GetExprPrecedence(const ExprDoc& doc) {
   // Key is the type index of Doc
   static const std::unordered_map<uint32_t, ExprPrecedence> doc_type_precedence = {
       {LiteralDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
+      {ExprStringDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
       {IdDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
       {AttrAccessDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
       {IndexDocNode::RuntimeTypeIndex(), ExprPrecedence::kIdentity},
@@ -181,6 +241,7 @@ class PythonDocPrinter : public DocPrinter {
   using DocPrinter::PrintDoc;
 
   void PrintTypedDoc(const LiteralDoc& doc) final;
+  void PrintTypedDoc(const ExprStringDoc& doc) final;
   void PrintTypedDoc(const IdDoc& doc) final;
   void PrintTypedDoc(const AttrAccessDoc& doc) final;
   void PrintTypedDoc(const IndexDoc& doc) final;
@@ -392,6 +453,17 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
   } else {
     TVM_FFI_THROW(TypeError) << "Unsupported literal value type: " << value.GetTypeKey();
   }
+}
+
+void PythonDocPrinter::PrintTypedDoc(const ExprStringDoc& doc) {
+  output_ << '"';
+  {
+    WithPythonStringEscaping scope(&output_);
+    PrintDoc(doc->value);
+    TVM_FFI_ICHECK(!scope.saw_newline())
+        << "An expression rendered inside a Python string literal must be one line";
+  }
+  output_ << '"';
 }
 
 void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }

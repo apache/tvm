@@ -18,9 +18,12 @@
 # ruff: noqa: E501, F841
 
 
+from tvm_ffi.access_path import AccessPath
+
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tirx
+from tvm.runtime.script_printer import PrinterConfig, _script
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -51,6 +54,107 @@ def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
     R.func_attr({"some_attr": 1})
     return a""",
     )
+
+
+def test_function_dependent_shape_expressions():
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    shape = [n, m, (n + 1) * m, n - (m - 1), n // (m + 1), n * (m + 1) + 2]
+    x = relax.Var("x", relax.TensorType(shape, "float32"))
+    func = relax.Function([x], x, ret_ty=x.ty).with_attr("global_symbol", "dependent_shape")
+
+    expected = """
+# from tvm.script import tirx as T
+# from tvm.tirx.layout import Axis
+# from tvm.script import relax as R
+
+@R.function
+def dependent_shape(x: R.Tensor(("n", "m", "(n + 1) * m", "n - (m - 1)", "n // (m + 1)", "n * (m + 1) + 2"), dtype="float32")) -> R.Tensor(("n", "m", "(n + 1) * m", "n - (m - 1)", "n // (m + 1)", "n * (m + 1) + 2"), dtype="float32"):
+    n = T.int64()
+    m = T.int64()
+    return x
+"""
+    _assert_print(func, expected)
+    tvm.ir.assert_structural_equal(
+        func,
+        tvm.script.from_source(func.script(verbose_expr=True)),
+        map_free_vars=True,
+    )
+
+    # Outside a function annotation, shape expressions remain ordinary expression docs.
+    _assert_print(
+        relax.TensorType([n + 1], "float32"),
+        """
+n = T.int64()
+R.Tensor((n + 1,), dtype="float32")
+""",
+    )
+
+
+def test_function_dependent_shape_names():
+    same = tirx.Var("same", "int64")
+    same_again = tirx.Var("same", "int64")
+    punctuated = tirx.Var("a-b", "int64")
+    shape = [same, same_again, same + same_again, same, punctuated, punctuated + 1]
+    x = relax.Var("x", relax.TensorType(shape, "float32"))
+    func = relax.Function([x], x, ret_ty=x.ty).with_attr("global_symbol", "names")
+
+    expected = """
+# from tvm.script import tirx as T
+# from tvm.tirx.layout import Axis
+# from tvm.script import relax as R
+
+@R.function
+def names(x: R.Tensor(("same", "same_1", "same + same_1", "same", "a_b", "a_b + 1"), dtype="float32")) -> R.Tensor(("same", "same_1", "same + same_1", "same", "a_b", "a_b + 1"), dtype="float32"):
+    same = T.int64()
+    same_1 = T.int64()
+    a_b = T.int64()
+    return x
+"""
+    _assert_print(func, expected)
+    tvm.ir.assert_structural_equal(
+        func,
+        tvm.script.from_source(func.script(verbose_expr=True)),
+        map_free_vars=True,
+    )
+
+
+def test_function_dependent_shape_source_path_and_config():
+    n = tirx.Var("n", "int64")
+    m = tirx.Var("m", "int64")
+    x = relax.Var("x", relax.TensorType([n, m, (n + 1) * m], "float32"))
+    ret_ty = relax.TensorType(dtype="float32", ndim=3)
+    func = relax.Function([x], x, ret_ty=ret_ty).with_attr("global_symbol", "main")
+    dim_path = (
+        AccessPath.root()
+        .attr("params")
+        .array_item(0)
+        .attr("ty")
+        .attr("shape")
+        .attr("values")
+        .array_item(2)
+    )
+    config = PrinterConfig(
+        verbose_expr=True,
+        print_line_numbers=True,
+        num_context_lines=0,
+        path_to_underline=[dim_path],
+        extra_config={"render_invisible_path_info": True},
+    )
+
+    first = _script(func, config)
+    second = _script(func, config)
+    assert first == second
+    assert first.count("Access path:") == 1
+    assert first.count('"(n + 1) * m"') == 2
+
+    lines = first.splitlines()
+    definition_index = next(i for i, line in enumerate(lines) if "def main" in line)
+    expression = '"(n + 1) * m"'
+    expression_start = lines[definition_index].index(expression)
+    underline = lines[definition_index + 1]
+    assert underline[expression_start : expression_start + len(expression)] == "^" * len(expression)
+    assert underline.strip() == "^" * len(expression)
 
 
 def test_lone_private_function():
