@@ -2932,6 +2932,28 @@ def test_arg_min_max_nan_select_last_index(op_name):
 
 
 @pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
+@pytest.mark.parametrize("select_last_index", [0, 1])
+def test_arg_min_max_nan_with_real_infinities(op_name, select_last_index):
+    data = np.array(
+        [
+            [np.nan, np.inf, 3.0, -np.inf],
+            [np.inf, np.nan, -np.inf, 0.0],
+            [-np.inf, 1.0, np.nan, np.inf],
+        ],
+        dtype=np.float32,
+    )
+    model = _make_arg_min_max_model(
+        op_name,
+        data.shape,
+        [3],
+        axis=1,
+        keepdims=0,
+        select_last_index=select_last_index,
+    )
+    check_correctness(model, inputs={"data": data}, opset=12)
+
+
+@pytest.mark.parametrize("op_name", ["ArgMax", "ArgMin"])
 def test_arg_min_max_finite_regression(op_name):
     data = np.array(
         [[2.0, 4.0, 7.0, 1.0, 5.0], [3.0, -2.0, 8.0, 6.0, 0.0]],
