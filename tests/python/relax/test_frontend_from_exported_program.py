@@ -6425,16 +6425,19 @@ def test_masked_select():
             data: R.Tensor((2, 3), dtype="float32"), mask: R.Tensor((2, 3), dtype="bool")
         ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
             R.func_attr({"tir_var_lower_bound": {"u0": 0}, "tir_var_upper_bound": {"u0": 6}})
+            u0 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((6,), dtype="float32") = R.reshape(data, R.shape([6]))
                 lv1: R.Tensor((6,), dtype="bool") = R.reshape(mask, R.shape([6]))
                 lv2: R.Tensor(dtype="int64", ndim=2) = R.nonzero(lv1)
-                lv3: R.Tensor(dtype="int64", ndim=1) = R.squeeze(lv2, axis=[0])
-                lv4: R.Tensor(dtype="float32", ndim=1) = R.take(lv, lv3, axis=0, mode="fast")
-                lv5: R.Tensor((), dtype="int64") = R.const(0, "int64")
+                lv3: R.Tensor((1, u0), dtype="int64") = R.match_cast(
+                    lv2, R.Tensor((1, u0), dtype="int64")
+                )
+                lv4: R.Tensor((u0,), dtype="int64") = R.squeeze(lv3, axis=[0])
+                lv5: R.Tensor((u0,), dtype="float32") = R.take(lv, lv4, axis=0, mode="fast")
                 lv6: R.Tensor((), dtype="bool") = R.const(True, "bool")
                 lv7: R.Tensor((), dtype="bool") = R.const(True, "bool")
-                gv: R.Tuple(R.Tensor(dtype="float32", ndim=1)) = (lv4,)
+                gv: R.Tuple(R.Tensor((u0,), dtype="float32")) = (lv5,)
                 R.output(gv)
             return gv
 
@@ -6443,6 +6446,19 @@ def test_masked_select():
         torch.tensor([[True, False, True], [False, True, False]]),
     )
     verify_model(MaskedSelect(), example_args, {}, Expected)
+
+
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_masked_select_numerically():
+    class MaskedSelect(Module):
+        def forward(self, data: torch.Tensor, mask: torch.Tensor):
+            return torch.masked_select(data, mask)
+
+    example_args = (
+        torch.tensor([[1, 2, 3], [4, 5, 6]], dtype=torch.float32),
+        torch.tensor([[True, False, True], [False, True, False]]),
+    )
+    verify_model_numerically(MaskedSelect(), example_args)
 
 
 def test_new_ones():
