@@ -54,10 +54,7 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
   }
   // Step 3. Stringify the PrimExpr if func var exists
   if (func_var_mode) {
-    // This nested render is only converting a shape expression into one token.
-    // Give it an independent configuration so it cannot consume or emit the
-    // enclosing invocation's access-path diagnostics.
-    return LiteralDoc::Str(DocToPythonScript(expr_doc, PrinterConfig()), e_p);
+    return ExprStringDoc(expr_doc, e_p);
   }
   return expr_doc;
 }

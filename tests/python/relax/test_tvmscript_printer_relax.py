@@ -17,10 +17,12 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F841
 
+from tvm_ffi.access_path import AccessPath
 
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tirx
+from tvm.runtime.script_printer import PrinterConfig, _script
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -51,6 +53,55 @@ def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
     R.func_attr({"some_attr": 1})
     return a""",
     )
+
+
+def test_function_dependent_shape_escaped_source_spans():
+    n = tirx.Var("n", "int64")
+    cast = tirx.Cast("int64", n)
+    x = relax.Var("x", relax.TensorType([cast], "float32"))
+    ret_ty = relax.TensorType(dtype="float32", ndim=1)
+    func = relax.Function([x], x, ret_ty=ret_ty).with_attr("global_symbol", "main")
+    cast_path = (
+        AccessPath.root()
+        .attr("params")
+        .array_item(0)
+        .attr("ty")
+        .attr("shape")
+        .attr("values")
+        .array_item(0)
+    )
+
+    def render(path):
+        config = PrinterConfig(
+            verbose_expr=True,
+            num_context_lines=0,
+            path_to_underline=[path],
+            extra_config={"render_invisible_path_info": True},
+        )
+        first = _script(func, config)
+        assert _script(func, config) == first
+        assert first.count("Access path:") == 1
+        lines = first.splitlines()
+        definition_index = next(i for i, line in enumerate(lines) if "def main" in line)
+        assert "Access path:" not in lines[definition_index]
+        return lines[definition_index], lines[definition_index + 1]
+
+    expression = r'"T.Cast(\"int64\", n)"'
+    definition, underline = render(cast_path)
+    expression_start = definition.index(expression)
+    assert underline[expression_start : expression_start + len(expression)] == "^" * len(expression)
+    assert underline.strip() == "^" * len(expression)
+
+    escaped_dtype = r"\"int64\""
+    definition, underline = render(cast_path.attr("dtype"))
+    dtype_start = definition.index(escaped_dtype)
+    assert underline[dtype_start : dtype_start + len(escaped_dtype)] == "^" * len(escaped_dtype)
+    assert underline.strip() == "^" * len(escaped_dtype)
+
+    definition, underline = render(cast_path.attr("value"))
+    variable_start = definition.index(expression) + expression.rindex("n")
+    assert underline[variable_start] == "^"
+    assert underline.strip() == "^"
 
 
 def test_lone_private_function():

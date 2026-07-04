@@ -106,6 +106,11 @@ class DocPrinter {
   virtual void PrintTypedDoc(const LiteralDoc& doc) = 0;
 
   /*!
+   * \brief Virtual method to print an ExprStringDoc
+   */
+  virtual void PrintTypedDoc(const ExprStringDoc& doc) = 0;
+
+  /*!
    * \brief Virtual method to print an IdDoc
    */
   virtual void PrintTypedDoc(const IdDoc& doc) = 0;
