@@ -46,7 +46,8 @@ void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    if (PrimType(GetRuntimeDataType(arg->ty)).IsHandle()) {
+    auto prim_type = arg->ty.as<PrimType>();
+    if (arg->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle())) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -97,7 +98,9 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   }
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!PrimType(GetRuntimeDataType(v->ty)).IsHandle()) break;
+    auto prim_type = v->ty.as<PrimType>();
+    bool is_handle = v->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
+    if (!is_handle) break;
     this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
@@ -126,24 +129,25 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     decl_stream << "struct " << arg_buf_type << " {\n";
     for (size_t i = num_buffer; i < func->params.size(); ++i) {
       Var v = func->params[i];
-      TVM_FFI_ICHECK(!PrimType(GetRuntimeDataType(v->ty)).IsHandle());
+      PrimType value_type = v->ty.as_or_throw<PrimType>();
+      TVM_FFI_ICHECK(!value_type.IsHandle());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
-      if (PrimType(GetRuntimeDataType(v->ty)).bits() == 32) {
+      if (value_type.bits() == 32) {
         decl_stream << "  ";
-        PrintType(PrimType(GetRuntimeDataType(v->ty))->dtype, decl_stream);
+        PrintType(value_type, decl_stream);
         decl_stream << " " << vid << "[2];\n";
         vref << varg << "." << vid << "[0]";
-      } else if (PrimType(GetRuntimeDataType(v->ty)).bits() == 64) {
+      } else if (value_type.bits() == 64) {
         decl_stream << "  ";
-        PrintType(PrimType(GetRuntimeDataType(v->ty))->dtype, decl_stream);
+        PrintType(value_type, decl_stream);
         decl_stream << " " << vid << ";\n";
         vref << varg << "." << vid;
       } else {
         // For non 32bit type, ref through arg union.
         decl_stream << "  __TVMArgUnion " << vid << ";\n";
         vref << varg << "." << vid << ".v_";
-        PrintType(PrimType(GetRuntimeDataType(v->ty))->dtype, vref);
+        PrintType(value_type, vref);
       }
       var_idmap_[v.get()] = vref.str();
     }

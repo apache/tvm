@@ -120,11 +120,15 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   TVM_FFI_CHECK_EQ(desc->params.size(), impl->params.size(), ValueError)
       << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
+  auto is_handle = [](const Var& param) {
+    auto prim_type = param->ty.as<PrimType>();
+    return param->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
+  };
   for (size_t i = 0; i < desc->params.size(); i++) {
-    TVM_FFI_CHECK(PrimType(GetRuntimeDataType(desc->params[i]->ty)).IsHandle(), ValueError)
+    TVM_FFI_CHECK(is_handle(desc->params[i]), ValueError)
         << "Parameters of the description of the "
            "tensor intrinsic should be handle only.";
-    TVM_FFI_CHECK(PrimType(GetRuntimeDataType(impl->params[i]->ty)).IsHandle(), ValueError)
+    TVM_FFI_CHECK(is_handle(impl->params[i]), ValueError)
         << "Parameters of the implementation of "
            "the tensor intrinsic should be handle only.";
   }

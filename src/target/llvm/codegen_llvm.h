@@ -486,7 +486,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
   // Create serial for
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
-                       const Var& loop_var, const Stmt& body);
+                       const PrimVar& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
                     PrimType access_dtype);

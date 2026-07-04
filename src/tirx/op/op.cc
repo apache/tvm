@@ -94,19 +94,6 @@ TVM_FFI_INLINE bool IsFloat4Type(const PrimType& ty) {
   TVM_TIR_REGISTER_OP(OpName).set_num_inputs(2).set_attr<TCallEffectKind>( \
       "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
 
-DLDataType GetRuntimeDLDataType(const Type& type) {
-  if (auto* n = type.as<PrimTypeNode>()) {
-    return n->dtype;
-  } else if (type.as<PointerTypeNode>()) {
-    return DLDataType{kDLOpaqueHandle, 64, 1};
-  } else if (IsVoidType(type)) {
-    return DLDataType{kDLOpaqueHandle, 0, 0};
-  } else {
-    TVM_FFI_THROW(InternalError) << "Type " << type
-                                 << " does not have a corresponding runtime DLPack dtype";
-  }
-}
-
 Type GetType(const PrimExpr& expr) {
   // TODO(tqchen): add recursive type inference for Call here
   // once we introduced the corresponding fields to the IR.

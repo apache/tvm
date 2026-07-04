@@ -140,8 +140,11 @@ class HostDeviceSplitter : public StmtMutator {
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
+            auto prim_type = var->ty.as<PrimType>();
+            bool is_handle =
+                var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
             return std::tuple{
-                !PrimType(GetRuntimeDataType(var->ty)).IsHandle(),
+                !is_handle,
                 var->name_hint,
             };
           };

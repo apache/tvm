@@ -2418,14 +2418,12 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 
 Expr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
-  auto opt_op_ty = op->ty.as<PrimType>();
-  if (!opt_op_ty) {
-    return var;
-  }
-  PrimType op_ty = opt_op_ty.value();
+  auto prim_var = var.as<PrimVar>();
+  if (!prim_var) return var;
+  PrimType op_ty = prim_var.value().ty();
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !op_ty.IsScalableVector() &&
       !op_ty.IsFixedLengthVector()) {
-    if (auto match = TryMatchLiteralConstraint(var.as_or_throw<PrimExpr>())) {
+    if (auto match = TryMatchLiteralConstraint(prim_var.value())) {
       return match.value();
     }
   }

@@ -79,18 +79,6 @@ TVM_DLL Type GetType(const PrimExpr& expr);
 TVM_DLL Type GetTypeFromRuntimeDataType(DLDataType dtype);
 
 /*!
- * \brief Get the implied DLPack dtype for storing values with type during runtime.
- *
- * \param type The input type.
- * \return The result DLPack dtype.
- *
- * \sa tvm/ir/type.h for discussion about the relation between Type and DLPack dtype.
- */
-TVM_DLL DLDataType GetRuntimeDLDataType(const Type& type);
-
-inline DLDataType GetRuntimeDataType(const Type& type) { return GetRuntimeDLDataType(type); }
-
-/*!
  * \brief Return the value.
  *
  * \param value The returned value.

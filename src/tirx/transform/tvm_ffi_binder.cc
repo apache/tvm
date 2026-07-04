@@ -489,8 +489,7 @@ PrimExpr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimEx
   // ── Load value and apply tensor offset ─────────────────────
   const int64_t object_cell_offset = sizeof(TVMFFIObject);
   static_assert(sizeof(TVMFFIObject) == 24);
-  PrimExpr arg_value = LoadTVMFFIAnyUnionValue(
-      v_packed_args_, param_index, PrimType(GetRuntimeDataType(params_[param_index]->ty)));
+  PrimExpr arg_value = LoadTVMFFIAnyUnionValue(v_packed_args_, param_index, PrimType::Handle());
   PrimExpr handle_from_tensor = Call(PrimType::Handle(), tirx::builtin::handle_add_byte_offset(),
                                      {arg_value, IntImm::Int32(object_cell_offset)})
                                     .as_or_throw<PrimExpr>();

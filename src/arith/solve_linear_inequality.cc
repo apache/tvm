@@ -223,7 +223,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   }
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
-  for (const Var& v : system_to_solve->variables) {
+  for (const Var& var : system_to_solve->variables) {
+    PrimVar v = var.as_or_throw<PrimVar>();
     TVM_FFI_ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
@@ -250,7 +251,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     for (const auto& pos : coef_pos) {
       for (const auto& neg : coef_neg) {
         auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
-        PrimType v_ty = v->ty.as_or_throw<PrimType>();
+        PrimType v_ty = v.ty();
         PrimExpr c_pos = MakeConst(v_ty, neg.first / first_gcd);
         PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
         // eliminate the current variable
@@ -285,7 +286,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     lower_bounds.reserve(coef_neg.size());
 
     for (const auto& pos : coef_pos) {
-      PrimExpr bound = MakeConst(v->ty.as_or_throw<PrimType>(), -coef_lcm / pos.first) * pos.second;
+      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / pos.first) * pos.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(upper_bounds.begin(), upper_bounds.end(),
@@ -306,7 +307,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       upper_bounds.push_back(bound);
     }
     for (const auto& neg : coef_neg) {
-      PrimExpr bound = MakeConst(v->ty.as_or_throw<PrimType>(), -coef_lcm / neg.first) * neg.second;
+      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / neg.first) * neg.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(lower_bounds.begin(), lower_bounds.end(),

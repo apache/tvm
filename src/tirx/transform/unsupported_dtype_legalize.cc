@@ -133,7 +133,8 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (PrimType(GetRuntimeDataType(buffer_var->ty)).IsHandle()) {
+    auto prim_type = buffer_var->ty.as<PrimType>();
+    if (buffer_var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle())) {
       opaque_var_access_.insert(buffer_var);
     }
   }
@@ -732,16 +733,14 @@ class StorageLegalizer : public StmtExprMutator {
 
   Var RemapVarDef(Var var) {
     // remap the var
-    if (PrimType(GetRuntimeDataType(var->ty)).IsHandle()) {
-      if (auto* ptr_type = var->ty.as<PointerTypeNode>()) {
-        if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
-          PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
-          if (MatchType(elem_prim_type)) {
-            Var new_var = Var(var->name_hint, PointerType(GetStorageUIntDType(elem_prim_type),
-                                                          ptr_type->storage_scope));
-            var_remap_[var] = new_var;
-            return new_var;
-          }
+    if (auto* ptr_type = var->ty.as<PointerTypeNode>()) {
+      if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
+        PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
+        if (MatchType(elem_prim_type)) {
+          Var new_var = Var(var->name_hint, PointerType(GetStorageUIntDType(elem_prim_type),
+                                                        ptr_type->storage_scope));
+          var_remap_[var] = new_var;
+          return new_var;
         }
       }
     }

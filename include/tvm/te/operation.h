@@ -300,7 +300,7 @@ class ExternOp : public Operation {
  * \param name_hint The name hint for the expression
  * \param t The type of the expression
  */
-TVM_DLL Var var(std::string name_hint, PrimType t = PrimType::Int(32));
+TVM_DLL PrimVar var(std::string name_hint, PrimType t = PrimType::Int(32));
 
 /*!
  * \brief Create a new IterVar that represents an axis in thread.

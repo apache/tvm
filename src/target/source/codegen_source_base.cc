@@ -52,6 +52,14 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, const PrimType& t) {
   return e.vid;
 }
 
+std::string CodeGenSourceBase::SSAGetID(std::string src, const Type& t) {
+  if (auto prim_type = t.as<PrimType>()) {
+    return SSAGetID(std::move(src), prim_type.value());
+  }
+  TVM_FFI_ICHECK(t.as<PointerTypeNode>()) << "Cannot assign an SSA value of type " << t;
+  return SSAGetID(std::move(src), PrimType::Handle());
+}
+
 std::string CodeGenSourceBase::AllocVarID(const tirx::VarNode* v) {
   TVM_FFI_ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
   std::string key = v->name_hint;

@@ -1295,18 +1295,23 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   void HandleLetNode(Var let_var) {
-    PrimType runtime_ty(GetRuntimeDataType(let_var->ty));
-    if (runtime_ty.IsHandle()) {
-      auto pointer_type = GetPointerType(let_var->ty);
-      if (pointer_type.has_value()) {
-        OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
-      } else if (allow_untyped_pointers_) {
-        OnArrayDeclaration(let_var, runtime_ty, 0, BufferVarInfo::kLetNode);
-      } else {
-        TVM_FFI_THROW(InternalError) << "Let statement of variable " << let_var->name_hint
-                                     << " is missing a type annotation, "
-                                     << "or type annotation is not a pointer to primitive";
-      }
+    auto pointer_type = GetPointerType(let_var->ty);
+    if (pointer_type.has_value()) {
+      OnArrayDeclaration(let_var, pointer_type.value(), 0, BufferVarInfo::kLetNode);
+      return;
+    }
+
+    auto prim_type = let_var->ty.as<PrimType>();
+    bool is_untyped_pointer =
+        let_var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
+    if (!is_untyped_pointer) return;
+
+    if (allow_untyped_pointers_) {
+      OnArrayDeclaration(let_var, PrimType::Handle(), 0, BufferVarInfo::kLetNode);
+    } else {
+      TVM_FFI_THROW(InternalError)
+          << "Let statement of variable " << let_var->name_hint << " is missing a type annotation, "
+          << "or type annotation is not a pointer to primitive";
     }
   }
 

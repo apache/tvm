@@ -98,6 +98,7 @@ class CodeGenSourceBase {
    * \param t The type of the expression.
    */
   std::string SSAGetID(std::string src, const PrimType& t);
+  std::string SSAGetID(std::string src, const Type& t);
   std::string SSAGetID(std::string src, DLDataType t) {
     return SSAGetID(std::move(src), PrimType(t));
   }

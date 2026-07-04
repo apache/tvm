@@ -68,7 +68,8 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (PrimType(GetRuntimeDataType(buffer_var->ty)).IsHandle()) {
+    auto prim_type = buffer_var->ty.as<PrimType>();
+    if (buffer_var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle())) {
       info_.write_access_set.insert(buffer_var);
     }
   }
@@ -119,7 +120,8 @@ void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    if (PrimType(GetRuntimeDataType(arg->ty)).IsHandle()) {
+    auto prim_type = arg->ty.as<PrimType>();
+    if (arg->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle())) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -174,15 +176,8 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   os_param_access << "paramWriteAccess:[";
   // setup buffer argumemts
   for (Var arg : f->params) {
-    PrimType t = PrimType(GetRuntimeDataType(arg->ty));
-    func_arg_types.push_back(t->dtype);
-
-    if (t.IsHandle()) {
-      auto* ptr = arg->ty.as<PointerTypeNode>();
-      TVM_FFI_ICHECK(ptr)
-          << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
-             "PointerType, "
-          << "and must point to a PrimType";
+    if (auto* ptr = arg->ty.as<PointerTypeNode>()) {
+      func_arg_types.push_back(PrimType::Handle()->dtype);
       auto* prim = ptr->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim)
           << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
@@ -212,6 +207,10 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
       this->PrintType(value_storage_type, this->decl_stream);
       this->decl_stream << ">;\n";
     } else {
+      PrimType pod_type = arg->ty.as_or_throw<PrimType>();
+      TVM_FFI_ICHECK(!pod_type.IsHandle())
+          << "Opaque handles passed to WebGPU codegen must use PointerType";
+      func_arg_types.push_back(pod_type->dtype);
       pod_args.push_back(arg);
     }
   }
@@ -228,18 +227,18 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 
   for (size_t i = 0; i < pod_args.size(); ++i) {
     Var v = pod_args[i];
-    TVM_FFI_ICHECK(!PrimType(GetRuntimeDataType(v->ty)).IsHandle());
+    PrimType value_type = v->ty.as_or_throw<PrimType>();
+    TVM_FFI_ICHECK(!value_type.IsHandle());
     std::string vid = AllocVarID(v.get());
 
-    if (PrimType(GetRuntimeDataType(v->ty)) == PrimType::Int(32)) {
+    if (value_type == PrimType::Int(32)) {
       this->decl_stream << "  " << vid << ": i32";
-    } else if (PrimType(GetRuntimeDataType(v->ty)) == PrimType::UInt(32)) {
+    } else if (value_type == PrimType::UInt(32)) {
       this->decl_stream << "  " << vid << ": u32";
-    } else if (PrimType(GetRuntimeDataType(v->ty)) == PrimType::Float(32)) {
+    } else if (value_type == PrimType::Float(32)) {
       this->decl_stream << "  " << vid << ": f32";
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Do not support pod argument type " << PrimType(GetRuntimeDataType(v->ty))->dtype;
+      TVM_FFI_THROW(InternalError) << "Do not support pod argument type " << value_type;
     }
     this->decl_stream << ",\n";
     // value ref
@@ -481,7 +480,7 @@ void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT
     PrintIndent();
     std::string value = PrintExpr(op->value);
     this->stream << "let " << AllocVarID(op->var.get()) << " : ";
-    PrintType(PrimType(GetRuntimeDataType(op->var->ty))->dtype, this->stream);
+    PrintType(op->var->ty, this->stream);
     this->stream << " = " << value << ";\n";
   }
   os << PrintExpr(op->body);
@@ -600,7 +599,7 @@ void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
     PrintIndent();
     std::string value = PrintExpr(op->value);
     this->stream << "let " << AllocVarID(op->var.get()) << " : ";
-    PrintType(PrimType(GetRuntimeDataType(op->var->ty))->dtype, this->stream);
+    PrintType(op->var->ty, this->stream);
     this->stream << " = " << value << ";\n";
   }
 }

@@ -570,7 +570,9 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if (PrimType(GetRuntimeDataType(var->ty)).IsHandle() && !alias_var_set_.count(var.get())) {
+    auto prim_type = var->ty.as<PrimType>();
+    bool is_handle = var->ty.as<PointerTypeNode>() || (prim_type && prim_type.value().IsHandle());
+    if (is_handle && !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
       // always not inline compute function to make the code structure clean

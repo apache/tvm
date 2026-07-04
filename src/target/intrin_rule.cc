@@ -149,7 +149,7 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 1);
   PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
-  PrimType arg_ty = PrimType(GetRuntimeDataType(arg->ty));
+  PrimType arg_ty = arg.ty();
   int bits = arg_ty.bits();
   PrimExpr res;
   if (arg_ty.code() == DLDataTypeCode::kDLFloat && (bits == 16 || bits == 32)) {
@@ -190,7 +190,7 @@ TVM_REGISTER_OP("tirx.rsqrt")
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
-      auto one = MakeConst(PrimType(GetRuntimeDataType(arg->ty)), 1);
+      auto one = MakeConst(arg.ty(), 1);
       return one / sqrt(arg);
     });
 
@@ -199,7 +199,7 @@ TVM_REGISTER_OP("tirx.sigmoid")
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
-      auto one = MakeConst(PrimType(GetRuntimeDataType(arg->ty)), 1);
+      auto one = MakeConst(arg.ty(), 1);
       return one / (one + exp(-arg));
     });
 

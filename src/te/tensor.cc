@@ -49,7 +49,7 @@ IterVar reduce_axis(Range dom, std::string name) {
   return IterVar(dom, PrimVar(name, dom->extent.ty()), kCommReduce);
 }
 
-Var var(std::string name_hint, PrimType t) { return Var(name_hint, t); }
+PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 
 // Tensor
 inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,

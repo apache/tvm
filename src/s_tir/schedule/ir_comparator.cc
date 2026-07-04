@@ -715,17 +715,7 @@ bool AutoTensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs
     equal = (*it).second.same_as(lhs);
   } else {
     // Remap both buffer itself and buffer data, skip buffer shape and scope
-    bool data_equal;
-    if (lhs->data->ty.as<PointerTypeNode>() && rhs->data->ty.as<PointerTypeNode>()) {
-      auto data_it = equal_map_.find(lhs->data);
-      data_equal = data_it == equal_map_.end() || data_it->second.same_as(rhs->data);
-      if (data_it == equal_map_.end()) {
-        equal_map_[lhs->data] = rhs->data;
-      }
-    } else {
-      data_equal = DefEqual(lhs->data, rhs->data);
-    }
-    equal = data_equal && lhs->dtype == rhs->dtype;
+    equal = DefEqual(lhs->data, rhs->data) && lhs->dtype == rhs->dtype;
     if (equal) {
       rhs_buffer_map_[rhs] = lhs;
       lhs_buffer_map_[lhs] = rhs;
