@@ -46,7 +46,7 @@ TEST(IRF, CountVar) {
   using namespace tvm;
   using namespace tvm::tirx;
   int n_var = 0;
-  PrimVar x("x"), y;
+  PrimVar x("x"), y("y");
 
   auto z = x + 1 + y + y;
   tirx::PostOrderVisit(z, [&n_var](const ffi::ObjectRef& n) {
