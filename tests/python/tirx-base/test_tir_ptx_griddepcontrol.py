@@ -46,11 +46,15 @@ def test_ptx_griddepcontrol():
     mod = tvm.compile(f, target="cuda")
     A_np = np.random.default_rng(0).standard_normal(32).astype("float32")
     B_np = np.zeros((32,), dtype="float32")
-    dev = tvm.cuda(0)
-    A_nd = tvm.runtime.tensor(A_np, device=dev)
-    B_nd = tvm.runtime.tensor(B_np, device=dev)
-    mod(A_nd, B_nd)
-    tvm.testing.assert_allclose(B_nd.numpy(), A_np, rtol=0, atol=0)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
+        mod(A_nd, B_nd)
+        tvm.testing.assert_allclose(B_nd.numpy(), A_np, rtol=0, atol=0)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
