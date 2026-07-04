@@ -760,7 +760,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   auto init_once_callee =
       llvm::FunctionCallee(ftype_tvm_ffi_handle_init_once_, RuntimeTVMFFIHandleInitOnce());
   CheckCallSuccess(builder_->CreateCall(init_once_callee, {hptr, init_func}));
-  return builder_->CreateAlignedLoad(t_tvm_func_handle_, hptr, llvm::Align(align));
+  return builder_->CreateAlignedLoad(hptr->getValueType(), hptr, llvm::Align(align));
 }
 
 CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const ffi::Array<PrimExpr>& args,
