@@ -37,8 +37,6 @@ import tvm.testing
 from tvm.script import tirx as T
 from tvm.testing import env
 
-DEV = tvm.device("cuda")
-
 
 def _get_source(func: tvm.tirx.PrimFunc):
     target = tvm.target.Target("cuda")
@@ -60,15 +58,20 @@ def _run_mma(mod, K, no_c_ptr, np_in):
     A_np = np.random.randn(16, K).astype(np_in)
     B_np = np.random.randn(K, 8).astype(np_in)
     C_np = np.random.randn(16, 8).astype(np.float32)
-    D = tvm.runtime.tensor(np.zeros((16, 8), np.float32), device=DEV)
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    C = tvm.runtime.tensor(C_np, device=DEV)
-    mod(D, A, B, C)
     ref = A_np.astype(np.float32) @ B_np.astype(np.float32)
     if not no_c_ptr:
         ref = ref + C_np
-    np.testing.assert_allclose(D.numpy(), ref, atol=1e-2, rtol=1e-2)
+
+    def run_and_check():
+        dev = tvm.device("cuda")
+        D = tvm.runtime.tensor(np.zeros((16, 8), np.float32), device=dev)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        C = tvm.runtime.tensor(C_np, device=dev)
+        mod(D, A, B, C)
+        np.testing.assert_allclose(D.numpy(), ref, atol=1e-2, rtol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
