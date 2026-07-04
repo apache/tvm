@@ -397,10 +397,16 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const ExprStringDoc& doc) {
-  PythonDocPrinter expr_printer{PrinterConfig()};
-  expr_printer.PrintDoc(doc->value);
-  std::string value = expr_printer.output_.str();
-  output_ << '"' << support::StrEscape(value) << '"';
+  this->output_ << '"';
+  size_t start_pos = this->output_.tellp();
+  this->PrintDoc(doc->value);
+  std::string output = this->output_.str();
+  std::string value = output.substr(start_pos);
+  TVM_FFI_ICHECK(value.find('\n') == std::string::npos)
+      << "An expression rendered inside a Python string literal must be one line";
+  this->output_.str(output.substr(0, start_pos));
+  this->output_.seekp(start_pos);
+  this->output_ << support::StrEscape(value) << '"';
 }
 
 void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
