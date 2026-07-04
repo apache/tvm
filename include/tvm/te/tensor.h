@@ -144,7 +144,7 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(ffi::Array<Var> indices) const;
+  TVM_DLL PrimExpr operator()(ffi::Array<PrimVar> indices) const;
   /*!
    * \brief Take elements from the tensor with support for negative indices.
    * \param args The indices
@@ -166,7 +166,7 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<Var> indices) const;
+  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<PrimVar> indices) const;
 
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.

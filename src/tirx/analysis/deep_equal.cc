@@ -66,11 +66,6 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
     if (!lhs.defined() && rhs.defined()) return false;
     if (!rhs.defined() && lhs.defined()) return false;
     if (lhs->type_index() != rhs->type_index()) return false;
-    // Arithmetic analyzers use private PrimExpr subclasses that are not part
-    // of the TIR expression functor's dispatch table.
-    if (lhs->GetTypeKey().rfind("arith.", 0) == 0) {
-      return ffi::StructuralEqual()(lhs, rhs);
-    }
     return ExprFunctor::VisitExpr(lhs, rhs);
   }
 
