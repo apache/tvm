@@ -681,7 +681,7 @@ def test_execute_no_op_view(target):
     np_input = np.random.random([4096]).astype("float32")
     np_expected = np_input
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
@@ -689,9 +689,9 @@ def test_execute_no_op_view(target):
         tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
     if target == "llvm":
-        run()
+        run_and_check()
     else:
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
@@ -710,7 +710,7 @@ def test_execute_view_with_new_shape(target):
     np_input = np.random.random([4096]).astype("float32")
     np_expected = np_input.reshape(64, 64)
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
@@ -718,9 +718,9 @@ def test_execute_view_with_new_shape(target):
         tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
     if target == "llvm":
-        run()
+        run_and_check()
     else:
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
@@ -743,7 +743,7 @@ def test_execute_view_with_new_byte_offset(target):
     np_input = np.random.random([4096]).astype("float32")
     np_expected = np_input.reshape(64, 64)[32:48, :]
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
@@ -751,9 +751,9 @@ def test_execute_view_with_new_byte_offset(target):
         tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
     if target == "llvm":
-        run()
+        run_and_check()
     else:
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
@@ -772,7 +772,7 @@ def test_execute_view_with_new_dtype(target):
     np_input = np.random.random([4096]).astype("float32")
     np_expected = np_input.view("uint32")
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
@@ -780,9 +780,9 @@ def test_execute_view_with_new_dtype(target):
         tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
     if target == "llvm":
-        run()
+        run_and_check()
     else:
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
@@ -814,7 +814,7 @@ def test_execute_view_with_multiple_updated_fields(target):
         np_input[2048:].view("float16").reshape(16, 64),
     ]
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
@@ -823,9 +823,9 @@ def test_execute_view_with_multiple_updated_fields(target):
         tvm.testing.assert_allclose(tvm_output[1].numpy(), np_expected[1])
 
     if target == "llvm":
-        run()
+        run_and_check()
     else:
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

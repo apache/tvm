@@ -220,15 +220,14 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         A_np = tvm.testing.generate_random_array(dtype, shape)
         B_np = np.zeros(shape, dtype=np_dtype)
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A_tvm = tvm.runtime.tensor(A_np, dev)
         B_tvm = tvm.runtime.tensor(B_np, dev)
         mod(A_tvm, B_tvm)
-        dev.sync()
         np.testing.assert_allclose(A_np, B_tvm.numpy())
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_dsmem_dispatch_missing_config():

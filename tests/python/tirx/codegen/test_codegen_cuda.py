@@ -139,7 +139,6 @@ def test_cuda_atomic_add():
         A_tvm = tvm.runtime.tensor(A_np, device=dev)
         B_tvm = tvm.runtime.tensor(B_np, device=dev)
         mod["main"](A_tvm, B_tvm)
-        dev.sync()
         np.testing.assert_allclose(A_tvm.numpy(), 1)
         np.testing.assert_allclose(B_tvm.numpy(), 1.0)
 
@@ -479,7 +478,6 @@ __device__ int32_t add_one(int32_t a) {
             A_tvm = tvm.runtime.tensor(A, device=dev)
             B_tvm = tvm.runtime.tensor(B, device=dev)
             mod["main"](A_tvm, B_tvm)
-            dev.sync()
             np.testing.assert_allclose(B_tvm.numpy(), A + 1)
 
         tvm.testing.run_with_gpu_lock(run_and_check)
@@ -506,13 +504,13 @@ __device__ void print(int32_t a) {
         src, mod = _get_source(main)
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
 
-        def run():
+        def run_and_check():
             dev = tvm.device("cuda")
             A_tvm = tvm.runtime.tensor(A, device=dev)
             mod["main"](A_tvm)
             dev.sync()
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
         print(src)
 
     test_print()
@@ -554,7 +552,6 @@ def test_warp_shuffle_xor_sync():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, device=dev)
         mod(A)
-        dev.sync()
         np.testing.assert_allclose(A.numpy(), A_ref)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
@@ -603,7 +600,6 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
         dev = tvm.device("cuda")
         A = tvm.runtime.tensor(A_np, device=dev)
         mod(A)
-        dev.sync()
         np.testing.assert_allclose(A.numpy(), A_ref)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
@@ -681,7 +677,6 @@ def test_ptx_ldmatrix(trans, num):
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         mod(A, B)
-        dev.sync()
         np.testing.assert_allclose(B.numpy(), B_ref)
 
     tvm.testing.run_with_gpu_lock(run_and_check)

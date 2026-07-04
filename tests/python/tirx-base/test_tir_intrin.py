@@ -317,7 +317,7 @@ def test_clz(target, dtype):
     # Build from scheduled TIR
     func = tvm.compile(sch.mod, target=target)
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target.kind.name)
         n = 10
         highs = [10, 100, 1000, 10000, 100000, 1000000]
@@ -334,9 +334,9 @@ def test_clz(target, dtype):
             np.testing.assert_equal(b.numpy(), ref)
 
     if target.kind.name == "llvm":
-        run()
+        run_and_check()
     else:
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @tvm.script.ir_module

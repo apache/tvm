@@ -60,14 +60,14 @@ def test_inject_ptx_intrin():
             C_np[i] = A_np[i // 2]
         C_np[i] += 1.0
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         A_nd = tvm.runtime.tensor(A_np, device=dev)
         B_nd = tvm.runtime.tensor(B_np, device=dev)
         mod(A_nd, B_nd)
         tvm.testing.assert_allclose(B_nd.numpy(), C_np)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

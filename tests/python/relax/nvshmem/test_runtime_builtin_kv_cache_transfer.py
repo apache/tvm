@@ -272,7 +272,7 @@ def _get_cuda_target():
 def _run_with_kv_cache(test):
     @functools.wraps(test)
     def wrapper(kv_cache_and_config):
-        def run():
+        def run_device_session():
             global device
             device = tvm.cuda(rank)
             head_dim, dtype, rope_mode, support_sliding_window = kv_cache_and_config
@@ -282,19 +282,18 @@ def _run_with_kv_cache(test):
             finally:
                 device = None
 
-        if comm is None:
-            return tvm.testing.run_with_gpu_lock(run)
-
-        def run_rank_group():
+        def run_and_check():
+            if comm is None:
+                return run_device_session()
             comm.Barrier()
             try:
-                return run()
+                return run_device_session()
             finally:
                 comm.Barrier()
 
-        if rank == 0:
-            return tvm.testing.run_with_gpu_lock(run_rank_group)
-        return run_rank_group()
+        if comm is None or rank == 0:
+            return tvm.testing.run_with_gpu_lock(run_and_check)
+        return run_and_check()
 
     return wrapper
 

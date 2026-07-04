@@ -196,10 +196,10 @@ def kv_cache_and_config(request):
     (dtype,) = request.param
     dtype_torch = getattr(torch, dtype)
 
-    def get_cuda_target():
+    def run_and_check():
         return tvm.target.Target.from_device(tvm.cuda())
 
-    target = tvm.testing.run_with_gpu_lock(get_cuda_target)
+    target = tvm.testing.run_with_gpu_lock(run_and_check)
     set_global_func(dtype, target)
     return request.param
 
@@ -405,7 +405,7 @@ def apply_attention(
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
-    def run():
+    def run_and_check():
         global device, w_kv, w_uk, w_uv
         device = tvm.cuda()
         (dtype,) = kv_cache_and_config
@@ -454,13 +454,13 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
             w_uk = None
             w_uv = None
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
-    def run():
+    def run_and_check():
         global device, w_kv, w_uk, w_uv
         device = tvm.cuda()
         (dtype,) = kv_cache_and_config
@@ -502,13 +502,13 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
             w_uk = None
             w_uv = None
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
-    def run():
+    def run_and_check():
         global device, w_kv, w_uk, w_uv
         device = tvm.cuda()
         (dtype,) = kv_cache_and_config
@@ -597,13 +597,13 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
             w_uk = None
             w_uv = None
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
-    def run():
+    def run_and_check():
         global device, w_kv, w_uk, w_uv
         device = tvm.cuda()
         (dtype,) = kv_cache_and_config
@@ -652,7 +652,7 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_config):
             w_uk = None
             w_uv = None
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

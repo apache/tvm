@@ -242,7 +242,7 @@ def _get_cuda_target():
 def _run_with_kv_cache(test):
     @functools.wraps(test)
     def wrapper(kv_cache_and_config):
-        def run():
+        def run_and_check():
             global device
             device = tvm.cuda()
             head_dim, dtype, rope_mode, support_sliding_window = kv_cache_and_config
@@ -252,7 +252,7 @@ def _run_with_kv_cache(test):
             finally:
                 device = None
 
-        return tvm.testing.run_with_gpu_lock(run)
+        return tvm.testing.run_with_gpu_lock(run_and_check)
 
     return wrapper
 

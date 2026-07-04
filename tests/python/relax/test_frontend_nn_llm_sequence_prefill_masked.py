@@ -168,7 +168,6 @@ def _run_case(
         out_nd = tvm.runtime.tensor(out_np, device=dev)
         lse_nd = tvm.runtime.tensor(lse_np, device=dev)
         built.main(q_nd, k_nd, v_nd, valid_nd, out_nd, lse_nd)
-        dev.sync()
         got = out_nd.numpy().astype(np.float32)
         rtol, atol = (2e-2, 2e-2) if dtype == "float16" else (1e-4, 1e-4)
         for b in range(batch):

@@ -438,14 +438,14 @@ def test_dispatch_cumsum_gpu(target):
         mod = DispatchSortScan()(Module)
         ex = tvm.compile(mod, target)
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
         vm = tvm.relax.VirtualMachine(ex, dev)
         tvm_data = tvm.runtime.tensor(np_data, dev)
         cumsum = vm["main"](tvm_data)
         tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

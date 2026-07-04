@@ -48,7 +48,7 @@ def create_device_target(ccl):
 
 
 def _run_with_ccl_session(session_kind, ccl, devices, func, *, num_groups=1):
-    def run():
+    def run_and_check():
         sess = session_kind(num_workers=len(devices), num_groups=num_groups)
         try:
             sess.init_ccl(ccl, *devices)
@@ -56,7 +56,7 @@ def _run_with_ccl_session(session_kind, ccl, devices, func, *, num_groups=1):
         finally:
             sess.shutdown()
 
-    return tvm.testing.run_with_gpu_lock(run)
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)

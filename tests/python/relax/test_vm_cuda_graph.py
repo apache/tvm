@@ -104,14 +104,14 @@ def test_vm_run():
     x_np = np.random.uniform(size=(16, 16)).astype("float32")
     y_np = x_np + 1.0 + 1.0 + 1.0 + 1.0
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
         x = tvm.runtime.tensor(x_np, dev)
         y = vm["main"](x)
         tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -168,7 +168,7 @@ def test_capture_error_is_recoverable():
 
     built = tvm.compile(Module, target=target)
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda()
 
         @tvm.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
@@ -186,7 +186,7 @@ def test_capture_error_is_recoverable():
         with pytest.raises(RuntimeError):
             vm["main"](arg)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

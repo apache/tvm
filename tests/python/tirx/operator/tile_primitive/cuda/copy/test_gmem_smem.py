@@ -122,15 +122,14 @@ def test_gmem_smem_roundtrip(scope, n_threads, shape, dtype):
     A_np = tvm.testing.generate_random_array(dtype, shape)
     B_np = np.zeros(shape, dtype=np_dtype)
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, dev)
         B = tvm.runtime.tensor(B_np, dev)
         compiled(A, B)
-        dev.sync()
         np.testing.assert_array_equal(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -240,15 +239,14 @@ def test_copy_g2s_s2g(task, dtype, scope):
         B_ref = B_np.copy()
         B_ref[r_gmem] = A_np[r_gmem]
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(B_ref, B.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -566,15 +564,14 @@ def test_gmem_smem_swizzle_fast_path_fires_with_var_bounds():
     A_np = np.arange(32 * 64, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         ex(A, B)
-        dev.sync()
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

@@ -53,13 +53,13 @@ def test_opencl_ternary_expression():
 
         fun = tvm.tirx.build(Module, target=target)
 
-        def run():
+        def run_and_check():
             dev = tvm.device(target, 0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     def check_select(n, dtype):
         @I.ir_module(s_tir=True)
@@ -83,13 +83,13 @@ def test_opencl_ternary_expression():
 
         fun = tvm.tirx.build(Module, target=target)
 
-        def run():
+        def run_and_check():
             dev = tvm.device(target, 0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_if_then_else(1, "int8")
     check_if_then_else(1, "uint8")
@@ -119,13 +119,13 @@ def test_opencl_inf_nan():
 
         fun = tvm.tirx.build(Module, target=target)
 
-        def run():
+        def run_and_check():
             dev = tvm.device(target, 0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_inf_nan(1, -float("inf"), "float32")
     check_inf_nan(1, -float("inf"), "float64")
@@ -153,13 +153,13 @@ def test_opencl_max():
 
         fun = tvm.tirx.build(Module, target=target)
 
-        def run():
+        def run_and_check():
             dev = tvm.device(target, 0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_max(1, "int8")
     check_max(1, "uint8")
@@ -220,12 +220,12 @@ def test_opencl_type_casting():
         pattern_cond = f"({lcond} && {rcond})"
         assert assembly.count(pattern_cond) != 0
 
-        def run():
+        def run_and_check():
             dev = tvm.device(target, 0)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_type_casting(32, "float32")
     # fp16 is not yet supported in ci

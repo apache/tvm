@@ -255,7 +255,7 @@ def _get_cuda_target():
 def _run_with_kv_cache(test):
     @functools.wraps(test)
     def wrapper(kv_cache_and_config):
-        def run():
+        def run_and_check():
             global device, w_kv, w_uk, w_uv
             device = tvm.cuda()
             (dtype,) = kv_cache_and_config
@@ -269,7 +269,7 @@ def _run_with_kv_cache(test):
                 w_uk = None
                 w_uv = None
 
-        return tvm.testing.run_with_gpu_lock(run)
+        return tvm.testing.run_with_gpu_lock(run_and_check)
 
     return wrapper
 

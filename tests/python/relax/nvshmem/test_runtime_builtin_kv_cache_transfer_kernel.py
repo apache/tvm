@@ -46,7 +46,7 @@ def _run_rank_group_with_gpu_lock(test):
     def wrapper():
         comm, rank = get_comm_rank()
 
-        def run_rank_group():
+        def run_and_check():
             comm.Barrier()
             try:
                 return test()
@@ -54,8 +54,8 @@ def _run_rank_group_with_gpu_lock(test):
                 comm.Barrier()
 
         if rank == 0:
-            return tvm.testing.run_with_gpu_lock(run_rank_group)
-        return run_rank_group()
+            return tvm.testing.run_with_gpu_lock(run_and_check)
+        return run_and_check()
 
     return wrapper
 

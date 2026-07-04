@@ -39,7 +39,7 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
             return
         f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
 
-        def run():
+        def run_and_check():
             dev = tvm.rocm(0)
             a = tvm.runtime.tensor(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
             b = tvm.runtime.tensor(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
@@ -51,7 +51,7 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
                 rtol=rtol,
             )
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     verify()
 
@@ -67,7 +67,7 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
 
     f = tvm.compile(te.create_prim_func([A, B, C]), target="rocm")
 
-    def run():
+    def run_and_check():
         dev = tvm.rocm(0)
         if "int" in in_dtype:
             a = tvm.runtime.tensor(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)
@@ -84,7 +84,7 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
             rtol=rtol,
         )
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

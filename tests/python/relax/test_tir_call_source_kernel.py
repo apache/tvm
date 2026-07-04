@@ -97,7 +97,7 @@ def test_tir_call_source_kernel():
     with tvm.target.Target("cuda"):
         lib = tvm.compile(Module)
 
-    def run():
+    def run_and_check():
         device = tvm.cuda(0)
         x_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
         y_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
@@ -105,4 +105,4 @@ def test_tir_call_source_kernel():
         output_nd = tvm.runtime.vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
         tvm.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)

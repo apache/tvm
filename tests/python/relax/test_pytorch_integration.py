@@ -106,7 +106,7 @@ class TestPyTorchIntegration:
 
         if tvm.cuda().exist:
 
-            def run():
+            def run_and_check():
                 assert hasattr(module, "__call__"), "Module should be callable"
 
                 device = tvm.cuda(0)
@@ -118,7 +118,7 @@ class TestPyTorchIntegration:
                     assert hasattr(instance, method), f"Instance should have method: {method}"
                 assert "cuda" in str(instance.target)
 
-            tvm.testing.run_with_gpu_lock(run)
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 
@@ -235,7 +235,7 @@ class TestPyTorchIntegration:
 
         if tvm.cuda().exist:
 
-            def run():
+            def run_and_check():
                 device = tvm.cuda(0)
                 instance = module(device)
 
@@ -260,7 +260,7 @@ class TestPyTorchIntegration:
                 assert result.dtype == torch.float32
                 assert result.device.type == "cuda"
 
-            tvm.testing.run_with_gpu_lock(run)
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 

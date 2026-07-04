@@ -297,7 +297,7 @@ def test_codegen_nvshmem():
         sess.shutdown()
         return True
 
-    def run():
+    def run_and_check():
         worker = PopenWorker()
         try:
             worker.send(_test_func)
@@ -305,7 +305,7 @@ def test_codegen_nvshmem():
         finally:
             worker.kill()
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

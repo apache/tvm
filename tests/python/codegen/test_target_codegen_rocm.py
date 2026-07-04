@@ -45,13 +45,13 @@ def test_rocm_inf_nan():
 
         fun = tvm.compile(Module, "rocm")
 
-        def run():
+        def run_and_check():
             dev = tvm.rocm(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_inf_nan(1, -float("inf"), "float32")
     check_inf_nan(1, -float("inf"), "float64")
@@ -65,7 +65,7 @@ def test_rocm_inf_nan():
 @pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_copy():
     def check_rocm(dtype, n):
-        def run():
+        def run_and_check():
             dev = tvm.rocm(0)
             a_np = np.random.uniform(size=(n,)).astype(dtype)
             a = tvm.runtime.empty((n,), dtype, dev).copyfrom(a_np)
@@ -73,7 +73,7 @@ def test_rocm_copy():
             tvm.testing.assert_allclose(a_np, b_np)
             tvm.testing.assert_allclose(a_np, a.numpy())
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     for _ in range(100):
         dtype = np.random.choice(["float32", "float16", "int8", "int32"])
@@ -104,14 +104,14 @@ def test_rocm_vectorize_add():
 
         fun = tvm.compile(Module, target="rocm")
 
-        def run():
+        def run_and_check():
             dev = tvm.rocm(0)
             a = tvm.runtime.empty((n,), vec_dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
             c = tvm.runtime.empty((n,), vec_dtype, dev)
             fun(a, c)
             tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_rocm("float32", 64, 2)
     check_rocm("float16", 64, 2)
@@ -139,13 +139,13 @@ def test_rocm_warp_shuffle():
 
     mod = tvm.compile(func, target="rocm")
 
-    def run():
+    def run_and_check():
         dev = tvm.rocm(0)
         a = tvm.runtime.tensor(np.random.uniform(size=(32,)).astype("float32"), dev)
         mod(a)
         tvm.testing.assert_allclose(a.numpy(), np.ones((32,)) * a.numpy()[0])
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -167,14 +167,14 @@ def test_rocm_vectorized_exp():
 
     mod = tvm.compile(func, target="rocm")
 
-    def run():
+    def run_and_check():
         dev = tvm.rocm(0)
         a = tvm.runtime.tensor(np.ones((4,)).astype("float32"), dev)
         b = tvm.runtime.tensor(np.zeros((4,)).astype("float32"), dev)
         mod(a, b)
         tvm.testing.assert_allclose(b.numpy(), np.exp2(a.numpy()))
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -207,14 +207,14 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     a_np = np.random.uniform(size=(n,)).astype("float32")
     b_np = np.zeros((n,), dtype="float32")
 
-    def run():
+    def run_and_check():
         dev = tvm.rocm(0)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         reloaded["main"](a, b)
         np.testing.assert_allclose(b.numpy(), a_np + 1.0, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ pytestmark = [
 
 
 def _run_with_nccl_session(devices, func):
-    def run():
+    def run_and_check():
         sess = di.ThreadedSession(num_workers=len(devices))
         try:
             sess.init_ccl("nccl", *devices)
@@ -57,7 +57,7 @@ def _run_with_nccl_session(devices, func):
         finally:
             sess.shutdown()
 
-    return tvm.testing.run_with_gpu_lock(run)
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @register_global_func("tests.disco.shard_dim_0", override=True)

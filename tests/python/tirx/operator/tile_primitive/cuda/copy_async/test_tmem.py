@@ -122,15 +122,14 @@ def test_copy_tmem2reg_async(dtype, width_32b):
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(B.numpy(), A_np)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -228,15 +227,14 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(B.numpy(), A_np)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -332,15 +330,14 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(B.numpy(), A_np)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

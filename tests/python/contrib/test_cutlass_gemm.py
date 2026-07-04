@@ -60,7 +60,7 @@ def verify_group_gemm(
 
     a_np, b_np, indptr_np, c_np = get_ref_data()
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         a_nd = tvm.runtime.tensor(a_np.astype(to_numpy_dtype(x_dtype)), device=dev)
         b_nd = tvm.runtime.tensor(b_np.astype(to_numpy_dtype(weight_dtype)), device=dev)
@@ -74,7 +74,7 @@ def verify_group_gemm(
             group_gemm_func(a_nd, b_nd, indptr_nd, workspace, c_nd)
         tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=rtol, atol=atol)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
@@ -327,7 +327,7 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
     w_np, w_scale_np = blockwise_quant_fp8_e4m3((N, K), block_size, dtype)
     o_np = blockwise_matmul(x_np, x_scale_np, w_np, w_scale_np, block_size, dtype)
 
-    def run():
+    def run_and_check():
         device = tvm.cuda(0)
         x_tvm = tvm.runtime.tensor(x_np, device=device)
         x_scale_tvm = tvm.runtime.tensor(x_scale_np.T, device=device)
@@ -347,7 +347,7 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
         )
         tvm.testing.assert_allclose(o_tvm.numpy(), o_np, rtol=1e-4, atol=0.5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
@@ -372,7 +372,7 @@ def test_fp8_e4m3_groupwise_scaled_bmm():
     w_np, w_scale_np = blockwise_quant_fp8_e4m3((B, N, K), block_size, dtype)
     o_np = blockwise_bmm(x_np, x_scale_np, w_np, w_scale_np, block_size, dtype)
 
-    def run():
+    def run_and_check():
         device = tvm.cuda(0)
         x_tvm = tvm.runtime.tensor(x_np, device=device)
         x_scale_tvm = tvm.runtime.tensor(x_scale_np.transpose(0, 2, 1), device=device)
@@ -392,7 +392,7 @@ def test_fp8_e4m3_groupwise_scaled_bmm():
         )
         tvm.testing.assert_allclose(o_tvm.numpy(), o_np, rtol=1e-4, atol=0.5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

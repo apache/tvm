@@ -203,7 +203,7 @@ class TestTVMScriptPyFunc:
 
         if tvm.cuda().exist:
 
-            def run():
+            def run_and_check():
                 device = tvm.cuda(0)
                 instance = module(device)
 
@@ -218,7 +218,7 @@ class TestTVMScriptPyFunc:
                 expected = torch.nn.functional.relu(x) * 2.0
                 assert torch.allclose(result, expected, atol=1e-5)
 
-            tvm.testing.run_with_gpu_lock(run)
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 

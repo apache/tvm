@@ -328,13 +328,13 @@ def test_cuda_inf_nan():
 
         fun = tvm.compile(Module, target="cuda")
 
-        def run():
+        def run_and_check():
             dev = tvm.device("cuda", 0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_inf_nan(1, -float("inf"), "float32")
     check_inf_nan(1, -float("inf"), "float64")

@@ -334,15 +334,14 @@ def test_ldstmatrix(scope, trans, direction, num):
     A_np = np.arange(M * N, dtype="float16").reshape(M, N)
     B_np = np.zeros((M, N), dtype="float16")
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         compiled(A, B)
-        dev.sync()
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
@@ -370,15 +369,14 @@ def test_ldstmatrix_swizzle(scope, trans, direction, num):
     A_np = np.arange(M * N, dtype="float16").reshape(M, N)
     B_np = np.zeros((M, N), dtype="float16")
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         compiled(A, B)
-        dev.sync()
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
@@ -461,15 +459,14 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     A_np = np.arange(n_elem, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         compiled(A, B)
-        dev.sync()
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
@@ -537,12 +534,11 @@ def test_ldstmatrix_swizzle_multi_iter_linear():
     A_np = np.arange(n_elem, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         compiled(A, B)
-        dev.sync()
         np.testing.assert_allclose(B.numpy(), A_np)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)

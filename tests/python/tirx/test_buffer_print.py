@@ -384,12 +384,12 @@ def test_print():
         test_const_scalar(np.int32, "int32"),
     ]
 
-    def run():
+    def run_and_check():
         device = tvm.cuda()
         for runner in runners:
             runner(device)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

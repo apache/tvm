@@ -258,7 +258,7 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
     B_np = np.zeros(shape, dtype=np_dtype)
     expected = _expected(shape, dtype)
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         B = tvm.runtime.tensor(B_np, dev)
         if non_r_scope == "shared":
@@ -267,10 +267,9 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
             A_np = np.zeros(shape, dtype=np_dtype)
             A = tvm.runtime.tensor(A_np, dev)
             compiled(A, B)
-        dev.sync()
         np.testing.assert_array_equal(B.numpy(), expected)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -329,15 +328,14 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
         B_ref = B_np.copy()
         B_ref[r_gmem] = A_np[r_gmem]
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(B_ref, B.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
@@ -617,15 +615,14 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_gpu():
     a_np = (rows * 100 + cols).astype(np.float32)
     b_np = np.zeros((m, n), dtype=np.float32)
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         mod(a, b)
-        dev.sync()
         np.testing.assert_allclose(b.numpy(), a_np, rtol=0, atol=0)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

@@ -1139,15 +1139,14 @@ def test_copy_tma_symbolic_dimension(dtype, swizzle_len):
         for ks in range(SMEM_PIPE_DEPTH):
             B_ref[ks, :, :] = A_np[0:BLK_M, ks * BLK_K : (ks + 1) * BLK_K]
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(B_ref, B.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1244,15 +1243,14 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
         B_ref = np.zeros((32, 4, 64), dtype=np_dtype)
         B_ref[:, :, :] = Q_np[0, 0:32, 0:4, 0:64]
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             Q = tvm.runtime.tensor(Q_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(Q, B)
-            dev.sync()
             np.testing.assert_allclose(B_ref, B.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ===========================================================================
@@ -1425,15 +1423,14 @@ def test_copy_tma_gpu_smoke_g2s(task, dtype):
             B_ref = np.zeros(g_shape, dtype=np_dtype)
             B_ref[tuple(r_gmem)] = A_np[tuple(r_gmem)]
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, dev)
         B = tvm.runtime.tensor(B_np, dev)
         mod(A, B)
-        dev.sync()
         np.testing.assert_allclose(B_ref, B.numpy())
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1493,15 +1490,14 @@ def test_copy_tma_gpu_smoke_s2g(dtype):
         A_np = tvm.testing.generate_random_array(dtype, g_shape)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(A_np, B.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

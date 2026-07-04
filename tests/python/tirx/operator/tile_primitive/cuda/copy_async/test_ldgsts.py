@@ -109,15 +109,14 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         B_ref = B_np.copy()
         B_ref[tuple(r_gmem)] = A_np[tuple(r_gmem)]
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             np.testing.assert_allclose(B_ref, B.numpy())
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

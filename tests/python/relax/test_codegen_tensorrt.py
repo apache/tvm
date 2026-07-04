@@ -68,7 +68,7 @@ def build_and_run(mod, inputs_np, target, legalize=False):
     with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
@@ -76,8 +76,8 @@ def build_and_run(mod, inputs_np, target, legalize=False):
         return f(*inputs).numpy()
 
     if tvm.target.Target(target).kind.name == "cuda":
-        return tvm.testing.run_with_gpu_lock(run)
-    return run()
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+    return run_and_check()
 
 
 def test_tensorrt_offload():
@@ -317,7 +317,7 @@ def test_tensorrt_int8_calibration(monkeypatch):
 
     ex = tvm.compile(offloaded, "cuda")
 
-    def run_and_check_calibration():
+    def run_and_check():
         dev = tvm.device("cuda", 0)
         vm = relax.VirtualMachine(ex, dev)
         data_trt = tvm.runtime.tensor(data, dev)
@@ -330,7 +330,7 @@ def test_tensorrt_int8_calibration(monkeypatch):
         # completed without a CUDA error.
         tvm.testing.assert_allclose(out, ref, rtol=0.2, atol=0.1 * float(np.abs(ref).max()))
 
-    tvm.testing.run_with_gpu_lock(run_and_check_calibration)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_tensorrt_matmul():

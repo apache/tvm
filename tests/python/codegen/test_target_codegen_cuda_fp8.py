@@ -959,7 +959,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
     weight_data = np.zeros((num_experts, spatial_size, reduce_size), dtype="float8_e4m3fn")
     scale_data = np.zeros((1,), dtype=np.float32)
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         x = tvm.runtime.tensor(x_data, device=dev)
         indptr = tvm.runtime.tensor(indptr_data, device=dev)
@@ -971,7 +971,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
         vm["main"](x, indptr, weight, scale)
         dev.sync()
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("vec_length", [2, 4])
@@ -1006,7 +1006,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
     b_np = np.random.rand(128).astype(dtype)
     c_np = (a_np.astype(dtype) * b_np) + 3
 
-    def run():
+    def run_and_check():
         device = tvm.cuda()
         a_tvm = tvm.runtime.tensor(a_np, device=device)
         b_tvm = tvm.runtime.tensor(b_np, device=device)
@@ -1017,7 +1017,7 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
             actual.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
         )
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

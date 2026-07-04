@@ -758,7 +758,7 @@ def test_reconstruct_from_cache():
     reshape_and_cache_func = tvm.get_global_func("tvm.contrib.vllm.reshape_and_cache")
     reconstruct_from_cache_func = tvm.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
 
-    def run():
+    def run_and_check():
         dev = tvm.device("cuda", 0)
         key = tvm.runtime.tensor(
             np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
@@ -784,7 +784,7 @@ def test_reconstruct_from_cache():
         np.testing.assert_equal(key.numpy(), out[0].numpy())
         np.testing.assert_equal(value.numpy(), out[1].numpy())
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

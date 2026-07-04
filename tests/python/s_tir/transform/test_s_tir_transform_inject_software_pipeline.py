@@ -1547,7 +1547,6 @@ def build_and_run(sch):
             b = tvm.runtime.tensor(b_np, dev)
             c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)
             f(a, b, c)
-            dev.sync()
             tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
 
         tvm.testing.run_with_gpu_lock(run_and_check)

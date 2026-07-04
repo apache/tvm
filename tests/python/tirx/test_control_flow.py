@@ -33,7 +33,6 @@ def run_test_break_continue(func, shape, expected):
         dev = tvm.cuda(0)
         arr = tvm.runtime.tensor(arr_np, device=dev)
         mod(arr)
-        dev.sync()
         np.testing.assert_allclose(arr.numpy(), expected)
 
     tvm.testing.run_with_gpu_lock(run_and_check)

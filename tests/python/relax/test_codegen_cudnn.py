@@ -119,7 +119,7 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
     ):
         ex = tvm.compile(mod, target)
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
@@ -133,8 +133,8 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         return f(*inputs).numpy()
 
     if tvm.target.Target(target).kind.name == "cuda":
-        return tvm.testing.run_with_gpu_lock(run)
-    return run()
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+    return run_and_check()
 
 
 @pytest.mark.parametrize(

@@ -494,13 +494,13 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
 
     exec = relax.build(sch.mod, "cuda", exec_mode=exec_mode)
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda()
         vm = relax.VirtualMachine(exec, dev)
         add_res = check_saved_func(vm, "main", tvm.runtime.tensor(x_np, dev))
         tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_vm_relax_symbolic_shape(exec_mode):
@@ -880,7 +880,7 @@ def test_vm_to_device(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
 
-    def run():
+    def run_and_check():
         vm = relax.VirtualMachine(ex, tvm.cpu())
         x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
         res_1 = check_saved_func(vm, "foo1", x_inp)
@@ -893,7 +893,7 @@ def test_vm_to_device(exec_mode):
         tvm.testing.assert_allclose(res_1.numpy(), x_inp.numpy())
         tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_vm_closure(exec_mode):
@@ -1320,7 +1320,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
 
     tvm.testing.assert_allclose(llvm_output.numpy(), np_C)
 
-    def run_cuda():
+    def run_and_check():
         dev_cuda = tvm.device("cuda")
         vm_cuda = tvm.relax.VirtualMachine(built, device=dev_cuda)
         cuda_output = vm_cuda["func_cuda"](
@@ -1329,7 +1329,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
         )
         tvm.testing.assert_allclose(cuda_output.numpy(), np_C)
 
-    tvm.testing.run_with_gpu_lock(run_cuda)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

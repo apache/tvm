@@ -170,7 +170,7 @@ def test_tcgen05_ld_st_roundtrip():
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
         assert "tcgen05.st.sync.aligned.32x32b.x1.b32" in src
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         A_np = np.random.randn(HEIGHT, WIDTH).astype("float32")
         B_np = np.zeros((HEIGHT, WIDTH), dtype="float32")
@@ -179,7 +179,7 @@ def test_tcgen05_ld_st_roundtrip():
         mod(A, B)
         np.testing.assert_allclose(A.numpy(), B.numpy())
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -255,7 +255,7 @@ def test_tcgen05_cp_ld_roundtrip():
         assert "tcgen05.cp.cta_group::1.128x256b" in src
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         A_np = np.random.randn(HEIGHT, WIDTH).astype(dtype)
         B_np = np.zeros((HEIGHT, WIDTH), dtype=dtype)
@@ -264,7 +264,7 @@ def test_tcgen05_cp_ld_roundtrip():
         mod(A, B)
         np.testing.assert_allclose(A.numpy(), B.numpy())
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("swizzle", [0, 1, 2, 3])
@@ -394,7 +394,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
         assert "tcgen05.wait::ld.sync.aligned" in src
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         A_torch = torch.rand((M, K), dtype=torch.float16)
         B_torch = torch.rand((N, K), dtype=torch.float16)
@@ -406,7 +406,7 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         ref = torch.matmul(A_torch, B_torch.T)
         np.testing.assert_allclose(C.numpy(), ref.numpy(), rtol=1e-3, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

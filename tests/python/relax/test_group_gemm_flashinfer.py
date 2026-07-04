@@ -399,7 +399,7 @@ def test_grouped_gemm_correctness(
     # Load the module
     grouped_gemm_fn = mod["group_gemm_fp8_nt_groupwise"]
 
-    def run():
+    def run_and_check():
         device = tvm.cuda(0)
         test_data = generate_test_data(
             batch_size=test_case["batch_size"],
@@ -460,7 +460,7 @@ def test_grouped_gemm_correctness(
         diff = calc_diff(output_torch.cpu().double().numpy(), reference.cpu().double().numpy())
         assert diff < 1e-3, f"diff too large {diff}"
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

@@ -269,18 +269,17 @@ def check_runtime(dtype: str, case: MathCase, executable: Executable):
     np_inputs = make_numpy_inputs(dtype, case)
     expected = case.np_ref(*[arr.astype(dtype) for arr in np_inputs]).astype(dtype)
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         tvm_inputs = [tvm.runtime.tensor(arr, device=dev) for arr in np_inputs]
         output = tvm.runtime.empty((VECTOR_N_INPUTS,), dtype, dev)
 
         executable(*tvm_inputs, output)
-        dev.sync()
 
         actual = output.numpy()
         np.testing.assert_allclose(actual, expected, rtol=case.rtol, atol=case.atol)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("enable_fast_math", [False, True], ids=["default", "fast_math"])

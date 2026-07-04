@@ -449,14 +449,14 @@ def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k32_row_col_s4s4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
 
-    def run():
+    def run_and_check():
         ctx = tvm.cuda()
         A_tvm = tvm.runtime.empty([8, 32], "int4", ctx)
         B_tvm = tvm.runtime.empty([8, 32], "int4", ctx)
         C_tvm = tvm.runtime.empty([8, 8], "int32", ctx)
         cuda_mod(A_tvm, B_tvm, C_tvm)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
     # Currently the correctness is not checked.
     # TODO: add correctness checking here.
 
@@ -515,14 +515,14 @@ def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m8n8k32_row_col_s4u4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
 
-    def run():
+    def run_and_check():
         ctx = tvm.cuda()
         A_tvm = tvm.runtime.empty([8, 32], "int4", ctx)
         B_tvm = tvm.runtime.empty([8, 32], "uint4", ctx)
         C_tvm = tvm.runtime.empty([8, 8], "int32", ctx)
         cuda_mod(A_tvm, B_tvm, C_tvm)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
     # Currently the correctness is not checked.
     # TODO: add correctness checking here.
 
@@ -1122,14 +1122,14 @@ def test_gemm_mma_m16n8k64_row_col_s4s4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k64_row_col_s4s4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
 
-    def run():
+    def run_and_check():
         ctx = tvm.cuda()
         A_tvm = tvm.runtime.empty([16, 64], "int4", ctx)
         B_tvm = tvm.runtime.empty([8, 64], "int4", ctx)
         C_tvm = tvm.runtime.empty([16, 8], "int32", ctx)
         cuda_mod(A_tvm, B_tvm, C_tvm)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
     # Currently the correctness is not checked.
     # TODO: add correctness checking here.
 
@@ -1193,14 +1193,14 @@ def test_gemm_mma_m16n8k64_row_col_s4u4s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k64_row_col_s4u4s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
 
-    def run():
+    def run_and_check():
         ctx = tvm.cuda()
         A_tvm = tvm.runtime.empty([16, 64], "int4", ctx)
         B_tvm = tvm.runtime.empty([8, 64], "uint4", ctx)
         C_tvm = tvm.runtime.empty([16, 8], "int32", ctx)
         cuda_mod(A_tvm, B_tvm, C_tvm)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
     # Currently the correctness is not checked.
     # TODO: add correctness checking here.
 
@@ -1265,14 +1265,14 @@ def test_gemm_mma_m16n8k256_row_col_b1b1s32():
     sch = tvm.s_tir.Schedule(gemm_mma_m16n8k256_row_col_b1b1s32)
     cuda_mod = tvm.compile(sch.mod, target="cuda")
 
-    def run():
+    def run_and_check():
         ctx = tvm.cuda()
         A_tvm = tvm.runtime.empty([16, 256], "int1", ctx)
         B_tvm = tvm.runtime.empty([8, 256], "int1", ctx)
         C_tvm = tvm.runtime.empty([16, 8], "int32", ctx)
         cuda_mod(A_tvm, B_tvm, C_tvm)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
     # Currently the correctness is not checked.
     # TODO: add correctness checking here.
 

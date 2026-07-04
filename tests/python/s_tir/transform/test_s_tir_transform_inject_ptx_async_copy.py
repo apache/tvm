@@ -173,7 +173,6 @@ def test_inject_async_copy():
             A_nd = tvm.runtime.tensor(A_np, device=dev)
             B_nd = tvm.runtime.tensor(B_np, device=dev)
             mod(A_nd, B_nd)
-            dev.sync()
             tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
         tvm.testing.run_with_gpu_lock(run_and_check)
@@ -209,7 +208,6 @@ def test_inject_async_copy_shared_dyn():
         B_nd = tvm.runtime.tensor(B_np, device=dev)
         C_nd = tvm.runtime.tensor(C_np, device=dev)
         mod(A_nd, B_nd, C_nd)
-        dev.sync()
         tvm.testing.assert_allclose(C_nd.numpy(), A_np + B_np)
 
     tvm.testing.run_with_gpu_lock(run_and_check)

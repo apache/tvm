@@ -50,14 +50,14 @@ def build_and_run(mod, inputs_np, target, legalize=False):
     with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
         inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
         return f(*inputs).numpy()
 
-    return tvm.testing.run_with_gpu_lock(run)
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def get_result_with_relax_cublas_offload(mod, np_inputs):

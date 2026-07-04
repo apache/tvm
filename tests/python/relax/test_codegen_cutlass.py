@@ -98,7 +98,7 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
     ):
         ex = tvm.compile(mod, target)
 
-    def run():
+    def run_and_check():
         dev = tvm.device(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
@@ -111,7 +111,7 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
 
         return f(*inputs).numpy()
 
-    return tvm.testing.run_with_gpu_lock(run)
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
@@ -1496,7 +1496,7 @@ def test_fp16A_int4B_gemm():
 
     ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
-    def run():
+    def run_and_check():
         dev = tvm.device("cuda", 0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
@@ -1517,7 +1517,7 @@ def test_fp16A_int4B_gemm():
                 ref += residual
             tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_fp16A_int8B_gemm():
@@ -1654,7 +1654,7 @@ def test_fp16A_int8B_gemm():
         erf_out = erf(erf_inp.astype("float32")).astype("float16")
         return x * 0.5 * (1.0 + erf_out)
 
-    def run():
+    def run_and_check():
         dev = tvm.device("cuda", 0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
@@ -1663,7 +1663,7 @@ def test_fp16A_int8B_gemm():
         ref = gelu_fp16(np.dot(x, y.transpose()) + bias)
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_rms_norm():
@@ -1921,7 +1921,7 @@ def test_fp16A_int8B_gemm_batched():
 
     ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
-    def run():
+    def run_and_check():
         dev = tvm.device("cuda", 0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
@@ -1930,7 +1930,7 @@ def test_fp16A_int8B_gemm_batched():
         ref = np.dot(x, y.transpose())
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
@@ -2079,7 +2079,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
     ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
-    def run():
+    def run_and_check():
         dev = tvm.device("cuda", 0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
@@ -2088,7 +2088,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
         ref = np.dot(x, y.transpose())
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_attention_rewrite_multi_query():

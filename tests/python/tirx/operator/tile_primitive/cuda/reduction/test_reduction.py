@@ -125,15 +125,14 @@ def test_reduction_shared(
 
         atol = 1e-5 if dtype == "float32" else 1e-1
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np.copy(), dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(ref, B.numpy()[tuple(reduce_slice_dst)], atol=atol)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -250,15 +249,14 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
             if accum:
                 ref = np.minimum(ref, B_np)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np.copy(), dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(ref, B.numpy(), atol=1e-5)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -357,15 +355,14 @@ def test_reduction_local_thread_wise(src_shape, dst_shape, axes, op_type, accum)
             if accum:
                 ref = np.minimum(ref, B_np)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np.copy(), dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(ref.reshape(B_np.shape), B.numpy(), atol=1e-5)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -495,15 +492,14 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
             if accum:
                 ref = np.minimum(ref, B_np)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np.copy(), dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(ref, B.numpy(), atol=1e-5)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -633,15 +629,14 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
 
         atol = 1e-5 if dtype == "float32" else 2e-1
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np.copy(), dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -707,15 +702,14 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
             else:
                 B_ref = A_np.min()
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(B_ref, B.numpy()[0], atol=1e-5)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -773,15 +767,14 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
             B_ref = A_np.sum()
 
         # Use larger tolerance due to rounding differences from packed add (add.rz.ftz.f32x2)
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(B_ref, B.numpy()[0], atol=1e-4)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -840,15 +833,14 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
         B_ref = np.full(N, ref_val, dtype=dtype)
         atol = 1e-4 if dtype == "float32" else 1e-1
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -914,15 +906,14 @@ def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
 
         atol = 1e-4 if dtype == "float32" else 1e-1
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             tvm.testing.assert_allclose(B_ref, B.numpy(), atol=atol)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -996,15 +987,14 @@ def test_reduction_warp_shuffle_multi_warp_loop():
         # Each iteration: sum across all N threads
         B_ref = A_np.astype("float64").sum(axis=1).astype("float32")
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A_dev = tvm.runtime.tensor(A_np, dev)
             B_dev = tvm.runtime.tensor(B_np, dev)
             mod(A_dev, B_dev)
-            dev.sync()
             tvm.testing.assert_allclose(B_ref, B_dev.numpy(), atol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1050,15 +1040,14 @@ def test_reduction_warpgroup_wg_local_layout(op_name):
         else:
             B_ref = A_np.max(axis=1, keepdims=True)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A_dev = tvm.runtime.tensor(A_np, dev)
             B_dev = tvm.runtime.tensor(B_np, dev)
             mod(A_dev, B_dev)
-            dev.sync()
             tvm.testing.assert_allclose(B_ref, B_dev.numpy(), atol=1e-5)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

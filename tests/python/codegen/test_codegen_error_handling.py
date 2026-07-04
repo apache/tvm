@@ -292,7 +292,7 @@ def test_device_mismatch_error():
     b_ok = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
     lib(a_ok, b_ok)  # correct input should pass
 
-    def run():
+    def run_and_check():
         a_gpu = tvm.runtime.tensor(np.zeros(128, dtype="float32"), device=tvm.cuda(0))
         b = tvm.runtime.tensor(np.zeros(128, dtype="float32"))
 
@@ -306,7 +306,7 @@ def test_device_mismatch_error():
         ):
             lib(a_gpu, b)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ── Scalar type mismatch errors ─────────────────────────────

@@ -69,7 +69,6 @@ def _run_mma(mod, K, no_c_ptr, np_in):
         B = tvm.runtime.tensor(B_np, device=dev)
         C = tvm.runtime.tensor(C_np, device=dev)
         mod(D, A, B, C)
-        dev.sync()
         np.testing.assert_allclose(D.numpy(), ref, atol=1e-2, rtol=1e-2)
 
     tvm.testing.run_with_gpu_lock(run_and_check)

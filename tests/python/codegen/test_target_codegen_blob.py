@@ -78,7 +78,7 @@ def test_cuda_multi_lib():
     cc.create_shared(path_dso, ["-Wl,--whole-archive", pathAll, "-Wl,--no-whole-archive"])
 
     def popen_check():
-        def run():
+        def run_and_check():
             # Load dll, will trigger system library registration
             ctypes.CDLL(path_dso)
             # Load the system wide library
@@ -95,7 +95,7 @@ def test_cuda_multi_lib():
             np.testing.assert_equal(a_nd.numpy(), a_np + 1)
             np.testing.assert_equal(b_nd.numpy(), a_np + 2)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     # system lib should be loaded in different process
     worker = popen_pool.PopenWorker()

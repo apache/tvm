@@ -31,14 +31,13 @@ def _build_and_run(func, n=32):
     mod = tvm.compile(mod, target=TARGET, tir_pipeline="tirx")
     out_np = np.zeros(n, dtype="float32")
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         out = tvm.runtime.tensor(out_np, device=dev)
         mod(out)
-        dev.sync()
         return out.numpy()
 
-    return tvm.testing.run_with_gpu_lock(run), mod
+    return tvm.testing.run_with_gpu_lock(run_and_check), mod
 
 
 @pytest.mark.gpu

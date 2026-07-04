@@ -130,7 +130,6 @@ def test_rnn_state_get(rnn_state):  # pylint: disable=redefined-outer-name
         f_get(state, 0, 0, tvm_nd_0)
         f_get(state, 0, 1, tvm_nd_1)
         f_end_forward(state)
-        device.sync()
         tvm.testing.assert_allclose(tvm_nd_0.numpy(), np.zeros((1, 16, 16), "float16"))
         tvm.testing.assert_allclose(tvm_nd_1.numpy(), np.ones((1, 32, 32), "float32"))
 

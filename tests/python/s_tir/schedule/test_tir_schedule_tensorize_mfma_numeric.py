@@ -146,7 +146,7 @@ def run_test(
             b_np = np.random.randint(-128, 128, (K, N)).astype("int8")
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype("int32")
 
-    def run(measure=False):
+    def run_and_check(measure=False):
         dev = tvm.device("rocm", 0)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
@@ -158,8 +158,8 @@ def run_test(
         if in_dtype != "float16":
             tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
 
-    tvm.testing.run_with_gpu_lock(run)
-    return lambda: tvm.testing.run_with_gpu_lock(run, True)
+    tvm.testing.run_with_gpu_lock(run_and_check)
+    return lambda: tvm.testing.run_with_gpu_lock(run_and_check, True)
 
 
 @pytest.mark.gpu

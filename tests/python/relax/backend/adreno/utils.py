@@ -171,7 +171,7 @@ def build_and_run(mod, inputs, tgt):
 
     ex = tvm.compile(mod, tgt, tir_pipeline=tir_pipeline)
 
-    def execute():
+    def run_and_check():
         with SessionManager() as sess:
             rexec = sess.load_module(ex)
             dev = sess.device(tgt.kind.name)
@@ -190,8 +190,8 @@ def build_and_run(mod, inputs, tgt):
             return (tvm_output.numpy(),)
 
     if SessionManager.is_target_rpc():
-        return execute()
-    return tvm.testing.run_with_gpu_lock(execute)
+        return run_and_check()
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def verify_results(mod, target, ref_target):

@@ -47,13 +47,13 @@ def test_metal_inf_nan():
 
         fun = tvm.compile(Module, target=target)
 
-        def run():
+        def run_and_check():
             dev = tvm.device(target, 0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_inf_nan(1, -float("inf"), "float32")
     check_inf_nan(1, -float("inf"), "float16")
@@ -81,14 +81,14 @@ def test_unaligned_vectorize():
     a = (np.arange(6).reshape(2, 3)).astype("float32")
     f = tvm.compile(IRModule, target=target)
 
-    def run():
+    def run_and_check():
         dev = tvm.metal()
         a_nd = tvm.runtime.tensor(a, dev)
         b_nd = tvm.runtime.empty((6,), "float32", dev)
         f(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -114,13 +114,13 @@ def test_metal_erf():
 
         fun = tvm.compile(Module, target=target)
 
-        def run():
+        def run_and_check():
             dev = tvm.device(target, 0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
 
-        tvm.testing.run_with_gpu_lock(run)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_erf(1, "float32")
     check_erf(1, "float16")
@@ -144,13 +144,13 @@ def test_ramp():
 
     f = tvm.compile(IRModule, target=target)
 
-    def run():
+    def run_and_check():
         dev = tvm.metal()
         a_nd = tvm.runtime.empty((1, 2), "int32", dev)
         f(a_nd)
         assert tuple(a_nd.numpy()[0, :]) == (0, 3)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -172,14 +172,14 @@ def test_select_vectorize():
     f = tvm.compile(IRModule, target=target)
     a.reshape(3, 2)[:, 1] = 0
 
-    def run():
+    def run_and_check():
         dev = tvm.metal()
         a_nd = tvm.runtime.tensor(a, dev)
         b_nd = tvm.runtime.empty((6,), "float32", dev)
         f(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -196,14 +196,14 @@ def test_vectorized_uint8():
     a = np.arange(16).astype("uint8")
     f = tvm.compile(func, target="metal")
 
-    def run():
+    def run_and_check():
         dev = tvm.metal()
         a_nd = tvm.runtime.tensor(a, dev)
         b_nd = tvm.runtime.empty((16,), "float32", dev)
         f(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

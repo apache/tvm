@@ -1117,7 +1117,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
     ex = tvm.compile(mod, target)
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
         effects = vm["_initialize_effect"]()
@@ -1133,7 +1133,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
         res = vm["foo"](*inputs)
         tvm.testing.assert_allclose(res[0].numpy(), np.array([[2], [0], [0]]).astype(np.int64))
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1237,7 +1237,7 @@ def test_renormalize_top_p_top_k_prob():
 
     ex = tvm.compile(mod, target)
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
         effects = vm["_initialize_effect"]()
@@ -1256,7 +1256,7 @@ def test_renormalize_top_p_top_k_prob():
             np.array([[0, 0.375, 0.625], [0.3, 0.3, 0.4]]).astype(np.float32),
         )
 
-    tvm.testing.run_with_gpu_lock(run)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_sort_argsort_topk():

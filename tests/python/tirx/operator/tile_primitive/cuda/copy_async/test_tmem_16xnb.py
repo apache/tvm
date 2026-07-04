@@ -336,18 +336,17 @@ def _run_roundtrip_16b(
         A_np = tvm.testing.generate_random_array(dtype, (128, per_thread_elems))
         B_np = np.zeros((128, per_thread_elems), dtype=dtype)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             B = tvm.runtime.tensor(B_np, dev)
             mod(A, B)
-            dev.sync()
             # Round-trip should preserve every per-thread bit pattern.
             A_view = A.numpy().view(np.uint16)
             B_view = B.numpy().view(np.uint16)
             np.testing.assert_array_equal(B_view, A_view)
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def _next_pow2(x: int) -> int:
@@ -640,18 +639,17 @@ def _run_load_test(shape: str, rep: int, dtype: str):
             for r in range(regs_per_thread):
                 B_expected[t, r] = _expected_reg_value_16b(A_np, shape, rep, 0, t, r, dtype_np)
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, dev)
         B = tvm.runtime.tensor(B_np, dev)
         mod(A, B)
-        dev.sync()
         B_view = B.numpy().view(np.uint32)
         if bits != 32:
             B_view = B_view.reshape(128, regs_per_thread)
         np.testing.assert_array_equal(B_view, B_expected)
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # --------------------------------------------------------------------------
@@ -797,12 +795,11 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
                 expected_values.append((tmem_lane, 2 * col_fp32, lo, t, r, row))
                 expected_values.append((tmem_lane, 2 * col_fp32 + 1, hi, t, r, row))
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         A = tvm.runtime.tensor(A_np, dev)
         B = tvm.runtime.tensor(B_np, dev)
         mod(A, B)
-        dev.sync()
         view = B.numpy().view(np.uint32 if bits == 32 else np.uint16)
         for tmem_lane, col, expected, t, r, row in expected_values:
             assert view[tmem_lane, col] == expected, (
@@ -811,7 +808,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
                 f"{view[tmem_lane, col]:#x} want {expected:#x}"
             )
 
-    tvm.testing.run_with_gpu_lock(run_test)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # --------------------------------------------------------------------------
@@ -981,17 +978,16 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
         Bf_np = np.zeros((128, per_thread_elems), dtype=dtype)
         Bs_np = np.zeros((128, per_thread_elems), dtype=dtype)
 
-        def run_test():
+        def run_and_check():
             dev = tvm.cuda(0)
             A = tvm.runtime.tensor(A_np, dev)
             Bf = tvm.runtime.tensor(Bf_np, dev)
             Bs = tvm.runtime.tensor(Bs_np, dev)
             mod(A, Bf, Bs)
-            dev.sync()
             # Sliced load must reproduce the full-width load bit-for-bit.
             np.testing.assert_array_equal(Bs.numpy().view(np.uint32), Bf.numpy().view(np.uint32))
 
-        tvm.testing.run_with_gpu_lock(run_test)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

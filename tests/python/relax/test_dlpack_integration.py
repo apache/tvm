@@ -54,7 +54,7 @@ class TestDLPackIntegration:
     def test_dlpack_pytorch_to_tvm_conversion_gpu(self):
         if tvm.cuda().exist:
 
-            def run():
+            def run_and_check():
                 pytorch_tensor = torch.tensor(
                     [1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda"
                 )
@@ -71,7 +71,7 @@ class TestDLPackIntegration:
                 pytorch_numpy = pytorch_tensor.cpu().numpy()
                 tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
 
-            tvm.testing.run_with_gpu_lock(run)
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 
@@ -97,7 +97,7 @@ class TestDLPackIntegration:
 
             data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype="float32")
 
-            def run():
+            def run_and_check():
                 tvm_tensor = tvm.runtime.tensor(data, device=tvm.cuda(0))
 
                 pytorch_tensor = torch.from_dlpack(tvm_tensor)
@@ -111,7 +111,7 @@ class TestDLPackIntegration:
                 pytorch_numpy = pytorch_tensor.cpu().numpy()
                 tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
 
-            tvm.testing.run_with_gpu_lock(run)
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 

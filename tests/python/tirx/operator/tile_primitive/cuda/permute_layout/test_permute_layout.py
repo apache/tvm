@@ -163,13 +163,13 @@ def _compile_and_run(prim_func, np_inputs):
         mod = tvm.IRModule({"main": prim_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
 
-    def run_test():
+    def run_and_check():
         dev = tvm.cuda(0)
         tensors = [tvm.runtime.tensor(a, dev) for a in np_inputs]
         mod(*tensors)
         return [tensor.numpy() for tensor in tensors]
 
-    outputs = tvm.testing.run_with_gpu_lock(run_test)
+    outputs = tvm.testing.run_with_gpu_lock(run_and_check)
     return outputs, mod.mod.imports[0].inspect_source()
 
 

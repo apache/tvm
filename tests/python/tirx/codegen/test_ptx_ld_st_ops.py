@@ -44,14 +44,13 @@ _SHARED_COPY_CASES = {
 def _build_and_run(func, *np_args):
     mod = tvm.compile(tvm.IRModule({"main": func}), target=TARGET, tir_pipeline="tirx")
 
-    def run():
+    def run_and_check():
         dev = tvm.cuda(0)
         rt_args = [tvm.runtime.tensor(a, device=dev) for a in np_args]
         mod(*rt_args)
-        dev.sync()
         return tuple(a.numpy() for a in rt_args)
 
-    return (*tvm.testing.run_with_gpu_lock(run), mod)
+    return (*tvm.testing.run_with_gpu_lock(run_and_check), mod)
 
 
 def _expected_values(num_bytes: int) -> np.ndarray:

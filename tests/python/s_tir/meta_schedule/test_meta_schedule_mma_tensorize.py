@@ -87,7 +87,6 @@ def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float
         b = tvm.runtime.tensor(b_np, dev)
         c = tvm.runtime.tensor(c_np, dev)
         f(a, b, c)
-        dev.sync()
         c_th = torch.matmul(torch.tensor(a_np).to(tgt_str), torch.tensor(b_np).to(tgt_str)).to(
             torch.float32 if out_dtype == "float32" else torch.float16
         )

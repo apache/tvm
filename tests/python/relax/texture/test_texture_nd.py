@@ -169,7 +169,7 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
     load_path = "vm_library.so"
     inputs = [np.random.randint(0, 128, (M, N)).astype(dtype), np.zeros((M, N), dtype)]
 
-    def execute(rexec, remote_session):
+    def run_and_check(rexec, remote_session):
         if remote_session is not None:
             dev = remote_session.cl()
         elif "opencl" in backend:
@@ -195,11 +195,11 @@ def test_texture_copy(backend, dtype, channel_size, read_width):
             remote.upload(path)
             rexec = remote.load_module(load_path)
             try:
-                execute(rexec, remote)
+                run_and_check(rexec, remote)
             finally:
                 remote.get_function("CloseRPCConnection")()
         else:
-            tvm.testing.run_with_gpu_lock(execute, ex, None)
+            tvm.testing.run_with_gpu_lock(run_and_check, ex, None)
 
 
 if __name__ == "__main__":
