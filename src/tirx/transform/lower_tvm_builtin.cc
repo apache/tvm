@@ -527,7 +527,7 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr elem_offset = op->args[5].as_or_throw<PrimExpr>();
     PrimExpr byte_offset;
     if (!is_zero(elem_offset)) {
-      byte_offset = elem_offset * MakeConst(elem_offset.ty(), data_bytes);
+      byte_offset = elem_offset * IntImm(elem_offset.ty(), data_bytes);
     } else {
       byte_offset = elem_offset;
     }

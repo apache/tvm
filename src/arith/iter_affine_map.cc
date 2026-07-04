@@ -565,7 +565,7 @@ class IterMapRewriter : public ExprMutator {
                                                IterMapLevel check_level) {
     std::vector<bool> used(splits.size(), false);
     std::vector<IterSplitExpr> iters;
-    PrimExpr expected_lower_factor = MakeConst(mark->source.ty(), 1);
+    PrimExpr expected_lower_factor = IntImm(mark->source.ty(), 1);
 
     for (size_t i = 0; i < splits.size(); ++i) {
       size_t j = 0;
@@ -790,7 +790,7 @@ class IterMapRewriter : public ExprMutator {
     for (IterSplitExpr split : expr->args) {
       int64_t symbol_prod_count = 0;
       int64_t cscale = 1;
-      PrimExpr res = tirx::MakeConst(split.ty(), 1);
+      PrimExpr res = IntImm(split.ty(), 1);
       auto fcollect = [&](PrimExpr val) {
         if (const auto* intimm = val.as<IntImmNode>()) {
           cscale *= intimm->value;
@@ -801,7 +801,7 @@ class IterMapRewriter : public ExprMutator {
       };
       UnpackReduction<tirx::MulNode>(split->scale, fcollect);
       if (cscale != 1) {
-        res = res * tirx::MakeConst(res.ty(), cscale);
+        res = res * IntImm(res.ty(), cscale);
       }
       split.CopyOnWrite()->scale = res;
       items.emplace_back(Item{cscale, symbol_prod_count, split});
@@ -1884,12 +1884,12 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
     } else if (CanProveDivisible(rhs, lhs->scale) && is_zero(base)) {
       // floordiv(x*c1, c1*c2) = floordiv(x, c2), c2=rhs/scale
       rhs = floordiv(rhs, lhs->scale);
-      lhs.CopyOnWrite()->scale = MakeConst(rhs.ty(), 1);
+      lhs.CopyOnWrite()->scale = IntImm(rhs.ty(), 1);
     } else if (CanProveDivisible(rhs, lhs->scale) && CanProveDivisible(base, lhs->scale)) {
       // floordiv(x*c1 + y*c1, c1*c2) = floordiv(x+y, c2), c2=rhs/scale
       base = floordiv(base, lhs->scale);
       rhs = floordiv(rhs, lhs->scale);
-      lhs.CopyOnWrite()->scale = MakeConst(rhs.ty(), 1);
+      lhs.CopyOnWrite()->scale = IntImm(rhs.ty(), 1);
     } else {
       // mark as unresolved.
       ErrorLogger(this) << "Cannot represent as IterMap: the numerator's scaling factor, "
@@ -1935,7 +1935,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
     new_split = IterSplitExpr(IterMark(padded, padded->extent),
                               /* lower_factor = */ rhs,
                               /* extent = */ analyzer_->Simplify(ceildiv(padded->extent, rhs)),
-                              /* scale = */ MakeConst(rhs.ty(), 1));
+                              /* scale = */ IntImm(rhs.ty(), 1));
   }
 
   auto new_base = analyzer_->Simplify(floordiv(base - left_pad, rhs), 6);
@@ -2381,7 +2381,7 @@ class SubspaceDivider {
   // args are sorted from inner to outer
   static IterMark MarkFromArgsAndBase(const std::vector<IterSplitExpr>& args, PrimExpr base) {
     std::vector<IterSplitExpr> res;
-    PrimExpr extent = MakeConst(base.ty(), 1);
+    PrimExpr extent = IntImm(base.ty(), 1);
     for (const IterSplitExpr& it : args) {
       IterSplitExpr arg = it;
       arg.CopyOnWrite()->scale = extent;
@@ -2435,7 +2435,7 @@ class SubspaceDivider {
       bool encountered_boundary = mark_division.IsOuter();
       std::vector<bool> used(splits.size(), false);
       std::vector<IterSplitExpr> inner_iters, outer_iters;
-      PrimExpr expected_lower_factor = MakeConst(expr->source->source.ty(), 1);
+      PrimExpr expected_lower_factor = IntImm(expr->source->source.ty(), 1);
       // find the boundary of outer and inner, like case 1 above
       for (size_t i = 0; i < splits.size(); ++i) {
         size_t j = 0;

@@ -844,7 +844,7 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     if (truncdiv(c1, c2).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
-      return MakeConst(op->ty.as_or_throw<PrimType>(), truncdiv(c1val, c2val));
+      return IntImm(op->ty.as_or_throw<PrimType>(), truncdiv(c1val, c2val));
     }
 
     // while it is always true for trunc div
@@ -1025,7 +1025,7 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     // NOTE: trunc div required
     TVM_TRY_RECURSIVE_REWRITE_IF(
         truncmod(x, c1),
-        truncmod(x, PConst<PrimExpr>(MakeConst(op->ty.as_or_throw<PrimType>(), -c1.Eval()->value))),
+        truncmod(x, PConst<PrimExpr>(IntImm(op->ty.as_or_throw<PrimType>(), -c1.Eval()->value))),
         c1.Eval()->value < 0);
 
     // try modular analysis
@@ -2017,9 +2017,9 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
       } else if (diff == 1) {
         return lhs <= rhs;
       } else if (diff < 0 && rhs_offset != 0) {
-        return lhs + MakeConst(lhs.ty(), -diff) < rhs;
+        return lhs + IntImm(lhs.ty(), -diff) < rhs;
       } else if (diff > 0 && lhs_offset != 0) {
-        return lhs < rhs + MakeConst(rhs.ty(), diff);
+        return lhs < rhs + IntImm(rhs.ty(), diff);
       }
 
       return std::nullopt;
@@ -2374,7 +2374,7 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(clz_op)) {
     if (const auto* arg_int = op->args[0].as<IntImmNode>()) {
       int bits = arg_int->ty.as_or_throw<PrimType>().bits();
-      if (arg_int->value == 0) return MakeConst(ret_ty, bits);
+      if (arg_int->value == 0) return IntImm(ret_ty, bits);
       for (int i = bits - 1; i >= 0; --i) {
         if ((int64_t(1) << i) & arg_int->value) {
           return IntImm(ret_ty, bits - i - 1);
