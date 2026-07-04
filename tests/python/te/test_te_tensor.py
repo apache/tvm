@@ -357,13 +357,20 @@ def test_tensor_noncommutative_operand_order(operation):
 
 def test_tensor_slice_scalar_surface():
     tensor = te.placeholder((4,), name="tensor", dtype="int32")
+    other_tensor = te.placeholder((4,), name="other_tensor", dtype="int32")
     tensor_slice = tensor[0]
+    other_slice = other_tensor[0]
 
     assert not isinstance(tensor_slice, tvm.tirx.expr.ExprOp)
     assert isinstance(tensor_slice // 2, tvm.tirx.FloorDiv)
+    assert isinstance(tensor_slice // other_slice, tvm.tirx.FloorDiv)
     assert isinstance(tensor_slice % 2, tvm.tirx.FloorMod)
+    assert isinstance(tensor_slice % other_slice, tvm.tirx.FloorMod)
     assert isinstance(tensor_slice << 1, tvm.ir.Expr)
+    assert isinstance(tensor_slice << other_slice, tvm.ir.Expr)
+    assert isinstance(tensor_slice & other_slice, tvm.ir.Expr)
     assert isinstance(tensor_slice < 2, tvm.tirx.LT)
+    assert isinstance(tensor_slice < other_slice, tvm.tirx.LT)
     assert isinstance(tensor_slice.astype("float32"), tvm.tirx.Cast)
     with pytest.raises(ValueError, match="Cannot use and / or / not operator"):
         bool(tensor_slice)
@@ -379,13 +386,60 @@ def test_tensor_slice_scalar_fallback_without_topi_hook(monkeypatch):
 
     monkeypatch.setattr(_te_tensor_overload, "__add__", lambda _lhs, _rhs: NotImplemented)
     monkeypatch.setattr(_te_tensor_overload, "__radd__", lambda _lhs, _rhs: NotImplemented)
-    monkeypatch.setattr(
-        _te_tensor_overload, "astype", lambda _value, _dtype, _span=None: NotImplemented
-    )
 
     assert isinstance(tensor_slice + scalar, tvm.tirx.Add)
     assert isinstance(scalar + tensor_slice, tvm.tirx.Add)
     assert isinstance(tensor_slice.astype("float16"), tvm.tirx.Cast)
+
+
+def test_data_producer_operator_boundaries():
+    def descendants(parent):
+        children = set(parent.__subclasses__())
+        return children | {descendant for child in children for descendant in descendants(child)}
+
+    producer_types = {tvm.tirx.DataProducer, *descendants(tvm.tirx.DataProducer)}
+    tensor = te.placeholder((4,), name="tensor", dtype="float32")
+
+    assert te.Tensor in producer_types
+    assert issubclass(te.Tensor, tvm.tirx.DataProducer)
+    assert issubclass(te.Tensor, tvm.te.tensor.TensorOpBase)
+    assert not issubclass(te.Tensor, tvm.tirx.expr.ExprOp)
+    assert isinstance(tensor, tvm.te.tensor.TensorOpBase)
+    assert not isinstance(tensor, tvm.tirx.expr.ExprOp)
+    assert all(
+        not issubclass(producer_type, tvm.tirx.expr.ExprOp) for producer_type in producer_types
+    )
+
+    required_overloads = [
+        "__add__",
+        "__radd__",
+        "__sub__",
+        "__rsub__",
+        "__mul__",
+        "__rmul__",
+        "__div__",
+        "__rdiv__",
+        "__truediv__",
+        "__rtruediv__",
+        "astype",
+    ]
+    assert all(name in tvm.te.tensor.TensorOpBase.__dict__ for name in required_overloads)
+    assert all(callable(vars(_te_tensor_overload)[name]) for name in required_overloads)
+    assert not hasattr(te.Tensor, "__floordiv__")
+
+
+def test_tensor_nonbinary_operator_behavior():
+    tensor = te.placeholder((4,), name="tensor", dtype="float32")
+    rank_zero = te.placeholder((), name="rank_zero", dtype="float32")
+    other_rank_zero = te.placeholder((), name="other_rank_zero", dtype="float32")
+
+    negated = -tensor
+    assert isinstance(negated, te.Tensor)
+    assert tuple(negated.shape) == (4,)
+    assert isinstance(negated.op.body[0], tvm.tirx.Mul)
+    assert isinstance(rank_zero.equal(other_rank_zero), tvm.tirx.EQ)
+    with pytest.raises(ValueError, match="Cannot use and / or / not operator"):
+        bool(tensor)
 
 
 def test_primitive_call_scalar_operand():
@@ -458,8 +512,7 @@ def test_tensor_integer_division_remains_ambiguous():
     tensor_slice = tensor[0]
     other_slice = other_tensor[0]
 
-    # ExprOp must decline a whole DataProducer before applying scalar-only
-    # integer-division ambiguity checks.  Tensor then owns the final decision.
+    # A whole Tensor is outside ExprOp's scalar domain, so Tensor owns the final decision.
     assert scalar.__truediv__(tensor) is NotImplemented
 
     for divide in [
@@ -491,7 +544,7 @@ def test_removed_tirx_generic_surface():
     assert not hasattr(tvm.te, "add")
     assert not hasattr(tvm.te, "subtract")
     assert not hasattr(tvm.te, "multiply")
-    assert "__floordiv__" not in te.Tensor.__dict__
+    assert not hasattr(te.Tensor, "__floordiv__")
 
 
 if __name__ == "__main__":

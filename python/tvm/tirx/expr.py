@@ -74,9 +74,7 @@ def _dtype_is_float(value):
 
 
 def _is_scalar_operand(value):
-    return (isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value)) and not isinstance(
-        value, DataProducer
-    )
+    return isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value)
 
 
 class ExprOp:
