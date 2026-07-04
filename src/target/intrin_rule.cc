@@ -134,8 +134,8 @@ TVM_REGISTER_OP("tirx.tvm_access_ptr")
       TVM_FFI_ICHECK(call->ty.as_or_throw<PrimType>().IsHandle());
       if (dtype.lanes() != 1) {
         PrimType offset_ty = offset.ty();
-        offset = offset * MakeConst(offset_ty, dtype.lanes());
-        offset = Ramp(offset, MakeConst(offset_ty, 1), dtype.lanes());
+        offset = offset * IntImm(offset_ty, dtype.lanes());
+        offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
       }
       Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name_hint,
                        0, 0, kDefault);

@@ -161,7 +161,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
         << ") is narrower than that of `min` or `extent` (" << e_ty << ")";
     const IntImmNode* a = e.as<IntImmNode>();
     if (a && e_ty.bits() < loop_var_ty.bits()) {
-      return MakeConst(loop_var_ty, a->value);
+      return IntImm(loop_var_ty, a->value);
     } else {
       return e;
     }
@@ -490,7 +490,7 @@ PrimExpr BufferRegionNode::ToPrimExpr() const {
     if (tvm::tirx::is_one(r->extent)) {
       indices.push_back(r->min);
     } else if (r->extent.as<IntImmNode>()) {
-      indices.push_back(tirx::Ramp(r->min, tvm::tirx::MakeConst(r->min.ty(), 1), r->extent));
+      indices.push_back(tirx::Ramp(r->min, IntImm(r->min.ty(), 1), r->extent));
     } else {
       TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
                                 << ffi::GetRef<BufferRegion>(this);

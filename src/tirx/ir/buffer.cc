@@ -493,7 +493,7 @@ Buffer Buffer::MakeStrideView() const {
   const BufferNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
   auto n = ffi::make_object<BufferNode>(*self);
-  PrimExpr acc = MakeConst(PrimType(n->DefaultIndexType()), 1);
+  PrimExpr acc = IntImm(PrimType(n->DefaultIndexType()), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
     temp.push_back(acc);
     acc = acc * n->shape[i - 1];
@@ -553,7 +553,7 @@ PrimExpr Buffer::access_ptr(int access_mask, PrimType ptr_type, int content_lane
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
-    extent = MakeConst(PrimType(self->DefaultIndexType()), 1);
+    extent = IntImm(PrimType(self->DefaultIndexType()), 1);
   } else if (self->strides.size() == self->shape.size()) {
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
@@ -565,8 +565,8 @@ PrimExpr Buffer::access_ptr(int access_mask, PrimType ptr_type, int content_lane
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
     e_dtype = tirx::TypeAnnotation(PrimType(self->dtype).WithLanes(content_lanes));
-    extent = extent / MakeConst(self->elem_offset.ty(), content_lanes);
-    elem_offset = self->elem_offset / MakeConst(self->elem_offset.ty(), content_lanes);
+    extent = extent / IntImm(self->elem_offset.ty(), content_lanes);
+    elem_offset = self->elem_offset / IntImm(self->elem_offset.ty(), content_lanes);
   } else {
     e_dtype = tirx::TypeAnnotation(self->dtype);
   }

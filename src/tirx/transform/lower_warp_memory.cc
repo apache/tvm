@@ -410,10 +410,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
       TVM_FFI_ICHECK(arith::ramp(base, 1, index_ty.lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
-      local_index = Ramp(local_index, MakeConst(local_index.ty(), 1), index_ty.lanes());
+      local_index = Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
       return std::make_pair(local_index, group);
     }
-    PrimExpr m = MakeConst(index_ty, warp_coeff_);
+    PrimExpr m = IntImm(index_ty, warp_coeff_);
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
@@ -422,9 +422,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return std::make_pair(x, z);
     } else {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
-      PrimExpr y = index / MakeConst(index_ty, warp_coeff_ * width_);
+      PrimExpr y = index / IntImm(index_ty, warp_coeff_ * width_);
       y = y * m + x;
-      PrimExpr z = indexdiv(indexmod(index, MakeConst(index_ty, warp_coeff_ * width_)), m);
+      PrimExpr z = indexdiv(indexmod(index, IntImm(index_ty, warp_coeff_ * width_)), m);
       return std::make_pair(analyzer_->canonical_simplify(y), analyzer_->canonical_simplify(z));
     }
   }

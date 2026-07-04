@@ -1555,7 +1555,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
       int lanes = static_cast<int>(ramp_index->lanes.as_or_throw<IntImm>()->value);
-      PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
+      PrimExpr new_index = ramp_index->base / IntImm(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
         TVM_FFI_ICHECK(info.factor() && lanes % info.factor() == 0);
         int new_lanes = lanes / info.factor();
@@ -1565,7 +1565,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     } else if (last_dim_index.ty().lanes() == 1 && info.factor() > 1) {
       arith::ModularSet me = analyzer_->modular_set(last_dim_index);
       TVM_FFI_ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
-      PrimExpr new_index = last_dim_index / MakeConst(last_dim_index.ty(), info.factor());
+      PrimExpr new_index = last_dim_index / IntImm(last_dim_index.ty(), info.factor());
       shuffle_index = me->base % info.factor();
       indices.Set(indices.size() - 1, new_index);
     }
@@ -1636,7 +1636,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
       ffi::Array<PrimExpr> shape = buf->shape;
       PrimExpr last_dim = shape[shape.size() - 1];
-      shape.Set(shape.size() - 1, last_dim / MakeConst(last_dim.ty(), info.factor()));
+      shape.Set(shape.size() - 1, last_dim / IntImm(last_dim.ty(), info.factor()));
 
       auto writer = buf.CopyOnWrite();
       writer->data = info.new_buffer_var;
@@ -1671,8 +1671,8 @@ class VectorTypeRewriter : public StmtExprMutator {
 
       PrimExpr e_dtype = tirx::TypeAnnotation(info.new_element_dtype);
       int factor = info.factor();
-      extent = extent / MakeConst(extent.ty(), factor);
-      index = index / MakeConst(index.ty(), factor);
+      extent = extent / IntImm(extent.ty(), factor);
+      index = index / IntImm(index.ty(), factor);
       ffi::Array<PrimExpr> acc_args{e_dtype, info.new_buffer_var, index, extent, flag};
       // tvm_access_ptr produces a pointer; its Call.dtype must be handle
       // (the lowering rule in src/target/intrin_rule.cc ICHECKs this).
