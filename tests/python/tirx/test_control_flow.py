@@ -23,15 +23,20 @@ from tvm.testing import env
 
 
 def run_test_break_continue(func, shape, expected):
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     with target:
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
     arr_np = np.zeros(shape, dtype="int32")
-    arr = tvm.runtime.tensor(arr_np, device=dev)
-    mod(arr)
-    np.testing.assert_allclose(arr.numpy(), expected)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        arr = tvm.runtime.tensor(arr_np, device=dev)
+        mod(arr)
+        dev.sync()
+        np.testing.assert_allclose(arr.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

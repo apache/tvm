@@ -466,20 +466,24 @@ def test_cuda_gemm_mma_numerical(dtype):
             rM = s // 2
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]
 
-    dev = tvm.cuda(0)
     with tvm.target.Target("cuda"):
         mod = tvm.compile(tvm.IRModule({"main": gemm}), target="cuda", tir_pipeline="tirx")
 
     np.random.seed(0)
     A_np = np.random.uniform(-1, 1, (16, 16)).astype(np.float32)
     B_np = np.random.uniform(-1, 1, (16, 8)).astype(np.float32)
-    A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
-    B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
-    D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
-    mod(A_dev, B_dev, D_dev)
-
     golden = A_np @ B_np
-    tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=1e-2, rtol=1e-2)
+
+    def run_test():
+        dev = tvm.cuda(0)
+        A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
+        B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
+        D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
+        mod(A_dev, B_dev, D_dev)
+        dev.sync()
+        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=1e-2, rtol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_test)
 
 
 # (Mt, Nt, Kt, kinst) tilings: single tile, each dim multi-tiled, fully tiled,
@@ -522,7 +526,6 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
         np_dtype = np.float16
 
     func, M, N, K = _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype)
-    dev = tvm.cuda(0)
     with tvm.target.Target("cuda"):
         mod = tvm.compile(tvm.IRModule({"main": func}), target="cuda", tir_pipeline="tirx")
 
@@ -530,14 +533,19 @@ def test_cuda_gemm_mma_numerical_tiled(dtype, beta, Mt, Nt, Kt, kinst):
     A_np = np.random.uniform(-1, 1, (M, K)).astype(np.float32)
     B_np = np.random.uniform(-1, 1, (K, N)).astype(np.float32)
     C_np = np.random.uniform(-1, 1, (M, N)).astype(np.float32)
-    A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
-    B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
-    C_dev = tvm.runtime.tensor(C_np, dev)
-    D_dev = tvm.runtime.tensor(np.zeros((M, N), np.float32), dev)
-    mod(A_dev, B_dev, C_dev, D_dev)
-
     golden = A_np @ B_np + (C_np if beta == 1.0 else 0.0)
-    tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+
+    def run_test():
+        dev = tvm.cuda(0)
+        A_dev = tvm.runtime.tensor(A_np.astype(np_dtype), dev)
+        B_dev = tvm.runtime.tensor(B_np.astype(np_dtype), dev)
+        C_dev = tvm.runtime.tensor(C_np, dev)
+        D_dev = tvm.runtime.tensor(np.zeros((M, N), np.float32), dev)
+        mod(A_dev, B_dev, C_dev, D_dev)
+        dev.sync()
+        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+
+    tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.gpu
@@ -559,7 +567,6 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
         np_dtype = np.float16
 
     func = _build_transpose_numeric(transpose_A, transpose_B, dtype)
-    dev = tvm.cuda(0)
     with tvm.target.Target("cuda"):
         mod = tvm.compile(tvm.IRModule({"main": func}), target="cuda", tir_pipeline="tirx")
 
@@ -568,12 +575,18 @@ def test_cuda_gemm_mma_numerical_transpose(transpose_A, transpose_B, dtype):
     B_log = np.random.uniform(-1, 1, (16, 8)).astype(np.float32)  # logical B[K, N]
     A_buf = (A_log.T if transpose_A else A_log).astype(np_dtype)
     B_buf = (B_log.T if transpose_B else B_log).astype(np_dtype)
-    A_dev = tvm.runtime.tensor(A_buf, dev)
-    B_dev = tvm.runtime.tensor(B_buf, dev)
-    D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
-    mod(A_dev, B_dev, D_dev)
+    golden = A_log @ B_log
 
-    tvm.testing.assert_allclose(A_log @ B_log, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+    def run_test():
+        dev = tvm.cuda(0)
+        A_dev = tvm.runtime.tensor(A_buf, dev)
+        B_dev = tvm.runtime.tensor(B_buf, dev)
+        D_dev = tvm.runtime.tensor(np.zeros((16, 8), np.float32), dev)
+        mod(A_dev, B_dev, D_dev)
+        dev.sync()
+        tvm.testing.assert_allclose(golden, D_dev.numpy(), atol=2e-2, rtol=2e-2)
+
+    tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.parametrize(

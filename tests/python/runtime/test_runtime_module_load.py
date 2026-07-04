@@ -115,7 +115,6 @@ def test_device_module_dump():
     sch.bind(tx, "threadIdx.x")
 
     def check_device(device):
-        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print(f"Skip because {device} is not enabled")
             return
@@ -126,30 +125,41 @@ def test_device_module_dump():
         # test cross compiler function
         f.export_library(path_dso, fcompile=cc.cross_compiler("g++"))
 
-        def popen_check():
-            import tvm
+        def run_and_check():
+            dev = tvm.device(device, 0)
 
-            f1 = tvm.runtime.load_module(path_dso)
-            a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
-            b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
-            f1(a, b)
-            np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+            def popen_check():
+                import tvm
 
-        # system lib should be loaded in different process
-        worker = popen_pool.PopenWorker()
-        worker.send(popen_check)
-        worker.recv()
+                f1 = tvm.runtime.load_module(path_dso)
+                a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+                b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+                f1(a, b)
+                np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+
+            worker = popen_pool.PopenWorker()
+            try:
+                worker.send(popen_check)
+                worker.recv()
+            finally:
+                worker.kill()
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     def check_c(device):
-        dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print(f"Skip because {device} is not enabled")
             return
         f = tvm.compile(sch.mod, target=tvm.target.Target(device, host="c"))
-        a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
-        f["main"](a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+
+        def run_and_check():
+            dev = tvm.device(device, 0)
+            a = tvm.runtime.tensor(np.random.uniform(size=1024).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(1024, dtype=A.dtype), dev)
+            f["main"](a, b)
+            np.testing.assert_equal(b.numpy(), a.numpy() + 1)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     for device in ["cuda", "vulkan", "opencl", "metal"]:
         check_device(device)

@@ -1069,8 +1069,6 @@ def test_copy_tma_symbolic_dimension(dtype, swizzle_len):
     M_CONCRETE = 128  # Concrete value for testing
     thread_cnt = 128
 
-    dev = tvm.cuda(0)
-
     # Shared memory layout with swizzle
     shared_layout = T.ComposeLayout(
         T.SwizzleLayout(3, swizzle_len, 3, swizzle_inner=True),
@@ -1136,15 +1134,20 @@ def test_copy_tma_symbolic_dimension(dtype, swizzle_len):
         A_np = tvm.testing.generate_random_array(dtype, (M_CONCRETE, K))
         B_np = np.zeros((SMEM_PIPE_DEPTH, BLK_M, BLK_K), dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
-
         # Verify: B[ks, :, :] should equal A[0:BLK_M, ks*BLK_K:(ks+1)*BLK_K]
         B_ref = np.zeros((SMEM_PIPE_DEPTH, BLK_M, BLK_K), dtype=np_dtype)
         for ks in range(SMEM_PIPE_DEPTH):
             B_ref[ks, :, :] = A_np[0:BLK_M, ks * BLK_K : (ks + 1) * BLK_K]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_test():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            dev.sync()
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.gpu
@@ -1160,7 +1163,6 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
         Tx.copy_async(Q_smem_3d[pipe_idx, blk_k_idx, :, :, :],
                       Q[batch, seq_start:seq_end, head_start:head_end, k_start:k_end], ...)
     """
-    dev = tvm.cuda(0)
     smem_bytes = 2 * 2 * 128 * 64 * tvm.DataType(dtype).bits // 8
     copy_bytes_per_blk = 32 * 4 * 64 * tvm.DataType(dtype).bits // 8
 
@@ -1239,13 +1241,18 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
         Q_np = tvm.testing.generate_random_array(dtype, (2, 128, 8, 128))
         B_np = np.zeros((32, 4, 64), dtype=np_dtype)
 
-        Q = tvm.runtime.tensor(Q_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(Q, B)
-
         B_ref = np.zeros((32, 4, 64), dtype=np_dtype)
         B_ref[:, :, :] = Q_np[0, 0:32, 0:4, 0:64]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_test():
+            dev = tvm.cuda(0)
+            Q = tvm.runtime.tensor(Q_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(Q, B)
+            dev.sync()
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 # ===========================================================================
@@ -1306,8 +1313,6 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
 def test_copy_tma_gpu_smoke_g2s(task, dtype):
     """Smoke test: compile and run TMA G2S copy on GPU to verify end-to-end correctness."""
     g_shape, g_region, s_shape, s_region, thread_cnt, layoutA, layoutB, layoutS_fn = task
-    dev = tvm.cuda(0)
-
     shared_layout = layoutS_fn(dtype)
     is_pipeline = g_region is None
 
@@ -1367,10 +1372,7 @@ def test_copy_tma_gpu_smoke_g2s(task, dtype):
             A_np = tvm.testing.generate_random_array(dtype, g_shape)
             B_np = np.zeros(g_shape, dtype=np_dtype)
 
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
-            mod(A, B)
-            np.testing.assert_allclose(A_np, B.numpy())
+            B_ref = A_np
     else:
         total_bytes = functools.reduce(
             lambda acc, region: acc * (region[1] - region[0]), s_region, 1
@@ -1420,13 +1422,18 @@ def test_copy_tma_gpu_smoke_g2s(task, dtype):
             A_np = tvm.testing.generate_random_array(dtype, g_shape)
             B_np = np.zeros(g_shape, dtype=np_dtype)
 
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
-            mod(A, B)
-
             B_ref = np.zeros(g_shape, dtype=np_dtype)
             B_ref[tuple(r_gmem)] = A_np[tuple(r_gmem)]
-            np.testing.assert_allclose(B_ref, B.numpy())
+
+    def run_test():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        mod(A, B)
+        dev.sync()
+        np.testing.assert_allclose(B_ref, B.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.gpu
@@ -1477,7 +1484,6 @@ def test_copy_tma_gpu_smoke_s2g(dtype):
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     target = tvm.target.Target("cuda")
-    dev = tvm.cuda(0)
 
     with target:
         mod = tvm.IRModule({"main": copy_async})
@@ -1487,11 +1493,15 @@ def test_copy_tma_gpu_smoke_s2g(dtype):
         A_np = tvm.testing.generate_random_array(dtype, g_shape)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
+        def run_test():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            dev.sync()
+            np.testing.assert_allclose(A_np, B.numpy())
 
-        np.testing.assert_allclose(A_np, B.numpy())
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.gpu

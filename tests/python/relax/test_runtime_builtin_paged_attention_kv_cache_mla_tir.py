@@ -50,7 +50,7 @@ sm_scale = (qk_nope_head_dim + qk_rope_head_dim) ** (-0.5)
 kv_lora_rank = 512
 dtype = "float16"
 dtype_torch = getattr(torch, dtype)
-device = tvm.cuda()
+device = None
 device_torch = torch.device("cuda")
 
 fclear = None
@@ -85,14 +85,13 @@ def _dumb_function():
     raise RuntimeError("Dumb function isn't supposed to be accessed.")
 
 
-def set_global_func(dtype):
+def set_global_func(dtype, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence
     global fpopn, fbegin_forward, fend_forward
     global fself_attn, fcross_attn, fappend_mla_kv, fkv_merge_attn_output
     global fis_empty, fdebug_get_kv
     global ftranspose_append, fcopy_cache, fmla_prefill, fmla_prefill_ragged
     global fmerge_state, fmerge_state_additional, fcopy_single_page
-    global w_kv, w_uk, w_uv
 
     fclear = tvm.get_global_func("vm.builtin.kv_state_clear")
     fadd_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
@@ -110,7 +109,6 @@ def set_global_func(dtype):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv_mla")
 
-    target = tvm.target.Target.from_device(device)
     builts = []
     for tir_func in [
         _kv_cache_transpose_append_mla(kv_lora_rank + qk_rope_head_dim, dtype),
@@ -146,20 +144,6 @@ def set_global_func(dtype):
         fmerge_state_additional,
         fcopy_single_page,
     ) = builts
-
-    w_kv = torch.empty(
-        (kv_lora_rank, num_attention_heads * (qk_nope_head_dim + v_head_dim)),
-        device=device_torch,
-        dtype=dtype_torch,
-    )
-    w_kv.uniform_(-0.1, 0.1)
-    w_uk, w_uv = torch.split(
-        w_kv.view(kv_lora_rank, num_attention_heads, qk_nope_head_dim + v_head_dim),
-        [qk_nope_head_dim, v_head_dim],
-        dim=2,
-    )
-    w_uk = w_uk.permute(1, 2, 0)
-    w_uv = w_uv.permute(1, 0, 2)
 
 
 def create_kv_cache(dtype):
@@ -211,8 +195,13 @@ def kv_cache_and_config(request):
     global dtype, dtype_torch
     (dtype,) = request.param
     dtype_torch = getattr(torch, dtype)
-    set_global_func(dtype)
-    return (create_kv_cache(dtype),)
+
+    def get_cuda_target():
+        return tvm.target.Target.from_device(tvm.cuda())
+
+    target = tvm.testing.run_with_gpu_lock(get_cuda_target)
+    set_global_func(dtype, target)
+    return request.param
 
 
 def verify_cached_kv(kv_cache, seq_ids, expected_kv):
@@ -416,150 +405,255 @@ def apply_attention(
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
-    (kv_cache,) = kv_cache_and_config
-    fclear(kv_cache)
+    def run():
+        global device, w_kv, w_uk, w_uv
+        device = tvm.cuda()
+        (dtype,) = kv_cache_and_config
+        try:
+            w_kv = torch.empty(
+                (kv_lora_rank, num_attention_heads * (qk_nope_head_dim + v_head_dim)),
+                device=device_torch,
+                dtype=dtype_torch,
+            )
+            w_kv.uniform_(-0.1, 0.1)
+            w_uk, w_uv = torch.split(
+                w_kv.view(kv_lora_rank, num_attention_heads, qk_nope_head_dim + v_head_dim),
+                [qk_nope_head_dim, v_head_dim],
+                dim=2,
+            )
+            w_uk = w_uk.permute(1, 2, 0)
+            w_uv = w_uv.permute(1, 0, 2)
+            kv_cache = create_kv_cache(dtype)
+            fclear(kv_cache)
 
-    # Prefill.
-    operation_seq = [[(0, 6)], [(1, 8)], [(2, 11)], [(3, 16)], [(4, 19), (5, 20)]]
-    operation_seq += [[(6, 21), (7, 24)], [(2, 5), (4, 7), (8, 24)]]
-    operation_seq += [[(6, 13)], [(8, 19)], [(0, 1)], [(1, 3), (3, 8), (5, 12), (7, 11)]]
-    # Decode
-    operation_seq += [[(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]]
-    operation_seq += [[(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]]
-    operation_seq += [[(0, 1), (2, 1), (4, 1), (6, 1), (8, 1)]]
-    operation_seq += [[(4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]]
+            # Prefill.
+            operation_seq = [[(0, 6)], [(1, 8)], [(2, 11)], [(3, 16)], [(4, 19), (5, 20)]]
+            operation_seq += [[(6, 21), (7, 24)], [(2, 5), (4, 7), (8, 24)]]
+            operation_seq += [
+                [(6, 13)],
+                [(8, 19)],
+                [(0, 1)],
+                [(1, 3), (3, 8), (5, 12), (7, 11)],
+            ]
+            # Decode
+            operation_seq += [
+                [(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]
+            ]
+            operation_seq += [
+                [(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]
+            ]
+            operation_seq += [[(0, 1), (2, 1), (4, 1), (6, 1), (8, 1)]]
+            operation_seq += [[(4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]]
 
-    cached_kv = {}
-    for batch in operation_seq:
-        apply_attention(kv_cache, batch, cached_kv)
+            cached_kv = {}
+            for batch in operation_seq:
+                apply_attention(kv_cache, batch, cached_kv)
+        finally:
+            device = None
+            w_kv = None
+            w_uk = None
+            w_uv = None
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
-    (kv_cache,) = kv_cache_and_config
-    fclear(kv_cache)
+    def run():
+        global device, w_kv, w_uk, w_uv
+        device = tvm.cuda()
+        (dtype,) = kv_cache_and_config
+        try:
+            w_kv = torch.empty(
+                (kv_lora_rank, num_attention_heads * (qk_nope_head_dim + v_head_dim)),
+                device=device_torch,
+                dtype=dtype_torch,
+            )
+            w_kv.uniform_(-0.1, 0.1)
+            w_uk, w_uv = torch.split(
+                w_kv.view(kv_lora_rank, num_attention_heads, qk_nope_head_dim + v_head_dim),
+                [qk_nope_head_dim, v_head_dim],
+                dim=2,
+            )
+            w_uk = w_uk.permute(1, 2, 0)
+            w_uv = w_uv.permute(1, 0, 2)
+            kv_cache = create_kv_cache(dtype)
+            fclear(kv_cache)
 
-    num_sequences = 5
-    batch = [(seq_id, 1) for seq_id in range(num_sequences)]
-    cached_kv = {}
-    for seq_id_to_remove in range(num_sequences):
-        apply_attention(kv_cache, batch, cached_kv)
-        # Remove sequence.
-        fremove_sequence(kv_cache, seq_id_to_remove)
-        cached_kv.pop(seq_id_to_remove)
-        verify_cached_kv(
-            kv_cache,
-            seq_ids=[seq_id for seq_id in range(num_sequences) if seq_id != seq_id_to_remove],
-            expected_kv=cached_kv,
-        )
+            num_sequences = 5
+            batch = [(seq_id, 1) for seq_id in range(num_sequences)]
+            cached_kv = {}
+            for seq_id_to_remove in range(num_sequences):
+                apply_attention(kv_cache, batch, cached_kv)
+                # Remove sequence.
+                fremove_sequence(kv_cache, seq_id_to_remove)
+                cached_kv.pop(seq_id_to_remove)
+                verify_cached_kv(
+                    kv_cache,
+                    seq_ids=[
+                        seq_id for seq_id in range(num_sequences) if seq_id != seq_id_to_remove
+                    ],
+                    expected_kv=cached_kv,
+                )
+        finally:
+            device = None
+            w_kv = None
+            w_uk = None
+            w_uv = None
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
-    (kv_cache,) = kv_cache_and_config
-    fclear(kv_cache)
+    def run():
+        global device, w_kv, w_uk, w_uv
+        device = tvm.cuda()
+        (dtype,) = kv_cache_and_config
+        try:
+            w_kv = torch.empty(
+                (kv_lora_rank, num_attention_heads * (qk_nope_head_dim + v_head_dim)),
+                device=device_torch,
+                dtype=dtype_torch,
+            )
+            w_kv.uniform_(-0.1, 0.1)
+            w_uk, w_uv = torch.split(
+                w_kv.view(kv_lora_rank, num_attention_heads, qk_nope_head_dim + v_head_dim),
+                [qk_nope_head_dim, v_head_dim],
+                dim=2,
+            )
+            w_uk = w_uk.permute(1, 2, 0)
+            w_uv = w_uv.permute(1, 0, 2)
+            kv_cache = create_kv_cache(dtype)
+            fclear(kv_cache)
 
-    cached_kv = {}
-    batch = [(0, 60), (1, 88), (2, 17), (3, 4)]
-    apply_attention(kv_cache, batch, cached_kv)
-    # Fork existing sequences.
-    apply_attention(kv_cache, [((4, 3, -1), 35)], cached_kv)
-    apply_attention(kv_cache, [((5, 0, -1), 20)], cached_kv)
-    apply_attention(kv_cache, [((6, 5, -1), 102)], cached_kv)
-    apply_attention(kv_cache, [((7, 0, -1), 3)], cached_kv)
-    apply_attention(kv_cache, [((8, 5, -1), 71), ((9, 5, -1), 20)], cached_kv)
-    # 0 <- 5 <- 6,8,9
-    # 0 <- 7
-    # 3 <- 4
-    # Mixture of decode and prefill.
-    operation_seq = [
-        [(2, 1), (4, 1), (7, 1), (6, 1), (8, 1), (9, 1)],
-        [(7, 1), (6, 1), (8, 1), (9, 1)],
-        [(7, 1), (1, 1), (6, 1), (2, 1), (8, 1), (4, 1), (9, 1)],
-        [(7, 10), (6, 2), (8, 3), (9, 4)],
-    ]
-    for batch in operation_seq:
-        apply_attention(kv_cache, batch, cached_kv)
+            cached_kv = {}
+            batch = [(0, 60), (1, 88), (2, 17), (3, 4)]
+            apply_attention(kv_cache, batch, cached_kv)
+            # Fork existing sequences.
+            apply_attention(kv_cache, [((4, 3, -1), 35)], cached_kv)
+            apply_attention(kv_cache, [((5, 0, -1), 20)], cached_kv)
+            apply_attention(kv_cache, [((6, 5, -1), 102)], cached_kv)
+            apply_attention(kv_cache, [((7, 0, -1), 3)], cached_kv)
+            apply_attention(kv_cache, [((8, 5, -1), 71), ((9, 5, -1), 20)], cached_kv)
+            # 0 <- 5 <- 6,8,9
+            # 0 <- 7
+            # 3 <- 4
+            # Mixture of decode and prefill.
+            operation_seq = [
+                [(2, 1), (4, 1), (7, 1), (6, 1), (8, 1), (9, 1)],
+                [(7, 1), (6, 1), (8, 1), (9, 1)],
+                [(7, 1), (1, 1), (6, 1), (2, 1), (8, 1), (4, 1), (9, 1)],
+                [(7, 10), (6, 2), (8, 3), (9, 4)],
+            ]
+            for batch in operation_seq:
+                apply_attention(kv_cache, batch, cached_kv)
 
-    apply_attention(kv_cache, [((10, 1, 33), 11)], cached_kv)
-    apply_attention(kv_cache, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_kv)
-    apply_attention(kv_cache, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_kv)
-    apply_attention(kv_cache, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_kv)
-    apply_attention(
-        kv_cache,
-        [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)],
-        cached_kv,
-    )
+            apply_attention(kv_cache, [((10, 1, 33), 11)], cached_kv)
+            apply_attention(kv_cache, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_kv)
+            apply_attention(kv_cache, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_kv)
+            apply_attention(kv_cache, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_kv)
+            apply_attention(
+                kv_cache,
+                [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)],
+                cached_kv,
+            )
 
-    operation_seq = [
-        [(6, 1), (11, 1), (13, 1), (9, 1)],
-        [(10, 1), (16, 1), (18, 1), (19, 1)],
-        [(8, 1), (15, 1), (17, 1), (12, 1), (14, 1)],
-        [(10, 10), (6, 2), (8, 3), (19, 4)],
-    ]
-    for batch in operation_seq:
-        apply_attention(kv_cache, batch, cached_kv)
+            operation_seq = [
+                [(6, 1), (11, 1), (13, 1), (9, 1)],
+                [(10, 1), (16, 1), (18, 1), (19, 1)],
+                [(8, 1), (15, 1), (17, 1), (12, 1), (14, 1)],
+                [(10, 10), (6, 2), (8, 3), (19, 4)],
+            ]
+            for batch in operation_seq:
+                apply_attention(kv_cache, batch, cached_kv)
 
-    num_sequence = 20
-    for i in range(num_sequence):
-        fremove_sequence(kv_cache, i)
-        cached_kv.pop(i)
-        verify_cached_kv(
-            kv_cache,
-            seq_ids=list(range(i + 1, num_sequence)),
-            expected_kv=cached_kv,
-        )
+            num_sequence = 20
+            for i in range(num_sequence):
+                fremove_sequence(kv_cache, i)
+                cached_kv.pop(i)
+                verify_cached_kv(
+                    kv_cache,
+                    seq_ids=list(range(i + 1, num_sequence)),
+                    expected_kv=cached_kv,
+                )
 
-    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
+            assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
 
-    # Test fork after page recycle
-    apply_attention(kv_cache, [(0, 7), (1, 24)], cached_kv)
-    apply_attention(kv_cache, [((2, 1, -1), 10)], cached_kv)
-    apply_attention(kv_cache, [((3, 0, -1), 20)], cached_kv)
-    apply_attention(kv_cache, [(2, 1), (3, 1)], cached_kv)
+            # Test fork after page recycle
+            apply_attention(kv_cache, [(0, 7), (1, 24)], cached_kv)
+            apply_attention(kv_cache, [((2, 1, -1), 10)], cached_kv)
+            apply_attention(kv_cache, [((3, 0, -1), 20)], cached_kv)
+            apply_attention(kv_cache, [(2, 1), (3, 1)], cached_kv)
 
-    apply_attention(kv_cache, [(10, 7), (11, 24)], cached_kv)
-    apply_attention(kv_cache, [((12, 11, -1), 200)], cached_kv)
-    apply_attention(kv_cache, [(10, 1), (12, 1)], cached_kv)
+            apply_attention(kv_cache, [(10, 7), (11, 24)], cached_kv)
+            apply_attention(kv_cache, [((12, 11, -1), 200)], cached_kv)
+            apply_attention(kv_cache, [(10, 1), (12, 1)], cached_kv)
+        finally:
+            device = None
+            w_kv = None
+            w_uk = None
+            w_uv = None
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
-    (kv_cache,) = kv_cache_and_config
-    fclear(kv_cache)
+    def run():
+        global device, w_kv, w_uk, w_uv
+        device = tvm.cuda()
+        (dtype,) = kv_cache_and_config
+        try:
+            w_kv = torch.empty(
+                (kv_lora_rank, num_attention_heads * (qk_nope_head_dim + v_head_dim)),
+                device=device_torch,
+                dtype=dtype_torch,
+            )
+            w_kv.uniform_(-0.1, 0.1)
+            w_uk, w_uv = torch.split(
+                w_kv.view(kv_lora_rank, num_attention_heads, qk_nope_head_dim + v_head_dim),
+                [qk_nope_head_dim, v_head_dim],
+                dim=2,
+            )
+            w_uk = w_uk.permute(1, 2, 0)
+            w_uv = w_uv.permute(1, 0, 2)
+            kv_cache = create_kv_cache(dtype)
+            fclear(kv_cache)
 
-    cached_kv = {}
-    batch = [(0, 35), (1, 88), (2, 17), (3, 4)]
-    apply_attention(kv_cache, batch, cached_kv)
-    apply_attention(kv_cache, [((4, 3, -1), 35)], cached_kv)
+            cached_kv = {}
+            batch = [(0, 35), (1, 88), (2, 17), (3, 4)]
+            apply_attention(kv_cache, batch, cached_kv)
+            apply_attention(kv_cache, [((4, 3, -1), 35)], cached_kv)
 
-    popn_operations = [(0, 17), (1, 57), (2, 16), (3, 0), (4, 37)]
-    for seq_id, pop_length in popn_operations:
-        fpopn(kv_cache, seq_id, pop_length)
-        if pop_length != 0:
-            cached_kv[seq_id] = cached_kv[seq_id][:, :-pop_length, ...]
-        verify_cached_kv(kv_cache, seq_ids=list(range(4)), expected_kv=cached_kv)
+            popn_operations = [(0, 17), (1, 57), (2, 16), (3, 0), (4, 37)]
+            for seq_id, pop_length in popn_operations:
+                fpopn(kv_cache, seq_id, pop_length)
+                if pop_length != 0:
+                    cached_kv[seq_id] = cached_kv[seq_id][:, :-pop_length, ...]
+                verify_cached_kv(kv_cache, seq_ids=list(range(4)), expected_kv=cached_kv)
 
-    num_sequence = 5
-    for seq_id in range(num_sequence):
-        fremove_sequence(kv_cache, seq_id)
-        verify_cached_kv(
-            kv_cache,
-            seq_ids=list(range(seq_id + 1, num_sequence)),
-            expected_kv=cached_kv,
-        )
+            num_sequence = 5
+            for seq_id in range(num_sequence):
+                fremove_sequence(kv_cache, seq_id)
+                verify_cached_kv(
+                    kv_cache,
+                    seq_ids=list(range(seq_id + 1, num_sequence)),
+                    expected_kv=cached_kv,
+                )
 
-    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
+            assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
+        finally:
+            device = None
+            w_kv = None
+            w_uk = None
+            w_uv = None
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 if __name__ == "__main__":
-    set_global_func(dtype)
-    cache = create_kv_cache(dtype)
-    cache_and_config = (cache,)
-    test_paged_attention_kv_cache_prefill_and_decode(cache_and_config)
-    test_paged_attention_kv_cache_remove_sequence(cache_and_config)
-    test_paged_attention_kv_cache_fork_sequence(cache_and_config)
-    test_paged_attention_kv_cache_popn(cache_and_config)
+    tvm.testing.main()

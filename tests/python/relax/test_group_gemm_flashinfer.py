@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841, RUF005
+# ruff: noqa: E501, F401, RUF005
 
 """Test for FlashInfer GroupedGemm TVM integration"""
 
@@ -391,8 +391,7 @@ def test_grouped_gemm_correctness(
     test_case,
 ):
     """Test correctness of GroupedGemm operations"""
-    device = tvm.cuda(0)
-    target = tvm.target.Target.from_device(device)
+    target = tvm.target.Target.from_device(tvm.cuda(0))
 
     # Generate the module
     mod = relax.backend.cuda.flashinfer.gen_grouped_gemm_module(target=target)[0]
@@ -400,80 +399,68 @@ def test_grouped_gemm_correctness(
     # Load the module
     grouped_gemm_fn = mod["group_gemm_fp8_nt_groupwise"]
 
-    # Generate test data
-    test_data = generate_test_data(
-        batch_size=test_case["batch_size"],
-        m_sizes=test_case["m_sizes"],
-        n=test_case["n"],
-        k=test_case["k"],
-        dtype_a=dtype_a,
-        dtype_b=dtype_b,
-        dtype_out=dtype_out,
-        scale_granularity_m=scale_granularity_m,
-        scale_granularity_n=scale_granularity_n,
-        scale_granularity_k=scale_granularity_k,
-        scale_major_mode=scale_major_mode,
-        device=device,
-    )
+    def run():
+        device = tvm.cuda(0)
+        test_data = generate_test_data(
+            batch_size=test_case["batch_size"],
+            m_sizes=test_case["m_sizes"],
+            n=test_case["n"],
+            k=test_case["k"],
+            dtype_a=dtype_a,
+            dtype_b=dtype_b,
+            dtype_out=dtype_out,
+            scale_granularity_m=scale_granularity_m,
+            scale_granularity_n=scale_granularity_n,
+            scale_granularity_k=scale_granularity_k,
+            scale_major_mode=scale_major_mode,
+            device=device,
+        )
 
-    # Prepare output buffer
-    output_shape = (test_data["total_m"], test_data["n"])
-    if dtype_out == "bfloat16":
-        output = tvm.runtime.empty(output_shape, dtype="bfloat16", device=device)
-    elif dtype_out == "float16":
-        output = tvm.runtime.empty(output_shape, dtype="float16", device=device)
-    else:
-        output = tvm.runtime.empty(output_shape, dtype="float32", device=device)
+        output_shape = (test_data["total_m"], test_data["n"])
+        if dtype_out == "bfloat16":
+            output = tvm.runtime.empty(output_shape, dtype="bfloat16", device=device)
+        elif dtype_out == "float16":
+            output = tvm.runtime.empty(output_shape, dtype="float16", device=device)
+        else:
+            output = tvm.runtime.empty(output_shape, dtype="float32", device=device)
 
-    # Create workspace buffers (required by the interface)
-    int_workspace = tvm.runtime.empty((DEFAULT_WORKSPACE_SIZE,), dtype="int32", device=device)
-    float_workspace = tvm.runtime.empty((DEFAULT_WORKSPACE_SIZE,), dtype="float32", device=device)
+        int_workspace = tvm.runtime.empty((DEFAULT_WORKSPACE_SIZE,), dtype="int32", device=device)
+        float_workspace = tvm.runtime.empty(
+            (DEFAULT_WORKSPACE_SIZE,), dtype="float32", device=device
+        )
 
-    grouped_gemm_fn(
-        int_workspace,  # int_workspace_buffer
-        float_workspace,  # float_workspace_buffer
-        test_data["a"],  # A
-        test_data["b"],  # B
-        test_data["scale_a"],  # SFA
-        test_data["scale_b"],  # SFB
-        output,  # D
-        test_data["m_indptr"],  # m_indptr
-        test_data["n"],  # n (scalar)
-        test_data["k"],  # k (scalar)
-        scale_granularity_m,
-        scale_granularity_n,
-        scale_granularity_k,
-        scale_major_mode,
-        mma_sm,
-    )
+        grouped_gemm_fn(
+            int_workspace,
+            float_workspace,
+            test_data["a"],
+            test_data["b"],
+            test_data["scale_a"],
+            test_data["scale_b"],
+            output,
+            test_data["m_indptr"],
+            test_data["n"],
+            test_data["k"],
+            scale_granularity_m,
+            scale_granularity_n,
+            scale_granularity_k,
+            scale_major_mode,
+            mma_sm,
+        )
 
-    # Compute reference result
-    reference = compute_reference_grouped_gemm(
-        test_data["torch_a"],
-        test_data["torch_b"],
-        test_data["torch_m_indptr"],
-        dtype_out,
-    )
+        reference = compute_reference_grouped_gemm(
+            test_data["torch_a"],
+            test_data["torch_b"],
+            test_data["torch_m_indptr"],
+            dtype_out,
+        )
+        output_torch = torch.as_tensor(output, device=test_data["torch_a"].device)
+        assert output_torch.shape == reference.shape, (
+            f"Shape mismatch: got {output_torch.shape}, expected {reference.shape}"
+        )
+        diff = calc_diff(output_torch.cpu().double().numpy(), reference.cpu().double().numpy())
+        assert diff < 1e-3, f"diff too large {diff}"
 
-    # Convert TVM output to PyTorch for comparison
-    output_torch = torch.as_tensor(output, device=test_data["torch_a"].device)
-    output_torch
-
-    # Compare results with appropriate tolerance
-    if dtype_out == "bfloat16":
-        rtol, atol = 1e-2, 1e-2
-    elif dtype_out == "float16":
-        rtol, atol = 1e-3, 1e-3
-    else:
-        rtol, atol = 1e-4, 1e-4
-
-    # Check shapes match
-    assert output_torch.shape == reference.shape, (
-        f"Shape mismatch: got {output_torch.shape}, expected {reference.shape}"
-    )
-
-    diff = calc_diff(output_torch.cpu().double().numpy(), reference.cpu().double().numpy())
-    assert diff < 1e-3, f"diff too large {diff}"
+    tvm.testing.run_with_gpu_lock(run)
 
 
 if __name__ == "__main__":

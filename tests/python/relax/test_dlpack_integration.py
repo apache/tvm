@@ -53,21 +53,25 @@ class TestDLPackIntegration:
 
     def test_dlpack_pytorch_to_tvm_conversion_gpu(self):
         if tvm.cuda().exist:
-            pytorch_tensor = torch.tensor(
-                [1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda"
-            )
 
-            tvm_tensor = tvm.runtime.from_dlpack(pytorch_tensor)
+            def run():
+                pytorch_tensor = torch.tensor(
+                    [1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda"
+                )
 
-            assert isinstance(tvm_tensor, tvm.runtime.Tensor)
-            assert tvm_tensor.shape == pytorch_tensor.shape
-            assert str(tvm_tensor.dtype) == str(pytorch_tensor.dtype).replace("torch.", "")
-            assert str(tvm_tensor.device) == "cuda:0"
+                tvm_tensor = tvm.runtime.from_dlpack(pytorch_tensor)
 
-            # Move to CPU for numpy conversion
-            tvm_numpy = tvm_tensor.numpy()
-            pytorch_numpy = pytorch_tensor.cpu().numpy()
-            tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+                assert isinstance(tvm_tensor, tvm.runtime.Tensor)
+                assert tvm_tensor.shape == pytorch_tensor.shape
+                assert str(tvm_tensor.dtype) == str(pytorch_tensor.dtype).replace("torch.", "")
+                assert str(tvm_tensor.device) == "cuda:0"
+
+                # Move to CPU for numpy conversion
+                tvm_numpy = tvm_tensor.numpy()
+                pytorch_numpy = pytorch_tensor.cpu().numpy()
+                tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+
+            tvm.testing.run_with_gpu_lock(run)
         else:
             pytest.skip("CUDA not available")
 
@@ -92,18 +96,22 @@ class TestDLPackIntegration:
             import numpy as np
 
             data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype="float32")
-            tvm_tensor = tvm.runtime.tensor(data, device=tvm.cuda(0))
 
-            pytorch_tensor = torch.from_dlpack(tvm_tensor)
+            def run():
+                tvm_tensor = tvm.runtime.tensor(data, device=tvm.cuda(0))
 
-            assert isinstance(pytorch_tensor, torch.Tensor)
-            assert pytorch_tensor.shape == tvm_tensor.shape
-            assert pytorch_tensor.dtype == torch.float32
-            assert pytorch_tensor.device.type == "cuda"
+                pytorch_tensor = torch.from_dlpack(tvm_tensor)
 
-            tvm_numpy = tvm_tensor.numpy()
-            pytorch_numpy = pytorch_tensor.cpu().numpy()
-            tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+                assert isinstance(pytorch_tensor, torch.Tensor)
+                assert pytorch_tensor.shape == tvm_tensor.shape
+                assert pytorch_tensor.dtype == torch.float32
+                assert pytorch_tensor.device.type == "cuda"
+
+                tvm_numpy = tvm_tensor.numpy()
+                pytorch_numpy = pytorch_tensor.cpu().numpy()
+                tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+
+            tvm.testing.run_with_gpu_lock(run)
         else:
             pytest.skip("CUDA not available")
 

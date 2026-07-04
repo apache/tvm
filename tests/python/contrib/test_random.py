@@ -158,8 +158,11 @@ def test_random_fill():
         "float32",
         "float64",
     ]:
-        for _, dev in tvm.testing.enabled_targets():
-            test_local(dev, dtype)
+        for target, dev in tvm.testing.enabled_targets():
+            if tvm.target.Target(target).kind.name == "llvm":
+                test_local(dev, dtype)
+            else:
+                tvm.testing.run_with_gpu_lock(test_local, dev, dtype)
         test_rpc(dtype)
 
 

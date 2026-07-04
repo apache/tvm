@@ -25,5 +25,6 @@ from ._ffi_api import (
     test_raise_error,
 )
 from .runner import local_run, rpc_run
+from .locking import run_with_gpu_lock
 from .utils import *
 from . import env

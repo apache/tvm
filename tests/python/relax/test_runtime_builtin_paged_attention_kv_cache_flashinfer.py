@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import functools
+
 # ruff: noqa: E741
 import pytest
 import torch
@@ -59,7 +61,7 @@ rope_scale = 1.0
 rope_theta = 1e4
 dtype = "float16"
 dtype_torch = getattr(torch, dtype)
-device = tvm.cuda()
+device = None
 device_torch = torch.device("cuda")
 
 fclear = None
@@ -88,7 +90,7 @@ fcopy_cache = None
 fcompact_copy = None
 
 
-def set_global_func(rope_mode: RopeMode):
+def set_global_func(rope_mode: RopeMode, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fpopn
     global fbegin_forward, fend_forward, fattention, fattention_with_fuse_qkv, fdebug_get_kv
     global fattention_prefill, fattention_decode, fattention_prefill_ragged
@@ -108,7 +110,6 @@ def set_global_func(rope_mode: RopeMode):
     )
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    target = tvm.target.Target.from_device(device)
     flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
         dtype_q=dtype,
         dtype_kv=dtype,
@@ -213,8 +214,30 @@ def kv_cache_and_rope_mode(request):
         # tvm/relax/frontend/nn/llm/kv_cache.py); models pair FlashInfer with
         # NORMAL/NONE rope and apply rotary embedding in a separate kernel.
         pytest.skip("FlashInfer does not support inline RoPE mode")
-    set_global_func(request.param)
-    return create_kv_cache(request.param), request.param
+    target = tvm.testing.run_with_gpu_lock(_get_cuda_target)
+    set_global_func(request.param, target)
+    return request.param
+
+
+def _get_cuda_target():
+    return tvm.target.Target.from_device(tvm.cuda())
+
+
+def _run_with_kv_cache(test):
+    @functools.wraps(test)
+    def wrapper(kv_cache_and_rope_mode):
+        def run():
+            global device
+            device = tvm.cuda()
+            try:
+                cache = create_kv_cache(kv_cache_and_rope_mode)
+                return test((cache, kv_cache_and_rope_mode))
+            finally:
+                device = None
+
+        return tvm.testing.run_with_gpu_lock(run)
+
+    return wrapper
 
 
 def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
@@ -428,6 +451,7 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
 
 
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -448,6 +472,7 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -470,6 +495,7 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode):
         )
 
 
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -535,6 +561,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
 
 
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -555,10 +582,4 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
 
 
 if __name__ == "__main__":
-    for rope_mode in [RopeMode.NONE, RopeMode.NORMAL]:
-        set_global_func(rope_mode)
-        cache = create_kv_cache(rope_mode)
-        test_paged_attention_kv_cache_prefill_and_decode((cache, rope_mode))
-        test_paged_attention_kv_cache_remove_sequence((cache, rope_mode))
-        test_paged_attention_kv_cache_fork_sequence((cache, rope_mode))
-        test_paged_attention_kv_cache_popn((cache, rope_mode))
+    tvm.testing.main()

@@ -47,13 +47,17 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):
-    dev = tvm.device(target, 0)
     with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
-    return f(*inputs).numpy()
+
+    def run():
+        dev = tvm.device(target, 0)
+        vm = relax.VirtualMachine(ex, dev)
+        f = vm["main"]
+        inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
+        return f(*inputs).numpy()
+
+    return tvm.testing.run_with_gpu_lock(run)
 
 
 def get_result_with_relax_cublas_offload(mod, np_inputs):

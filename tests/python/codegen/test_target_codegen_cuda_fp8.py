@@ -953,24 +953,25 @@ def test_moe_gemv_shfl_down_illegal_instr():
     with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}) and target:
         mod = _pipeline(mod)
         rt_mod = tvm.compile(mod, target=target)
-    dev = tvm.cuda(0)
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)
-    x = tvm.runtime.tensor(x_data, device=dev)
-
     indptr_data = np.zeros((1, 2), dtype=np.int32)
-    indptr = tvm.runtime.tensor(indptr_data, device=dev)
-
     weight_data = np.zeros((num_experts, spatial_size, reduce_size), dtype="float8_e4m3fn")
-    weight = tvm.runtime.tensor(weight_data, device=dev)
-
     scale_data = np.zeros((1,), dtype=np.float32)
-    scale = tvm.runtime.tensor(scale_data, device=dev)
 
-    vm = relax.VirtualMachine(rt_mod, dev)
-    # Ensure this runs without failure. Utilizing dlight thread extents TS, TR = 4, 64
-    # in GEMV scheduling will yield: CUDA: an illegal instruction was encountered.
-    vm["main"](x, indptr, weight, scale)
+    def run():
+        dev = tvm.cuda(0)
+        x = tvm.runtime.tensor(x_data, device=dev)
+        indptr = tvm.runtime.tensor(indptr_data, device=dev)
+        weight = tvm.runtime.tensor(weight_data, device=dev)
+        scale = tvm.runtime.tensor(scale_data, device=dev)
+        vm = relax.VirtualMachine(rt_mod, dev)
+        # Ensure this runs without failure. Utilizing dlight thread extents TS, TR = 4, 64
+        # in GEMV scheduling will yield: CUDA: an illegal instruction was encountered.
+        vm["main"](x, indptr, weight, scale)
+        dev.sync()
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.parametrize("vec_length", [2, 4])
@@ -998,21 +999,25 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
         return Module
 
     mod = _create_mod(vec_length, dtype)
-    device = tvm.cuda()
-    target = tvm.target.Target.from_device(device)
+    target = tvm.target.Target.from_device(tvm.cuda())
     f = tvm.tirx.build(mod, target=target)
 
     a_np = np.random.rand(128).astype("float8_e4m3fn")
     b_np = np.random.rand(128).astype(dtype)
     c_np = (a_np.astype(dtype) * b_np) + 3
-    a_tvm = tvm.runtime.tensor(a_np, device=device)
-    b_tvm = tvm.runtime.tensor(b_np, device=device)
-    c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
-    f(a_tvm, b_tvm, c_tvm)
-    c_tvm = c_tvm.numpy()
-    tvm.testing.assert_allclose(
-        c_tvm.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
-    )
+
+    def run():
+        device = tvm.cuda()
+        a_tvm = tvm.runtime.tensor(a_np, device=device)
+        b_tvm = tvm.runtime.tensor(b_np, device=device)
+        c_tvm = tvm.runtime.empty((128,), dtype=dtype, device=device)
+        f(a_tvm, b_tvm, c_tvm)
+        actual = c_tvm.numpy()
+        tvm.testing.assert_allclose(
+            actual.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
+        )
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 if __name__ == "__main__":

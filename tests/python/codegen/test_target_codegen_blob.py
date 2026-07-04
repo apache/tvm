@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F821, F841
+# ruff: noqa: F821
 
 import ctypes
 
@@ -34,7 +34,6 @@ def test_cuda_multi_lib():
 
     # test combining two system lib together
     # each contains a fatbin component in cuda
-    dev = tvm.cuda(0)
     for device in ["llvm", "cuda"]:
         if not tvm.testing.device_enabled(device):
             print(f"skip because {device} is not enabled...")
@@ -79,21 +78,24 @@ def test_cuda_multi_lib():
     cc.create_shared(path_dso, ["-Wl,--whole-archive", pathAll, "-Wl,--no-whole-archive"])
 
     def popen_check():
-        # Load dll, will trigger system library registration
-        ctypes.CDLL(path_dso)
-        # Load the system wide library
-        dev = tvm.cuda()
-        a_np = np.random.uniform(size=12).astype("float32")
-        a_nd = tvm.runtime.tensor(a_np, dev)
-        b_nd = tvm.runtime.tensor(a_np, dev)
-        syslibA = tvm.runtime.system_lib("modA_")
-        syslibB = tvm.runtime.system_lib("modB_")
-        # reload same lib twice
-        syslibA = tvm.runtime.system_lib("modA_")
-        syslibA["my_inplace_update"](a_nd)
-        syslibB["my_inplace_update"](b_nd)
-        np.testing.assert_equal(a_nd.numpy(), a_np + 1)
-        np.testing.assert_equal(b_nd.numpy(), a_np + 2)
+        def run():
+            # Load dll, will trigger system library registration
+            ctypes.CDLL(path_dso)
+            # Load the system wide library
+            dev = tvm.cuda()
+            a_np = np.random.uniform(size=12).astype("float32")
+            a_nd = tvm.runtime.tensor(a_np, dev)
+            b_nd = tvm.runtime.tensor(a_np, dev)
+            syslibA = tvm.runtime.system_lib("modA_")
+            syslibB = tvm.runtime.system_lib("modB_")
+            # reload same lib twice
+            syslibA = tvm.runtime.system_lib("modA_")
+            syslibA["my_inplace_update"](a_nd)
+            syslibB["my_inplace_update"](b_nd)
+            np.testing.assert_equal(a_nd.numpy(), a_np + 1)
+            np.testing.assert_equal(b_nd.numpy(), a_np + 2)
+
+        tvm.testing.run_with_gpu_lock(run)
 
     # system lib should be loaded in different process
     worker = popen_pool.PopenWorker()

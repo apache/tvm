@@ -164,18 +164,22 @@ def test_tcgen05_ld_st_roundtrip():
             T.ptx.tcgen05.dealloc(tmem_addr, n_cols=N_COLS, cta_group=cta_group)
     # fmt: on
 
-    DEV = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         src, mod = _get_source(test_ld_st)
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
         assert "tcgen05.st.sync.aligned.32x32b.x1.b32" in src
+
+    def run():
+        dev = tvm.cuda(0)
         A_np = np.random.randn(HEIGHT, WIDTH).astype("float32")
         B_np = np.zeros((HEIGHT, WIDTH), dtype="float32")
-        A = tvm.runtime.tensor(A_np, device=DEV)
-        B = tvm.runtime.tensor(B_np, device=DEV)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
         mod(A, B)
         np.testing.assert_allclose(A.numpy(), B.numpy())
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.gpu
@@ -245,18 +249,22 @@ def test_tcgen05_cp_ld_roundtrip():
             T.ptx.tcgen05.dealloc(tmem_addr, n_cols=N_COLS, cta_group=cta_group)
     # fmt: on
 
-    DEV = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         src, mod = _get_source(test_cp_ld)
         assert "tcgen05.cp.cta_group::1.128x256b" in src
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
+
+    def run():
+        dev = tvm.cuda(0)
         A_np = np.random.randn(HEIGHT, WIDTH).astype(dtype)
         B_np = np.zeros((HEIGHT, WIDTH), dtype=dtype)
-        A = tvm.runtime.tensor(A_np, device=DEV)
-        B = tvm.runtime.tensor(B_np, device=DEV)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
         mod(A, B)
         np.testing.assert_allclose(A.numpy(), B.numpy())
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.parametrize("swizzle", [0, 1, 2, 3])
@@ -377,7 +385,6 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
     import torch
 
     torch.manual_seed(42)
-    DEV = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         src, mod = _get_source(test_mma_ss_no_tma)
@@ -386,15 +393,20 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
         assert "tcgen05.commit.cta_group::1.mbarrier::arrive::one.shared::cluster.b64" in src
         assert "tcgen05.ld.sync.aligned.32x32b.x1.b32" in src
         assert "tcgen05.wait::ld.sync.aligned" in src
+
+    def run():
+        dev = tvm.cuda(0)
         A_torch = torch.rand((M, K), dtype=torch.float16)
         B_torch = torch.rand((N, K), dtype=torch.float16)
         C_torch = torch.zeros((M, N), dtype=torch.float32)
-        A = tvm.runtime.tensor(A_torch, device=DEV)
-        B = tvm.runtime.tensor(B_torch, device=DEV)
-        C = tvm.runtime.tensor(C_torch, device=DEV)
+        A = tvm.runtime.tensor(A_torch, device=dev)
+        B = tvm.runtime.tensor(B_torch, device=dev)
+        C = tvm.runtime.tensor(C_torch, device=dev)
         mod(A, B, C)
         ref = torch.matmul(A_torch, B_torch.T)
         np.testing.assert_allclose(C.numpy(), ref.numpy(), rtol=1e-3, atol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 if __name__ == "__main__":

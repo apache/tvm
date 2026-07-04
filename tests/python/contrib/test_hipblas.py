@@ -37,15 +37,21 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.hipblas.matmul", True):
             print("skip because extern function is not available")
             return
-        dev = tvm.rocm(0)
         f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
-        a = tvm.runtime.tensor(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
-        c = tvm.runtime.tensor(np.zeros((n, m), dtype=C.dtype), dev)
-        f(a, b, c)
-        tvm.testing.assert_allclose(
-            c.numpy(), np.dot(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)), rtol=rtol
-        )
+
+        def run():
+            dev = tvm.rocm(0)
+            a = tvm.runtime.tensor(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
+            c = tvm.runtime.tensor(np.zeros((n, m), dtype=C.dtype), dev)
+            f(a, b, c)
+            tvm.testing.assert_allclose(
+                c.numpy(),
+                np.dot(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)),
+                rtol=rtol,
+            )
+
+        tvm.testing.run_with_gpu_lock(run)
 
     verify()
 
@@ -59,23 +65,26 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
     B = te.placeholder(Bshape, name="B", dtype=in_dtype)
     C = hipblas.batch_matmul(A, B, dtype=out_dtype)
 
-    dev = tvm.rocm(0)
     f = tvm.compile(te.create_prim_func([A, B, C]), target="rocm")
 
-    if "int" in in_dtype:
-        a = tvm.runtime.tensor(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(1, 10, size=Bshape).astype(in_dtype), dev)
-    else:
-        a = tvm.runtime.tensor(np.random.uniform(size=Ashape).astype(A.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=Bshape).astype(B.dtype), dev)
+    def run():
+        dev = tvm.rocm(0)
+        if "int" in in_dtype:
+            a = tvm.runtime.tensor(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)
+            b = tvm.runtime.tensor(np.random.uniform(1, 10, size=Bshape).astype(in_dtype), dev)
+        else:
+            a = tvm.runtime.tensor(np.random.uniform(size=Ashape).astype(A.dtype), dev)
+            b = tvm.runtime.tensor(np.random.uniform(size=Bshape).astype(B.dtype), dev)
 
-    c = tvm.runtime.tensor(np.zeros(Cshape, dtype=C.dtype), dev)
-    f(a, b, c)
-    tvm.testing.assert_allclose(
-        c.numpy(),
-        np.matmul(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)).astype(C.dtype),
-        rtol=rtol,
-    )
+        c = tvm.runtime.tensor(np.zeros(Cshape, dtype=C.dtype), dev)
+        f(a, b, c)
+        tvm.testing.assert_allclose(
+            c.numpy(),
+            np.matmul(a.numpy().astype(C.dtype), b.numpy().astype(C.dtype)).astype(C.dtype),
+            rtol=rtol,
+        )
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.gpu

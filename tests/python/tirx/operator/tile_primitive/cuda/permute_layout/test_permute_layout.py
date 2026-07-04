@@ -162,10 +162,15 @@ def _compile_and_run(prim_func, np_inputs):
     with target:
         mod = tvm.IRModule({"main": prim_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
-    dev = tvm.cuda(0)
-    tensors = [tvm.runtime.tensor(a, dev) for a in np_inputs]
-    mod(*tensors)
-    return [t.numpy() for t in tensors], mod.mod.imports[0].inspect_source()
+
+    def run_test():
+        dev = tvm.cuda(0)
+        tensors = [tvm.runtime.tensor(a, dev) for a in np_inputs]
+        mod(*tensors)
+        return [tensor.numpy() for tensor in tensors]
+
+    outputs = tvm.testing.run_with_gpu_lock(run_test)
+    return outputs, mod.mod.imports[0].inspect_source()
 
 
 @pytest.mark.gpu
@@ -256,6 +261,7 @@ def test_identity_passes_through_as_copy():
     np.random.seed(0)
     A_np = tvm.testing.generate_random_array("uint32", shape)
     B_np = np.zeros_like(A_np)
+
     [_, B_out], _ = _compile_and_run(f, [A_np, B_np])
     np.testing.assert_array_equal(B_out, A_np)
 

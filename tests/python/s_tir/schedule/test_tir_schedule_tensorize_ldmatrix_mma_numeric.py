@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-# ruff: noqa: E501
 import numpy as np
 import pytest
 
@@ -122,8 +121,6 @@ def run_test(
 
     f = tvm.compile(sch.mod["main"], target="cuda")
 
-    dev = tvm.device("cuda", 0)
-
     if in_dtype == "float16":
         a_np = np.random.normal(size=(M, K)).astype("float16")
 
@@ -171,18 +168,20 @@ def run_test(
             b_np = np.random.randint(-128, 128, (K, N)).astype("int8")
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype("int32")
 
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    c = tvm.runtime.tensor(np.zeros((M, N), dtype=out_dtype), dev)
+    def run(measure=False):
+        dev = tvm.device("cuda", 0)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        c = tvm.runtime.tensor(np.zeros((M, N), dtype=out_dtype), dev)
+        if measure:
+            return f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
+        f(a, b, c)
+        dev.sync()
+        if out_dtype != "float16" and in_dtype not in ["float8_e4m3fn", "float8_e5m2"]:
+            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
 
-    f(a, b, c)
-
-    if out_dtype != "float16" and in_dtype not in ["float8_e4m3fn", "float8_e5m2"]:
-        # The numpy reference is computed with fp32 precision (otherwise too slow).
-        # So there is non-trivial accuracy difference if TVM result is computed with fp16 accumulation.
-        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
-
-    return lambda: f.time_evaluator(f.entry_name, dev, number=500)(a, b, c)
+    tvm.testing.run_with_gpu_lock(run)
+    return lambda: tvm.testing.run_with_gpu_lock(run, True)
 
 
 @pytest.mark.gpu

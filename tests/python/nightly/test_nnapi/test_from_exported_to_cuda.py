@@ -48,23 +48,25 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 
     relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
     ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
-    vm = relax.VirtualMachine(ex, dev)
-
-    gpu_data = tvm.runtime.tensor(raw_data_for_tvm, dev)
-    gpu_params = [tvm.runtime.tensor(p, dev) for p in tvm_params["main"]]
-    gpu_out = vm["main"](gpu_data, *gpu_params)
-
     pytorch_out = torch_module(torch_data)
 
-    if isinstance(pytorch_out, tuple):
-        for i in range(len(pytorch_out)):
-            actual = gpu_out[i].numpy()
-            desired = pytorch_out[i].detach().numpy()
+    def run_and_check():
+        vm = relax.VirtualMachine(ex, dev)
+        gpu_data = tvm.runtime.tensor(raw_data_for_tvm, dev)
+        gpu_params = [tvm.runtime.tensor(p, dev) for p in tvm_params["main"]]
+        gpu_out = vm["main"](gpu_data, *gpu_params)
+
+        if isinstance(pytorch_out, tuple):
+            for i in range(len(pytorch_out)):
+                actual = gpu_out[i].numpy()
+                desired = pytorch_out[i].detach().numpy()
+                tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+        else:
+            actual = gpu_out[0].numpy()
+            desired = pytorch_out.detach().numpy()
             tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
-    else:
-        actual = gpu_out[0].numpy()
-        desired = pytorch_out.detach().numpy()
-        tvm.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

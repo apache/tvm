@@ -335,14 +335,19 @@ def _run_roundtrip_16b(
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, per_thread_elems))
         B_np = np.zeros((128, per_thread_elems), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        # Round-trip should preserve every per-thread bit pattern.
-        A_view = A.numpy().view(np.uint16)
-        B_view = B.numpy().view(np.uint16)
-        np.testing.assert_array_equal(B_view, A_view)
+
+        def run_test():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            dev.sync()
+            # Round-trip should preserve every per-thread bit pattern.
+            A_view = A.numpy().view(np.uint16)
+            B_view = B.numpy().view(np.uint16)
+            np.testing.assert_array_equal(B_view, A_view)
+
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 def _next_pow2(x: int) -> int:
@@ -610,21 +615,14 @@ def _run_load_test(shape: str, rep: int, dtype: str):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, stage_width_elem))
         B_np = np.zeros((128, per_thread_elems), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        B_out = B.numpy()
 
-    # Build expected B_out from the layout.
+    # Build the expected register dump from the layout before acquiring the GPU.
     if bits == 32:
         # Each register slot in B[t, r] holds a single fp32; compare bit-exactly.
         B_expected = np.zeros((128, per_thread_elems), dtype=np.uint32)
         for t in range(128):
             for r in range(regs_per_thread):
                 B_expected[t, r] = _expected_reg_value_fp32(A_np, shape, rep, 0, t, r)
-        B_view = B_out.view(np.uint32)
-        np.testing.assert_array_equal(B_view, B_expected)
     else:
         # B[t, :] holds per_thread_elems 16-bit values; each fp32 register packs
         # two of them in (low, high) order. Compare bit-exactly via uint32 view.
@@ -637,12 +635,23 @@ def _run_load_test(shape: str, rep: int, dtype: str):
                 dtype_np = _bf16
             except ImportError:
                 pytest.skip("bfloat16 verification needs ml_dtypes")
-        B_view = B_out.view(np.uint32).reshape(128, regs_per_thread)
         B_expected = np.zeros((128, regs_per_thread), dtype=np.uint32)
         for t in range(128):
             for r in range(regs_per_thread):
                 B_expected[t, r] = _expected_reg_value_16b(A_np, shape, rep, 0, t, r, dtype_np)
+
+    def run_test():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        mod(A, B)
+        dev.sync()
+        B_view = B.numpy().view(np.uint32)
+        if bits != 32:
+            B_view = B_view.reshape(128, regs_per_thread)
         np.testing.assert_array_equal(B_view, B_expected)
+
+    tvm.testing.run_with_gpu_lock(run_test)
 
 
 # --------------------------------------------------------------------------
@@ -762,47 +771,47 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, per_thread_elems))
         B_np = np.zeros((128, stage_width_elem), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        B_out = B.numpy()
 
     # Build expected TMEM staging: only rows that the M=64 fragment writes to
     # should match A's per-thread data; other rows are untouched (we set B_np to
     # zero and the .32x32b.ld reads whatever the TMEM allocator left, which may
     # be arbitrary, so only check the fragment positions).
+    expected_values = []
     if bits == 32:
-        view = B_out.view(np.uint32)
         for t in range(128):
             for r in range(regs_per_thread):
                 row, col = _decompose_fp32(shape, t, r)
                 tmem_lane = _frag_row_to_tmem_lane(shape, row)
                 expected = np.float32(A_np[t, r]).view(np.uint32)
-                assert view[tmem_lane, col] == expected, (
-                    f"{shape}.x{rep} {dtype}: thread {t} reg {r} → "
-                    f"(row={row}, col={col}) tmem_lane={tmem_lane} got "
-                    f"{view[tmem_lane, col]:#x} want {expected:#x}"
-                )
+                expected_values.append((tmem_lane, col, expected, t, r, row))
     else:
         # 16-bit: each fp32 reg packs two 16-bit elements at adjacent TMEM cols.
-        view = B_out.view(np.uint16)
+        if dtype != "float16":
+            pytest.skip("16b store check restricted to float16")
         for t in range(128):
             for r in range(regs_per_thread):
                 row, col_fp32 = _decompose_fp32(shape, t, r)
                 tmem_lane = _frag_row_to_tmem_lane(shape, row)
-                lo = np.float16(A_np[t, 2 * r]).view(np.uint16) if dtype == "float16" else None
-                # bfloat16 (numpy) lacks a clean .view(uint16); skip in store mode
-                # for now to keep this test path bit-exact only for float16.
-                if dtype != "float16":
-                    pytest.skip("16b store check restricted to float16")
+                lo = np.float16(A_np[t, 2 * r]).view(np.uint16)
                 hi = np.float16(A_np[t, 2 * r + 1]).view(np.uint16)
-                assert view[tmem_lane, 2 * col_fp32] == lo, (
-                    f"{shape}.x{rep} {dtype}: t={t} r={r} lo "
-                    f"({tmem_lane=}, {col_fp32=}) got {view[tmem_lane, 2 * col_fp32]:#x} "
-                    f"want {lo:#x}"
-                )
-                assert view[tmem_lane, 2 * col_fp32 + 1] == hi
+                expected_values.append((tmem_lane, 2 * col_fp32, lo, t, r, row))
+                expected_values.append((tmem_lane, 2 * col_fp32 + 1, hi, t, r, row))
+
+    def run_test():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        mod(A, B)
+        dev.sync()
+        view = B.numpy().view(np.uint32 if bits == 32 else np.uint16)
+        for tmem_lane, col, expected, t, r, row in expected_values:
+            assert view[tmem_lane, col] == expected, (
+                f"{shape}.x{rep} {dtype}: thread {t} reg {r} → "
+                f"(row={row}, col={col}) tmem_lane={tmem_lane} got "
+                f"{view[tmem_lane, col]:#x} want {expected:#x}"
+            )
+
+    tvm.testing.run_with_gpu_lock(run_test)
 
 
 # --------------------------------------------------------------------------
@@ -971,13 +980,18 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
         A_np = tvm.testing.generate_random_array(dtype, (128, stage_width_elem))
         Bf_np = np.zeros((128, per_thread_elems), dtype=dtype)
         Bs_np = np.zeros((128, per_thread_elems), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        Bf = tvm.runtime.tensor(Bf_np, DEV)
-        Bs = tvm.runtime.tensor(Bs_np, DEV)
-        mod(A, Bf, Bs)
-        # Sliced load must reproduce the full-width load bit-for-bit.
-        np.testing.assert_array_equal(Bs.numpy().view(np.uint32), Bf.numpy().view(np.uint32))
+
+        def run_test():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            Bf = tvm.runtime.tensor(Bf_np, dev)
+            Bs = tvm.runtime.tensor(Bs_np, dev)
+            mod(A, Bf, Bs)
+            dev.sync()
+            # Sliced load must reproduce the full-width load bit-for-bit.
+            np.testing.assert_array_equal(Bs.numpy().view(np.uint32), Bf.numpy().view(np.uint32))
+
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.gpu

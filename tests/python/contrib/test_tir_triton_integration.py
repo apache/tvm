@@ -120,12 +120,15 @@ def test_tir_triton_integration():
     tvm.ir.assert_structural_equal(Module["add"], Parsed["add"])
     assert len(Module.get_attr("external_mods")) == 1
 
-    device = tvm.cuda(0)
-    x_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
-    y_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
-    output_np = x_nd.numpy() + y_nd.numpy()
-
     with tvm.target.Target("cuda"):
         lib = tvm.compile(Module)
+
+    def run_and_check():
+        device = tvm.cuda(0)
+        x_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+        y_nd = tvm.runtime.tensor(np.random.rand(256).astype(np.float32), device)
+        output_np = x_nd.numpy() + y_nd.numpy()
         output_nd = tvm.runtime.vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
         tvm.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)

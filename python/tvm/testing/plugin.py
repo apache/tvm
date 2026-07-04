@@ -35,13 +35,6 @@ directory as the test scripts.
 import _pytest
 import pytest
 
-try:
-    from xdist.scheduler.loadscope import LoadScopeScheduling
-
-    HAVE_XDIST = True
-except ImportError:
-    HAVE_XDIST = False
-
 
 def pytest_collection_modifyitems(config, items):
     """Called after all tests are chosen, currently used for bookkeeping."""
@@ -118,36 +111,3 @@ def _sort_tests(items):
         return filename, lineno, test_name
 
     items.sort(key=sort_key)
-
-
-# pytest-xdist isn't required but is used in CI, so guard on its presence
-if HAVE_XDIST:
-
-    def pytest_xdist_make_scheduler(config, log):
-        """
-        Serialize certain tests for pytest-xdist that have inter-test
-        dependencies
-        """
-
-        class TvmTestScheduler(LoadScopeScheduling):
-            """
-            Scheduler to serializer tests
-            """
-
-            def _split_scope(self, nodeid):
-                """
-                Returns a specific string for classes of nodeids
-                """
-                # NOTE: these tests contain inter-test dependencies and must be
-                # serialized
-                items = {
-                    "test_tvm_testing_features": "functional-tests",
-                }
-
-                for nodeid_pattern, suite_name in items.items():
-                    if nodeid_pattern in nodeid:
-                        return suite_name
-
-                return nodeid
-
-        return TvmTestScheduler(config, log)

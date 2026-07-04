@@ -1537,15 +1537,20 @@ def build_and_run(sch):
         with tvm.transform.PassContext(config={"tirx.use_async_copy": 1}):
             f = tvm.compile(sch.mod["main"], target="cuda")
 
-        dev = tvm.device("cuda", 0)
         a_np = np.random.uniform(size=(N, K)).astype("float16")
         b_np = np.random.uniform(size=(K, M)).astype("float16")
         c_np = np.dot(a_np.astype("float32"), b_np.astype("float32"))
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(b_np, dev)
-        c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)
-        f(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+
+        def run_and_check():
+            dev = tvm.device("cuda", 0)
+            a = tvm.runtime.tensor(a_np, dev)
+            b = tvm.runtime.tensor(b_np, dev)
+            c = tvm.runtime.tensor(np.zeros((N, M), dtype="float32"), dev)
+            f(a, b, c)
+            dev.sync()
+            tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu

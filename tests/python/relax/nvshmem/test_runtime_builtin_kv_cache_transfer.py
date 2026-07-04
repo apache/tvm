@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: E501, E741, F401
 import enum
+import functools
 import itertools
 from typing import Optional, Union
 
@@ -76,7 +77,7 @@ rope_theta = 1e4
 rope_scaling = {}
 dtype = None
 dtype_torch = None
-device = tvm.cuda(rank)
+device = None
 device_torch = torch.device(f"cuda:{rank}")
 
 fclear = None
@@ -112,7 +113,7 @@ fcopy_single_page = None
 fcompact_copy = None
 
 
-def set_global_func(head_dim, dtype):
+def set_global_func(head_dim, dtype, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
@@ -149,7 +150,6 @@ def set_global_func(head_dim, dtype):
     fdisagg_mark_send = tvm.get_global_func("vm.builtin.kv_cache_disagg_mark_send")
     fdisagg_prepare_recv = tvm.get_global_func("vm.builtin.kv_cache_disagg_prepare_recv")
 
-    target = tvm.target.Target.from_device(device)
     builts = []
     for tir_func in [
         _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
@@ -260,8 +260,43 @@ def kv_cache_and_config(request):
     global head_dim, sm_scale, dtype
     head_dim, dtype, rope_mode, support_sliding_window = request.param
     sm_scale = head_dim ** (-0.5)
-    set_global_func(head_dim, dtype)
-    return create_kv_cache(*request.param), rope_mode, support_sliding_window
+    target = tvm.testing.run_with_gpu_lock(_get_cuda_target)
+    set_global_func(head_dim, dtype, target)
+    return request.param
+
+
+def _get_cuda_target():
+    return tvm.target.Target.from_device(tvm.cuda(rank))
+
+
+def _run_with_kv_cache(test):
+    @functools.wraps(test)
+    def wrapper(kv_cache_and_config):
+        def run():
+            global device
+            device = tvm.cuda(rank)
+            head_dim, dtype, rope_mode, support_sliding_window = kv_cache_and_config
+            try:
+                cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
+                return test((cache, rope_mode, support_sliding_window))
+            finally:
+                device = None
+
+        if comm is None:
+            return tvm.testing.run_with_gpu_lock(run)
+
+        def run_rank_group():
+            comm.Barrier()
+            try:
+                return run()
+            finally:
+                comm.Barrier()
+
+        if rank == 0:
+            return tvm.testing.run_with_gpu_lock(run_rank_group)
+        return run_rank_group()
+
+    return wrapper
 
 
 def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
@@ -631,6 +666,7 @@ def apply_attention(
 
 
 @pytest.mark.skip(reason="Require NVSHMEM")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -655,6 +691,7 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
 
 
 @pytest.mark.skip(reason="Require NVSHMEM")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_transfer(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window:
@@ -729,17 +766,4 @@ def init_nvshmem(num_workers, pe_offset):
 
 
 if __name__ == "__main__":
-    # To run this test, install mpi4py first, and then run
-    # mpirun -np 2 python tests/python/relax/nvshmem/test_runtime_builtin_kv_cache_transfer.py
-    HEAD_DIMS = [128]
-    DTYPES = ["float16"]
-    ROPE_MODES = [RopeMode.NONE]
-    SUPPORT_SLIDING_WINDOW = [False]
-    init_nvshmem(2, rank)
-    for head_dim, dtype, rope_mode, support_sliding_window in itertools.product(
-        HEAD_DIMS, DTYPES, ROPE_MODES, SUPPORT_SLIDING_WINDOW
-    ):
-        set_global_func(head_dim, dtype)
-        cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
-        cache_and_config = (cache, rope_mode, support_sliding_window)
-        test_paged_attention_kv_cache_transfer(cache_and_config)
+    tvm.testing.main()

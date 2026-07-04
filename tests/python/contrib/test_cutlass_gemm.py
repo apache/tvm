@@ -59,18 +59,22 @@ def verify_group_gemm(
         return mapping.get(dtype, dtype)
 
     a_np, b_np, indptr_np, c_np = get_ref_data()
-    dev = tvm.cuda(0)
-    a_nd = tvm.runtime.tensor(a_np.astype(to_numpy_dtype(x_dtype)), device=dev)
-    b_nd = tvm.runtime.tensor(b_np.astype(to_numpy_dtype(weight_dtype)), device=dev)
-    c_nd = tvm.runtime.empty(c_np.shape, dtype=out_dtype, device=dev)
-    indptr_nd = tvm.runtime.tensor(indptr_np, device=dev)
-    workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=dev)
-    if use_scale:
-        scale = tvm.runtime.tensor(np.array([1.0], dtype="float32"), device=dev)
-        group_gemm_func(a_nd, b_nd, indptr_nd, workspace, scale, c_nd)
-    else:
-        group_gemm_func(a_nd, b_nd, indptr_nd, workspace, c_nd)
-    tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=rtol, atol=atol)
+
+    def run():
+        dev = tvm.cuda(0)
+        a_nd = tvm.runtime.tensor(a_np.astype(to_numpy_dtype(x_dtype)), device=dev)
+        b_nd = tvm.runtime.tensor(b_np.astype(to_numpy_dtype(weight_dtype)), device=dev)
+        c_nd = tvm.runtime.empty(c_np.shape, dtype=out_dtype, device=dev)
+        indptr_nd = tvm.runtime.tensor(indptr_np, device=dev)
+        workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=dev)
+        if use_scale:
+            scale = tvm.runtime.tensor(np.array([1.0], dtype="float32"), device=dev)
+            group_gemm_func(a_nd, b_nd, indptr_nd, workspace, scale, c_nd)
+        else:
+            group_gemm_func(a_nd, b_nd, indptr_nd, workspace, c_nd)
+        tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=rtol, atol=atol)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
@@ -318,22 +322,32 @@ def test_fp8_e4m3_groupwise_scaled_gemm():
         print(f"Skipped as {func_name} is not available")
         return
 
-    device = tvm.cuda(0)
     dtype = "bfloat16"
     x_np, x_scale_np = rowwise_quant_fp8_e4m3((M, K), block_size, dtype)
     w_np, w_scale_np = blockwise_quant_fp8_e4m3((N, K), block_size, dtype)
     o_np = blockwise_matmul(x_np, x_scale_np, w_np, w_scale_np, block_size, dtype)
-    x_tvm = tvm.runtime.tensor(x_np, device=device)
-    x_scale_tvm = tvm.runtime.tensor(x_scale_np.T, device=device)
-    w_tvm = tvm.runtime.tensor(w_np, device=device)
-    w_scale_tvm = tvm.runtime.tensor(w_scale_np, device=device)
-    workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=device)
-    o_tvm = tvm.runtime.empty((M, N), dtype=dtype, device=device)
-    gemm_func(
-        x_tvm, w_tvm, x_scale_tvm, w_scale_tvm, workspace, block_size[0], block_size[1], o_tvm
-    )
-    o_tvm = o_tvm.numpy()
-    tvm.testing.assert_allclose(o_tvm, o_np, rtol=1e-4, atol=0.5)
+
+    def run():
+        device = tvm.cuda(0)
+        x_tvm = tvm.runtime.tensor(x_np, device=device)
+        x_scale_tvm = tvm.runtime.tensor(x_scale_np.T, device=device)
+        w_tvm = tvm.runtime.tensor(w_np, device=device)
+        w_scale_tvm = tvm.runtime.tensor(w_scale_np, device=device)
+        workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=device)
+        o_tvm = tvm.runtime.empty((M, N), dtype=dtype, device=device)
+        gemm_func(
+            x_tvm,
+            w_tvm,
+            x_scale_tvm,
+            w_scale_tvm,
+            workspace,
+            block_size[0],
+            block_size[1],
+            o_tvm,
+        )
+        tvm.testing.assert_allclose(o_tvm.numpy(), o_np, rtol=1e-4, atol=0.5)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 @pytest.mark.skipif(not env.build_flag_enabled("USE_CUTLASS"), reason="need cutlass")
@@ -353,22 +367,32 @@ def test_fp8_e4m3_groupwise_scaled_bmm():
         print(f"Skipped as {func_name} is not available")
         return
 
-    device = tvm.cuda(0)
     dtype = "bfloat16"
     x_np, x_scale_np = rowwise_quant_fp8_e4m3((B, M, K), block_size, dtype)
     w_np, w_scale_np = blockwise_quant_fp8_e4m3((B, N, K), block_size, dtype)
     o_np = blockwise_bmm(x_np, x_scale_np, w_np, w_scale_np, block_size, dtype)
-    x_tvm = tvm.runtime.tensor(x_np, device=device)
-    x_scale_tvm = tvm.runtime.tensor(x_scale_np.transpose(0, 2, 1), device=device)
-    w_tvm = tvm.runtime.tensor(w_np, device=device)
-    w_scale_tvm = tvm.runtime.tensor(w_scale_np, device=device)
-    workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=device)
-    o_tvm = tvm.runtime.empty((B, M, N), dtype=dtype, device=device)
-    gemm_func(
-        x_tvm, w_tvm, x_scale_tvm, w_scale_tvm, workspace, block_size[0], block_size[1], o_tvm
-    )
-    o_tvm = o_tvm.numpy()
-    tvm.testing.assert_allclose(o_tvm, o_np, rtol=1e-4, atol=0.5)
+
+    def run():
+        device = tvm.cuda(0)
+        x_tvm = tvm.runtime.tensor(x_np, device=device)
+        x_scale_tvm = tvm.runtime.tensor(x_scale_np.transpose(0, 2, 1), device=device)
+        w_tvm = tvm.runtime.tensor(w_np, device=device)
+        w_scale_tvm = tvm.runtime.tensor(w_scale_np, device=device)
+        workspace = tvm.runtime.empty((4096 * 1024,), dtype="uint8", device=device)
+        o_tvm = tvm.runtime.empty((B, M, N), dtype=dtype, device=device)
+        gemm_func(
+            x_tvm,
+            w_tvm,
+            x_scale_tvm,
+            w_scale_tvm,
+            workspace,
+            block_size[0],
+            block_size[1],
+            o_tvm,
+        )
+        tvm.testing.assert_allclose(o_tvm.numpy(), o_np, rtol=1e-4, atol=0.5)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 if __name__ == "__main__":

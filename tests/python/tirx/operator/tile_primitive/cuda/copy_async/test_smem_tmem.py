@@ -209,15 +209,21 @@ def _execute(kernel, A_init, expected):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
-    dev = tvm.cuda(0)
-    A = tvm.runtime.tensor(A_init, dev)
     B_np = np.zeros((32, 16), dtype=A_init.dtype)
-    B = tvm.runtime.tensor(B_np, dev)
-    mod(A, B)
-    B_out = B.numpy()
-    assert np.array_equal(B_out, expected), (
-        f"mismatch:\nlane 0 expected={expected[0].tolist()}\n        got     ={B_out[0].tolist()}"
-    )
+
+    def run_test():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_init, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        mod(A, B)
+        dev.sync()
+        B_out = B.numpy()
+        assert np.array_equal(B_out, expected), (
+            f"mismatch:\nlane 0 expected={expected[0].tolist()}\n"
+            f"        got     ={B_out[0].tolist()}"
+        )
+
+    tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.gpu

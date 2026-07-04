@@ -121,11 +121,16 @@ def test_copy_tmem2reg_async(dtype, width_32b):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        np.testing.assert_allclose(B.numpy(), A_np)
+
+        def run_test():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            dev.sync()
+            np.testing.assert_allclose(B.numpy(), A_np)
+
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 # ----------------------------------------------------------------------------
@@ -222,11 +227,16 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        np.testing.assert_allclose(B.numpy(), A_np)
+
+        def run_test():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            dev.sync()
+            np.testing.assert_allclose(B.numpy(), A_np)
+
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 @pytest.mark.gpu
@@ -321,11 +331,16 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        np.testing.assert_allclose(B.numpy(), A_np)
+
+        def run_test():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            dev.sync()
+            np.testing.assert_allclose(B.numpy(), A_np)
+
+        tvm.testing.run_with_gpu_lock(run_test)
 
 
 if __name__ == "__main__":

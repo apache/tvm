@@ -65,13 +65,19 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):
-    dev = tvm.device(target, 0)
     with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
-    return f(*inputs).numpy()
+
+    def run():
+        dev = tvm.device(target, 0)
+        vm = relax.VirtualMachine(ex, dev)
+        f = vm["main"]
+        inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
+        return f(*inputs).numpy()
+
+    if tvm.target.Target(target).kind.name == "cuda":
+        return tvm.testing.run_with_gpu_lock(run)
+    return run()
 
 
 def test_tensorrt_offload():
@@ -309,17 +315,22 @@ def test_tensorrt_int8_calibration(monkeypatch):
     monkeypatch.setenv("TVM_TENSORRT_USE_INT8", "1")
     monkeypatch.setenv("TENSORRT_NUM_CALI_INT8", str(num_calibration_batches))
 
-    dev = tvm.device("cuda", 0)
-    vm = relax.VirtualMachine(tvm.compile(offloaded, "cuda"), dev)
-    data_trt = tvm.runtime.tensor(data, dev)
-    out = None
-    for _ in range(num_calibration_batches + 1):
-        out = vm["main"](data_trt).numpy()
+    ex = tvm.compile(offloaded, "cuda")
 
-    assert np.isfinite(out).all()
-    # INT8 is lossy, so use a generous tolerance; the key assertion is that calibration completed
-    # without a CUDA error.
-    tvm.testing.assert_allclose(out, ref, rtol=0.2, atol=0.1 * float(np.abs(ref).max()))
+    def run_and_check_calibration():
+        dev = tvm.device("cuda", 0)
+        vm = relax.VirtualMachine(ex, dev)
+        data_trt = tvm.runtime.tensor(data, dev)
+        out = None
+        for _ in range(num_calibration_batches + 1):
+            out = vm["main"](data_trt).numpy()
+
+        assert np.isfinite(out).all()
+        # INT8 is lossy, so use a generous tolerance; the key assertion is that calibration
+        # completed without a CUDA error.
+        tvm.testing.assert_allclose(out, ref, rtol=0.2, atol=0.1 * float(np.abs(ref).max()))
+
+    tvm.testing.run_with_gpu_lock(run_and_check_calibration)
 
 
 def test_tensorrt_matmul():

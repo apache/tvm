@@ -48,6 +48,18 @@ pytestmark = [
 ]
 
 
+def _run_with_nccl_session(devices, func):
+    def run():
+        sess = di.ThreadedSession(num_workers=len(devices))
+        try:
+            sess.init_ccl("nccl", *devices)
+            return func(sess)
+        finally:
+            sess.shutdown()
+
+    return tvm.testing.run_with_gpu_lock(run)
+
+
 @register_global_func("tests.disco.shard_dim_0", override=True)
 def _shard_dim_0(src, num_shards, tgt):
     s_0, s_1 = src.shape
@@ -158,28 +170,30 @@ def test_load_shard():
         ],
     }
     with tempfile.TemporaryDirectory() as path:
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
-        loader = _create_loader(sess, path, param_dict, shard_info)
-        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
-        d_0 = loader_load(loader, Shape([0]))
-        d_1 = loader_load(loader, Shape([1]))
-        np.testing.assert_equal(
-            param_dict["x_0"][:, 0:64],
-            d_0.debug_get_from_remote(0).numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_0"][:, 64:128],
-            d_0.debug_get_from_remote(1).numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_1"][0:16, :],
-            d_1.debug_get_from_remote(0).numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_1"][16:32, :],
-            d_1.debug_get_from_remote(1).numpy(),
-        )
+
+        def run_test(sess):
+            loader = _create_loader(sess, path, param_dict, shard_info)
+            loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
+            d_0 = loader_load(loader, Shape([0]))
+            d_1 = loader_load(loader, Shape([1]))
+            np.testing.assert_equal(
+                param_dict["x_0"][:, 0:64],
+                d_0.debug_get_from_remote(0).numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_0"][:, 64:128],
+                d_0.debug_get_from_remote(1).numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_1"][0:16, :],
+                d_1.debug_get_from_remote(0).numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_1"][16:32, :],
+                d_1.debug_get_from_remote(1).numpy(),
+            )
+
+        _run_with_nccl_session(devices, run_test)
 
 
 def _create_presharded_loader(sess, path):
@@ -204,31 +218,32 @@ def test_load_presharded():
 
     with tempfile.TemporaryDirectory() as path:
         _simulate_presharded_weights(path, param_dict, len(devices), shard_info)
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
 
-        loader = _create_presharded_loader(sess, path)
-        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadPresharded")
+        def run_test(sess):
+            loader = _create_presharded_loader(sess, path)
+            loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadPresharded")
 
-        d_0 = loader_load(loader, Shape([0]))
-        d_1 = loader_load(loader, Shape([1]))
+            d_0 = loader_load(loader, Shape([0]))
+            d_1 = loader_load(loader, Shape([1]))
 
-        np.testing.assert_equal(
-            param_dict["x_0"][:, 0:64],
-            d_0.debug_get_from_remote(0).numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_0"][:, 64:128],
-            d_0.debug_get_from_remote(1).numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_1"][0:16, :],
-            d_1.debug_get_from_remote(0).numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_1"][16:32, :],
-            d_1.debug_get_from_remote(1).numpy(),
-        )
+            np.testing.assert_equal(
+                param_dict["x_0"][:, 0:64],
+                d_0.debug_get_from_remote(0).numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_0"][:, 64:128],
+                d_0.debug_get_from_remote(1).numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_1"][0:16, :],
+                d_1.debug_get_from_remote(0).numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_1"][16:32, :],
+                d_1.debug_get_from_remote(1).numpy(),
+            )
+
+        _run_with_nccl_session(devices, run_test)
 
 
 def test_load_shard_in_relax():
@@ -298,29 +313,30 @@ def test_load_shard_in_relax():
     )
     with tempfile.TemporaryDirectory() as tmpdir:
         dso_path = tmpdir + "/test.so"
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
         relax_build(Module, target).export_library(dso_path)
 
-        mod = sess.load_vm_module(dso_path)
-        loader = _create_loader(sess, tmpdir, param_dict, shard_info)
-        result = mod["main"](loader)
-        np.testing.assert_equal(
-            param_dict["x_0"][:, 0:64],
-            result.debug_get_from_remote(0)[0].numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_0"][:, 64:128],
-            result.debug_get_from_remote(1)[0].numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_1"][0:16, :],
-            result.debug_get_from_remote(0)[1].numpy(),
-        )
-        np.testing.assert_equal(
-            param_dict["x_1"][16:32, :],
-            result.debug_get_from_remote(1)[1].numpy(),
-        )
+        def run_test(sess):
+            mod = sess.load_vm_module(dso_path)
+            loader = _create_loader(sess, tmpdir, param_dict, shard_info)
+            result = mod["main"](loader)
+            np.testing.assert_equal(
+                param_dict["x_0"][:, 0:64],
+                result.debug_get_from_remote(0)[0].numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_0"][:, 64:128],
+                result.debug_get_from_remote(1)[0].numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_1"][0:16, :],
+                result.debug_get_from_remote(0)[1].numpy(),
+            )
+            np.testing.assert_equal(
+                param_dict["x_1"][16:32, :],
+                result.debug_get_from_remote(1)[1].numpy(),
+            )
+
+        _run_with_nccl_session(devices, run_test)
 
 
 def test_load_shard_all():
@@ -347,17 +363,19 @@ def test_load_shard_all():
         ],
     }
     with tempfile.TemporaryDirectory() as path:
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
-        loader = _create_loader(sess, path, param_dict, shard_info)
-        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAll")
-        params = loader_load(loader)
-        p_0 = params.debug_get_from_remote(0)
-        p_1 = params.debug_get_from_remote(1)
-        np.testing.assert_equal(param_dict["param_0"][:, 0:64], p_0[0].numpy())
-        np.testing.assert_equal(param_dict["param_0"][:, 64:128], p_1[0].numpy())
-        np.testing.assert_equal(param_dict["param_1"][0:16, :], p_0[1].numpy())
-        np.testing.assert_equal(param_dict["param_1"][16:32, :], p_1[1].numpy())
+
+        def run_test(sess):
+            loader = _create_loader(sess, path, param_dict, shard_info)
+            loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAll")
+            params = loader_load(loader)
+            p_0 = params.debug_get_from_remote(0)
+            p_1 = params.debug_get_from_remote(1)
+            np.testing.assert_equal(param_dict["param_0"][:, 0:64], p_0[0].numpy())
+            np.testing.assert_equal(param_dict["param_0"][:, 64:128], p_1[0].numpy())
+            np.testing.assert_equal(param_dict["param_1"][0:16, :], p_0[1].numpy())
+            np.testing.assert_equal(param_dict["param_1"][16:32, :], p_1[1].numpy())
+
+        _run_with_nccl_session(devices, run_test)
 
 
 def test_load_all_presharded():
@@ -374,19 +392,20 @@ def test_load_all_presharded():
     with tempfile.TemporaryDirectory() as path:
         _simulate_presharded_weights(path, param_dict, len(devices), shard_info)
 
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
-        loader = _create_presharded_loader(sess, path)
-        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAllPresharded")
-        params = loader_load(loader)
+        def run_test(sess):
+            loader = _create_presharded_loader(sess, path)
+            loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAllPresharded")
+            params = loader_load(loader)
 
-        p_0 = params.debug_get_from_remote(0)
-        p_1 = params.debug_get_from_remote(1)
+            p_0 = params.debug_get_from_remote(0)
+            p_1 = params.debug_get_from_remote(1)
 
-        np.testing.assert_equal(param_dict["param_0"][0:32, :], p_0[0].numpy())
-        np.testing.assert_equal(param_dict["param_0"][32:64, :], p_1[0].numpy())
-        np.testing.assert_equal(param_dict["param_1"][:, 0:64], p_0[1].numpy())
-        np.testing.assert_equal(param_dict["param_1"][:, 64:128], p_1[1].numpy())
+            np.testing.assert_equal(param_dict["param_0"][0:32, :], p_0[0].numpy())
+            np.testing.assert_equal(param_dict["param_0"][32:64, :], p_1[0].numpy())
+            np.testing.assert_equal(param_dict["param_1"][:, 0:64], p_0[1].numpy())
+            np.testing.assert_equal(param_dict["param_1"][:, 64:128], p_1[1].numpy())
+
+        _run_with_nccl_session(devices, run_test)
 
 
 def test_load_shard_broadcast():
@@ -397,17 +416,19 @@ def test_load_shard_broadcast():
     }
     shard_info = {}
     with tempfile.TemporaryDirectory() as path:
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
-        loader = _create_loader(sess, path, param_dict, shard_info)
-        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAll")
-        params = loader_load(loader)
-        p_0 = params.debug_get_from_remote(0)
-        p_1 = params.debug_get_from_remote(1)
-        np.testing.assert_equal(param_dict["param_0"], p_0[0].numpy())
-        np.testing.assert_equal(param_dict["param_0"], p_1[0].numpy())
-        np.testing.assert_equal(param_dict["param_1"], p_0[1].numpy())
-        np.testing.assert_equal(param_dict["param_1"], p_1[1].numpy())
+
+        def run_test(sess):
+            loader = _create_loader(sess, path, param_dict, shard_info)
+            loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoadAll")
+            params = loader_load(loader)
+            p_0 = params.debug_get_from_remote(0)
+            p_1 = params.debug_get_from_remote(1)
+            np.testing.assert_equal(param_dict["param_0"], p_0[0].numpy())
+            np.testing.assert_equal(param_dict["param_0"], p_1[0].numpy())
+            np.testing.assert_equal(param_dict["param_1"], p_0[1].numpy())
+            np.testing.assert_equal(param_dict["param_1"], p_1[1].numpy())
+
+        _run_with_nccl_session(devices, run_test)
 
 
 def test_load_qkv_proj_shard():  # pylint: disable=too-many-locals
@@ -454,19 +475,21 @@ def test_load_qkv_proj_shard():  # pylint: disable=too-many-locals
     }
 
     with tempfile.TemporaryDirectory() as path:
-        sess = di.ThreadedSession(num_workers=len(devices))
-        sess.init_ccl("nccl", *devices)
-        loader = _create_loader(sess, path, param_dict, shard_info)
-        loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
-        d_0 = loader_load(loader, Shape([0]))
-        np.testing.assert_equal(
-            np_qkv[0],
-            d_0.debug_get_from_remote(0).numpy(),
-        )
-        np.testing.assert_equal(
-            np_qkv[1],
-            d_0.debug_get_from_remote(1).numpy(),
-        )
+
+        def run_test(sess):
+            loader = _create_loader(sess, path, param_dict, shard_info)
+            loader_load = sess.get_global_func("runtime.disco.ShardLoaderLoad")
+            d_0 = loader_load(loader, Shape([0]))
+            np.testing.assert_equal(
+                np_qkv[0],
+                d_0.debug_get_from_remote(0).numpy(),
+            )
+            np.testing.assert_equal(
+                np_qkv[1],
+                d_0.debug_get_from_remote(1).numpy(),
+            )
+
+        _run_with_nccl_session(devices, run_test)
 
 
 if __name__ == "__main__":

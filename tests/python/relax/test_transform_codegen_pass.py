@@ -55,27 +55,33 @@ pytestmark = [
 # Target gpu
 target_str = "nvidia/nvidia-t4"
 target = tvm.target.Target(target_str)
-dev = tvm.cuda()
 
 
 def check_executable(exec, dev, inputs, expected, entry_func_name):
     vm = relax.VirtualMachine(exec, dev)
     out = vm[entry_func_name](*inputs)
-    tvm.testing.assert_allclose(out.numpy(), expected.numpy(), atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.numpy(), expected, atol=1e-5, rtol=1e-5)
 
 
-def check_roundtrip(exec0, dev, inputs, expected, entry_func_name="main"):
+def check_roundtrip(exec0, reference_exec, input_arrays, entry_func_name="main"):
     with utils.tempdir() as temp:
         exec0.mod.export_library(temp.relpath("exec.so"))
         exec1 = tvm.runtime.load_module(temp.relpath("exec.so"))
     assert exec0.stats() == exec1["stats"]()
     assert exec0.as_text() == exec1["as_text"]()
 
-    check_executable(exec0, dev, inputs, expected, entry_func_name)
-    check_executable(exec1, dev, inputs, expected, entry_func_name)
+    def run_and_check():
+        dev = tvm.cuda()
+        inputs = [tvm.runtime.tensor(array, dev) for array in input_arrays]
+        reference_vm = relax.VirtualMachine(reference_exec, dev)
+        expected = reference_vm["main"](*inputs).numpy()
+        check_executable(exec0, dev, inputs, expected, entry_func_name)
+        check_executable(exec1, dev, inputs, expected, entry_func_name)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-def gen_ground_truth(mod, target, dev, inputs):
+def gen_ground_truth(mod, target):
     # Lower and run tuning
     # Since there is no default schedule for GPU in MS yet, this is necessary
     with target:
@@ -84,9 +90,7 @@ def gen_ground_truth(mod, target, dev, inputs):
         )
         new_mod = seq(mod)
     relax.analysis.well_formed(new_mod)
-    exec = tvm.compile(new_mod, target, params={})
-    vm = relax.VirtualMachine(exec, dev)
-    return vm["main"](*inputs)
+    return tvm.compile(new_mod, target, params={})
 
 
 @tvm.script.ir_module
@@ -112,15 +116,13 @@ def setup_test():
 
     np0 = np.random.rand(16, 16).astype(np.float32)
     np1 = np.random.rand(16, 16).astype(np.float32)
-    data0 = tvm.runtime.tensor(np0, dev)
-    data1 = tvm.runtime.tensor(np1, dev)
-    inputs = [data0, data1]
+    inputs = [np0, np1]
 
     # Ground truth should be generated before annotation
     # due to the conflict with MS task extraction
     # TODO(@sunggg): Sort this out
-    expected = gen_ground_truth(mod, target, dev, inputs)
-    return mod, inputs, expected
+    reference_exec = gen_ground_truth(mod, target)
+    return mod, inputs, reference_exec
 
 
 entry_func_name = tvm.testing.parameter("main", "func")
@@ -130,7 +132,7 @@ entry_func_name = tvm.testing.parameter("main", "func")
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @requires_tensorrt_runtime
 def test_tensorrt_only(entry_func_name):
-    mod, inputs, expected = setup_test()
+    mod, inputs, reference_exec = setup_test()
 
     if entry_func_name != "main":
         mod[entry_func_name] = mod
@@ -154,14 +156,14 @@ def test_tensorrt_only(entry_func_name):
 
     ex0 = tvm.compile(new_mod, target, params={})
     # Sanity check for the correctness and roundtrip
-    check_roundtrip(ex0, dev, inputs, expected, entry_func_name)
+    check_roundtrip(ex0, reference_exec, inputs, entry_func_name)
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 @requires_tensorrt_runtime
 def test_mix_use_tensorrt_and_tvm():
-    mod, inputs, expected = setup_test()
+    mod, inputs, reference_exec = setup_test()
 
     # Define patterns that we want to offload to byoc
     # This test will only offload `add` op to tensorrt
@@ -190,7 +192,7 @@ def test_mix_use_tensorrt_and_tvm():
         ex0 = tvm.compile(new_mod, target, params={})
 
     # Sanity check for the correctness and roundtrip
-    check_roundtrip(ex0, dev, inputs, expected)
+    check_roundtrip(ex0, reference_exec, inputs)
 
 
 @tvm.script.ir_module

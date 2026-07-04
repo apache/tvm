@@ -90,11 +90,15 @@ def test_ptx_ldmatrix():
                 else:
                     A_mask_np[:16, :16] = A_np[:16, :16]
             B_np = np.zeros((16, 16)).astype("float16")
-            dev = tvm.cuda(0)
-            A_nd = tvm.runtime.tensor(A_np, device=dev)
-            B_nd = tvm.runtime.tensor(B_np, device=dev)
-            mod(A_nd, B_nd)
-            tvm.testing.assert_allclose(B_nd.numpy(), A_mask_np)
+
+            def run_and_check():
+                dev = tvm.cuda(0)
+                A_nd = tvm.runtime.tensor(A_np, device=dev)
+                B_nd = tvm.runtime.tensor(B_np, device=dev)
+                mod(A_nd, B_nd)
+                tvm.testing.assert_allclose(B_nd.numpy(), A_mask_np)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

@@ -421,7 +421,6 @@ def test_dispatch_cumsum_gpu(target):
     """Test cumsum kernel dispatch and numerical correctness"""
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
-    dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
 
     @I.ir_module
     class Module:
@@ -438,10 +437,15 @@ def test_dispatch_cumsum_gpu(target):
     with tvm.target.Target(target):
         mod = DispatchSortScan()(Module)
         ex = tvm.compile(mod, target)
+
+    def run():
+        dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
         vm = tvm.relax.VirtualMachine(ex, dev)
         tvm_data = tvm.runtime.tensor(np_data, dev)
         cumsum = vm["main"](tvm_data)
         tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 if __name__ == "__main__":

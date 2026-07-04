@@ -31,7 +31,7 @@ target = "opencl"
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_ternary_expression():
-    def check_if_then_else(dev, n, dtype):
+    def check_if_then_else(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
             @T.prim_func(s_tir=True)
@@ -52,12 +52,16 @@ def test_opencl_ternary_expression():
                         )
 
         fun = tvm.tirx.build(Module, target=target)
-        a = tvm.runtime.empty((n,), dtype, dev)
-        c = tvm.runtime.empty((n,), dtype, dev)
-        # Only need to test compiling here
-        fun(a, c)
 
-    def check_select(dev, n, dtype):
+        def run():
+            dev = tvm.device(target, 0)
+            a = tvm.runtime.empty((n,), dtype, dev)
+            c = tvm.runtime.empty((n,), dtype, dev)
+            fun(a, c)
+
+        tvm.testing.run_with_gpu_lock(run)
+
+    def check_select(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
             @T.prim_func(s_tir=True)
@@ -78,27 +82,29 @@ def test_opencl_ternary_expression():
                         )
 
         fun = tvm.tirx.build(Module, target=target)
-        a = tvm.runtime.empty((n,), dtype, dev)
-        c = tvm.runtime.empty((n,), dtype, dev)
-        # Only need to test compiling here
-        fun(a, c)
 
-    dev = tvm.device(target, 0)
+        def run():
+            dev = tvm.device(target, 0)
+            a = tvm.runtime.empty((n,), dtype, dev)
+            c = tvm.runtime.empty((n,), dtype, dev)
+            fun(a, c)
 
-    check_if_then_else(dev, 1, "int8")
-    check_if_then_else(dev, 1, "uint8")
-    check_if_then_else(dev, 1, "int16")
-    check_if_then_else(dev, 1, "uint16")
-    check_select(dev, 1, "int8")
-    check_select(dev, 1, "uint8")
-    check_select(dev, 1, "int16")
-    check_select(dev, 1, "uint16")
+        tvm.testing.run_with_gpu_lock(run)
+
+    check_if_then_else(1, "int8")
+    check_if_then_else(1, "uint8")
+    check_if_then_else(1, "int16")
+    check_if_then_else(1, "uint16")
+    check_select(1, "int8")
+    check_select(1, "uint8")
+    check_select(1, "int16")
+    check_select(1, "uint16")
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_inf_nan():
-    def check_inf_nan(dev, n, value, dtype):
+    def check_inf_nan(n, value, dtype):
         @I.ir_module(s_tir=True)
         class Module:
             @T.prim_func(s_tir=True)
@@ -112,25 +118,27 @@ def test_opencl_inf_nan():
                         C[v_i] = T.Cast(dtype, value)
 
         fun = tvm.tirx.build(Module, target=target)
-        a = tvm.runtime.empty((n,), dtype, dev)
-        c = tvm.runtime.empty((n,), dtype, dev)
-        # Only need to test compiling here
-        fun(a, c)
 
-    dev = tvm.device(target, 0)
+        def run():
+            dev = tvm.device(target, 0)
+            a = tvm.runtime.empty((n,), dtype, dev)
+            c = tvm.runtime.empty((n,), dtype, dev)
+            fun(a, c)
 
-    check_inf_nan(dev, 1, -float("inf"), "float32")
-    check_inf_nan(dev, 1, -float("inf"), "float64")
-    check_inf_nan(dev, 1, float("inf"), "float32")
-    check_inf_nan(dev, 1, float("inf"), "float64")
-    check_inf_nan(dev, 1, float("nan"), "float32")
-    check_inf_nan(dev, 1, float("nan"), "float64")
+        tvm.testing.run_with_gpu_lock(run)
+
+    check_inf_nan(1, -float("inf"), "float32")
+    check_inf_nan(1, -float("inf"), "float64")
+    check_inf_nan(1, float("inf"), "float32")
+    check_inf_nan(1, float("inf"), "float64")
+    check_inf_nan(1, float("nan"), "float32")
+    check_inf_nan(1, float("nan"), "float64")
 
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_max():
-    def check_max(dev, n, dtype):
+    def check_max(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
             @T.prim_func(s_tir=True)
@@ -144,23 +152,25 @@ def test_opencl_max():
                         C[v_i] = T.max(A[0] + T.Cast(dtype, 1), T.Cast(dtype, 0))
 
         fun = tvm.tirx.build(Module, target=target)
-        a = tvm.runtime.empty((n,), dtype, dev)
-        c = tvm.runtime.empty((n,), dtype, dev)
-        # Only need to test compiling here
-        fun(a, c)
 
-    dev = tvm.device(target, 0)
+        def run():
+            dev = tvm.device(target, 0)
+            a = tvm.runtime.empty((n,), dtype, dev)
+            c = tvm.runtime.empty((n,), dtype, dev)
+            fun(a, c)
 
-    check_max(dev, 1, "int8")
-    check_max(dev, 1, "uint8")
-    check_max(dev, 1, "int16")
-    check_max(dev, 1, "uint16")
-    check_max(dev, 1, "float32")
-    check_max(dev, 1, "float64")
+        tvm.testing.run_with_gpu_lock(run)
+
+    check_max(1, "int8")
+    check_max(1, "uint8")
+    check_max(1, "int16")
+    check_max(1, "uint16")
+    check_max(1, "float32")
+    check_max(1, "float64")
 
 
 def test_opencl_erf():
-    def check_erf(dev, n, dtype):
+    def check_erf(n, dtype):
         @I.ir_module(s_tir=True)
         class Module:
             @T.prim_func(s_tir=True)
@@ -180,10 +190,8 @@ def test_opencl_erf():
         error_matches = re.findall("erff", source_str)
         assert len(matches) == 1 and len(error_matches) == 0
 
-    dev = tvm.device(target, 0)
-
-    check_erf(dev, 1, "float32")
-    check_erf(dev, 1, "float64")
+    check_erf(1, "float32")
+    check_erf(1, "float64")
 
 
 @pytest.mark.gpu
@@ -204,19 +212,22 @@ def test_opencl_type_casting():
                             v_i // 4 == 3 and v_i % 3 == 1, T.float32(1.0), T.float32(0.0)
                         )
 
-    def check_type_casting(ctx, n, dtype):
+    def check_type_casting(n, dtype):
         fun = tvm.tirx.build(Module, target=target)
-        c = tvm.runtime.empty((n,), dtype, ctx)
         assembly = fun.imports[0].inspect_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
         rcond = "(convert_uint4(((((int4)(((convert_int(get_local_id(0))))+(1*0), ((convert_int(get_local_id(0))))+(1*1), ((convert_int(get_local_id(0))))+(1*2), ((convert_int(get_local_id(0))))+(1*3))) % ((int4)(3, 3, 3, 3))) == ((int4)(1, 1, 1, 1))))))))"
         pattern_cond = f"({lcond} && {rcond})"
         assert assembly.count(pattern_cond) != 0
-        fun(c)
 
-    dev = tvm.device(target, 0)
+        def run():
+            dev = tvm.device(target, 0)
+            c = tvm.runtime.empty((n,), dtype, dev)
+            fun(c)
 
-    check_type_casting(dev, 32, "float32")
+        tvm.testing.run_with_gpu_lock(run)
+
+    check_type_casting(32, "float32")
     # fp16 is not yet supported in ci
     # check_type_casting(dev, 16, "float16")
 
@@ -306,13 +317,17 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     host_lib.export_library(lib_path)
     reloaded = tvm.runtime.load_module(lib_path)
 
-    dev = tvm.device(target, 0)
     a_np = np.random.uniform(size=(n,)).astype("float32")
     b_np = np.zeros((n,), dtype="float32")
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    reloaded["main"](a, b)
-    np.testing.assert_allclose(b.numpy(), a_np + 1.0, rtol=1e-5)
+
+    def run_and_check():
+        dev = tvm.device(target, 0)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        reloaded["main"](a, b)
+        np.testing.assert_allclose(b.numpy(), a_np + 1.0, rtol=1e-5)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

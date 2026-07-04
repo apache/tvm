@@ -98,17 +98,20 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
     ):
         ex = tvm.compile(mod, target)
 
-    dev = tvm.device(target, 0)
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
+    def run():
+        dev = tvm.device(target, 0)
+        vm = relax.VirtualMachine(ex, dev)
+        f = vm["main"]
+        inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
-    # For cuda graph, run the compiled function twice to make sure that we can launch the cached
-    # graph on the second run.
-    if cuda_graph:
-        f(*inputs)
+        # For cuda graph, run the compiled function twice to make sure that we can launch the
+        # cached graph on the second run.
+        if cuda_graph:
+            f(*inputs)
 
-    return f(*inputs).numpy()
+        return f(*inputs).numpy()
+
+    return tvm.testing.run_with_gpu_lock(run)
 
 
 def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
@@ -1491,30 +1494,30 @@ def test_fp16A_int4B_gemm():
         (tvm.runtime.tensor(y), tvm.runtime.tensor(bias))
     )
 
-    dev = tvm.device("cuda", 0)
-    ex = tvm.compile(mod_deploy, target="cuda")
-    vm = relax.vm.VirtualMachine(ex, dev)
+    ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
-    x_nd = tvm.runtime.tensor(x, dev)
-    residual_nd = tvm.runtime.tensor(residual, dev)
-    params = [packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
+    def run():
+        dev = tvm.device("cuda", 0)
+        vm = relax.vm.VirtualMachine(ex_cuda, dev)
+        x_nd = tvm.runtime.tensor(x, dev)
+        residual_nd = tvm.runtime.tensor(residual, dev)
+        params = [packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
 
-    for f_name in ["main_bias", "main_cast_bias", "main_residual"]:
-        with_residual = "residual" in f_name
+        for f_name in ["main_bias", "main_cast_bias", "main_residual"]:
+            with_residual = "residual" in f_name
 
-        if with_residual:
-            inp = [x_nd, residual_nd] + params
-        else:
-            inp = [x_nd] + params
+            if with_residual:
+                inp = [x_nd, residual_nd] + params
+            else:
+                inp = [x_nd] + params
 
-        out = vm[f_name](*inp).numpy()
+            out = vm[f_name](*inp).numpy()
+            ref = np.dot(x, y.transpose()) + bias
+            if with_residual:
+                ref += residual
+            tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
-        ref = np.dot(x, y.transpose()) + bias
-
-        if with_residual:
-            ref += residual
-
-        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    tvm.testing.run_with_gpu_lock(run)
 
 
 def test_fp16A_int8B_gemm():
@@ -1642,13 +1645,7 @@ def test_fp16A_int8B_gemm():
         (tvm.runtime.tensor(y), tvm.runtime.tensor(bias))
     )
 
-    dev = tvm.device("cuda", 0)
-    ex = tvm.compile(mod_deploy, target="cuda")
-    vm = relax.vm.VirtualMachine(ex, dev)
-
-    x_nd = tvm.runtime.tensor(x, dev)
-    inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
-    out = vm["main"](*inp).numpy()
+    ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
     def gelu_fp16(x):
         erf_inp = x * (0.5**0.5)
@@ -1657,8 +1654,16 @@ def test_fp16A_int8B_gemm():
         erf_out = erf(erf_inp.astype("float32")).astype("float16")
         return x * 0.5 * (1.0 + erf_out)
 
-    ref = gelu_fp16(np.dot(x, y.transpose()) + bias)
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    def run():
+        dev = tvm.device("cuda", 0)
+        vm = relax.vm.VirtualMachine(ex_cuda, dev)
+        x_nd = tvm.runtime.tensor(x, dev)
+        inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
+        out = vm["main"](*inp).numpy()
+        ref = gelu_fp16(np.dot(x, y.transpose()) + bias)
+        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 def test_rms_norm():
@@ -1914,15 +1919,18 @@ def test_fp16A_int8B_gemm_batched():
 
     packed_weight, scales = vm[transform_func_name]((tvm.runtime.tensor(y),))
 
-    dev = tvm.device("cuda", 0)
-    ex = tvm.compile(mod_deploy, target="cuda")
-    vm = relax.vm.VirtualMachine(ex, dev)
+    ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
-    x_nd = tvm.runtime.tensor(x, dev)
-    inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
-    out = vm["main"](*inp).numpy()
-    ref = np.dot(x, y.transpose())
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    def run():
+        dev = tvm.device("cuda", 0)
+        vm = relax.vm.VirtualMachine(ex_cuda, dev)
+        x_nd = tvm.runtime.tensor(x, dev)
+        inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
+        out = vm["main"](*inp).numpy()
+        ref = np.dot(x, y.transpose())
+        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 def test_fp16A_int8B_gemm_batched_finegrained():
@@ -2069,15 +2077,18 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
     packed_weight, scales = vm[transform_func_name]((tvm.runtime.tensor(y),))
 
-    dev = tvm.device("cuda", 0)
-    ex = tvm.compile(mod_deploy, target="cuda")
-    vm = relax.vm.VirtualMachine(ex, dev)
+    ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
-    x_nd = tvm.runtime.tensor(x, dev)
-    inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
-    out = vm["main"](*inp).numpy()
-    ref = np.dot(x, y.transpose())
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    def run():
+        dev = tvm.device("cuda", 0)
+        vm = relax.vm.VirtualMachine(ex_cuda, dev)
+        x_nd = tvm.runtime.tensor(x, dev)
+        inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
+        out = vm["main"](*inp).numpy()
+        ref = np.dot(x, y.transpose())
+        tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run)
 
 
 def test_attention_rewrite_multi_query():
