@@ -3550,6 +3550,29 @@ def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output
     _verify_conv_transpose([3, 4, 12, 12, 12], [4, 3, 3, 3, 3], group=2)
 
 
+def test_conv_transpose_valid_bias_channel_count():
+    conv_node = helper.make_node(
+        "ConvTranspose",
+        inputs=["x", "w", "b"],
+        outputs=["y"],
+        pads=[0, 0, 0, 0],
+        group=1,
+    )
+    graph = helper.make_graph(
+        [conv_node],
+        "conv_transpose_valid_bias_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 32, 8, 8]),
+            helper.make_tensor_value_info("w", TensorProto.FLOAT, [32, 16, 3, 3]),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, [16]),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 16, 10, 10])],
+    )
+
+    model = helper.make_model(graph, producer_name="conv_transpose_valid_bias_test")
+    check_correctness(model, atol=1e-4)
+
+
 def test_conv_transpose_invalid_bias_channel_count():
     conv_node = helper.make_node(
         "ConvTranspose",
