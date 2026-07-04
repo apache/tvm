@@ -80,9 +80,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TVM_INIT_CONTEXT_FUNC(TVMFFIErrorSetRaisedFromCStr);
   TVM_INIT_CONTEXT_FUNC(TVMFFIEnvModLookupFromImports);
   TVM_INIT_CONTEXT_FUNC(TVMFFIHandleInitOnce);
-  TVM_INIT_CONTEXT_FUNC(TVMFFIHandleDeinitOnce);
-  TVM_INIT_CONTEXT_FUNC(TVMFFIObjectIncRef);
-  TVM_INIT_CONTEXT_FUNC(TVMFFIObjectDecRef);
   // Keep populating the legacy slot for libraries built by older TVM versions.
   TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
   TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);

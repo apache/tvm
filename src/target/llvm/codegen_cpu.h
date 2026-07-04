@@ -94,11 +94,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_ffi_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_handle_init_callback_{nullptr};
-  llvm::FunctionType* ftype_tvm_ffi_handle_deinit_callback_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_handle_init_once_{nullptr};
-  llvm::FunctionType* ftype_tvm_ffi_handle_deinit_once_{nullptr};
-  llvm::FunctionType* ftype_tvm_ffi_object_inc_ref_{nullptr};
-  llvm::FunctionType* ftype_tvm_ffi_object_dec_ref_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_by_c_str_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_from_c_str_parts_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
@@ -122,9 +118,6 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMFFIFunctionCall();
   llvm::Value* RuntimeTVMFFIEnvModLookupFromImports();
   llvm::Value* RuntimeTVMFFIHandleInitOnce();
-  llvm::Value* RuntimeTVMFFIHandleDeinitOnce();
-  llvm::Value* RuntimeTVMFFIObjectIncRef();
-  llvm::Value* RuntimeTVMFFIObjectDecRef();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStr();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStrParts();
   // Create a temp function to simplify error raising.
@@ -132,6 +125,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
+  llvm::Function* CreatePackedFuncInit(const std::string& fname);
   llvm::Value* GetPackedFuncHandle(const std::string& str);
   TypedPointer PackClosureData(const ffi::Array<Var>& fields, uint64_t* num_bytes,
                                std::string struct_name = "");
@@ -168,9 +162,6 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::GlobalVariable* gv_tvm_ffi_func_call_{nullptr};
   llvm::GlobalVariable* gv_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
   llvm::GlobalVariable* gv_tvm_ffi_handle_init_once_{nullptr};
-  llvm::GlobalVariable* gv_tvm_ffi_handle_deinit_once_{nullptr};
-  llvm::GlobalVariable* gv_tvm_ffi_object_inc_ref_{nullptr};
-  llvm::GlobalVariable* gv_tvm_ffi_object_dec_ref_{nullptr};
   llvm::GlobalVariable* gv_tvm_ffi_set_last_error_c_str_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
@@ -179,9 +170,6 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Function* f_tvm_ffi_func_call_{nullptr};
   llvm::Function* f_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
   llvm::Function* f_tvm_ffi_handle_init_once_{nullptr};
-  llvm::Function* f_tvm_ffi_handle_deinit_once_{nullptr};
-  llvm::Function* f_tvm_ffi_object_inc_ref_{nullptr};
-  llvm::Function* f_tvm_ffi_object_dec_ref_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_by_c_str_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_from_c_str_parts_{nullptr};
   llvm::Function* f_tvm_parallel_launch_{nullptr};

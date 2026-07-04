@@ -143,15 +143,6 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
       t_int_,
       {llvmGetPointerTo(t_void_p_, 0), llvmGetPointerTo(ftype_tvm_ffi_handle_init_callback_, 0)},
       false);
-  // int TVMFFIHandleDeinitOnce(void** handle_addr, int (*deinit_func)(void* handle));
-  ftype_tvm_ffi_handle_deinit_callback_ = llvm::FunctionType::get(t_int_, {t_void_p_}, false);
-  ftype_tvm_ffi_handle_deinit_once_ = llvm::FunctionType::get(
-      t_int_,
-      {llvmGetPointerTo(t_void_p_, 0), llvmGetPointerTo(ftype_tvm_ffi_handle_deinit_callback_, 0)},
-      false);
-  // int TVMFFIObject{Inc,Dec}Ref(TVMFFIObjectHandle obj);
-  ftype_tvm_ffi_object_inc_ref_ = llvm::FunctionType::get(t_int_, {t_void_p_}, false);
-  ftype_tvm_ffi_object_dec_ref_ = llvm::FunctionType::get(t_int_, {t_void_p_}, false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task);
   ftype_tvm_parallel_launch_ = llvm::FunctionType::get(
@@ -187,15 +178,6 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
     f_tvm_ffi_handle_init_once_ =
         llvm::Function::Create(ftype_tvm_ffi_handle_init_once_, llvm::Function::ExternalLinkage,
                                "TVMFFIHandleInitOnce", module_.get());
-    f_tvm_ffi_handle_deinit_once_ =
-        llvm::Function::Create(ftype_tvm_ffi_handle_deinit_once_, llvm::Function::ExternalLinkage,
-                               "TVMFFIHandleDeinitOnce", module_.get());
-    f_tvm_ffi_object_inc_ref_ =
-        llvm::Function::Create(ftype_tvm_ffi_object_inc_ref_, llvm::Function::ExternalLinkage,
-                               "TVMFFIObjectIncRef", module_.get());
-    f_tvm_ffi_object_dec_ref_ =
-        llvm::Function::Create(ftype_tvm_ffi_object_dec_ref_, llvm::Function::ExternalLinkage,
-                               "TVMFFIObjectDecRef", module_.get());
     f_tvm_parallel_launch_ =
         llvm::Function::Create(ftype_tvm_parallel_launch_, llvm::Function::ExternalLinkage,
                                "TVMBackendParallelLaunch", module_.get());
@@ -492,12 +474,6 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
                          "__TVMFFIEnvModLookupFromImports");
       gv_tvm_ffi_handle_init_once_ = InitContextPtr(
           llvmGetPointerTo(ftype_tvm_ffi_handle_init_once_, 0), "__TVMFFIHandleInitOnce");
-      gv_tvm_ffi_handle_deinit_once_ = InitContextPtr(
-          llvmGetPointerTo(ftype_tvm_ffi_handle_deinit_once_, 0), "__TVMFFIHandleDeinitOnce");
-      gv_tvm_ffi_object_inc_ref_ = InitContextPtr(
-          llvmGetPointerTo(ftype_tvm_ffi_object_inc_ref_, 0), "__TVMFFIObjectIncRef");
-      gv_tvm_ffi_object_dec_ref_ = InitContextPtr(
-          llvmGetPointerTo(ftype_tvm_ffi_object_dec_ref_, 0), "__TVMFFIObjectDecRef");
       gv_tvm_ffi_set_last_error_c_str_ =
           InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_error_set_raised_by_c_str_, 0),
                          "__TVMFFIErrorSetRaisedFromCStr");
@@ -723,11 +699,40 @@ llvm::Value* CodeGenCPU::CreateStaticHandle() {
   return gv;
 }
 
+llvm::Function* CodeGenCPU::CreatePackedFuncInit(const std::string& fname) {
+  // Generate the equivalent of:
+  //
+  //   static int __tvm_func_handle_init.<fname>(void** result) {
+  //     return TVMFFIEnvModLookupFromImports(__tvm_ffi__library_ctx, "<fname>", result);
+  //   }
+  //
+  // The lookup result is owned by the module and remains valid for the generated module's lifetime.
+  llvm::IRBuilderBase::InsertPoint saved_ip = builder_->saveIP();
+  llvm::Function* saved_function = function_;
+  llvm::LLVMContext* ctx = llvm_target_->GetContext();
+  llvm::Function* init_func =
+      llvm::Function::Create(ftype_tvm_ffi_handle_init_callback_, llvm::Function::InternalLinkage,
+                             "__tvm_func_handle_init." + fname, module_.get());
+  init_func->setVisibility(llvm::GlobalValue::HiddenVisibility);
+  SetTargetAttributes(init_func);
+  function_ = init_func;
+  builder_->SetInsertPoint(llvm::BasicBlock::Create(*ctx, "entry", init_func));
+
+  llvm::Value* result = &*init_func->arg_begin();
+  llvm::Value* module_ctx = builder_->CreateAlignedLoad(gv_mod_ctx_->getValueType(), gv_mod_ctx_,
+                                                        llvm::Align(gv_mod_ctx_->getAlignment()));
+  auto lookup_callee = llvm::FunctionCallee(ftype_tvm_ffi_env_mod_lookup_from_imports_,
+                                            RuntimeTVMFFIEnvModLookupFromImports());
+  builder_->CreateRet(
+      builder_->CreateCall(lookup_callee, {module_ctx, GetConstString(fname), result}));
+
+  function_ = saved_function;
+  builder_->restoreIP(saved_ip);
+  return init_func;
+}
+
 llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
-  // Store one owning reference to the packed function in global space.  The module lookup returns
-  // a weak reference, so the initialization callback retains it and the global destructor releases
-  // it.  The module loader excludes calls while destructors run, so initialization needs to be
-  // thread-safe but does not need to overlap deinitialization.
+  // Cache the module-owned packed-function handle in global space with thread-safe initialization.
 #if TVM_LLVM_VERSION >= 200
   llvm::DataLayout layout(module_.get()->getDataLayout());
 #else
@@ -745,67 +750,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     hptr->setAlignment(llvm::Align(align));
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;
-
-    llvm::IRBuilderBase::InsertPoint saved_ip = builder_->saveIP();
-    llvm::Function* saved_function = function_;
-    llvm::LLVMContext* ctx = llvm_target_->GetContext();
-
-    init_func =
-        llvm::Function::Create(ftype_tvm_ffi_handle_init_callback_, llvm::Function::InternalLinkage,
-                               "__tvm_func_handle_init", module_.get());
-    SetTargetAttributes(init_func);
-    function_ = init_func;
-    builder_->SetInsertPoint(llvm::BasicBlock::Create(*ctx, "entry", init_func));
-    llvm::Value* result = &*init_func->arg_begin();
-    llvm::LoadInst* ctx_load = builder_->CreateAlignedLoad(
-        gv_mod_ctx_->getValueType(), gv_mod_ctx_, llvm::Align(gv_mod_ctx_->getAlignment()));
-    ctx_load->setMetadata(
-        "tbaa", md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
-    auto lookup_callee = llvm::FunctionCallee(ftype_tvm_ffi_env_mod_lookup_from_imports_,
-                                              RuntimeTVMFFIEnvModLookupFromImports());
-    llvm::Value* lookup_ret =
-        builder_->CreateCall(lookup_callee, {ctx_load, GetConstString(fname), result});
-    auto* retain_block = llvm::BasicBlock::Create(*ctx, "retain", init_func);
-    auto* return_block = llvm::BasicBlock::Create(*ctx, "return", init_func);
-    llvm::Value* lookup_ok = builder_->CreateICmpEQ(lookup_ret, llvm::ConstantInt::get(t_int_, 0));
-    builder_->CreateCondBr(lookup_ok, retain_block, return_block, md_very_likely_branch_);
-    builder_->SetInsertPoint(retain_block);
-    llvm::Value* handle = builder_->CreateLoad(t_tvm_func_handle_, result);
-    auto retain_callee =
-        llvm::FunctionCallee(ftype_tvm_ffi_object_inc_ref_, RuntimeTVMFFIObjectIncRef());
-    llvm::Value* retain_ret = builder_->CreateCall(retain_callee, {handle});
-    builder_->CreateBr(return_block);
-    builder_->SetInsertPoint(return_block);
-    llvm::PHINode* init_ret = builder_->CreatePHI(t_int_, 2);
-    init_ret->addIncoming(lookup_ret, &init_func->getEntryBlock());
-    init_ret->addIncoming(retain_ret, retain_block);
-    builder_->CreateRet(init_ret);
-
-    llvm::Function* release_func = llvm::Function::Create(
-        ftype_tvm_ffi_handle_deinit_callback_, llvm::Function::InternalLinkage,
-        "__tvm_func_handle_release", module_.get());
-    SetTargetAttributes(release_func);
-    function_ = release_func;
-    builder_->SetInsertPoint(llvm::BasicBlock::Create(*ctx, "entry", release_func));
-    auto release_callee =
-        llvm::FunctionCallee(ftype_tvm_ffi_object_dec_ref_, RuntimeTVMFFIObjectDecRef());
-    builder_->CreateRet(builder_->CreateCall(release_callee, {&*release_func->arg_begin()}));
-
-    llvm::FunctionType* dtor_ftype = llvm::FunctionType::get(t_void_, {}, false);
-    llvm::Function* dtor_func = llvm::Function::Create(dtor_ftype, llvm::Function::ExternalLinkage,
-                                                       "__tvm_func_handle_deinit", module_.get());
-    dtor_func->setVisibility(llvm::GlobalValue::HiddenVisibility);
-    SetTargetAttributes(dtor_func);
-    function_ = dtor_func;
-    builder_->SetInsertPoint(llvm::BasicBlock::Create(*ctx, "entry", dtor_func));
-    auto deinit_callee =
-        llvm::FunctionCallee(ftype_tvm_ffi_handle_deinit_once_, RuntimeTVMFFIHandleDeinitOnce());
-    builder_->CreateCall(deinit_callee, {hptr, release_func});
-    builder_->CreateRetVoid();
-    llvm::appendToGlobalDtors(*module_, dtor_func, 65535);
-
-    function_ = saved_function;
-    builder_->restoreIP(saved_ip);
+    init_func = CreatePackedFuncInit(fname);
     func_handle_init_map_[fname] = init_func;
   } else {
     hptr = it->second;
@@ -941,21 +886,6 @@ llvm::Value* CodeGenCPU::RuntimeTVMFFIEnvModLookupFromImports() {
 llvm::Value* CodeGenCPU::RuntimeTVMFFIHandleInitOnce() {
   if (f_tvm_ffi_handle_init_once_ != nullptr) return f_tvm_ffi_handle_init_once_;
   return GetContextPtr(gv_tvm_ffi_handle_init_once_);
-}
-
-llvm::Value* CodeGenCPU::RuntimeTVMFFIHandleDeinitOnce() {
-  if (f_tvm_ffi_handle_deinit_once_ != nullptr) return f_tvm_ffi_handle_deinit_once_;
-  return GetContextPtr(gv_tvm_ffi_handle_deinit_once_);
-}
-
-llvm::Value* CodeGenCPU::RuntimeTVMFFIObjectIncRef() {
-  if (f_tvm_ffi_object_inc_ref_ != nullptr) return f_tvm_ffi_object_inc_ref_;
-  return GetContextPtr(gv_tvm_ffi_object_inc_ref_);
-}
-
-llvm::Value* CodeGenCPU::RuntimeTVMFFIObjectDecRef() {
-  if (f_tvm_ffi_object_dec_ref_ != nullptr) return f_tvm_ffi_object_dec_ref_;
-  return GetContextPtr(gv_tvm_ffi_object_dec_ref_);
 }
 
 llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStr() {
