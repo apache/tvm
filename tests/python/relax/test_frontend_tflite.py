@@ -643,7 +643,13 @@ def test_unique():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tuple(R.Tensor(dtype="int32", ndim=1), R.Tensor(dtype="int64", ndim=1)) = (
-                    R.unique(x, R.prim_value(0), R.prim_value(0), R.prim_value(1), R.prim_value(0))
+                    R.unique(
+                        x,
+                        R.prim_value(False),
+                        R.prim_value(False),
+                        R.prim_value(True),
+                        R.prim_value(False),
+                    )
                 )
                 lv1: R.Tensor(dtype="int32", ndim=1) = lv[0]
                 lv2: R.Tensor(dtype="int64", ndim=1) = lv[1]
