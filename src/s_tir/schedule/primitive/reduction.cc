@@ -932,7 +932,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
       ffi::Array<Range> region = write_region->region;
       region.insert(
           region.begin() + factor_axis_,
-          Range::FromMinExtent(additional_iter_->var, MakeConst(additional_iter_->var.ty(), 1)));
+          Range::FromMinExtent(additional_iter_->var, IntImm(additional_iter_->var.ty(), 1)));
       ffi::Optional<Buffer> rf_buffer = buffer_map.Get(write_region->buffer);
       TVM_FFI_ICHECK(rf_buffer.defined());
       write_regions_.push_back(BufferRegion(rf_buffer.value(), Substitute(region, var_map_)));

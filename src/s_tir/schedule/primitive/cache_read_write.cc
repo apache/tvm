@@ -270,8 +270,8 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
                                    /*IterVarType=*/kDataPar));
       read_access_indices.push_back(var);
       write_access_indices.push_back(var);
-      read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
-      write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
+      read_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
+      write_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
     } else {
       block_vars.push_back(IterVar(
           /*dom=*/Range::FromMinExtent(IntImm(axis_range->extent.ty(), 0), axis_range->extent),
@@ -281,16 +281,16 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
         // cache_read
         read_access_indices.push_back(axis_range->min + var);
         read_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, MakeConst(var.ty(), 1)));
+            Range::FromMinExtent(axis_range->min + var, IntImm(var.ty(), 1)));
         write_access_indices.push_back(var);
-        write_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
+        write_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       } else {
         // cache_write
         write_access_indices.push_back(axis_range->min + var);
         write_access_region.push_back(
-            Range::FromMinExtent(axis_range->min + var, MakeConst(var.ty(), 1)));
+            Range::FromMinExtent(axis_range->min + var, IntImm(var.ty(), 1)));
         read_access_indices.push_back(var);
-        read_access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
+        read_access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       }
     }
   }

@@ -225,7 +225,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       visit_touched_var_ = true;
       PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
       PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
-      PrimExpr stride = it->second / MakeConst(offset.ty(), dtype.lanes());
+      PrimExpr stride = it->second / IntImm(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
 
       return Call(op->ExprNode::ty.as_or_throw<PrimType>(), op->op,
@@ -468,14 +468,14 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       // do unrolling if it is inside innermost content.
       ffi::Array<Stmt> seq;
       for (int i = 0; i < num_threads_; ++i) {
-        seq.push_back(Substitute(stmt, {{var_, MakeConst(var_.ty(), i)}}));
+        seq.push_back(Substitute(stmt, {{var_, IntImm(var_.ty(), i)}}));
       }
       return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_.ty());
       stmt = Substitute(stmt, {{var_, idx}});
-      return For(idx, IntImm(idx.ty(), 0), MakeConst(idx.ty(), num_threads_), ForKind::kSerial,
+      return For(idx, IntImm(idx.ty(), 0), IntImm(idx.ty(), num_threads_), ForKind::kSerial,
                  stmt);
     }
   }

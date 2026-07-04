@@ -223,7 +223,7 @@ class MatchBufferLower : public StmtExprMutator {
     if (!buffer->strides.empty()) {
       TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
       if (source_buffer->strides.empty()) {
-        PrimExpr stride = MakeConst(buffer->strides.back().ty(), 1);
+        PrimExpr stride = IntImm(buffer->strides.back().ty(), 1);
         for (size_t i = buffer->shape.size(); i > 0; --i) {
           const PrimExpr& shape = source_buffer->shape[i - 1 + offset];
           Bind(buffer->strides[i - 1], stride, buffer->name + ".strides_" + std::to_string(i - 1));

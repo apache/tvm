@@ -517,7 +517,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         TVM_FFI_ICHECK(scopes[i - 1].axes_remap.count(axis->var));
         PrimExpr prev_binding = scopes[i - 1].axes_remap.at(axis->var);
         Var block_var("v_" + axis->var->name_hint, index_type);
-        Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
+        Range dom = Range::FromMinExtent(prev_binding, IntImm(index_type, 1));
         IterVar new_block_iter(dom, block_var, axis->iter_type, axis->thread_tag, axis->span);
         cur_scope.AddBlockIter(axis, new_block_iter, prev_binding);
       }

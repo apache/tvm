@@ -40,7 +40,7 @@ ffi::Array<PrimExpr> GetStrides(const Buffer& buffer) {
     return {};
   }
   ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
-  PrimExpr stride = MakeConst(PrimType(buffer->DefaultIndexType()), 1);
+  PrimExpr stride = IntImm(PrimType(buffer->DefaultIndexType()), 1);
   for (int i = ndim - 1; i >= 0; --i) {
     strides.Set(i, stride);
     stride = stride * buffer->shape[i];

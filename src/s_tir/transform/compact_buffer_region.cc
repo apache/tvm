@@ -472,7 +472,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         // try estimate a constant upperbound on region's extent
         int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
         if (upperbound != arith::ConstIntBound::kPosInf) {
-          extent = MakeConst(extent.ty(), upperbound);
+          extent = IntImm(extent.ty(), upperbound);
         } else {
           result_region.Set(i, original);
           continue;
@@ -701,15 +701,15 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
   if (alloc_info.dim_aligns.size()) {
     TVM_FFI_ICHECK(alloc_info.dim_aligns.size() == shape.size());
     strides.resize(shape.size());
-    PrimExpr stride = MakeConst(shape[0].ty(), 1);
+    PrimExpr stride = IntImm(shape[0].ty(), 1);
     for (size_t i = shape.size(); i != 0; --i) {
       size_t dim = i - 1;
       DimAlignInfo info = alloc_info.dim_aligns[dim];
       int align_factor = info.align_factor;
       int align_offset = info.align_offset;
       if (align_factor != 0) {
-        PrimExpr factor = MakeConst(stride.ty(), align_factor);
-        PrimExpr offset = MakeConst(stride.ty(), align_offset);
+        PrimExpr factor = IntImm(stride.ty(), align_factor);
+        PrimExpr offset = IntImm(stride.ty(), align_offset);
         stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
       }
       strides[dim] = stride;

@@ -304,7 +304,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
                                    /*IterVarType=*/kDataPar));
 
       access_indices.push_back(var);
-      access_region.push_back(Range::FromMinExtent(var, MakeConst(var.ty(), 1)));
+      access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       block_var_map.Set(block_var, var);
     }
 
