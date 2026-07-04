@@ -21,7 +21,7 @@ Run the full TIRX test suite.
 
 3. Import gate — bench workloads: fail fast if any kernel listed in `workloads.yaml` fails to import:
    ```bash
-   python -m tirx_kernels.tir_bench --check-imports
+   python -m tirx_kernels.bench_suite --check-imports
    ```
    A non-zero exit means a pinned workload kernel failed to import — fix it before proceeding.
 

@@ -29,7 +29,7 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/script/builder/ir.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include "./utils.h"
 

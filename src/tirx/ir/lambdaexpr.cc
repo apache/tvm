@@ -18,17 +18,19 @@
  */
 
 /*!
- * \file predicate.cc
+ * \file lambdaexpr.cc
+ * \brief Implementation of LambdaExpr, a reified lambda used by tile primitive ops.
  */
 
-#include "tvm/tirx/predicate.h"
+#include "tvm/tirx/stmt_functor.h"
+#include "tvm/tirx/tile_primitive.h"
 
 namespace tvm {
 namespace tirx {
 
-TVM_FFI_STATIC_INIT_BLOCK() { PredicateNode::RegisterReflection(); }
+TVM_FFI_STATIC_INIT_BLOCK() { LambdaExprNode::RegisterReflection(); }
 
-PrimExpr PredicateNode::Apply(const ffi::Array<PrimExpr>& indices) const {
+PrimExpr LambdaExprNode::Apply(const ffi::Array<PrimExpr>& indices) const {
   TVM_FFI_ICHECK_EQ(indices.size(), vars.size());
 
   ffi::Map<Var, PrimExpr> vmap;
@@ -37,12 +39,11 @@ PrimExpr PredicateNode::Apply(const ffi::Array<PrimExpr>& indices) const {
     vmap.Set(vars[i], indices[i]);
   }
 
-  return SubstituteWithDataTypeLegalization(std::move(pred),
-                                            [&](const Var& var) { return vmap.Get(var); });
+  return Substitute(std::move(pred), [&](const Var& var) { return vmap.Get(var); });
 }
 
-Predicate::Predicate(ffi::Array<Var> vars, PrimExpr pred) {
-  auto n = ffi::make_object<PredicateNode>();
+LambdaExpr::LambdaExpr(ffi::Array<Var> vars, PrimExpr pred) {
+  auto n = ffi::make_object<LambdaExprNode>();
   n->vars = std::move(vars);
   n->pred = std::move(pred);
   data_ = std::move(n);
@@ -50,13 +51,13 @@ Predicate::Predicate(ffi::Array<Var> vars, PrimExpr pred) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Predicate",
-                        [](ffi::Array<Var> vars, PrimExpr pred) { return Predicate(vars, pred); });
+  refl::GlobalDef().def("tirx.LambdaExpr",
+                        [](ffi::Array<Var> vars, PrimExpr pred) { return LambdaExpr(vars, pred); });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.PredicateApply", [](Predicate pred, ffi::Array<PrimExpr> indices) {
+  refl::GlobalDef().def("tirx.LambdaExprApply", [](LambdaExpr pred, ffi::Array<PrimExpr> indices) {
     return pred->Apply(indices);
   });
 }

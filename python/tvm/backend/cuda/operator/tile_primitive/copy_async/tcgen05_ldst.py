@@ -37,7 +37,7 @@ from tvm.tirx.layout import (
     tmem_datapath_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import get_st_extent
 from ..copy import _is_valid_copy, _scope_allowed

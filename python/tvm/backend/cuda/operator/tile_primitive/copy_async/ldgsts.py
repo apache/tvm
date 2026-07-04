@@ -43,7 +43,7 @@ from tvm.tirx.operator.tile_primitive.dispatcher import (
     register_dispatch,
 )
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..copy._common import (
     _TID_AXIS_FOR_SCOPE,

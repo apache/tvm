@@ -20,7 +20,7 @@
 from tvm.tirx import BufferRegion, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..binary import try_find_inst_nary
 from ..common import init_analyzer

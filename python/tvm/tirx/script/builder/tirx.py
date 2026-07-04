@@ -21,11 +21,10 @@ from collections.abc import Callable
 
 import tvm.tirx.operator as tirx_op
 from tvm.ir import Op
-from tvm.tirx import Buffer, BufferRegion, PrimExpr
+from tvm.tirx import Buffer, BufferRegion, LambdaExpr, PrimExpr
 from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
-from tvm.tirx.predicate import Predicate
 
 from . import _ffi_api, frame
 from .ir import decl_buffer, meta_class
@@ -1513,7 +1512,7 @@ def select(
     dst: BufferRegion | Buffer,
     true_value: BufferRegion | Buffer | FloatImm,
     false_value: BufferRegion | Buffer | FloatImm,
-    pred: Predicate | Callable[..., PrimExpr],
+    pred: LambdaExpr | Callable[..., PrimExpr],
     scope: ExecScope | None = None,
 ):
     """Select between two values based on a predicate.
@@ -1529,7 +1528,7 @@ def select(
     false_value : Union[BufferRegion, Buffer, FloatImm]
         The value to select if the predicate is false.
 
-    pred : Union[Predicate, Callable[..., PrimExpr]]
+    pred : Union[LambdaExpr, Callable[..., PrimExpr]]
         The predicate to evaluate. The callable should take the same number of arguments as the dimensions of the destination buffer.
     """  # noqa: E501
     dst = _to_region(dst)
@@ -1537,8 +1536,8 @@ def select(
         true_value = _to_region(true_value)
     if isinstance(false_value, Buffer):
         false_value = _to_region(false_value)
-    if not isinstance(pred, Predicate):
-        pred = Predicate(pred)
+    if not isinstance(pred, LambdaExpr):
+        pred = LambdaExpr(pred)
     return f_insert(tirx_op.Select(dst, true_value, false_value, pred, scope=scope))
 
 

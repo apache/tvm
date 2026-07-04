@@ -29,10 +29,9 @@
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
-#include <tvm/tirx/predicate.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <string>
 #include <unordered_map>
@@ -324,6 +323,14 @@ ExprDoc BufferAttn(const tirx::Buffer& buffer, const AccessPath& p, const Frame&
  * \return The ExprDoc corresponding to the Var creation
  */
 ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d);
+
+/*! \brief Print a reified lambda ``(vars, body)`` as a ``LambdaDoc``.
+
+Used by the ``tirx.tile.select`` printer specialization. Defined in expr.cc.
+*/
+LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
+                      const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
+                      const IRDocsifier& d);
 
 /*! \brief A Var occurrence counter visitor */
 class OccurrenceCounter : public tirx::StmtExprVisitor {

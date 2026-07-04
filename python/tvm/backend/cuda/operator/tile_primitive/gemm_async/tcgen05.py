@@ -42,7 +42,8 @@ from tvm.tirx.layout import (
     tmem_datapath_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt, TilePrimitiveCall
+from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import get_st_extent, smem_desc_add_16B_offset
 from ..exec_scope_utils import single_thread

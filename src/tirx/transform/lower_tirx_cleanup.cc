@@ -29,7 +29,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
-#include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/tile_primitive.h>
 #include <tvm/tirx/transform.h>
 
 #include <tuple>

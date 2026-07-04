@@ -27,7 +27,7 @@ from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.tirx import Buffer, BufferRegion, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def next_power_of_2(x: int) -> int:

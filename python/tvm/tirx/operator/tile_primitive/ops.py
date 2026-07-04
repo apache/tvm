@@ -19,7 +19,7 @@
 
 from tvm.ir import Op
 from tvm.tirx import PrimExpr
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def get_tirx_op(op_name: str):

@@ -29,21 +29,17 @@ Each statement node have subfields that can be visited from python side.
 
 from collections.abc import Mapping
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, ClassVar
 
 import tvm_ffi
 
-from tvm.ir import Op, PrimExpr, Range, Span
+from tvm.ir import PrimExpr, Range, Span
 from tvm.runtime import Object, Scriptable, const
-from tvm.tirx import FloatImm, IntImm
+from tvm.tirx import IntImm
 
 from . import _ffi_api
 from .buffer import Buffer
-from .exec_scope import ExecScope, ScopeIdDef
+from .exec_scope import ScopeIdDef
 from .expr import IterVar, StringImm, Var
-
-if TYPE_CHECKING:
-    from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 
 
 @tvm_ffi.register_object("tirx.Stmt")
@@ -913,181 +909,4 @@ def stmt_list(stmt: Stmt) -> list[Stmt]:
         for x in stmt:
             res += stmt_list(x)
         return res
-    return [stmt]
-
-
-def normalize_const_arg(arg) -> PrimExpr:
-    if isinstance(arg, float):
-        return FloatImm("float32", arg)
-    return arg
-
-
-@tvm_ffi.register_object("tirx.TilePrimitiveCall")
-class TilePrimitiveCall(Stmt):
-    """TilePrimitiveCall node.
-
-    Parameters
-    ----------
-    op : Op
-        The operator.
-
-    args : List[PrimExpr]
-        The arguments.
-
-    workspace : Map[str, Buffer]
-        The workspace.
-
-    config : Map[str, ObjectRef]
-        The scheduler/config dictionary.
-
-    dispatch : Optional[str]
-        The explicit variant name to dispatch to.
-
-    scope : ExecScope
-        The cooperation scope of this call. Defaults to ``thread`` (an unscoped call).
-    """
-
-    args: list[PrimExpr]
-    workspace: dict[str, Buffer]
-    config: dict[str, Any]
-    dispatch: str | None
-    scope: ExecScope
-    _registry: ClassVar[dict[Op, type["TilePrimitiveCall"]]] = {}
-
-    def __init__(
-        self,
-        *args: list[PrimExpr],
-        op: Op | None = None,
-        workspace: dict[str, Buffer] | None = None,
-        config: dict[str, Any] | None = None,
-        dispatch: str | None = None,
-        scope: ExecScope | None = None,
-    ) -> None:
-        if workspace is None:
-            workspace = {}
-        if config is None:
-            config = {}
-        if scope is None:
-            scope = ExecScope("thread")
-        if op is None:
-            assert self.__class__ != TilePrimitiveCall, (
-                "Directly instantiating TilePrimitiveCall needs to specify the op"
-            )
-            op = self.__class__.op
-        args = list(map(normalize_const_arg, args))
-        self.__init_handle_by_constructor__(
-            _ffi_api.TilePrimitiveCall,
-            op,
-            args,
-            workspace,
-            config,
-            dispatch,
-            scope,  # pylint: disable=no-member
-        )
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if hasattr(cls, "op"):
-            cls._registry[cls.op] = cls
-
-    @classmethod
-    def downcast(cls, instance: "TilePrimitiveCall") -> "TilePrimitiveCall":
-        subclass = cls._registry.get(instance.op)
-        if subclass is None:
-            return instance  # Unknown op: return as-is
-        new_instance = subclass.__new__(subclass)
-        new_instance.__init_handle_by_constructor__(
-            _ffi_api.TilePrimitiveCallCopyHandle,
-            instance,  # pylint: disable=no-member
-        )
-        return new_instance
-
-    def replace(self, **changes: Any) -> "TilePrimitiveCall":
-        """Return a copy of this call with selected fields replaced.
-
-        Every field that is not overridden in ``changes`` is preserved from
-        ``self`` (including ``scope``), so rebuilds never silently drop fields.
-        The returned node is downcast to the registered subclass for ``op``.
-
-        Parameters
-        ----------
-        **changes : Any
-            Field overrides; any of ``op``, ``args``, ``workspace``, ``config``,
-            ``dispatch``, ``scope``.
-
-        Returns
-        -------
-        new_call : TilePrimitiveCall
-            A new call with the requested fields replaced.
-        """
-        unknown = set(changes) - {"op", "args", "workspace", "config", "dispatch", "scope"}
-        if unknown:
-            raise TypeError(f"Unknown field(s) for TilePrimitiveCall.replace: {sorted(unknown)}")
-        new_call = TilePrimitiveCall(
-            *changes.get("args", self.args),
-            op=changes.get("op", self.op),
-            workspace=changes.get("workspace", self.workspace),
-            config=changes.get("config", self.config),
-            dispatch=changes.get("dispatch", self.dispatch),
-            scope=changes.get("scope", self.scope),
-        )
-        return TilePrimitiveCall.downcast(new_call)
-
-    def with_workspace(self, workspace: dict[str, Buffer]) -> "TilePrimitiveCall":
-        """Return a copy with ``workspace`` replaced, preserving all other fields."""
-        return self.replace(workspace=workspace)
-
-    @property
-    def srcs(self) -> list[PrimExpr]:
-        raise NotImplementedError("Subclass must implement this method")
-
-    @property
-    def dsts(self) -> list[PrimExpr]:
-        raise NotImplementedError("Subclass must implement this method")
-
-    def get_private_buffers(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
-    ) -> dict[str, Any]:
-        """
-        Create private (intermediate) buffers needed in this operator.
-
-        Parameters
-        ----------
-        buffer_dict: Dict[Any, Tuple[Buffer, Optional[Stmt]]]
-            A dictionary containing private buffers (and their init stmts) in other operators.
-            Key can be anything to reference the buffer.
-            This is used to reuse private buffers in other operators (like identity tensor etc.).
-            If the buffer is not found in the buffer_dict, it will be created and added to
-            the buffer_dict.
-            If the buffer is found in the buffer_dict but smaller than required, it will be
-            enlarged and updated.
-
-        sctx: DispatchContext
-            The dispatch context.
-            This is used to get the target and reuse op dispatch implementations.
-
-        Returns:
-            private_buffer_refs: Dict[str, Any]
-            The references to private buffers created in this operator.
-            Key will be the name to add into workspace.
-            private buffer can be accessed by buffer_dict[private_buffer_refs[name]]
-        """
-        if sctx.target.kind.name == "trn":
-            return self.get_private_buffers_trn(buffer_dict, sctx)
-        elif sctx.target.kind.name == "cuda":
-            return self.get_private_buffers_cuda(buffer_dict, sctx)
-        else:
-            raise ValueError(f"Unsupported target: {sctx.target.kind.name}")
-
-    def get_private_buffers_trn(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
-    ) -> dict[str, Any]:
-        return {}
-
-    def get_private_buffers_cuda(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
-    ) -> dict[str, Any]:
-        return {}
-
-    def validate(self) -> None:
-        pass
+        return [stmt]

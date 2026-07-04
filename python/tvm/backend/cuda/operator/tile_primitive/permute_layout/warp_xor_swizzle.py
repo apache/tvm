@@ -78,7 +78,7 @@ from tvm.script import tirx as T
 from tvm.tirx import Buffer, BufferRegion, IntImm, PrimFunc
 from tvm.tirx.layout import TileLayout, _flatten_coord
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail, register_dispatch
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import get_indices, get_st_extent
 

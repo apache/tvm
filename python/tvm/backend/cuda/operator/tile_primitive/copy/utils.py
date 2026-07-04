@@ -20,7 +20,7 @@ from collections.abc import Iterable
 
 from tvm.tirx import Buffer
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..common import match_scope, validate_copy_op
 

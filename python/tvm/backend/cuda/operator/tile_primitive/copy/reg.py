@@ -37,7 +37,7 @@ from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import ComposeLayout, S, SwizzleLayout, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ._common import _alignment_ok, copy_ptx_form, copy_ptx_ld_return_type
 from ._swizzle_iter import (

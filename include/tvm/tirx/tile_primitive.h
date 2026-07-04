@@ -17,20 +17,62 @@
  * under the License.
  */
 /*!
- * \file tvm/tirx/tirx_op.h
- * \brief TIRX built-in operators.
+ * \file tvm/tirx/tile_primitive.h
+ * \brief TIRX tile primitive statements, operators, and reified lambda expressions.
  */
-#ifndef TVM_TIRX_TIRX_OP_H_
-#define TVM_TIRX_TIRX_OP_H_
+#ifndef TVM_TIRX_TILE_PRIMITIVE_H_
+#define TVM_TIRX_TILE_PRIMITIVE_H_
 
+#include <tvm/ffi/object.h>
 #include <tvm/ir/op.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/tirx_stmt.h>
+#include <tvm/tirx/var.h>
 
 namespace tvm {
 namespace tirx {
+
+/*!
+ * \brief A reified Python lambda: a list of bound variables and a body over them.
+ *
+ * Used by tile primitive ops that take a per-element expression over the
+ * destination axes (e.g. ``tirx.tile.select``). ``vars`` are the abstract
+ * axis variables (lambda-bound); ``pred`` is the body referencing them.
+ * At lowering time the dispatch substitutes ``vars`` with the concrete
+ * instruction axes via ``Apply``.
+ */
+class LambdaExprNode : public ffi::Object {
+ public:
+  /*! \brief The bound variables of the lambda. */
+  Array<Var> vars;
+  /*! \brief The lambda body over ``vars``. */
+  PrimExpr pred;
+
+  /*! \brief Replace the bound variables with the given indices, returning the substituted body. */
+  PrimExpr Apply(const Array<PrimExpr>& indices) const;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LambdaExprNode>()
+        .def_ro("vars", &LambdaExprNode::vars, refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("pred", &LambdaExprNode::pred);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.LambdaExpr", LambdaExprNode, ffi::Object);
+};
+
+/*!
+ * \brief Managed reference to LambdaExprNode.
+ * \sa LambdaExprNode
+ */
+class LambdaExpr : public ffi::ObjectRef {
+ public:
+  explicit LambdaExpr(Array<Var> vars, PrimExpr pred);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LambdaExpr, ffi::ObjectRef, LambdaExprNode);
+};
 
 /*!
  * \brief The type of the function that sanitizes the arguments of a TIRX operator.
@@ -141,6 +183,72 @@ class DispatchContext : public ffi::ObjectRef {
 };
 
 /*!
+ * \brief TIRX TilePrimitiveCall stmt.
+ */
+class TilePrimitiveCallNode : public StmtNode {
+ public:
+  TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
+                        ffi::Map<ffi::String, Buffer> workspace,
+                        ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
+                        ExecScope scope)
+      : op(std::move(op)),
+        args(std::move(args)),
+        workspace(std::move(workspace)),
+        config(std::move(config)),
+        dispatch(std::move(dispatch)),
+        scope(std::move(scope)) {}
+
+  // tvm::Op which corresponds to the TIRX operator.
+  tvm::Op op;
+
+  // Arguments to the operator.
+  ffi::Array<ffi::Any> args;
+
+  // Workspace (pre-allocated buffers) for the operator.
+  ffi::Map<ffi::String, Buffer> workspace;
+
+  // Config for the operator/scheduler.
+  ffi::Map<ffi::String, ffi::Any> config;
+
+  // Optional dispatch variant name registered via @register_dispatch.
+  ffi::Optional<ffi::String> dispatch{std::nullopt};
+
+  // Cooperation scope of this call. Default thread (an unscoped call).
+  ExecScope scope = ExecScope(ScopeKind::kThread);
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TilePrimitiveCallNode>()
+        .def_ro("op", &TilePrimitiveCallNode::op)
+        .def_ro("args", &TilePrimitiveCallNode::args)
+        .def_ro("workspace", &TilePrimitiveCallNode::workspace)
+        .def_ro("config", &TilePrimitiveCallNode::config)
+        .def_ro("dispatch", &TilePrimitiveCallNode::dispatch)
+        .def_ro("scope", &TilePrimitiveCallNode::scope);
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TilePrimitiveCall", TilePrimitiveCallNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to TilePrimitiveCallNode
+ * \sa TilePrimitiveCallNode
+ */
+class TilePrimitiveCall : public Stmt {
+ public:
+  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
+                            ffi::Map<ffi::String, Buffer> workspace = {},
+                            ffi::Map<ffi::String, ffi::Any> config = {},
+                            ffi::Optional<ffi::String> dispatch = std::nullopt,
+                            ExecScope scope = ExecScope(ScopeKind::kThread));
+
+  static bool IsValidOpCallArgType(const ffi::Any& arg);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TilePrimitiveCallNode);
+};
+
+/*!
  * \brief See pesudo code below:
  *
  * Tx.cast(BufferRegion dst, BufferRegion src)
@@ -234,4 +342,4 @@ TVM_DLL const Op& permute_layout();
 }  // namespace tirx
 }  // namespace tvm
 
-#endif  // TVM_TIRX_TIRX_OP_H_
+#endif  // TVM_TIRX_TILE_PRIMITIVE_H_

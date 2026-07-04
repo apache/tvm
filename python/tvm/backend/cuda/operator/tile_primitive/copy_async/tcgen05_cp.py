@@ -65,7 +65,8 @@ from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import ComposeLayout, SwizzleLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt, TilePrimitiveCall
+from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..copy import _is_valid_smem_tmem_copy, _single_thread_exec
 

@@ -22,7 +22,6 @@ from tvm.backend.trn.operator.tile_primitive.dim_utils import get_ewise_dim_map
 from tvm.backend.trn.operator.tile_primitive.instruction_generator import InstructionGenerator
 from tvm.script import tirx as T
 from tvm.tirx import Buffer, FloatImm, Stmt
-from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.ops import (
     BinaryReduce,
     Copy,
@@ -32,7 +31,7 @@ from tvm.tirx.operator.tile_primitive.ops import (
     UnaryReduce,
 )
 from tvm.tirx.operator.tile_primitive.registry import f_op_dispatcher
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
 
 
 def _scalar_dtype(scalar) -> str:

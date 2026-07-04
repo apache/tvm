@@ -18,7 +18,7 @@ import pytest
 
 from tvm.ir import Op
 from tvm.tirx.buffer import decl_buffer
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def _test(op: str, *args):

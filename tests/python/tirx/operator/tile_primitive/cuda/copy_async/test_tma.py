@@ -35,10 +35,10 @@ from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
 )
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
 from tvm.tirx.stmt import DeclBuffer
 from tvm.tirx.stmt_functor import StmtExprVisitor
+from tvm.tirx.tile_primitive import DispatchContext
 
 # ===========================================================================
 # Helpers

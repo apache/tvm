@@ -1099,13 +1099,13 @@ def test_op_call_config_visited():
         Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body
-    assert isinstance(op_call_stmt, tir.stmt.TilePrimitiveCall)
+    assert isinstance(op_call_stmt, tir.TilePrimitiveCall)
 
     # Manually construct an TilePrimitiveCall with a PrimExpr in config
     config_var = Var("config_val", "int32")
     new_config = dict(op_call_stmt.config)
     new_config["cta_mask"] = config_var + tir.IntImm("int32", 5)
-    op_call_with_var = tir.stmt.TilePrimitiveCall(
+    op_call_with_var = tir.TilePrimitiveCall(
         *op_call_stmt.args, op=op_call_stmt.op, config=new_config
     )
 
@@ -1131,20 +1131,20 @@ def test_op_call_config_mutated():
         Tx.add(A, B, 1.0)
 
     op_call_stmt = op_call_with_config.body.body
-    assert isinstance(op_call_stmt, tir.stmt.TilePrimitiveCall)
+    assert isinstance(op_call_stmt, tir.TilePrimitiveCall)
 
     # Create TilePrimitiveCall with a Var in the config
     old_var = Var("old_scope_id", "int32")
     new_var = Var("new_let_var", "int32")
     new_config = dict(op_call_stmt.config)
     new_config["cta_mask"] = old_var + tir.IntImm("int32", 5)
-    op_call_with_var = tir.stmt.TilePrimitiveCall(
+    op_call_with_var = tir.TilePrimitiveCall(
         *op_call_stmt.args, op=op_call_stmt.op, config=new_config
     )
 
     # Substitute old_var -> new_var
     result = substitute(op_call_with_var, {old_var: new_var})
-    assert isinstance(result, tir.stmt.TilePrimitiveCall)
+    assert isinstance(result, tir.TilePrimitiveCall)
 
     # The config value should now reference new_var, not old_var
     cta_mask_expr = result.config["cta_mask"]

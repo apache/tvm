@@ -229,9 +229,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
         });
 
-LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
-                         const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
-                         const IRDocsifier& d) {
+LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
+                      const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
+                      const IRDocsifier& d) {
   With<TIRFrame> f(d, pred);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
@@ -242,11 +242,11 @@ LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tirx::Predicate>("",
-                                   [](tirx::Predicate pred, AccessPath p, IRDocsifier d) -> Doc {
-                                     return PrintPredicate(pred, pred->vars, p->Attr("vars"),
-                                                           pred->pred, p->Attr("pred"), d);
-                                   });
+    .set_dispatch<tirx::LambdaExpr>("",
+                                    [](tirx::LambdaExpr pred, AccessPath p, IRDocsifier d) -> Doc {
+                                      return PrintLambda(pred, pred->vars, p->Attr("vars"),
+                                                         pred->pred, p->Attr("pred"), d);
+                                    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Let>("", [](tirx::Let let, AccessPath p, IRDocsifier d) -> Doc {
@@ -469,7 +469,7 @@ TVM_SCRIPT_REPR(tirx::ShuffleNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::CommReducerNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IndexMapNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ReduceNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::PredicateNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tirx::LambdaExprNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

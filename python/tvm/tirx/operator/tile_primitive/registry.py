@@ -23,8 +23,7 @@ dispatch result.
 
 from tvm_ffi import register_global_func
 
-from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import DispatchContext, TilePrimitiveCall
 
 # Note: legacy `register_schedule` is intentionally removed.
 

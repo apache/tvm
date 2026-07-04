@@ -32,7 +32,7 @@ from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.operator.tile_primitive.dispatcher import fail, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ._common import (  # noqa: F401  (_carve_tail reserved for future variants)
     _carve_tail,

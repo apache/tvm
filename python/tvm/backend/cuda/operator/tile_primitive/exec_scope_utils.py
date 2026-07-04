@@ -21,7 +21,7 @@ from collections.abc import Callable
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext
-from tvm.tirx.stmt import TilePrimitiveCall
+from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 
 def macro_or_prim_func(macro: Callable, need_macro: bool = False) -> Callable:

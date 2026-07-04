@@ -134,7 +134,7 @@ def test_dispatch_prints_real_opcall_ir():
     from tvm.ir import Op
     from tvm.tirx.buffer import decl_buffer
     from tvm.tirx.operator.tile_primitive.dispatcher import run_dispatch
-    from tvm.tirx.stmt import TilePrimitiveCall
+    from tvm.tirx.tile_primitive import TilePrimitiveCall
 
     # Build a real TIRx TilePrimitiveCall: tirx.tile.copy(A[0:64], B[0:64])
     A = decl_buffer((64,), "float32", scope="global")
