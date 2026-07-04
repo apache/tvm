@@ -1887,12 +1887,14 @@ class ConvTranspose(OnnxOpConverter):
             else:
                 bias_ndim = len(bias_shape)
             if bias_ndim != 1:
-                raise ValueError(f"ConvTranspose bias must be a 1D tensor, but got ndim={bias_ndim}")
+                raise ValueError(
+                    f"ConvTranspose bias must be a 1D tensor, but got ndim={bias_ndim}"
+                )
 
             def _as_static_int(dim):
                 try:
                     return int(dim)
-                except (TypeError, ValueError, TVMError):
+                except (TypeError, ValueError, RuntimeError):
                     return None
 
             if isinstance(bias_shape, relax.ShapeExpr):
