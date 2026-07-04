@@ -348,7 +348,7 @@ TEST(IRF, Substitute) {
 
   {
     // test substitute buffer data var and shape var via DeclBuffer
-    Var y = x.copy_with_suffix("subst");
+    Var y = x.CopyWithSuffix("subst");
     Var m("m", PrimType::Int(32));
     Buffer buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});

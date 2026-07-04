@@ -843,7 +843,7 @@ class PipelineRewriter : public StmtExprMutator {
     if (is_unit_loop) {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
-      new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
+      new_loop_var = pipeline_loop_->loop_var.CopyWithSuffix("");
       analyzer_->Bind(new_loop_var.as_or_throw<Var>(), Range(start, end));
     }
 

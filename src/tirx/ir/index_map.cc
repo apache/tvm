@@ -55,7 +55,7 @@ IndexMap IndexMap::FromFunc(int ndim,
   initial_indices.reserve(ndim);
   callback_indices.reserve(ndim);
   for (int i = 0; i < ndim; ++i) {
-    PrimVar index(Var("i" + std::to_string(i), PrimType::Int(32)));
+    PrimVar index("i" + std::to_string(i), PrimType::Int(32));
     initial_indices.push_back(index);
     callback_indices.push_back(index);
   }
@@ -87,7 +87,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // should be named (X.outer,X.inner).
     std::stringstream ss;
     ss << "axis" << i;
-    PrimVar var_index(Var(ss.str(), index.ty()));
+    PrimVar var_index(ss.str(), index.ty());
     output_vars.push_back(var_index);
   }
 

@@ -837,14 +837,6 @@ PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const V
   return IRSubstitute(std::move(general_vmap))(std::move(expr)).as_or_throw<PrimExpr>();
 }
 
-Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
-  return IRSubstitute(std::move(vmap))(std::move(stmt));
-}
-
-Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
-  return IRSubstitute(std::move(vmap))(std::move(expr));
-}
-
 void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
                    const std::function<bool(const ffi::ObjectRef&)>& fvisit) {
   class PreOrderVisitor : public StmtExprVisitor {
@@ -904,25 +896,6 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     return var;
   }
 
-  // Buffer data variables are definitions and are intentionally skipped by
-  // StmtExprMutator.  Substitution-based legalization must still keep them in
-  // sync with rewritten pointer variables used by the buffer's consumers.
-  Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
-    Buffer new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
-    Expr new_data_expr = VisitExpr(new_buf->data);
-    TVM_FFI_ICHECK(new_data_expr->IsInstance<VarNode>())
-        << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
-        << ", which was substituted into the expression " << new_data_expr
-        << " and the backing allocation must be a tirx::Var";
-    Var data = new_data_expr.as_or_throw<Var>();
-    if (!data.same_as(new_buf->data)) {
-      auto* n = new_buf.CopyOnWrite();
-      n->data = std::move(data);
-      buffer_remap_.Set(buffer, new_buf);
-    }
-    return new_buf;
-  }
-
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
@@ -957,16 +930,6 @@ PrimExpr SubstituteWithDataTypeLegalization(
   };
   return IRSubstituteWithDataTypeLegalization(std::move(general_vmap))(std::move(expr))
       .as_or_throw<PrimExpr>();
-}
-
-Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
-                                        std::function<ffi::Optional<Expr>(const Var&)> vmap) {
-  return IRSubstituteWithDataTypeLegalization(std::move(vmap))(std::move(stmt));
-}
-
-Expr SubstituteWithDataTypeLegalization(Expr expr,
-                                        std::function<ffi::Optional<Expr>(const Var&)> vmap) {
-  return IRSubstituteWithDataTypeLegalization(std::move(vmap))(std::move(expr));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

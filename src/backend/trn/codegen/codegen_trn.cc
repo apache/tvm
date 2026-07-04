@@ -330,7 +330,7 @@ void CodeGenTrainium::VisitStmt_(const BufferStoreNode* op) {
 }
 
 void CodeGenTrainium::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
+  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
     this->PrintIndent();

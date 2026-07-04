@@ -1703,7 +1703,7 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
+  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call && call->op.same_as(builtin::tvm_global_barrier_kinit())) {
     PrintIndent();

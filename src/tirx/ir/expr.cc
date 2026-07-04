@@ -179,7 +179,7 @@ Var Var::copy_with_name(const ffi::String& name) const {
   return Var(new_ptr);
 }
 
-Var Var::copy_with_suffix(const ffi::String& suffix) const {
+Var Var::CopyWithSuffix(const ffi::String& suffix) const {
   return this->copy_with_name(get()->name_hint + suffix);
 }
 

@@ -462,7 +462,7 @@ struct NestedScopeInfo {
   void Renew(const ffi::Array<IterVar>& origin_axes) {
     block_iters.MutateByApply([](const IterVar& itervar) {
       auto n = ffi::make_object<IterVarNode>(*itervar.get());
-      n->var = n->var.copy_with_suffix("");
+      n->var = n->var.CopyWithSuffix("");
       return IterVar(n);
     });
     for (size_t i = 0; i < origin_axes.size(); ++i) {
@@ -526,7 +526,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     if (i == axes_levels.size() - 1 && cur_scope.block_iters.empty()) {
       // for the leaf scope, we ensure at least one block var exists
-      IterVar dummy(Range::FromMinExtent(0, 1), PrimVar(Var("vi", PrimType::Int(32))),
+      IterVar dummy(Range::FromMinExtent(0, 1), PrimVar("vi", PrimType::Int(32)),
                     IterVarType::kDataPar);
       cur_scope.AddBlockIter(std::nullopt, dummy, 0);
     }

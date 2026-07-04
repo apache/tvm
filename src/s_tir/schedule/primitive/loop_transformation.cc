@@ -425,7 +425,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i)).copy_with_dtype(dtype);
+    Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).copy_with_dtype(dtype);
     substitute_value = substitute_value * factor + var;
     analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
@@ -675,7 +675,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   // Iterate over each pair of factors and create partition
   for (int i = 0; i < n; i++) {
     extent_value = analyzer->Simplify(factors[i]);
-    Var new_loop_var = loop->loop_var.copy_with_suffix(std::to_string(i)).copy_with_dtype(dtype);
+    Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).copy_with_dtype(dtype);
     Stmt loop_body = tirx::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
@@ -735,7 +735,7 @@ class LoopReconstructor : private StmtMutator {
       ffi::Map<Var, PrimExpr> var_map;
       for (size_t j = 0; j < loops_[i].size(); j++) {
         if (i == 0) {
-          Var merged_var = loops_[i][j]->loop_var.copy_with_suffix("_m");
+          Var merged_var = loops_[i][j]->loop_var.CopyWithSuffix("_m");
           new_loop_vars.push_back(merged_var);
           new_loop_extents.push_back(loops_[i][j]->extent);
         }
@@ -928,7 +928,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   }
   suffix += "_fused";
 
-  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(PrimType::Int(bits));
+  Var fused_var = loops[0]->loop_var.CopyWithSuffix(suffix).copy_with_dtype(PrimType::Int(bits));
   ffi::Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
@@ -1143,8 +1143,8 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
 
 StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
   if (sref->stmt->IsInstance<ForNode>()) {
-    For new_loop = For(PrimVar(Var("u", PrimType::Int(32))), 0, 1, ForKind::kSerial,
-                       ffi::GetRef<Stmt>(sref->stmt));
+    For new_loop =
+        For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial, ffi::GetRef<Stmt>(sref->stmt));
     self->Replace(sref, new_loop, {});
     return self->stmt2ref.at(new_loop.get());
   }
@@ -1154,7 +1154,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
 
     Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
       if (realize->block.get() == src_block_) {
-        new_loop_ = For(PrimVar(Var("u", PrimType::Int(32))), 0, 1, ForKind::kSerial,
+        new_loop_ = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_;
       }

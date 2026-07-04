@@ -146,7 +146,8 @@ class CandidateSelector final : public StmtExprVisitor {
         return;
       }
       runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-      if ((scope.rank == 0) && (!is_const_int(op->value) || partition_const_loop_)) {
+      auto value = op->value.as<PrimExpr>();
+      if ((scope.rank == 0) && (!value || !is_const_int(value.value()) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         StmtExprVisitor::VisitStmt_(op);
         if (record_.at(var.get()) && !no_split_) {

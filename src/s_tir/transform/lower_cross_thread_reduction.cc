@@ -446,7 +446,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
         {
           ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
           ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*iter_var->var.get());
-          n->var = PrimVar(Var(v));
+          n->var = PrimVar(v);
           new_iter_var = IterVar(n);
         }
         iter_vars.push_back(new_iter_var);
@@ -883,7 +883,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
           /*kind=*/ForKind::kThreadBinding,                   //
           /*body=*/body,                                      //
           /*thread_binding=*/
-          IterVar(Range(), PrimVar(Var("", loop_vars[i].ty())), IterVarType::kThreadIndex,
+          IterVar(Range(), PrimVar("", loop_vars[i].ty()), IterVarType::kThreadIndex,
                   "threadIdx." + dim_index),
           /*annotations=*/{},
           /*step=*/std::nullopt);

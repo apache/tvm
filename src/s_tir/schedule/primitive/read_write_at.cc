@@ -293,7 +293,7 @@ struct ReadWriteAtImpl {
         v->name_hint = "v" + std::to_string(iter_vars.size());
         bindings.Set(var, Var(v));
         iter_values.push_back(var);
-        iter_vars.push_back(IterVar(range, PrimVar(Var(v)), IterVarType::kDataPar));
+        iter_vars.push_back(IterVar(range, PrimVar(v), IterVarType::kDataPar));
         return Var(v).as_or_throw<PrimExpr>();
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());

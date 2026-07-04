@@ -526,7 +526,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
     ffi::Array<Var> index_map_inputs;
     ffi::Array<PrimExpr> index_map_outputs;
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
-      Var var = iter->var.copy_with_suffix("");
+      Var var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
       if (!is_one(iter->dom->extent)) {
         index_map_outputs.push_back(var);

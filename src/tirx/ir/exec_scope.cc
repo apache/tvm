@@ -303,7 +303,7 @@ static ffi::Optional<ScopeIdDef> Compose(const ScopeIdDef& lhs, const ScopeIdDef
   if (l_cur != r_parent) return std::nullopt;
   auto composed = TryStringPairToBinding(l_parent, r_cur);
   if (!composed.has_value()) return std::nullopt;
-  return ScopeIdDef(ffi::Array<PrimVar>{PrimVar(Var(""))},
+  return ScopeIdDef(ffi::Array<PrimVar>{PrimVar("")},
                     ffi::Array<PrimExpr>{lhs.fused_extent() * rhs.fused_extent()},
                     composed.value());
 }
@@ -318,7 +318,7 @@ static ffi::Optional<ScopeIdDef> Compliment(const ScopeIdDef& lhs, const ScopeId
   auto try_compliment = [&](PrimExpr lhs_ext, PrimExpr rhs_ext,
                             ScopeBinding scope) -> ffi::Optional<ScopeIdDef> {
     if (ana->CanProve(floormod(lhs_ext, rhs_ext) == 0)) {
-      return ScopeIdDef(ffi::Array<PrimVar>{PrimVar(Var(""))},
+      return ScopeIdDef(ffi::Array<PrimVar>{PrimVar("")},
                         ffi::Array<PrimExpr>{floordiv(lhs_ext, rhs_ext)}, scope);
     }
     TVM_FFI_ICHECK(!ana->CanProve(floormod(lhs_ext, rhs_ext) != 0))

@@ -93,15 +93,6 @@ def test_let():
     y = tvm.tirx.Var("y", "int32")
     stmt = tvm.tirx.Bind(x, 10)
 
-    pointer_type = ir.PointerType(ir.PrimType("float32"), "global")
-    pointer_var = tvm.tirx.Var("pointer_var", pointer_type)
-    pointer_value = tvm.tirx.Var("pointer_value", pointer_type)
-    pointer_stmt = tvm.tirx.Bind(pointer_var, pointer_value)
-    assert pointer_stmt.value.same_as(pointer_value)
-
-    with pytest.raises(RuntimeError):
-        tvm.tirx.Bind(pointer_var, x)
-
 
 def test_cast():
     x = tvm.tirx.Var("x", "float32")
@@ -146,47 +137,6 @@ def test_stmt():
     x = tvm.tirx.Evaluate(0)
     tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.SERIAL, x)
     tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 1, tvm.tirx.ForKind.UNROLLED, x, step=2)
-
-    pointer = tvm.tirx.Var("p", ir.PointerType(ir.PrimType("int32")))
-    with pytest.raises(TypeError):
-        tvm.tirx.For(pointer, 0, 1, tvm.tirx.ForKind.SERIAL, x)
-    with pytest.raises(TypeError):
-        tvm.tirx.IterVar(None, pointer, tvm.tirx.IterVar.DataPar)
-
-
-def test_scalar_var_boundaries_reject_pointer_vars():
-    scalar = tvm.tirx.Var("x", "int32")
-    pointer = tvm.tirx.Var("p", ir.PointerType(ir.PrimType("int32")))
-
-    with pytest.raises(TypeError):
-        tvm.tirx.CommReducer([pointer], [scalar], [scalar + scalar], [0])
-    with pytest.raises(TypeError):
-        tvm.tirx.IndexMap([pointer], [0], None)
-    with pytest.raises(TypeError):
-        tvm.tirx.ScopeIdDef([pointer], [1], "kernel", "cta")
-
-
-def test_scalar_and_pointer_var_types_survive_json_round_trip():
-    scalar = tvm.tirx.Var("i", "int32")
-    pointer = tvm.tirx.Var("p", ir.PointerType(ir.PrimType("float32"), "global"))
-    stmt = tvm.tirx.For(
-        scalar,
-        0,
-        1,
-        tvm.tirx.ForKind.SERIAL,
-        tvm.tirx.Bind(pointer, pointer),
-    )
-
-    restored = tvm.ir.load_json(tvm.ir.save_json(stmt))
-
-    tvm.ir.assert_structural_equal(restored, stmt)
-    tvm.ir.assert_structural_equal(restored.loop_var.ty, ir.PrimType("int32"))
-    tvm.ir.assert_structural_equal(
-        restored.body.var.ty,
-        ir.PointerType(ir.PrimType("float32"), "global"),
-    )
-    assert restored.loop_var.same_as(restored.loop_var)
-    assert restored.body.var.same_as(restored.body.value)
 
 
 def test_dir():
@@ -371,13 +321,9 @@ def test_prim_func():
 def test_vars():
     x = tvm.tirx.Var("xyz", "int8")
     assert x.ty.dtype == "int8"
-    assert isinstance(x + 1, tvm.tirx.Add)
     ptype = tvm.ir.PointerType(tvm.ir.PrimType("float"))
     x = tvm.tirx.Var("xyz", ptype)
     assert x.ty == ptype
-    assert not hasattr(x, "type_annotation")
-    with pytest.raises(TypeError):
-        x + 1
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 

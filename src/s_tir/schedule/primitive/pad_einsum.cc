@@ -176,7 +176,7 @@ struct BufferPadding {
       Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
       loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
-      IterVar iter_var(dom, PrimVar(Var("v" + std::to_string(i), dim.ty())), kDataPar);
+      IterVar iter_var(dom, PrimVar("v" + std::to_string(i), dim.ty()), kDataPar);
       instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim.ty(), 1)));
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);

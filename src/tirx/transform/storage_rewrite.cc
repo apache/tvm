@@ -1700,18 +1700,50 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto& func = *func_ptr;
     auto* n = func.CopyOnWrite();
 
-    // Remap any remaining references to the old buffer variables
-    ffi::Map<Var, Var> var_remap;
-    for (const auto& pair : rewrite_map_) {
-      const auto& info = pair.second;
-      var_remap.Set(info.old_buffer_var, info.new_buffer_var);
+    std::unordered_map<const VarNode*, Var> var_remap;
+    for (const auto& [_, info] : rewrite_map_) {
+      var_remap.emplace(info.old_buffer_var.get(), info.new_buffer_var);
     }
-    auto remap_var = [&var_remap](const Var& var) -> ffi::Optional<Expr> {
-      if (auto replacement = var_remap.Get(var)) return Expr(replacement.value());
-      return std::nullopt;
+
+    class PointerVarSubstituter : public StmtExprMutator {
+     public:
+      explicit PointerVarSubstituter(const std::unordered_map<const VarNode*, Var>& var_remap)
+          : var_remap_(var_remap) {}
+
+     private:
+      Expr VisitExpr_(const VarNode* op) final {
+        if (auto it = var_remap_.find(op); it != var_remap_.end()) {
+          return it->second;
+        }
+        return ffi::GetRef<Var>(op);
+      }
+
+      Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
+        Buffer new_buffer = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
+        auto it = var_remap_.find(new_buffer->data.get());
+        if (it != var_remap_.end()) {
+          new_buffer.CopyOnWrite()->data = it->second;
+          buffer_remap_.Set(buffer, new_buffer);
+        }
+        return new_buffer;
+      }
+
+      Stmt VisitStmt_(const AttrStmtNode* op) final {
+        Stmt stmt = StmtExprMutator::VisitStmt_(op);
+        op = stmt.as<AttrStmtNode>();
+        TVM_FFI_ICHECK(op != nullptr);
+        if (auto var = op->node.as<Var>()) {
+          if (auto it = var_remap_.find(var.value().get()); it != var_remap_.end()) {
+            return AttrStmt(it->second, op->attr_key, op->value, op->body, op->span);
+          }
+        }
+        return stmt;
+      }
+
+      const std::unordered_map<const VarNode*, Var>& var_remap_;
     };
-    n->body = SubstituteWithDataTypeLegalization(
-        n->body, std::function<ffi::Optional<Expr>(const Var&)>(remap_var));
+
+    n->body = PointerVarSubstituter(var_remap)(n->body);
 
     // Remap the argument list to use the new buffer variables.
     ffi::Array<Var> new_params;

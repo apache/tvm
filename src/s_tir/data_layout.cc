@@ -133,7 +133,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       TVM_FFI_ICHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                                    << factor << " before dimension " << c;
       IterVar axis(Range(IntImm(index_ty, 0), Var(std::string(1, c), index_ty)),
-                   PrimVar(Var(std::string(1, c), index_ty)), tirx::kDataPar);
+                   PrimVar(std::string(1, c), index_ty), tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -145,7 +145,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       std::stringstream name;
       name << factor << c;
       IterVar axis(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)),
-                   PrimVar(Var(name.str(), index_ty)), tirx::kDataPar);
+                   PrimVar(name.str(), index_ty), tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -176,7 +176,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       }
       std::string grouped_name = ss.str();
       IterVar grouped_axis(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
-                           PrimVar(Var(grouped_name, index_ty)), tirx::kDataPar);
+                           PrimVar(grouped_name, index_ty), tirx::kDataPar);
       node->axes.push_back(grouped_axis);
 
       in_packing = false;
@@ -240,13 +240,13 @@ ffi::Array<IterVar> SLayout::UnpackIterVar(IterVar packed_iter) {
     } else if (ch >= 'a' && ch <= 'z') {
       TVM_FFI_ICHECK(factor != 0) << "Invalid Factor Size";
       result.push_back(IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)),
-                               PrimVar(Var(std::string(1, ch), index_ty)), tirx::kDataPar));
+                               PrimVar(std::string(1, ch), index_ty), tirx::kDataPar));
       final_factor *= factor;
       factor = 0;
     } else if (ch >= 'A' && ch <= 'Z') {
       TVM_FFI_ICHECK(factor == 0) << "Can't have non-zero factors for primal axis";
       result.push_back(IterVar(Range(IntImm(index_ty, 0), Var(std::string(1, ch), index_ty)),
-                               PrimVar(Var(std::string(1, ch), index_ty)), tirx::kDataPar));
+                               PrimVar(std::string(1, ch), index_ty), tirx::kDataPar));
     }
   }
 
@@ -266,7 +266,7 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   }
 
   return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
-                 PrimVar(Var(name.str(), index_ty)), tirx::kDataPar);
+                 PrimVar(name.str(), index_ty), tirx::kDataPar);
 }
 
 int32_t SLayout::FactorOf(const SLayoutAxis& axis) const {

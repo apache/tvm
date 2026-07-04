@@ -687,7 +687,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       TVM_FFI_ICHECK_LE(extents.size(), 3) << "ValueError: Only up to 3 extents are supported";
       for (size_t i = 0; i < extents.size(); i++) {
         std::string thread_tag = prefix + static_cast<char>('x' + i);
-        IterVar iv(Range::FromMinExtent(0, extents[i]), PrimVar(Var(thread_tag)),
+        IterVar iv(Range::FromMinExtent(0, extents[i]), PrimVar(thread_tag),
                    IterVarType::kThreadIndex, thread_tag);
         launch_params_.insert({ffi::String(thread_tag), iv});
       }
@@ -709,7 +709,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         const auto& pref = cta_def->preferred_extents.value();
         for (size_t i = 0; i < pref.size(); i++) {
           std::string tag = "preferredClusterCtaIdx." + std::string(1, 'x' + i);
-          IterVar iv(Range::FromMinExtent(0, pref[i]), PrimVar(Var(tag)), IterVarType::kThreadIndex,
+          IterVar iv(Range::FromMinExtent(0, pref[i]), PrimVar(tag), IterVarType::kThreadIndex,
                      tag);
           launch_params_.insert({ffi::String(tag), iv});
         }

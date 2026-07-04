@@ -104,7 +104,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, this->stream);
     }
-    PrintType(GetType(v), this->stream);
+    PrintType(v->ty, this->stream);
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
     // type annotation(via a normalizing rewriting).

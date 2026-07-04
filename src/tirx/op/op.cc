@@ -166,8 +166,6 @@ Type GetType(const PrimExpr& expr) {
   return expr.ty();
 }
 
-Type GetType(const tirx::Var& var) { return var->ty; }
-
 Type GetTypeFromRuntimeDataType(DLDataType dtype) { return PrimType(dtype); }
 
 // LargeUIntImm
@@ -1025,7 +1023,7 @@ PrimExpr isinf(PrimExpr x, Span span) {
 PrimExpr isfinite(PrimExpr x, Span span) { return !isinf(x, span) && !isnan(x, span); }
 
 PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  PrimVar x(Var("x", source.ty(), span)), y(Var("y", source.ty(), span));
+  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
   PrimExpr result = tirx::Add(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), 0, span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
@@ -1034,7 +1032,7 @@ PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 
 PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::all");
-  PrimVar x(Var("x", source.ty(), span)), y(Var("y", source.ty()));
+  PrimVar x("x", source.ty(), span), y("y", source.ty());
   PrimExpr result = tirx::And(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), true, span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
@@ -1043,7 +1041,7 @@ PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 
 PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
   type_check_boolean_args(source, "tvm::any");
-  PrimVar x(Var("x", source.ty(), span)), y(Var("y", source.ty(), span));
+  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
   PrimExpr result = tirx::Or(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), false, span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
@@ -1051,7 +1049,7 @@ PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }
 
 PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  PrimVar x(Var("x", source.ty(), span)), y(Var("y", source.ty(), span));
+  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
   PrimExpr result = tirx::Max(x, y, span);
   PrimExpr identity_element = min_value(source.ty(), span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
@@ -1059,7 +1057,7 @@ PrimExpr max(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }
 
 PrimExpr min(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  PrimVar x(Var("x", source.ty(), span)), y(Var("y", source.ty(), span));
+  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
   PrimExpr result = tirx::Min(x, y, span);
   PrimExpr identity_element = max_value(source.ty(), span);
   tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);
@@ -1073,7 +1071,7 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
     return all(source, rdom, init, span);
   } else {
     // For non-bool types, we lower prod through Mul.
-    PrimVar x(Var("x", source.ty(), span)), y(Var("y", source.ty(), span));
+    PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
     PrimExpr result = tirx::Mul(x, y, span);
     PrimExpr identity_element = MakeConst(source.ty(), 1, span);
     tirx::CommReducer combiner = tirx::CommReducer({x}, {y}, {result}, {identity_element}, span);

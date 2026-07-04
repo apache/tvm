@@ -403,12 +403,6 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const V
 TVM_DLL PrimExpr Substitute(PrimExpr expr,
                             std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
 
-/*! \brief Substitute general expressions, including pointer-valued variables. */
-TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
-
-/*! \brief Substitute a general expression, including pointer-valued variables. */
-TVM_DLL Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
-
 /*!
  * \brief Substitute the var specified by vmap.
  * \param arr The array of Stmt/PrimExpr to be substituted
@@ -421,26 +415,6 @@ ffi::Array<T> Substitute(const ffi::Array<T>& arr,
   return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
 }
 
-template <typename T>
-ffi::Array<T> Substitute(const ffi::Array<T>& arr,
-                         std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  if constexpr (std::is_base_of_v<PrimExpr, T>) {
-    auto prim_vmap = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-      if (auto replacement = vmap(var)) return replacement.value().as_or_throw<PrimExpr>();
-      return std::nullopt;
-    };
-    return arr.Map([&prim_vmap](const T& elem) -> T {
-      return Substitute(PrimExpr(elem), prim_vmap).template as_or_throw<T>();
-    });
-  } else if constexpr (std::is_base_of_v<Expr, T>) {
-    return arr.Map([&vmap](const T& elem) -> T {
-      return Substitute(Expr(elem), vmap).template as_or_throw<T>();
-    });
-  } else {
-    return arr.Map([&vmap](const T& elem) -> T { return Substitute(elem, vmap); });
-  }
-}
-
 /*!
  * \brief Substitute the vars specified by vmap.
  * \param range The array of Stmt/PrimExpr to be substituted
@@ -450,15 +424,6 @@ ffi::Array<T> Substitute(const ffi::Array<T>& arr,
 inline Range Substitute(const Range& range,
                         std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
   return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
-}
-
-inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  auto prim_vmap = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto replacement = vmap(var)) return replacement.value().as_or_throw<PrimExpr>();
-    return std::nullopt;
-  };
-  return Substitute(range, prim_vmap);
 }
 
 /*!
@@ -491,22 +456,13 @@ template <typename Obj, typename Replacement,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
                                       std::is_same_v<Var, Replacement>>>
 auto Substitute(Obj&& obj, const ffi::Map<Var, Replacement>& vmap) {
-  using Source = std::remove_cvref_t<Obj>;
-  if constexpr (std::is_base_of_v<PrimExpr, Replacement> || std::is_base_of_v<PrimExpr, Source>) {
-    auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-      if (auto replacement = vmap.Get(var)) {
-        return replacement.value().template as_or_throw<PrimExpr>();
-      }
-      return std::nullopt;
-    };
-    return Substitute(std::forward<Obj>(obj), func);
-  } else {
-    auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
-      if (auto replacement = vmap.Get(var)) return Expr(replacement.value());
-      return std::nullopt;
-    };
-    return Substitute(std::forward<Obj>(obj), func);
-  }
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+    if (auto replacement = vmap.Get(var)) {
+      return replacement.value().template as_or_throw<PrimExpr>();
+    }
+    return std::nullopt;
+  };
+  return Substitute(std::forward<Obj>(obj), func);
 }
 
 /*!
@@ -522,22 +478,13 @@ template <typename Obj, typename Replacement,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Replacement> ||
                                       std::is_same_v<Var, Replacement>>>
 auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Replacement>& vmap) {
-  using Source = std::remove_cvref_t<Obj>;
-  if constexpr (std::is_base_of_v<PrimExpr, Replacement> || std::is_base_of_v<PrimExpr, Source>) {
-    auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-      if (auto it = vmap.find(var.get()); it != vmap.end()) {
-        return it->second.template as_or_throw<PrimExpr>();
-      }
-      return std::nullopt;
-    };
-    return Substitute(std::forward<Obj>(obj), func);
-  } else {
-    auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
-      if (auto it = vmap.find(var.get()); it != vmap.end()) return it->second;
-      return std::nullopt;
-    };
-    return Substitute(std::forward<Obj>(obj), func);
-  }
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+    if (auto it = vmap.find(var.get()); it != vmap.end()) {
+      return it->second.template as_or_throw<PrimExpr>();
+    }
+    return std::nullopt;
+  };
+  return Substitute(std::forward<Obj>(obj), func);
 }
 
 /*!
@@ -554,22 +501,13 @@ template <typename Obj, typename Replacement, typename Hasher, typename Equality
                                       std::is_same_v<Var, Replacement>>>
 auto Substitute(Obj&& obj,
                 const std::unordered_map<Var, Replacement, Hasher, EqualityChecker>& vmap) {
-  using Source = std::remove_cvref_t<Obj>;
-  if constexpr (std::is_base_of_v<PrimExpr, Replacement> || std::is_base_of_v<PrimExpr, Source>) {
-    auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-      if (auto it = vmap.find(var); it != vmap.end()) {
-        return it->second.template as_or_throw<PrimExpr>();
-      }
-      return std::nullopt;
-    };
-    return Substitute(std::forward<Obj>(obj), func);
-  } else {
-    auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
-      if (auto it = vmap.find(var); it != vmap.end()) return it->second;
-      return std::nullopt;
-    };
-    return Substitute(std::forward<Obj>(obj), func);
-  }
+  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+    if (auto it = vmap.find(var); it != vmap.end()) {
+      return it->second.template as_or_throw<PrimExpr>();
+    }
+    return std::nullopt;
+  };
+  return Substitute(std::forward<Obj>(obj), func);
 }
 
 /*!
@@ -625,14 +563,6 @@ TVM_DLL Stmt SubstituteWithDataTypeLegalization(
  */
 TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
-
-/*! \brief Substitute general expressions and legalize types after substitution. */
-TVM_DLL Stmt
-SubstituteWithDataTypeLegalization(Stmt stmt, std::function<ffi::Optional<Expr>(const Var&)> vmap);
-
-/*! \brief Substitute a general expression and legalize types after substitution. */
-TVM_DLL Expr
-SubstituteWithDataTypeLegalization(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap);
 
 /*!
  * \brief Recursively visit a statement or expression in pre DFS order, applying fvisit.

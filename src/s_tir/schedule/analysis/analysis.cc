@@ -2058,7 +2058,7 @@ class AutoTensorizeMappingProposer {
     ffi::Map<Var, PrimExpr> lhs_iter_extents;
     for (const auto& iter : extractor_->lhs_iters_) {
       lhs_iter_extents.Set(iter->var, iter->dom->extent);
-      index_map_src.push_back(iter->var.copy_with_suffix(""));
+      index_map_src.push_back(iter->var.CopyWithSuffix(""));
     }
 
     // Step 2: Each iter on RHS has a group of corresponding iters on LHS. Initialize the fusion

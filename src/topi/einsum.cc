@@ -283,14 +283,14 @@ class EinsumBuilder {
         auto ellipsis_shape = ellipsis_shape_.value();
         for (int i = 0; i < static_cast<int>(ellipsis_shape.size()); ++i) {
           reduction_axes->push_back(
-              IterVar(Range(0, ellipsis_shape[i]), PrimVar(Var("k")), IterVarType::kCommReduce));
+              IterVar(Range(0, ellipsis_shape[i]), PrimVar("k"), IterVarType::kCommReduce));
           ellipsis_indices->push_back(reduction_axes->back()->var);
         }
       } else {
         // Normal label
         reduction_axes->push_back(
             IterVar(Range(0, label_to_extent_[label]),
-                    PrimVar(Var(std::string(1, label), label_to_extent_[label].ty())),
+                    PrimVar(std::string(1, label), label_to_extent_[label].ty()),
                     IterVarType::kCommReduce));
         label_to_index->emplace(label, reduction_axes->back()->var);
       }

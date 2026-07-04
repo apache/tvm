@@ -77,11 +77,11 @@ class ThreadBindingUnifier : public StmtExprMutator {
     } else {
       // Create a new unit loop with the annotation.
       PrimType loop_ty = op->loop_var.ty();
-      return For(/*loop_var=*/PrimVar(Var("var", loop_ty)),  //
-                 /*min=*/IntImm(loop_ty, 0),                 //
-                 /*extent=*/IntImm(loop_ty, 1),              //
-                 /*kind=*/ForKind::kSerial, stmt,            //
-                 /*thread_binding=*/std::nullopt,            //
+      return For(/*loop_var=*/PrimVar("var", loop_ty),  //
+                 /*min=*/IntImm(loop_ty, 0),            //
+                 /*extent=*/IntImm(loop_ty, 1),         //
+                 /*kind=*/ForKind::kSerial, stmt,       //
+                 /*thread_binding=*/std::nullopt,       //
                  /*annotation=*/std::move(annotations),
                  /*step=*/std::nullopt);
     }
@@ -121,8 +121,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
           << "` should have the same extent. However, there are two loops with extent "
           << new_iter_var->dom->extent << " and " << dom->extent << ", which are not equal";
     } else {
-      new_iter_var = IterVar(dom, PrimVar(Var(thread_tag, dom->extent.ty())),
-                             old_iter_var->iter_type, old_iter_var->thread_tag);
+      new_iter_var = IterVar(dom, PrimVar(thread_tag, dom->extent.ty()), old_iter_var->iter_type,
+                             old_iter_var->thread_tag);
       thread_tag2iter_var_map_.Set(thread_tag, new_iter_var);
       launch_threads_.push_back(new_iter_var);
     }
@@ -157,11 +157,11 @@ class ThreadBindingUnifier : public StmtExprMutator {
       const IterVar& thread_binding = launch_threads_.back();
       // Recreate the IterVar as we don't duplicate `dom` in both For and IterVar. This is
       // necessary for unit tests.
-      result = For(
-          thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
-          ForKind::kThreadBinding, result,
-          IterVar(Range(), PrimVar(Var("")), IterVarType::kThreadIndex, thread_binding->thread_tag),
-          {}, std::nullopt);
+      result =
+          For(thread_binding->var, thread_binding->dom->min, thread_binding->dom->extent,
+              ForKind::kThreadBinding, result,
+              IterVar(Range(), PrimVar(""), IterVarType::kThreadIndex, thread_binding->thread_tag),
+              {}, std::nullopt);
       launch_threads_.pop_back();
     }
     return result;

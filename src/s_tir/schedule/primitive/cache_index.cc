@@ -277,7 +277,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     ffi::Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
       PrimType data_ty = DeterminePrimType(arith::IntSet::FromRange(info->range_map.at(it)));
-      PrimVar loop_var(Var("ax" + std::to_string(replace_table.size()), data_ty));
+      PrimVar loop_var("ax" + std::to_string(replace_table.size()), data_ty);
       loop_vars.push_back(loop_var);
       replace_table.Set(it, loop_var);
     }
@@ -296,7 +296,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // Create block vars, block's accessed region and accessing indices
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
-      PrimVar var(Var("v" + std::to_string(access_indices.size()), block_var.ty()));
+      PrimVar var("v" + std::to_string(access_indices.size()), block_var.ty());
       Range range =
           Range::FromMinExtent(IntImm(block_var.ty(), 0), info->range_map.at(iter_vars[i])->extent);
       block_vars.push_back(IterVar(/*dom=*/range,

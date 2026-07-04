@@ -129,7 +129,7 @@ class FuncBuilder : public ExprMutator {
     if (shape_expr_inputs_.size()) {
       ffi::Array<PrimExpr> tir_vars;
       for (const auto* var : shape_expr_inputs_) {
-        auto new_var = ffi::GetRef<tirx::Var>(var).copy_with_suffix("");
+        auto new_var = ffi::GetRef<tirx::Var>(var).CopyWithSuffix("");
         tir_var_remap_.Set(ffi::GetRef<tirx::Var>(var), new_var);
         tir_vars.push_back(new_var);
       }

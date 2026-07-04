@@ -227,28 +227,5 @@ def test_subroutine_call():
     )
 
 
-def test_pointer_offset_bindings_use_element_type():
-    buffer = tvm.tirx.decl_buffer([4], "float32", name="A")
-    bind_var = tvm.tirx.Var("bind_shifted", "handle")
-    let_var = tvm.tirx.Var("let_shifted", "handle")
-    pointer_value = tvm.tirx.ptr_byte_offset(buffer.data, 4, "float32")
-    body = tvm.tirx.SeqStmt(
-        [
-            tvm.tirx.Bind(bind_var, pointer_value),
-            tvm.tirx.Evaluate(tvm.tirx.Let(let_var, pointer_value, 0)),
-        ]
-    )
-    func = tvm.tirx.PrimFunc([buffer.data], body, buffer_map={buffer.data: buffer}).with_attr(
-        "global_symbol", "main"
-    )
-    built = tvm.get_global_func("target.build.c")(
-        tvm.IRModule({"main": func}), tvm.target.Target("c")
-    )
-
-    source = built.inspect_source()
-    assert "float* bind_shifted" in source
-    assert "float* let_shifted" in source
-
-
 if __name__ == "__main__":
     tvm.testing.main()

@@ -225,7 +225,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     }
     // Create a new block var
     IterVar new_iter_var(/*dom=*/iter_var->dom,
-                         /*var=*/iter_var->var.copy_with_suffix(""),
+                         /*var=*/iter_var->var.CopyWithSuffix(""),
                          /*iter_type=*/iter_var->iter_type,
                          /*thread_tag=*/iter_var->thread_tag);
     // Add a block var and its binding
@@ -273,12 +273,12 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     For old_loop = ffi::GetRef<For>(TVM_SREF_TO_FOR(loops[i]));
     // Create a new equivalent to the chosen loop
     Var old_loop_var = old_loop->loop_var;
-    PrimVar new_loop_var = old_loop->loop_var.copy_with_suffix("_init");
+    PrimVar new_loop_var = old_loop->loop_var.CopyWithSuffix("_init");
     loop_var_map[old_loop_var] = new_loop_var;
     ffi::Optional<IterVar> opt_thread_binding = old_loop->thread_binding;
     if (opt_thread_binding) {
       auto thread_binding = opt_thread_binding.value();
-      auto new_var = thread_binding->var.copy_with_suffix("");
+      auto new_var = thread_binding->var.CopyWithSuffix("");
       thread_binding.CopyOnWrite()->var = new_var;
       opt_thread_binding = thread_binding;
     }
@@ -425,8 +425,8 @@ struct ReducerRegistry {
       ffi::Array<Var> callback_lhs;
       ffi::Array<Var> callback_rhs;
       for (int i = 0; i < n_buffers; ++i) {
-        PrimVar lhs_var(Var("x" + std::to_string(i), values[i].ty()));
-        PrimVar rhs_var(Var("y" + std::to_string(i), values[i].ty()));
+        PrimVar lhs_var("x" + std::to_string(i), values[i].ty());
+        PrimVar rhs_var("y" + std::to_string(i), values[i].ty());
         lhs.push_back(lhs_var);
         rhs.push_back(rhs_var);
         callback_lhs.push_back(lhs_var);
@@ -643,7 +643,7 @@ ffi::Array<Buffer> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_store
     ffi::ObjectPtr<BufferNode> n = ffi::make_object<BufferNode>(*buffer.get());
     n->shape = rf_shape;
     n->name = buffer->name + ".rf";
-    n->data = buffer->data.copy_with_suffix(".rf");
+    n->data = buffer->data.CopyWithSuffix(".rf");
     rf_buffers.push_back(Buffer(n));
   }
   return rf_buffers;
@@ -1002,7 +1002,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   void CreateNormalIters(int idx) final {
     IterVar old_block_iter = old_block_realize_->block->iter_vars[idx];
     if (old_block_iter->iter_type == IterVarType::kDataPar) {
-      iter_vars_.emplace_back(old_block_iter->dom, old_block_iter->var.copy_with_suffix(""),
+      iter_vars_.emplace_back(old_block_iter->dom, old_block_iter->var.CopyWithSuffix(""),
                               kDataPar);
       iter_values_.push_back(old_block_realize_->iter_values[idx]);
       var_map_.Set(old_block_iter->var, iter_vars_.back());
@@ -1061,7 +1061,7 @@ Stmt CreateLoopOutsideRfactorBlock(SBlockRealize rf_block_realize, const ffi::Ar
   new_loops.reserve(n_loops);
   new_loop_var_map.reserve(n_loops);
   for (const For& old_loop : loops) {
-    Var new_loop_var = old_loop->loop_var.copy_with_suffix("");
+    Var new_loop_var = old_loop->loop_var.CopyWithSuffix("");
     new_loop_var_map[old_loop->loop_var.get()] = new_loop_var;
   }
 

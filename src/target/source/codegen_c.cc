@@ -105,7 +105,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
     if (is_tensormap_ptr()) {
       os << "const __grid_constant__ CUtensorMap";
     } else {
-      PrintType(GetType(v), os);
+      PrintType(v->ty, os);
     }
 
     bool no_alias = func->HasNonzeroAttr(tirx::attr::kNoAlias);
@@ -685,7 +685,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
           if (auto prim = op->args[i].as<PrimExpr>()) {
             arg_types.push_back(GetType(prim.value()));
           } else if (auto var = op->args[i].as<Var>()) {
-            arg_types.push_back(GetType(var.value()));
+            arg_types.push_back(var.value()->ty);
           } else {
             arg_types.push_back(op->args[i]->ty);
           }
@@ -1039,7 +1039,7 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
       PrintType(handle_data_type_.at(op->var.get()), this->stream);
       this->stream << "*)" << value << ";\n";
     } else {
-      PrintType(GetType(op->var), this->stream);
+      PrintType(op->var->ty, this->stream);
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
@@ -1166,7 +1166,7 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
       PrintType(handle_data_type_.at(op->var.get()), stream);
       stream << "*)" << value << ";\n";
     } else {
-      PrintType(GetType(op->var), this->stream);
+      PrintType(op->var->ty, this->stream);
       this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
     }
   }
@@ -1369,7 +1369,7 @@ void CodeGenC::VisitStmt_(const SeqStmtNode* op) {
 }
 
 void CodeGenC::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
+  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
     if (call->op.same_as(builtin::tvm_storage_sync())) {

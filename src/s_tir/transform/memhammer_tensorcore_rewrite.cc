@@ -50,10 +50,10 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.copy_with_suffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.copy_with_suffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.copy_with_suffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.copy_with_suffix("_1"),
+      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
   body = Substitute(std::move(body),
                     ffi::Map<Var, PrimExpr>{
@@ -389,10 +389,10 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.copy_with_suffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.copy_with_suffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.copy_with_suffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.copy_with_suffix("_1"),
+      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
   body = Substitute(std::move(body),
                     ffi::Map<Var, PrimExpr>{

@@ -422,17 +422,17 @@ IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
   return iter_var;
 }
 
-#define TVM_TIRX_IR_BUILDER_AXIS(Method, Kind, Name)                                      \
-  Var Method(Range dom, PrimExpr binding, PrimType dtype) {                               \
-    TVM_FFI_ICHECK(dom.defined()) << Name << " axis must have a domain";                  \
-    PrimType min_ty = dom->min.ty();                                                      \
-    PrimType extent_ty = dom->extent.ty();                                                \
-    int bits = std::max({min_ty.bits(), extent_ty.bits(), dtype.bits()});                 \
-    PrimType var_ty = dtype.WithBits(bits);                                               \
-    return PushBlockVar(IterVar(/*dom=*/dom, /*var=*/tvm::tirx::PrimVar(Var("", var_ty)), \
-                                /*iter_type=*/Kind, /*thread_tag=*/""),                   \
-                        binding)                                                          \
-        ->var;                                                                            \
+#define TVM_TIRX_IR_BUILDER_AXIS(Method, Kind, Name)                                 \
+  Var Method(Range dom, PrimExpr binding, PrimType dtype) {                          \
+    TVM_FFI_ICHECK(dom.defined()) << Name << " axis must have a domain";             \
+    PrimType min_ty = dom->min.ty();                                                 \
+    PrimType extent_ty = dom->extent.ty();                                           \
+    int bits = std::max({min_ty.bits(), extent_ty.bits(), dtype.bits()});            \
+    PrimType var_ty = dtype.WithBits(bits);                                          \
+    return PushBlockVar(IterVar(/*dom=*/dom, /*var=*/tvm::tirx::PrimVar("", var_ty), \
+                                /*iter_type=*/Kind, /*thread_tag=*/""),              \
+                        binding)                                                     \
+        ->var;                                                                       \
   }
 TVM_TIRX_IR_BUILDER_AXIS(Spatial, tvm::tirx::IterVarType::kDataPar, "Spatial");
 TVM_TIRX_IR_BUILDER_AXIS(Reduce, tvm::tirx::IterVarType::kCommReduce, "Reduction");
@@ -472,14 +472,14 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
     PrimType dtype = v->ty.as_or_throw<PrimType>();
     if (c == 'S') {
       results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
-                                             /*var=*/tvm::tirx::PrimVar(Var("", dtype)),
+                                             /*var=*/tvm::tirx::PrimVar("", dtype),
                                              /*iter_type=*/IterVarType::kDataPar,
                                              /*thread_tag=*/""),
                                      e)
                             ->var);
     } else if (c == 'R') {
       results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
-                                             /*var=*/tvm::tirx::PrimVar(Var("", dtype)),
+                                             /*var=*/tvm::tirx::PrimVar("", dtype),
                                              /*iter_type=*/IterVarType::kCommReduce,
                                              /*thread_tag=*/""),
                                      e)
@@ -545,8 +545,8 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || is_one(*steps[0])));
-    IterVar iter_var(Range(nullptr), tvm::tirx::PrimVar(Var("iter", dtype)),
-                     IterVarType::kThreadIndex, thread);
+    IterVar iter_var(Range(nullptr), tvm::tirx::PrimVar("iter", dtype), IterVarType::kThreadIndex,
+                     thread);
     return For(tvm::tirx::PrimVar(vars[0]), doms[0]->min, doms[0]->extent, ForKind::kThreadBinding,
                body, iter_var, annotations.value_or(ffi::Map<ffi::String, ffi::Any>()),
                std::nullopt);
@@ -746,7 +746,7 @@ ComposeOpFrame ComposeOp(ffi::Map<ffi::String, Buffer> workspace,
 }
 
 Var EnvThread(ffi::String thread_tag, PrimType dtype) {
-  IterVar iter_var(Range{nullptr}, tvm::tirx::PrimVar(Var("", dtype)),
+  IterVar iter_var(Range{nullptr}, tvm::tirx::PrimVar("", dtype),
                    tvm::tirx::IterVarType::kThreadIndex, thread_tag);
   Var var = iter_var->var;
   if (ffi::Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {

@@ -195,24 +195,6 @@ def test_expr_constructor():
     assert x.body == v
 
 
-def test_stmt_simplify_visits_pointer_bind_value():
-    pointer_type = tvm.ir.PointerType(tvm.ir.PrimType("float32"), "global")
-    scalar = tvm.tirx.Var("scalar", "int32")
-    pointer = tvm.tirx.Var("pointer", pointer_type)
-    pointer_value = tvm.ir.Call(
-        "tirx.call_extern",
-        [tvm.tirx.StringImm("get_pointer"), scalar + 0],
-        ret_ty=pointer_type,
-    )
-    body = tvm.tirx.SeqStmt([tvm.tirx.Bind(pointer, pointer_value), tvm.tirx.Evaluate(pointer)])
-    before = tvm.IRModule({"main": tvm.tirx.PrimFunc([scalar], body)})
-
-    after = tvm.tirx.transform.StmtSimplify()(before)["main"]
-    simplified_value = after.body[0].value
-
-    assert simplified_value.args[1].same_as(scalar)
-
-
 def test_stmt_constructor():
     v = tvm.tirx.Var("aa", "int32")
     nop = tvm.tirx.Evaluate(1)

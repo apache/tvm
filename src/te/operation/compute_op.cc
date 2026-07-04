@@ -101,7 +101,7 @@ Tensor compute(ffi::Array<PrimExpr> shape, FCompute fcompute, std::string name, 
     std::ostringstream os;
     os << "ax" << i;
     axis.emplace_back(IterVar(Range(IntImm(shape[i].ty(), 0), shape[i]),
-                              PrimVar(Var(os.str(), shape[i].ty())), kDataPar));
+                              PrimVar(os.str(), shape[i].ty()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -118,7 +118,7 @@ ffi::Array<Tensor> compute(ffi::Array<PrimExpr> shape, FBatchCompute fcompute, s
     std::ostringstream os;
     os << "ax" << i;
     axis.emplace_back(IterVar(Range(IntImm(shape[i].ty(), 0), shape[i]),
-                              PrimVar(Var(os.str(), shape[i].ty())), kDataPar));
+                              PrimVar(os.str(), shape[i].ty()), kDataPar));
     args.push_back(axis.back()->var);
   }
 

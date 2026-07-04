@@ -2301,7 +2301,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
 
   if (!di_subprogram_) return;
 
-  auto dbg_dtype = GetDebugType(GetType(tir_var));
+  auto dbg_dtype = GetDebugType(tir_var->ty);
   // no invalid dtypes
   if (!dbg_dtype) return;
   auto local_var = dbg_info_->di_builder_->createAutoVariable(

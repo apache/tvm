@@ -488,7 +488,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
       auto best_range = bnd.FindBestRange(vranges);
 
-      Var new_var = var.copy_with_suffix(".shifted");
+      Var new_var = var.CopyWithSuffix(".shifted");
       if (!best_range.defined()) {
         res_src_to_dst.Set(var, var);
         res_dst_to_src.Set(var, var);

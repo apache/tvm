@@ -95,7 +95,7 @@ class Var : public Expr {
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
-  TVM_DLL Var copy_with_suffix(const ffi::String& suffix) const;
+  TVM_DLL Var CopyWithSuffix(const ffi::String& suffix) const;
   /*!
    * \brief Make a new copy of the variable with specified dtype
    * \param dtype The specified dtype
@@ -141,6 +141,14 @@ class Var : public Expr {
  */
 class PrimVar : public PrimExpr {
  public:
+  /*! \brief Construct a scalar variable directly from a primitive type. */
+  explicit PrimVar(ffi::String name_hint, PrimType dtype = PrimType::Int(32), Span span = Span())
+      : PrimVar(Var(std::move(name_hint), std::move(dtype), std::move(span))) {}
+
+  /*! \brief Construct a scalar variable directly from a checked type annotation. */
+  explicit PrimVar(ffi::String name_hint, Type type_annotation, Span span = Span())
+      : PrimVar(Var(std::move(name_hint), std::move(type_annotation), std::move(span))) {}
+
   /*! \brief Explicit checked narrowing from a general Var. */
   explicit PrimVar(Var var) : PrimExpr(var.as_or_throw<PrimExpr>()) {}
 
@@ -150,8 +158,8 @@ class PrimVar : public PrimExpr {
   PrimVar copy_with_name(const ffi::String& name) const {
     return PrimVar(static_cast<Var>(*this).copy_with_name(name));
   }
-  PrimVar copy_with_suffix(const ffi::String& suffix) const {
-    return PrimVar(static_cast<Var>(*this).copy_with_suffix(suffix));
+  PrimVar CopyWithSuffix(const ffi::String& suffix) const {
+    return PrimVar(static_cast<Var>(*this).CopyWithSuffix(suffix));
   }
   PrimVar copy_with_dtype(PrimType dtype) const {
     return PrimVar(static_cast<Var>(*this).copy_with_dtype(dtype));
