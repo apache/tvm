@@ -403,12 +403,12 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
       // The j-th variable is just a single value, don't create a tvm variable
       // S^{-1}_{nxm} Uy_{mxn}
       if (S[j][j] >= 0) {
-        PrimExpr a = tirx::MakeConst(Uy[j].ty(), S[j][j]);
+        PrimExpr a = IntImm(Uy[j].ty(), S[j][j]);
         solution_for_V_inv_x.push_back(analyzer_problem->Simplify(floordiv(Uy[j], a)));
       } else {
         // This is required because some simplifiers
         // have problems with dividing by negative numbers
-        PrimExpr a = tirx::MakeConst(Uy[j].ty(), -S[j][j]);
+        PrimExpr a = IntImm(Uy[j].ty(), -S[j][j]);
         solution_for_V_inv_x.push_back(analyzer_problem->Simplify(floordiv(-Uy[j], a)));
       }
     }
