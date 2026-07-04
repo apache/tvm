@@ -100,6 +100,9 @@ class DocPrinter {
    */
   void PrintDoc(const Doc& doc);
 
+  /*! \brief Print a doc without recording its source-path spans. */
+  void PrintDocWithoutSourcePathTracking(const Doc& doc);
+
   /*!
    * \brief Virtual method to print a LiteralDoc
    */
@@ -282,6 +285,9 @@ class DocPrinter {
 
  private:
   void MarkSpan(const ByteSpan& span, const AccessPath& path);
+
+  /*! \brief Whether to record source-path spans while printing docs. */
+  bool record_source_paths_ = true;
 
   /*! \brief Options to customize certain aspects of the output */
   PrinterConfig options_;

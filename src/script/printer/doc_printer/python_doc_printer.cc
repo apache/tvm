@@ -38,6 +38,22 @@ namespace script {
 namespace printer {
 namespace {
 
+/*! \brief Temporarily redirect an output stream to an isolated sink. */
+class ScopedOutputSink {
+ public:
+  ScopedOutputSink(std::ostream* output, std::streambuf* sink)
+      : output_(output), original_buffer_(output->rdbuf(sink)) {}
+
+  ~ScopedOutputSink() { output_->rdbuf(original_buffer_); }
+
+  ScopedOutputSink(const ScopedOutputSink&) = delete;
+  ScopedOutputSink& operator=(const ScopedOutputSink&) = delete;
+
+ private:
+  std::ostream* output_;
+  std::streambuf* original_buffer_;
+};
+
 ffi::String RenderInvisiblePathInfo(const ffi::String& script,
                                     const ffi::Array<AccessPath>& requested_paths,
                                     const ffi::Array<ffi::Optional<AccessPath>>& visible_paths) {
@@ -397,16 +413,18 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
 }
 
 void PythonDocPrinter::PrintTypedDoc(const ExprStringDoc& doc) {
-  this->output_ << '"';
-  size_t start_pos = this->output_.tellp();
-  this->PrintDoc(doc->value);
-  std::string output = this->output_.str();
-  std::string value = output.substr(start_pos);
+  std::ostringstream value_output;
+  {
+    ScopedOutputSink output_scope(&this->output_, value_output.rdbuf());
+    // Child spans use offsets in the unescaped sink. The enclosing ExprStringDoc records the
+    // final escaped wrapper span after this handler returns.
+    this->PrintDocWithoutSourcePathTracking(doc->value);
+  }
+  std::string value = value_output.str();
   TVM_FFI_ICHECK(value.find('\n') == std::string::npos)
       << "An expression rendered inside a Python string literal must be one line";
-  this->output_.str(output.substr(0, start_pos));
-  this->output_.seekp(start_pos);
-  this->output_ << support::StrEscape(value) << '"';
+  std::string escaped = support::StrEscape(value);
+  this->output_ << '"' << escaped << '"';
 }
 
 void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
