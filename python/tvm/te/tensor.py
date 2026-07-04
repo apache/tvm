@@ -26,6 +26,19 @@ from tvm.tirx import expr as _expr
 from . import _ffi_api
 
 
+def _topi_binary(name, lhs, rhs):
+    # Import at call time because tvm initializes te before topi, while topi imports te.
+    from tvm import topi  # pylint: disable=import-outside-toplevel
+
+    return getattr(topi, name)(lhs, rhs)
+
+
+def _topi_divide(lhs, rhs):
+    if _expr._dtype_is_int(lhs) and _expr._dtype_is_int(rhs):
+        raise _expr.div_ambiguity_error()
+    return _topi_binary("divide", lhs, rhs)
+
+
 class TensorSlice(ObjectConvertible, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
 
@@ -68,6 +81,41 @@ class Tensor(DataProducer, _expr.ExprOp):
 
     def __getitem__(self, indices):
         return TensorSlice(self, indices)
+
+    def __add__(self, other):
+        return _topi_binary("add", self, other)
+
+    def __radd__(self, other):
+        return _topi_binary("add", other, self)
+
+    def __sub__(self, other):
+        return _topi_binary("subtract", self, other)
+
+    def __rsub__(self, other):
+        return _topi_binary("subtract", other, self)
+
+    def __mul__(self, other):
+        return _topi_binary("multiply", self, other)
+
+    def __rmul__(self, other):
+        return _topi_binary("multiply", other, self)
+
+    def __div__(self, other):
+        return _topi_divide(self, other)
+
+    def __rdiv__(self, other):
+        return _topi_divide(other, self)
+
+    def __truediv__(self, other):
+        return _topi_divide(self, other)
+
+    def __rtruediv__(self, other):
+        return _topi_divide(other, self)
+
+    def astype(self, dtype, span=None):
+        from tvm import topi  # pylint: disable=import-outside-toplevel
+
+        return topi.cast(self, dtype, span)
 
     def __hash__(self):
         return _ffi_api.TensorHash(self)

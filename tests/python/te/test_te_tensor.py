@@ -15,11 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E741, F401, F821, F841
+import importlib
+import os
+import subprocess
+import sys
+
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, topi
 from tvm.topi.nn.pooling import pool2d
 
 
@@ -213,6 +219,185 @@ def test_tensor_inputs():
     x = te.placeholder((1,), name="x")
     y = te.compute(x.shape, lambda i: x[i] + x[i])
     assert tuple(y.op.input_tensors) == (x,)
+
+
+@pytest.mark.parametrize(
+    "topi_name,direct,reflected",
+    [
+        ("add", "__add__", "__radd__"),
+        ("subtract", "__sub__", "__rsub__"),
+        ("multiply", "__mul__", "__rmul__"),
+        ("divide", "__div__", "__rdiv__"),
+        ("divide", "__truediv__", "__rtruediv__"),
+    ],
+)
+def test_tensor_operator_ownership(monkeypatch, topi_name, direct, reflected):
+    tensor = te.placeholder((4,), name="tensor", dtype="float32")
+    other_tensor = te.placeholder((4,), name="other_tensor", dtype="float32")
+    scalar = tvm.tirx.Var("scalar", "float32")
+    calls = []
+    sentinel = object()
+
+    def record(lhs, rhs):
+        calls.append((lhs, rhs))
+        return sentinel
+
+    monkeypatch.setattr(topi, topi_name, record)
+
+    assert getattr(tensor, direct)(other_tensor) is sentinel
+    lhs, rhs = calls.pop()
+    assert lhs is tensor
+    assert rhs is other_tensor
+    assert getattr(tensor, direct)(scalar) is sentinel
+    lhs, rhs = calls.pop()
+    assert lhs is tensor
+    assert rhs is scalar
+    assert getattr(tensor, direct)(2.0) is sentinel
+    lhs, rhs = calls.pop()
+    assert lhs is tensor
+    assert rhs == 2.0
+    assert getattr(tensor, reflected)(scalar) is sentinel
+    lhs, rhs = calls.pop()
+    assert lhs is scalar
+    assert rhs is tensor
+
+
+def test_tensor_operator_python_fallback(monkeypatch):
+    tensor = te.placeholder((4,), name="tensor", dtype="float32")
+    scalar = tvm.tirx.Var("scalar", "float32")
+    tensor_slice = te.placeholder((4,), name="sliced", dtype="float32")[0]
+    calls = []
+
+    def record(lhs, rhs):
+        calls.append((lhs, rhs))
+        return object()
+
+    monkeypatch.setattr(topi, "subtract", record)
+
+    scalar - tensor
+    lhs, rhs = calls.pop()
+    assert lhs is scalar
+    assert rhs is tensor
+    2.0 - tensor
+    lhs, rhs = calls.pop()
+    assert lhs == 2.0
+    assert rhs is tensor
+    tensor_slice - tensor
+    lhs, rhs = calls.pop()
+    assert lhs is tensor_slice
+    assert rhs is tensor
+
+    scalar_result = tensor_slice - scalar
+    assert isinstance(scalar_result, tvm.ir.Expr)
+
+
+@pytest.mark.parametrize(
+    "operation,expected_type",
+    [
+        (lambda lhs, rhs: lhs + rhs, tvm.tirx.Add),
+        (lambda lhs, rhs: lhs - rhs, tvm.tirx.Sub),
+        (lambda lhs, rhs: lhs * rhs, tvm.tirx.Mul),
+        (lambda lhs, rhs: lhs / rhs, tvm.tirx.Div),
+    ],
+)
+def test_scalar_operator_smart_constructors(operation, expected_type):
+    lhs = tvm.tirx.Var("lhs", "float32")
+    rhs = tvm.tirx.Var("rhs", "float32")
+
+    assert isinstance(operation(lhs, rhs), expected_type)
+    assert isinstance(lhs.astype("float16"), tvm.tirx.Cast)
+
+
+def test_tensor_rank_zero_and_astype(monkeypatch):
+    tensor = te.placeholder((), name="tensor", dtype="float32")
+    other_tensor = te.placeholder((), name="other_tensor", dtype="float32")
+    cast_sentinel = object()
+    cast_calls = []
+
+    result = tensor + other_tensor
+    assert isinstance(result, te.Tensor)
+    assert tuple(result.shape) == ()
+
+    def record_cast(value, dtype, span=None):
+        cast_calls.append((value, dtype, span))
+        return cast_sentinel
+
+    monkeypatch.setattr(topi, "cast", record_cast)
+    assert tensor.astype("float16") is cast_sentinel
+    value, dtype, span = cast_calls.pop()
+    assert value is tensor
+    assert dtype == "float16"
+    assert span is None
+
+
+def test_tensor_operator_call_time_topi_import():
+    script = """
+import sys
+import tvm
+from tvm import te
+
+for name in list(sys.modules):
+    if name == "tvm.topi" or name.startswith("tvm.topi."):
+        del sys.modules[name]
+if hasattr(tvm, "topi"):
+    del tvm.topi
+
+assert "tvm.topi" not in sys.modules
+tensor = te.placeholder((4,), name="tensor", dtype="float32")
+other = te.placeholder((4,), name="other", dtype="float32")
+assert isinstance(tensor + other, te.Tensor)
+assert isinstance(tensor.astype("float16"), te.Tensor)
+"""
+    env = os.environ.copy()
+    env["TVM_DEVICE_BACKEND_AUTOLOAD"] = "0"
+    subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+
+
+def test_tensor_integer_division_remains_ambiguous(monkeypatch):
+    tensor = te.placeholder((4,), name="tensor", dtype="int32")
+    other_tensor = te.placeholder((4,), name="other_tensor", dtype="int32")
+    scalar = tvm.tirx.Var("scalar", "int32")
+
+    def unexpected_divide(*_args):
+        pytest.fail("Integer Tensor division must fail before TOPI dispatch")
+
+    monkeypatch.setattr(topi, "divide", unexpected_divide)
+
+    # ExprOp must decline a whole DataProducer before applying scalar-only
+    # integer-division ambiguity checks.  Tensor then owns the final decision.
+    assert scalar.__truediv__(tensor) is NotImplemented
+
+    for divide in [
+        lambda: tensor / other_tensor,
+        lambda: tensor / 2,
+        lambda: 2 / tensor,
+        lambda: tensor / scalar,
+        lambda: scalar / tensor,
+    ]:
+        with pytest.raises(RuntimeError, match="multiple types of integer divisions"):
+            divide()
+
+
+def test_removed_tirx_generic_surface():
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("tvm.tirx.generic")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("tvm.topi.generic_op_impl")
+
+    assert not hasattr(tvm.tirx, "generic")
+    assert not hasattr(tvm.tirx, "add")
+    assert not hasattr(tvm.tirx, "subtract")
+    assert not hasattr(tvm.tirx, "multiply")
+    assert not hasattr(tvm.te, "add")
+    assert not hasattr(tvm.te, "subtract")
+    assert not hasattr(tvm.te, "multiply")
+    assert "__floordiv__" not in te.Tensor.__dict__
 
 
 if __name__ == "__main__":

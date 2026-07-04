@@ -27,8 +27,6 @@ from tvm.tirx import trunc, abs, round, nearbyint, power, popcount, fmod, if_the
 from tvm.tirx import isnan, isfinite, isinf
 from tvm.tirx import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, logaddexp
 from tvm.tirx import comm_reducer, min, max, sum
-from tvm.tirx import add, subtract, multiply
-
 from .tensor import TensorSlice, Tensor
 from .tag import tag_scope
 from .operation import placeholder, compute, scan, extern, var, const
