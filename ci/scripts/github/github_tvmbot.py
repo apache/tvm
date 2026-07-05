@@ -392,7 +392,7 @@ class PR:
     def processed_body(self) -> str:
         body = self.raw["body"].strip().replace("\r", "")
         # Remove any @-mentions of people
-        body = re.sub(r"(\s)@", "\g<1>", body)
+        body = re.sub(r"(\s)@", r"\g<1>", body)
 
         # Remove the auto-inserted text since it's not useful to have in the commit log
         body = re.sub(THANKS_MESSAGE, "\n\n", body)
