@@ -15,16 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# GH actions.
-# We use it to cover windows and mac builds
-# Jenkins is still the primary CI
-
 name: PR
 
 on:
   # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target
   pull_request_target:
     types: [assigned, opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 concurrency:
   group: PR-${{ github.event.pull_request.number }}
@@ -44,4 +44,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python ci/scripts/github/github_cc_reviewers.py || echo step failed
+          python ci/scripts/github/github_cc_reviewers.py

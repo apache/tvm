@@ -24,6 +24,9 @@ on:
     - cron: "0 5 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: update-nightly-branch
   cancel-in-progress: true
@@ -35,8 +38,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Update nightly branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
           git checkout -B nightly

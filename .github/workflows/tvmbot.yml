@@ -1,26 +1,20 @@
 
 name: tvm-bot
 on:
-  pull_request_review:
-    types:
-      - submitted
   issue_comment:
+    types: [created]
 
 concurrency:
-  group: merge-${{ github.event.pull_request.number }}-${{ github.event.issue.number }}
+  group: merge-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   run-tvm-bot:
     permissions:
-      actions: write
-      checks: write
       contents: write
-      id-token: write
       issues: write
       pull-requests: write
-      statuses: write
-    if: ${{ github.event.issue.pull_request && github.repository == 'apache/tvm' }}
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '@tvm-bot ') && github.repository == 'apache/tvm' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2

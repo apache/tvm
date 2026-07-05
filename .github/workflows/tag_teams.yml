@@ -21,8 +21,12 @@ on:
   issues:
     types: [opened, edited, reopened, labeled]
 
+permissions:
+  contents: read
+  issues: write
+
 concurrency:
-  group: Teams-${{ github.event.pull_request.number }}-${{ github.event.issue.number }}
+  group: Teams-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
@@ -33,9 +37,8 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - name: Tag people from relevant teams
         env:
-          PR: ${{ toJson(github.event.pull_request) }}
           ISSUE: ${{ toJson(github.event.issue) }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python ci/scripts/github/github_tag_teams.py || echo failed
+          python ci/scripts/github/github_tag_teams.py

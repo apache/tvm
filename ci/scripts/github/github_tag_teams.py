@@ -267,7 +267,7 @@ if __name__ == "__main__":
     existing_tags = set(tag.replace("@", "") for tag in existing_tags)
     logging.info(f"Found existing tags: {existing_tags}")
     to_cc = [user for user in to_cc if user not in existing_tags]
-    logging.info("Users to cc based on labels", to_cc)
+    logging.info(f"Users to cc based on labels: {to_cc}")
 
     # Create the new PR/issue body
     if len(to_cc) == 0:
