@@ -35,7 +35,7 @@ class TvmRequestHook(urllib.request.Request):
             msg = (
                 f"Uncaught URL found in CI: {url}. "
                 "Avoid network access or arrange a stable project-managed mirror, "
-                "then add it to URL_MAP in tests/scripts/request_hook/request_hook.py."
+                "then add it to URL_MAP in tests/python/request_hook.py."
             )
             raise RuntimeError(msg)
 

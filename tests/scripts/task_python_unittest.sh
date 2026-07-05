@@ -19,55 +19,10 @@
 set -euxo pipefail
 
 export PYTHONPATH="$(pwd)/python"
-export PYTEST_ADDOPTS="-s -vv ${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
-
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
+export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
 # setup tvm-ffi into python folder
 uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
-# First run the minimal platform test.  A GPU-only run can select no tests here.
-if [ ! -d tests/python/all-platform-minimal-test ]; then
-    echo "Missing pytest target: tests/python/all-platform-minimal-test" >&2
-    exit 1
-fi
-python3 -m pytest -n auto tests/python/all-platform-minimal-test || [ "$?" -eq 5 ]
-
-# Then run all unit tests.
-TEST_FILES=(
-  "arith"
-  "ci"
-  "codegen"
-  "driver"
-  "ir"
-  "runtime"
-  "target"
-  "te"
-  "testing"
-  "s_tir/base"
-  "s_tir/schedule"
-  "s_tir/dlight"
-  "s_tir/analysis"
-  "s_tir/meta_schedule"
-  "s_tir/transform"
-  "tirx-analysis"
-  "tirx-base"
-  "tirx-transform"
-  "tirx"
-  "tvmscript"
-  "relax"
-)
-
-PYTEST_TARGETS=()
-for TEST_FILE in "${TEST_FILES[@]}"; do
-    TEST_PATH="tests/python/${TEST_FILE}"
-    if [ ! -e "${TEST_PATH}" ]; then
-        echo "Missing pytest target: ${TEST_PATH}" >&2
-        exit 1
-    fi
-    PYTEST_TARGETS+=("${TEST_PATH}")
-done
-
-# Do not mask pytest's exit 5: an unexpectedly empty broad suite must fail CI.
-python3 -m pytest -n auto --dist=loadgroup "${PYTEST_TARGETS[@]}"
+# Load-group distribution keeps the order-dependent fixture tests on one worker.
+python3 -m pytest -vvs -n auto --dist=loadgroup tests/python

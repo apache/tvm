@@ -299,8 +299,8 @@ in which stages.
 
 - Which tests run
 
-  The ``Unit Test`` and ``Integration Test`` stages of the Jenkinsfile
-  determine how ``pytest`` is called.  Each task starts by unpacking a
+  The ``Unit Test`` stage of the Jenkinsfile determines how ``pytest``
+  is called.  Each task starts by unpacking a
   compiled library that was previous compiled in the ``BUILD`` stage,
   then runs a test script
   (e.g. ``tests/scripts/task_python_unittest.sh``).  These scripts set

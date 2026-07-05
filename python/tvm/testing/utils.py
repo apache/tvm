@@ -824,9 +824,8 @@ def _fixture_cache(func):
         if num_tests_use_this_fixture[0] == 0:
             raise RuntimeError(
                 "Fixture use count is 0.  "
-                "This can occur if tvm.testing.plugin isn't registered.  "
-                "If using outside of the TVM test directory, "
-                "please add `pytest_plugins = ['tvm.testing.plugin']` to your conftest.py"
+                "Cached tvm.testing fixtures must be collected from tests/python "
+                "so its conftest can count fixture uses."
             )
 
         try:
@@ -925,9 +924,10 @@ def install_request_hook(depth: int) -> None:
         depth -= 1
 
     # Ensure the specified dir is valid
-    hook_script_dir = hook_script_dir / "tests" / "scripts" / "request_hook"
-    if not hook_script_dir.exists():
-        raise RuntimeError(f"Directory {hook_script_dir} does not exist:\n{msg}")
+    hook_script_dir = hook_script_dir / "tests" / "python"
+    hook_script = hook_script_dir / "request_hook.py"
+    if not hook_script.is_file():
+        raise RuntimeError(f"File {hook_script} does not exist:\n{msg}")
 
     # Import the hook and start it up (it's not included here directly to avoid
     # keeping a database of URLs inside the tvm Python package

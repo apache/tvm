@@ -32,10 +32,6 @@ export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
 export TVM_TEST_TARGETS='{"kind":"vulkan","from_device":0}'
 
 export PYTHONPATH="$(pwd)/python"
-export PYTEST_ADDOPTS="-s -vv ${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
+export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
-if [ ! -f tests/python/codegen/test_target_codegen_vulkan.py ]; then
-    echo "Missing pytest target: tests/python/codegen/test_target_codegen_vulkan.py" >&2
-    exit 1
-fi
-python3 -m pytest -n auto tests/python/codegen/test_target_codegen_vulkan.py
+python3 -m pytest -vvs -n auto tests/python/codegen/test_target_codegen_vulkan.py
