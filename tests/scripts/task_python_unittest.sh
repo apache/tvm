@@ -24,5 +24,4 @@ export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 # setup tvm-ffi into python folder
 uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
-# Load-group distribution keeps the order-dependent fixture tests on one worker.
-python3 -m pytest -vvs -n auto --dist=loadgroup tests/python
+python3 -m pytest -vvs -n auto tests/python

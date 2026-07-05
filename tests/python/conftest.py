@@ -18,51 +18,11 @@
 
 import os
 
-import _pytest
-
-
-def pytest_collection_modifyitems(items):
-    """Maintain the ordering and cache bookkeeping required by TVM fixtures."""
-    _count_num_fixture_uses(items)
-    _remove_global_fixture_definitions(items)
-    _sort_tests(items)
-
-
-def _count_num_fixture_uses(items):
-    for item in items:
-        is_skipped = item.get_closest_marker("skip") or any(
-            mark.args[0] for mark in item.iter_markers("skipif")
-        )
-        if is_skipped:
-            continue
-
-        for fixturedefs in item._fixtureinfo.name2fixturedefs.values():
-            fixturedef = fixturedefs[-1]
-            if hasattr(fixturedef.func, "num_tests_use_this_fixture"):
-                fixturedef.func.num_tests_use_this_fixture[0] += 1
-
-
-def _remove_global_fixture_definitions(items):
-    modules = {item.module for item in items}
-    for module in modules:
-        for name in dir(module):
-            obj = getattr(module, name)
-            if hasattr(obj, "_pytestfixturefunction") and isinstance(
-                obj._pytestfixturefunction, _pytest.fixtures.FixtureFunctionMarker
-            ):
-                delattr(module, name)
-
-
-def _sort_tests(items):
-    def sort_key(item):
-        filename, lineno, test_name = item.location
-        return filename, lineno, test_name.split("[")[0]
-
-    items.sort(key=sort_key)
-
 
 def pytest_sessionstart():
     if os.getenv("CI", "") == "true":
-        from request_hook import init  # pylint: disable=import-outside-toplevel
+        from tvm.testing.utils import (
+            install_request_hook,  # pylint: disable=import-outside-toplevel
+        )
 
-        init()
+        install_request_hook(3)

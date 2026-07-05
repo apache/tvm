@@ -251,7 +251,7 @@ If you want to run all tests:
   # build tvm (see install-from-source for CMake build instructions)
   cd build && cmake .. && cmake --build . --parallel $(nproc) && cd ..
 
-  python -m pytest -vvs -n auto --dist=loadgroup tests/python
+  python -m pytest -vvs -n auto tests/python
 
 If you want to run a single test:
 

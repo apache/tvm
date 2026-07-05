@@ -24,7 +24,7 @@ Organization
 
 This file contains functions expected to be called directly by a user
 while writing unit tests.  Integrations with the pytest framework
-are in plugin.py.
+for TVM's own test suite are in ``tests/python/conftest.py``.
 
 Testing Markers
 ***************
@@ -73,6 +73,7 @@ import logging
 import os
 import pickle
 import platform
+import runpy
 import sys
 import time
 from pathlib import Path
@@ -91,6 +92,7 @@ from tvm.support import nvcc
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 IS_IN_CI = os.getenv("CI", "") == "true"
+_REQUEST_HOOK_INITIALIZERS = {}
 
 skip_if_wheel_test = pytest.mark.skipif(
     os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
@@ -679,10 +681,11 @@ def fixture(func=None, *, cache_return_value=False):
     If the setup is expensive to perform, then the
     cache_return_value=True argument can be passed to cache the setup.
     The fixture function will be run only once (or once per parameter,
-    if used with tvm.testing.parameter), and the same return value
-    will be passed to all tests that use it.  If the environment
-    variable TVM_TEST_DISABLE_CACHE is set to a non-zero value, it
-    will disable this feature and no caching will be performed.
+    if used with tvm.testing.parameter).  The cached setup value is
+    retained for the lifetime of the test process, and each test receives
+    an independent copy.  If the environment variable TVM_TEST_DISABLE_CACHE
+    is set to a non-zero value, it will disable this feature and no caching
+    will be performed.
 
     Example
     -------
@@ -719,15 +722,10 @@ def fixture(func=None, *, cache_return_value=False):
     force_disable_cache = bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0")))
     cache_return_value = cache_return_value and not force_disable_cache
 
-    # Deliberately at function scope, so that caching can track how
-    # many times the fixture has been used.  If used, the cache gets
-    # cleared after the fixture is no longer needed.
-    scope = "function"
-
     def wraps(func):
         if cache_return_value:
             func = _fixture_cache(func)
-        func = pytest.fixture(func, scope=scope)
+        func = pytest.fixture(func, scope="function")
         return func
 
     if func is None:
@@ -791,13 +789,6 @@ class _DeepCopyAllowedClasses(dict):
 def _fixture_cache(func):
     cache = {}
 
-    # Can't use += on a bound method's property.  Therefore, this is a
-    # list rather than a variable so that it can be accessed from the
-    # pytest_collection_modifyitems().
-    num_tests_use_this_fixture = [0]
-
-    num_times_fixture_used = 0
-
     # Using functools.lru_cache would require the function arguments
     # to be hashable, which wouldn't allow caching fixtures that
     # depend on numpy arrays.  For example, a fixture that takes a
@@ -821,40 +812,21 @@ def _fixture_cache(func):
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        if num_tests_use_this_fixture[0] == 0:
-            raise RuntimeError(
-                "Fixture use count is 0.  "
-                "Cached tvm.testing fixtures must be collected from tests/python "
-                "so its conftest can count fixture uses."
-            )
+        cache_key = get_cache_key(*args, **kwargs)
 
         try:
-            cache_key = get_cache_key(*args, **kwargs)
+            cached_value = cache[cache_key]
+        except KeyError:
+            cached_value = cache[cache_key] = func(*args, **kwargs)
 
-            try:
-                cached_value = cache[cache_key]
-            except KeyError:
-                cached_value = cache[cache_key] = func(*args, **kwargs)
-
-            yield copy.deepcopy(
-                cached_value,
-                # allowed_class_list should be a list of classes that
-                # are safe to copy using copy.deepcopy, but do not
-                # implement __deepcopy__, __reduce__, or
-                # __reduce_ex__.
-                _DeepCopyAllowedClasses(allowed_class_list=[]),
-            )
-
-        finally:
-            # Clear the cache once all tests that use a particular fixture
-            # have completed.
-            nonlocal num_times_fixture_used
-            num_times_fixture_used += 1
-            if num_times_fixture_used >= num_tests_use_this_fixture[0]:
-                cache.clear()
-
-    # Set in the pytest_collection_modifyitems(), by _count_num_fixture_uses
-    wrapper.num_tests_use_this_fixture = num_tests_use_this_fixture
+        return copy.deepcopy(
+            cached_value,
+            # allowed_class_list should be a list of classes that
+            # are safe to copy using copy.deepcopy, but do not
+            # implement __deepcopy__, __reduce__, or
+            # __reduce_ex__.
+            _DeepCopyAllowedClasses(allowed_class_list=[]),
+        )
 
     return wrapper
 
@@ -929,13 +901,14 @@ def install_request_hook(depth: int) -> None:
     if not hook_script.is_file():
         raise RuntimeError(f"File {hook_script} does not exist:\n{msg}")
 
-    # Import the hook and start it up (it's not included here directly to avoid
-    # keeping a database of URLs inside the tvm Python package
-    sys.path.append(str(hook_script_dir))
-    # This import is intentionally delayed since it should only happen in CI
-    import request_hook  # pylint: disable=import-outside-toplevel
-
-    request_hook.init()
+    # Load the exact hook file without exposing the test root as an import path.
+    # Cache its initializer because Sphinx invokes this once per gallery example.
+    hook_script = hook_script.resolve()
+    try:
+        init = _REQUEST_HOOK_INITIALIZERS[hook_script]
+    except KeyError:
+        init = _REQUEST_HOOK_INITIALIZERS[hook_script] = runpy.run_path(str(hook_script))["init"]
+    init()
 
 
 def strtobool(val):
