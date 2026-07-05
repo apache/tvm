@@ -27,6 +27,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
+#include <tvm/tirx/buffer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -40,6 +41,46 @@
 
 namespace tvm {
 namespace tirx {
+
+static Expr LowerAccessPtr(const CallNode* call) {
+  TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
+  PrimType dtype = call->args[0].as_or_throw<PrimExpr>().ty();
+  PrimExpr offset = call->args[2].as_or_throw<PrimExpr>();
+  TVM_FFI_ICHECK(call->ty.as<PointerTypeNode>());
+
+  // An access pointer may itself be used as the base of another access
+  // pointer.  Fold those offsets before constructing the synthetic
+  // BufferLoad so lowering never assumes that args[1] is immediately a Var.
+  Expr buffer = call->args[1];
+  while (const auto* inner = buffer.as<CallNode>()) {
+    if (!inner->op.same_as(builtin::tvm_access_ptr())) break;
+    TVM_FFI_ICHECK_EQ(inner->args.size(), 5U);
+    PrimType inner_dtype = inner->args[0].as_or_throw<PrimExpr>().ty();
+    TVM_FFI_ICHECK_EQ(inner_dtype, dtype)
+        << "Nested tvm_access_ptr calls must use the same element type";
+    PrimExpr inner_offset = inner->args[2].as_or_throw<PrimExpr>();
+    if (inner_offset.ty() != offset.ty()) {
+      inner_offset = Cast(offset.ty(), inner_offset);
+    }
+    offset = inner_offset + offset;
+    buffer = inner->args[1];
+  }
+
+  const auto* buffer_node = buffer.as<VarNode>();
+  TVM_FFI_ICHECK(buffer_node)
+      << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[1], but got "
+      << buffer;
+  Var buffer_var = ffi::GetRef<Var>(buffer_node);
+  if (dtype.lanes() != 1) {
+    PrimType offset_ty = offset.ty();
+    offset = offset * IntImm(offset_ty, dtype.lanes());
+    offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
+  }
+  Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name_hint, 0, 0,
+                   kDefault);
+  BufferLoad buf_load(dummy_buf, {offset});
+  return Call(call->ty, builtin::address_of(), {buf_load});
+}
 
 class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
@@ -81,17 +122,23 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::tvm_access_ptr())) {
+      return this->VisitExpr(LowerAccessPtr(op));
+    }
     if (auto* ptr_op = op->op.as<OpNode>()) {
-      for (const auto& f_attr_map : attr_maps_) {
-        FLowerGeneral f = f_attr_map.get(ffi::GetRef<Op>(ptr_op), nullptr);
-        if (f != nullptr) {
-          PrimExpr e = ffi::GetRef<Call>(op).as_or_throw<PrimExpr>();
-          PrimExpr r = f(e);
-          TVM_FFI_ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
-          if (!r.same_as(e)) {
-            r = this->VisitPrimExpr(r);
-            if (r.defined()) {
-              return r;
+      Op op_ref = ffi::GetRef<Op>(ptr_op);
+      Expr e = ffi::GetRef<Call>(op);
+      if (auto prim_e = e.as<PrimExpr>()) {
+        for (const auto& f_attr_map : attr_maps_) {
+          FLowerGeneral f = f_attr_map.get(op_ref, nullptr);
+          if (f != nullptr) {
+            PrimExpr r = f(prim_e.value());
+            TVM_FFI_ICHECK(r.defined()) << "intrinsic rule must always return valid Expr";
+            if (!r.same_as(prim_e.value())) {
+              r = this->VisitPrimExpr(r);
+              if (r.defined()) {
+                return r;
+              }
             }
           }
         }
@@ -158,8 +205,8 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorDiv: Cannot decide the sign of divisor";
-        auto rmod = tirx::Var("rmod", dtype);
-        auto rdiv = tirx::Var("rdiv", dtype);
+        PrimVar rmod("rmod", dtype);
+        PrimVar rdiv("rdiv", dtype);
         // b >= 0 => (rmod >=0 ? rdiv : rdiv - 1)
         // b < 0  => (rmod <= 0 ? rdiv : rdiv - 1)
         PrimExpr let_rdiv =
@@ -222,7 +269,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
       } else {
         // uncommon case
         DLOG(INFO) << "LowerFloorMod: Cannot decide the sign of divsor and divident";
-        auto rmod = tirx::Var("rmod", dtype);
+        PrimVar rmod("rmod", dtype);
         // b > 0 && rmod >= 0 -> rmod
         // b > 0 && rmod < 0  -> rmod + b
         // b < 0 && rmod < 0 -> rmod
@@ -366,7 +413,6 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return c_value;
   }
 
-  // attribute maps, shared only when FLegalize == FLowerIntrinsic
   std::vector<OpAttrMap<FLowerGeneral>> attr_maps_;
   FLowerGeneral fma_{nullptr};
   bool support_bitwise_op_{true};

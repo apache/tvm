@@ -59,13 +59,13 @@ template <unsigned id, int num_signature>
 inline PrimExpr DispatchLLVMIntrin(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
-  ffi::Array<PrimExpr> cargs;
+  ffi::Array<Expr> cargs;
   // intrin id.
   cargs.push_back(IntImm(PrimType::UInt(32), id));
   TVM_FFI_ICHECK_EQ(call->args.size(), num_signature)
       << "llvm.call_llvm_intrin" << llvmGetIntrinName(id) << "expects " << num_signature
       << " arguments, but got " << call->args.size();
-  for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
+  for (Expr arg : call->args) {
     cargs.push_back(arg);
   }
   return Call(call->ty.as_or_throw<PrimType>(), tirx::builtin::call_llvm_intrin(), cargs)

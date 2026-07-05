@@ -71,7 +71,16 @@ class GlobalVar(Expr):
         call: Expr
             A call taking the variable as a function.
         """
-        if args and all(isinstance(x, Number) or is_prim_expr(x) for x in args):
+        from .type import PointerType
+
+        def is_tir_arg(x):
+            return (
+                isinstance(x, Number)
+                or is_prim_expr(x)
+                or (isinstance(x, Expr) and isinstance(x.ty, PointerType))
+            )
+
+        if args and all(is_tir_arg(x) for x in args):
             return tvm.tirx.call_tir(self, *args)
 
         if all(isinstance(x, Expr) for x in args):
@@ -105,7 +114,7 @@ class Call(Expr, Scriptable):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op
-        from .type import PrimType, Type
+        from .type import PointerType, PrimType, Type
 
         if isinstance(op, str):
             op = Op.get(op)
@@ -113,7 +122,9 @@ class Call(Expr, Scriptable):
             attrs = DictAttrs(attrs)
         if ret_ty is None:
             ret_ty = Type.missing()
-        if ret_ty is not None and not isinstance(ret_ty, Type):
+        if isinstance(ret_ty, str) and ret_ty == "handle":
+            ret_ty = PointerType(PrimType("void"))
+        elif ret_ty is not None and not isinstance(ret_ty, Type):
             ret_ty = PrimType(ret_ty)
         if ty_args is None:
             ty_args = []

@@ -123,26 +123,6 @@ TVM_REGISTER_OP("tirx.nearbyint")
 TVM_REGISTER_OP("tirx.pow")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.tvm_access_ptr")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      const CallNode* call = e.as<CallNode>();
-      TVM_FFI_ICHECK(call != nullptr);
-      TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
-      PrimType dtype = call->args[0].as_or_throw<PrimExpr>().ty();
-      Var buffer_var = call->args[1].as_or_throw<Var>();
-      PrimExpr offset = call->args[2].as_or_throw<PrimExpr>();
-      TVM_FFI_ICHECK(call->ty.as_or_throw<PrimType>().IsHandle());
-      if (dtype.lanes() != 1) {
-        PrimType offset_ty = offset.ty();
-        offset = offset * IntImm(offset_ty, dtype.lanes());
-        offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
-      }
-      Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name_hint,
-                       0, 0, kDefault);
-      BufferLoad buf_load(dummy_buf, {offset});
-      return Call(PrimType::Handle(), builtin::address_of(), {buf_load}).as_or_throw<PrimExpr>();
-    });
-
 PrimExpr DispatchFastErf(const PrimExpr& e) {
   DLOG(WARNING) << "fast_erf will be used instead of erf";
   const CallNode* call = e.as<CallNode>();

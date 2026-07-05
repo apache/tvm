@@ -116,7 +116,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     if (MatchType(op->buffer->dtype)) {
       PrimType dtype = promote_dtype_.WithLanes(op->buffer->dtype.lanes());
       ffi::String storage_scope = "global";
-      if (auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>()) {
+      if (auto* ptr_type = op->buffer->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
       Var buffer_var = Var(op->buffer->data->name_hint, PointerType(dtype, storage_scope));
@@ -133,7 +133,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var.ty().IsHandle()) {
+    if (buffer_var->ty.as<PointerTypeNode>()) {
       opaque_var_access_.insert(buffer_var);
     }
   }
@@ -259,15 +259,21 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (!op->ty.as<PrimTypeNode>()) {
+      return StmtExprMutator::VisitExpr_(op);
+    }
     // presertve reinterpret<bf16>() behavior.
     if (op->op.same_as(builtin::reinterpret())) {
       return StmtExprMutator::VisitExpr_(op);
     }
     // update normal computations to return f32 instead.
-    auto fmutate = [this](const Expr& e) {
-      return PromoteToTarget(this->VisitPrimExpr(e.as_or_throw<PrimExpr>()));
+    auto fmutate = [this](const Expr& e) -> Expr {
+      if (auto prim = e.as<PrimExpr>()) {
+        return PromoteToTarget(this->VisitPrimExpr(prim.value()));
+      }
+      return this->VisitExpr(e);
     };
-    ffi::Array<PrimExpr> args = op->args.Map(fmutate);
+    ffi::Array<Expr> args = op->args.Map(fmutate);
     PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (MatchType(op_ty)) {
       return Call(promote_dtype_.WithLanes(op_ty.lanes()), op->op, args, op->attrs, {}, op->span)
@@ -330,10 +336,14 @@ class ComputeLegalizer : public StmtExprMutator {
   DEFINE_BIOP_EXPR_LEGALIZE(NENode, operator!=);
 
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = PromoteToTarget(op->value);
+    auto prim_value = op->value.as<PrimExpr>();
+    if (!prim_value) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
+    PrimExpr value = PromoteToTarget(prim_value.value());
     Var var = op->var;
-    if (value.ty() != op->value.ty()) {
-      var = op->var.copy_with_dtype(op->value.ty());
+    if (value.ty() != prim_value.value().ty()) {
+      var = op->var.copy_with_dtype(prim_value.value().ty());
       var_remap_[op->var] = var;
     }
 
@@ -396,11 +406,11 @@ class ComputeLegalizer : public StmtExprMutator {
       // Remap input variables
       for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
         Var lhs_var = reducer->lhs[i];
-        if (lhs_var.ty() != legalized_identity_elements[i].ty()) {
+        if (lhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
           var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
         }
         Var rhs_var = reducer->rhs[i];
-        if (rhs_var.ty() != legalized_identity_elements[i].ty()) {
+        if (rhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
           var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
         }
       }
@@ -408,18 +418,18 @@ class ComputeLegalizer : public StmtExprMutator {
       auto legalized_results =
           reducer->result.Map([this](PrimExpr expr) { return this->VisitPrimExpr(expr); });
 
-      auto legalized_lhs = reducer->lhs.Map([this](Var var) {
+      auto legalized_lhs = reducer->lhs.Map([this](PrimVar var) {
         auto it = var_remap_.find(var);
         if (it != var_remap_.end()) {
-          return it->second;
+          return it->second.as_or_throw<PrimVar>();
         }
         return var;
       });
 
-      auto legalized_rhs = reducer->rhs.Map([this](Var var) {
+      auto legalized_rhs = reducer->rhs.Map([this](PrimVar var) {
         auto it = var_remap_.find(var);
         if (it != var_remap_.end()) {
-          return it->second;
+          return it->second.as_or_throw<PrimVar>();
         }
         return var;
       });
@@ -570,7 +580,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (MatchType(buf->dtype)) {
       PrimType new_dtype = GetStorageUIntDType(buf->dtype);
       ffi::String storage_scope = "global";
-      if (auto* ptr_type = buf->data->type_annotation.as<PointerTypeNode>()) {
+      if (auto* ptr_type = buf->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
       Var new_data = Var(buf->data->name_hint, PointerType(new_dtype, storage_scope));
@@ -621,7 +631,7 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BindNode* op) final {
-    PrimExpr value = VisitPrimExpr(op->value);
+    Expr value = VisitExpr(op->value);
     Var var = RemapVarDef(op->var);
 
     if (value.same_as(op->value) && var.same_as(op->var)) {
@@ -680,6 +690,20 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
+    if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
+      Expr ret = StmtExprMutator::VisitExpr_(op);
+      const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
+      if (!element_type || !MatchType(ffi::GetRef<PrimType>(element_type))) {
+        return ret;
+      }
+      Call call = ret.as_or_throw<Call>();
+      Type new_element_type = GetStorageUIntDType(ffi::GetRef<PrimType>(element_type));
+      return Call(PointerType(new_element_type, pointer_type->storage_scope), call->op, call->args,
+                  call->attrs, call->ty_args, call->span);
+    }
+    if (!op->ty.as<PrimTypeNode>()) {
+      return StmtExprMutator::VisitExpr_(op);
+    }
     // remap re-interpret so un-necessary reinterpret can be skipped.
     if (op->op.same_as(builtin::reinterpret())) {
       PrimExpr value = VisitPrimExpr(op->args[0].as_or_throw<PrimExpr>());
@@ -719,16 +743,14 @@ class StorageLegalizer : public StmtExprMutator {
 
   Var RemapVarDef(Var var) {
     // remap the var
-    if (var.ty().IsHandle()) {
-      if (auto* ptr_type = var->type_annotation.as<PointerTypeNode>()) {
-        if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
-          PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
-          if (MatchType(elem_prim_type)) {
-            Var new_var = Var(var->name_hint, PointerType(GetStorageUIntDType(elem_prim_type),
-                                                          ptr_type->storage_scope));
-            var_remap_[var] = new_var;
-            return new_var;
-          }
+    if (auto* ptr_type = var->ty.as<PointerTypeNode>()) {
+      if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
+        PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
+        if (MatchType(elem_prim_type)) {
+          Var new_var = Var(var->name_hint, PointerType(GetStorageUIntDType(elem_prim_type),
+                                                        ptr_type->storage_scope));
+          var_remap_[var] = new_var;
+          return new_var;
         }
       }
     }

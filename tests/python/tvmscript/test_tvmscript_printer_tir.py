@@ -476,6 +476,22 @@ a = T.float32()
 a""",
     )
 
+    a = tirx.Var("a", "handle")
+    _assert_print(
+        a,
+        """
+a = T.handle()
+a""",
+    )
+
+    a = tirx.Var("a", ir.PointerType(ir.PrimType("void"), "shared"))
+    _assert_print(
+        a,
+        """
+a = T.handle(storage_scope="shared")
+a""",
+    )
+
 
 def test_iter_var():
     a = tirx.IterVar((0, 8), "a", iter_type=tirx.IterVar.DataPar)
@@ -714,6 +730,12 @@ def test_prim_type():
 def test_pointer_type():
     obj = ir.PointerType(ir.PrimType("int32"), "global")
     _assert_print(obj, 'T.handle("int32", "global")')
+
+    obj = ir.PointerType(ir.PrimType("void"))
+    _assert_print(obj, "T.handle")
+
+    obj = ir.PointerType(ir.PrimType("void"), "shared")
+    _assert_print(obj, 'T.handle(storage_scope="shared")')
 
 
 def test_tuple_type():

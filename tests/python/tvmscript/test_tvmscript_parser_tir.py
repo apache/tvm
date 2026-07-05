@@ -44,19 +44,17 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and ptr_0.ty.dtype == "handle"
-        and isinstance(ptr_0.type_annotation, ir.PointerType)
-        and ptr_0.type_annotation.element_type == ir.PrimType("int32")
-        and ptr_0.type_annotation.storage_scope == "global"
+        and isinstance(ptr_0.ty, ir.PointerType)
+        and ptr_0.ty.element_type == ir.PrimType("int32")
+        and ptr_0.ty.storage_scope == "global"
     )
 
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and ptr_1.ty.dtype == "handle"
-        and isinstance(ptr_1.type_annotation, ir.PointerType)
-        and ptr_1.type_annotation.element_type == ir.PrimType("float32")
-        and ptr_1.type_annotation.storage_scope == "shared"
+        and isinstance(ptr_1.ty, ir.PointerType)
+        and ptr_1.ty.element_type == ir.PrimType("float32")
+        and ptr_1.ty.storage_scope == "shared"
     )
 
 

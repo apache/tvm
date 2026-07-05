@@ -576,7 +576,7 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const Range&
     if (differs_from_previous) {
       TVM_FFI_ICHECK(allow_override) << "Binding of variable " << var << " as " << range
                                      << " conflicts with previous binding as " << (*it).second;
-      if (auto key = ExprToPreviousKey(var)) {
+      if (auto key = ExprToPreviousKey(var.as_or_throw<PrimExpr>())) {
         knowns_.erase(std::remove_if(knowns_.begin(), knowns_.end(),
                                      [&](const auto& known) { return known.lhs_ == key.value(); }),
                       knowns_.end());
@@ -586,11 +586,12 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tirx::Var& var, const Range&
 
   prev_bindings_.Set(var, range);
 
+  PrimExpr prim_var = var.as_or_throw<PrimExpr>();
   if (is_const_int(range->extent, 1)) {
-    AddKnown(var == range->min, &knowns_);
+    AddKnown(prim_var == range->min, &knowns_);
   } else {
-    AddKnown(var >= range->min, &knowns_);
-    AddKnown(var < range->min + range->extent, &knowns_);
+    AddKnown(prim_var >= range->min, &knowns_);
+    AddKnown(prim_var < range->min + range->extent, &knowns_);
   }
 }
 

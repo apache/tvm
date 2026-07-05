@@ -74,7 +74,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const Expr&)>,
    * \return created value.
    */
   spirv::Value MakeValue(const PrimExpr& e) { return VisitExpr(e); }
-  spirv::Value MakeValue(const Expr& e) { return MakeValue(e.as_or_throw<PrimExpr>()); }
+  spirv::Value MakeValue(const Expr& e) { return VisitExpr(e); }
   // override codegen
   spirv::Value VisitExpr_(const VarNode* op) override;
   spirv::Value VisitExpr_(const CastNode* op) override;

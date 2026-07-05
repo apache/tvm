@@ -24,6 +24,7 @@ from packaging import version
 from triton.runtime.jit import type_canonicalisation_dict
 
 from tvm import tirx
+from tvm.ir import PointerType, PrimType, is_prim_expr
 from tvm.runtime import Module
 from tvm.topi.utils import get_const_int
 
@@ -79,9 +80,15 @@ class TritonKernel(BaseKernel):
             : len(grid)
         ]
         launch_args = [num_warps * 32] + list(grid)
-        kernel_arg_types = [
-            arg.dtype if not isinstance(arg, int) else "int64" for arg in kernel_args
-        ]
+        kernel_arg_types = []
+        for arg in kernel_args:
+            if isinstance(arg, int):
+                kernel_arg_types.append("int64")
+            elif isinstance(arg.ty, PointerType):
+                kernel_arg_types.append("handle")
+            else:
+                assert is_prim_expr(arg)
+                kernel_arg_types.append(str(arg.ty.dtype))
         if triton_kernel.metadata.shared > 0:
             # Add shared memory size to the launch arguments
             launch_param_tags.append("tirx.use_dyn_shared_memory")
@@ -112,13 +119,15 @@ class TritonKernel(BaseKernel):
                 signature[kernel_params[i].name] = "constexpr"
                 kernel_args.append(arg)
                 continue
-            if arg.dtype == "handle":
+            if isinstance(arg.ty, PointerType):
                 assert isinstance(arg, tirx.Var)
-                elem_type = arg.type_annotation.element_type.dtype
+                assert isinstance(arg.ty.element_type, PrimType)
+                elem_type = arg.ty.element_type.dtype
                 pointer_type = "*" + type_canonicalisation_dict[elem_type]
                 signature[kernel_params[i].name] = pointer_type
             else:
-                signature[kernel_params[i].name] = type_canonicalisation_dict[arg.dtype]
+                assert is_prim_expr(arg)
+                signature[kernel_params[i].name] = type_canonicalisation_dict[arg.ty.dtype]
             kernel_args.append(arg)
 
         # TODO: Support default argument in the kernel

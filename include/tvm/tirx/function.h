@@ -273,7 +273,7 @@ class TensorIntrin : public ffi::ObjectRef {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, PrimExpr>>& param_map);
+PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, Expr>>& param_map);
 
 /*!
  * \brief PrimFunc specific attribute names.

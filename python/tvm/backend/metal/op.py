@@ -24,14 +24,14 @@ from tvm.tirx.op import call_intrin
 def make_filled_simdgroup_matrix(d, index, value, col=8, row=8):
     """Create a filled SIMDGroup matrix."""
 
-    return call_intrin("handle", "tirx.make_filled_simdgroup_matrix", d, index, value, col, row)
+    return call_intrin("void", "tirx.make_filled_simdgroup_matrix", d, index, value, col, row)
 
 
 def simdgroup_load(d, index, ptr, stride, col=8, row=8, transpose_matrix=False):
     """Load data from device or threadgroup memory to simdgroup."""
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.simdgroup_load",
         d,
         index,
@@ -47,7 +47,7 @@ def simdgroup_store(d, index, ptr, stride, col=8, row=8, transpose_matrix=False)
     """Store data from simdgroup to device or threadgroup memory."""
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.simdgroup_store",
         d,
         index,
@@ -63,7 +63,7 @@ def simdgroup_multiply_accumulate(d, index_d, a, index_a, b, index_b, c, index_c
     """Multiply and accumulate two matrices in simdgroup."""
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.simdgroup_multiply_accumulate",
         d,
         index_d,

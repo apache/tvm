@@ -79,18 +79,6 @@ TVM_DLL Type GetType(const PrimExpr& expr);
 TVM_DLL Type GetTypeFromRuntimeDataType(DLDataType dtype);
 
 /*!
- * \brief Get the implied DLPack dtype for storing values with type during runtime.
- *
- * \param type The input type.
- * \return The result DLPack dtype.
- *
- * \sa tvm/ir/type.h for discussion about the relation between Type and DLPack dtype.
- */
-TVM_DLL DLDataType GetRuntimeDLDataType(const Type& type);
-
-inline DLDataType GetRuntimeDataType(const Type& type) { return GetRuntimeDLDataType(type); }
-
-/*!
  * \brief Return the value.
  *
  * \param value The returned value.
@@ -98,6 +86,7 @@ inline DLDataType GetRuntimeDataType(const Type& type) { return GetRuntimeDLData
  * \return The return expression.
  */
 TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
+TVM_DLL Expr ret(Expr value, Span span = Span());
 
 /*!
  * \brief Return from a thread.
@@ -165,6 +154,8 @@ TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Span span = Span());
  * \note This function may return value if the type is the same.
  */
 TVM_DLL PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span());
+/*! \brief Perform a reinterpret cast involving an exact primitive or pointer type. */
+TVM_DLL Expr reinterpret(Type target_ty, Expr value, Span span = Span());
 /*!
  * \brief add operator
  *
@@ -843,12 +834,12 @@ template <typename ValueType,
                                              std::is_trivial<ValueType>::value>::type>
 inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span = Span());
 /*!
- * \brief Make a constant handle value.
+ * \brief Make a constant opaque-pointer value.
  * \param value The integer payload to reinterpret as a handle.
  * \param span The location of this operation in the source.
  * \return The result expression.
  */
-inline PrimExpr ConstHandle(int64_t value, Span span = Span());
+inline Expr ConstHandle(int64_t value, Span span = Span());
 /*!
  * \brief Get x as constant int expression.
  * \param x The expression
@@ -970,7 +961,8 @@ inline bool is_const_int(const PrimExpr& x, int64_t value) {
 inline bool is_no_op(const tirx::Stmt& stmt) {
   if (!stmt.defined()) return true;
   if (const auto* op = stmt.as<tirx::EvaluateNode>()) {
-    return is_const_int(op->value);
+    auto value = op->value.as<PrimExpr>();
+    return value && is_const_int(value.value());
   }
   if (const auto* op = stmt.as<tirx::SeqStmtNode>()) {
     return op->seq.size() == 0;
@@ -1031,8 +1023,8 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
   return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
 }
 
-inline PrimExpr ConstHandle(int64_t value, Span span) {
-  return reinterpret(PrimType::Handle(), IntImm(PrimType::UInt(64), value, span));
+inline Expr ConstHandle(int64_t value, Span span) {
+  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, span), span);
 }
 
 }  // namespace tirx
