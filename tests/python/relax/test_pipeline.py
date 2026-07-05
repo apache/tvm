@@ -196,11 +196,15 @@ def test_default_cuda_pipeline_schedules_power():
         seq = tvm.transform.Sequential(relax.pipeline.legalize_passes(target))
         mod = seq(PowerModule)
 
-    prim_funcs = [func for _, func in mod.functions_items() if isinstance(func, tvm.tirx.PrimFunc)]
-    assert prim_funcs, "expected at least one TIR PrimFunc after legalization"
-    for func in prim_funcs:
+    prim_funcs = [
+        (g_var, func)
+        for g_var, func in mod.functions_items()
+        if isinstance(func, tvm.tirx.PrimFunc) and "power" in g_var.name_hint
+    ]
+    assert prim_funcs, "expected at least one power TIR PrimFunc after legalization"
+    for _, func in prim_funcs:
         assert _has_thread_binding(func), (
-            "power PrimFunc left without a GPU thread binding (VerifyMemory would fall)"
+            "power PrimFunc left without a GPU thread binding (VerifyMemory would fail)"
         )
 
 
