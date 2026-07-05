@@ -25,11 +25,6 @@ export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
-# NOTE: also set by task_python_integration_gpuonly.sh.
-if [ -z "${TVM_INTEGRATION_TESTSUITE_NAME:-}" ]; then
-    TVM_INTEGRATION_TESTSUITE_NAME=python-integration
-fi
-
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
