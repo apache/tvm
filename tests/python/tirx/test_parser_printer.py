@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import math
+
 import pytest
 
 import tvm
@@ -1383,6 +1385,432 @@ def test_buffer_permute_ir():
 
     code = func.script()
     assert from_source(code).script() == code
+
+
+def test_buffer_permute_compose_layout_ir():
+    """Verify .permute on a swizzle-composed layout: the swizzle is preserved
+    and the inner tile layout's dim groups are permuted (the reshape-permute-
+    reshape idiom used to refactor gather views without restating strides)."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer(
+            [4, 4, 4, 64], dtype="bfloat16", scope="shared.dyn",
+            layout=T.ComposeLayout(
+                T.SwizzleLayout(3, 3, 3, swizzle_inner=True),
+                T.TileLayout(T.S[(4, 4, 4, 64) : (1024, 256, 64, 1)]),
+            ),
+        )
+        B = A.permute(1, 0, 2, 3)
+        B[0, 0, 0, 0] = T.bfloat16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    a_buf = bufs["A"]
+    b_buf = bufs["B"]
+
+    assert b_buf.data.same_as(a_buf.data)
+    assert [int(s) for s in b_buf.shape] == [4, 4, 4, 64]
+    expected = tvm.tirx.layout.ComposeLayout(
+        a_buf.layout.swizzle,
+        a_buf.layout.tile_layout.permute_dims([1, 0, 2, 3]),
+    )
+    assert_structural_equal(b_buf.layout, expected)
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+
+def test_buffer_unflatten_flatten_ir():
+    """unflatten splits a dim (with -1 inference); flatten merges dims back.
+    Both keep the original layout object (pure reshapes)."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([8, 64], dtype="float16", scope="local",
+                           layout=T.TileLayout(T.S[(8, 64) : (64, 1)]))
+        B = A.unflatten(1, (4, 16))
+        B[0, 0, 0] = T.float16(0)
+        C = A.unflatten(1, (-1, 16))
+        C[0, 0, 0] = T.float16(0)
+        D = B.flatten(1, 2)
+        D[0, 0] = T.float16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    a_buf, b_buf, c_buf, d_buf = bufs["A"], bufs["B"], bufs["C"], bufs["D"]
+    assert b_buf.data.same_as(a_buf.data)
+    assert [int(s) for s in b_buf.shape] == [8, 4, 16]
+    assert [int(s) for s in c_buf.shape] == [8, 4, 16]
+    assert [int(s) for s in d_buf.shape] == [8, 64]
+    assert_structural_equal(b_buf.layout, a_buf.layout)
+    assert_structural_equal(d_buf.layout, a_buf.layout)
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+
+def test_buffer_select_ir():
+    """select removes a dim; the index (static or dynamic) folds into
+    elem_offset through the dim's layout iter stride."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([4, 8, 16], dtype="float16", scope="local",
+                           layout=T.TileLayout(T.S[(4, 8, 16) : (256, 16, 1)]))
+        B = A.select(0, 2)
+        B[0, 0] = T.float16(0)
+        for i in T.serial(4):
+            C = A.select(0, i)
+            C[0, 0] = T.float16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    a_buf, b_buf, c_buf = bufs["A"], bufs["B"], bufs["C"]
+    assert b_buf.data.same_as(a_buf.data)
+    assert [int(s) for s in b_buf.shape] == [8, 16]
+    assert int(tvm.arith.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 512
+    assert_structural_equal(b_buf.layout, tvm.tirx.layout.TileLayout(T.S[(8, 16) : (16, 1)]))
+    assert [int(s) for s in c_buf.shape] == [8, 16]
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+
+def test_buffer_select_multi_iter_dim_ir():
+    """select on a dim carried by several layout iters decomposes the index
+    mixed-radix across the iters' strides."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([8, 16], dtype="float16", scope="local",
+                           layout=T.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)]))
+        B = A.select(0, 5)
+        B[0] = T.float16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    a_buf, b_buf = bufs["A"], bufs["B"]
+    # 5 -> (5 // 4, 5 % 4) = (1, 1) -> 1 * 1024 + 1 * 64
+    assert int(tvm.arith.Analyzer().simplify(b_buf.elem_offset - a_buf.elem_offset)) == 1088
+    assert [int(s) for s in b_buf.shape] == [16]
+    assert_structural_equal(b_buf.layout, tvm.tirx.layout.TileLayout(T.S[(16,) : (1,)]))
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+
+def test_buffer_narrow_ir():
+    """narrow keeps the dim at a reduced extent; multi-iter dims require
+    start/length on the inner iter block boundary."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([4, 64], dtype="float16", scope="local",
+                           layout=T.TileLayout(T.S[(4, 64) : (64, 1)]))
+        for i in T.serial(2):
+            B = A.narrow(1, i * 32, 32)
+            B[0, 0] = T.float16(0)
+        M = T.alloc_buffer([8, 16], dtype="float16", scope="local",
+                           layout=T.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)]))
+        C = M.narrow(0, 4, 4)
+        C[0, 0] = T.float16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf, m_buf, c_buf = bufs["B"], bufs["M"], bufs["C"]
+    assert [int(s) for s in b_buf.shape] == [4, 32]
+    assert [int(s) for s in c_buf.shape] == [4, 16]
+    assert int(tvm.arith.Analyzer().simplify(c_buf.elem_offset - m_buf.elem_offset)) == 1024
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+
+def test_buffer_narrow_multi_iter_misaligned_rejected():
+    buf = tvm.tirx.decl_buffer(
+        (8, 16), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)])
+    )
+    with pytest.raises(ValueError, match="multiples of the inner iter block"):
+        buf.narrow(0, 2, 4)
+
+
+def test_buffer_sub_ir():
+    """buf.sub follows numpy basic indexing as a view constructor: int drops
+    the dim, a:b narrows, a::s strides (via unflatten + select)."""
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([4, 8, 16], dtype="float16", scope="local",
+                           layout=T.TileLayout(T.S[(4, 8, 16) : (256, 16, 1)]))
+        B = A.sub[1, 2:6]
+        B[0, 0] = T.float16(0)
+        C = A.sub[:, 1::2]
+        C[0, 0, 0] = T.float16(0)
+        D = A.select(0, 1).narrow(0, 2, 4)
+        D[0, 0] = T.float16(0)
+        E = A.unflatten(1, (4, 2)).select(2, 1)
+        E[0, 0, 0] = T.float16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    b_buf, c_buf, d_buf, e_buf = bufs["B"], bufs["C"], bufs["D"], bufs["E"]
+    assert [int(s) for s in b_buf.shape] == [4, 16]
+    assert_structural_equal(b_buf.layout, d_buf.layout)
+    assert int(tvm.arith.Analyzer().simplify(b_buf.elem_offset - d_buf.elem_offset)) == 0
+    assert [int(s) for s in c_buf.shape] == [4, 4, 16]
+    assert_structural_equal(c_buf.layout, e_buf.layout)
+    assert int(tvm.arith.Analyzer().simplify(c_buf.elem_offset - e_buf.elem_offset)) == 0
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+
+def test_buffer_rearrange_ir():
+    """rearrange compiles to the unflatten/permute/flatten chain; the swizzle
+    of a composed layout is carried."""
+
+    compose = T.ComposeLayout(
+        T.SwizzleLayout(3, 3, 3, swizzle_inner=True),
+        T.TileLayout(T.S[(2, 16, 8) : (128, 8, 1)]),
+    )
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([2, 16, 8], dtype="bfloat16", scope="shared.dyn", layout=compose)
+        B = A.rearrange("b (s w r) c -> b w (s r) c", w=2, r=4)
+        B[0, 0, 0, 0] = T.bfloat16(0)
+
+    @T.prim_func
+    def func_chain() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([2, 16, 8], dtype="bfloat16", scope="shared.dyn", layout=compose)
+        C = A.unflatten(1, (2, 2, 4)).permute(0, 2, 1, 3, 4).flatten(2, 3)
+        C[0, 0, 0, 0] = T.bfloat16(0)
+        # fmt: on
+
+    b_buf = _collect_buffers(func)["B"]
+    c_buf = _collect_buffers(func_chain)["C"]
+    assert [int(s) for s in b_buf.shape] == [2, 2, 8, 8]
+    assert_structural_equal(b_buf.layout, c_buf.layout)
+    assert isinstance(b_buf.layout, tvm.tirx.layout.ComposeLayout)
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+
+def test_buffer_rearrange_errors():
+    buf = tvm.tirx.decl_buffer(
+        (2, 16, 8), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(2, 16, 8) : (128, 8, 1)])
+    )
+    with pytest.raises(ValueError, match="must contain '->'"):
+        buf.rearrange("b h c")
+    with pytest.raises(ValueError, match="appear on only one side"):
+        buf.rearrange("b h c -> b h d")
+    with pytest.raises(ValueError, match="duplicate axis name"):
+        buf.rearrange("b b c -> b c b")
+    with pytest.raises(ValueError, match="multiple unknown factors"):
+        buf.rearrange("b (s w r) c -> b w (s r) c")
+    with pytest.raises(ValueError, match="input dims"):
+        buf.rearrange("b c -> c b")
+
+
+def test_buffer_view_surgery_static_bounds_rejected():
+    """Statically-known out-of-range arguments must be rejected loudly
+    (review finding: non-bijective reshapes and OOB offsets were silent)."""
+    buf = tvm.tirx.decl_buffer(
+        (10,), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(10,) : (1,)])
+    )
+    grid = tvm.tirx.decl_buffer(
+        (4, 8), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(4, 8) : (8, 1)])
+    )
+    # unflatten: non-bijective factorizations
+    with pytest.raises(ValueError, match="multiply to"):
+        buf.unflatten(0, (3, 4))
+    with pytest.raises(ValueError, match="not divisible"):
+        buf.unflatten(0, (-1, 4))
+    # negative factors whose product happens to match the extent
+    with pytest.raises(ValueError, match="must be positive"):
+        buf.unflatten(0, (-2, -5))
+    with pytest.raises(ValueError, match="must be positive"):
+        buf.rearrange("(a b) -> a b", a=-2, b=-5)
+    # rearrange reuses the same validation
+    with pytest.raises(ValueError, match="multiply to"):
+        buf.rearrange("(a b) -> a b", a=3, b=4)
+    with pytest.raises(ValueError, match="does not factor"):
+        buf.rearrange("(a b) -> a b", b=4)
+    # select: static index bounds
+    with pytest.raises(ValueError, match="out of range"):
+        buf.select(0, 10)
+    with pytest.raises(ValueError, match="out of range"):
+        buf.select(0, -1)
+    # narrow: static range bounds
+    with pytest.raises(ValueError, match="exceeds"):
+        buf.narrow(0, 8, 4)
+    with pytest.raises(ValueError, match="must be positive"):
+        buf.narrow(0, 0, -1)
+    with pytest.raises(ValueError, match="must be non-negative"):
+        buf.narrow(0, -2, 4)
+    # sub: negative indices/starts
+    with pytest.raises(ValueError, match=r"in \[0, 2\)"):
+        grid.sub[:, -1::2]
+    with pytest.raises(ValueError, match="out of range"):
+        grid.sub[-1, :]
+    with pytest.raises(ValueError, match="exceeds"):
+        grid.sub[:, 4:12]
+
+
+def test_buffer_select_narrow_swizzle_commutation():
+    """A folded view offset moves into elem_offset only when it commutes
+    with the swizzle, i.e. is a multiple of the swizzle period
+    2^(per_element + atom_len + swizzle_len). Sub-period offsets stay inside
+    the derived tile layout's offset so the swizzle keeps applying to them
+    (review finding: folding them outside produced wrong addresses). Both
+    placements must be address-equivalent to the parent layout."""
+
+    def addr(buf, base, *coords):
+        analyzer = tvm.arith.Analyzer()
+        if len(coords) == 1:
+            rel = buf.layout.apply(coords[0])["m"]
+        else:
+            rel = buf.layout.apply(*coords, shape=[int(s) for s in buf.shape])["m"]
+        return int(analyzer.simplify((buf.elem_offset - base) + rel))
+
+    analyzer = tvm.arith.Analyzer()
+    compose = T.ComposeLayout(
+        T.SwizzleLayout(3, 3, 3, swizzle_inner=True),
+        T.TileLayout(T.S[(4, 1024) : (1024, 1)]),
+    )  # period = 2^(3+3+3) = 512 elements
+
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([4, 1024], dtype="bfloat16", scope="shared.dyn", layout=compose)
+        B = A.select(0, 1)  # offset 1024 = 2 * period: folds into elem_offset
+        B[0] = T.bfloat16(0)
+        C = A.narrow(1, 512, 512)  # offset 512 = period: folds into elem_offset
+        C[0, 0] = T.bfloat16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func)
+    a_buf, b_buf, c_buf = bufs["A"], bufs["B"], bufs["C"]
+    base = a_buf.elem_offset
+    assert int(analyzer.simplify(b_buf.elem_offset - base)) == 1024
+    for j in (0, 1, 63, 511, 1023):
+        assert addr(a_buf, base, 1024 + j) == addr(b_buf, base, j)
+    for j in (0, 1, 255, 511):
+        assert addr(a_buf, base, 512 + j) == addr(c_buf, base, 0, j)
+
+    code = func.script()
+    assert from_source(code).script() == code
+
+    # Sub-period offsets do not commute: they stay inside the tile layout's
+    # offset (elem_offset unchanged) and every address matches the parent.
+    compose2 = T.ComposeLayout(
+        T.SwizzleLayout(3, 3, 3, swizzle_inner=True),
+        T.TileLayout(T.S[(2, 16, 8) : (128, 8, 1)]),
+    )
+
+    # fmt: off
+    @T.prim_func
+    def func2() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([2, 16, 8], dtype="float16", scope="shared.dyn", layout=compose2)
+        B = A.select(1, 1)  # offset 8
+        B[0, 0] = T.float16(0)
+        C = A.select(2, 1)  # offset 1
+        C[0, 0] = T.float16(0)
+        D = A.narrow(1, 1, 2)  # offset 8
+        D[0, 0, 0] = T.float16(0)
+        E = A.sub[:, 1:3]  # narrow via sub
+        E[0, 0, 0] = T.float16(0)
+        for w in T.serial(16):
+            F = A.select(1, w)  # dynamic sub-period offset
+            F[0, 0] = T.float16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func2)
+    a2, base2 = bufs["A"], bufs["A"].elem_offset
+    shape2 = [2, 16, 8]
+    for name, to_parent in {
+        "B": lambda c: (c[0], 1, c[1]),
+        "C": lambda c: (c[0], c[1], 1),
+        "D": lambda c: (c[0], 1 + c[1], c[2]),
+        "E": lambda c: (c[0], 1 + c[1], c[2]),
+    }.items():
+        child = bufs[name]
+        assert int(analyzer.simplify(child.elem_offset - base2)) == 0
+        child_shape = [int(s) for s in child.shape]
+        for flat in range(math.prod(child_shape)):
+            coords, rem = [], flat
+            for extent in reversed(child_shape):
+                coords.append(rem % extent)
+                rem //= extent
+            coords = tuple(reversed(coords))
+            assert addr(a2, base2, *to_parent(coords)) == addr(child, base2, *coords), (
+                name,
+                coords,
+            )
+
+    code = func2.script()
+    assert from_source(code).script() == code
+
+    # fixed-point windows (all touched addresses below 2^(per_element +
+    # atom_len)) are correct through the same layout-offset placement
+    compose3 = T.ComposeLayout(
+        T.SwizzleLayout(3, 3, 3, swizzle_inner=True),
+        T.TileLayout(T.S[(64,) : (1,)]),
+    )
+
+    # fmt: off
+    @T.prim_func
+    def func3() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([64], dtype="bfloat16", scope="shared.dyn", layout=compose3)
+        B = A.narrow(0, 8, 8)
+        B[0] = T.bfloat16(0)
+        # fmt: on
+
+    bufs = _collect_buffers(func3)
+    a3, b3 = bufs["A"], bufs["B"]
+    for j in range(8):
+        assert addr(a3, a3.elem_offset, 8 + j) == addr(b3, a3.elem_offset, j) == 8 + j
+
+
+def test_buffer_rearrange_singleton_size_mismatch_rejected():
+    buf = tvm.tirx.decl_buffer(
+        (2, 3), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(2, 3) : (3, 1)])
+    )
+    with pytest.raises(ValueError, match="does not match dim"):
+        buf.rearrange("a b -> b a", a=99)
+
+    # a matching explicit size on a singleton axis is accepted
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        A = T.alloc_buffer([2, 3], dtype="float16", scope="local",
+                           layout=T.TileLayout(T.S[(2, 3) : (3, 1)]))
+        B = A.rearrange("a b -> b a", a=2)
+        B[0, 0] = T.float16(0)
+        # fmt: on
+
+    assert [int(s) for s in _collect_buffers(func)["B"].shape] == [3, 2]
 
 
 def test_buffer_view_dtype_ir():

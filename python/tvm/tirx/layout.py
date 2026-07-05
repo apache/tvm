@@ -984,14 +984,14 @@ class _LayoutSpec:
                 replica=other.replica if other.replica else self.replica,
                 offset=_merge_offset(self.offset, other.offset),
             )
-        if isinstance(other, _OnAxis | _OffsetExpr | int):
+        if isinstance(other, _OnAxis | _OffsetExpr | PrimExpr | int):
             return _LayoutSpec(
                 shard=self.shard, replica=self.replica, offset=_merge_offset(self.offset, other)
             )
         return NotImplemented
 
     def __radd__(self, other):
-        if isinstance(other, _OnAxis | _OffsetExpr | int):
+        if isinstance(other, _OnAxis | _OffsetExpr | PrimExpr | int):
             return _LayoutSpec(
                 shard=self.shard, replica=self.replica, offset=_merge_offset(other, self.offset)
             )

@@ -282,6 +282,16 @@ std::vector<tirx::Buffer> FindParentBuffers(const tirx::Buffer& child, const IRD
       }
     }
   }
+  // obj2info iteration order is unspecified; order candidates by name so the
+  // printed parent choice (and hence the script) is deterministic across
+  // print/parse roundtrips.
+  tvm::ffi::StructuralHash shash;
+  std::stable_sort(results.begin(), results.end(),
+                   [&shash](const tirx::Buffer& a, const tirx::Buffer& b) {
+                     std::string an(a->name), bn(b->name);
+                     if (an != bn) return an < bn;
+                     return shash(a) < shash(b);
+                   });
   return results;
 }
 
@@ -301,7 +311,8 @@ bool IsDefaultLayout(const ffi::Optional<tirx::Layout>& layout, const ffi::Array
  */
 ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, const AccessPath& p,
                                                     const IRDocsifier& d,
-                                                    const tirx::Buffer& parent) {
+                                                    const tirx::Buffer& parent,
+                                                    bool require_same_layout) {
   ffi::Optional<ExprDoc> parent_doc = d->GetVarDoc(parent);
   if (!parent_doc.defined()) return std::nullopt;
   ExprDoc pdoc = parent_doc.value();
@@ -326,67 +337,11 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
   bool child_is_default = IsDefaultLayout(child->layout, child->shape);
   bool parent_is_default = IsDefaultLayout(parent->layout, parent->shape);
 
-  // --- (a) Slice (default layout, different elem_offset) ---
-  if (!same_elem_offset && same_dtype && !parent->shape.empty()) {
-    // Reconstruct start indices from elem_offset difference and parent strides (row-major)
-    // offset_diff = child->elem_offset - parent->elem_offset
-    // For row-major: strides[i] = prod(shape[i+1:])
-    // start[i] = offset_diff / strides[i]; offset_diff %= strides[i]
-    // Build slice doc: parent[start:start+extent, ...]
-    // We only support this for IntImm offsets
-    auto* child_off = child->elem_offset.as<IntImmNode>();
-    auto* parent_off = parent->elem_offset.as<IntImmNode>();
-    if (child_off && parent_off) {
-      int64_t offset_diff = child_off->value - parent_off->value;
-      // Compute row-major strides
-      std::vector<int64_t> strides(parent->shape.size());
-      int64_t stride = 1;
-      for (int i = static_cast<int>(parent->shape.size()) - 1; i >= 0; --i) {
-        strides[i] = stride;
-        if (auto* s = parent->shape[i].as<IntImmNode>()) {
-          stride *= s->value;
-        } else {
-          return std::nullopt;  // Non-constant shape, can't decompose
-        }
-      }
-      // Check child shape is also all IntImm
-      for (size_t i = 0; i < child->shape.size(); ++i) {
-        if (!child->shape[i].as<IntImmNode>()) return std::nullopt;
-      }
-      if (child->shape.size() != parent->shape.size()) return std::nullopt;
-
-      ffi::Array<Doc> slices;
-      int64_t remaining = offset_diff;
-      bool in_bounds = true;
-      for (size_t i = 0; i < parent->shape.size(); ++i) {
-        int64_t start_val = remaining / strides[i];
-        remaining %= strides[i];
-        int64_t extent_val = child->shape[i].as<IntImmNode>()->value;
-        int64_t parent_dim = parent->shape[i].as<IntImmNode>()->value;
-        int64_t stop_val = start_val + extent_val;
-        // Bounds check: start + extent must be within parent dim
-        if (stop_val > parent_dim) {
-          in_bounds = false;
-          break;
-        }
-        if (start_val == 0 && stop_val == parent_dim) {
-          // Full range: use 0:N slice
-          ExprDoc start_doc = LiteralDoc::Int(0, p->Attr("elem_offset"));
-          ExprDoc stop_doc =
-              d->AsDoc<ExprDoc>(parent->shape[i], p->Attr("buffer")->Attr("shape")->ArrayItem(i));
-          slices.push_back(SliceDoc(start_doc, stop_doc, std::nullopt));
-        } else {
-          ExprDoc start_doc = LiteralDoc::Int(start_val, p->Attr("elem_offset"));
-          ExprDoc stop_doc = LiteralDoc::Int(stop_val, p->Attr("elem_offset"));
-          slices.push_back(SliceDoc(start_doc, stop_doc, std::nullopt));
-        }
-      }
-      if (remaining == 0 && in_bounds) {
-        return pdoc[slices];
-      }
-    }
-    return std::nullopt;
-  }
+  // NOTE: an earlier sugar printed rank-preserving aliases with a different
+  // elem_offset as ``parent[slices]``. That print is not roundtrippable: it
+  // reparses as a BufferRegion, not a Buffer, so any later Buffer use of the
+  // alias (stores, views) breaks. Such aliases now print as plain
+  // T.decl_buffer, which reparses exactly.
 
   // --- (b) Local: parent has thread axes, child has storage layout (non-thread part) ---
   if (same_elem_offset && same_dtype && !parent_is_default && parent->layout.defined()) {
@@ -660,6 +615,9 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
     } else if (!child->layout.defined() && !parent->layout.defined()) {
       same_layout = true;
     }
+    // First pass prefers a parent whose layout matches structurally, so the
+    // sugar prints as a bare reshape instead of restating the layout.
+    if (require_same_layout && !same_layout) return std::nullopt;
     if (!same_layout && child->layout.defined() && !child_is_default) {
       kwargs_keys.push_back("layout");
       kwargs_values.push_back(
@@ -678,7 +636,14 @@ ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::Buffer& child, const Acces
                                           const IRDocsifier& d) {
   auto parents = FindParentBuffers(child, d);
   for (const auto& parent : parents) {
-    if (auto sugar = TryDeclBufferSugarWithParent(child, p, d, parent)) {
+    if (auto sugar = TryDeclBufferSugarWithParent(child, p, d, parent,
+                                                  /*require_same_layout=*/true)) {
+      return sugar;
+    }
+  }
+  for (const auto& parent : parents) {
+    if (auto sugar = TryDeclBufferSugarWithParent(child, p, d, parent,
+                                                  /*require_same_layout=*/false)) {
       return sugar;
     }
   }
