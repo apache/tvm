@@ -42,7 +42,7 @@
 
 // LLVM compatibility macro
 #if TVM_LLVM_VERSION >= 200
-#define llvmGetPointerTo(arg, offset) (llvm::PointerType::get((arg)->getContext(), (offset)))
+#define llvmGetPointerTo(arg, offset) (llvm::PointerType::get((arg), (offset)))
 #else
 #define llvmGetPointerTo(arg, offset) (arg->getPointerTo(offset))
 #endif
