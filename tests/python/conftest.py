@@ -17,6 +17,7 @@
 """Configure pytest for TVM's Python test suite."""
 
 import os
+from pathlib import Path
 
 
 def pytest_sessionstart():
@@ -25,4 +26,4 @@ def pytest_sessionstart():
             install_request_hook,  # pylint: disable=import-outside-toplevel
         )
 
-        install_request_hook(3)
+        install_request_hook(Path(__file__).with_name("request_hook.py"))
