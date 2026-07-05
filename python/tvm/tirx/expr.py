@@ -38,7 +38,6 @@ from tvm.ir.base import Span
 from tvm.runtime import DataTypeCode, Object, ObjectConvertible, Scriptable, const
 
 from . import _ffi_api
-from . import generic as _generic
 from .buffer import Buffer, DataProducer
 
 
@@ -59,6 +58,8 @@ def _dtype_is_int(value):
         return True
     if isinstance(value, ExprOp):
         return value.expr_ty().matches_code(DataTypeCode.INT)
+    if ir.is_prim_expr(value):
+        return value.ty.matches_code(DataTypeCode.INT)
     return False
 
 
@@ -67,7 +68,19 @@ def _dtype_is_float(value):
         return True
     if isinstance(value, ExprOp):
         return value.expr_ty().matches_code(DataTypeCode.FLOAT)
+    if ir.is_prim_expr(value):
+        return value.ty.matches_code(DataTypeCode.FLOAT)
     return False
+
+
+def _is_scalar_operand(value):
+    if isinstance(value, ExprOp | int | float) or ir.is_prim_expr(value):
+        return True
+
+    # BufferRegion is a C++ PrimExprConvertible, but its Python wrapper is not an ExprOp.
+    from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
+
+    return isinstance(value, BufferRegion)
 
 
 class ExprOp:
@@ -83,48 +96,68 @@ class ExprOp:
         raise TypeError(f"Cannot determine PrimType for {type(self).__name__}")
 
     def __add__(self, other: Expr) -> Expr:
-        return _generic.add(self, other)
+        if not _is_scalar_operand(other):
+            return NotImplemented
+        return _ffi_api._OpAdd(self, other, None)  # type: ignore
 
     def __radd__(self, other: Expr) -> Expr:
-        return _generic.add(other, self)
+        if not _is_scalar_operand(other):
+            return NotImplemented
+        return _ffi_api._OpAdd(other, self, None)  # type: ignore
 
     def __sub__(self, other: Expr) -> Expr:
-        return _generic.subtract(self, other)
+        if not _is_scalar_operand(other):
+            return NotImplemented
+        return _ffi_api._OpSub(self, other, None)  # type: ignore
 
     def __rsub__(self, other: Expr) -> Expr:
-        return _generic.subtract(other, self)
+        if not _is_scalar_operand(other):
+            return NotImplemented
+        return _ffi_api._OpSub(other, self, None)  # type: ignore
 
     def __mul__(self, other: Expr) -> Expr:
-        return _generic.multiply(self, other)
+        if not _is_scalar_operand(other):
+            return NotImplemented
+        return _ffi_api._OpMul(self, other, None)  # type: ignore
 
     def __rmul__(self, other: Expr) -> Expr:
-        return _generic.multiply(other, self)
+        if not _is_scalar_operand(other):
+            return NotImplemented
+        return _ffi_api._OpMul(other, self, None)  # type: ignore
 
     def __div__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _generic.divide(self, other)
+        return _ffi_api._OpDiv(self, other, None)  # type: ignore
 
     def __rdiv__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _generic.divide(other, self)
+        return _ffi_api._OpDiv(other, self, None)  # type: ignore
 
     def __truediv__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _generic.divide(self, other)
+        return _ffi_api._OpDiv(self, other, None)  # type: ignore
 
     def __rtruediv__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         if _dtype_is_int(self) and _dtype_is_int(other):
             raise div_ambiguity_error()
-        return _generic.divide(other, self)
+        return _ffi_api._OpDiv(other, self, None)  # type: ignore
 
     def __floordiv__(self, other: Expr) -> Expr:
-        return _generic.floordiv(self, other)
+        return _ffi_api._OpFloorDiv(self, other, None)  # type: ignore
 
     def __rfloordiv__(self, other: Expr) -> Expr:
-        return _generic.floordiv(other, self, None)
+        return _ffi_api._OpFloorDiv(other, self, None)  # type: ignore
 
     def __mod__(self, other: Expr) -> Expr:
         return _ffi_api._OpFloorMod(self, other, None)  # type: ignore
@@ -232,7 +265,7 @@ class ExprOp:
         expr : Expr
             Expression with new type
         """
-        return _generic.cast(self, dtype, span)
+        return _ffi_api._cast(dtype, self, span)  # type: ignore
 
 
 _overload_prim_expr.__add__ = ExprOp.__add__
