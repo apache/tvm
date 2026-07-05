@@ -114,6 +114,41 @@ def test_lower_call_packed():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_lower_call_packed_raw_string():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.call_packed("testing.echo", "payload")
+
+    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
+    packed_values = []
+
+    def collect_packed_values(node):
+        if not isinstance(node, tvm.ir.Call):
+            return
+        if node.op != tvm.ir.Op.get("tirx.tvm_struct_set"):
+            return
+        if int(node.args[2]) == 15:  # kTVMFFIAnyUnionValue
+            packed_values.append(node.args[3])
+
+    tvm.tirx.stmt_functor.post_order_visit(After["main"].body, collect_packed_values)
+    raw_string = next(
+        value
+        for value in packed_values
+        if isinstance(value, tvm.ir.Call)
+        and value.op == tvm.ir.Op.get("tirx.reinterpret")
+        and isinstance(value.args[0], tvm.tirx.StringImm)
+    )
+    assert isinstance(raw_string.ty, tvm.ir.PointerType)
+    tvm.ir.assert_structural_equal(After, tvm.script.from_source(After.script()))
+
+    # The typed pointer is required by the LLVM TVMFFIAny lowering.
+    tvm.compile(Before, target="llvm")
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_return_non_i32():
     # This call packed that return non i32 types
     expected_value = np.array([1.2, 1.4], dtype="float32")
