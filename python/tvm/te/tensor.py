@@ -19,14 +19,18 @@
 # pylint: disable=invalid-name
 import tvm_ffi
 
-from tvm.runtime import Object, ObjectConvertible
+from tvm.runtime import Object, ObjectConvertible, const
 from tvm.tirx import DataProducer
 from tvm.tirx import expr as _expr
 
-from . import _ffi_api
+from . import _ffi_api, _te_tensor_overload
 
 
-class TensorSlice(ObjectConvertible, _expr.ExprOp):
+def _as_scalar_operand(value):
+    return value.asobject() if isinstance(value, TensorSlice) else value
+
+
+class TensorSlice(ObjectConvertible):
     """Auxiliary data structure for enable slicing syntax from tensor."""
 
     def __init__(self, tensor, indices):
@@ -53,9 +57,199 @@ class TensorSlice(ObjectConvertible, _expr.ExprOp):
         """Compile-time element type of the tensor."""
         return self.tensor.expr_ty()
 
+    def __add__(self, other):
+        result = _te_tensor_overload.__add__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__add__(self.asobject(), _as_scalar_operand(other))
+
+    def __radd__(self, other):
+        result = _te_tensor_overload.__radd__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__radd__(self.asobject(), _as_scalar_operand(other))
+
+    def __sub__(self, other):
+        result = _te_tensor_overload.__sub__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__sub__(self.asobject(), _as_scalar_operand(other))
+
+    def __rsub__(self, other):
+        result = _te_tensor_overload.__rsub__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__rsub__(self.asobject(), _as_scalar_operand(other))
+
+    def __mul__(self, other):
+        result = _te_tensor_overload.__mul__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__mul__(self.asobject(), _as_scalar_operand(other))
+
+    def __rmul__(self, other):
+        result = _te_tensor_overload.__rmul__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__rmul__(self.asobject(), _as_scalar_operand(other))
+
+    def __div__(self, other):
+        result = _te_tensor_overload.__div__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__div__(self.asobject(), _as_scalar_operand(other))
+
+    def __rdiv__(self, other):
+        result = _te_tensor_overload.__rdiv__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__rdiv__(self.asobject(), _as_scalar_operand(other))
+
+    def __truediv__(self, other):
+        result = _te_tensor_overload.__truediv__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__truediv__(self.asobject(), _as_scalar_operand(other))
+
+    def __rtruediv__(self, other):
+        result = _te_tensor_overload.__rtruediv__(self, other)
+        if result is not NotImplemented:
+            return result
+        return _expr.ExprOp.__rtruediv__(self.asobject(), _as_scalar_operand(other))
+
+    def __floordiv__(self, other):
+        return _expr.ExprOp.__floordiv__(self.asobject(), _as_scalar_operand(other))
+
+    def __rfloordiv__(self, other):
+        return _expr.ExprOp.__rfloordiv__(self.asobject(), _as_scalar_operand(other))
+
+    def __mod__(self, other):
+        return _expr.ExprOp.__mod__(self.asobject(), _as_scalar_operand(other))
+
+    def __rmod__(self, other):
+        return _expr.ExprOp.__rmod__(self.asobject(), _as_scalar_operand(other))
+
+    def __neg__(self):
+        return _expr.ExprOp.__neg__(self.asobject())
+
+    def __lshift__(self, other):
+        return _expr.ExprOp.__lshift__(self.asobject(), _as_scalar_operand(other))
+
+    def __rlshift__(self, other):
+        return _expr.ExprOp.__rlshift__(self.asobject(), _as_scalar_operand(other))
+
+    def __rshift__(self, other):
+        return _expr.ExprOp.__rshift__(self.asobject(), _as_scalar_operand(other))
+
+    def __rrshift__(self, other):
+        return _expr.ExprOp.__rrshift__(self.asobject(), _as_scalar_operand(other))
+
+    def __and__(self, other):
+        return _expr.ExprOp.__and__(self.asobject(), _as_scalar_operand(other))
+
+    def __rand__(self, other):
+        return _expr.ExprOp.__rand__(self.asobject(), _as_scalar_operand(other))
+
+    def __or__(self, other):
+        return _expr.ExprOp.__or__(self.asobject(), _as_scalar_operand(other))
+
+    def __ror__(self, other):
+        return _expr.ExprOp.__ror__(self.asobject(), _as_scalar_operand(other))
+
+    def __xor__(self, other):
+        return _expr.ExprOp.__xor__(self.asobject(), _as_scalar_operand(other))
+
+    def __rxor__(self, other):
+        return _expr.ExprOp.__rxor__(self.asobject(), _as_scalar_operand(other))
+
+    def __invert__(self):
+        return _expr.ExprOp.__invert__(self.asobject())
+
+    def __lt__(self, other):
+        return _expr.ExprOp.__lt__(self.asobject(), _as_scalar_operand(other))
+
+    def __le__(self, other):
+        return _expr.ExprOp.__le__(self.asobject(), _as_scalar_operand(other))
+
+    def __eq__(self, other):
+        return _expr.ExprOp.__eq__(self.asobject(), _as_scalar_operand(other))
+
+    def __ne__(self, other):
+        return _expr.ExprOp.__ne__(self.asobject(), _as_scalar_operand(other))
+
+    def __gt__(self, other):
+        return _expr.ExprOp.__gt__(self.asobject(), _as_scalar_operand(other))
+
+    def __ge__(self, other):
+        return _expr.ExprOp.__ge__(self.asobject(), _as_scalar_operand(other))
+
+    def __nonzero__(self):
+        return _expr.ExprOp.__nonzero__(self.asobject())
+
+    def __bool__(self):
+        return self.__nonzero__()
+
+    def equal(self, other, span=None):
+        return _expr.ExprOp.equal(self.asobject(), _as_scalar_operand(other), span)
+
+    def astype(self, dtype, span=None):
+        return _expr.ExprOp.astype(self.asobject(), dtype, span)
+
+
+class TensorOpBase:
+    """Operator overloads for whole TE Tensor values."""
+
+    def __add__(self, other):
+        return _te_tensor_overload.__add__(self, other)
+
+    def __radd__(self, other):
+        return _te_tensor_overload.__radd__(self, other)
+
+    def __sub__(self, other):
+        return _te_tensor_overload.__sub__(self, other)
+
+    def __rsub__(self, other):
+        return _te_tensor_overload.__rsub__(self, other)
+
+    def __mul__(self, other):
+        return _te_tensor_overload.__mul__(self, other)
+
+    def __rmul__(self, other):
+        return _te_tensor_overload.__rmul__(self, other)
+
+    def __div__(self, other):
+        return _te_tensor_overload.__div__(self, other)
+
+    def __rdiv__(self, other):
+        return _te_tensor_overload.__rdiv__(self, other)
+
+    def __truediv__(self, other):
+        return _te_tensor_overload.__truediv__(self, other)
+
+    def __rtruediv__(self, other):
+        return _te_tensor_overload.__rtruediv__(self, other)
+
+    def __neg__(self):
+        return self.__mul__(const(-1, self.expr_ty()))
+
+    def __nonzero__(self):
+        return _expr.ExprOp.__nonzero__(self)
+
+    def __bool__(self):
+        return self.__nonzero__()
+
+    def equal(self, other, span=None):
+        return _expr.ExprOp.equal(self, other, span)
+
+    def astype(self, dtype, span=None):
+        result = _te_tensor_overload.astype(self, dtype, span)
+        if result is NotImplemented:
+            raise TypeError("TE Tensor overload astype is not registered")
+        return result
+
 
 @tvm_ffi.register_object("te.Tensor")
-class Tensor(DataProducer, _expr.ExprOp):
+class Tensor(DataProducer, TensorOpBase):
     """Tensor object, to construct, see function.Tensor"""
 
     def __call__(self, *indices):

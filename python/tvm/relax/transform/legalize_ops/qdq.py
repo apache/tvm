@@ -147,8 +147,8 @@ def _dequantize(bb: BlockBuilder, call: Call) -> Expr:
                 if data.dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT)
                 else "int32"
             )
-            sub = te.subtract(data[indices].astype(dtype), zp_value)
-            out = te.multiply(sub, scale_value.astype("float32"))
+            sub = data[indices].astype(dtype) - zp_value
+            out = sub * scale_value.astype("float32")
             if out_dtype == "float32":
                 return out
             return clip_cast(out, out_dtype)

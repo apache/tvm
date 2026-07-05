@@ -61,7 +61,6 @@ from tvm import relax, tirx, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import UniqueNameSupply
 from tvm.runtime import DataType, DataTypeCode
-from tvm.tirx.generic import cast
 from tvm.topi.utils import get_const_tuple
 
 from ..common import autopad
@@ -3257,7 +3256,7 @@ class Resize(OnnxOpConverter):
             sizes = []
 
             for i, dim in enumerate(x.ty.shape):
-                sizes.append(cast(scales[i] * dim, "int64"))
+                sizes.append((scales[i] * dim).astype("int64"))
             sizes = sizes[2:]
         else:
             if isinstance(sizes, relax.Constant):

@@ -494,12 +494,12 @@ def _sort_common(
         target = tvm.target.Target.current()
         if "vulkan" in str(target):
             ntx = max_threads
-            nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-            nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
+            nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = cast(ceil_div(size, width), "int32")
         else:
-            ntx = tvm.tirx.generic.cast(tvm.te.min(max_threads, width), "int32")
-            nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-            nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
+            ntx = cast(tvm.te.min(max_threads, width), "int32")
+            nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = cast(ceil_div(size, width), "int32")
 
         tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
         with T.frame_scope(
@@ -635,9 +635,7 @@ def sort_ir(
                     indices_out,
                     value_init_func=(
                         lambda _, tid: (
-                            tvm.tirx.generic.cast(tid, indices_out_orig.dtype)
-                            if indices_out is not None
-                            else None
+                            cast(tid, indices_out_orig.dtype) if indices_out is not None else None
                         )
                     ),
                 )

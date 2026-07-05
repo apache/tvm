@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-statements
 "Scan related operators"
 
+import operator
 from collections.abc import Callable
 
 import tvm
@@ -29,11 +30,13 @@ from ..math import cast, ceil_log2
 from ..transform import expand_dims, reshape, squeeze, transpose
 from ..utils import ceil_div, get_const_int, prod, swap
 
+_THRUST_SUM_SCAN = "tvm.contrib.thrust.sum_scan"
+
 
 def _get_thrust_func_name(tvmop):
-    tvmop_to_thrust_func_name = {tvm.tirx.generic.add: "tvm.contrib.thrust.sum_scan"}
-    assert tvmop in tvmop_to_thrust_func_name, f"{tvmop} not supported by thrust"
-    return tvmop_to_thrust_func_name[tvmop]
+    if tvmop is not operator.add:
+        raise ValueError(f"{tvmop} not supported by thrust")
+    return _THRUST_SUM_SCAN
 
 
 def _can_use_scan_thrust(binop):
@@ -43,16 +46,15 @@ def _can_use_scan_thrust(binop):
     target = tvm.target.Target.current()
     if target is None:
         return False
-    # pylint: disable=comparison-with-callable
-    return binop == tvm.tirx.generic.add and any(
+    return binop is operator.add and any(
         [
-            can_use_thrust(target, "tvm.contrib.thrust.sum_scan"),
-            can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan"),
+            can_use_thrust(target, _THRUST_SUM_SCAN),
+            can_use_rocthrust(target, _THRUST_SUM_SCAN),
         ]
     )
 
 
-def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tirx.generic.add, identity_value=0):
+def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity_value=0):
     """Low level IR to do exclusive sum scan along rows of 2D input.
 
     Parameters
@@ -68,8 +70,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tirx.generic.add, 
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
-        prefix sum.
+        and produce a new TIR expression. By default it uses ``operator.add`` to compute prefix
+        sum.
 
     identity_value: int or float
         A value for the binary operation which provides the identity property. E.g. if * is
@@ -140,9 +142,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tirx.generic.add, 
                             T.attr(
                                 bx,
                                 "thread_extent",
-                                tvm.tirx.generic.cast(
-                                    ceil_div(scan_axis_size, max_threads * width), "int32"
-                                ),
+                                cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
                             ),
                             T.attr(by, "thread_extent", nthread_by),
                         ]
@@ -188,9 +188,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tirx.generic.add, 
                             T.attr(
                                 bx,
                                 "thread_extent",
-                                tvm.tirx.generic.cast(
-                                    ceil_div(scan_axis_size, max_threads * width), "int32"
-                                ),
+                                cast(ceil_div(scan_axis_size, max_threads * width), "int32"),
                             ),
                             T.attr(by, "thread_extent", nthread_by),
                         ]
@@ -218,7 +216,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tirx.generic.add, 
         return ib.get()
 
 
-def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tirx.generic.add):
+def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
     """Return the sum of the last element of data and the exclusive scan output.
     The is the reduction of data along each row (for 2-D case).
 
@@ -232,8 +230,8 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tirx.gener
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
-        prefix sum.
+        and produce a new TIR expression. By default it uses ``operator.add`` to compute prefix
+        sum.
 
     Returns
     -------
@@ -312,7 +310,7 @@ def scan_thrust(
     output_dtype,
     exclusive=True,
     return_reduction=False,
-    binop=tvm.tirx.generic.add,
+    binop=operator.add,
     workspace=None,
 ):
     """Do exclusive or inclusive scan on 1D or multidimensional input, using thrust.
@@ -336,7 +334,7 @@ def scan_thrust(
     binop: function, optional
         A binary associative op to use for scan. Since we need to lookup the corresponding
         thrust function, arbitrariy callables are not supported. Currently only
-        tvm.tirx.generic.add can be passed in.
+        ``operator.add`` can be passed in.
 
     workspace: Optional[tvm.te.Tensor]
         A buffer to store intermediate results. The size of the workspace should be sufficiently
@@ -397,7 +395,7 @@ def exclusive_scan(
     axis=-1,
     return_reduction=False,
     output_dtype=None,
-    binop=tvm.tirx.generic.add,
+    binop=operator.add,
     identity_value=0,
     workspace=None,
 ):
@@ -422,8 +420,8 @@ def exclusive_scan(
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
-        prefix sum.
+        and produce a new TIR expression. By default it uses ``operator.add`` to compute prefix
+        sum.
 
     identity_value: int or float
         A value for the binary operation which provides the identity property. E.g. if * is
@@ -534,7 +532,7 @@ def exclusive_scan(
 
 
 def inclusive_scan(
-    data, axis=-1, output_dtype=None, binop=tvm.tirx.generic.add, identity_value=0, workspace=None
+    data, axis=-1, output_dtype=None, binop=operator.add, identity_value=0, workspace=None
 ):
     """Do inclusive scan on 1D or multidimensional input.
 
@@ -551,8 +549,8 @@ def inclusive_scan(
 
     binop: function, optional
         A binary associative op to use for scan. The function takes two TIR expressions
-        and produce a new TIR expression. By default it uses tvm.tirx.generic.add to compute
-        prefix sum.
+        and produce a new TIR expression. By default it uses ``operator.add`` to compute prefix
+        sum.
 
     identity_value: int or float
         A value for the binary operation which provides the identity property. E.g. if * is
@@ -717,7 +715,7 @@ def cumsum(
     """
     return scanop(
         data=data,
-        binop=tvm.tirx.generic.add,
+        binop=operator.add,
         identity_value=0,
         axis=axis,
         dtype=dtype,
@@ -767,7 +765,7 @@ def cumprod(
     """
     return scanop(
         data=data,
-        binop=tvm.tirx.generic.multiply,
+        binop=operator.mul,
         identity_value=1,
         axis=axis,
         dtype=dtype,
