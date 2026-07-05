@@ -56,7 +56,7 @@ class IndexMapNode : public ffi::Object {
    * If initial_indices is empty, then final_indices should also be
    * empty, and no mapping is applied.
    */
-  ffi::Array<Var> initial_indices;
+  ffi::Array<PrimVar> initial_indices;
 
   /*!
    * \brief Expressions defining the indices after remapping.
@@ -197,7 +197,7 @@ class IndexMap : public ffi::ObjectRef {
    * \param final_indices Expressions defining the indices after remapping.
    * \param inverse_index_map The optional pre-defined inverse index map
    */
-  IndexMap(ffi::Array<Var> initial_indices, ffi::Array<PrimExpr> final_indices,
+  IndexMap(ffi::Array<PrimVar> initial_indices, ffi::Array<PrimExpr> final_indices,
            ffi::Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*!

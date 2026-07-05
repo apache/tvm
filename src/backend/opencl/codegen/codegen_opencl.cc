@@ -79,12 +79,13 @@ void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   this->SetTextureScope(InferTextureAccess().Infer(f->body));
   for (Var arg : f->params) {
-    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
+    auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
       // Storage scope qualifiers for textures are inferred
       // and set prior to function codegen.
       continue;
-    } else if (arg.ty().IsHandle()) {
+    }
+    if (ptr_type) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -94,7 +95,7 @@ void CodeGenOpenCL::PrintFuncPrefix(std::ostream& os) { os << "__kernel "; }
 
 void CodeGenOpenCL::PreFunctionBody(const PrimFunc& f) {
   for (Var arg : f->params) {
-    auto ptr_type = arg->type_annotation.as<PointerTypeNode>();
+    auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {
       this->stream << "  const sampler_t image_sampler = "
                       "CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP | CLK_FILTER_NEAREST;\n";
@@ -195,11 +196,6 @@ void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
 void CodeGenOpenCL::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
-    os << "void*";
-    return;
-  }
   if (t.IsVoid()) {
     os << "void";
     return;
@@ -373,7 +369,7 @@ void CodeGenOpenCL::PrintStorageScope(const std::string& scope, std::ostream& os
 
 void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
   // Apply restrict qualifer for non-texture types only
-  if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+  if (auto* ptr = v->ty.as<PointerTypeNode>()) {
     if (!runtime::IsTextureStorage(std::string(ptr->storage_scope))) {
       os << ' ' << restrict_keyword_;
     }
@@ -433,7 +429,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {
-    auto* ptr_type = op->args[0].as<VarNode>()->type_annotation.as<PointerTypeNode>();
+    auto* ptr_type = op->args[0].as<VarNode>()->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr_type != nullptr) << "Texture Var's must be of PointerType";
     TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(ptr_type->storage_scope)))
         << "builtin::texture2d_store() only supports storing to texture buffers";
@@ -446,8 +442,8 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::stringstream ss;
     this->PrintExpr(op->args[5].as_or_throw<PrimExpr>(), ss);
     std::string value;
-    value = this->SSAGetID(ss.str(),
-                           PrimType(buffer_type).WithLanes(channel_size / buffer_type.bits)->dtype);
+    value =
+        this->SSAGetID(ss.str(), PrimType(buffer_type).WithLanes(channel_size / buffer_type.bits));
     if (channel_size == 64) {
       os << "write_imageh(";
     } else if (channel_size == 128) {
@@ -455,7 +451,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
-    this->PrintExpr(op->args[0].as_or_throw<PrimExpr>(), os);
+    this->PrintExpr(op->args[0], os);
     os << ", ";
     os << "(int4)(";
     this->PrintExpr(op->args[1].as_or_throw<PrimExpr>(), os);
@@ -488,7 +484,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     } else {
       TVM_FFI_THROW(InternalError) << "Unsupported Channel Size: " << channel_size;
     }
-    this->PrintExpr(op->args[0].as_or_throw<PrimExpr>(), ss);
+    this->PrintExpr(op->args[0], ss);
     ss << ", ";
     ss << "image_sampler, ";
     ss << "((int4)(";
@@ -501,7 +497,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->PrintExpr(IntImm::Int32(0), ss);
     ss << "))))";
 
-    std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes)->dtype);
+    std::string rhs = SSAGetID(ss.str(), op_ty.WithLanes(data_lanes));
     if (auto ramp = op->args.back().as<RampNode>()) {
       if (ramp->base.as<IntImmNode>() && *tirx::as_const_int(ramp->base) == 0 &&
           *tirx::as_const_int(ramp->lanes) == data_lanes &&
@@ -532,10 +528,10 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     if (func->value == "atomic_add" &&
         op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLFloat) {
       enable_atomics_ = true;
-      ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+      ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, "atomic_add_float_emu", args, true, os);
     } else if (func->value == "nearbyint") {
-      ffi::Array<PrimExpr> args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+      ffi::Array<Expr> args = op->args;
       this->PrintCallExtern(op->ty, "rint", args, true, os);
     } else {
       if (func->value == "atomic_add") {

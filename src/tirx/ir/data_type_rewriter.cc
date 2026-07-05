@@ -46,13 +46,14 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   Stmt s = StmtExprMutator::VisitStmt_(op);
   op = s.as<ForNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
-  PrimExpr e = VisitPrimExpr(op->loop_var);
+  PrimExpr e = VisitExpr(op->loop_var).as_or_throw<PrimExpr>();
   Var var = e.as_or_throw<Var>();
   auto n = CopyOnWrite(op);
-  n->min = cast(var.ty(), op->min);
-  n->extent = cast(var.ty(), op->extent);
+  PrimType var_ty = var->ty.as_or_throw<PrimType>();
+  n->min = cast(var_ty, op->min);
+  n->extent = cast(var_ty, op->extent);
   if (op->step.has_value()) {
-    n->step = cast(var.ty(), *op->step);
+    n->step = cast(var_ty, *op->step);
   }
   return For(n);
 }
@@ -105,8 +106,8 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     const IterVarNode* iv = op->node.as<IterVarNode>();
     TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                                   << ", but get " << op->node.GetTypeKey();
-    PrimExpr e = VisitPrimExpr(iv->var);
-    Var var = e.as_or_throw<Var>();
+    PrimExpr e = VisitExpr(iv->var).as_or_throw<PrimExpr>();
+    PrimVar var = e.as_or_throw<PrimVar>();
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
       if (dom.defined()) {
@@ -130,7 +131,7 @@ Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitPrimExpr(op->value);
   Var var = op->var;
 
-  if (value.ty() != op->var.ty()) {
+  if (value.ty() != op->var->ty.as_or_throw<PrimType>()) {
     var = op->var.copy_with_dtype(value.ty());
     var_remap_[op->var.get()] = var;
   }
@@ -145,12 +146,14 @@ Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
-  PrimExpr value = this->VisitPrimExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   Var var = op->var;
 
-  if (value.ty() != op->var.ty()) {
-    var = op->var.copy_with_dtype(value.ty());
-    var_remap_[op->var.get()] = var;
+  if (auto prim_value = value.as<PrimExpr>()) {
+    if (prim_value.value().ty() != op->var->ty.as_or_throw<PrimType>()) {
+      var = op->var.copy_with_dtype(prim_value.value().ty());
+      var_remap_[op->var.get()] = var;
+    }
   }
 
   if (value.same_as(op->value) && var.same_as(op->var)) {
@@ -236,10 +239,14 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   Call before = ffi::GetRef<Call>(op);
-  PrimExpr e = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be CallNode"
                                 << ", but get " << e->GetTypeKey();
+  if (!op->ty.as<PrimTypeNode>()) {
+    return e;
+  }
+  PrimExpr prim_e = e.as_or_throw<PrimExpr>();
   if (op->op.same_as(builtin::shift_right())) {
     return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::shift_left())) {
@@ -274,9 +281,9 @@ Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
                    (after_dtype.bits() == 32 || after_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
         << after_dtype;
-    return e - after_dtype.bits() + before_dtype.bits();
+    return prim_e - after_dtype.bits() + before_dtype.bits();
   }
-  return e;
+  return prim_e;
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
@@ -407,7 +414,7 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
 IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_var = VisitPrimExpr(iter_var->var).as_or_throw<Var>();
+  PrimVar new_var = VisitPrimExpr(iter_var->var).as_or_throw<PrimVar>();
   PrimExpr min = VisitPrimExpr(iter_var->dom->min);
   PrimExpr extent = VisitPrimExpr(iter_var->dom->extent);
   is_enabled_ = is_enabled;
@@ -515,7 +522,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
 Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_loop_var = VisitPrimExpr(op->loop_var).as_or_throw<Var>();
+  PrimVar new_loop_var = VisitPrimExpr(op->loop_var).as_or_throw<PrimVar>();
   PrimExpr min = VisitPrimExpr(op->min);
   PrimExpr extent = VisitPrimExpr(op->extent);
   is_enabled_ = is_enabled;
@@ -550,10 +557,10 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
   }
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  PrimExpr value = VisitPrimExpr(op->value);
+  PrimExpr value = VisitExpr(op->value).as_or_throw<PrimExpr>();
   Var var = var_remap_[bind_stmt->var.get()];
   is_enabled_ = is_enabled;
-  TVM_FFI_ICHECK(value.ty() == var.ty());
+  TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
   return Bind(var, value, bind_stmt->span);
 }
 
@@ -631,8 +638,9 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   bool is_enabled = true;
   std::swap(is_enabled_, is_enabled);
   ffi::Array<Var> params = func->params.Map([this](Var param) {
-    if (param.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
-      return this->VisitPrimExpr(param).as_or_throw<Var>();
+    if (auto param_ty = param->ty.as<PrimType>();
+        param_ty && param_ty.value().MatchesCode(DLDataTypeCode::kDLInt)) {
+      return this->VisitPrimExpr(param.as_or_throw<PrimExpr>()).as_or_throw<Var>();
     } else {
       return param;
     }
@@ -659,7 +667,11 @@ Expr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 Expr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  PrimType dtype = op->ty.as_or_throw<PrimType>();
+  auto dtype_opt = op->ty.as<PrimType>();
+  if (!dtype_opt) {
+    return DataTypeLegalizer::VisitExpr_(op);
+  }
+  PrimType dtype = dtype_opt.value();
   if (is_enabled_ && CanRewriteDType(dtype) && dtype->dtype != target_data_type_->dtype &&
       !var_remap_.count(op)) {
     var_remap_[op] = ffi::GetRef<Var>(op).copy_with_dtype(target_data_type_);

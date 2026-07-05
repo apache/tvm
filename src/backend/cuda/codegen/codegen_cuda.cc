@@ -326,12 +326,6 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
 
 void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_ICHECK(t.IsScalar()) << "do not yet support vector types";
-    os << "void*";
-    return;
-  }
-
   if (t.IsVoid()) {
     os << "void";
     return;
@@ -859,11 +853,11 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                                  const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                                  const ffi::Array<Expr>& args, bool skip_first_arg,
                                   std::ostream& os) {  // NOLINT(*)
-  DLDataType ret_dtype = GetRuntimeDataType(ret_type);
-  PrimType ret_ty(ret_dtype);
-  if (ret_ty.IsFixedLengthVector()) {
+  auto ret_prim_type = ret_type.as<PrimType>();
+  if (ret_prim_type && ret_prim_type.value().IsFixedLengthVector()) {
+    PrimType ret_ty = ret_prim_type.value();
     //
     // Emit an unsupported vector call
     //
@@ -892,7 +886,8 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
       std::vector<std::string> sargs;
       size_t arg_begin = static_cast<size_t>(skip_first_arg);
       for (size_t i = arg_begin; i < args.size(); ++i) {
-        std::string val = SSAGetID(PrintExpr(args[i]), args[i].ty());
+        Expr arg = args[i];
+        std::string val = SSAGetID(PrintExpr(arg), arg->ty);
         sargs.push_back(std::move(val));
       }
 
@@ -902,7 +897,13 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
         scall << global_symbol << "(";
         for (size_t j = 0; j < sargs.size(); ++j) {
           if (j > 0) scall << ", ";
-          PrintVecElemLoad(sargs[j], args[arg_begin + j].ty(), i, scall);
+          Type arg_type = args[arg_begin + j]->ty;
+          if (auto prim_type = arg_type.as<PrimType>()) {
+            PrintVecElemLoad(sargs[j], prim_type.value(), i, scall);
+          } else {
+            TVM_FFI_ICHECK(arg_type.as<PointerTypeNode>());
+            scall << sargs[j];
+          }
         }
         scall << ")";
         PrintVecElemStore(sret, ret_ty, i, scall.str());
@@ -1329,24 +1330,26 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
            << guard << ")\n";
     stream << ");\n";
   } else if (op->op.same_as(builtin::reinterpret())) {
+    auto tgt_prim_type = op->ty.as<PrimType>();
+    auto src_prim_type = op->args[0]->ty.as<PrimType>();
+
+    if (op->args[0]->ty.as<PointerTypeNode>() && tgt_prim_type &&
+        tgt_prim_type.value().IsScalar() &&
+        tgt_prim_type.value().MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
+        tgt_prim_type.value().bits() == 64) {
+      os << "reinterpret_cast<";
+      this->PrintType(tgt_prim_type.value(), os);
+      os << ">(" << PrintExpr(op->args[0]) << ")";
+      return;
+    }
+
+    if (!tgt_prim_type || !src_prim_type) {
+      return CodeGenC::VisitExpr_(op, os);
+    }
+
     PrimType tgt_ty = op->ty.as_or_throw<PrimType>();
     PrimExpr value = op->args[0].as_or_throw<PrimExpr>();
     PrimType src_ty = value.ty();
-
-    if (src_ty.IsHandle() && tgt_ty.IsScalar() &&
-        tgt_ty.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
-        tgt_ty.bits() == 64) {
-      os << "reinterpret_cast<";
-      this->PrintType(tgt_ty, os);
-      os << ">(" << PrintExpr(value) << ")";
-      return;
-    }
-    if (tgt_ty.IsHandle() && src_ty.IsScalar() &&
-        src_ty.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
-        src_ty.bits() == 64) {
-      os << "reinterpret_cast<void*>(" << PrintExpr(value) << ")";
-      return;
-    }
 
     // Handle float4_e2m1fn reinterpret
     if (!IsFloat4(src_ty) && !IsFloat4(tgt_ty)) {
@@ -1378,7 +1381,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         // and finally reinterpret the result as fp4x2.
         value =
             Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
-        tirx::Var temp_var("temp_var", PrimType::UInt(16));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = tirx::Let(temp_var, value,
                           tirx::Cast(PrimType::UInt(8),
                                      (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
@@ -1387,7 +1390,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value = tirx::Cast(
             PrimType::UInt(16),
             Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
-        tirx::Var temp_var("temp_var", PrimType::UInt(16));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = tirx::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
@@ -1399,7 +1402,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         // and finally reinterpret the result as fp4x4.
         value =
             Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
-        tirx::Var temp_var("temp_var", PrimType::UInt(32));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = tirx::Let(temp_var, value,
                           tirx::Cast(PrimType::UInt(16),
                                      (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
@@ -1410,7 +1413,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
         value = tirx::Cast(PrimType::UInt(32),
                            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
                                .as_or_throw<PrimExpr>());
-        tirx::Var temp_var("temp_var", PrimType::UInt(32));
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = tirx::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF0)) << 4) |
@@ -1426,7 +1429,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::print_buffer())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 5U) << "Print operation expects at least 5 arguments";
 
-    PrimExpr arg = op->args[0].as_or_throw<PrimExpr>();
+    Expr arg = op->args[0];
     const auto* var_node = arg.as<VarNode>();
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
     bool is_string = op->args[2].as<IntImmNode>()->value;
@@ -1702,7 +1705,7 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
+  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call && call->op.same_as(builtin::tvm_global_barrier_kinit())) {
     PrintIndent();

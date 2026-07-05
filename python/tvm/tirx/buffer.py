@@ -58,7 +58,7 @@ class Buffer(Object, Scriptable):
             The access pattern MASK. Indicate whether the
             access will read or write to the data content.
 
-        ptr_type : str, optional
+        ptr_type : str or tvm.ir.Type, optional
             The data type of the result pointer. Do not specify
             unless we want to cast pointer to specific type.
 
@@ -98,6 +98,14 @@ class Buffer(Object, Scriptable):
                 else:
                     raise ValueError(f"Unknown access_mask {access_mask}")
             access_mask = mask
+        if isinstance(ptr_type, str):
+            ptr_type = (
+                PointerType(PrimType("void"))
+                if ptr_type == "handle"
+                else PointerType(PrimType(ptr_type))
+            )
+        elif isinstance(ptr_type, PrimType):
+            ptr_type = PointerType(ptr_type)
         offset = convert(offset)
         extent = convert(extent)
         return _ffi_api.BufferAccessPtr(

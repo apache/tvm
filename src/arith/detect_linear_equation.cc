@@ -54,10 +54,10 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
     *ret = VisitExpr(e, e);
     if (fail_) return false;
     if (!ret->base.defined()) {
-      ret->base = IntImm(var_.ty(), 0);
+      ret->base = IntImm(var_->ty.as_or_throw<PrimType>(), 0);
     }
     if (!ret->coeff.defined()) {
-      ret->coeff = IntImm(var_.ty(), 0);
+      ret->coeff = IntImm(var_->ty.as_or_throw<PrimType>(), 0);
     }
     return true;
   }

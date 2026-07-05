@@ -140,8 +140,9 @@ class HostDeviceSplitter : public StmtMutator {
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
+            bool is_handle = var->ty.as<PointerTypeNode>() != nullptr;
             return std::tuple{
-                !var->ty.as_or_throw<PrimType>().IsHandle(),
+                !is_handle,
                 var->name_hint,
             };
           };
@@ -199,12 +200,13 @@ class HostDeviceSplitter : public StmtMutator {
     }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
-    ffi::Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
+    ffi::Array<Expr> args = params.Map([](const Var& var) -> Expr { return var; });
 
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success.ty());
       Call kernel_call(success.ty(), kernel_symbol_global, args);
-      AssertStmt assert_success(kernel_error_code == success, StringImm("RuntimeError"),
+      AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
+                                StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
       return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
                                       assert_success});
@@ -310,7 +312,13 @@ class DeviceInfoCollector : public StmtVisitor {
     // variables (e.g. CSE variables) can be inlined back to
     // expressions over function parameters.  Substitute earlier
     // bindings into the value to handle chains (cse_v2 = f(cse_v1)).
-    PrimExpr value = bind_map_.size() ? Substitute(op->value, bind_map_) : op->value;
+    auto prim_value = op->value.as<PrimExpr>();
+    if (!prim_value) {
+      StmtVisitor::VisitStmt_(op);
+      return;
+    }
+    PrimExpr value =
+        bind_map_.size() ? Substitute(prim_value.value(), bind_map_) : prim_value.value();
     bind_map_.Set(op->var, value);
     StmtVisitor::VisitStmt_(op);
   }
@@ -512,7 +520,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto node = Parent::VisitExpr_(op).as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();
-    if (!gvar) return node.as_or_throw<PrimExpr>();
+    if (!gvar) return node;
 
     auto it = device_info_map_.find(gvar);
     TVM_FFI_ICHECK(it != device_info_map_.end())
@@ -556,7 +564,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       if (same_target) {
         // Calls within the same target may be handled at codegen time
         // as internal subroutine calls.
-        return node.as_or_throw<PrimExpr>();
+        return node;
       }
 
       bool same_device_type =
@@ -566,13 +574,12 @@ class DeviceKernelMutator : public StmtExprMutator {
         // calling a custom TIRToRuntime target) do not require a kernel
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
-        ffi::Array<PrimExpr> args;
+        ffi::Array<Expr> args;
         args.push_back(StringImm(gvar->name_hint));
-        for (const PrimExpr& arg : node->args.as_or_throw<ffi::Array<PrimExpr>>()) {
+        for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
-        return Call(node->ty.as_or_throw<PrimType>(), builtin::call_extern(), args)
-            .as_or_throw<PrimExpr>();
+        return Call(node->ty, builtin::call_extern(), args);
       }
     }
 
@@ -587,23 +594,25 @@ class DeviceKernelMutator : public StmtExprMutator {
     // caller's parameters.  The param_map allows substitution of
     // parameter values into the thread extents, to generate
     // expressions that are valid within the caller.
-    ffi::Array<PrimExpr> prim_args = node->args.as_or_throw<ffi::Array<PrimExpr>>();
+    const ffi::Array<Expr>& args = node->args;
     ffi::Map<Var, PrimExpr> param_map = [&]() {
       ffi::Map<Var, PrimExpr> param_map;
-      TVM_FFI_ICHECK_EQ(prim_args.size(), dev_info.params.size())
+      TVM_FFI_ICHECK_EQ(args.size(), dev_info.params.size())
           << "Function " << gvar->name_hint << " accepts " << dev_info.params.size()
-          << " arguments as input, but is called using " << prim_args.size() << " arguments";
-      for (size_t i = 0; i < prim_args.size(); i++) {
-        param_map.Set(dev_info.params[i], prim_args[i]);
+          << " arguments as input, but is called using " << args.size() << " arguments";
+      for (size_t i = 0; i < args.size(); i++) {
+        if (auto prim_arg = args[i].as<PrimExpr>()) {
+          param_map.Set(dev_info.params[i], prim_arg.value());
+        }
       }
       return param_map;
     }();
 
     device_kernel_launch_.insert(gvar);
 
-    ffi::Array<PrimExpr> call_args;
+    ffi::Array<Expr> call_args;
     call_args.push_back(StringImm(dev_info.global_symbol));
-    for (const PrimExpr& arg : prim_args) {
+    for (const Expr& arg : args) {
       call_args.push_back(arg);
     }
     for (const auto& launch_arg : dev_info.launch_args) {
