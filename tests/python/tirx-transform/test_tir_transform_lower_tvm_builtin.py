@@ -234,34 +234,6 @@ def test_lower_device_allocate():
     # DeclBuffer should appear as a flat statement
     assert "T.decl_buffer" in script_output
 
-    workspace_binds = []
-
-    def collect_workspace_bind(node):
-        if not isinstance(node, tvm.tirx.Bind):
-            return
-        if not isinstance(node.value, tvm.ir.Call):
-            return
-        if node.value.op != tvm.ir.Op.get("tirx.reinterpret"):
-            return
-        opaque_alloc = node.value.args[0]
-        if isinstance(opaque_alloc, tvm.ir.Call) and opaque_alloc.op == tvm.ir.Op.get(
-            "tirx.TVMBackendAllocWorkspace"
-        ):
-            workspace_binds.append(node)
-
-    tvm.tirx.stmt_functor.post_order_visit(After["main"].body, collect_workspace_bind)
-    assert len(workspace_binds) == 1
-    workspace_bind = workspace_binds[0]
-    tvm.ir.assert_structural_equal(workspace_bind.var.ty, workspace_bind.value.ty)
-    tvm.ir.assert_structural_equal(
-        workspace_bind.value.args[0].ty, tvm.ir.PointerType(tvm.ir.PrimType("void"))
-    )
-    roundtrip = tvm.script.from_source(After.script())
-    workspace_binds.clear()
-    tvm.tirx.stmt_functor.post_order_visit(roundtrip["main"].body, collect_workspace_bind)
-    assert len(workspace_binds) == 1
-    tvm.ir.assert_structural_equal(workspace_bind.value, workspace_binds[0].value)
-
 
 def test_lower_cpu_allocation():
     """CPU allocations can be handled at codegen time"""

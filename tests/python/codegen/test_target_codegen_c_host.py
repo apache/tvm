@@ -228,13 +228,15 @@ def test_subroutine_call():
 
 
 def test_workspace_allocation_cast():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((16,), "float32")):
-            workspace = T.alloc_buffer((16,), "float32", scope="local")
-            workspace[0] = A[0]
-            A[0] = workspace[0]
+        @T.prim_func
+        def main(A: T.Buffer((256,), "float32")):
+            workspace = T.alloc_buffer((256,), "float32", scope="global")
+            for i in range(256):
+                workspace[i] = A[i]
+            for i in range(256):
+                A[i] = workspace[i]
 
     built = tvm.tirx.build(Module, target="c")
     assert "((float*)TVMBackendAllocWorkspace(" in built.inspect_source()
