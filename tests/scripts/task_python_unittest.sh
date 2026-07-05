@@ -18,7 +18,8 @@
 
 set -euxo pipefail
 
-source tests/scripts/setup-pytest-env.sh
+export PYTHONPATH="$(pwd)/python"
+export PYTEST_ADDOPTS="-s -vv ${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
@@ -26,23 +27,20 @@ find . -type f -path "*.pyc" | xargs rm -f
 # setup tvm-ffi into python folder
 uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
-# NOTE: also set by task_python_unittest_gpuonly.sh.
-if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
-    TVM_UNITTEST_TESTSUITE_NAME=python-unittest
+# First run the minimal platform test.  A GPU-only run can select no tests here.
+if [ ! -d tests/python/all-platform-minimal-test ]; then
+    echo "Missing pytest target: tests/python/all-platform-minimal-test" >&2
+    exit 1
 fi
+python3 -m pytest -n auto tests/python/all-platform-minimal-test || [ "$?" -eq 5 ]
 
-# First run minimal test on both ctypes and cython.
-run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
-
-# Then run all unittests on both ctypes and cython.
+# Then run all unit tests.
 TEST_FILES=(
-  "ffi"
   "arith"
   "ci"
   "codegen"
   "driver"
   "ir"
-  "meta_schedule"
   "runtime"
   "target"
   "te"
@@ -51,6 +49,7 @@ TEST_FILES=(
   "s_tir/schedule"
   "s_tir/dlight"
   "s_tir/analysis"
+  "s_tir/meta_schedule"
   "s_tir/transform"
   "tirx-analysis"
   "tirx-base"
@@ -62,7 +61,13 @@ TEST_FILES=(
 
 PYTEST_TARGETS=()
 for TEST_FILE in "${TEST_FILES[@]}"; do
-    PYTEST_TARGETS+=("tests/python/${TEST_FILE}")
+    TEST_PATH="tests/python/${TEST_FILE}"
+    if [ ! -e "${TEST_PATH}" ]; then
+        echo "Missing pytest target: ${TEST_PATH}" >&2
+        exit 1
+    fi
+    PYTEST_TARGETS+=("${TEST_PATH}")
 done
 
-run_pytest "${TVM_UNITTEST_TESTSUITE_NAME}" "${PYTEST_TARGETS[@]}"
+# Do not mask pytest's exit 5: an unexpectedly empty broad suite must fail CI.
+python3 -m pytest -n auto --dist=loadgroup "${PYTEST_TARGETS[@]}"

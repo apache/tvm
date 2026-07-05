@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501
-import hashlib
 import os
 import sys
 from pathlib import Path
@@ -23,58 +21,6 @@ from pathlib import Path
 pytest_plugins = ["tvm.testing.plugin"]
 IS_IN_CI = os.getenv("CI", "") == "true"
 REPO_ROOT = Path(__file__).resolve().parent
-
-
-# These are long running tests (manually curated and extracted from CI logs)
-# that should be allocated to test shards in a round-robin fashion. These are
-# taken from the 20 (arbitrary number) of tests as from
-# https://ci.tlcpack.ai/job/tvm/job/main/2907/testReport
-_slowest_tests = []
-HARDCODED_ALLOCATIONS = {}
-for idx, test in enumerate(_slowest_tests):
-    HARDCODED_ALLOCATIONS[test] = idx
-
-# These rely on running on the same node to pass successfully
-FIXED_ALLOCATION_PREFIXES = {
-    "tests/python/testing/test_tvm_testing_features.py": 0,
-}
-
-
-def find_shard_index(nodeid: str, num_shards: int) -> int:
-    """
-    Return the index of the shard that should run this test
-    """
-    for prefix, target_shard_idx in FIXED_ALLOCATION_PREFIXES.items():
-        if nodeid.startswith(prefix):
-            if target_shard_idx >= num_shards:
-                raise RuntimeError(
-                    f"Cannot collect sharded tests, {nodeid} has hardcoded shard index {target_shard_idx} among only {num_shards} shards"
-                )
-            return target_shard_idx
-
-    if nodeid in HARDCODED_ALLOCATIONS:
-        hash = HARDCODED_ALLOCATIONS[nodeid]
-    else:
-        hash = hashlib.md5(nodeid.encode())
-        hash = int(hash.hexdigest(), 16)
-
-    return hash % num_shards
-
-
-def pytest_collection_modifyitems(config, items):
-    if not all(k in os.environ for k in ["CI", "TVM_NUM_SHARDS", "TVM_SHARD_INDEX"]):
-        # Only apportion tests if in CI and in a job that is set up for it
-        return
-
-    num_shards = int(os.environ["TVM_NUM_SHARDS"])
-    shard_index = int(os.environ["TVM_SHARD_INDEX"])
-
-    print(f"Marking tests for shard {shard_index} of {num_shards}")
-    items_copy = list(items)
-    for item in items_copy:
-        item_shard_index = find_shard_index(item.nodeid, num_shards=num_shards)
-        if item_shard_index != shard_index:
-            items.remove(item)
 
 
 def pytest_sessionstart():

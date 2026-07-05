@@ -242,7 +242,7 @@ Necessary dependencies:
 
 .. code:: bash
 
-  pip install --user pytest Cython
+  pip install --user pytest pytest-xdist Cython
 
 If you want to run all tests:
 

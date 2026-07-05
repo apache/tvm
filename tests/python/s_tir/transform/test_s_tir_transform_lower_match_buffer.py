@@ -486,7 +486,7 @@ def fail_buffer_bind(a: T.handle) -> None:
 
 # well-formed checker complains about redefinition of a stride variable
 @T.prim_func(check_well_formed=False, s_tir=True)
-def fail_match_func_param(a: T.handle, m: T.handle, n: T.handle) -> None:
+def fail_match_func_param(a: T.handle, m: T.int32, n: T.int32) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
         with T.sblock():

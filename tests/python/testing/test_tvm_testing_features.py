@@ -14,10 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, RUF012
+# ruff: noqa: RUF012
 
 import os
-import sys
 
 import pytest
 

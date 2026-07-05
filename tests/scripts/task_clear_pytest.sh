@@ -16,9 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+set -euo pipefail
 
-# Ensure no stale pytest-results remain from a previous test run.
-pushd build
-rm -rf pytest-results
-popd
+# PR jobs evaluate their Jenkinsfile from the trusted base branch.  Keep this
+# inert entry point until the Jenkinsfile update has landed on the base branch.

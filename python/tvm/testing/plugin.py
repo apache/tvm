@@ -33,7 +33,6 @@ directory as the test scripts.
 """
 
 import _pytest
-import pytest
 
 
 def pytest_collection_modifyitems(config, items):
@@ -42,14 +41,6 @@ def pytest_collection_modifyitems(config, items):
     _count_num_fixture_uses(items)
     _remove_global_fixture_definitions(items)
     _sort_tests(items)
-
-
-def pytest_sessionfinish(session, exitstatus):
-    # Don't exit with an error if we select a subset of tests that doesn't
-    # include anything
-    if session.config.option.markexpr != "":
-        if exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
-            session.exitstatus = pytest.ExitCode.OK
 
 
 def _count_num_fixture_uses(items):
