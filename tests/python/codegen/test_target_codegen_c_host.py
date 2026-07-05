@@ -227,5 +227,21 @@ def test_subroutine_call():
     )
 
 
+def test_workspace_allocation_cast():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32")):
+            workspace = T.alloc_buffer((16,), "float32", scope="local")
+            workspace[0] = A[0]
+            A[0] = workspace[0]
+
+    built = tvm.tirx.build(Module, target="c")
+    assert "((float*)TVMBackendAllocWorkspace(" in built.inspect_source()
+
+    temp = utils.tempdir()
+    built.export_library(temp.relpath("workspace.so"))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

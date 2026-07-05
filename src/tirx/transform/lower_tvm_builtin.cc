@@ -294,12 +294,13 @@ class BuiltinLower : public StmtExprMutator {
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    Stmt alloc_bind = Bind(
-        op->buffer->data,
-        Call(op->buffer->data->ty, alloc_workspace_op,
+    Expr opaque_alloc =
+        Call(PointerType::VoidPointerTy(), alloc_workspace_op,
              {cast(PrimType::Int(32), device_type_.value()),
               cast(PrimType::Int(32), device_id_.value()), total_bytes,
-              IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())}));
+              IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())});
+    Stmt alloc_bind =
+        Bind(op->buffer->data, reinterpret(op->buffer->data->ty, std::move(opaque_alloc)));
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
