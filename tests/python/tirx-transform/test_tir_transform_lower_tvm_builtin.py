@@ -122,27 +122,22 @@ def test_lower_call_packed_raw_string():
             T.func_attr({"target": tvm.target.Target("llvm")})
             T.call_packed("testing.echo", "payload")
 
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 2)
+            T.tvm_struct_set(stack_ffi_any, 0, 13, 8)
+            T.tvm_struct_set(stack_ffi_any, 0, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 0, 15, T.reinterpret(T.handle().ty, "payload"))
+            T.tvm_struct_set(stack_ffi_any, 1, 13, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 15, T.int64(0))
+            T.call_packed_lowered("testing.echo", stack_ffi_any, 0, 1)
+
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
-    packed_values = []
-
-    def collect_packed_values(node):
-        if not isinstance(node, tvm.ir.Call):
-            return
-        if node.op != tvm.ir.Op.get("tirx.tvm_struct_set"):
-            return
-        if int(node.args[2]) == 15:  # kTVMFFIAnyUnionValue
-            packed_values.append(node.args[3])
-
-    tvm.tirx.stmt_functor.post_order_visit(After["main"].body, collect_packed_values)
-    raw_string = next(
-        value
-        for value in packed_values
-        if isinstance(value, tvm.ir.Call)
-        and value.op == tvm.ir.Op.get("tirx.reinterpret")
-        and isinstance(value.args[0], tvm.tirx.StringImm)
-    )
-    assert isinstance(raw_string.ty, tvm.ir.PointerType)
-    tvm.ir.assert_structural_equal(After, tvm.script.from_source(After.script()))
+    tvm.ir.assert_structural_equal(After, Expected)
 
     # The typed pointer is required by the LLVM TVMFFIAny lowering.
     tvm.compile(Before, target="llvm")
