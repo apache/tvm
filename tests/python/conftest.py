@@ -14,17 +14,55 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Configure pytest"""
+"""Configure pytest for TVM's Python test suite."""
 
-import sys
+import os
 
-COLLECT_IGNORE = []
-if sys.platform.startswith("win"):
-    COLLECT_IGNORE.append("frontend/coreml")
-    COLLECT_IGNORE.append("frontend/keras")
-    COLLECT_IGNORE.append("frontend/pytorch")
-    COLLECT_IGNORE.append("frontend/tensorflow")
-    COLLECT_IGNORE.append("frontend/tflite")
-    COLLECT_IGNORE.append("frontend/onnx")
+import _pytest
 
-    COLLECT_IGNORE.append("tir_base/test_tir_intrin.py")
+
+def pytest_collection_modifyitems(items):
+    """Maintain the ordering and cache bookkeeping required by TVM fixtures."""
+    _count_num_fixture_uses(items)
+    _remove_global_fixture_definitions(items)
+    _sort_tests(items)
+
+
+def _count_num_fixture_uses(items):
+    for item in items:
+        is_skipped = item.get_closest_marker("skip") or any(
+            mark.args[0] for mark in item.iter_markers("skipif")
+        )
+        if is_skipped:
+            continue
+
+        for fixturedefs in item._fixtureinfo.name2fixturedefs.values():
+            fixturedef = fixturedefs[-1]
+            if hasattr(fixturedef.func, "num_tests_use_this_fixture"):
+                fixturedef.func.num_tests_use_this_fixture[0] += 1
+
+
+def _remove_global_fixture_definitions(items):
+    modules = {item.module for item in items}
+    for module in modules:
+        for name in dir(module):
+            obj = getattr(module, name)
+            if hasattr(obj, "_pytestfixturefunction") and isinstance(
+                obj._pytestfixturefunction, _pytest.fixtures.FixtureFunctionMarker
+            ):
+                delattr(module, name)
+
+
+def _sort_tests(items):
+    def sort_key(item):
+        filename, lineno, test_name = item.location
+        return filename, lineno, test_name.split("[")[0]
+
+    items.sort(key=sort_key)
+
+
+def pytest_sessionstart():
+    if os.getenv("CI", "") == "true":
+        from request_hook import init  # pylint: disable=import-outside-toplevel
+
+        init()

@@ -127,7 +127,8 @@ Python Code Styles
 
 Writing Python Tests
 --------------------
-We use `pytest <https://docs.pytest.org/en/stable/>`_ for all python testing. ``tests/python`` contains all the tests.
+We use `pytest <https://docs.pytest.org/en/stable/>`_ for all Python testing. Regular tests live
+under ``tests/python``, while environment-specific nightly tests live under ``tests/nightly/python``.
 See :doc:`testing` for details on running tests, target parametrization,
 and the target-specific marks used by CI.
 
@@ -162,7 +163,7 @@ server can go down or be slow), so try to avoid using the network at all during 
 this isn't a reasonable proposition (e.g. the docs tutorials which need to download models).
 
 New network downloads are rejected by the CI `request hook
-<https://github.com/apache/tvm/blob/main/tests/scripts/request_hook/request_hook.py>`_. Prefer
+<https://github.com/apache/tvm/blob/main/tests/python/request_hook.py>`_. Prefer
 checked-in fixtures or generated data. If a download is unavoidable, arrange a stable
 project-managed mirror with the maintainers and add an explicit ``URL_MAP`` entry.
 

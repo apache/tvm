@@ -31,6 +31,9 @@ from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import dlight as dl
 from tvm.script import relax as R
 
+if di is None:
+    pytest.skip("disco runtime is not available", allow_module_level=True)
+
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
 _compiled_ccl = get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
 if _compiled_ccl is None:

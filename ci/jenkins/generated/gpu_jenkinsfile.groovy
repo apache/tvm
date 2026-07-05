@@ -530,10 +530,6 @@ def run_unittest_GPU(node_type) {
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: 'Run Python GPU unit tests',
               )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
-                label: 'Run Python GPU integration tests',
-              )
           })
         }
       }
