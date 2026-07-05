@@ -25,6 +25,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.testing import env
@@ -32,7 +33,6 @@ from tvm.testing import env
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_nccl(), reason="need nccl")
-@pytest.mark.xfail(reason="symbolic strided-slice extent is not computed during VM shape lowering")
 def test_callback():
     """Simulate lazy loading of parameters in a callback
 
@@ -40,22 +40,54 @@ def test_callback():
     callback to load the parameters.
     """
 
-    @R.function
-    def transform_params(
-        rank_arg: R.Prim(value="rank"),
-        fget_item: R.Callable([R.Any, R.Prim("int64")], R.Any),
-    ):
-        rank = T.int64()
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(private=True, s_tir=True)
+        def slice_A(
+            A: T.Buffer((4, 4), "int32"),
+            rank: T.int64,
+            A_sharded: T.Buffer((2, 4), "int32"),
+        ):
+            for i, j in T.grid(2, 4):
+                with T.sblock("slice_A"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    A_sharded[vi, vj] = A[rank * 2 + vi, vj]
 
-        A = fget_item(R.str("A"), R.prim_value(0))
-        A = R.match_cast(A, R.Tensor([4, 4], "int32"))
-        A = R.strided_slice(A, axes=[0], begin=[rank * 2], end=[(rank + 1) * 2])
+        @T.prim_func(private=True, s_tir=True)
+        def slice_B(
+            B: T.Buffer((2, 2), "float32"),
+            rank: T.int64,
+            B_sharded: T.Buffer((2, 1), "float32"),
+        ):
+            for i in range(2):
+                with T.sblock("slice_B"):
+                    vi = T.axis.spatial(2, i)
+                    B_sharded[vi, 0] = B[vi, rank]
 
-        B = fget_item(R.str("B"), R.prim_value(1))
-        B = R.match_cast(B, R.Tensor([2, 2], "float32"))
-        B = R.strided_slice(B, axes=[1], begin=[rank * 1], end=[(rank + 1) * 1])
+        @R.function
+        def transform_params(
+            rank_arg: R.Prim("int64"),
+            fget_item: R.Callable([R.Any, R.Prim("int64")], R.Any),
+        ):
+            cls = Module
 
-        return (A, B)
+            A = fget_item(R.str("A"), R.prim_value(0))
+            A = R.match_cast(A, R.Tensor([4, 4], "int32"))
+            A = R.call_tir(
+                cls.slice_A,
+                (A, rank_arg),
+                out_ty=R.Tensor([2, 4], "int32"),
+            )
+
+            B = fget_item(R.str("B"), R.prim_value(1))
+            B = R.match_cast(B, R.Tensor([2, 2], "float32"))
+            B = R.call_tir(
+                cls.slice_B,
+                (B, rank_arg),
+                out_ty=R.Tensor([2, 1], "float32"),
+            )
+
+            return (A, B)
 
     pipeline = tvm.ir.transform.Sequential(
         [
@@ -66,7 +98,7 @@ def test_callback():
     )
 
     with tvm.target.Target("cuda"):
-        mod = tvm.IRModule.from_expr(transform_params)
+        mod = Module
         mod = pipeline(mod)
         built = tvm.compile(mod, "cuda")
 

@@ -662,8 +662,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
             @R.function
             def func(
-                n_1: R.Prim(value="n"),
-                m_1: R.Prim(value="m"),
+                n_1: R.Prim("int64"),
+                m_1: R.Prim("int64"),
                 x: R.Tensor(("n", "m"), dtype="float32"),
                 y: R.Tensor(("m", "n"), dtype="float32"),
             ):
@@ -673,8 +673,8 @@ def test_emit_nested_tuple(emit_nested_tuple):
 
             @R.function
             def func(
-                n_1: R.Prim(value="n"),
-                m_1: R.Prim(value="m"),
+                n_1: R.Prim("int64"),
+                m_1: R.Prim("int64"),
                 x: R.Tensor(("n", "m"), dtype="float32"),
                 y: R.Tensor(("m", "n"), dtype="float32"),
             ):

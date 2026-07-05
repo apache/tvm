@@ -1313,6 +1313,14 @@ def test_scalar_tensor_as_branch_condition():
     tvm.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
 
 
+def test_prim_annotation_requires_dtype():
+    with pytest.raises(TypeError, match="missing 1 required positional argument: 'dtype'"):
+        R.Prim()
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'value'"):
+        R.Prim(value="n")
+
+
 def test_prim_value_as_branch_condition():
     """In addition to scalar tensor, can use R.Prim condition"""
 

@@ -1684,8 +1684,8 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
 
     In order to be a source of definition, a symbolic variable in the
     parameters must occur as a distinct parameter, as a tensor shape
-    `R.Tensor(["var"])`, an explicit `R.Shape(["var"])`, or as a
-    `R.Prim(value="var")`.  A variable that is part of a larger
+    `R.Tensor(["var"])` or an explicit `R.Shape(["var"])`.  A variable
+    that is part of a larger
     expression, such as `R.Tensor(["m * n"])`, are variable usages,
     not variable definitions.
     """

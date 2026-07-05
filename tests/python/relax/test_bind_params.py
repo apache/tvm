@@ -112,26 +112,16 @@ prim_value_dtype = tvm.testing.parameter("int64", "int32", "float32")
 
 
 def test_bind_prim_value(prim_value_dtype):
-    if prim_value_dtype != "int64":
-        pytest.xfail(reason="Currently, only support int64 as known symbolic value")
-
-    N = tirx.Var("N", prim_value_dtype)
+    prim_type = tvm.ir.PrimType(prim_value_dtype)
+    param = relax.Var("A", prim_type)
+    before = relax.Function([param], param, prim_type).with_attr("global_symbol", "main")
     value = tirx.const(16, prim_value_dtype)
-
-    @R.function
-    def before(A: R.Prim(value=N)) -> R.Prim(value=N):
-        R.func_attr({"global_symbol": "main"})
-        B: R.Prim(value=N) = A
-        return B
-
-    @R.function
-    def expected() -> R.Prim(value=value):
-        R.func_attr({"global_symbol": "main"})
-        return value
 
     after = before.bind_params({"A": value})
 
-    tvm.ir.assert_structural_equal(expected, after)
+    assert not after.params
+    tvm.ir.assert_structural_equal(after.ret_ty, prim_type)
+    tvm.ir.assert_structural_equal(after.body.body, value)
 
 
 def test_error_on_unknown_var():

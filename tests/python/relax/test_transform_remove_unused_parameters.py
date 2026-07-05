@@ -63,11 +63,9 @@ def test_replace_symbolic_variables():
     removing the `R.Tensor` argument, we may need to provide
     additional parameters to define the symbolic variables.
 
-    Value-bearing `R.Prim(value=...)` annotations were removed in the tirx
-    refactor (a `PrimType` carries only a dtype and defines no TIR var, which
-    leaves the var undefined under the strict tirx well-formedness verifier).
-    The replacement is to promote each free symbolic variable through a 1-D
-    `R.Shape` parameter, which actually *defines* the variable.
+    A `PrimType` carries only a dtype and defines no TIR var.  Each free
+    symbolic variable is therefore promoted through a 1-D `R.Shape`
+    parameter, which actually *defines* the variable.
     """
 
     @I.ir_module
@@ -131,12 +129,11 @@ def test_no_extra_symbolic_variables():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_remove_extra_prim_variables():
-    """Remove parameters that only serve to define existing symbolic variables
+def test_remove_extra_prim_parameters():
+    """Remove unused scalar parameters.
 
-    If a `R.Prim` parameter provies a definition of a symbolic
-    variable, but that symbolic variable can be determined from a
-    different parameter, then the `R.Prim` parameter can be removed.
+    The tensor parameter already defines the symbolic dimensions, while the
+    dtype-only scalar parameters are unused by the private function.
     """
 
     @I.ir_module
@@ -149,7 +146,9 @@ def test_remove_extra_prim_variables():
 
         @R.function(private=True)
         def func(
-            A: R.Tensor(["m", "n"], "float32"), _m: R.Prim(value="m"), _n: R.Prim(value="n")
+            A: R.Tensor(["m", "n"], "float32"),
+            _m: R.Prim("int64"),
+            _n: R.Prim("int64"),
         ) -> R.Tensor(["m", "n"], "float32"):
             m = T.int64()
             n = T.int64()

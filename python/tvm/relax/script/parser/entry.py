@@ -449,32 +449,21 @@ def Shape(values: list[Expr] | None = None, ndim: int = -1) -> ShapeProxy:
 
 
 class PrimProxy(TypeProxy):
-    dtype: str | None
+    dtype: str
 
     """The type of TIR-representable values.
 
     Parameters
     ----------
-    dtype : Optional[str]
+    dtype : str
        The data type.
 
     """
 
     def __init__(
         self,
-        dtype: str | None = None,
-        value: int | float | str | Expr | None = None,
+        dtype: str,
     ) -> None:
-        if dtype is None:
-            if tvm.ir.is_prim_expr(value):
-                dtype = str(value.ty)
-            elif isinstance(value, float):
-                dtype = "float32"
-            elif value is not None:
-                dtype = "int64"
-            else:
-                raise TypeError("R.Prim missing required argument 'dtype'")
-
         self.dtype = dtype
 
     def get_symbolic_vars(self) -> set[str]:
@@ -485,10 +474,9 @@ class PrimProxy(TypeProxy):
 
 
 def Prim(
-    dtype: str | None = None,
-    value: int | float | str | Expr | None = None,
+    dtype: str,
 ) -> PrimProxy:
-    return PrimProxy(dtype, value)
+    return PrimProxy(dtype)
 
 
 ############################ R.match_cast #############################
