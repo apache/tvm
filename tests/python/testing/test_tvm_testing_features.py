@@ -73,6 +73,35 @@ def test_fixture_cache_reuses_setup_and_returns_copies():
     assert setup_calls == [1, 2]
 
 
+def test_request_hook_uses_explicit_path(monkeypatch, tmp_path):
+    hook_script = tmp_path / "request_hook.py"
+    hook_script.touch()
+    hook_script = hook_script.resolve()
+    loads = []
+    initializations = []
+
+    def load_hook(path):
+        loads.append(path)
+        return {"init": lambda: initializations.append(path)}
+
+    monkeypatch.setattr(tvm.testing.utils, "IS_IN_CI", True)
+    monkeypatch.setattr(
+        tvm.testing.utils,
+        "__file__",
+        "/installed/site-packages/tvm/testing/utils.py",
+    )
+    monkeypatch.setattr(tvm.testing.utils.runpy, "run_path", load_hook)
+
+    try:
+        tvm.testing.utils.install_request_hook(hook_script)
+        tvm.testing.utils.install_request_hook(hook_script)
+    finally:
+        tvm.testing.utils._REQUEST_HOOK_INITIALIZERS.pop(hook_script, None)
+
+    assert loads == [str(hook_script)]
+    assert initializations == [str(hook_script), str(hook_script)]
+
+
 class TestBrokenFixture:
     # Tests that use a fixture that throws an exception fail, and are
     # marked as setup failures.  The tests themselves are never run.
