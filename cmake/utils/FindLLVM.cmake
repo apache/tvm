@@ -259,18 +259,33 @@ macro(find_llvm use_llvm)
         set(CMAKE_REQUIRED_FLAGS "-std=c++20")
       endif()
     endif()
+    # Upstream and ROCm LLVM builds can report the same version while exposing
+    # different overloads. Re-check on every configure so switching LLVM builds
+    # in an existing build tree cannot reuse the other implementation's result.
+    unset(TVM_LLVM_DIBUILDER_ACCEPTS_ITERATOR CACHE)
     check_cxx_source_compiles("
+      // Avoid a libSupport dependency by suppressing LLVM's header ABI-check reference.
+      #undef LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING
+      #define LLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING 1
       #include <llvm/IR/DIBuilder.h>
       #include <llvm/IR/Instructions.h>
-      void f(llvm::DIBuilder* b, llvm::Value* v, llvm::DILocalVariable* var,
-             llvm::DIExpression* e, const llvm::DILocation* dl,
-             llvm::Instruction* i) {
-        b->insertDeclare(v, var, e, dl, llvm::BasicBlock::iterator(i));
-        b->insertDbgValueIntrinsic(v, var, e, dl, llvm::BasicBlock::iterator(i));
+      int main() {
+        llvm::DIBuilder* b = nullptr;
+        llvm::Value* v = nullptr;
+        llvm::DILocalVariable* var = nullptr;
+        llvm::DIExpression* e = nullptr;
+        const llvm::DILocation* dl = nullptr;
+        llvm::Instruction* i = nullptr;
+        // Check overload resolution without emitting references to LLVM's implementation.
+        if constexpr (false) {
+          b->insertDeclare(v, var, e, dl, llvm::BasicBlock::iterator(i));
+          b->insertDbgValueIntrinsic(v, var, e, dl, llvm::BasicBlock::iterator(i));
+        }
+        return 0;
       }
-    " TVM_LLVM_DIBUILDER_USES_ITERATOR)
+    " TVM_LLVM_DIBUILDER_ACCEPTS_ITERATOR)
     cmake_pop_check_state()
-    if(TVM_LLVM_DIBUILDER_USES_ITERATOR)
+    if(TVM_LLVM_DIBUILDER_ACCEPTS_ITERATOR)
       add_definitions(-DTVM_LLVM_DIBUILDER_USES_ITERATOR=1)
       message(STATUS "LLVM DIBuilder insertion APIs use BasicBlock::iterator")
     else()

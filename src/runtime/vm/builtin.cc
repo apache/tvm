@@ -310,13 +310,13 @@ void CheckPrimValueInfo(ffi::AnyView arg, DLDataType dtype, ffi::Optional<ffi::S
     TVM_FFI_THROW(TypeError) << err_ctx.value_or("") << ", expected dtype " << dtype
                              << ", but received ObjectRef of type "
                              << opt_obj.value()->GetTypeKey();
-  } else if (((dtype).code == kDLBool)) {
+  } else if (dtype.code == kDLBool) {
     arg.cast<bool>();
-  } else if (((dtype).code == kDLInt)) {
+  } else if (dtype.code == kDLInt) {
     arg.cast<int64_t>();
-  } else if (((dtype).code == kDLUInt)) {
+  } else if (dtype.code == kDLUInt) {
     arg.cast<uint64_t>();
-  } else if (((dtype).code == kDLFloat)) {
+  } else if (dtype.code == kDLFloat) {
     arg.cast<double>();
   } else if (dtype.code == kDLOpaqueHandle && !(dtype.bits == 0 && dtype.lanes == 0)) {
     arg.cast<void*>();
