@@ -43,6 +43,7 @@ class InferTextureAccess : public StmtExprVisitor {
   static constexpr const uint8_t kWriteAccess = 2;
 
   InferTextureAccess() {}
+  using StmtExprVisitor::VisitExpr_;
   std::unordered_map<const VarNode*, std::string> Infer(const Stmt& n) {
     StmtExprVisitor::VisitStmt(n);
     std::unordered_map<const VarNode*, std::string> storage_scope_qualifiers;
@@ -57,7 +58,7 @@ class InferTextureAccess : public StmtExprVisitor {
     }
     return storage_scope_qualifiers;
   }
-  void VisitExpr_(const CallNode* op) {
+  void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::texture2d_load())) {
       var_access_map_[op->args[0].as<VarNode>()] |= kReadAccess;
     } else if (op->op.same_as(builtin::texture2d_store())) {
@@ -376,9 +377,10 @@ void CodeGenOpenCL::PrintRestrict(const Var& v, std::ostream& os) {
   }
 }
 
-std::string CodeGenOpenCL::CastFromTo(std::string value, DLDataType from, DLDataType target) {
+std::string CodeGenOpenCL::CastFromTo(std::string value, const PrimType& from,
+                                      const PrimType& target) {
   if (from == target) return value;
-  return CastTo(value, target);
+  return CastTo(value, target->dtype);
 }
 
 std::string CodeGenOpenCL::CastTo(std::string value, DLDataType target) {

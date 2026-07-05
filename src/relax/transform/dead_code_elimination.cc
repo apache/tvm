@@ -61,6 +61,7 @@ struct RelaxCalleeCollector : relax::ExprVisitor {
 struct TIRxCalleeCollector : tirx::StmtExprVisitor {
   std::vector<GlobalVar>* callees;
   explicit TIRxCalleeCollector(std::vector<GlobalVar>* out) : callees(out) {}
+  using tirx::StmtExprVisitor::VisitExpr_;
   void VisitExpr_(const CallNode* node) final {
     tirx::StmtExprVisitor::VisitExpr_(node);
     if (auto opt_gvar = node->op.as<GlobalVar>()) {

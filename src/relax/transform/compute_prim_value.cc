@@ -44,6 +44,8 @@ class PrimExprComputeInjector : public ExprMutator {
   IRModule Finalize() const { return builder_->Finalize(); }
 
  private:
+  using ExprMutator::VisitExpr_;
+
   Expr VisitExpr_(const CallNode* op) final {
     Call call = ffi::GetRef<Call>(op);
     if (auto prim_expr = call.as<PrimExpr>()) {

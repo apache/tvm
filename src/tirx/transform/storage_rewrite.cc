@@ -1714,6 +1714,8 @@ class VectorTypeRewriter : public StmtExprMutator {
           : var_remap_(var_remap) {}
 
      private:
+      using StmtExprMutator::VisitExpr_;
+
       Expr VisitExpr_(const VarNode* op) final {
         if (auto it = var_remap_.find(op); it != var_remap_.end()) {
           return it->second;

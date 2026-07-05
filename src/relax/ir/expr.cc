@@ -150,7 +150,7 @@ Var::Var(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
   n->vid = std::move(vid);
   if (ty_annotation.defined()) {
-    n->ty = std::move(ty_annotation.value());
+    n->ty = ty_annotation.value();
   }
   n->span = std::move(span);
   data_ = std::move(n);
@@ -189,7 +189,7 @@ DataflowVar::DataflowVar(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
   n->vid = std::move(vid);
   if (ty_annotation.defined()) {
-    n->ty = std::move(ty_annotation.value());
+    n->ty = ty_annotation.value();
   }
   n->span = std::move(span);
   data_ = std::move(n);

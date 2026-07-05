@@ -276,7 +276,7 @@ Type InferTypeEye(const Call& call, const BlockBuilder& ctx) {
                                           << call->args.size() << " arguments";
   }
 
-  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+  auto get_prim_value = [](const Expr& expr, std::string key) {
     auto prim_value = expr.as<PrimExpr>();
     if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, expr)
@@ -360,7 +360,7 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
         << call->args.size() << " arguments";
   }
   // TODO(Siyuan): Support indirect prim_values
-  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+  auto get_prim_value = [](const Expr& expr, std::string key) {
     auto prim_value = expr.as<PrimExpr>();
     if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, expr)
@@ -421,7 +421,7 @@ Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Hamming Window expects the datatype to be float but got " << dtype;
   }
-  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+  auto get_prim_value = [](const Expr& expr, std::string key) {
     auto prim_value = expr.as<PrimExpr>();
     if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, expr) << "Hamming_window expects the `" << key

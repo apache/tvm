@@ -3016,7 +3016,7 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  auto get_prim_expr_from_arg = [&ctx, &call](const Expr& arg_expr, std::string key) -> PrimExpr {
+  auto get_prim_expr_from_arg = [&call](const Expr& arg_expr, std::string key) -> PrimExpr {
     auto prim_value = arg_expr.as<PrimExpr>();
     if (!prim_value) {
       TVM_FFI_VISIT_THROW(TypeError, call)
