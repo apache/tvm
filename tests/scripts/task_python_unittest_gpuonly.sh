@@ -24,15 +24,18 @@ export PYTEST_ADDOPTS="-m gpu ${PYTEST_ADDOPTS:-}"
 # Test most of the enabled runtimes here.
 # TODO: disabled opencl tests due to segmentation fault.
 export TVM_TEST_TARGETS='cuda;metal;rocm;nvptx'
-export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-gpu
 
 ./tests/scripts/task_python_unittest.sh
 
 # Kept separate to avoid increasing time needed to run CI, testing
 # only minimal functionality of Vulkan runtime.
 export TVM_TEST_TARGETS='{"kind":"vulkan","from_device":0}'
-export TVM_UNITTEST_TESTSUITE_NAME=python-codegen-vulkan
 
-source tests/scripts/setup-pytest-env.sh
+export PYTHONPATH="$(pwd)/python"
+export PYTEST_ADDOPTS="-s -vv ${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
-run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/codegen/test_target_codegen_vulkan.py
+if [ ! -f tests/python/codegen/test_target_codegen_vulkan.py ]; then
+    echo "Missing pytest target: tests/python/codegen/test_target_codegen_vulkan.py" >&2
+    exit 1
+fi
+python3 -m pytest -n auto tests/python/codegen/test_target_codegen_vulkan.py

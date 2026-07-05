@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2026-06-23T03:28:14.533751
+// Generated at 2026-07-05T01:05:57.780838
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -97,7 +97,7 @@ properties([
 upstream_revision = null
 
 // command to start a docker container
-docker_run = 'docker/bash.sh --env CI --env PLATFORM --env TVM_SHARD_INDEX --env TVM_NUM_SHARDS --env RUN_DISPLAY_URL --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
+docker_run = 'docker/bash.sh --env CI --env PLATFORM --env SKIP_SLOW_TESTS --env TEST_STEP_NAME'
 docker_build = 'docker/build.sh'
 // timeout in minutes
 max_time = 180
@@ -404,13 +404,6 @@ def prepare(node_type) {
     }
   }
 }
-def ci_setup(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_clear_pytest.sh",
-    label: 'Clean up old workspace',
-  )
-}
-
 def python_unittest(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
@@ -515,8 +508,7 @@ def build() {
 build()
 
 
-
-def shard_run_unittest_GPU_1_of_2(node_type) {
+def run_unittest_GPU(node_type) {
   echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
     node(node_type) {
@@ -528,65 +520,12 @@ def shard_run_unittest_GPU_1_of_2(node_type) {
           withEnv([
             'PLATFORM=gpu',
             'TEST_STEP_NAME=unittest: GPU',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=0',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
-              ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
-                label: 'Run Python GPU unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
-                label: 'Run Python GPU integration tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/unittest_GPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('unittest: GPU 1 of 2')
-  }
-}
-
-def shard_run_unittest_GPU_2_of_2(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_gpu)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=gpu',
-            'TEST_STEP_NAME=unittest: GPU',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=1',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                 label: 'Run Java unit tests',
@@ -601,29 +540,17 @@ def shard_run_unittest_GPU_2_of_2(node_type) {
               )
           })
         }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/unittest_GPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
       }
     }
     echo 'End running on node_type ' + node_type
   } else {
-    Utils.markStageSkippedForConditional('unittest: GPU 2 of 2')
+    Utils.markStageSkippedForConditional('unittest: GPU')
   }
 }
 
 
 
-
-def shard_run_docs_GPU_1_of_1(node_type) {
+def run_docs_GPU(node_type) {
   echo 'Begin running on node_type ' + node_type
   if (!skip_ci) {
     node(node_type) {
@@ -635,15 +562,12 @@ def shard_run_docs_GPU_1_of_1(node_type) {
           withEnv([
             'PLATFORM=gpu',
             'TEST_STEP_NAME=docs: GPU',
-            'TVM_NUM_SHARDS=1',
-            'TVM_SHARD_INDEX=0',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
-              ci_setup(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
                 label: 'Build docs',
@@ -659,22 +583,11 @@ def shard_run_docs_GPU_1_of_1(node_type) {
               )
           })
         }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/docs_GPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
       }
     }
     echo 'End running on node_type ' + node_type
   } else {
-    Utils.markStageSkippedForConditional('docs: GPU 1 of 1')
+    Utils.markStageSkippedForConditional('docs: GPU')
   }
 }
 
@@ -686,9 +599,9 @@ def test() {
       SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
     parallel(
-    'unittest: GPU 1 of 2': {
+    'unittest: GPU': {
       try {
-      shard_run_unittest_GPU_1_of_2('GPU-SPOT')
+      run_unittest_GPU('GPU-SPOT')
       } catch (Throwable ex) {
         echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
@@ -697,16 +610,16 @@ def test() {
           // and try again via on demand node
           echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
-          shard_run_unittest_GPU_1_of_2('GPU')
+          run_unittest_GPU('GPU')
         } else {
           echo 'Exit since it is not last build'
           throw ex
         }
       }
     },
-    'unittest: GPU 2 of 2': {
+    'docs: GPU': {
       try {
-      shard_run_unittest_GPU_2_of_2('GPU-SPOT')
+      run_docs_GPU('GPU-SPOT')
       } catch (Throwable ex) {
         echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
@@ -715,25 +628,7 @@ def test() {
           // and try again via on demand node
           echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
-          shard_run_unittest_GPU_2_of_2('GPU')
-        } else {
-          echo 'Exit since it is not last build'
-          throw ex
-        }
-      }
-    },
-    'docs: GPU 1 of 1': {
-      try {
-      shard_run_docs_GPU_1_of_1('GPU-SPOT')
-      } catch (Throwable ex) {
-        echo 'Exception during SPOT run ' + ex.toString()
-        if (is_last_build()) {
-          // retry if at last build
-          // mark the current stage as success
-          // and try again via on demand node
-          echo 'Retry on-demand given it is last build'
-          currentBuild.result = 'SUCCESS'
-          shard_run_docs_GPU_1_of_1('GPU')
+          run_docs_GPU('GPU')
         } else {
           echo 'Exit since it is not last build'
           throw ex
