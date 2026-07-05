@@ -641,10 +641,17 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   for (int i = 0; i < extern_op->num_outputs(); ++i) {
     const Buffer& placeholder = extern_op->output_placeholders[i];
     const te::Tensor& output_tensor = extern_op.output(i);
-    info->tensor2buffers[output_tensor] = placeholder;
+    Buffer output_buffer = placeholder;
     if (!info->IsArg(output_tensor)) {
-      info->root_alloc.push_back(placeholder);
+      PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
+      if (const auto* offset_var = placeholder->elem_offset.as<VarNode>()) {
+        var_map[offset_var] = zero_offset;
+      }
+      output_buffer.CopyOnWrite()->elem_offset = zero_offset;
+      input_buffer_map[placeholder.get()] = output_buffer;
+      info->root_alloc.push_back(output_buffer);
     }
+    info->tensor2buffers[output_tensor] = output_buffer;
   }
 
   // The access region does not need to be collected here, as it will
