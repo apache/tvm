@@ -82,7 +82,6 @@ from .op import start_profile_intrinsic, end_profile_intrinsic
 from .op import vscale, get_active_lane_mask, get_vscale_expr
 from .op import dp4a
 from .op import ignore_loop_partition
-from .generic import add, subtract, multiply
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
 from .exec_scope import ExecScope, ScopeIdDef

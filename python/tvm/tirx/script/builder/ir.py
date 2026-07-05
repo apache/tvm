@@ -44,6 +44,7 @@ from tvm.target import Target
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
 from tvm.tirx import Buffer, BufferRegion, Expr, IndexMap, type_annotation
+from tvm.tirx import _ffi_api as _tirx_ffi_api
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
 
@@ -82,7 +83,6 @@ from tvm.tirx.expr import (
     StringImm,
     Sub,
 )
-from tvm.tirx.generic import cast
 from tvm.tirx.layout import (
     ComposeLayout,
     Iter,
@@ -98,6 +98,11 @@ from . import _ffi_api, frame, utils
 from .external_kernel import call_kernel
 
 # pylint: enable=unused-import
+
+
+def cast(value, dtype, span=None):
+    """Cast an expression to the requested data type."""
+    return _tirx_ffi_api._cast(dtype, value, span)  # type: ignore[attr-defined]
 
 
 def _current_s_tir() -> bool:
@@ -2355,7 +2360,7 @@ def evaluate(value: Expr) -> None:
     if isinstance(value, str):
         value = StringImm(value)
     if isinstance(value, bool):
-        value = cast(value, "bool")
+        value = IntImm("bool", value)
     return _ffi_api.Evaluate(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
