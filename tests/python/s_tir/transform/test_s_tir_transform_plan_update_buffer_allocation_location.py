@@ -384,9 +384,13 @@ def test_dltensor_buffer_is_unlowered():
     @T.prim_func(s_tir=True)
     def before(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
         ndim: T.int32 = T.tvm_struct_get(dlpack_handle, 0, 5, "int32")
-        stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(dlpack_handle, 0, 4, "handle")
+        stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
+            dlpack_handle, 0, 4, tvm.ir.PointerType(tvm.ir.PrimType("int64"))
+        )
         if T.isnullptr(stride_ptr):
-            shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(dlpack_handle, 0, 3, "handle")
+            shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
+                dlpack_handle, 0, 3, tvm.ir.PointerType(tvm.ir.PrimType("int64"))
+            )
             shape = T.decl_buffer(ndim, "int64", data=shape_ptr)
             product = T.decl_buffer([], "int64")
             product[()] = 1
