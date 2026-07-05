@@ -33,6 +33,13 @@ export TVM_UNITTEST_TESTSUITE_NAME=python-unittest-gpu
 export TVM_TEST_TARGETS='{"kind":"vulkan","from_device":0}'
 export TVM_UNITTEST_TESTSUITE_NAME=python-codegen-vulkan
 
-source tests/scripts/setup-pytest-env.sh
+export PYTHONPATH="$(pwd)/python"
+export PYTEST_ADDOPTS="-s -vv ${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
+mkdir -p build/pytest-results
+PYTEST_SHARD_SUFFIX="${TVM_SHARD_INDEX:+-shard-${TVM_SHARD_INDEX}}"
 
-run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/codegen/test_target_codegen_vulkan.py
+python3 -m pytest -n auto \
+    -o "junit_suite_name=${TVM_UNITTEST_TESTSUITE_NAME}${PYTEST_SHARD_SUFFIX}" \
+    "--junit-xml=build/pytest-results/${TVM_UNITTEST_TESTSUITE_NAME}${PYTEST_SHARD_SUFFIX}.xml" \
+    --junit-prefix=cython \
+    tests/python/codegen/test_target_codegen_vulkan.py

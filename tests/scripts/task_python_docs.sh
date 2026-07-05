@@ -18,7 +18,7 @@
 
 set -euxo pipefail
 
-source tests/scripts/setup-pytest-env.sh
+export PYTHONPATH="$(pwd)/python"
 
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0

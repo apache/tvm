@@ -18,7 +18,9 @@
 
 set -euxo pipefail
 
-source tests/scripts/setup-pytest-env.sh
+export PYTHONPATH="$(pwd)/python"
+export PYTEST_ADDOPTS="-s -vv ${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
+mkdir -p build/pytest-results
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
@@ -30,11 +32,16 @@ uv pip install -v --target=python ./3rdparty/tvm-ffi/
 if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
     TVM_UNITTEST_TESTSUITE_NAME=python-unittest
 fi
+PYTEST_SHARD_SUFFIX="${TVM_SHARD_INDEX:+-shard-${TVM_SHARD_INDEX}}"
 
-# First run minimal test on both ctypes and cython.
-run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
+# First run the minimal platform test.  A GPU-only run can select no tests here.
+python3 -m pytest -n auto \
+    -o "junit_suite_name=${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test${PYTEST_SHARD_SUFFIX}" \
+    "--junit-xml=build/pytest-results/${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test${PYTEST_SHARD_SUFFIX}.xml" \
+    --junit-prefix=cython \
+    tests/python/all-platform-minimal-test || [ "$?" -eq 5 ]
 
-# Then run all unittests on both ctypes and cython.
+# Then run all unit tests.
 TEST_FILES=(
   "ffi"
   "arith"
@@ -65,4 +72,8 @@ for TEST_FILE in "${TEST_FILES[@]}"; do
     PYTEST_TARGETS+=("tests/python/${TEST_FILE}")
 done
 
-run_pytest "${TVM_UNITTEST_TESTSUITE_NAME}" "${PYTEST_TARGETS[@]}"
+python3 -m pytest -n auto --dist=loadgroup \
+    -o "junit_suite_name=${TVM_UNITTEST_TESTSUITE_NAME}${PYTEST_SHARD_SUFFIX}" \
+    "--junit-xml=build/pytest-results/${TVM_UNITTEST_TESTSUITE_NAME}${PYTEST_SHARD_SUFFIX}.xml" \
+    --junit-prefix=cython \
+    "${PYTEST_TARGETS[@]}"

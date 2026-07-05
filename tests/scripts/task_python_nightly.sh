@@ -18,7 +18,9 @@
 
 set -euxo pipefail
 
-source tests/scripts/setup-pytest-env.sh
+export PYTHONPATH="$(pwd)/python"
+export PYTEST_ADDOPTS="-s -vv ${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
+mkdir -p build/pytest-results
 
 # setup tvm-ffi into python folder
 uv pip install -v --target=python ./3rdparty/tvm-ffi/
@@ -26,7 +28,11 @@ uv pip install -v --target=python ./3rdparty/tvm-ffi/
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-run_pytest python-topi-nightly tests/python/topi/nightly
+python3 -m pytest -n auto \
+    -o junit_suite_name=python-topi-nightly \
+    --junit-xml=build/pytest-results/python-topi-nightly.xml \
+    --junit-prefix=cython \
+    tests/python/topi/nightly
 
 # Tensorflow device verification and network tests on nightly
 export CI_ENV_NIGHTLY
