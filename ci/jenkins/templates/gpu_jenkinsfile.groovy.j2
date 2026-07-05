@@ -32,8 +32,7 @@
   // compiler test
   sh "rm -rf build"
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-  cmake_build("${ci_gpu} --no-gpu", 'build')
-  {{ m.upload_artifacts(tag='gpu2', bundles=["tvm_lib"]) }}
+  sh "${docker_run} --env CI_NUM_EXECUTORS ${ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target tvm_runtime --build-dir build"
 {% endcall %}
 
 {% set test_method_names = [] %}

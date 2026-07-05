@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2026-07-05T01:05:57.780838
+// Generated at 2026-07-05T12:52:04.884879
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -468,11 +468,7 @@ def run_build(node_type) {
         // compiler test
         sh "rm -rf build"
         sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-        cmake_build("${ci_gpu} --no-gpu", 'build')
-        sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --bundle tvm_lib",
-            label: 'Upload artifacts to S3',
-          )
+        sh "${docker_run} --env CI_NUM_EXECUTORS ${ci_gpu} --no-gpu ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target tvm_runtime --build-dir build"
           })
         }
       }
