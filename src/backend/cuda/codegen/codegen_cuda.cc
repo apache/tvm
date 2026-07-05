@@ -418,7 +418,7 @@ void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
       fail = true;
     }
     return;
-  } else if (t->dtype == DLDataType{kDLBool, 8, 1}) {
+  } else if (t == PrimType::Bool()) {
     os << "bool";
     return;
   } else if (t.MatchesCode(DLDataTypeCode::kDLBool) && lanes > 1) {
@@ -1641,11 +1641,9 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
       bool supported_wmma_input_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Int(8) ||
-                                        dtype == PrimType::UInt(8) ||
-                                        dtype == PrimType(DLDataType{kDLInt, 4, 1}) ||
-                                        dtype == PrimType(DLDataType{kDLUInt, 4, 1}) ||
-                                        dtype == PrimType(DLDataType{kDLInt, 1, 1}) ||
-                                        dtype == PrimType(DLDataType{kDLBfloat, 16, 1});
+                                        dtype == PrimType::UInt(8) || dtype == PrimType::Int(4) ||
+                                        dtype == PrimType::UInt(4) || dtype == PrimType::Int(1) ||
+                                        dtype == PrimType::BFloat(16);
       TVM_FFI_ICHECK(supported_wmma_input_dtype)
           << "Matrix_a and matrix_b only support half or char or unsigned char "
           << "or uint4 or int4 or int1 type for now";
@@ -1689,9 +1687,8 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
     if (scope.find("wmma.") == 0) {
       constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
     }
-    bool is_packed_integer_dtype = dtype == PrimType(DLDataType{kDLInt, 4, 1}) ||
-                                   dtype == PrimType(DLDataType{kDLUInt, 4, 1}) ||
-                                   dtype == PrimType(DLDataType{kDLInt, 1, 1});
+    bool is_packed_integer_dtype =
+        dtype == PrimType::Int(4) || dtype == PrimType::UInt(4) || dtype == PrimType::Int(1);
     if (is_packed_integer_dtype && scope == "shared") {
       constant_size = constant_size / (32 / dtype.bits());
     }
@@ -1902,7 +1899,7 @@ void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
 
     // The condition is stored as an ushort vector.
     int lanes = op_ty.lanes();
-    PrimType memory_ty(DLDataType{kDLUInt, 16, static_cast<uint16_t>(lanes)});
+    PrimType memory_ty = PrimType::UInt(16, lanes);
 
     for (int i = 0; i < lanes; ++i) {
       std::ostringstream item;

@@ -233,9 +233,6 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
   virtual void PrintVecConstructor(const PrimType& t, std::ostream& os);
   // Get a cast type from to
   virtual std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target);
-  std::string CastFromTo(std::string value, DLDataType from, DLDataType target) {
-    return CastFromTo(std::move(value), PrimType(from), PrimType(target));
-  }
   // Get load of single element with expression
   virtual void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
                                     std::ostream& os);

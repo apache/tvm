@@ -59,7 +59,6 @@ class CodeGenSourceBase {
    * \param os The stream to print the ctype into
    */
   virtual void PrintType(const PrimType& type, std::ostream& os);  // NOLINT(*)
-  void PrintType(DLDataType type, std::ostream& os) { PrintType(PrimType(type), os); }
   /*!
    * Print Type representation of type type.
    * \param type The type representation.

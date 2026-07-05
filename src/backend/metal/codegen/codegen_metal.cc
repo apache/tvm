@@ -166,14 +166,10 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   if (work_dim != 0) {
     // use ushort by default for now
     stream << "  ";
-    PrintType(DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_),
-                         static_cast<uint16_t>(work_dim)},
-              stream);
+    PrintType(PrimType::UInt(thread_index_bits_, work_dim), stream);
     stream << " blockIdx [[threadgroup_position_in_grid]],\n";
     stream << "  ";
-    PrintType(DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_),
-                         static_cast<uint16_t>(work_dim)},
-              stream);
+    PrintType(PrimType::UInt(thread_index_bits_, work_dim), stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
   thread_work_dim_ = work_dim;
@@ -195,18 +191,16 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
   if (thread_work_dim_ <= 1) {
     vname = vname.substr(0, iv->thread_tag.length() - 2);
   }
-  var_idmap_[iv->var.get()] = CastFromTo(
-      vname, DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_), 1}, iv->var.ty()->dtype);
+  var_idmap_[iv->var.get()] = CastFromTo(vname, PrimType::UInt(thread_index_bits_), iv->var.ty());
 }
 
 void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
-  const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
   if (t.IsVoid()) {
     os << "void";
     return;
   }
-  if (raw_t == DLDataType{kDLBool, 8, 1}) {
+  if (t == PrimType::Bool()) {
     os << "bool";
     return;
   }
@@ -272,7 +266,7 @@ void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*
     os << "bfloat";
     return;
   }
-  TVM_FFI_THROW(InternalError) << "Cannot convert type " << ffi::DLDataTypeToString(raw_t)
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << ffi::DLDataTypeToString(t->dtype)
                                << " to Metal type";
 }
 
@@ -329,14 +323,13 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
 
   auto scope = GetPtrStorageScope(op->buffer->data);
   alloc_storage_scope_[op->buffer->data.get()] = scope;
-  DLDataType dtype = op->buffer->dtype->dtype;
+  const PrimType& dtype = op->buffer->dtype;
   if (scope == "metal.simdgroup") {
-    bool supported_simdgroup_dtype = dtype == DLDataType{kDLFloat, 16, 1} ||
-                                     dtype == DLDataType{kDLFloat, 32, 1} ||
-                                     dtype == DLDataType{kDLBfloat, 16, 1};
+    bool supported_simdgroup_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Float(32) ||
+                                     dtype == PrimType::BFloat(16);
     TVM_FFI_ICHECK(supported_simdgroup_dtype)
         << "Only float16, float32, and bfloat16 are supported, but got "
-        << ffi::DLDataTypeToString(dtype);
+        << ffi::DLDataTypeToString(dtype->dtype);
     TVM_FFI_ICHECK(constant_size % 64 == 0)
         << "Only 8x8 matrix is supported, but got " << constant_size << " bytes\n";
 
@@ -365,7 +358,7 @@ void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLI
 void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
-  PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
+  PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << "(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -432,7 +425,7 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     }
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
-    this->PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
+    this->PrintType(op->ty.as_or_throw<PrimType>(), os);
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << "))";
