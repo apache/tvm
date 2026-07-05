@@ -398,7 +398,7 @@ Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
           simplified_flag = false;
         } else {
           if (simplified_tuple.defined()) {
-            simplified_flag &= (simplified_tuple == node->tuple);
+            simplified_flag &= simplified_tuple.value().same_as(node->tuple);
           } else {
             simplified_tuple = node->tuple;
             TVM_FFI_ICHECK(simplified_tuple.defined());

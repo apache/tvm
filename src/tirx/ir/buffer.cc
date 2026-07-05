@@ -478,7 +478,7 @@ Stmt Buffer::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
 }
 
 ffi::String Buffer::scope() const {
-  const auto* ptr_type = (*this)->data->type_annotation.as<PointerTypeNode>();
+  const auto* ptr_type = (*this)->data->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "Buffer variable is not of pointer type";
   if (ptr_type->storage_scope.empty()) {
     return "global";
@@ -546,10 +546,17 @@ Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> exten
   return slice;
 }
 
-PrimExpr Buffer::access_ptr(int access_mask, PrimType ptr_type, int content_lanes, PrimExpr offset,
-                            ffi::Optional<PrimExpr> input_extent) const {
+Expr Buffer::access_ptr(int access_mask, PointerType ptr_type, int content_lanes, PrimExpr offset,
+                        ffi::Optional<PrimExpr> input_extent) const {
   const BufferNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
+  const auto* data_pointer_type = self->data->ty.as<PointerTypeNode>();
+  TVM_FFI_ICHECK(data_pointer_type)
+      << "Buffer data must have PointerType, but got " << self->data->ty;
+  // An access pointer addresses the same allocation as the buffer data.  The
+  // requested type controls its pointee, while the buffer controls its address
+  // space (for example, shared or local memory).
+  ptr_type = PointerType(ptr_type->element_type, data_pointer_type->storage_scope);
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
@@ -574,9 +581,8 @@ PrimExpr Buffer::access_ptr(int access_mask, PrimType ptr_type, int content_lane
   if (input_extent.defined()) {
     extent = input_extent.value();
   }
-  ffi::Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
-                                IntImm::Int32(access_mask)};
-  return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args).as_or_throw<PrimExpr>();
+  ffi::Array<Expr> acc_args{e_dtype, self->data, elem_offset, extent, IntImm::Int32(access_mask)};
+  return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
 }
 
 Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
@@ -597,11 +603,11 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   // TODO(Lunderberg): Use an explicit pointer cast for the data
   // pointer.  Should be done alongside extensions to StmtExprMutator
   // to more easily handle buffer/buffer_var updates.
-  TVM_FFI_ICHECK(!data->type_annotation.IsMissing())
+  TVM_FFI_ICHECK(!data->ty.IsMissing())
       << "Variable " << data->name_hint << " is missing a type annotation.";
-  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>())
+  TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>())
       << "Variable " << data->name_hint << " is not a pointer.";
-  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
+  TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
       << "Variable " << data->name_hint << " does not point to a primitive.";
 
   ValidateAxisSeparators(axis_separators, shape.size());
@@ -629,7 +635,7 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   n->buffer_type = buffer_type;
   if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
     for (size_t i = 0; i < n->shape.size(); ++i) {
-      n->strides.push_back(Var("stride", n->shape[i].ty()));
+      n->strides.push_back(PrimVar("stride", n->shape[i].ty()));
     }
   }
   n->span = std::move(span);
@@ -660,7 +666,7 @@ tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtyp
 
   PrimExpr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = tirx::Var(name + "_elem_offset", shape[0].ty());
+    elem_offset = tirx::PrimVar(name + "_elem_offset", shape[0].ty());
   } else {
     elem_offset = PrimExpr();
   }
@@ -727,10 +733,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment,
                                   offset_factor, type, axis_separators, span, layout);
                   })
-      .def_method(
-          "tirx.BufferAccessPtr",
-          static_cast<PrimExpr (Buffer::*)(int, PrimType, int, PrimExpr, ffi::Optional<PrimExpr>)
-                          const>(&Buffer::access_ptr))
+      .def_method("tirx.BufferAccessPtr",
+                  static_cast<Expr (Buffer::*)(int, PointerType, int, PrimExpr,
+                                               ffi::Optional<PrimExpr>) const>(&Buffer::access_ptr))
       .def_method("tirx.BufferGetFlattenedBuffer", &Buffer::GetFlattenedBuffer)
       .def_method("tirx.BufferOffsetOf", &Buffer::OffsetOf)
       .def_method("tirx.BufferOffsetOfp", &Buffer::OffsetOf_p)

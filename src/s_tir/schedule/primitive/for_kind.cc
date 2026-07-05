@@ -174,9 +174,11 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.has_value()) {
-    new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),                                 //
-                                       /*var=*/Var(thread_axis.value(), loop->loop_var.ty()),  //
-                                       /*iter_type=*/kThreadIndex,                             //
+    new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),        //
+                                                                      /*var=*/
+                                       PrimVar(thread_axis.value(),   //
+                                               loop->loop_var.ty()),  //
+                                       /*iter_type=*/kThreadIndex,    //
                                        /*thread_tag=*/thread_axis.value());
   } else {
     new_loop->thread_binding = std::nullopt;

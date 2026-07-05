@@ -136,7 +136,7 @@ class CollectConsumerDetails : public ExprVisitor {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     Tuple func_args;
 
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       func_args = call->args[1].as_or_throw<Tuple>();
     } else {
       func_args = Tuple(call->args);

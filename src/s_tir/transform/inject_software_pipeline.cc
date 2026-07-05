@@ -104,7 +104,7 @@ class PipelineOpaqueAccessRewriter {
         pipeline_loop_(pipeline_loop),
         fragment_info_(fragment_info) {}
 
-  PrimExpr Rewrite(const Call& call) {
+  Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
     static const auto& access_ptr = builtin::tvm_access_ptr();
@@ -117,16 +117,14 @@ class PipelineOpaqueAccessRewriter {
       const Buffer& buffer = buffer_data_to_buffer_.at(call->args[0].as_or_throw<Var>());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
-        ffi::Array<PrimExpr> new_args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
+        ffi::Array<Expr> new_args = call->args;
         const Buffer& new_buffer = (*it).second;
         new_args.Set(
             4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4].as_or_throw<PrimExpr>()));
-        return Call(call->ty.as_or_throw<PrimType>(), call->op, new_args, call->attrs, {},
-                    call->span)
-            .as_or_throw<PrimExpr>();
+        return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
       }
     } else if (call->op.same_as(mma_sync)) {
-      ffi::Array<PrimExpr> new_args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
+      ffi::Array<Expr> new_args = call->args;
       for (int i = 0; i < 4; i++) {
         const Var& buffer_var = call->args[i * 2].as_or_throw<Var>();
         PrimExpr index = call->args[i * 2 + 1].as_or_throw<PrimExpr>();
@@ -137,8 +135,7 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call->ty.as_or_throw<PrimType>(), call->op, new_args, call->attrs, {}, call->span)
-          .as_or_throw<PrimExpr>();
+      return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
     } else if (call->op.same_as(access_ptr)) {
       return RewriteBufferAccess(call, {1});
     } else if (call->op.same_as(ptx_mma_legacy)) {
@@ -146,7 +143,7 @@ class PipelineOpaqueAccessRewriter {
     } else if (call->op.same_as(ptx_ldmatrix_legacy)) {
       return RewriteBufferAccess(call, {3});
     }
-    return call.as_or_throw<PrimExpr>();
+    return call;
   }
 
  private:
@@ -171,12 +168,12 @@ class PipelineOpaqueAccessRewriter {
     return new_buffer_offset;
   }
 
-  PrimExpr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
+  Expr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
     auto product = [](const ffi::Array<PrimExpr>& input) {
       return foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
                    IntImm::Int32(1), input);
     };
-    ffi::Array<PrimExpr> new_args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
+    ffi::Array<Expr> new_args = call->args;
     for (int i : arg_indices) {
       const Buffer& buffer = buffer_data_to_buffer_.at(call->args[i].as_or_throw<Var>());
       auto it = buffer_remap_.find(buffer);
@@ -201,8 +198,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call->ty.as_or_throw<PrimType>(), call->op, new_args, call->attrs, {}, call->span)
-        .as_or_throw<PrimExpr>();
+    return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
   }
 
   const ffi::Map<Var, Buffer>& buffer_data_to_buffer_;
@@ -843,7 +839,7 @@ class PipelineRewriter : public StmtExprMutator {
     if (is_unit_loop) {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
-      new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
+      new_loop_var = pipeline_loop_->loop_var.CopyWithSuffix("");
       analyzer_->Bind(new_loop_var.as_or_throw<Var>(), Range(start, end));
     }
 
@@ -879,13 +875,15 @@ class PipelineRewriter : public StmtExprMutator {
       // This variable corresponds to
       // - "producer_head" if this stage is an async producer
       // - "consumer_head" if this stage reads from asynchronously written buffers.
-      PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_var : skewed_loop_var + delta;
+      PrimExpr skewed_loop_prim = skewed_loop_var.as_or_throw<PrimExpr>();
+      PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_prim : skewed_loop_prim + delta;
 
       // Adjust the block predicate and the body according to the final loop bound
       //  [pipeline_loop_->min, extent).
       if (!is_unit_loop) {
         Var loop_iter = new_loop_var.as_or_throw<Var>();
-        inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
+        inbound = Substitute(
+            inbound, ffi::Map<Var, Expr>{{loop_iter, loop_iter.as_or_throw<PrimExpr>() + delta}});
       }
 
       new_block = Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}})
@@ -960,7 +958,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     if (!is_unit_loop) {
-      new_loop = For(new_loop_var.as_or_throw<Var>(), pipeline_loop_->min, extent,
+      new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
                      std::nullopt, preserved_annotations_, std::nullopt);
     }

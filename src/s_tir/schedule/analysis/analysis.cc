@@ -2058,7 +2058,7 @@ class AutoTensorizeMappingProposer {
     ffi::Map<Var, PrimExpr> lhs_iter_extents;
     for (const auto& iter : extractor_->lhs_iters_) {
       lhs_iter_extents.Set(iter->var, iter->dom->extent);
-      index_map_src.push_back(iter->var.copy_with_suffix(""));
+      index_map_src.push_back(iter->var.CopyWithSuffix(""));
     }
 
     // Step 2: Each iter on RHS has a group of corresponding iters on LHS. Initialize the fusion
@@ -2075,12 +2075,12 @@ class AutoTensorizeMappingProposer {
       const VarSet& rhs_candidates = lhs_feasible_vars_[lhs_iter_var];
       if (rhs_candidates.empty()) {
         // put unmapped iters at the beginning
-        index_map_tgt.push_back(index_map_src[i]);
+        index_map_tgt.push_back(index_map_src[i].as_or_throw<PrimExpr>());
       } else if (rhs_candidates.size() == 1) {
         Var rhs_var = *rhs_candidates.begin();
         PrimExpr fused_lhs = fused_lhs_iters.at(rhs_var);
-        PrimExpr updated_fused_lhs =
-            fused_lhs * lhs_iter_extents.at(lhs_iter_var) + index_map_src[i];
+        PrimExpr updated_fused_lhs = fused_lhs * lhs_iter_extents.at(lhs_iter_var) +
+                                     index_map_src[i].as_or_throw<PrimExpr>();
         fused_lhs_iters.Set(rhs_var, updated_fused_lhs);
         used_rhs_vars.insert(rhs_var);
       } else {
@@ -2095,7 +2095,8 @@ class AutoTensorizeMappingProposer {
       index_map_tgt.push_back(analyzer_->Simplify(fused_lhs_iters[iter->var]));
     }
     // At most one mapping is supported.
-    return {IndexMap(index_map_src, index_map_tgt)};
+    return {IndexMap(index_map_src.Map([](Var var) { return var.as_or_throw<PrimVar>(); }),
+                     index_map_tgt)};
   }
 
  private:

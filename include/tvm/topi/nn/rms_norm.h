@@ -67,8 +67,8 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
   for (int i : real_axis) {
     reduce_extent *= data_fp32->shape[i];
   }
-  auto rsqrt_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> non_reduce_indices;
+  auto rsqrt_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
         non_reduce_indices.push_back(indices[i]);
@@ -86,8 +86,8 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
   }
   auto rsqrt = tvm::te::compute(rsqrt_shape, rsqrt_func, "rsqrt", tag);
 
-  auto rms_norm_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> reduce_indices, non_reduce_indices;
+  auto rms_norm_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> reduce_indices, non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         reduce_indices.push_back(indices[i]);

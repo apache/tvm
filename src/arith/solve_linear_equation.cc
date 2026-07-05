@@ -293,7 +293,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   for (size_t i = 0; i < num_vars; ++i) {
     V.emplace_back(num_vars);
     V.back()[i] = 1;
-    V_inv_x.push_back(system_to_solve->variables[i]);
+    V_inv_x.push_back(system_to_solve->variables[i].as_or_throw<PrimExpr>());
   }
 
   // Transform formulas into rows of the matrix
@@ -396,7 +396,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
         name_hint += "_" + v_old->name_hint;
       }
       Var v = Var(name_hint, V_inv_x[j].ty());
-      solution_for_V_inv_x.push_back(v);
+      solution_for_V_inv_x.push_back(v.as_or_throw<PrimExpr>());
       new_vars.push_back(v);
       new_to_old_map.Set(v, to_old);
     } else {
@@ -416,7 +416,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 
   // V V^{-1} x = x
   for (size_t i = 0; i < num_vars; ++i) {
-    PrimExpr e = IntImm(system_to_solve->variables[i].ty(), 0);
+    PrimExpr e = IntImm(system_to_solve->variables[i]->ty.as_or_throw<PrimType>(), 0);
     for (size_t j = 0; j < num_vars; ++j) {
       e = e + tirx::MakeConst(e.ty(), V[i][j]) * solution_for_V_inv_x[j];
     }

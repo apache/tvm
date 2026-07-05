@@ -40,7 +40,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 std::string GetStorageScope(const Var& var) {
-  auto* ptr = var->type_annotation.as<PointerTypeNode>();
+  auto* ptr = var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
   return ptr->storage_scope;
 }

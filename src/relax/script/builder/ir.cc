@@ -191,7 +191,10 @@ void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
   // block.
   const ffi::Array<tvm::relax::Var>& emitted_vars = block_frame.value()->emitted_vars;
   for (const tvm::relax::Var& var : vars) {
-    TVM_FFI_CHECK(std::find(emitted_vars.begin(), emitted_vars.end(), var) != emitted_vars.end(),
+    TVM_FFI_CHECK(std::find_if(emitted_vars.begin(), emitted_vars.end(),
+                               [&](const tvm::relax::Var& emitted) {
+                                 return emitted.same_as(var);
+                               }) != emitted_vars.end(),
                   ValueError)
         << "An output variable is not emitted by this dataflow block. Please make sure "
            "all dataflow block output variables are emitted exactly by this block.";

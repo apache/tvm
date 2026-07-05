@@ -352,8 +352,8 @@ class RollingBufferRewriter : public StmtExprMutator {
           auto iter_value = realize->iter_values[i];
           arith::Analyzer analyzer;
           auto term_2 = analyzer->int_set(iter_value, dmap).min();
-          condition = analyzer->Simplify(
-              And(condition, Or(LT(var, 1), GE(term_2, info_->axis_overlaps[i]))));
+          condition = analyzer->Simplify(And(condition, Or(LT(var.as_or_throw<PrimExpr>(), 1),
+                                                           GE(term_2, info_->axis_overlaps[i]))));
         }
       }
       SBlockRealizeNode* n = stmt.CopyOnWrite();

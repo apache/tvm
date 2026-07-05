@@ -159,7 +159,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Var::Var(ffi::String name_hint, PrimType dtype, Span span) {
   auto n = ffi::make_object<VarNode>();
   n->name_hint = std::move(name_hint);
-  n->type_annotation = dtype;
   n->ExprNode::ty = dtype;
   n->span = std::move(span);
   data_ = std::move(n);
@@ -168,12 +167,7 @@ Var::Var(ffi::String name_hint, PrimType dtype, Span span) {
 Var::Var(ffi::String name_hint, Type type_annotation, Span span) {
   auto n = ffi::make_object<VarNode>();
   n->name_hint = std::move(name_hint);
-  n->type_annotation = std::move(type_annotation);
-  if (n->type_annotation.as<PrimTypeNode>()) {
-    n->ExprNode::ty = n->type_annotation;
-  } else {
-    n->ExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
-  }
+  n->ExprNode::ty = std::move(type_annotation);
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -185,14 +179,13 @@ Var Var::copy_with_name(const ffi::String& name) const {
   return Var(new_ptr);
 }
 
-Var Var::copy_with_suffix(const ffi::String& suffix) const {
+Var Var::CopyWithSuffix(const ffi::String& suffix) const {
   return this->copy_with_name(get()->name_hint + suffix);
 }
 
 Var Var::copy_with_dtype(PrimType dtype) const {
   const VarNode* node = get();
   ffi::ObjectPtr<VarNode> new_ptr = ffi::make_object<VarNode>(*node);
-  new_ptr->type_annotation = dtype;
   new_ptr->ExprNode::ty = dtype;
   return Var(new_ptr);
 }
@@ -209,7 +202,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // IterVar
-IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span span) {
+IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>();
   if (dom.defined() && dom->extent.defined()) {
     PrimType extent_ty = dom->extent.ty();
@@ -233,7 +226,7 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.IterVar", [](Range dom, Var var, int iter_type, ffi::String thread_tag, Span span) {
+      "tirx.IterVar", [](Range dom, PrimVar var, int iter_type, ffi::String thread_tag, Span span) {
         return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
       });
 }
@@ -241,7 +234,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // StringImm
 StringImm::StringImm(ffi::String value, Span span) {
   ffi::ObjectPtr<StringImmNode> node = ffi::make_object<StringImmNode>();
-  node->ExprNode::ty = PrimType::Handle();
+  node->ExprNode::ty = PrimType::Void();
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -588,7 +581,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(body.defined());
-  TVM_FFI_ICHECK(value.ty() == var.ty());
+  TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
 
   ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>();
   node->ExprNode::ty = body.ty();
@@ -657,8 +650,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // CommReducer
-CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
-                         ffi::Array<PrimExpr> identity_element, Span span) {
+CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
+                         ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
+                         Span span) {
   size_t n_group = result.size();
   TVM_FFI_CHECK_EQ(lhs.size(), n_group, ValueError)
       << "The number of vars in `lhs` must equal to the "
@@ -676,8 +670,8 @@ CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<Pr
   var_map.reserve(n_group * 2);
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
     PrimType dtype = identity_element[i].ty();
-    Var l = lhs[i].copy_with_dtype(dtype);
-    Var r = rhs[i].copy_with_dtype(dtype);
+    PrimVar l = lhs[i].copy_with_dtype(dtype);
+    PrimVar r = rhs[i].copy_with_dtype(dtype);
     var_map[lhs[i].get()] = l;
     var_map[rhs[i].get()] = r;
 
@@ -716,7 +710,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.CommReducer",
-           [](ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
+           [](ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
               ffi::Array<PrimExpr> identity_element,
               Span span) { return CommReducer(lhs, rhs, result, identity_element, span); })
       .def_method("tirx.CommReducerCombine", &tirx::CommReducerNode::operator());

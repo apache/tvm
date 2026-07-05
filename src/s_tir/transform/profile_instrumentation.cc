@@ -204,9 +204,9 @@ class InstrumentIntrin : public StmtMutator {
     }
     PrimExpr id = static_cast<int32_t>(loop_info.id);
     PrimExpr start_call =
-        Call(PrimType::Handle(), builtin::start_profile_intrinsic(), {id}).as_or_throw<PrimExpr>();
+        Call(PrimType::Void(), builtin::start_profile_intrinsic(), {id}).as_or_throw<PrimExpr>();
     PrimExpr end_call =
-        Call(PrimType::Handle(), builtin::end_profile_intrinsic(), {id}).as_or_throw<PrimExpr>();
+        Call(PrimType::Void(), builtin::end_profile_intrinsic(), {id}).as_or_throw<PrimExpr>();
     const Stmt start_profile = Evaluate(start_call);
     const Stmt end_profile = Evaluate(end_call);
     Stmt new_stmt = SeqStmt({start_profile, stmt, end_profile});
@@ -246,9 +246,9 @@ PrimFunc AddProfileBuiltins(PrimFunc func, int32_t max_instr_depth, int32_t min_
   PrimExpr e = start_id++;
   if (!disable_func_instrumentation) {
     PrimExpr start_call =
-        Call(PrimType::Handle(), builtin::start_profile_intrinsic(), {e}).as_or_throw<PrimExpr>();
+        Call(PrimType::Void(), builtin::start_profile_intrinsic(), {e}).as_or_throw<PrimExpr>();
     PrimExpr end_call =
-        Call(PrimType::Handle(), builtin::end_profile_intrinsic(), {e}).as_or_throw<PrimExpr>();
+        Call(PrimType::Void(), builtin::end_profile_intrinsic(), {e}).as_or_throw<PrimExpr>();
     const Stmt start_profile = Evaluate(start_call);
     const Stmt end_profile = Evaluate(end_call);
     func_ptr->body = SeqStmt({start_profile, std::move(func_ptr->body), end_profile});

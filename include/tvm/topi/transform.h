@@ -114,7 +114,7 @@ inline Tensor sliding_window(const Tensor& x, int axis, ffi::Array<int64_t> wind
 
   return compute(
       new_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         // The index at which to index the old tensor x.
         ffi::Array<PrimExpr> idx;
 
@@ -178,7 +178,7 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
 
   return compute(
       new_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         ffi::Array<PrimExpr> idx;
         for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
           idx.push_back(indices[i]);
@@ -233,7 +233,7 @@ inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_
 
   return compute(
       new_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         std::vector<PrimExpr> idx;
         for (size_t i = 0; i < axes.size(); ++i) {
           idx.push_back(1);
@@ -293,7 +293,7 @@ inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int s
       << "seq_axis=" << seq_axis_inp << " is invalid for the " << static_cast<int>(x->shape.size())
       << "-dimensional input tensor";
 
-  auto func = [&](const ffi::Array<Var>& indices) {
+  auto func = [&](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> real_indices;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       if (i == static_cast<size_t>(seq_axis)) {
@@ -339,15 +339,15 @@ inline Tensor reshape(const Tensor& x, ffi::Array<PrimExpr> newshape,
   if (is_empty_shape(target_shape) || is_empty_shape(x->shape)) {
     return compute(
         target_shape,
-        [&](const ffi::Array<Var>& indices) { return tvm::cast(PrimType(x->dtype), 0); }, name,
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::cast(PrimType(x->dtype), 0); }, name,
         tag);
   } else {
     return compute(
         target_shape,
-        [&](const ffi::Array<Var>& indices) {
-          return x(UnravelIndex(
-              RavelIndex(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, target_shape),
-              x_shape));
+        [&](const ffi::Array<PrimVar>& indices) {
+          ffi::Array<PrimExpr> prim_indices =
+              indices.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
+          return x(UnravelIndex(RavelIndex(prim_indices, target_shape), x_shape));
         },
         name, tag);
   }
@@ -375,7 +375,7 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
     oshape.push_back(x_shape[0]);
   }
 
-  auto func = [&](const ffi::Array<Var>& indices) {
+  auto func = [&](const ffi::Array<PrimVar>& indices) {
     auto i = indices[0];
     std::vector<PrimExpr> indices_divs;
     PrimExpr ret = 0;
@@ -452,7 +452,7 @@ inline Tensor squeeze(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_ax
 
   return compute(
       out_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         int flag = 0;
         for (size_t i = 0; i < ndim; ++i) {
@@ -506,9 +506,9 @@ inline Tensor concatenate(const ffi::Array<Tensor>& inputs, int axis = 0,
 
   return compute(
       out_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         auto ret = inputs[0](indices);
-        auto ind = indices[axis];
+        PrimExpr ind = indices[axis].as_or_throw<PrimExpr>();
         for (size_t i = 0; i < inputs.size() - 1; ++i) {
           ind -= axis_sizes[i];
 
@@ -558,7 +558,7 @@ inline Tensor stack(const ffi::Array<Tensor>& inputs, int axis = 0, std::string 
 
   return compute(
       out_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         ffi::Array<PrimExpr> idx;
         for (size_t i = 0; i < indices.size(); ++i)
           if (i != static_cast<size_t>(axis)) idx.push_back(indices[i]);
@@ -630,7 +630,7 @@ inline ffi::Array<Tensor> split_indices_array(const Tensor& x, ffi::Array<PrimEx
   for (size_t i = 0; i < begin_ids.size(); ++i) {
     result.push_back(compute(
         out_shapes[i],
-        [&](const ffi::Array<Var>& indices) {
+        [&](const ffi::Array<PrimVar>& indices) {
           auto begin = begin_ids[i];
           ffi::Array<PrimExpr> real_indices;
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
@@ -741,7 +741,7 @@ inline te::Tensor dynamic_strided_slice_with_axes(
 
   return te::compute(
       out_shape,
-      [&](const ffi::Array<tvm::tirx::Var>& indices) {
+      [&](const ffi::Array<tvm::tirx::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices =
             indices.Map([](const auto& var) -> PrimExpr { return var; });
 
@@ -793,7 +793,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
       out_shape.push_back(
           analyzer->Simplify(GetLength(begin[i], end[i], strides[i], x->shape[i], assume_inbound)));
     } else {
-      out_shape.push_back(tvm::tirx::Var("dim"));
+      out_shape.push_back(tvm::tirx::PrimVar("dim"));
     }
   }
 
@@ -803,7 +803,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const ffi::Array<PrimExpr>&
 
   return te::compute(
       out_shape,
-      [&](const ffi::Array<tvm::tirx::Var>& indices) {
+      [&](const ffi::Array<tvm::tirx::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_slice_axes; ++i) {
           real_indices.push_back(indices[i] * strides[i] + tvm::min(begin[i], x->shape[i] - 1));
@@ -934,7 +934,7 @@ inline Tensor strided_slice_with_axes(
 
   return te::compute(
       out_shape,
-      [&](const ffi::Array<tirx::Var>& indices) {
+      [&](const ffi::Array<tirx::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < out_shape.size(); ++i) real_indices.push_back(indices[i]);
         for (size_t i = 0; i < normalized_axes.size(); ++i) {
@@ -1054,7 +1054,7 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
   if (mode == "clip") {
     return compute(
         out_shape,
-        [&](const ffi::Array<Var>& out_index) {
+        [&](const ffi::Array<PrimVar>& out_index) {
           auto idx = tvm::min(tvm::max(0, indices(out_index)), a_size - 1);
           return a(UnravelIndex(idx, a_shape));
         },
@@ -1064,14 +1064,14 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
                     "Make sure input indices are in bound";
     return compute(
         out_shape,
-        [&](const ffi::Array<Var>& out_index) {
+        [&](const ffi::Array<PrimVar>& out_index) {
           return a(UnravelIndex(indices(out_index), a_shape));
         },
         name, tag);
   } else if (mode == "nan") {
     return compute(
         out_shape,
-        [&](const ffi::Array<Var>& out_index) {
+        [&](const ffi::Array<PrimVar>& out_index) {
           auto idx = tvm::if_then_else(
               indices(out_index) < 0 || indices(out_index) >= a_size,
               tvm::FloatImm(tvm::PrimType(a->dtype), std::numeric_limits<float>::quiet_NaN()),
@@ -1082,7 +1082,7 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
   } else {  // mode == "wrap"
     return compute(
         out_shape,
-        [&](const ffi::Array<Var>& out_index) {
+        [&](const ffi::Array<PrimVar>& out_index) {
           auto idx = truncmod(truncmod(indices(out_index), a_size) + a_size, a_size);
           return a(UnravelIndex(idx, a_shape));
         },
@@ -1113,7 +1113,7 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
   ffi::Array<PrimExpr> out_shape = data->shape;
   Tensor out = compute(
       out_shape,
-      [&](const ffi::Array<Var>& out_index) {
+      [&](const ffi::Array<PrimVar>& out_index) {
         ffi::Array<PrimExpr> len_index;
         auto tid = out_index[axis];
         auto bid = out_index[1 - axis];
@@ -1213,7 +1213,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
     if (batch_dims_ == 0) {
       return compute(
           out_shape,
-          [&](const ffi::Array<Var>& out_index) {
+          [&](const ffi::Array<PrimVar>& out_index) {
             ffi::Array<PrimExpr> indices_position;
             for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
               indices_position.push_back(out_index[j]);
@@ -1233,7 +1233,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
     } else {
       return compute(
           out_shape,
-          [&](const ffi::Array<Var>& out_index) {
+          [&](const ffi::Array<PrimVar>& out_index) {
             ffi::Array<PrimExpr> indices_position;
             for (size_t j = 0; j < static_cast<size_t>(batch_dims_); ++j) {
               indices_position.push_back(out_index[j]);
@@ -1259,7 +1259,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
                     "Make sure input indices are in bound";
     return compute(
         out_shape,
-        [&](const ffi::Array<Var>& out_index) {
+        [&](const ffi::Array<PrimVar>& out_index) {
           ffi::Array<PrimExpr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
             indices_position.push_back(out_index[j]);
@@ -1278,7 +1278,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
   } else if (mode == "nan") {
     return compute(
         out_shape,
-        [&](const ffi::Array<Var>& out_index) {
+        [&](const ffi::Array<PrimVar>& out_index) {
           ffi::Array<PrimExpr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
             indices_position.push_back(out_index[j]);
@@ -1301,7 +1301,7 @@ inline Tensor take(const Tensor& a, ffi::Variant<Tensor, PrimExpr> indices, int 
   } else {  // mode == "wrap"
     return compute(
         out_shape,
-        [&](const ffi::Array<Var>& out_index) {
+        [&](const ffi::Array<PrimVar>& out_index) {
           ffi::Array<PrimExpr> indices_position;
           for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
             indices_position.push_back(out_index[j]);
@@ -1350,7 +1350,7 @@ inline Tensor where(const Tensor& condition, const Tensor& x, const Tensor& y,
   auto x_bh = detail::BroadcastShape(x->shape, oshape);
   auto y_bh = detail::BroadcastShape(y->shape, oshape);
 
-  auto select = [&](tvm::ffi::Array<tvm::tirx::Var> ovars) {
+  auto select = [&](tvm::ffi::Array<tvm::tirx::PrimVar> ovars) {
     auto c = condition(InputIndexFromBroadcast(ovars, condition, c_bh.vars1, c_bh.all_vars));
     auto true_val = x(InputIndexFromBroadcast(ovars, x, x_bh.vars1, x_bh.all_vars));
     auto false_val = y(InputIndexFromBroadcast(ovars, y, y_bh.vars1, y_bh.all_vars));
@@ -1395,7 +1395,7 @@ inline Tensor repeat(const Tensor& x, int repeats, int axis, std::string name = 
 
   return compute(
       new_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         ffi::Array<PrimExpr> idx;
         for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
           idx.push_back(indices[i]);
@@ -1445,12 +1445,13 @@ inline Tensor tile(const Tensor& x, ffi::Array<int64_t> reps, std::string name =
 
   if (is_empty_shape(new_shape)) {
     return compute(
-        new_shape, [&](const ffi::Array<Var>& indices) { return tvm::cast(PrimType(x->dtype), 0); },
-        name, tag);
+        new_shape,
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::cast(PrimType(x->dtype), 0); }, name,
+        tag);
   } else {
     return compute(
         new_shape,
-        [&](const ffi::Array<Var>& indices) {
+        [&](const ffi::Array<PrimVar>& indices) {
           ffi::Array<PrimExpr> idx;
           if (ndim >= rdim) {
             for (size_t i = 0; i < ndim; ++i) idx.push_back(indexmod(indices[i], x->shape[i]));
@@ -1480,12 +1481,13 @@ inline Tensor dyn_tile(const Tensor& x, ffi::Array<PrimExpr> new_shape, size_t r
   size_t ndim = x->shape.size();
   if (is_empty_shape(new_shape)) {
     return compute(
-        new_shape, [&](const ffi::Array<Var>& indices) { return tvm::cast(PrimType(x->dtype), 0); },
-        name, tag);
+        new_shape,
+        [&](const ffi::Array<PrimVar>& indices) { return tvm::cast(PrimType(x->dtype), 0); }, name,
+        tag);
   } else {
     return compute(
         new_shape,
-        [&](const ffi::Array<Var>& indices) {
+        [&](const ffi::Array<PrimVar>& indices) {
           ffi::Array<PrimExpr> idx;
           if (ndim >= rdim) {
             for (size_t i = 0; i < ndim; ++i) {
@@ -1539,7 +1541,7 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
 
   return compute(
       out_shape,
-      [&](const ffi::Array<Var>& out_index) {
+      [&](const ffi::Array<PrimVar>& out_index) {
         ffi::Array<PrimExpr> indices_position;
         for (size_t i = 0; i < ndim_i; ++i) {
           indices_position.push_back(out_index[i]);
@@ -1585,7 +1587,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
   }
   return compute(
       out_shape,
-      [&](const ffi::Array<Var>& out_index) {
+      [&](const ffi::Array<PrimVar>& out_index) {
         ffi::Array<PrimExpr> indices_position;
         indices_position.push_back(0);
         for (size_t i = 0; i < ndim_i - 1; ++i) {
@@ -1637,7 +1639,7 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A, const tvm::te::Tensor& B
                               std::string name = "T_matmul", std::string tag = kMatMul) {
   tvm::ffi::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0], B->shape[trans_b ? 0 : 1]};
   auto k = tvm::te::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
-  auto l = [&](tvm::tirx::Var i, tvm::tirx::Var j) {
+  auto l = [&](tvm::tirx::PrimVar i, tvm::tirx::PrimVar j) {
     return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]), {k});
   };
   return tvm::te::compute(output_shape, l, name, tag);
@@ -1666,16 +1668,21 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
   for (int i = 0; i < axes; ++i)
     iter_vars.push_back(reduce_axis(Range(0, B->shape[i]), "k" + std::to_string(i)));
 
-  auto func = [&A, &B, &iter_vars, axes](const ffi::Array<Var>& input_indices) {
-    ffi::Array<PrimExpr> A_indices(input_indices.begin(),
-                                   input_indices.begin() + (A->shape.size() - axes));
+  auto func = [&A, &B, &iter_vars, axes](const ffi::Array<PrimVar>& input_indices) {
+    ffi::Array<PrimExpr> A_indices;
+    for (auto it = input_indices.begin(); it != input_indices.begin() + (A->shape.size() - axes);
+         ++it) {
+      A_indices.push_back((*it).as_or_throw<PrimExpr>());
+    }
     for (auto& v : iter_vars) A_indices.push_back(v);
 
     ffi::Array<PrimExpr> B_indices;
     for (auto& v : iter_vars) B_indices.push_back(v);
 
     auto it = input_indices.begin() + (A->shape.size() - axes);
-    for (; it != input_indices.end(); ++it) B_indices.push_back(*it);
+    for (; it != input_indices.end(); ++it) {
+      B_indices.push_back((*it).as_or_throw<PrimExpr>());
+    }
 
     // Some passes don't like reductions with empty axis, so avoid it here
     if (iter_vars.empty()) {
@@ -1720,7 +1727,8 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, ffi::Array<Pr
   for (unsigned i = 0; i < B_axes_val.size(); ++i)
     iter_vars.push_back(reduce_axis(Range(0, B->shape[B_axes_val[i]]), "k" + std::to_string(i)));
 
-  auto func = [&A, &B, &iter_vars, A_axes_val, B_axes_val](const ffi::Array<Var>& input_indices) {
+  auto func = [&A, &B, &iter_vars, A_axes_val,
+               B_axes_val](const ffi::Array<PrimVar>& input_indices) {
     int idx_input = 0;
     ffi::Array<PrimExpr> A_indices;
     for (unsigned i = 0; i < A->shape.size(); ++i) {
@@ -1771,7 +1779,9 @@ inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr
 
   return compute(
       {num_elem},
-      [&](const ffi::Array<Var>& indices) { return tvm::cast(dtype, start + step * indices[0]); },
+      [&](const ffi::Array<PrimVar>& indices) {
+        return tvm::cast(dtype, start + step * indices[0]);
+      },
       name, tag);
 }
 
@@ -1797,7 +1807,7 @@ inline ffi::Array<Tensor> meshgrid(const ffi::Array<Tensor>& inputs, const std::
   for (size_t i = 0; i < inputs.size(); ++i) {
     result.push_back(compute(
         out_shape,
-        [&](const ffi::Array<Var>& indices) {
+        [&](const ffi::Array<PrimVar>& indices) {
           const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
           auto ndim = inputs[i]->GetShape().size();
           ffi::Array<PrimExpr> real_indices = {};
@@ -1850,8 +1860,9 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
 
   return compute(
       dst_shape,
-      [&](const ffi::Array<Var>& dst_indices) {
-        ffi::Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+      [&](const ffi::Array<PrimVar>& dst_indices) {
+        ffi::Array<PrimExpr> dst_indices_expr =
+            dst_indices.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
         ffi::Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
         PrimExpr in_range = PrimExpr(1) > PrimExpr(0);  // init with dtype=bool and value=true
         for (size_t i = 0; i < src.ndim(); ++i) {
@@ -1912,8 +1923,9 @@ inline Tensor auto_scheduler_layout_transform(
   parse_auto_scheduler_layout(dst_layout, &dst_shape, &dst_axes);
   return compute(
       dst_shape,
-      [&](const ffi::Array<Var>& dst_indices) {
-        ffi::Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
+      [&](const ffi::Array<PrimVar>& dst_indices) {
+        ffi::Array<PrimExpr> dst_indices_expr =
+            dst_indices.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
         ffi::Array<PrimExpr> src_indices;
         for (const std::string& src_axis : src_axes) {
           PrimExpr src_index = 0;
@@ -1979,8 +1991,10 @@ inline Tensor meta_schedule_layout_transform(
   return compute(
       post_transform_shape,
       [src, inv = index_map.Inverse(iter_domain, analyzer),
-       &analyzer](const ffi::Array<Var>& indices) -> PrimExpr {
-        return src(inv->MapIndices(ffi::Array<PrimExpr>{indices.begin(), indices.end()}, analyzer));
+       &analyzer](const ffi::Array<PrimVar>& indices) -> PrimExpr {
+        ffi::Array<PrimExpr> prim_indices =
+            indices.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
+        return src(inv->MapIndices(prim_indices, analyzer));
       },
       name, tag);
 }
@@ -1999,7 +2013,7 @@ inline Tensor shape(const Tensor& src, PrimType dtype, const std::string name = 
   ffi::Array<PrimExpr> out_shape{ndim};
   return compute(
       out_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         auto idx = indices[0];
         PrimExpr ret = 0;
         for (int i = 0; i < ndim; ++i) {
@@ -2030,7 +2044,7 @@ inline te::Tensor tensor_size(const te::Tensor& src, PrimType dtype,
   ffi::Array<PrimExpr> out_tensor_size = {};
   return compute(
       out_tensor_size,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         PrimExpr ret = 1;
         for (int i = 0; i < ndim; ++i) {
           ret *= src->shape[i];
@@ -2081,8 +2095,8 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
   PrimExpr off_value_cast = cast(dtype, off_value);
   return compute(
       oshape,
-      [&](const ffi::Array<Var>& iter_vars) {
-        ffi::Array<Var> indices_indices;
+      [&](const ffi::Array<PrimVar>& iter_vars) {
+        ffi::Array<PrimVar> indices_indices;
         for (size_t i = 0; i < iter_vars.size(); i++) {
           if (static_cast<int>(i) == true_axis) {
             continue;
@@ -2092,7 +2106,8 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
         }
 
         auto idx = iter_vars[true_axis];
-        return tirx::Select(indices(indices_indices) == idx, on_value_cast, off_value_cast);
+        return tirx::Select(indices(indices_indices) == idx.as_or_throw<PrimExpr>(), on_value_cast,
+                            off_value_cast);
       },
       name, tag);
 }
@@ -2135,19 +2150,21 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices,
   }
   return compute(
       oshape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         PrimExpr ret = default_value;
         if (0 == rank_sparse_indices) {
-          ret = if_then_else(indices[0] == sparse_indices(), sparse_values(), ret);
+          ret = if_then_else(indices[0].as_or_throw<PrimExpr>() == sparse_indices(),
+                             sparse_values(), ret);
         } else if (1 == rank_sparse_indices) {
           for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
-            ret = if_then_else(indices[0] == sparse_indices[j], sparse_values[j], ret);
+            ret = if_then_else(indices[0].as_or_throw<PrimExpr>() == sparse_indices[j],
+                               sparse_values[j], ret);
           }
         } else {
           for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
             PrimExpr aggregate_condition;
             for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
-              PrimExpr comparision = indices[k] == sparse_indices[j][k];
+              PrimExpr comparision = indices[k].as_or_throw<PrimExpr>() == sparse_indices[j][k];
               aggregate_condition = 0 == k ? comparision : aggregate_condition && comparision;
             }
             ret = if_then_else(aggregate_condition, sparse_values[j], ret);
@@ -2180,7 +2197,7 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
 
   return compute(
       input->shape,
-      [&](const ffi::Array<Var>& iter_vars) {
+      [&](const ffi::Array<PrimVar>& iter_vars) {
         auto get_diag = [&]() {
           ffi::Array<PrimExpr> diagonal_indices;
           PrimExpr k, offset = 0;
@@ -2258,7 +2275,7 @@ inline Tensor adv_index(const Tensor& data, const ffi::Array<Tensor>& indices,
 
   return compute(
       oshape,
-      [&](const ffi::Array<Var>& iter_var) {
+      [&](const ffi::Array<PrimVar>& iter_var) {
         ffi::Array<PrimExpr> tensor_indices;
         for (size_t i = 0; i < broadcast_shape.size(); ++i) {
           tensor_indices.push_back(iter_var[i]);
@@ -2299,7 +2316,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 
   return te::compute(
       output_shape,
-      [&](const ffi::Array<tvm::tirx::Var>& indices) {
+      [&](const ffi::Array<tvm::tirx::PrimVar>& indices) {
         ffi::Array<PrimExpr> real_indices;
         for (size_t i = 0; i < num_dynamic_axes; ++i) {
           auto ind = IntImm::Int64(i);

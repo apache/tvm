@@ -38,6 +38,10 @@
 namespace tvm {
 namespace relax {
 
+struct OpIdentityLess {
+  bool operator()(const Op& lhs, const Op& rhs) const { return lhs.get() < rhs.get(); }
+};
+
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", bool);
 
 /*!
@@ -336,8 +340,8 @@ class LegalizeMutator : public ExprMutator {
       };
     } else {
       // No legalization.
-      if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
-          op != call_pure_packed_op) {
+      if (enable_warning_ && !op.same_as(call_tir_op) && !op.same_as(call_dps_packed_op) &&
+          !op.same_as(call_pure_packed_op)) {
         if (shapes_are_known_if_required) {
           LOG(WARNING) << "No legalization func for " << op->name << " is found.";
         } else {
@@ -407,7 +411,7 @@ class LegalizeMutator : public ExprMutator {
   /*!
    * \brief List of ops to be skipped from legalization
    */
-  std::set<Op> skip_ops_;
+  std::set<Op, OpIdentityLess> skip_ops_;
 };
 
 namespace transform {

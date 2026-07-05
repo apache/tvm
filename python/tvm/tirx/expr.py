@@ -457,9 +457,10 @@ class Var(ExprWithOp):
     """
 
     name_hint: str
-    type_annotation: ir.Type
 
     def __init__(self, name: str, dtype: str | ir.Type, span: Span | None = None) -> None:
+        if isinstance(dtype, str) and dtype == "handle":
+            dtype = ir.PointerType(ir.PrimType("void"))
         self.__init_handle_by_constructor__(_ffi_api.Var, name, dtype, span)  # type: ignore
 
 

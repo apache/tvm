@@ -46,32 +46,32 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     // post-order mutation
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
 
-    if (call->op == call_tir_dyn_op_) {
+    if (call->op.same_as(call_tir_dyn_op_)) {
       return CallTIRDyn(call);
-    } else if (call->op == reshape_op_) {
+    } else if (call->op.same_as(reshape_op_)) {
       return Reshape(call);
-    } else if (call->op == shape_of_op_) {
+    } else if (call->op.same_as(shape_of_op_)) {
       return ShapeOf(call);
-    } else if (call->op == tensor_to_shape_op_) {
+    } else if (call->op.same_as(tensor_to_shape_op_)) {
       return TensorToShape(call);
-    } else if (call->op == call_py_func_op_) {
+    } else if (call->op.same_as(call_py_func_op_)) {
       return CallPyFunc(call);
-    } else if (call->op == to_vdevice_op_) {
+    } else if (call->op.same_as(to_vdevice_op_)) {
       return ToDevice(call);
-    } else if (call->op == make_closure_op_) {
+    } else if (call->op.same_as(make_closure_op_)) {
       return MakeClosure(call);
-    } else if (call->op == invoke_closure_op_) {
+    } else if (call->op.same_as(invoke_closure_op_)) {
       return InvokeClosure(call);
-    } else if (call->op == alloc_tensor_op_) {
+    } else if (call->op.same_as(alloc_tensor_op_)) {
       TVM_FFI_THROW(InternalError) << "VMBuiltinLower encountered " << call->op << " in expression "
                                    << ffi::GetRef<Call>(call_node) << ".  "
                                    << "This operation should have been lowered earlier "
                                    << "using the 'relax.transform.LowerAllocTensor' pass.";
-    } else if (call->op == mem_alloc_storage_op_) {
+    } else if (call->op.same_as(mem_alloc_storage_op_)) {
       return MakeMemAllocStorage(call);
-    } else if (call->op == mem_alloc_tensor_op_) {
+    } else if (call->op.same_as(mem_alloc_tensor_op_)) {
       return MakeMemAllocTensor(call);
-    } else if (call->op == mem_kill_storage_op_ || call->op == mem_kill_tensor_op_) {
+    } else if (call->op.same_as(mem_kill_storage_op_) || call->op.same_as(mem_kill_tensor_op_)) {
       return MakeMemKillObject(call);
     } else if (const auto* op_node = call->op.as<OpNode>()) {
       Op op = ffi::GetRef<Op>(op_node);

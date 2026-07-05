@@ -110,7 +110,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   size_t num_buffer = 0;
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v.ty().IsHandle()) {
+    if (!v->ty.as<PointerTypeNode>()) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
@@ -140,7 +140,6 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 void CodeGenTrainium::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   TVM_FFI_ICHECK(lanes == 1) << "Trainium codegen does not support vector types";
-  TVM_FFI_ICHECK(!t.IsHandle()) << "Trainium codegen does not support handle type";
   TVM_FFI_ICHECK(!t.IsVoid()) << "Trainium codegen does not support void type";
   if (t.MatchesCode(DLDataTypeCode::kDLBool)) {
     os << "np.bool";
@@ -330,7 +329,7 @@ void CodeGenTrainium::VisitStmt_(const BufferStoreNode* op) {
 }
 
 void CodeGenTrainium::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
+  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
     this->PrintIndent();

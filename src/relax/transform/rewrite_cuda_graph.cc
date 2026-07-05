@@ -129,9 +129,9 @@ class FuncBuilder : public ExprMutator {
     if (shape_expr_inputs_.size()) {
       ffi::Array<PrimExpr> tir_vars;
       for (const auto* var : shape_expr_inputs_) {
-        auto new_var = ffi::GetRef<tirx::Var>(var).copy_with_suffix("");
-        tir_var_remap_.Set(ffi::GetRef<tirx::Var>(var), new_var);
-        tir_vars.push_back(new_var);
+        auto new_var = ffi::GetRef<tirx::Var>(var).CopyWithSuffix("");
+        tir_var_remap_.Set(ffi::GetRef<tirx::Var>(var), new_var.as_or_throw<PrimExpr>());
+        tir_vars.push_back(new_var.as_or_throw<PrimExpr>());
       }
       shape_expr = Var("shape_expr", ShapeType(tir_vars));
     }
@@ -288,7 +288,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (region->shape_expr_inputs_.size()) {
         ffi::Array<PrimExpr> tir_vars;
         for (const auto* var : region->shape_expr_inputs_) {
-          tir_vars.push_back(ffi::GetRef<tirx::Var>(var));
+          tir_vars.push_back(ffi::GetRef<tirx::Var>(var).as_or_throw<PrimExpr>());
         }
         plan->propogated_tir_vars = ShapeExpr(tir_vars);
       }

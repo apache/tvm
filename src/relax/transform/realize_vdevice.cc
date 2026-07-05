@@ -167,7 +167,7 @@ class DeviceHintCollector : ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) override {
     ExprVisitor::VisitBinding_(binding, call);
-    if (call->op == hint_on_device_op_) {
+    if (call->op.same_as(hint_on_device_op_)) {
       auto vdevice = vdevice_lookup_(call->attrs);
       known_vdevice_.Set(binding->var, vdevice);
 
@@ -242,7 +242,7 @@ class VDeviceSetCollector : ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) override {
-    if (call->op != to_vdevice_op_ && call->op != hint_on_device_op_) {
+    if (!call->op.same_as(to_vdevice_op_) && !call->op.same_as(hint_on_device_op_)) {
       ExprVisitor::VisitExpr_(call);
     }
   }
@@ -378,7 +378,7 @@ class VDeviceTypeUpdater : ExprMutator {
   Expr VisitExpr_(const CallNode* op) override {
     auto call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
-    if (call->op != hint_on_device_op_) {
+    if (!call->op.same_as(hint_on_device_op_)) {
       return call;
     }
 

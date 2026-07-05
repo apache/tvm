@@ -484,9 +484,9 @@ bool HasReshapePattern(const PrimFunc& func) {
         ffi::Map<tirx::Var, PrimExpr> inverse_indices_map;
         PrimExpr stride = IntImm(dtype, /*value=*/1);
         for (int i = static_cast<int>(block->iter_vars.size()) - 1; i >= 0; --i) {
-          inverse_indices_map.Set(
-              block->iter_vars[i]->var,
-              floormod(floordiv(fused_var, stride), block->iter_vars[i]->dom->extent));
+          inverse_indices_map.Set(block->iter_vars[i]->var,
+                                  floormod(floordiv(fused_var.as_or_throw<PrimExpr>(), stride),
+                                           block->iter_vars[i]->dom->extent));
           stride *= block->iter_vars[i]->dom->extent;
         }
         PrimExpr flattened_idx = f_calc_flattened_idx(nontrivial_buffer, nontrivial_indices);

@@ -207,7 +207,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
         // of shape inference.  In many cases, knowning that the
         // shape variable is non-negative allows for simpler
         // expressions for dynamic shapes.
-        analyzer_->MarkGlobalNonNegValue(shape_var);
+        analyzer_->MarkGlobalNonNegValue(shape_var.as_or_throw<PrimExpr>());
       } else {
         const PrimExpr& old_shape_expr = (*it).second;
         TVM_FFI_ICHECK(old_shape_expr.same_as(shape_expr) ||

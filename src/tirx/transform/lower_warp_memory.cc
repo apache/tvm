@@ -284,18 +284,16 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
  protected:
-  PrimExpr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
-    ffi::Array<PrimExpr> new_args = op->args.as_or_throw<ffi::Array<PrimExpr>>();
+  Expr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
+    ffi::Array<Expr> new_args = op->args;
     for (int i : indices) {
-      // Compare on the VarNode* not the bare Object*; args[i] may be
-      // a PrimExpr typed view over a Var.
+      // Preserve the pointer operand as an Expr and narrow only its scalar index.
       if (op->args[i].as<VarNode>() == buffer_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1].as_or_throw<PrimExpr>()).first;
         new_args.Set(i + 1, local_index);
       }
     }
-    return Call(op->ty.as_or_throw<PrimType>(), op->op, new_args, op->attrs, {}, op->span)
-        .as_or_throw<PrimExpr>();
+    return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
   }
 
   Expr VisitExpr_(const CallNode* op) override {
@@ -387,7 +385,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     auto writer = load.CopyOnWrite();
     writer->indices = {local_index};
 
-    if (analyzer_->CanProveEqual(group, warp_index_)) {
+    if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
     }
 

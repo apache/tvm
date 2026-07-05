@@ -174,7 +174,7 @@ static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
 
   // Create a new shape expression.
   ffi::Array<PrimExpr> t1_initial_indices =
-      t1->initial_indices.Map([](tirx::Var i) -> PrimExpr { return i; });
+      t1->initial_indices.Map([](tirx::Var i) { return i.as_or_throw<PrimExpr>(); });
   arith::Analyzer analyzer;
   auto t0_output = t0->MapIndices(t1_initial_indices, analyzer);
   for (size_t i = 0; i < t0_output.size(); ++i) {
@@ -299,8 +299,9 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
     }
 
     auto new_dim = tirx::Var("d");
+    PrimExpr new_dim_expr = new_dim.as_or_throw<PrimExpr>();
     initial_indices_it = initial_indices.insert(initial_indices_it, new_dim);
-    final_indices_it = final_indices.insert(final_indices_it, new_dim);
+    final_indices_it = final_indices.insert(final_indices_it, new_dim_expr);
     // Advance past the newly inserted element so subsequent iterations start correctly.
     initial_indices_it++;
     final_indices_it++;
@@ -308,7 +309,8 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
 
   ffi::Array<tirx::Var> initial_array(initial_indices.begin(), initial_indices.end());
   ffi::Array<PrimExpr> final_array(final_indices.begin(), final_indices.end());
-  return IndexMap(initial_array, final_array);
+  return IndexMap(initial_array.Map([](tirx::Var var) { return var.as_or_throw<tirx::PrimVar>(); }),
+                  final_array);
 }
 
 /*!
@@ -355,7 +357,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     for (const auto& iter_var : block->iter_vars) {
       auto var = iter_var->var;
       iter_var_to_block_index[var] = index++;
-      block_spatial_layout.push_back(var);
+      block_spatial_layout.push_back(static_cast<tirx::Var>(var));
     }
 
     // Helper to get the spatial layout of buffer from buffer access map.

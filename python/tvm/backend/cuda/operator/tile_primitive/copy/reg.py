@@ -459,7 +459,7 @@ def _ptr_off(base_ptr, off):
         base_ptr,
         off,
         source_code=_POINTER_OFFSET_SRC,
-        return_type="handle",
+        return_type=base_ptr.ty,
     )
 
 

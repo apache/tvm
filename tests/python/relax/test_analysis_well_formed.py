@@ -662,7 +662,7 @@ def test_pass_dltensor_arg_to_tir():
 
     In TIR, a `DLTensor*` argument with unknown shape and dtype is
     represented as a `tirx.Var` with
-    `tvm::PrimType::Handle()`, and with no entry in the
+    `tvm::PointerType::VoidPointerTy()`, and with no entry in the
     `PrimFuncNode::buffer_map`.  In Relax, this is represented as
     `R.Tensor`.  Calls from Relax to TIR that pass a tensor of unknown
     rank/shape are well-formed.

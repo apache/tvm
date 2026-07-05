@@ -85,7 +85,7 @@ class PrimExprComputeInjector : public ExprMutator {
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 
     return Call(ret_ty, callee, param_vars.Map([](const tirx::Var& tir_var) -> relax::Expr {
-      return PrimExpr(tir_var);
+      return tir_var.as_or_throw<PrimExpr>();
     }));
   }
 };

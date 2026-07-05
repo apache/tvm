@@ -33,15 +33,15 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-#define STMT_REGENERATE_VAR_DEF(NODE, FIELD)     \
-  Stmt VisitStmt_(const NODE* op) final {        \
-    Var new_var = this->ReDefineVar(op->FIELD);  \
-    Stmt stmt = StmtExprMutator::VisitStmt_(op); \
-    op = stmt.as<NODE>();                        \
-    TVM_FFI_ICHECK(op != nullptr);               \
-    auto n = ffi::make_object<NODE>(*op);        \
-    n->FIELD = std::move(new_var);               \
-    return Stmt(n);                              \
+#define STMT_REGENERATE_VAR_DEF(NODE, FIELD)                                       \
+  Stmt VisitStmt_(const NODE* op) final {                                          \
+    Var new_var = this->ReDefineVar(op->FIELD);                                    \
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);                                   \
+    op = stmt.as<NODE>();                                                          \
+    TVM_FFI_ICHECK(op != nullptr);                                                 \
+    auto n = ffi::make_object<NODE>(*op);                                          \
+    n->FIELD = std::move(new_var).as_or_throw<std::decay_t<decltype(n->FIELD)>>(); \
+    return Stmt(n);                                                                \
   }
 
 class RenewDefMutator : public StmtExprMutator {
@@ -54,8 +54,9 @@ class RenewDefMutator : public StmtExprMutator {
       params.push_back(generator.ReDefineVar(param));
     }
     for (const auto& param : func->params) {
-      if (param->ty.as_or_throw<PrimType>().IsHandle()) {
-        const Buffer& buffer = func->buffer_map.at(param);
+      auto it = func->buffer_map.find(param);
+      if (it != func->buffer_map.end()) {
+        const Buffer& buffer = (*it).second;
         for (const PrimExpr& e : buffer->shape) {
           if (const auto* v = e.as<VarNode>()) {
             if (generator.remap_.count(ffi::GetRef<Var>(v)) == 0) {
@@ -69,8 +70,9 @@ class RenewDefMutator : public StmtExprMutator {
     // TODO(Siyuan Feng): checking var is used after define
     ffi::Map<tirx::Var, Buffer> buffer_map;
     for (const auto& param : func->params) {
-      if (param->ty.as_or_throw<PrimType>().IsHandle()) {
-        const Buffer& buffer = func->buffer_map.at(param);
+      auto it = func->buffer_map.find(param);
+      if (it != func->buffer_map.end()) {
+        const Buffer& buffer = (*it).second;
         Var new_param = generator.VisitExpr(param).as_or_throw<Var>();
         Buffer new_buffer = generator.DefineBuffer(buffer);
         buffer_map.Set(new_param, new_buffer);
@@ -171,14 +173,14 @@ class RenewDefMutator : public StmtExprMutator {
       return (*it).second.as_or_throw<Buffer>();
     }
 
-    auto redefine_if_is_var = [this](const PrimExpr& expr) -> PrimExpr {
+    auto redefine_if_is_var = [this](const Expr& expr) -> Expr {
       auto it = remap_.find(expr);
       if (it != remap_.end()) {
-        return (*it).second.as_or_throw<PrimExpr>();
+        return (*it).second.as_or_throw<Expr>();
       } else if (auto var = expr.as<Var>()) {
         return this->ReDefineVar(var.value());
       } else {
-        return ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
+        return ExprMutator::VisitExpr(expr);
       }
     };
 
@@ -190,8 +192,9 @@ class RenewDefMutator : public StmtExprMutator {
     ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
     // strides/elem_offset may define NEW vars (e.g. in match_buffer),
     // so use redefine_if_is_var to create fresh copies for unknown vars
-    ffi::Array<PrimExpr> strides = buffer->strides.Map(redefine_if_is_var);
-    PrimExpr elem_offset = redefine_if_is_var(buffer->elem_offset);
+    ffi::Array<PrimExpr> strides = buffer->strides.Map(
+        [&](const PrimExpr& expr) { return redefine_if_is_var(expr).as_or_throw<PrimExpr>(); });
+    PrimExpr elem_offset = redefine_if_is_var(buffer->elem_offset).as_or_throw<PrimExpr>();
 
     auto n = ffi::make_object<BufferNode>(*buffer.get());
     n->data = std::move(data);
@@ -210,7 +213,7 @@ class RenewDefMutator : public StmtExprMutator {
     if (it != remap_.end()) {
       return (*it).second.as_or_throw<Buffer>();
     }
-    Var data = VisitPrimExpr(buffer->data).as_or_throw<Var>();
+    Var data = VisitExpr(buffer->data).as_or_throw<Var>();
     auto visit_expr = [this](const PrimExpr& e) -> PrimExpr { return this->VisitPrimExpr(e); };
     ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
     ffi::Array<PrimExpr> strides = buffer->strides.Map(visit_expr);
@@ -233,8 +236,8 @@ class RenewDefMutator : public StmtExprMutator {
     }
     PrimExpr min = VisitPrimExpr(iter_var->dom->min);
     PrimExpr extent = VisitPrimExpr(iter_var->dom->extent);
-    IterVar new_iter_var(Range(min, extent), ReDefineVar(iter_var->var), iter_var->iter_type,
-                         iter_var->thread_tag);
+    IterVar new_iter_var(Range(min, extent), ReDefineVar(iter_var->var).as_or_throw<PrimVar>(),
+                         iter_var->iter_type, iter_var->thread_tag);
     this->AddDefRemap(iter_var, new_iter_var);
     return new_iter_var;
   }

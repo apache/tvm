@@ -69,7 +69,7 @@ class SpecializeTIRCallArgs : ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       return SpecializeTirPrimFunc(call);
     }
     return call;
@@ -80,7 +80,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto gv = call->args[0].as_or_throw<GlobalVar>();
     auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
     auto args = call->args[1].as_or_throw<Tuple>()->fields;
-    ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
+    ffi::Map<tirx::Var, ffi::Variant<Buffer, Expr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);
@@ -141,7 +141,7 @@ class SpecializeTIRCallArgs : ExprMutator {
 
     auto new_pfunc = Specialize(pfunc, param_map);
     for (const auto& [var, buffer] : new_pfunc->buffer_map) {
-      auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+      auto* ptr = buffer->data->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     }
     auto new_prim_func = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));

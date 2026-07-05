@@ -182,7 +182,7 @@ class CallSubstitutor : public StmtExprMutator {
         }
       }
     }
-    return call.as_or_throw<PrimExpr>();
+    return call;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {

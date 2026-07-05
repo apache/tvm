@@ -77,17 +77,16 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     auto src = BufferLoad(mem_copy->source->buffer, {src_min});
     auto dst = BufferLoad(mem_copy->dest->buffer, {dst_min});
     PrimExpr dst_nbytes = dst_extent * static_cast<int>(src.ty().StorageBytes());
-    return Evaluate(Call(PrimType::Int(32), builtin::dma_copy(),
-                         ffi::Array<PrimExpr>{PrimExpr(async_queue_id_.value()),
-                                              Call(PrimType::Handle(), builtin::address_of(),
-                                                   ffi::Array<PrimExpr>{dst}, Attrs(), {}, Span())
-                                                  .as_or_throw<PrimExpr>(),
-                                              Call(PrimType::Handle(), builtin::address_of(),
-                                                   ffi::Array<PrimExpr>{src}, Attrs(), {}, Span())
-                                                  .as_or_throw<PrimExpr>(),
-                                              dst_nbytes, PrimExpr(dma_bypass_cache_)},
-                         Attrs(), {}, Span())
-                        .as_or_throw<PrimExpr>());
+    return Evaluate(
+        Call(PrimType::Int(32), builtin::dma_copy(),
+             ffi::Array<Expr>{PrimExpr(async_queue_id_.value()),
+                              Call(mem_copy->dest->buffer->data->ty, builtin::address_of(),
+                                   ffi::Array<Expr>{dst}, Attrs(), {}, Span()),
+                              Call(mem_copy->source->buffer->data->ty, builtin::address_of(),
+                                   ffi::Array<Expr>{src}, Attrs(), {}, Span()),
+                              dst_nbytes, PrimExpr(dma_bypass_cache_)},
+             Attrs(), {}, Span())
+            .as_or_throw<PrimExpr>());
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {

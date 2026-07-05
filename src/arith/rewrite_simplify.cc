@@ -2329,7 +2329,12 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const SelectNode* op) {
 
 Expr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
   // add condition context to if_then_else
-  PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr expr = IRMutatorWithAnalyzer::VisitExpr_(op);
+  auto opt_ret = expr.as<PrimExpr>();
+  if (!opt_ret) {
+    return expr;
+  }
+  PrimExpr ret = opt_ret.value();
   op = ret.as<CallNode>();
   if (op == nullptr) return ret;
 
@@ -2418,10 +2423,12 @@ Expr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
 
 Expr RewriteSimplifier::Impl::VisitExpr_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
-  PrimType op_ty = op->ty.as_or_throw<PrimType>();
+  auto prim_var = var.as<PrimVar>();
+  if (!prim_var) return var;
+  PrimType op_ty = prim_var.value().ty();
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBool, 8) && !op_ty.IsScalableVector() &&
       !op_ty.IsFixedLengthVector()) {
-    if (auto match = TryMatchLiteralConstraint(var)) {
+    if (auto match = TryMatchLiteralConstraint(prim_var.value())) {
       return match.value();
     }
   }

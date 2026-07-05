@@ -37,7 +37,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
 
   // Step 0. Set up statistics
   std::unordered_map<const ffi::Object*, int> use_count;
-  auto update_use_count = [&](const PrimExpr& e) {
+  auto update_use_count = [&](const Expr& e) {
     tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& n) {
       if (const VarNode* var = n.as<VarNode>()) {
         ++use_count[var];
@@ -52,9 +52,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   for (const PrimExpr& e : buffer->shape) {
     update_use_count(e);
   }
-  auto is_new_var = [&](const PrimExpr& e) {
-    return e->IsInstance<VarNode>() && !d->IsVarDefined(e);
-  };
+  auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
     TVM_FFI_ICHECK(!d->IsVarDefined(var));
     ExprDoc lhs = DefineVar(var, frame, d);
@@ -62,7 +60,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     var_def_lhs.push_back(lhs);
     var_def_rhs.push_back(PrintVarCreation(var, var_p, d));
   };
-  auto try_inline_def = [&](const PrimExpr& e, const AccessPath& e_p,
+  auto try_inline_def = [&](const Expr& e, const AccessPath& e_p,
                             std::function<ExprDoc()> inline_f) {
     TVM_FFI_ICHECK(is_new_var(e));
     Var var = e.as_or_throw<Var>();
@@ -101,7 +99,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   // Step 3. Handle `buffer.data`
   // For tmem scope, DeclBuffer does not accept `data` (it auto-creates the data var).
   bool is_tmem_scope = false;
-  if (auto* ptr_type = buffer->data->type_annotation.as<PointerTypeNode>()) {
+  if (auto* ptr_type = buffer->data->ty.as<PointerTypeNode>()) {
     is_tmem_scope = (ptr_type->storage_scope == "tmem");
   }
   bool is_inline_data = false;
@@ -164,10 +162,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   {
     ffi::String scope = buffer.scope();
     if (scope != "global") {
-      kwargs.Set(
-          "scope",
-          LiteralDoc::Str(scope,
-                          buffer_p->Attr("data")->Attr("type_annotation")->Attr("storage_scope")));
+      kwargs.Set("scope",
+                 LiteralDoc::Str(scope, buffer_p->Attr("data")->Attr("ty")->Attr("storage_scope")));
     }
   }
   // Step 7. Handle `buffer.data_alignment`

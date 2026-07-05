@@ -218,8 +218,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return load;
   }
 
-  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr,
-                                    ffi::Optional<PrimExpr> offset = std::nullopt) {
+  Expr HandleAccessPtrAndOffset(Expr access_ptr, ffi::Optional<PrimExpr> offset = std::nullopt) {
     // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
@@ -245,7 +244,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     auto new_access_ptr = access_ptr_call.CopyOnWrite();
     new_access_ptr->args.Set(2, new_offset);
-    return access_ptr_call.as_or_throw<PrimExpr>();
+    return access_ptr_call;
   }
 
   Expr VisitExpr_(const CallNode* op) final {
@@ -253,33 +252,33 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     auto call = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<Call>();
 
     if (!permute_) {
-      return call.as_or_throw<PrimExpr>();
+      return call;
     }
 
     static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix_legacy");
     static const Op& mma_store_op = Op::Get("tirx.mma_store_legacy");
     if (!call->op.same_as(ptx_ldmatrix_op) && !call->op.same_as(mma_store_op)) {
-      return call.as_or_throw<PrimExpr>();
+      return call;
     }
 
     if (call->op.same_as(ptx_ldmatrix_op)) {
       // form: T.ptx.ldmatrix_legacy(..., smem_ptr, smem_offset)
       // smem_ptr: T.tvm_access_ptr(ptype, data, offset, extent, rw_mask)
-      PrimExpr access_ptr = call->args[5].as_or_throw<PrimExpr>();
+      Expr access_ptr = call->args[5];
       PrimExpr smem_offset = call->args[6].as_or_throw<PrimExpr>();
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, smem_offset);
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(5, new_access_ptr);
       new_call->args.Set(6, IntImm(smem_offset.ty(), 0));
-      return call.as_or_throw<PrimExpr>();
+      return call;
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet
       // because we will directly store result to Buffer instead of calling mma_store now
-      PrimExpr access_ptr = call->args[2].as_or_throw<PrimExpr>();
+      Expr access_ptr = call->args[2];
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr);
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(2, new_access_ptr);
-      return call.as_or_throw<PrimExpr>();
+      return call;
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid call node: " << call;
     }

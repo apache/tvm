@@ -131,8 +131,9 @@ class OpaqueBlockLower : public StmtExprMutator {
 
     } else {
       PrimExpr expr = it->second;
-      if (expr.ty() != var.ty()) {
-        expr = tvm::cast(var.ty(), std::move(expr));
+      PrimType var_ty = var->ty.as_or_throw<PrimType>();
+      if (expr.ty() != var_ty) {
+        expr = tvm::cast(var_ty, std::move(expr));
       }
       return expr;
     }
@@ -141,7 +142,7 @@ class OpaqueBlockLower : public StmtExprMutator {
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
                                Stmt body) {
     IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var),
+                     /*var=*/std::move(var).as_or_throw<PrimVar>(),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||

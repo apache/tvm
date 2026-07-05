@@ -133,7 +133,7 @@ def test_call_packed_return_non_i32():
         )
 
         # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
-        Aptr_dup = tvm.tirx.Var("Aptr_dup", "handle")
+        Aptr_dup = tvm.tirx.Var("Aptr_dup", Ab.data.ty)
         store1 = tvm.tirx.BufferStore(Ab, tvm.tirx.const(expected_value[1], "float32"), [1])
         bind_stmt = tvm.tirx.Bind(Aptr_dup, packed_echo(Ab.data))
 

@@ -66,7 +66,7 @@ bool IsAncestorOfAllVarUse(const tirx::Stmt& node, const ffi::ObjectRef& var,
   return false;
 }
 
-ffi::Optional<PrimExpr> FindReturnValue(const tirx::Stmt& node) {
+ffi::Optional<Expr> FindReturnValue(const tirx::Stmt& node) {
   auto eval = node.as<tirx::EvaluateNode>();
   if (!eval) return std::nullopt;
 
@@ -77,7 +77,7 @@ ffi::Optional<PrimExpr> FindReturnValue(const tirx::Stmt& node) {
 
   if (call->args.size() != 1) return std::nullopt;
 
-  return call->args[0].as_or_throw<PrimExpr>();
+  return call->args[0];
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -207,11 +207,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Bind>("", [](tirx::Bind stmt, AccessPath p, IRDocsifier d) -> Doc {
       // Step 1. Type annotation
-      TVM_FFI_ICHECK(!stmt->var->type_annotation.IsMissing())
+      TVM_FFI_ICHECK(!stmt->var->ty.IsMissing())
           << "Type annotation is required for variable: " << stmt->var->name_hint;
-      ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
-                                                          p->Attr("var")->Attr("type_annotation"));
-      if (const auto* tuple_type = stmt->var->type_annotation.as<TupleTypeNode>()) {
+      ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->ty,  //
+                                                          p->Attr("var")->Attr("ty"));
+      if (const auto* tuple_type = stmt->var->ty.as<TupleTypeNode>()) {
         if (tuple_type->fields.empty()) {
           type_doc = std::nullopt;
         }

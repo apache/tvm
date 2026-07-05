@@ -81,7 +81,7 @@ class GradientSimplifier : private ExprMutator {
 
  private:
   static bool IsTransposeOp(const CallNode* call_node) {
-    if (call_node->op != Op::Get("relax.permute_dims")) {
+    if (!call_node->op.same_as(Op::Get("relax.permute_dims"))) {
       return false;
     }
     auto ty = MatchType<TensorType>(call_node->args[0]);
@@ -171,7 +171,7 @@ class GradientSimplifier : private ExprMutator {
       } else {
         return reemit_and_return();
       }
-    } else if (prev_call_node->op == Op::Get("relax.matmul")) {
+    } else if (prev_call_node->op.same_as(Op::Get("relax.matmul"))) {
       // rewrite rule #2: permute_dims(matmul(a, b)) -> matmul(permute_dims(b), permute_dims(a))
       // Should "a" or "b" already be in the form of "permute_dims", the redundant permute_dims
       // operation should be eliminated

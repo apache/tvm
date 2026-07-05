@@ -974,13 +974,13 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // apply substitutions
     new_body = RemapBuffers(new_body, buffer_subst_map);
-    new_body =
-        tirx::Substitute(new_body, [&var_subst_map](const tirx::Var& v) -> ffi::Optional<PrimExpr> {
-          if (var_subst_map.count(v)) {
-            return var_subst_map.at(v);
-          }
-          return ffi::Optional<PrimExpr>();
-        });
+    new_body = tirx::Substitute(new_body,
+                                [&var_subst_map](const tirx::Var& v) -> ffi::Optional<tvm::Expr> {
+                                  if (var_subst_map.count(v)) {
+                                    return tvm::Expr(var_subst_map.at(v));
+                                  }
+                                  return std::nullopt;
+                                });
 
     // remove the now-unused outputs from the buffer map
     auto new_buffer_map = old_primfunc->buffer_map;

@@ -74,13 +74,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
   const uint32_t descriptor_set = 0;
 
   for (Var arg : f->params) {
-    PrimType t = PrimType(arg.ty()->dtype);
-    if (t.IsHandle()) {
-      auto* ptr = arg->type_annotation.as<PointerTypeNode>();
-      TVM_FFI_ICHECK(ptr)
-          << "All handles passed to the Vulkan codegen must have a type_annotation as a "
-             "PointerType, "
-          << "and must point to a PrimType";
+    if (auto* ptr = arg->ty.as<PointerTypeNode>()) {
       auto* prim = ptr->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim)
           << "All handles passed to the Vulkan codegen must have a type_annotation as a "
@@ -98,6 +92,8 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
       storage_info_[arg.get()].SetContentType(value_storage_type, arg->name_hint);
       var_map_[arg.get()] = arg_value;
     } else {
+      PrimType pod_type = arg->ty.as_or_throw<PrimType>();
+      TVM_FFI_ICHECK(!pod_type.IsVoid()) << "Vulkan POD arguments cannot have void type";
       pod_args.push_back(arg);
     }
   }
@@ -109,7 +105,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
   if (pod_args.size() != 0) {
     std::vector<spirv::SType> value_types;
     for (size_t i = 0; i < pod_args.size(); ++i) {
-      value_types.push_back(builder_->GetSType(PrimType(pod_args[i].ty()->dtype)));
+      value_types.push_back(builder_->GetSType(pod_args[i]->ty.as_or_throw<PrimType>()));
     }
     if (pod_args.size() * sizeof(runtime::ArgUnion64) <= runtime::vulkan::kMaxPushConstantsBytes) {
       spirv::Value ptr = builder_->DeclarePushConstant(value_types);
@@ -842,7 +838,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(!op->buffer->dtype.IsHandle());
+  TVM_FFI_ICHECK(!op->buffer->dtype.IsVoid());
   const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
   size_t constant_size = static_cast<size_t>(dim_imm->value);
@@ -934,9 +930,15 @@ void CodeGenSPIRV::VisitStmt_(const AssertStmtNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const BindNode* op) {
   TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
-  TVM_FFI_ICHECK(!PrimType(op->var.ty()->dtype).IsHandle());
+  if (auto prim_type = op->var->ty.as<PrimType>()) {
+    TVM_FFI_ICHECK(!prim_type.value().IsVoid());
+  } else {
+    TVM_FFI_ICHECK(op->var->ty.as<PointerTypeNode>());
+  }
   var_map_[op->var.get()] = MakeValue(op->value);
-  analyzer_->Bind(op->var, op->value);
+  if (auto prim_value = op->value.as<PrimExpr>()) {
+    analyzer_->Bind(op->var, prim_value.value());
+  }
 }
 
 void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {

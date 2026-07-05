@@ -57,7 +57,8 @@ class StoreUndefLocator : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr(op->value);
     std::swap(has_undef_, stash_undef);
     if (stash_undef) {
-      TVM_FFI_ICHECK(SideEffect(op->value) <= CallEffectKind::kReadState)
+      auto value = op->value.as<PrimExpr>();
+      TVM_FFI_ICHECK(value && SideEffect(value.value()) <= CallEffectKind::kReadState)
           << "Error: T.undef() used in BufferStore expressions "
           << "must not have other side effects";
       undef_stores_.insert(op);
@@ -93,7 +94,8 @@ class StoreUndefLocator : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr(op->value);
     std::swap(has_undef_, stash_undef);
     if (stash_undef) {
-      TVM_FFI_ICHECK(SideEffect(op->value) <= CallEffectKind::kReadState)
+      auto value = op->value.as<PrimExpr>();
+      TVM_FFI_ICHECK(value && SideEffect(value.value()) <= CallEffectKind::kReadState)
           << "Error: T.undef() used in Let expressions "
           << "must not have other side effects";
       var_bindings_with_undef_.insert(op->var.get());

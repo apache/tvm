@@ -25,12 +25,12 @@ TEST(Tensor, Basic) {
   using namespace tvm;
   using namespace tvm::te;
 
-  Var m("m"), n("n"), l("l");
+  PrimVar m("m"), n("n"), l("l");
 
   Tensor A = placeholder({m, l}, PrimType::Float(32), "A");
   Tensor B = placeholder({n, l}, PrimType::Float(32), "B");
 
-  auto C = compute({m, n}, [&](Var i, Var j) { return A[i][j]; }, "C");
+  auto C = compute({m, n}, [&](PrimVar i, PrimVar j) { return A[i][j]; }, "C");
 
   Tensor::Slice x = A[n];
 }
@@ -39,19 +39,20 @@ TEST(Tensor, Reduce) {
   using namespace tvm;
   using namespace tvm::te;
 
-  Var m("m"), n("n"), l("l");
+  PrimVar m("m"), n("n"), l("l");
   te::Tensor A = te::placeholder({m, l}, PrimType::Float(32), "A");
   te::Tensor B = te::placeholder({n, l}, PrimType::Float(32), "B");
   IterVar rv = reduce_axis(Range{0, l}, "k");
 
   auto C = te::compute(
-      {m, n}, [&](Var i, Var j) { return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv}); }, "C");
+      {m, n}, [&](PrimVar i, PrimVar j) { return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv}); },
+      "C");
 }
 
 TEST(Tensor, Indexing) {
   using namespace tvm;
   using namespace tvm::te;
 
-  Var x("x"), y("y");
+  PrimVar x("x"), y("y");
   te::Tensor A = te::placeholder({x, y}, PrimType::Float(32), "A");
 }

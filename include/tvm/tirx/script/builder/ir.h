@@ -337,7 +337,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The bound Var.
  */
-Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
          ffi::Optional<Var> var = std::nullopt);
 
 /*!
@@ -482,7 +482,7 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */
-void Evaluate(PrimExpr value);
+void Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
@@ -497,16 +497,17 @@ void Evaluate(PrimExpr value);
 inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
                   ffi::String storage_scope = "global") {
   Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
-                                           : Type(PrimType::Handle());
+                                           : Type(PointerType::VoidPointerTy(storage_scope));
   return tvm::tirx::Var("", type_annotation);
 }
 
 inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType())); }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                             \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {               \
-    PrimType dtype = DType;                                                             \
-    return expr.defined() ? tvm::cast(dtype, expr.value()) : tvm::tirx::Var("", dtype); \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                    \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {      \
+    PrimType dtype = DType;                                                    \
+    return expr.defined() ? tvm::cast(dtype, expr.value())                     \
+                          : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \

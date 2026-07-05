@@ -28,7 +28,7 @@ import tvm_ffi
 
 from tvm import __version__ as tvm_version
 from tvm import tirx
-from tvm.ir import is_prim_expr
+from tvm.ir import Expr, PointerType, is_prim_expr
 from tvm.runtime import Module, const
 from tvm.support import nvcc
 
@@ -137,10 +137,14 @@ class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
             "threadIdx.y",
             "threadIdx.z",
         ][: len(grid[1])]
-        runtime_args = [arg if is_prim_expr(arg) else const(arg) for arg in args]
-        kernel_arg_types = [
-            str(arg.ty.dtype) if is_prim_expr(arg) else arg.dtype for arg in runtime_args
-        ]
+        runtime_args = [arg if isinstance(arg, Expr) else const(arg) for arg in args]
+        kernel_arg_types = []
+        for arg in runtime_args:
+            if isinstance(arg.ty, PointerType):
+                kernel_arg_types.append("handle")
+            else:
+                assert is_prim_expr(arg)
+                kernel_arg_types.append(str(arg.ty.dtype))
         runtime_args = runtime_args + list(grid[0]) + list(grid[1])
 
         # Reuse compilation path from SourceModule

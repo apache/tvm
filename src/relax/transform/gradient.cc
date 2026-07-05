@@ -73,7 +73,7 @@ class CallTIRWithGradEliminator : private ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
-    if (call_node->op != Op::Get("relax.call_tir_with_grad")) {
+    if (!call_node->op.same_as(Op::Get("relax.call_tir_with_grad"))) {
       return ExprMutator::VisitExpr_(call_node);
     }
     return Call(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
@@ -133,7 +133,7 @@ class CheckpointCollector : private ExprMutator {
     TVM_FFI_ICHECK(var_binding);
 
     auto value_call = var_binding->value.as<CallNode>();
-    if (!value_call || (value_call->op != s_cp && value_call->op != e_cp)) {
+    if (!value_call || (!value_call->op.same_as(s_cp) && !value_call->op.same_as(e_cp))) {
       bool all_inner_var_checkpointed = true;
       PostOrderVisit(var_binding->value, [this, &all_inner_var_checkpointed](const Expr& expr) {
         if (auto var = expr.as<VarNode>()) {
@@ -155,7 +155,7 @@ class CheckpointCollector : private ExprMutator {
     static const auto s_cp = Op::Get("relax.grad.start_checkpoint");
     static const auto e_cp = Op::Get("relax.grad.end_checkpoint");
 
-    if (value->op == s_cp || value->op == e_cp) {
+    if (value->op.same_as(s_cp) || value->op.same_as(e_cp)) {
       // Eliminate the binding
       auto var = value->args[0].as<VarNode>();
       TVM_FFI_ICHECK(var) << "The first argument of relax.grad.start_checkpoint and "
@@ -171,10 +171,10 @@ class CheckpointCollector : private ExprMutator {
       }
       var_mapping[binding->var->vid] = orig_var;
 
-      if (value->op == s_cp) {
+      if (value->op.same_as(s_cp)) {
         // mark the original var to be checkpointed
         checkpoints.insert(orig_var->vid);
-      } else if (value->op == e_cp) {
+      } else if (value->op.same_as(e_cp)) {
         e_vars_.insert(binding->var->vid);
       }
     } else {
@@ -371,11 +371,11 @@ class BackwardBindingGenerator : private ExprVisitor {
     auto [checkpoint_var, checkpoint_call] =
         checkpoint_generator_.UpdateBinding(binding->var, ffi::GetRef<Call>(call));
 
-    if (call_op == Op::Get("relax.call_tir")) {
+    if (call_op.same_as(Op::Get("relax.call_tir"))) {
       TVM_FFI_THROW(InternalError)
           << "Differentiation of call_tir op without registering corresponding gradient "
              "function is not supported yet.";
-    } else if (call_op == Op::Get("relax.call_tir_with_grad")) {
+    } else if (call_op.same_as(Op::Get("relax.call_tir_with_grad"))) {
       // tirx gradient registering
       auto te_grad_name = call->attrs.as<CallTIRWithGradAttrs>()->te_grad_name;
       const auto grad_func =
@@ -529,7 +529,7 @@ class BackwardBindingGenerator : private ExprVisitor {
 
   static bool IsCallNoGrad(const Expr& expr) {
     return expr->IsInstance<CallNode>() &&
-           expr.as_or_throw<Call>()->op == Op::Get("relax.grad.no_grad");
+           expr.as_or_throw<Call>()->op.same_as(Op::Get("relax.grad.no_grad"));
   }
 
   static Expr AdjointMsgToExpr(AdjointMsg msg) {

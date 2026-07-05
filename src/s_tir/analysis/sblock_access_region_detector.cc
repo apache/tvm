@@ -191,7 +191,9 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
-  let_bindings_[op->var.get()] = op->value;
+  if (auto value = op->value.as<PrimExpr>()) {
+    let_bindings_[op->var.get()] = value.value();
+  }
   StmtVisitor::VisitStmt_(op);
 }
 

@@ -855,8 +855,8 @@ def ptx_cp_async_legacy(*all_args):
             f"prepended); got {len(all_args)}"
         )
     dst_ptr, dst_offset, src_ptr, src_offset, cp_size = args
-    dst_ptr = tvm_access_ptr(elem_dtype, dst_ptr, dst_offset, 1, 1)
-    src_ptr = tvm_access_ptr(elem_dtype, src_ptr, src_offset, 1, 1)
+    dst_ptr = _wrap_or_fold_access_ptr(dst_ptr, dst_offset, elem_dtype)
+    src_ptr = _wrap_or_fold_access_ptr(src_ptr, src_offset, elem_dtype)
     return ptx_cp_async(dst_ptr, src_ptr, cp_size)
 
 
@@ -1684,7 +1684,7 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
         inner_offset = inner_args[2]
         rw_mask = inner_args[4]
         return call_intrin(
-            "handle",
+            ptr.ty,
             "tirx.tvm_access_ptr",
             inner_marker,
             inner_var,
@@ -2884,7 +2884,7 @@ def timer_init_cuda(profiler_buffer, profiler_tag, profiler_write_offset, num_gr
     """
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_init_cuda",
         profiler_buffer,
         profiler_tag,
@@ -2932,7 +2932,7 @@ def timer_start_cuda(
     """  # noqa: E501
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_start_cuda",
         event_type.value,
         profiler_buffer,
@@ -2981,7 +2981,7 @@ def timer_end_cuda(
     """  # noqa: E501
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_end_cuda",
         event_type.value,
         profiler_buffer,
@@ -3022,7 +3022,7 @@ def timer_finalize_cuda(
     """
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_finalize_cuda",
         profiler_buffer,
         profiler_tag,

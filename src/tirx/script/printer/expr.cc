@@ -25,31 +25,41 @@ namespace script {
 namespace printer {
 
 ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d) {
-  Type type = var->type_annotation;
-  AccessPath type_p = var_p->Attr("type_annotation");
+  Type type = var->ty;
+  AccessPath type_p = var_p->Attr("ty");
   ExprDoc rhs{ffi::UnsafeInit()};
   ffi::Array<ffi::String> kwargs_keys;
   ffi::Array<ExprDoc> kwargs_values;
 
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
-      ExprDoc element_type =
-          LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
       rhs = TIR(d, "handle");
       rhs->source_paths.push_back(var_p->Attr("dtype"));
-      if (ptr_type->storage_scope == "") {
-        rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
+      if (ffi::GetRef<PrimType>(prim_type).IsVoid()) {
+        if (ptr_type->storage_scope == "global") {
+          rhs = rhs->Call({}, kwargs_keys, kwargs_values);
+        } else {
+          rhs =
+              rhs->Call({}, {"storage_scope"},
+                        {LiteralDoc::Str(ptr_type->storage_scope, type_p->Attr("storage_scope"))});
+        }
       } else {
-        rhs = rhs->Call({element_type,
-                         LiteralDoc::Str(ptr_type->storage_scope,  //
-                                         type_p->Attr("storage_scope"))},
-                        kwargs_keys, kwargs_values);
+        ExprDoc element_type =
+            LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+        if (ptr_type->storage_scope == "") {
+          rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
+        } else {
+          rhs = rhs->Call({element_type,
+                           LiteralDoc::Str(ptr_type->storage_scope,  //
+                                           type_p->Attr("storage_scope"))},
+                          kwargs_keys, kwargs_values);
+        }
       }
     } else if (ptr_type->element_type->IsInstance<TensorMapTypeNode>()) {
       rhs = TIR(d, "TensorMap")->Call({}, {}, {});
     }
   } else {
-    rhs = TIR(d, DType2Str(var.ty()->dtype));
+    rhs = TIR(d, DType2Str(var->ty.as_or_throw<PrimType>()->dtype));
     rhs->source_paths.push_back(var_p->Attr("dtype"));
     rhs = rhs->Call({}, kwargs_keys, kwargs_values);
   }
@@ -187,13 +197,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return TIR(d, "comm_reducer")->Call({lambda.value(), id});
         });
 
-LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::Var>& vs,
+LambdaDoc PrintIndexMap(const ffi::ObjectRef& map, const ffi::Array<tirx::PrimVar>& vs,
                         const AccessPath& vs_p, const ffi::Array<PrimExpr>& es,
                         const AccessPath& es_p, const IRDocsifier& d) {
   With<TIRFrame> f(d, map);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(DefineVar(vs[i], *f, d).as_or_throw<IdDoc>());
+    vars.push_back(DefineVar(static_cast<tirx::Var>(vs[i]), *f, d).as_or_throw<IdDoc>());
   }
   ffi::Array<ExprDoc> exprs;
   for (int i = 0, l = es.size(); i < l; ++i) {
@@ -219,13 +229,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
         });
 
-LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
+LambdaDoc PrintPredicate(const ffi::ObjectRef& pred, const ffi::Array<tirx::PrimVar>& vs,
                          const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
                          const IRDocsifier& d) {
   With<TIRFrame> f(d, pred);
   ffi::Array<IdDoc> vars;
   for (int i = 0, l = vs.size(); i < l; ++i) {
-    vars.push_back(DefineVar(vs[i], *f, d).as_or_throw<IdDoc>());
+    vars.push_back(DefineVar(static_cast<tirx::Var>(vs[i]), *f, d).as_or_throw<IdDoc>());
   }
   ExprDoc pred_doc = d->AsDoc<ExprDoc>(p, p_p);
   return LambdaDoc(vars, pred_doc);
@@ -247,7 +257,28 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
-  DLDataType call_dtype = call->ty.as_or_throw<PrimType>()->dtype;
+  ffi::Optional<PrimType> call_prim_type = call->ty.as<PrimType>();
+  auto get_call_type_doc = [&](AccessPath type_p) -> ExprDoc {
+    if (call_prim_type.defined()) {
+      return LiteralDoc::DataType(call_prim_type.value()->dtype, type_p);
+    }
+    if (const auto* pointer_type = call->ty.as<PointerTypeNode>()) {
+      ExprDoc pointer_type_doc = d->AsDoc<ExprDoc>(call->ty, type_p);
+      if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>();
+          element_type && ffi::GetRef<PrimType>(element_type).IsVoid() &&
+          pointer_type->storage_scope == "global") {
+        // The type annotation printer uses the concise bare `T.handle` for
+        // function parameters.  A call's dtype position needs a value, so
+        // materialize the corresponding type expression before selecting
+        // `.ty`.
+        pointer_type_doc = TIR(d, "handle")->Call({});
+      }
+      return pointer_type_doc->Attr("ty");
+    }
+    TVM_FFI_THROW(TypeError) << "Call dtype is only available for primitive or pointer return "
+                                "types, but got "
+                             << call->ty;
+  };
   if (call->attrs.defined()) {
     ffi::Array<ExprDoc> call_args;
     int n_args = call->args.size();
@@ -258,9 +289,10 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     ExprDoc op_doc = call->op.as<Op>()
                          ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
                          : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
-    return TIR(d, "Call")->Call({op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
-                                {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")),
-                                 LiteralDoc::DataType(call_dtype, call_p->Attr("ty"))});
+    ExprDoc ret_ty_doc = get_call_type_doc(call_p->Attr("ty"));
+    return TIR(d, "Call")->Call(
+        {op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
+        {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")), ret_ty_doc});
   }
   static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
       Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
@@ -287,7 +319,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       ffi::Array<ExprDoc> args;
       args.reserve(n_args + 1);
       if (dtype_print_location == tirx::ScriptDtypePrintLocation::kFirst) {
-        args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+        args.push_back(get_call_type_doc(call_p->Attr("dtype")));
       }
 
       for (int i = 0; i < n_args; ++i) {
@@ -299,7 +331,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
         }
       }
       if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
-        args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+        args.push_back(get_call_type_doc(call_p->Attr("dtype")));
       }
       return prefix.value()->Call(args);
     }
@@ -323,9 +355,9 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       kw_keys.push_back("source_code");
       kw_vals.push_back(src);
       // If non-void return type, print return_type keyword.
-      if (!call->ty.as_or_throw<PrimType>().IsVoid()) {
+      if (!call_prim_type || !call_prim_type.value().IsVoid()) {
         kw_keys.push_back("return_type");
-        kw_vals.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+        kw_vals.push_back(get_call_type_doc(call_p->Attr("dtype")));
       }
       return prefix.value()->Call(args, kw_keys, kw_vals);
     }
@@ -338,14 +370,14 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   int n_args = call->args.size();
   args.reserve(n_args + 1);
   if (dtype_print_location == tirx::ScriptDtypePrintLocation::kFirst) {
-    args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+    args.push_back(get_call_type_doc(call_p->Attr("dtype")));
   }
 
   for (int i = 0; i < n_args; ++i) {
     args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
   }
   if (dtype_print_location == tirx::ScriptDtypePrintLocation::kLast) {
-    args.push_back(LiteralDoc::DataType(call_dtype, call_p->Attr("dtype")));
+    args.push_back(get_call_type_doc(call_p->Attr("dtype")));
   }
   return prefix.value()->Call(args);
 }

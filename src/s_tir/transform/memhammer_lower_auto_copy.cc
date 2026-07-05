@@ -463,18 +463,18 @@ class AutoPadder {
 
    private:
     bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
-      PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
+      PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
         if (v.same_as(var)) {
           return IntImm::Int32(0);
         } else {
-          return v;
+          return v.as_or_throw<PrimExpr>();
         }
       });
-      PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
+      PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
         if (v.same_as(var)) {
           return IntImm::Int32(1);
         } else {
-          return v;
+          return v.as_or_throw<PrimExpr>();
         }
       });
       arith::Analyzer analyzer;
@@ -570,7 +570,8 @@ class AutoPadder {
         if (const auto* call = eval->value.as<CallNode>()) {
           static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
           static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-          if (call->op == tvm_load_matrix_sync_op || call->op == tvm_store_matrix_sync_op) {
+          if (call->op.same_as(tvm_load_matrix_sync_op) ||
+              call->op.same_as(tvm_store_matrix_sync_op)) {
             for (const MatchBufferRegion& r : op->match_buffers) {
               Buffer src_buffer = r->source->buffer;
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
@@ -579,7 +580,7 @@ class AutoPadder {
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
                   Var var("region" + std::to_string(i));
-                  indices.push_back(region[i]->min + var);
+                  indices.push_back(region[i]->min + var.as_or_throw<PrimExpr>());
                   var_range_.Set(var, Range::FromMinExtent(0, region[i]->extent));
                 }
                 ffi::Array<PrimExpr> substitued_indices;

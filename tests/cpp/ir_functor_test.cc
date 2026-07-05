@@ -32,7 +32,7 @@
 TEST(IRF, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = x + 1;
 
   NodeFunctor<int(const ffi::ObjectRef& n, int b)> f;
@@ -46,7 +46,7 @@ TEST(IRF, CountVar) {
   using namespace tvm;
   using namespace tvm::tirx;
   int n_var = 0;
-  Var x("x"), y;
+  PrimVar x("x"), y("y");
 
   auto z = x + 1 + y + y;
   tirx::PostOrderVisit(z, [&n_var](const ffi::ObjectRef& n) {
@@ -93,7 +93,7 @@ TEST(IRF, PreOrderVisit) {
 TEST(IRF, ExprTransform) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = x + 1;
 
   class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
@@ -117,7 +117,7 @@ TEST(IRF, ExprTransform) {
 TEST(IRF, ExprVisit) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = x + 1;
 
   class MyVisitor : public tirx::ExprFunctor<void(const Expr&)>,
@@ -141,7 +141,7 @@ TEST(IRF, ExprVisit) {
 TEST(IRF, StmtVisitor) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   class MyVisitor : public StmtExprVisitor {
    public:
     int count = 0;
@@ -191,7 +191,7 @@ TEST(IRF, StmtVisitor) {
 TEST(IRF, StmtMutator) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
 
   class MyVisitor : public tirx::StmtMutator, public tirx::ExprMutator {
    public:
@@ -332,7 +332,7 @@ TEST(IRF, Substitute) {
   using namespace tvm::tirx;
   PrimType dtype = PrimType::Float(32);
   Var x("x", PointerType(dtype, ""));
-  Var n("n", PrimType::Int(32));
+  PrimVar n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {
     return Buffer{/*data=*/x,
@@ -348,14 +348,14 @@ TEST(IRF, Substitute) {
 
   {
     // test substitute buffer data var and shape var via DeclBuffer
-    Var y = x.copy_with_suffix("subst");
-    Var m("m", PrimType::Int(32));
+    Var y = x.CopyWithSuffix("subst");
+    PrimVar m("m", PrimType::Int(32));
     Buffer buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer), store});
-    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
-      if (var.same_as(x)) return y;
-      if (var.same_as(n)) return m;
+    auto f_subst = [&](const Var& var) -> ffi::Optional<Expr> {
+      if (var.same_as(x)) return Expr(y);
+      if (var.same_as(n)) return Expr(m);
       return std::nullopt;
     };
     Stmt new_decl = Substitute(decl, f_subst);
@@ -371,7 +371,7 @@ TEST(IRF, Substitute) {
     // test identity substitution on expression
     Buffer buffer = fmakebuffer();
     PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
-    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
+    auto f_subst = [&](const Var& var) -> ffi::Optional<Expr> { return Expr(var); };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed
     TVM_FFI_ICHECK(new_expr.same_as(expr));

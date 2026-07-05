@@ -168,7 +168,9 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   explicit FuseTIRBufferSubstitutor(const ffi::Map<Buffer, Buffer>& buffer_map,
                                     const ffi::Map<Var, PrimExpr>& var_map) {
     buffer_remap_ = buffer_map;
-    var_remap_ = var_map;
+    for (const auto& [var, value] : var_map) {
+      var_remap_.Set(var, value);
+    }
     for (const auto& [src, tgt] : buffer_map) {
       var_remap_.Set(src->data, tgt->data);
     }
@@ -297,7 +299,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   /*! \brief Mapping from src buffer to tgt buffer. */
   ffi::Map<tirx::Buffer, tirx::Buffer> buffer_remap_;
   /*! \brief Mapping from src tirx var to tgt var. */
-  ffi::Map<tirx::Var, PrimExpr> var_remap_;
+  ffi::Map<tirx::Var, Expr> var_remap_;
 
   ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
     // For now we only allow Buffer access the same elements.
@@ -454,10 +456,10 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
-    TVM_FFI_ICHECK(call->op == call_tir_op_ || call->op == call_tir_inplace_op_)
+    TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
         << ffi::GetRef<Expr>(call);
-    CollectVarMapping(call, current_var_, call->op == call_tir_inplace_op_);
+    CollectVarMapping(call, current_var_, call->op.same_as(call_tir_inplace_op_));
   }
 
   void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
@@ -594,7 +596,7 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // Buffer is used more than param it gets the name with better
         // readability.
-        tirx::Var param = tirx::Var("p_" + buffer->name, tvm::PrimType::Handle());
+        tirx::Var param = tirx::Var("p_" + buffer->name, PointerType::VoidPointerTy());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
       }
@@ -638,7 +640,8 @@ class FusedTIRConstructor : public ExprVisitor {
         continue;
       }
 
-      tirx::Var param = tirx::Var("p_output" + std::to_string(out_idx), tvm::PrimType::Handle());
+      tirx::Var param =
+          tirx::Var("p_output" + std::to_string(out_idx), PointerType::VoidPointerTy());
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);
@@ -677,7 +680,7 @@ class FusedTIRConstructor : public ExprVisitor {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
-    TVM_FFI_ICHECK(call->op == call_tir_op_ || call->op == call_tir_inplace_op_)
+    TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
         << ffi::GetRef<Expr>(call);
 
@@ -717,7 +720,7 @@ class FusedTIRConstructor : public ExprVisitor {
         TVM_FFI_ICHECK_GE(num_params, args.size());
         for (size_t i = 0; i < args.size(); ++i) {
           const tirx::Var& param = prim_func->params[num_params - args.size() + i];
-          func_info_.symbolic_var_matcher.Match(param, args[i]);
+          func_info_.symbolic_var_matcher.Match(param.as_or_throw<PrimExpr>(), args[i]);
         }
       } else {
         TVM_FFI_THROW(InternalError)
@@ -856,10 +859,11 @@ class FusedTIRConstructor : public ExprVisitor {
     for (int64_t idx : output_indices) {
       int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
-      tvm::PrimType param_ty = param.ty();
-      if (param_ty.code() == DLDataTypeCode::kDLInt || param_ty.code() == DLDataTypeCode::kDLUInt) {
+      auto param_ty = param->ty.as<PrimType>();
+      if (param_ty && (param_ty.value().code() == DLDataTypeCode::kDLInt ||
+                       param_ty.value().code() == DLDataTypeCode::kDLUInt)) {
         if (symbolic_var_index == -1) symbolic_var_index = i;
-      } else if (param_ty.IsHandle()) {
+      } else if (param->ty.as<PointerTypeNode>()) {
         TVM_FFI_ICHECK(symbolic_var_index == -1)
             << "The scalar input should be at the ending of the "
                "parameter list.";
@@ -867,7 +871,7 @@ class FusedTIRConstructor : public ExprVisitor {
       } else {
         TVM_FFI_THROW(InternalError)
             << "The params of PrimFunc are expected to be Buffer handle or scalar, but got: "
-            << param_ty->dtype;
+            << param->ty;
       }
     }
 
@@ -885,7 +889,7 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   void AllocateIntermediateBuffer(const CallNode* call, const tirx::PrimFunc& func,
                                   const ffi::Array<ffi::Array<PrimExpr>>& output_shapes) {
-    bool is_inplace = (call->op == Op::Get("relax.call_tir_inplace"));
+    bool is_inplace = call->op.same_as(Op::Get("relax.call_tir_inplace"));
 
     size_t n = func->params.size();
     int num_inputs = call->args[1].as_or_throw<Tuple>()->fields.size();
@@ -1257,7 +1261,8 @@ class TIRFuseMutator : public ExprMutator {
         }
       } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
         if (const auto* var = arg.as<VarNode>()) {
-          tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype)));
+          tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype))
+                                 .as_or_throw<PrimExpr>());
         } else if (auto literal = arg.as<PrimExpr>()) {
           tir_vars.push_back(literal.value());
         } else {

@@ -99,7 +99,7 @@ TVM_DLL ScopeBinding StringPairToScopeBinding(const ffi::String& parent, const f
 class ScopeIdDefNode : public ffi::Object {
  public:
   /*! \brief The ScopeId defined */
-  ffi::Array<Var> def_ids;
+  ffi::Array<PrimVar> def_ids;
   /*!
    * \brief The extents of the ScopeId.
    *
@@ -136,8 +136,8 @@ class ScopeIdDefNode : public ffi::Object {
 
 class ScopeIdDef : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit ScopeIdDef(ffi::Array<Var> def_ids, ffi::Optional<ffi::Array<PrimExpr>> extents,
-                              ScopeBinding scope,
+  TVM_DLL explicit ScopeIdDef(ffi::Array<PrimVar> def_ids,
+                              ffi::Optional<ffi::Array<PrimExpr>> extents, ScopeBinding scope,
                               ffi::Optional<ffi::Array<PrimExpr>> preferred_extents =
                                   ffi::Optional<ffi::Array<PrimExpr>>(std::nullopt));
 

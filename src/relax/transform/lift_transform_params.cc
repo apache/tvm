@@ -101,8 +101,8 @@ struct BaseCollectInfo {
     ffi::Array<Binding> output_var_binding;
     ffi::Array<Expr> output_exprs;
     if (output_symbolic_vars.size()) {
-      output_exprs.push_back(
-          ShapeExpr(output_symbolic_vars.Map([](tirx::Var var) -> PrimExpr { return var; })));
+      output_exprs.push_back(ShapeExpr(
+          output_symbolic_vars.Map([](tirx::Var var) { return var.as_or_throw<PrimExpr>(); })));
     }
 
     for (const auto& var : outputs) {
@@ -249,7 +249,8 @@ struct LocalCollectInfo : public BaseCollectInfo {
       return global_tir_vars;
     }();
     if (propagated_tir_vars.size()) {
-      ShapeType shape_ty(propagated_tir_vars.Map([](tirx::Var var) -> PrimExpr { return var; }));
+      ShapeType shape_ty(
+          propagated_tir_vars.Map([](tirx::Var var) { return var.as_or_throw<PrimExpr>(); }));
       Var shape_expr("vars_from_compile_time_params", shape_ty);
       params.push_back(shape_expr);
     }
@@ -549,7 +550,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
       if (auto it = tir_var_remap_.find(lhs_tir_vars[i]); it != tir_var_remap_.end()) {
         TVM_FFI_ICHECK((*it).second.same_as(rhs_tir_vars[i]));
       } else {
-        tir_var_remap_.Set(lhs_tir_vars[i], rhs_tir_vars[i]);
+        tir_var_remap_.Set(lhs_tir_vars[i], rhs_tir_vars[i].as_or_throw<PrimExpr>());
       }
     }
   }

@@ -120,9 +120,9 @@ class SymbolicVarCanonicalizer : public ExprMutator {
       return expr;
     }
     PrimExpr output =
-        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<tvm::Expr> {
           if (auto it = known_values_.find(var); it != known_values_.end()) {
-            return it->second.expr;
+            return tvm::Expr(it->second.expr);
           } else {
             return std::nullopt;
           }

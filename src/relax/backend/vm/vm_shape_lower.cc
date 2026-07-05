@@ -131,7 +131,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
     }
     for (tirx::Var var : tirx::UndefinedVars(expr)) {
       if (!var.same_as(expr)) {
-        CollectPrimExprSlot(var);
+        CollectPrimExprSlot(var.as_or_throw<PrimExpr>());
       }
     }
   }
@@ -357,7 +357,7 @@ class VMShapeLowerMutator
       if (!slot->expr.as<tirx::VarNode>()) {
         ffi::Array<tirx::Var> dep_vars = tirx::UndefinedVars(slot->expr);
         for (auto var : dep_vars) {
-          auto it = slot_map_.find(var);
+          auto it = slot_map_.find(var.as_or_throw<PrimExpr>());
           TVM_FFI_ICHECK(it != slot_map_.end())
               << "Var " << var << "is not defined in the function but is referenced by "
               << slot->expr;
@@ -615,9 +615,9 @@ class VMShapeLowerMutator
     if (to_compute.size() == 0) return 0;
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a PrimFunc that compute the shape.
-    tirx::Var heap("heap", PrimType::Handle());
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
     tirx::Buffer buffer = tirx::decl_buffer(buffer_shape, PrimType(ShapeDType()), "H", "global");
+    tirx::Var heap("heap", PointerType::VoidPointerTy());
     ffi::Map<tirx::Var, tirx::Buffer> buffer_map;
     buffer_map.Set(heap, buffer);
 

@@ -209,7 +209,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new block itervars
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& origin_iter = block->iter_vars[i];
-    Var new_var = origin_iter->var.copy_with_suffix("");
+    PrimVar new_var = origin_iter->var.CopyWithSuffix("");
     new_iter_vars.push_back(IterVar(origin_iter->dom, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_iter->var, new_var);
   }
@@ -236,9 +236,9 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new loop vars
   ffi::Array<Var> new_loop_vars;
   for (const For& loop : loops) {
-    Var new_var = loop->loop_var.copy_with_suffix("");
+    Var new_var = loop->loop_var.CopyWithSuffix("");
     new_loop_vars.push_back(new_var);
-    repl_dict.Set(loop->loop_var, new_var);
+    repl_dict.Set(loop->loop_var, new_var.as_or_throw<PrimExpr>());
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -257,8 +257,8 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   Stmt nest_stmt_root = new_realize;
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
-    nest_stmt_root =
-        For(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
+    nest_stmt_root = For(new_loop_vars[i].as_or_throw<PrimVar>(), loop->min, loop->extent,
+                         ForKind::kSerial, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -289,7 +289,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   for (size_t i = 0; i < info.in_bound_region.size(); ++i) {
     // add new block itervar
     const IterVar& origin_itervar = block->iter_vars[i];
-    Var new_var = origin_itervar->var.copy_with_suffix("");
+    PrimVar new_var = origin_itervar->var.CopyWithSuffix("");
     Range new_range =
         Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
@@ -302,7 +302,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
       auto loop_var = opt.value();
       new_loop_ranges.Set(loop_var, new_range);
       new_iter_binding.push_back(realize->iter_values[i]);
-      repl_dict.Set(loop_var, loop_var + info.in_bound_region[i]->min);
+      repl_dict.Set(loop_var, loop_var.as_or_throw<PrimExpr>() + info.in_bound_region[i]->min);
       analyzer->Bind(loop_var, new_range, /*allow_override=*/true);
     } else {
       new_iter_binding.push_back(

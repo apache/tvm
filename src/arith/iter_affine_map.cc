@@ -187,11 +187,11 @@ class IterMapRewriter : public ExprMutator {
       if (simplify_trivial_iterators && is_one(vrng->extent)) {
         var_map_[var] = IterSumExpr({}, vrng->min);
       } else if (is_zero(vrng->min)) {
-        IterMark mark(var, vrng->extent);
+        IterMark mark(var.as_or_throw<PrimExpr>(), vrng->extent);
         var_map_[var] = IterSplitExpr(mark);
         input_marks_.push_back(mark);
       } else {
-        IterMark mark(var - vrng->min, vrng->extent);
+        IterMark mark(var.as_or_throw<PrimExpr>() - vrng->min, vrng->extent);
         IterSumExpr sum_expr = ToIterSumExpr(IterSplitExpr(mark));
         sum_expr.CopyOnWrite()->base = vrng->min;
         var_map_[var] = sum_expr;
@@ -2103,7 +2103,7 @@ class IterMapToExprNormalizer : public ExprMutator {
   PrimExpr ConvertIterSplitExpr(const IterSplitExpr& expr) {
     PrimExpr source;
     if (auto opt = expr->source->source.as<Var>()) {
-      source = opt.value();
+      source = opt.value().as_or_throw<PrimExpr>();
     } else if (auto opt = expr->source->source.as<IterSumExpr>()) {
       source = ConvertIterSumExpr(opt.value());
     } else {

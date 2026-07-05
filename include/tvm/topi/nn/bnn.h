@@ -65,7 +65,7 @@ inline tvm::te::Tensor binarize_pack(const tvm::te::Tensor& data, int axis,
 
   return tvm::te::compute(
       oshape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         ffi::Array<PrimExpr> start_idx;
         for (size_t i = 0; i < n; ++i) {
           start_idx.push_back(i == static_cast<size_t>(axis) ? indices[i] * 32
@@ -111,12 +111,12 @@ inline tvm::te::Tensor binary_dense(const tvm::te::Tensor& data, const tvm::te::
   auto k = tvm::te::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::te::compute(
       {batch, out_dim},
-      [&](Var i, Var j) { return tvm::sum(popcount(data(i, k) ^ weight(j, k)), {k}); }, "tensor",
-      "binary_dense");
+      [&](PrimVar i, PrimVar j) { return tvm::sum(popcount(data(i, k) ^ weight(j, k)), {k}); },
+      "tensor", "binary_dense");
 
   return tvm::te::compute(
-      {batch, out_dim}, [&](Var i, Var j) { return 32 * in_dim - 2.0f * matmul(i, j); }, "tensor",
-      kElementWise);
+      {batch, out_dim}, [&](PrimVar i, PrimVar j) { return 32 * in_dim - 2.0f * matmul(i, j); },
+      "tensor", kElementWise);
 }
 
 }  // namespace nn

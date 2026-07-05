@@ -51,7 +51,9 @@ void IRVisitorWithAnalyzer::VisitStmt_(const SBlockNode* op) {
 
 void IRVisitorWithAnalyzer::VisitStmt_(const BindNode* op) {
   this->VisitExpr(op->value);
-  analyzer_->Bind(op->var, op->value);
+  if (ffi::Optional<PrimExpr> value = op->value.as<PrimExpr>()) {
+    analyzer_->Bind(op->var, value.value());
+  }
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const IfThenElseNode* op) {
@@ -103,11 +105,11 @@ void IRVisitorWithAnalyzer::VisitExpr_(const CallNode* op) {
     this->VisitExpr(cond);
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, cond);
-      this->VisitExpr(op->args[1].as_or_throw<PrimExpr>());
+      this->VisitExpr(op->args[1]);
     });
     constraint_scope_.WithNewScope([&]() {
       constraint_scope_.Current().Emplace(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
-      this->VisitExpr(op->args[2].as_or_throw<PrimExpr>());
+      this->VisitExpr(op->args[2]);
     });
   } else {
     StmtExprVisitor::VisitExpr_(op);

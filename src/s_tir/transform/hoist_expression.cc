@@ -324,7 +324,9 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const BindNode* op) final {
-    VisitBinding(op->var, op->value, HoistedLetBindings::kBind);
+    if (auto value = op->value.as<PrimExpr>()) {
+      VisitBinding(op->var, value.value(), HoistedLetBindings::kBind);
+    }
     Parent::VisitStmt_(op);
   }
 

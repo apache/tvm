@@ -159,7 +159,7 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   // ffi::Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
   ffi::Array<PrimExpr> shape_var;
   for (int i = 0; i < ty->ndim; i++) {
-    shape_var.push_back(tirx::Var("x", PrimType::Int(64)));
+    shape_var.push_back(tirx::Var("x", PrimType::Int(64)).as_or_throw<PrimExpr>());
   }
   // bind symbolic variables to the shape tuple
   relax::Var var("y", ShapeType(shape_var));
@@ -178,9 +178,9 @@ class TrainingOperatorMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
-    if (call->op == batch_norm_op_) {
+    if (call->op.same_as(batch_norm_op_)) {
       return MutateBatchNormForTraining(call);
-    } else if (call->op == layer_norm_op_) {
+    } else if (call->op.same_as(layer_norm_op_)) {
       // Here we only decompose LayerNorm in training because it is more efficient as a single op.
       // In the future maybe we can also remove this decomposition during training.
       return DecomposeLayerNorm(call);
@@ -200,9 +200,9 @@ class OpDecomposer : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
-    if (call->op == batch_norm_op_) {
+    if (call->op.same_as(batch_norm_op_)) {
       return DecomposeBatchNorm(call);
-    } else if (call->op == tensor_to_shape_op_) {
+    } else if (call->op.same_as(tensor_to_shape_op_)) {
       return TensorToShape(call, builder_);
     }
     return call;

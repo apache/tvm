@@ -273,11 +273,11 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
                                         index_buffer_var->name_hint, 0, 0, kDefault));
 
     // Create loop vars and block vars' binding_value
-    std::vector<Var> loop_vars;
+    std::vector<PrimVar> loop_vars;
     ffi::Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
       PrimType data_ty = DeterminePrimType(arith::IntSet::FromRange(info->range_map.at(it)));
-      Var loop_var("ax" + std::to_string(replace_table.size()), data_ty);
+      PrimVar loop_var("ax" + std::to_string(replace_table.size()), data_ty);
       loop_vars.push_back(loop_var);
       replace_table.Set(it, loop_var);
     }
@@ -296,9 +296,10 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // Create block vars, block's accessed region and accessing indices
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
-      Var var("v" + std::to_string(access_indices.size()), block_var.ty());
+      PrimType block_var_ty = block_var->ty.as_or_throw<PrimType>();
+      PrimVar var("v" + std::to_string(access_indices.size()), block_var_ty);
       Range range =
-          Range::FromMinExtent(IntImm(block_var.ty(), 0), info->range_map.at(iter_vars[i])->extent);
+          Range::FromMinExtent(IntImm(block_var_ty, 0), info->range_map.at(iter_vars[i])->extent);
       block_vars.push_back(IterVar(/*dom=*/range,
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
@@ -382,7 +383,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     for (const ffi::Array<Var>& group_it : info_->origin_block_vars) {
       cache_indices_.push_back({});
       for (const Var& it : group_it) {
-        cache_indices_.back().push_back(it);
+        cache_indices_.back().push_back(it.as_or_throw<PrimExpr>());
       }
     }
   }

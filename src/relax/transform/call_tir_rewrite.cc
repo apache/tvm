@@ -70,9 +70,9 @@ class CallTIRMutator : public ExprMutator {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
-    if (call->op == call_tir_op || call->op == call_tir_inplace_op ||
-        call->op == call_dps_packed_op) {
-      bool is_inplace = (call->op == call_tir_inplace_op);
+    if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
+        call->op.same_as(call_dps_packed_op)) {
+      bool is_inplace = call->op.same_as(call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       ffi::Array<Expr> outs;
       if (const auto& tensor_ty = MatchType<TensorType>(expr)) {

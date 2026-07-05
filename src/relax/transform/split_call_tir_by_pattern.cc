@@ -243,9 +243,7 @@ class ForMatcher : public TensorizeComparator {
     if (lhs_op->name != rhs_op->name) return false;
     if (call->args.size() != rhs->args.size()) return false;
     for (size_t i = 0; i < call->args.size(); ++i) {
-      if (!VisitExpr(call->args[i].as_or_throw<PrimExpr>(), rhs->args[i].as_or_throw<PrimExpr>())) {
-        return false;
-      }
+      if (!CompareExpr(call->args[i], rhs->args[i])) return false;
     }
     return true;
   }
@@ -625,7 +623,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(Var("output", PrimType::Handle()));
+  new_params1.push_back(Var("output", PointerType::VoidPointerTy()));
   ffi::Map<Var, Buffer> new_buffer_map1;
   for (const auto& kv : func->buffer_map) {
     if (partitioner.input1.count(kv.second)) {
@@ -638,7 +636,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(Var("input", PrimType::Handle()));
+  new_params2.push_back(Var("input", PointerType::VoidPointerTy()));
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
     if (partitioner.input2.count(func->buffer_map[param])) {

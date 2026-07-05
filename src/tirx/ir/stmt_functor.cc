@@ -287,7 +287,7 @@ class StmtMutator::Internal {
 
 Stmt StmtMutator::VisitStmt_(const BindNode* op) {
   // Bind has no body -- only mutate the value expression.
-  PrimExpr value = this->VisitPrimExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -554,7 +554,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
-  PrimExpr value = this->VisitPrimExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -766,7 +766,7 @@ Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Funct
 
 class IRSubstitute : public StmtExprMutator {
  public:
-  explicit IRSubstitute(std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
+  explicit IRSubstitute(std::function<ffi::Optional<Expr>(const Var&)> vmap) : vmap_(vmap) {}
 
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
@@ -774,10 +774,11 @@ class IRSubstitute : public StmtExprMutator {
     if (ret.defined()) {
       // Allow substitution of void variables with any expression. The TVM script parser
       // uses void variables for lambda parameters (since exact types are not known yet).
-      if (!var.ty().IsVoid()) {
-        PrimExpr ret_ex = ret.value().as_or_throw<PrimExpr>();
-        TVM_FFI_ICHECK(ret_ex.ty() == var.ty()) << "substituting " << var << ":" << var.ty()->dtype
-                                                << " -> " << ret_ex << ":" << ret_ex.ty()->dtype;
+      if (auto var_prim_type = var->ty.as<PrimType>();
+          !var_prim_type.has_value() || !var_prim_type.value().IsVoid()) {
+        TVM_FFI_ICHECK(ffi::StructuralEqual()(ret.value()->ty, var->ty))
+            << "substituting " << var << ":" << var->ty << " -> " << ret.value() << ":"
+            << ret.value()->ty;
       }
       return ret.value();
     }
@@ -789,7 +790,7 @@ class IRSubstitute : public StmtExprMutator {
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
     Buffer new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
     // Additionally handle data var substitution (base does not visit data).
-    PrimExpr new_data_expr = VisitPrimExpr(new_buf->data);
+    Expr new_data_expr = VisitExpr(new_buf->data);
     TVM_FFI_ICHECK(new_data_expr->IsInstance<VarNode>())
         << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
         << ", which was substituted into the expression " << new_data_expr
@@ -817,15 +818,15 @@ class IRSubstitute : public StmtExprMutator {
 
  private:
   // Caller provided function that defines the variables to be remapped.
-  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
 };
 
-Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(stmt));
+Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(stmt));
 }
 
-PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(expr)).as_or_throw<PrimExpr>();
+Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(expr));
 }
 
 void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
@@ -872,8 +873,7 @@ void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
 
 class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
  public:
-  explicit IRSubstituteWithDataTypeLegalization(
-      std::function<ffi::Optional<PrimExpr>(const Var&)> vmap)
+  explicit IRSubstituteWithDataTypeLegalization(std::function<ffi::Optional<Expr>(const Var&)> vmap)
       : vmap_(vmap) {}
 
   using DataTypeLegalizer::VisitExpr_;
@@ -902,17 +902,26 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
 
  private:
   // Caller provided function that defines the variables to be remapped.
-  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
 };
 
 Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
                                         std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(stmt));
+  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap(var)) return Expr(replacement.value());
+    return std::nullopt;
+  };
+  return IRSubstituteWithDataTypeLegalization(std::move(general_vmap))(std::move(stmt));
 }
 
 PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr)).as_or_throw<PrimExpr>();
+  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap(var)) return Expr(replacement.value());
+    return std::nullopt;
+  };
+  return IRSubstituteWithDataTypeLegalization(std::move(general_vmap))(std::move(expr))
+      .as_or_throw<PrimExpr>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -927,14 +936,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::ObjectRef node, ffi::Function f) {
              tirx::PreOrderVisit(node, [f](const ffi::ObjectRef& n) { return f(n).cast<bool>(); });
            })
-      .def("tirx.Substitute",
-           [](ffi::ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ffi::ObjectRef {
-             if (node->IsInstance<StmtNode>()) {
-               return Substitute(node.as_or_throw<Stmt>(), vmap);
-             } else {
-               return Substitute(node.as_or_throw<PrimExpr>(), vmap);
-             }
-           });
+      .def("tirx.Substitute", [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
+        if (node->IsInstance<StmtNode>()) {
+          return Substitute(node.as_or_throw<Stmt>(), vmap);
+        } else {
+          return Substitute(node.as_or_throw<Expr>(), vmap);
+        }
+      });
 }
 
 }  // namespace tirx

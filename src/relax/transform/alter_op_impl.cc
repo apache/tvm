@@ -217,8 +217,8 @@ class AlterOpImplMutator : public ExprMutator {
     for (int i = 0; i < t_shape; i++) {
       tirx::Var var1("p" + std::to_string(i), old_shape[i].ty());
       tirx::Var var2("i" + std::to_string(i), old_shape[i].ty());
-      dyn_padded_shape.push_back(var1);
-      dyn_old_shape.push_back(var2);
+      dyn_padded_shape.push_back(var1.as_or_throw<PrimExpr>());
+      dyn_old_shape.push_back(var2.as_or_throw<PrimExpr>());
     }
 
     // Input tensor of remove_pad op
@@ -226,7 +226,7 @@ class AlterOpImplMutator : public ExprMutator {
     // Output tensor of remove_pad op
     te::Tensor output_tensor = te::compute(
         dyn_old_shape,
-        [&placeholder_tensor](const ffi::Array<tirx::Var>& indices) {
+        [&placeholder_tensor](const ffi::Array<tirx::PrimVar>& indices) {
           return placeholder_tensor(indices);
         },
         "output", topi::kElementWise);

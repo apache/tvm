@@ -156,7 +156,7 @@ template <bool is_cache_read>
 SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStageInfo* info,
                              const ffi::String& storage_scope) {
   // loop variables
-  std::vector<Var> loop_vars;
+  std::vector<PrimVar> loop_vars;
   // block variables
   ffi::Array<IterVar> block_vars;
   // bindings in block realize
@@ -165,7 +165,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   ffi::Map<Var, Var> var_map;
   for (size_t i = 0; i < info->loop_vars.size(); ++i) {
     Var original_var = info->loop_vars[i];
-    Var loop_var(original_var->name_hint, original_var.ty());
+    PrimVar loop_var(original_var->name_hint, original_var->ty.as_or_throw<PrimType>());
     var_map.Set(original_var, loop_var);
     loop_vars.push_back(loop_var);
   }
@@ -174,7 +174,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
     PrimExpr original_iter_value = info->block_iter_values[i];
     IterVar block_var = IterVar(
         /*dom=*/original_block_var->dom,
-        /*var=*/Var(original_block_var->var->name_hint, original_block_var->var.ty()),
+        /*var=*/PrimVar(original_block_var->var->name_hint, original_block_var->var.ty()),
         /*IterVarType=*/kDataPar);
     var_map.Set(original_block_var->var, block_var->var);
     block_vars.push_back(block_var);
@@ -242,12 +242,12 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
 SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
                       const ffi::String& storage_scope, bool cache_full_region = true) {
   // loop variables
-  std::vector<Var> loop_vars;
+  std::vector<PrimVar> loop_vars;
   // bindings in block realize
   std::vector<PrimExpr> iter_values;
   // Create loop vars and block vars' binding_value
   for (const Range& axis_range : cache_region->region) {
-    Var loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.ty());
+    PrimVar loop_var("ax" + std::to_string(loop_vars.size()), axis_range->extent.ty());
     loop_vars.push_back(loop_var);
     iter_values.push_back(cache_full_region ? (axis_range->min + loop_var) : loop_var);
   }
@@ -262,7 +262,7 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
   // Create block vars, block's accessed region and accessing indices
   for (int i = 0; i < static_cast<int>(cache_region->buffer->shape.size()); ++i) {
     Range axis_range = cache_region->region[i];
-    Var var("v" + std::to_string(read_access_indices.size()), axis_range->extent.ty());
+    PrimVar var("v" + std::to_string(read_access_indices.size()), axis_range->extent.ty());
     if (cache_full_region) {
       PrimExpr dim = cache_region->buffer->shape[i];
       block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
@@ -361,7 +361,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   std::unordered_set<int> skipped_block_iters;
   for (int i = 0, n = block->iter_vars.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
-    Var var("v" + std::to_string(new_block_iters.size()), iter->var.ty());
+    PrimVar var("v" + std::to_string(new_block_iters.size()), iter->var.ty());
     bool used = covered.count(iter->var);
     if (used) {
       new_block_iters.push_back(IterVar(/*dom=*/iter->dom,
@@ -409,13 +409,13 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
   // Step 4: Create surrounding loops
 
   // Create loop vars and bindings for block iters
-  std::vector<Var> loop_vars;         // loop variables
+  std::vector<PrimVar> loop_vars;     // loop variables
   std::vector<PrimExpr> iter_values;  // bindings in block realize
   for (int i = 0; i < static_cast<int>(block->iter_vars.size()); ++i) {
     if (skipped_block_iters.count(i)) {
       continue;
     }
-    Var loop_var("ax" + std::to_string(loop_vars.size()), block->iter_vars[i]->var.ty());
+    PrimVar loop_var("ax" + std::to_string(loop_vars.size()), block->iter_vars[i]->var.ty());
     loop_vars.push_back(loop_var);
     iter_values.push_back(loop_var);
   }
@@ -1453,7 +1453,7 @@ Buffer CreateReindexBuffer(const Buffer& buffer, const ffi::Array<IterVar>& bloc
   new_strides.clear();
   new_buffer->shape = new_shape;
   new_buffer->strides = new_strides;
-  new_buffer->data = buffer->data.copy_with_suffix("_reindex");
+  new_buffer->data = buffer->data.CopyWithSuffix("_reindex");
   new_buffer->name = buffer->name + "_reindex";
   return Buffer(new_buffer);
 }
@@ -2035,9 +2035,9 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   // Create new buffer
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*old_buffer.get());
   ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*old_buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(old_buffer->data->type_annotation, PointerTypeNode);
-  new_var->type_annotation = PointerType(ptr_type->element_type, storage_scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + storage_scope, new_var->type_annotation);
+  const auto* ptr_type = TVM_TYPE_AS(old_buffer->data->ty, PointerTypeNode);
+  new_var->ty = PointerType(ptr_type->element_type, storage_scope);
+  new_buffer->data = Var(new_var->name_hint + "_" + storage_scope, new_var->ty);
   new_buffer->name = old_buffer->name + "_" + storage_scope;
   new_buffer->shape = new_shape;
 

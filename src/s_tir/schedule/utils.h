@@ -166,7 +166,7 @@ inline bool IsSingleStmt(const Stmt& stmt) {
  */
 inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType iter_var_type) {
   return IterVar(Range::FromMinExtent(loop->min, loop->extent),
-                 Var(std::move(name), loop->loop_var.ty()), iter_var_type);
+                 PrimVar(std::move(name), loop->loop_var.ty()), iter_var_type);
 }
 
 /*!

@@ -76,7 +76,7 @@ class LazyInputMutator : public ExprMutator {
     Type new_ret_ty =
         EraseToWellDefined(func->ret_ty, [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
           if (externally_visible_vars.count(var)) {
-            return var;
+            return var.as_or_throw<PrimExpr>();
           } else {
             return std::nullopt;
           }

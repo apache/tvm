@@ -126,7 +126,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // ScopeIdDef
-ScopeIdDef::ScopeIdDef(ffi::Array<Var> ids, ffi::Optional<ffi::Array<PrimExpr>> extents,
+ScopeIdDef::ScopeIdDef(ffi::Array<PrimVar> ids, ffi::Optional<ffi::Array<PrimExpr>> extents,
                        ScopeBinding scope, ffi::Optional<ffi::Array<PrimExpr>> preferred_extents) {
   auto n = ffi::make_object<ScopeIdDefNode>();
   if (extents.has_value()) {
@@ -163,7 +163,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tirx.ScopeIdDef",
-      [](ffi::Array<Var> vars, ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
+      [](ffi::Array<PrimVar> vars, ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
          ffi::String cur, ffi::Optional<ffi::Array<PrimExpr>> preferred_extents) {
         return ScopeIdDef(vars, extents, StringPairToScopeBinding(parent, cur), preferred_extents);
       });
@@ -303,7 +303,7 @@ static ffi::Optional<ScopeIdDef> Compose(const ScopeIdDef& lhs, const ScopeIdDef
   if (l_cur != r_parent) return std::nullopt;
   auto composed = TryStringPairToBinding(l_parent, r_cur);
   if (!composed.has_value()) return std::nullopt;
-  return ScopeIdDef(ffi::Array<Var>{Var("")},
+  return ScopeIdDef(ffi::Array<PrimVar>{PrimVar("")},
                     ffi::Array<PrimExpr>{lhs.fused_extent() * rhs.fused_extent()},
                     composed.value());
 }
@@ -318,8 +318,8 @@ static ffi::Optional<ScopeIdDef> Compliment(const ScopeIdDef& lhs, const ScopeId
   auto try_compliment = [&](PrimExpr lhs_ext, PrimExpr rhs_ext,
                             ScopeBinding scope) -> ffi::Optional<ScopeIdDef> {
     if (ana->CanProve(floormod(lhs_ext, rhs_ext) == 0)) {
-      return ScopeIdDef(ffi::Array<Var>{Var("")}, ffi::Array<PrimExpr>{floordiv(lhs_ext, rhs_ext)},
-                        scope);
+      return ScopeIdDef(ffi::Array<PrimVar>{PrimVar("")},
+                        ffi::Array<PrimExpr>{floordiv(lhs_ext, rhs_ext)}, scope);
     }
     TVM_FFI_ICHECK(!ana->CanProve(floormod(lhs_ext, rhs_ext) != 0))
         << "ValueError: scope binding " << static_cast<int>(scope)

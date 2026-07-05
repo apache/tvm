@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import tirx
@@ -45,6 +47,14 @@ def test_tir_op_address_of():
     buffer = tirx.decl_buffer((128), "float32")
     expr = tirx.address_of(buffer[0])
     assert expr.op.name == "tirx.address_of"
+    scalar_address = tirx.address_of(tirx.Var("value", "uint32"))
+    assert scalar_address.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint32"))
+
+
+def test_tir_op_trace_pointer():
+    pointer = tirx.Var("pointer", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    traced = tirx.trace([pointer])
+    assert traced.ty == pointer.ty
 
 
 def test_tir_op_lookup_param():
@@ -56,6 +66,10 @@ def test_tir_op_reinterpret():
     x = tirx.Var("x", dtype="int32")
     expr = tirx.reinterpret("float32", x)
     assert expr.op.name == "tirx.reinterpret"
+    with pytest.raises(TypeError, match="scalar 64-bit integer source"):
+        tirx.reinterpret("handle", x)
+    pointer = tirx.reinterpret("handle", tirx.Var("address", dtype="uint64"))
+    assert pointer.ty == tvm.ir.PointerType(tvm.ir.PrimType("void"))
 
 
 def test_tir_op_isnullptr():
@@ -99,6 +113,9 @@ def test_tir_op_tvm_access_ptr():
     buffer = tirx.decl_buffer((128), "float32")
     expr = tirx.tvm_access_ptr("float32", buffer.data, 0, 1, 2)
     assert expr.op.name == "tirx.tvm_access_ptr"
+    assert expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("float32"))
+    offset_expr = tirx.ptr_byte_offset(buffer.data, 16, "uint8")
+    assert offset_expr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
 
 
 def test_tir_op_tvm_throw_last_error():
@@ -241,6 +258,15 @@ def test_op_ptx_cp_async():
     buffer_local = tirx.decl_buffer([8], "float16", scope="local")
     expr = _cuda_op.ptx_cp_async_legacy(buffer_shared.data, 0, buffer_local.data, 0, 16)
     assert expr.op.name == "tirx.ptx.cp_async"
+
+    inner_dst = tirx.tvm_access_ptr("float16", buffer_shared.data, 2, 8, 1)
+    inner_src = tirx.tvm_access_ptr("float16", buffer_local.data, 4, 8, 1)
+    expr = _cuda_op.ptx_cp_async_legacy("float16", inner_dst, 3, inner_src, 5, 16)
+    for access_ptr, expected_offset in zip(expr.args[:2], [5, 9]):
+        assert access_ptr.op.name == "tirx.tvm_access_ptr"
+        assert isinstance(access_ptr.args[1], tirx.Var)
+        simplified_offset = tvm.arith.Analyzer().simplify(access_ptr.args[2])
+        assert int(simplified_offset) == expected_offset
 
 
 def test_op_ptx_cp_async_bulk():
