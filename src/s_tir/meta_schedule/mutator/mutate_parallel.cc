@@ -248,7 +248,11 @@ bool FindParallelDecision(const Trace& trace, TRandState* rand_state,
       get_sblock_insts.at(ann_inst->inputs[0].as_or_throw<s_tir::SBlockRV>().get());
   TVM_FFI_ICHECK_EQ(get_sblock_inst->attrs.size(), 2);
   candidate->inst = ffi::GetRef<Instruction>(ann_inst);
-  candidate->parallel_extent = ann_inst->inputs[1].as_or_throw<IntImm>()->value;
+  if (auto ann_val = ann_inst->inputs[1].as<IntImm>()) {
+    candidate->parallel_extent = ann_val.value()->value;
+  } else {
+    candidate->parallel_extent = ann_inst->inputs[1].cast<int64_t>();
+  }
   candidate->block_name = get_sblock_inst->attrs[0].as_or_throw<ffi::String>();
   candidate->func_name = get_sblock_inst->attrs[1].as_or_throw<ffi::String>();
   return true;
