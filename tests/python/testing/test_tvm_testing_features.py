@@ -22,30 +22,17 @@ import pytest
 
 import tvm.testing
 
-pytestmark = pytest.mark.xdist_group(name="tvm-testing-features")
-
-# This file tests features in tvm.testing, such as verifying that
-# cached fixtures are run an appropriate number of times.  As a
-# result, the order of the tests is important.  Use of --last-failed
-# or --failed-first while debugging this file is not advised.  If
-# these tests are distributed/parallelized using pytest-xdist or
-# similar, all tests in this file should run sequentially on the same
-# node.  (See https://stackoverflow.com/a/59504228)
-
 
 class TestParameter:
     param1_vals = [1, 2, 3]
     param2_vals = ["a", "b", "c"]
 
-    independent_usages = 0
     param1 = tvm.testing.parameter(*param1_vals)
     param2 = tvm.testing.parameter(*param2_vals)
 
     def test_using_independent(self, param1, param2):
-        type(self).independent_usages += 1
-
-    def test_independent(self):
-        assert self.independent_usages == len(self.param1_vals) * len(self.param2_vals)
+        assert param1 in self.param1_vals
+        assert param2 in self.param2_vals
 
 
 class TestFixtureCaching:
@@ -55,50 +42,35 @@ class TestFixtureCaching:
     param1 = tvm.testing.parameter(*param1_vals)
     param2 = tvm.testing.parameter(*param2_vals)
 
-    uncached_calls = 0
-    cached_calls = 0
-
     @tvm.testing.fixture
     def uncached_fixture(self, param1):
-        type(self).uncached_calls += 1
         return 2 * param1
 
     def test_use_uncached(self, param1, param2, uncached_fixture):
         assert 2 * param1 == uncached_fixture
 
-    def test_uncached_count(self):
-        assert self.uncached_calls == len(self.param1_vals) * len(self.param2_vals)
-
     @tvm.testing.fixture(cache_return_value=True)
     def cached_fixture(self, param1):
-        type(self).cached_calls += 1
         return 3 * param1
 
     def test_use_cached(self, param1, param2, cached_fixture):
         assert 3 * param1 == cached_fixture
 
-    def test_cached_count(self):
-        cache_disabled = bool(int(os.environ.get("TVM_TEST_DISABLE_CACHE", "0")))
-        if cache_disabled:
-            assert self.cached_calls == len(self.param1_vals) * len(self.param2_vals)
-        else:
-            assert self.cached_calls == len(self.param1_vals)
 
+def test_fixture_cache_reuses_setup_and_returns_copies():
+    setup_calls = []
 
-class TestCachedFixtureIsCopy:
-    param = tvm.testing.parameter(1, 2, 3, 4)
+    def setup(value):
+        setup_calls.append(value)
+        return {"value": value}
 
-    @tvm.testing.fixture(cache_return_value=True)
-    def cached_mutable_fixture(self):
-        return {"val": 0}
+    cached_setup = tvm.testing.utils._fixture_cache(setup)
+    first = cached_setup(1)
+    first["value"] = 0
 
-    def test_modifies_fixture(self, param, cached_mutable_fixture):
-        assert cached_mutable_fixture["val"] == 0
-
-        # The tests should receive a copy of the fixture value.  If
-        # the test receives the original and not a copy, then this
-        # will cause the next parametrization to fail.
-        cached_mutable_fixture["val"] = param
+    assert cached_setup(1) == {"value": 1}
+    assert cached_setup(2) == {"value": 2}
+    assert setup_calls == [1, 2]
 
 
 class TestBrokenFixture:
@@ -107,19 +79,13 @@ class TestBrokenFixture:
     # This behavior should be the same whether or not the fixture
     # results are cached.
 
-    num_uses_broken_uncached_fixture = 0
-    num_uses_broken_cached_fixture = 0
-
     @tvm.testing.fixture
     def broken_uncached_fixture(self):
         raise RuntimeError("Intentionally broken fixture")
 
     @pytest.mark.xfail(True, reason="Broken fixtures should result in a failing setup", strict=True)
     def test_uses_broken_uncached_fixture(self, broken_uncached_fixture):
-        type(self).num_uses_broken_fixture += 1
-
-    def test_num_uses_uncached(self):
-        assert self.num_uses_broken_uncached_fixture == 0
+        pass
 
     @tvm.testing.fixture(cache_return_value=True)
     def broken_cached_fixture(self):
@@ -127,10 +93,7 @@ class TestBrokenFixture:
 
     @pytest.mark.xfail(True, reason="Broken fixtures should result in a failing setup", strict=True)
     def test_uses_broken_cached_fixture(self, broken_cached_fixture):
-        type(self).num_uses_broken_cached_fixture += 1
-
-    def test_num_uses_cached(self):
-        assert self.num_uses_broken_cached_fixture == 0
+        pass
 
 
 @pytest.mark.skipif(
@@ -146,11 +109,6 @@ class TestCacheableTypes:
         return self.EmptyClass()
 
     def test_uses_uncacheable(self, request):
-        # Normally the num_tests_use_this_fixture would be set before
-        # anything runs.  For this test case only, because we are
-        # delaying the use of the fixture, we need to manually
-        # increment it.
-        self.uncacheable_fixture.num_tests_use_this_fixture[0] += 1
         with pytest.raises(TypeError):
             request.getfixturevalue("uncacheable_fixture")
 

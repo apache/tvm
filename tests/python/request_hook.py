@@ -46,6 +46,8 @@ class TvmRequestHook(urllib.request.Request):
 
 def init():
     global LOGGER
+    if urllib.request.Request is TvmRequestHook:
+        return
     urllib.request.Request = TvmRequestHook
     LOGGER = logging.getLogger("tvm_request_hook")
     LOGGER.setLevel(logging.DEBUG)

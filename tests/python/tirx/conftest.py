@@ -35,10 +35,17 @@ from tvm.testing import env
 def pytest_collection_modifyitems(config, items):
     if env.has_cuda_compute(10):
         return
-    suite_root = Path(__file__).parent
+    suite_root = Path(__file__).resolve().parent
     skip = pytest.mark.skip(
         reason="tirx suite requires a CUDA compute capability 10.0 (sm_100a) device"
     )
     for item in items:
-        if item.path.is_relative_to(suite_root):
+        path = getattr(item, "path", None)
+        if path is None:
+            continue
+        try:
+            path = Path(path).resolve()
+        except TypeError:
+            continue
+        if path.is_relative_to(suite_root):
             item.add_marker(skip)
