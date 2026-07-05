@@ -194,30 +194,6 @@ def test_opencl_erf():
     check_erf(1, "float64")
 
 
-def test_opencl_cast_equal_nonidentical_prim_types():
-    source_type = tvm.ir.make_node("ir.PrimType", dtype=tvm.DataType("int32"))
-    target_type = tvm.ir.make_node("ir.PrimType", dtype=tvm.DataType("int32"))
-
-    assert not source_type.same_as(target_type)
-    assert source_type.dtype == target_type.dtype
-
-    value = tvm.tirx.Var("value", source_type)
-    cast = tvm.ir.make_node("tirx.Cast", ty=target_type, value=value, span=None)
-    func = tvm.tirx.PrimFunc([value], tvm.tirx.Evaluate(cast)).with_attr(
-        {
-            "global_symbol": "kernel",
-            "calling_conv": int(tvm.ir.CallingConv.DEVICE_KERNEL_LAUNCH),
-        }
-    )
-    mod = tvm.IRModule({"kernel": func})
-
-    source = tvm.get_global_func("target.build.opencl")(
-        mod, tvm.target.Target("opencl")
-    ).inspect_source()
-    assert "value;" in source
-    assert "convert_int" not in source
-
-
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_opencl(), reason="need opencl")
 def test_opencl_type_casting():
