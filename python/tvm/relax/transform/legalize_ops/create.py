@@ -21,7 +21,7 @@
 import numpy as np
 
 import tvm
-from tvm import tirx, topi
+from tvm import te, tirx, topi
 from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
@@ -128,6 +128,31 @@ def _arange(bb: BlockBuilder, call: Call) -> Expr:
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)
     else:
         return bb.call_te(topi.arange, start, end, step, dtype)
+
+
+@register_legalize("relax.shape_to_tensor")
+def _shape_to_tensor(bb: BlockBuilder, call: Call) -> Expr:
+    shape = call.args[0]
+    values = shape.values if isinstance(shape, ShapeExpr) else shape.ty.values
+    if values is None:
+        return call
+    values = list(values)
+    n = len(values)
+    symbolic = [v for v in values if not isinstance(v, tirx.IntImm)]
+
+    def te_shape_to_tensor(*sym):
+        sym = list(sym)
+        resolved = [v if isinstance(v, tirx.IntImm) else sym.pop(0) for v in values]
+
+        def fcompute(i):
+            result = tirx.const(0, "int64")
+            for idx in range(n - 1, -1, -1):
+                result = tirx.if_then_else(i == idx, tirx.Cast("int64", resolved[idx]), result)
+            return result
+
+        return te.compute((n,), fcompute, name="shape_to_tensor")
+
+    return bb.call_te(te_shape_to_tensor, *symbolic, primfunc_name_hint="shape_to_tensor")
 
 
 @register_legalize("relax.hamming_window")
