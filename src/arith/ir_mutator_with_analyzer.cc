@@ -188,7 +188,29 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
     Range dom = Range::FromMinExtent(op->min, op->extent);
     analyzer_->Bind(op->loop_var, dom);
     iter_vars_.Set(op->loop_var, dom);
-    return StmtExprMutator::VisitStmt_(op);
+
+    PrimExpr min = this->VisitPrimExpr(op->min);
+    PrimExpr extent = this->VisitPrimExpr(op->extent);
+    ffi::Optional<PrimExpr> step{std::nullopt};
+    if (op->step.has_value()) {
+      step = this->VisitPrimExpr(*op->step);
+    }
+    Stmt body = constraint_scope_.WithNewScope([&]() -> Stmt {
+      EnterConstraintFacts(&constraint_scope_.Current(), analyzer_,
+                           extent > IntImm(extent.ty(), 0));
+      return this->VisitStmt(op->body);
+    });
+    if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body) &&
+        step.same_as(op->step)) {
+      return ffi::GetRef<Stmt>(op);
+    } else {
+      auto n = this->CopyOnWrite(op);
+      n->min = std::move(min);
+      n->extent = std::move(extent);
+      n->step = std::move(step);
+      n->body = std::move(body);
+      return Stmt(n);
+    }
   });
 }
 

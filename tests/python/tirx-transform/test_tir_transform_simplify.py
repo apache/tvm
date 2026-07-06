@@ -96,6 +96,22 @@ def test_if_likely():
     assert not isinstance(body.body.body.then_case, tvm.tirx.IfThenElse)
 
 
+def test_loop_body_knows_dynamic_extent_is_positive():
+    @T.prim_func(private=True, s_tir=True)
+    def before(A: T.Buffer((1,), "float32"), m: T.int32, n: T.int32):
+        for i in T.serial(m, n // 4):
+            if n // 4 - m > 0:
+                A[0] = 1.0
+
+    @T.prim_func(private=True, s_tir=True)
+    def expected(A: T.Buffer((1,), "float32"), m: T.int32, n: T.int32):
+        for i in T.serial(m, n // 4):
+            A[0] = 1.0
+
+    after = tvm.tirx.transform.StmtSimplify()(tvm.IRModule.from_expr(before))["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 def _apply_simplify(
     func,
     transitively_prove_inequalities=False,
