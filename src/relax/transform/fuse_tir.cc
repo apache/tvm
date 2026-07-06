@@ -57,7 +57,8 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
   }
 
  private:
-  void VisitExpr(const PrimExpr& node, const PrimExpr& other) {
+  void VisitExpr(const Expr& expr, const PrimExpr& other) final {
+    PrimExpr node = expr.as_or_throw<PrimExpr>();
     if (node.same_as(other)) {
       return;
     } else if (node.ty().code() != other.ty().code()) {
@@ -65,7 +66,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
           << "Parameter expression " << node << " with dtype " << node.ty()->dtype
           << " cannot match to argument " << other << " with dtype " << other.ty()->dtype;
     } else {
-      ExprFunctor::VisitExpr(node, other);
+      ExprFunctor::VisitExpr(expr, other);
     }
   }
 

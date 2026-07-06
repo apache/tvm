@@ -485,9 +485,9 @@ inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  /
   }
 }
 
-inline void PrintUIntConst(DLDataType dtype, uint64_t val, std::ostream& os,
+inline void PrintUIntConst(const PrimType& dtype, uint64_t val, std::ostream& os,
                            CodeGenC* p) {  // NOLINT(*)
-  if (dtype == DLDataType{kDLUInt, 32, 1}) {
+  if (dtype == PrimType::UInt(32)) {
     std::ostringstream temp;
     temp << val << "U";
     p->MarkConst(temp.str());
@@ -704,7 +704,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       uint64_t low = static_cast<uint64_t>(op->args[0].as_or_throw<IntImm>()->value);
       uint64_t high = static_cast<uint64_t>(op->args[1].as_or_throw<IntImm>()->value);
       uint64_t val = (high << 32U) | low;
-      PrintUIntConst(op->ty.as_or_throw<PrimType>()->dtype, val, os, this);
+      PrintUIntConst(op->ty.as_or_throw<PrimType>(), val, os, this);
     } else if (op->op.same_as(builtin::bitwise_xor())) {
       PrintBinaryIntrinsic(op, " ^ ", os, this);
     } else if (op->op.same_as(builtin::bitwise_or())) {
