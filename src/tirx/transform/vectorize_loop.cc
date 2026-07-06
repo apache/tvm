@@ -244,7 +244,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
 
     num_accesses_rewritten_ += 1;
     auto writer = node.CopyOnWrite();
-    if (node->predicate.defined() && allow_offset_predication_) {
+    if (node->predicate.has_value() && allow_offset_predication_) {
       // Buffer predicates are uint1 lane masks, so mask merging uses bitwise
       // and rather than logical &&.
       writer->predicate = node->predicate.value() & lane_mask;
@@ -919,7 +919,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
     // Check if we can rewrite the condition with predicated buffers
     if (EnableBufferLevelPredication(target_) &&
         (condition.ty().IsScalableVector() || condition.ty().IsFixedLengthVector()) &&
-        !else_case.defined()) {
+        !else_case.has_value()) {
       std::pair<bool, Stmt> success_stmt_pair =
           TryPredicateBufferAccesses(TargetHasRVV(target_)).Run(then_case, condition);
       bool can_remove_if_then_else = success_stmt_pair.first;

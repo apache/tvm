@@ -121,7 +121,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
   void VisitStmt_(const EvaluateNode* op) final {
     if (const CallNode* call = AsCuTensorMapEncode(op)) {
       auto [maybe_var, key] = ExtractEncodeKey(call);
-      if (maybe_var.defined()) {
+      if (maybe_var.has_value()) {
         const Var& v = maybe_var.value();
         // Find an existing key that is structurally equal
         bool found = false;

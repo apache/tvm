@@ -125,7 +125,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
                });
 
     // Step 3. Visit init and body
-    if (op->init.defined()) {
+    if (op->init.has_value()) {
       this->VisitStmt(op->init.value());
     }
     this->VisitStmt(op->body);

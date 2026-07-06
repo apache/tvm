@@ -48,12 +48,12 @@ bool IsSimpleBuffer(const tirx::Buffer& buf, bool s_tir) {
     }
   }
   if (s_tir) {
-    if (buf->layout.defined() &&
+    if (buf->layout.has_value() &&
         !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
       return false;
     }
   } else {
-    if (!buf->layout.defined() ||
+    if (!buf->layout.has_value() ||
         !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
       return false;
     }
@@ -173,7 +173,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           tirx::SBlock root_block = root_block_realize->block;
           if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
               !root_block->reads.size() && !root_block->writes.size() &&
-              !root_block->init.defined()) {
+              !root_block->init.has_value()) {
             const tirx::SBlockRealizeNode* block_realize =
                 root_block->body.as<tirx::SBlockRealizeNode>();
             if (root_block->alloc_buffers.size() ||

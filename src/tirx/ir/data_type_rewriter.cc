@@ -356,7 +356,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockNode* op) {
   ffi::Array<IterVar> new_iter_vars =
       op->iter_vars.Map([this](const IterVar& iter_var) { return this->VisitIterVar(iter_var); });
   ffi::Optional<Stmt> new_init = std::nullopt;
-  if (op->init.defined()) {
+  if (op->init.has_value()) {
     new_init = this->VisitStmt(op->init.value());
   }
   ffi::Map<ffi::String, ffi::Any> new_annotations = VisitBlockAnnotations(op->annotations);
@@ -504,7 +504,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
   is_condition_ = is_condition;
 
   Stmt then_case = VisitStmt(op->then_case);
-  ffi::Optional<Stmt> else_case = op->else_case.defined()
+  ffi::Optional<Stmt> else_case = op->else_case.has_value()
                                       ? ffi::Optional<Stmt>{VisitStmt(op->else_case.value())}
                                       : std::nullopt;
   if (!cond.same_as(op->condition) || !then_case.same_as(op->then_case) ||
@@ -536,7 +536,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     n->loop_var = new_loop_var;
     n->min = cast(new_loop_var.ty(), min);
     n->extent = cast(new_loop_var.ty(), extent);
-    if (op->thread_binding.defined()) {
+    if (op->thread_binding.has_value()) {
       auto old_thread_binding = op->thread_binding.value();
       auto* ptr = old_thread_binding.CopyOnWrite();
       ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.ty());

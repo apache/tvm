@@ -293,7 +293,7 @@ class DeviceInfoCollector : public StmtVisitor {
  private:
   PrimExpr GetArgument(const ffi::String& launch_param) const {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
-      TVM_FFI_ICHECK(dyn_shmem_size.defined())
+      TVM_FFI_ICHECK(dyn_shmem_size.has_value())
           << "Compute kernel requires launch parameter \"" << launch_param
           << "\", but PrimFunc did not contain AllocBuffer node with shared dynamic scope.";
       return dyn_shmem_size.value();
@@ -354,7 +354,7 @@ class DeviceInfoCollector : public StmtVisitor {
   void VisitStmt_(const AllocBufferNode* op) final {
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      TVM_FFI_ICHECK(!dyn_shmem_size.defined())
+      TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
           << "Only one dynamic shared memory allocation is allowed.";
       TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
 
@@ -451,7 +451,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       : device_info_map_(std::move(device_info_map)) {}
 
   PrimFunc RewriteKernelLaunchSite(const GlobalVar& gvar, PrimFunc func) {
-    TVM_FFI_ICHECK(!current_target_.defined());
+    TVM_FFI_ICHECK(!current_target_.has_value());
     // Track whether the caller is a host function (i.e. its target
     // still has a host attached) and capture its host target.  The
     // same-target shortcut at the call site is only safe when caller
@@ -463,7 +463,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     // target, not the device target stripped by WithoutHost().
     auto full_target = func->GetAttr<Target>(tvm::attr::kTarget).value();
     current_target_ = full_target.WithoutHost();
-    if (full_target->GetHost().defined()) {
+    if (full_target->GetHost().has_value()) {
       current_caller_host_target_ = full_target->GetHost().value();
     } else {
       current_caller_host_target_ = std::nullopt;

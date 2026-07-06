@@ -146,7 +146,7 @@ ffi::String RenderInvisiblePathInfo(const ffi::String& script,
 
     ffi::Optional<AccessPath> visible_path = std::nullopt;
     if (i < visible_paths.size()) visible_path = visible_paths[i];
-    if (!visible_path.defined()) {
+    if (!visible_path.has_value()) {
       os << "\nNote: No visible object for this path is rendered in TVMScript.";
     } else if (!visible_path.value()->PathEqual(requested_path) &&
                visible_path.value()->IsPrefixOf(requested_path)) {
@@ -799,7 +799,7 @@ void PythonDocPrinter::PrintTypedDoc(const ExprStmtDoc& doc) {
 void PythonDocPrinter::PrintTypedDoc(const AssertDoc& doc) {
   output_ << "assert ";
   PrintDoc(doc->test);
-  if (doc->msg.defined()) {
+  if (doc->msg.has_value()) {
     output_ << ", ";
     PrintDoc(doc->msg.value());
   }
@@ -827,7 +827,7 @@ void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   PrintJoinedDocs(doc->args, ", ");
   output_ << ")";
 
-  if (doc->return_type.defined()) {
+  if (doc->return_type.has_value()) {
     output_ << " -> ";
     PrintDoc(doc->return_type.value());
   }
