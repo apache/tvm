@@ -189,11 +189,11 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const ForNode* op) {
     analyzer_->Bind(op->loop_var, dom);
     iter_vars_.Set(op->loop_var, dom);
 
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
+    PrimExpr min = this->VisitPrimExpr(op->min);
+    PrimExpr extent = this->VisitPrimExpr(op->extent);
     ffi::Optional<PrimExpr> step{std::nullopt};
     if (op->step.has_value()) {
-      step = this->VisitExpr(*op->step);
+      step = this->VisitPrimExpr(*op->step);
     }
     Stmt body = constraint_scope_.WithNewScope([&]() -> Stmt {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_,
