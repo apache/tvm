@@ -56,7 +56,9 @@ jobs:
       - name: Install TVM from wheel
         shell: bash -l {0}
         run: |
-          pip install dist/*.whl
+          pip install ml_dtypes
+          # Keep the source-matched tvm-ffi installed by the setup action.
+          pip install --no-deps dist/*.whl
 
       - name: Test
         shell: bash -l {0}
