@@ -553,6 +553,7 @@ class BuiltinLower : public StmtExprMutator {
       int arg_type_index;
       if (arg.as<StringImmNode>()) {
         arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
+        arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
       } else if (arg->ty.as<PointerTypeNode>()) {
         arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
                                             : ffi::TypeIndex::kTVMFFIOpaquePtr;

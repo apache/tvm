@@ -125,7 +125,7 @@ def get_simdgroup_load_intrin(
             T.metal.simdgroup_load(
                 C.data,
                 index=get_simdgroup_index(C, d1, col, row),
-                ptr=A.access_ptr("r"),
+                ptr=A.access_ptr("r", ptr_type=dtype),
                 stride=s1,
                 col=col,
                 row=row,
@@ -182,7 +182,7 @@ def get_simdgroup_store_intrin(
             T.metal.simdgroup_store(
                 A.data,
                 index=get_simdgroup_index(A, s1, col, row),
-                ptr=C.access_ptr("w"),
+                ptr=C.access_ptr("w", ptr_type=dtype),
                 stride=d1,
                 col=col,
                 row=row,

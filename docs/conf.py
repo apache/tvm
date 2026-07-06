@@ -215,7 +215,7 @@ def rst2md(text, gallery_conf, target_dir, heading_levels, real_func):
 
 
 def install_request_hook(gallery_conf, fname):
-    testing.utils.install_request_hook(depth=3)
+    testing.utils.install_request_hook(tvm_path.resolve() / "tests" / "python" / "request_hook.py")
 
 
 INSTALL_TVM_DEV = """\

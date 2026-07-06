@@ -739,8 +739,22 @@ bool AutoTensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs
   if (it != rhs_buffer_map_.end()) {
     equal = (*it).second.same_as(lhs);
   } else {
-    // Remap both buffer itself and buffer data, skip buffer shape and scope
-    equal = DefEqual(lhs->data, rhs->data) && lhs->dtype == rhs->dtype;
+    // Remap both buffer itself and buffer data, skipping buffer shape and storage scope.  Auto
+    // tensorization inserts the cache stages that move workload buffers into an intrinsic's
+    // required scope, while the pointer element type must still agree.
+    auto data_it = equal_map_.find(lhs->data);
+    if (data_it != equal_map_.end()) {
+      equal = data_it->second.same_as(rhs->data);
+    } else {
+      const auto* lhs_ptr = lhs->data->ty.as<PointerTypeNode>();
+      const auto* rhs_ptr = rhs->data->ty.as<PointerTypeNode>();
+      equal = lhs_ptr && rhs_ptr &&
+              ffi::StructuralEqual()(lhs_ptr->element_type, rhs_ptr->element_type);
+      if (equal) {
+        equal_map_[lhs->data] = rhs->data;
+      }
+    }
+    equal = equal && lhs->dtype == rhs->dtype;
     if (equal) {
       rhs_buffer_map_[rhs] = lhs;
       lhs_buffer_map_[lhs] = rhs;
