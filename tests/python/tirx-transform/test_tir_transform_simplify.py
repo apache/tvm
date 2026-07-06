@@ -112,6 +112,22 @@ def test_loop_body_knows_dynamic_extent_is_positive():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_loop_var_does_not_escape_compacted_buffer_extent():
+    @T.prim_func(private=True, s_tir=True)
+    def before(a: T.handle):
+        n = T.int64()
+        A = T.match_buffer(a, (n,), "int32")
+        tmp = T.alloc_buffer((n,), "int32")
+        for i in range(n):
+            length: T.let[T.int64] = T.ceildiv(n, T.shift_left(T.int64(1), i + 1))
+            for j in range(length):
+                tmp[j] = A[j]
+
+    mod = tvm.s_tir.transform.CompactBufferAllocation()(tvm.IRModule.from_expr(before))
+    after = tvm.tirx.transform.StmtSimplify()(mod)
+    tvm.tirx.analysis.verify_well_formed(after)
+
+
 def _apply_simplify(
     func,
     transitively_prove_inequalities=False,

@@ -423,23 +423,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     IntervalSet max_set = this->Eval(val->max_value);
     --recur_depth_;
 
-    PrimExpr min_value = min_set->min_value;
-    PrimExpr max_value = max_set->max_value;
-    auto uses_relaxable_var = [this](const PrimExpr& bound) {
-      return UsesVar(bound, [this](const VarNode* var) {
-        return dom_map_.find(ffi::GetRef<Var>(var)) != dom_map_.end();
-      });
-    };
-    // IntSet keeps symbolic bounds parametric.  If relaxing a bound under
-    // one-sided constraints loses it to infinity, keep the original bound
-    // only when it does not contain a variable that still needs relaxation.
-    if (is_neg_inf(min_value) && val->HasLowerBound() && !uses_relaxable_var(val->min_value)) {
-      min_value = val->min_value;
-    }
-    if (is_pos_inf(max_value) && val->HasUpperBound() && !uses_relaxable_var(val->max_value)) {
-      max_value = val->max_value;
-    }
-    return IntervalSet(min_value, max_value);
+    return IntervalSet(min_set->min_value, max_set->max_value);
   }
 
   IntervalSet VisitExpr_(const IntImmNode* op) final {
@@ -448,6 +432,13 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
 
   IntervalSet VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
+
+    auto it = dom_map_.find(var);
+    // Scoped constraints refine explicit relaxation domains.  Variables that
+    // are absent from dom_map_ remain free parameters of the relaxed result.
+    if (it == dom_map_.end()) {
+      return IntervalSet::SinglePoint(var.as_or_throw<PrimExpr>());
+    }
 
     ffi::Array<IntSet> values;
     if (dom_constraints_) {
@@ -458,14 +449,7 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
       }
     }
 
-    auto it = dom_map_.find(var);
-    if (it != dom_map_.end()) {
-      values.push_back((*it).second);
-    }
-
-    if (values.empty()) {
-      return IntervalSet::SinglePoint(var.as_or_throw<PrimExpr>());
-    }
+    values.push_back((*it).second);
 
     IntSet intersection = [&]() {
       if (values.size() == 1) {
