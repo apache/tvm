@@ -122,24 +122,23 @@ void CodeGenCHost::PrintFuncPrefix(std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLINT(*)
-  const DLDataType& t = type->dtype;
-  int lanes = static_cast<int16_t>(t.lanes);
-  if (t.code == kDLOpaqueHandle && !(t.bits == 0 && lanes == 0)) {
+  int lanes = type.lanes();
+  if (type.MatchesCode(DLDataTypeCode::kDLOpaqueHandle) && !type.IsVoid()) {
     TVM_FFI_ICHECK_EQ(lanes, 1) << "does not support vector types";
     os << "void*";
     return;
   }
-  if (t.code == kDLOpaqueHandle && t.bits == 0 && lanes == 0) {
+  if (type.IsVoid()) {
     os << "void";
     return;
   }
-  if (t.code == kDLBool && lanes == 1) {
+  if (type.MatchesCode(DLDataTypeCode::kDLBool) && lanes == 1) {
     os << "bool";
     return;
   }
   bool fail = false;
-  if (t.code == kDLFloat) {
-    switch (t.bits) {
+  if (type.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    switch (type.bits()) {
       case 16:
         os << "half";
         break;
@@ -158,11 +157,11 @@ void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLIN
       os << lanes;
       return;
     }
-  } else if (t.code == kDLUInt || t.code == kDLInt) {
-    if (t.code == kDLUInt) {
+  } else if (type.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
+    if (type.MatchesCode(DLDataTypeCode::kDLUInt)) {
       os << 'u';
     }
-    switch (t.bits) {
+    switch (type.bits()) {
       case 8:
         os << "int8_t";
         break;
@@ -188,14 +187,14 @@ void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLIN
       return;
     }
   }
-  TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to C type";
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << type->dtype << " to C type";
 }
 
 void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = static_cast<int16_t>(op->ty.as_or_throw<PrimType>()->dtype.lanes);
+  int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
-  PrintType(op->ty.as_or_throw<PrimType>()->dtype, os);
+  PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << ")(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
