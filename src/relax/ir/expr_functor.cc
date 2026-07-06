@@ -544,22 +544,6 @@ PrimExpr ExprMutatorBase::VisitTypePrimExprField(const PrimExpr& expr) {
 // ==================
 // ExprMutator
 
-namespace {
-
-template <typename TMap>
-void RedirectVarRemapTargets(TMap* var_remap, const Var& old_target, const Var& new_target) {
-  if (old_target.same_as(new_target)) {
-    return;
-  }
-  for (auto& entry : *var_remap) {
-    if (entry.second.same_as(old_target)) {
-      entry.second = new_target;
-    }
-  }
-}
-
-}  // namespace
-
 Expr ExprMutator::VisitExpr(const Expr& expr) {
   return builder_->Normalize(ExprFunctor::VisitExpr(expr));
 }
@@ -697,7 +681,6 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     new_var = temp;
   }
 
-  RedirectVarRemapTargets(&var_remap_, visited_var, new_var);
   this->var_remap_[binding->var] = new_var;
   this->var_remap_[visited_var] = new_var;
   this->var_remap_[new_var] = new_var;
@@ -721,7 +704,6 @@ void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
       new_value = builder_->NormalizeArgument(new_value);
       new_var = WithType(new_var, new_ty);
 
-      RedirectVarRemapTargets(&var_remap_, visited_var, new_var);
       var_remap_[binding->var] = new_var;
       var_remap_[visited_var] = new_var;
       var_remap_[new_var] = new_var;
