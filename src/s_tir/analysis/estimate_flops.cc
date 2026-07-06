@@ -149,7 +149,7 @@ class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
   }
   TResult VisitStmt_(const SBlockNode* block) override {
     TResult result;
-    if (block->init.defined()) {
+    if (block->init.has_value()) {
       result += VisitStmt(block->init.value());
     }
     result += VisitStmt(block->body);

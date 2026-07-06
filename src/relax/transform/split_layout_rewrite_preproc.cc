@@ -250,7 +250,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
         tirx::SplitPrimFuncLayoutRewrite tir_rewriter(func.as_or_throw<tirx::PrimFunc>());
         auto [preproc_func, compute_func] =
             tir_rewriter.Transform(func.as_or_throw<tirx::PrimFunc>());
-        if (preproc_func.defined()) {
+        if (preproc_func.has_value()) {
           mutator.split_funcs_.emplace(gv.get(),
                                        std::make_tuple(preproc_func.value(), compute_func));
           mutator.rewrite_infos_.emplace(gv.get(), tir_rewriter.rewrite_infos_);

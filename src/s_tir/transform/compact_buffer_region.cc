@@ -58,7 +58,7 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
   ffi::Optional<ffi::Array<arith::IntSet>> eval_res =
       arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer_ref);
 
-  if (eval_res.defined()) {
+  if (eval_res.has_value()) {
     return NDIntSet(eval_res.value().begin(), eval_res.value().end());
   }
   return support::NDIntSetEval(support::NDIntSetFromRegion(region), dom_map);
@@ -240,7 +240,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no init part and block is opaque
-    TVM_FFI_ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.has_value());
     TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
     std::unordered_map<Buffer, std::vector<BufferRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
@@ -585,7 +585,7 @@ class BufferCompactor : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no Init part.
-    TVM_FFI_ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.has_value());
     // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
     ffi::Array<Buffer> alloc_buffers =
         op->alloc_buffers.Map([this](const Buffer& buf) { return RewriteAllocBuffer(buf); });

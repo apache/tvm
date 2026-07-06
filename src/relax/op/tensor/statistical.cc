@@ -42,14 +42,14 @@ Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
-  if (!data_ty->IsUnknownNdim() && attrs->axis.defined()) {
+  if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
     axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
   if (attrs->keepdims) {
     out_ndim = data_ty->ndim;
-  } else if (!attrs->axis.defined()) {
+  } else if (!attrs->axis.has_value()) {
     out_ndim = 0;
   } else if (data_ty->IsUnknownNdim()) {
     out_ndim = kUnknownNDim;
@@ -67,7 +67,7 @@ Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   // input axes
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
+    if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
       return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
                         data_ty->dtype, data_ty->vdevice);
     } else {
@@ -80,7 +80,7 @@ Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
   for (int i = 0; i < data_ty->ndim; ++i) {
-    if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
+    if (attrs->axis.has_value() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
       out_shape.push_back(IntImm::Int64(/*value=*/1));
@@ -103,7 +103,7 @@ InferLayoutOutput InferLayoutStatistical(
   int ndim = tensor_ty->ndim;
 
   ffi::Array<int64_t> axis;
-  if (attrs->axis.defined()) {
+  if (attrs->axis.has_value()) {
     axis = attrs->axis.value();
   } else {
     axis.reserve(ndim);
@@ -173,7 +173,7 @@ Type InferTypeScan(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   } else {
     return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
@@ -185,14 +185,14 @@ Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
-  if (!data_ty->IsUnknownNdim() && attrs->axis.defined()) {
+  if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
     axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
   if (attrs->keepdims) {
     out_ndim = data_ty->ndim;
-  } else if (!attrs->axis.defined()) {
+  } else if (!attrs->axis.has_value()) {
     out_ndim = 0;
   } else if (data_ty->IsUnknownNdim()) {
     out_ndim = kUnknownNDim;
@@ -210,7 +210,7 @@ Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
   // input axis
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
+    if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
       return TensorType(ShapeExpr(ffi::Array<PrimExpr>(out_ndim, IntImm::Int64(/*value=*/1))),
                         data_ty->dtype, data_ty->vdevice);
     }
@@ -224,7 +224,7 @@ Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
   for (int i = 0; i < data_ty->ndim; ++i) {
-    if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
+    if (attrs->axis.has_value() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
       out_shape.push_back(IntImm::Int64(/*value=*/1));
@@ -232,7 +232,7 @@ Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
 
-  if (!attrs->axis.defined() || axes.size() > 1)
+  if (!attrs->axis.has_value() || axes.size() > 1)
     return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
   else
     return TupleType({TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice),

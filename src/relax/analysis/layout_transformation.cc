@@ -140,7 +140,7 @@ static bool AreIdenticalSpatialAccess(const SpatialLayout& s0, const SpatialLayo
   if (s0.empty() || s1.empty()) return false;
   if (s0.size() != s1.size()) return false;
   for (size_t i = 0; i < s0.size(); ++i) {
-    if ((!s0[i].defined() && s1[i].defined()) || (s0[i].defined() && !s1[i].defined()))
+    if ((!s0[i].has_value() && s1[i].has_value()) || (s0[i].has_value() && !s1[i].has_value()))
       return false;
     if (!s0[i].same_as(s1[i])) return false;
   }
@@ -157,7 +157,7 @@ static bool IsSequentialAccess(const SpatialLayout& iterators,
                                const VarToBlockIndexMap& iter_to_block_index) {
   int last_value = -1;
   for (const auto& i : iterators) {
-    if (!i.defined()) continue;
+    if (!i.has_value()) continue;
     auto it = iter_to_block_index.find(i.value());
     TVM_FFI_ICHECK(it != iter_to_block_index.end());
     int blk_index = it->second;
@@ -225,7 +225,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
   // Get the iterator var set used in target spatial layout.
   VarSet tgt_var_set;
   for (const auto& i : tgt_spatial_layout) {
-    if (i.defined()) tgt_var_set.insert(i.value());
+    if (i.has_value()) tgt_var_set.insert(i.value());
   }
 
   // Erase initial indices corresponding to iter vars that do not occur in target spatial layout.
@@ -233,7 +233,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
   auto initial_indices_it = initial_indices.begin();
   VarSet initial_indices_var_set;
   for (const auto& i : src_spatial_layout) {
-    TVM_FFI_ICHECK(i.defined());
+    TVM_FFI_ICHECK(i.has_value());
     if (tgt_var_set.count(i.value())) {
       initial_indices_var_set.insert(*initial_indices_it);
       initial_indices_it++;
@@ -285,14 +285,14 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
   // spatial layout.
   VarSet src_var_set;
   for (const auto& i : src_spatial_layout) {
-    TVM_FFI_ICHECK(i.defined());
+    TVM_FFI_ICHECK(i.has_value());
     src_var_set.insert(i.value());
   }
 
   initial_indices_it = initial_indices.begin();
   final_indices_it = final_indices.begin();
   for (const auto& i : tgt_spatial_layout) {
-    if (i.defined() && src_var_set.count(i.value())) {
+    if (i.has_value() && src_var_set.count(i.value())) {
       initial_indices_it++;
       if (final_indices_it != final_indices.end()) final_indices_it++;
       continue;
@@ -384,7 +384,7 @@ class BlockAnalyzer : public StmtExprVisitor {
     // Infer Block transformation from write buffer transformation.
     auto maybe_block_transformation = InferLayoutTransformation(
         write_spatial_layout, write_transformation_, block_spatial_layout);
-    if (!maybe_block_transformation.defined()) {
+    if (!maybe_block_transformation.has_value()) {
       can_transform_block_ = false;
       return;
     }
@@ -407,7 +407,7 @@ class BlockAnalyzer : public StmtExprVisitor {
 
       auto maybe_read_transformation = InferLayoutTransformation(
           write_spatial_layout, write_transformation_, read_spatial_layout);
-      if (!maybe_read_transformation.defined()) continue;
+      if (!maybe_read_transformation.has_value()) continue;
       IndexMap read_transformation = maybe_read_transformation.value();
       if (buffer_transformation_cache_.count(r->buffer) != 0) {
         if (!AreIdenticalTransforms(read_transformation, buffer_transformation_cache_[r->buffer]))
@@ -561,7 +561,7 @@ class PrimFuncAnalyzer : public StmtExprVisitor {
     for (size_t i = 0; i < write_transformations.size(); ++i) {
       auto param = func->params[first_write_index + i];
       ffi::Optional<Buffer> param_buf = func->buffer_map.Get(param);
-      TVM_FFI_ICHECK(param_buf.defined());
+      TVM_FFI_ICHECK(param_buf.has_value());
       TVM_FFI_ICHECK_EQ(param_buf.value()->shape.size(),
                         write_transformations[i]->initial_indices.size())
           << "Mismatch between output buffer shape and index map";

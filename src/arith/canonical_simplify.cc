@@ -906,7 +906,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
     } else {
       // try eliminate from lhs
       for (size_t i = 0; i < lhs_prods.size(); ++i) {
-        if (lhs_prods[i].defined() && deep_equal(value, lhs_prods[i].value())) {
+        if (lhs_prods[i].has_value() && deep_equal(value, lhs_prods[i].value())) {
           lhs_prods.Set(i, std::nullopt);
           ++num_elimination;
           new_common_scale = new_common_scale * value;
@@ -929,7 +929,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
   PrimType lhs_ty = plhs->ty();
   PrimExpr new_lhs = IntImm(lhs_ty, 1);
   for (ffi::Optional<PrimExpr> val : lhs_prods) {
-    if (val.defined()) new_lhs = new_lhs * val.value();
+    if (val.has_value()) new_lhs = new_lhs * val.value();
   }
   *plhs = new_lhs * IntImm(lhs_ty, lhs_cscale);
   *prhs = new_rhs * IntImm(rhs_ty, rhs_cscale);

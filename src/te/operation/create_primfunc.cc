@@ -450,7 +450,7 @@ struct NestedScopeInfo {
                     const PrimExpr& value) {
     block_iters.push_back(iter);
     bindings.push_back(value);
-    if (origin_axis.defined()) {
+    if (origin_axis.has_value()) {
       if (iter->iter_type != IterVarType::kCommReduce) {
         store_indices.push_back(iter->var);
       }

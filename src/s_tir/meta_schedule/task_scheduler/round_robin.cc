@@ -47,7 +47,7 @@ class RoundRobinNode final : public TaskSchedulerNode {
       task_id = (task_id + 1) % n_tasks;
       TaskRecordNode* task = this->tasks_[task_id].get();
       if (!task->is_terminated) {
-        if (task->runner_futures.defined()) {
+        if (task->runner_futures.has_value()) {
           JoinRunningTask(task_id);
         }
         return task_id;

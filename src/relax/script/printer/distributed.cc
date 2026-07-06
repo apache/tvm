@@ -42,7 +42,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;
           bool require_kwargs = false;
-          if (n->tensor_ty->shape.defined()) {
+          if (n->tensor_ty->shape.has_value()) {
             // Need to dig into ShapeExpr to preserve the `R.shape` prefix
             if (const auto* shape = n->tensor_ty->shape.value().as<relax::ShapeExprNode>()) {
               auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
@@ -83,7 +83,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             kwargs_keys.push_back("placement");
             kwargs_values.push_back(d->AsDoc<ExprDoc>(n->placement, n_p->Attr("placement")));
           }
-          if (!n->tensor_ty->shape.defined() && !n->tensor_ty->IsUnknownNdim()) {
+          if (!n->tensor_ty->shape.has_value() && !n->tensor_ty->IsUnknownNdim()) {
             kwargs_keys.push_back("ndim");
             kwargs_values.push_back(LiteralDoc::Int(n->tensor_ty->ndim, n_p->Attr("ndim")));
           }
@@ -106,7 +106,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (!has_relax_frame || !f) {
             ffi::Array<ExprDoc> args;
             args.push_back(d->AsDoc<ExprDoc>(n->shape, n_p->Attr("shape")));
-            if (n->device_range.defined()) {
+            if (n->device_range.has_value()) {
               args.push_back(d->AsDoc<ExprDoc>(n->device_range, n_p->Attr("device_range")));
             } else {
               args.push_back(d->AsDoc<ExprDoc>(n->device_ids, n_p->Attr("device_ids")));

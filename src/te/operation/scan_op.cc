@@ -47,7 +47,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
                ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs, IterVar axis,
                ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
-  if (!attrs.defined()) {
+  if (!attrs.has_value()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
   auto n = ffi::make_object<ScanOpNode>();

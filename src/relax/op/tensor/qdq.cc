@@ -126,7 +126,7 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
 
   auto is_scalar_or_singleton_vector = [&](const TensorType& param_ty) {
     if (IsScalarTensor(param_ty)) return true;
-    if (param_ty->shape.defined() && param_ty->shape->IsInstance<ShapeExprNode>()) {
+    if (param_ty->shape.has_value() && param_ty->shape.value()->IsInstance<ShapeExprNode>()) {
       const auto& values = param_ty->shape.as<ShapeExprNode>()->values;
       if (!values.empty()) {
         return std::all_of(values.begin(), values.end(), [&](const PrimExpr& dim) {
@@ -239,7 +239,7 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
 
   auto is_scalar_or_singleton_vector = [&](const TensorType& param_ty) {
     if (IsScalarTensor(param_ty)) return true;
-    if (param_ty->shape.defined() && param_ty->shape->IsInstance<ShapeExprNode>()) {
+    if (param_ty->shape.has_value() && param_ty->shape.value()->IsInstance<ShapeExprNode>()) {
       const auto& values = param_ty->shape.as<ShapeExprNode>()->values;
       if (!values.empty()) {
         return std::all_of(values.begin(), values.end(), [&](const PrimExpr& dim) {

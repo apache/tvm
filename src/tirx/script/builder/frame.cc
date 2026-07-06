@@ -150,7 +150,8 @@ void PrimFuncFrameNode::ExitWithScope() {
   func = tvm::tirx::ScriptComplete(func, effective_root_alloc_buffers, s_tir);
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
-    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
+        << "Builder.result has already been set";
     builder->result = func;
   } else if (ffi::Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
     TVM_FFI_CHECK(name.has_value(), ValueError)
@@ -181,7 +182,7 @@ void SBlockFrameNode::ExitWithScope() {
     tir_alloc_buffers.push_back(buffer);
   }
   ffi::Map<ffi::String, Any> attrs = annotations.value_or({});
-  if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
+  if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
     attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm::Int64(detect_access));
   }
   tvm::tirx::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::tirx::BufferRegion>()),
@@ -191,7 +192,7 @@ void SBlockFrameNode::ExitWithScope() {
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
-    TVM_FFI_CHECK(!predicate.defined(), ValueError)
+    TVM_FFI_CHECK(!predicate.has_value(), ValueError)
         << "`T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
@@ -202,7 +203,7 @@ void SBlockFrameNode::ExitWithScope() {
 
 void BlockInitFrameNode::EnterWithScope() {
   SBlockFrame frame = FindSBlockFrame("T.init");
-  if (frame->init.defined()) {
+  if (frame->init.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate block init declaration";
   }
   TIRFrameNode::EnterWithScope();
@@ -254,17 +255,17 @@ void IfFrameNode::ExitWithScope() {
     TVM_FFI_THROW(InternalError)
         << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
   }
-  if (!then_stmts.defined()) {
+  if (!then_stmts.has_value()) {
     TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
   }
   AddToParent(tvm::tirx::IfThenElse(
       condition, AsStmt(then_stmts.value()),
-      else_stmts.defined() ? AsStmt(else_stmts.value()) : tvm::tirx::Stmt(nullptr)));
+      else_stmts.has_value() ? AsStmt(else_stmts.value()) : tvm::tirx::Stmt(nullptr)));
 }
 
 void ThenFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.then_");
-  if (frame->then_stmts.defined()) {
+  if (frame->then_stmts.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate then branch declaration, previous one is "
                               << frame->then_stmts.value();
   }
@@ -278,10 +279,10 @@ void ThenFrameNode::ExitWithScope() {
 
 void ElseFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.else_");
-  if (!frame->then_stmts.defined()) {
+  if (!frame->then_stmts.has_value()) {
     TVM_FFI_THROW(InternalError) << "The else branch should follow then branch";
   }
-  if (frame->else_stmts.defined()) {
+  if (frame->else_stmts.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate else branch declaration, previous one is "
                               << frame->else_stmts.value();
   }

@@ -861,7 +861,7 @@ class PipelineRewriter : public StmtExprMutator {
       PrimExpr skewed_loop_var = new_loop_var - stage;
       PrimExpr inbound = analyzer_->Simplify(pipeline_loop_->min <= skewed_loop_var) &&
                          (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
-      if (extra_loop_lower_bound.defined()) {
+      if (extra_loop_lower_bound.has_value()) {
         inbound = analyzer_->Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
       }
       if (analyzer_->CanProve(!inbound)) {

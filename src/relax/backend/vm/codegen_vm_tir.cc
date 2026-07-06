@@ -185,7 +185,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
 
     tirx::Stmt body = WithNewScope([&]() {
       ffi::Optional<Expr> ret = ExprFunctor::VisitExpr(func->body);
-      if (ret.defined()) {
+      if (ret.has_value()) {
         this->EmitCallPacked("vm.builtin.copy", {ret.value()}, ret_reg);
       }
     });
@@ -214,7 +214,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
         Expr expr = GetBoundValue(binding);
         ffi::Optional<Expr> value = VisitExpr(expr);
 
-        if (expr.as<Var>() && value.defined()) {
+        if (expr.as<Var>() && value.has_value()) {
           // For a normalized relax module, there should be one
           // register for each relax::Binding.  This makes the Relax
           // semantics of R.vm.kill_* operate the same as the Python
@@ -425,7 +425,7 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-    if (vdevice.defined()) {
+    if (vdevice.has_value()) {
       args.push_back(tirx::StringImm(vdevice.value()->memory_scope));
     }
 

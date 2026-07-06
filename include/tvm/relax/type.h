@@ -189,11 +189,11 @@ class TensorTypeNode : public TypeNode {
   bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   /*! \return Whether the type contains unknown dtype. */
-  bool IsUnknownDtype() const { return !dtype.defined(); }
+  bool IsUnknownDtype() const { return !dtype.has_value(); }
 
   /*! \return Shape if it is known. */
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
-    if (!shape.defined()) return {};
+    if (!shape.has_value()) return {};
     const Expr& shape_expr = this->shape.value();
     if (shape_expr->ty.IsMissing()) return {};
     if (const auto* shape_ty = shape_expr->ty.as<ShapeTypeNode>()) {
@@ -292,7 +292,7 @@ class FuncTypeNode : public TypeNode {
    * \return Whether the func type is opaque.
    * \note We define a function as opaque we have no constraints on params.
    */
-  bool IsOpaque() const { return !params.defined(); }
+  bool IsOpaque() const { return !params.has_value(); }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

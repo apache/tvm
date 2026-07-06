@@ -78,7 +78,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.ShapeType", [](ffi::Optional<ffi::Array<PrimExpr>> values, int ndim, Span span) {
-        if (values.defined()) {
+        if (values.has_value()) {
           TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify values and ndim";
           return ShapeType(values.value(), span);
         } else {
@@ -124,7 +124,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<PrimType> dtype, int ndim,
                              VDevice vdevice, Span span) {
-        if (shape.defined()) {
+        if (shape.has_value()) {
           TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify shape and ndim";
           return TensorType(shape.value(), dtype, vdevice, span);
         } else {
@@ -169,8 +169,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.FuncTypeOpaqueFunc", [](ffi::Optional<Type> ret,
                                           ffi::Optional<TypeDeriveFunc> derive_func, bool purity,
                                           Span span) {
-        if (derive_func.defined()) {
-          TVM_FFI_CHECK(!ret.defined(), ValueError) << "Cannot specify both ret and derive_func";
+        if (derive_func.has_value()) {
+          TVM_FFI_CHECK(!ret.has_value(), ValueError) << "Cannot specify both ret and derive_func";
           return FuncType::OpaqueFunc(derive_func.value(), purity, span);
         } else {
           return FuncType::OpaqueFunc(ret.value_or(AnyType()), purity, span);

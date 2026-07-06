@@ -1219,7 +1219,7 @@ ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(const ffi::Array<Ran
     const IterSumExpr& sum_expr = iter_sum_exprs[i];
     const Range& range = region[i];
     ffi::Optional<IntSet> int_set = EvalIterSum(sum_expr, range->extent, analyzer_ptr);
-    if (int_set.defined()) {
+    if (int_set.has_value()) {
       result.push_back(int_set.value());
     } else {
       return std::nullopt;

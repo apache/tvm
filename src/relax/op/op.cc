@@ -75,7 +75,7 @@ Type InferTypeShapeOf(const Call& call, const BlockBuilder& ctx) {
     return ShapeType(kUnknownNDim);
   }
   // if the tensor shape is a Relax var or omitted, do not try to construct a shape expr from it
-  if (!tensor_ty->shape.defined() || tensor_ty->shape.as<VarNode>()) {
+  if (!tensor_ty->shape.has_value() || tensor_ty->shape.as<VarNode>()) {
     return ShapeType(tensor_ty->ndim);
   }
   // otherwise, copy over the values from the tensor shape
@@ -103,7 +103,7 @@ Type InferTypeCallPurePacked(const Call& call, const BlockBuilder& ctx) {
       << " is not opaque";
 
   // same logic as from DeriveCallRetType for ordinary calls
-  if (finfo->derive_func.defined()) {
+  if (finfo->derive_func.has_value()) {
     // derive using custom derivation function.
     return finfo->derive_func.value()(call, ctx);
   } else {
@@ -181,7 +181,7 @@ Type InferTypeCallInplacePacked(const Call& call, const BlockBuilder& ctx) {
 
   // same logic as from DeriveCallRetType for ordinary calls
   Type ret = Type::Missing();
-  if (finfo->derive_func.defined()) {
+  if (finfo->derive_func.has_value()) {
     // derive using custom derivation function.
     ret = finfo->derive_func.value()(call, ctx);
   } else {
@@ -293,7 +293,7 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
       << "but instead received argument of type " << func_ty;
   auto callee_ty = opt_callee_ty.value();
 
-  TVM_FFI_CHECK(callee_ty->params.defined(), ValueError)
+  TVM_FFI_CHECK(callee_ty->params.has_value(), ValueError)
       << "The first argument to `R.call_tir` must be a function "
       << "with known argument types.  "
       << "However, the first argument was of type " << callee_ty;
@@ -561,7 +561,7 @@ void ValidateCallTIR(Call call) {
   Type explicit_ty = call->ty_args[0];
   auto inferred_ty = InferCallTIROutputTypeFromArguments(GetType(callee), GetType(arg_tuple),
                                                          packed_int_ty, opt_inplace_indices);
-  if (inferred_ty.defined()) {
+  if (inferred_ty.has_value()) {
     TVM_FFI_CHECK(IsBaseOf(inferred_ty.value(), explicit_ty), TypeError)
         << "The `out_ty` argument for R.call_tir must be compatible with the PrimFunc.  "
         << "However, the PrimFunc's signature implies that the output should be " << inferred_ty
@@ -729,7 +729,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
     auto ty_output = ty_outputs[i_output];
     auto tinfo_output = ty_output.as<TensorTypeNode>();
 
-    if (!tinfo_output || !tinfo_output->shape.defined() || tinfo_output->IsUnknownDtype()) {
+    if (!tinfo_output || !tinfo_output->shape.has_value() || tinfo_output->IsUnknownDtype()) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "The output type for an in-place mutation must be a tensor "
           << "with a defined shape and dtype, "
@@ -741,7 +741,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 
     if (!tinfo_input ||
         (tinfo_output->IsUnknownDtype() || tinfo_output->dtype != tinfo_input->dtype) ||
-        (!tinfo_input->shape.defined() ||
+        (!tinfo_input->shape.has_value() ||
          !CanProveShapeEqual(tinfo_input->shape.value(), tinfo_output->shape.value(),
                              ctx->GetAnalyzer()))) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -1152,7 +1152,7 @@ Type ReturnTensorToShapeType(const Call& call, const BlockBuilder& ctx) {
       << "relax.tensor_to_shape expected argument to be 1-d, "
       << "but " << call << " has argument " << call->args[0] << " with type " << call->args[0]->ty;
 
-  if (tensor_ty->shape.defined()) {
+  if (tensor_ty->shape.has_value()) {
     ShapeExpr shape_expr = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
     const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
     if (ndim) {
@@ -1223,7 +1223,7 @@ Type InferTypeAllocateTensor(const Call& call, const BlockBuilder& ctx) {
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
 
-  if (vdevice.defined()) {
+  if (vdevice.has_value()) {
     return TensorType(call->args[0], out_dtype, vdevice.value());
   }
   return TensorType(call->args[0], out_dtype);
@@ -1300,7 +1300,7 @@ Type InferTypeMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
       vdevice_index = int_imm->value;
     }
     auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
-    if (vdevice.defined()) {
+    if (vdevice.has_value()) {
       return TensorType(call->args[2], out_dtype, vdevice.value());
     }
   }
@@ -1427,7 +1427,7 @@ Type InferTypeVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
   if (const auto* output_shape = call->args[2].as<ShapeExprNode>()) {
     return TensorType(ffi::GetRef<Expr>(output_shape), out_dtype, vdevice);
   } else if (const auto* shape_ty = GetTypeAs<ShapeTypeNode>(call->args[2])) {
-    if (shape_ty->values.defined()) {
+    if (shape_ty->values.has_value()) {
       return TensorType(ShapeExpr(shape_ty->values.value()), out_dtype, vdevice);
     } else {
       return TensorType(out_dtype, shape_ty->ndim, vdevice);
@@ -1538,7 +1538,7 @@ Type InferToVDeviceType(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->span);
   }
   return TensorType(data_ty->dtype, data_ty->ndim, vdev, data_ty->span);

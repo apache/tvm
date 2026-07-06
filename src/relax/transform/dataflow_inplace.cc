@@ -423,13 +423,13 @@ std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
   if (target_info.as<TensorTypeNode>() && arg_info.as<TensorTypeNode>()) {
     auto target_tensor = target_info.as_or_throw<TensorType>();
     auto arg_tensor = arg_info.as_or_throw<TensorType>();
-    if (target_tensor->shape.defined() && target_tensor->shape.as<ShapeExprNode>() &&
-        arg_tensor->shape.defined() && arg_tensor->shape.as<ShapeExprNode>()) {
+    if (target_tensor->shape.has_value() && target_tensor->shape.as<ShapeExprNode>() &&
+        arg_tensor->shape.has_value() && arg_tensor->shape.as<ShapeExprNode>()) {
       if (target_tensor->dtype != arg_tensor->dtype) {
         return {false, false};
       }
-      auto target_shape = target_tensor->shape.as_or_throw<ShapeExpr>();
-      auto arg_shape = arg_tensor->shape.as_or_throw<ShapeExpr>();
+      auto target_shape = target_tensor->shape.value().as_or_throw<ShapeExpr>();
+      auto arg_shape = arg_tensor->shape.value().as_or_throw<ShapeExpr>();
       PrimExpr target_size = NumElements(target_shape);
       PrimExpr arg_size = NumElements(arg_shape);
       if (!ctx->GetAnalyzer()->CanProve(arg_size >= target_size)) {

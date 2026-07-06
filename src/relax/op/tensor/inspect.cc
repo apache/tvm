@@ -241,7 +241,7 @@ Type InferTypeTensorShape(const Call& call, const BlockBuilder&) {
 
   auto tensor_shape = tensor_ty->GetShape();
 
-  if (int_imm_axis && tensor_shape.defined()) {
+  if (int_imm_axis && tensor_shape.has_value()) {
     return tensor_shape.value()[int_imm_axis.value()].ty();
   } else {
     return dlpack_type;
@@ -322,7 +322,7 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
 
   auto opt_tensor_shape = tensor_ty->GetShape();
 
-  if (int_imm_axis && opt_tensor_shape.defined()) {
+  if (int_imm_axis && opt_tensor_shape.has_value()) {
     // As of 2024-03-14, Relax does not have an explicit
     // representation for striding in `TensorType`.  The
     // `FLegalize` function for most operators is implemented in terms
@@ -368,7 +368,7 @@ Type InferTypeTensorByteOffset(const Call& call, const BlockBuilder&) {
   auto tensor_ty = GetTensorArgInfo(call);
 
   auto opt_tensor_shape = tensor_ty->GetShape();
-  if (opt_tensor_shape.defined()) {
+  if (opt_tensor_shape.has_value()) {
     // Relax implicitly requires that the byte offset is zero for any
     // legalizable tensor.  See InferTypeTensorStride for full
     // explanation.
@@ -399,7 +399,7 @@ Type InferTypeTensorElemOffset(const Call& call, const BlockBuilder&) {
   auto tensor_ty = GetTensorArgInfo(call);
 
   auto opt_tensor_shape = tensor_ty->GetShape();
-  if (opt_tensor_shape.defined()) {
+  if (opt_tensor_shape.has_value()) {
     // Relax implicitly requires that the element offset is zero for
     // any legalizable tensor.  See InferTypeTensorStride for
     // full explanation.

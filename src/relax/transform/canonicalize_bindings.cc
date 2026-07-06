@@ -258,14 +258,14 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBindingBlock_(const BindingBlockNode* block) override {
-    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.has_value()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.has_value()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
@@ -397,15 +397,15 @@ class CanonicalizePlanner : public ExprVisitor {
     // if a var is used in a dataflow block but *not* the one
     // where it was defined, it also needs to be exposed, so also we treat that as
     // used outside of a dataflow block
-    if (!inside_dataflow() ||
-        (def_blocks_.count(var_ref) &&
-         (current_block_.defined() && !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
+    if (!inside_dataflow() || (def_blocks_.count(var_ref) &&
+                               (current_block_.has_value() &&
+                                !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
       used_outside_home_dataflow_.insert(ffi::GetRef<Var>(var));
     }
   }
 
   inline bool inside_dataflow() {
-    return current_block_.defined() && current_block_.value().as<DataflowBlockNode>();
+    return current_block_.has_value() && current_block_.value().as<DataflowBlockNode>();
   }
 
   ffi::Optional<BindingBlock> current_block_;

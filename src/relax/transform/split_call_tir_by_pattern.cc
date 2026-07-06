@@ -105,7 +105,7 @@ class ForMatcher : public TensorizeComparator {
         if (lhs_ptr == nullptr) {
           if (lhs->IsInstance<tirx::IntImmNode>() || lhs->IsInstance<tirx::FloatImmNode>()) {
             ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(ffi::GetRef<Var>(op));
-            if (value.defined()) {
+            if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
             } else {
               evaluated_symbols.back()[ffi::GetRef<Var>(op)] = lhs;
@@ -263,7 +263,7 @@ class ForMatcher : public TensorizeComparator {
     if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
     // Only handle the case where the loop start from 0
     if (!is_zero(op->min) || !is_zero(rhs->min)) return false;
-    if (op->thread_binding.defined() || rhs->thread_binding.defined()) return false;
+    if (op->thread_binding.has_value() || rhs->thread_binding.has_value()) return false;
     if (op->kind != ForKind::kSerial || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
@@ -292,9 +292,9 @@ class ForMatcher : public TensorizeComparator {
       return false;
     }
     // Handle init block
-    if (op->init.defined() && !rhs->init.defined()) return false;
-    if (!op->init.defined() && rhs->init.defined()) return false;
-    if (op->init.defined() && rhs->init.defined()) {
+    if (op->init.has_value() && !rhs->init.has_value()) return false;
+    if (!op->init.has_value() && rhs->init.has_value()) return false;
+    if (op->init.has_value() && rhs->init.has_value()) {
       if (!VisitStmt(op->init.value(), rhs->init.value())) return false;
     }
     return VisitStmt(op->body, rhs->body);
@@ -726,7 +726,7 @@ class SplitMutator : public ExprMutator {
     // split the function into two functions, one for the library kernel and one for the rest.
     std::pair<tirx::PrimFunc, ffi::Optional<tirx::PrimFunc>> split_funcs =
         tirx::SplitFunctions(func, &arg_partition, patterns_, fcodegen_);
-    if (!split_funcs.second.defined()) {
+    if (!split_funcs.second.has_value()) {
       // no need to split, the function itself a library kernel
       tvm::BaseFunc lib_func = CodegenWithLibrary(split_funcs.first.get(), gv->name_hint);
       if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);

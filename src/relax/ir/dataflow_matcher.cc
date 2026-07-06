@@ -521,14 +521,14 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsCondition(
         }
       }();
 
-      if (!opt_var_shape.defined()) {
+      if (!opt_var_shape.has_value()) {
         // The pattern has matched to something without a shape.
         // Therefore, it cannot have the same shape as something else.
         return {PrimExpr(IntImm::Bool(false)), true};
       }
       auto var_shape = opt_var_shape.value();
 
-      if (expected_shape.defined()) {
+      if (expected_shape.has_value()) {
         auto prev_shape = expected_shape.value();
         if (prev_shape.size() == var_shape.size()) {
           // The dimensionalities match, so build up the expression

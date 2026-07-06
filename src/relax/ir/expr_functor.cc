@@ -790,7 +790,7 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<V
       << "Normal form requires all new scope is stored as SeqExpr";
 
   PrimExpr constraint = IntImm::Bool(true);
-  if (params.defined()) {
+  if (params.has_value()) {
     auto non_negative_expressions =
         CollectNonNegativeExpressions(TupleType(params.value().Map(GetType)));
     for (const auto& expr : non_negative_expressions) {

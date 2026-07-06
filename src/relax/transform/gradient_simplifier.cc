@@ -92,7 +92,7 @@ class GradientSimplifier : private ExprMutator {
     if (ndim == kUnknownNDim || ndim == 1) {
       return false;
     }
-    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.defined()) {
+    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.has_value()) {
       return ndim == 2;
     }
     auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
@@ -130,7 +130,7 @@ class GradientSimplifier : private ExprMutator {
       return GetTransposeOf(expr);
     }
     auto prev_expr = builder_->LookupBinding(expr.as_or_throw<Var>());
-    if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
+    if (!prev_expr || !prev_expr.value()->IsInstance<CallNode>()) {
       return GetTransposeOf(expr);
     }
     auto prev_call_node = prev_expr.as<CallNode>();
@@ -158,7 +158,7 @@ class GradientSimplifier : private ExprMutator {
     }
 
     auto prev_expr = builder_->LookupBinding(arg.as_or_throw<Var>());
-    if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
+    if (!prev_expr || !prev_expr.value()->IsInstance<CallNode>()) {
       return reemit_and_return();
     }
 

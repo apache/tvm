@@ -86,7 +86,7 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v
   }
   bool attempt_to_hide_ty = !d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true);
 
-  if (rhs.defined()) {
+  if (rhs.has_value()) {
     if (const auto* call = rhs.as<tvm::CallNode>()) {
       static const Op& call_tir_op = Op::Get("relax.call_tir");
       static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
@@ -95,7 +95,7 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v
       }
     }
   }
-  if (attempt_to_hide_ty && rhs.defined()) {
+  if (attempt_to_hide_ty && rhs.has_value()) {
     ffi::Optional<tvm::Type> inferred_ty = std::nullopt;
     if (auto opt = rhs.as<tvm::Call>()) {
       auto call = opt.value();

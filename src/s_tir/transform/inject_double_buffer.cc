@@ -333,7 +333,7 @@ Pass InjectDoubleBuffer() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<InjectDoubleBufferConfig>("s_tir.InjectDoubleBuffer");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<InjectDoubleBufferConfig>();
     }
     n->body = DoubleBufferInjector(cfg.value()->split_loop).Inject(std::move(n->body));

@@ -336,7 +336,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
     int violated_cond_;
   };
 
-  if (self.defined()) {
+  if (self.has_value()) {
     throw RFactorNotApplicableError(self.value()->mod, std::move(block), violated_cond);
   } else {
     TVM_FFI_THROW(ValueError) << "Cross-thread reduction cannot be applied to the block "
@@ -638,7 +638,7 @@ std::tuple<CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAn
   bool matched =
       FromIdentityCombiner(identities, combiners, &reducer, &combiner_lhs, &combiner_rhs);
   if (!matched) {
-    if (self.defined()) {
+    if (self.has_value()) {
       throw NoMatchedReducerError(self.value()->mod, identities, combiners);
     } else {
       TVM_FFI_THROW(ValueError)
@@ -705,7 +705,7 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
   for (const ffi::TypedFunction<ffi::Optional<CommReducer>(ffi::Array<PrimExpr>)>& reducer_getter :
        GetReducerGetters()) {
     ffi::Optional<CommReducer> reducer = reducer_getter(identities);
-    if (!reducer.defined()) {
+    if (!reducer.has_value()) {
       continue;
     }
     if (MatchReducer(reducer.value(), identities, stored_values, buf_loads, lhs, rhs)) {

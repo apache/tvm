@@ -130,7 +130,7 @@ class RenewDefMutator : public StmtExprMutator {
 
     // Step 3. Visit body
     ffi::Optional<Stmt> init = std::nullopt;
-    if (op->init.defined()) {
+    if (op->init.has_value()) {
       init = this->VisitStmt(op->init.value());
     }
     Stmt body = this->VisitStmt(op->body);

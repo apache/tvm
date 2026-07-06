@@ -711,7 +711,7 @@ class VMShapeLowerMutator
                 {value, IntImm::Int64(op->ndim), GetErrContext(err_ctx)}, Attrs(), {void_ty_});
       builder_->Emit(call, "_");
     }
-    if (op->values.defined()) {
+    if (op->values.has_value()) {
       MatchShapeTodoItem item;
       item.input = value;
       item.pattern = op->values.value();
@@ -752,7 +752,7 @@ class VMShapeLowerMutator
       TVM_FFI_THROW(InternalError)
           << "Cannot handle Tensor shape pattern where a var appears multiple times";
     } else {
-      TVM_FFI_ICHECK(!op->shape.defined()) << "Can only handle tensor shape pattern var";
+      TVM_FFI_ICHECK(!op->shape.has_value()) << "Can only handle tensor shape pattern var";
     }
   }
 

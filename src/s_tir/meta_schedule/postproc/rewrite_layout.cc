@@ -148,7 +148,7 @@ std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
 
   const auto& index_map = collector.GetBufferIndexMap();
 
-  if (!index_map.defined() || !index_map) {
+  if (!index_map.has_value() || !index_map) {
     return std::nullopt;
   }
 

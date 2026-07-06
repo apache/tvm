@@ -534,7 +534,7 @@ class BackwardBindingGenerator : private ExprVisitor {
 
   static Expr AdjointMsgToExpr(AdjointMsg msg) {
     return NestedMsgToExpr<Expr>(msg, [](ffi::Optional<Expr> leaf_expr) {
-      if (!leaf_expr.defined()) {
+      if (!leaf_expr.has_value()) {
         TVM_FFI_THROW(InternalError) << "Null should not exist in AdjointMsg.";
       }
       return leaf_expr.value();
@@ -555,7 +555,7 @@ class BackwardBindingGenerator : private ExprVisitor {
     AdjointMsg msg = MapToNestedMsg<Expr>(ty, [](Type ty) {
       auto* tensor_ty = ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(tensor_ty) << "The leaf of adjoint should be a Tensor.";
-      TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Missing shape when building zeros tuple.";
+      TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Missing shape when building zeros tuple.";
       const Expr& init = zeros(tensor_ty->shape.value(), tensor_ty->dtype.value()->dtype);
       return init;
     });

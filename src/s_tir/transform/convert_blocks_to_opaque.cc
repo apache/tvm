@@ -60,7 +60,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* block) final {
-    TVM_FFI_ICHECK(!block->init.defined())
+    TVM_FFI_ICHECK(!block->init.has_value())
         << "Block Init part is not allowed in pass ConvertBlocksToOpaque";
     SBlock new_block = StmtExprMutator::VisitStmt_(block).as_or_throw<SBlock>();
     if (!new_block->iter_vars.empty()) {
@@ -71,7 +71,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
     const auto* block_op = realize->block.get();
-    TVM_FFI_ICHECK(!block_op->init.defined());
+    TVM_FFI_ICHECK(!block_op->init.has_value());
 
     // Step 1. Visit the predicate and iter_values, without any variable bindings
     for (const auto& iter : block_op->iter_vars) forbidden_iter_vars_.insert(iter->var.get());

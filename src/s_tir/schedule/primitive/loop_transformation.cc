@@ -350,7 +350,7 @@ class LoopsNotAChainError : public ScheduleError {
     if (kind_ == ProblemKind::kNotUnderAScope) {
       return {};
     } else {
-      TVM_FFI_ICHECK(problematic_loop_.defined());
+      TVM_FFI_ICHECK(problematic_loop_.has_value());
       return {problematic_loop_.value()};
     }
   }
@@ -402,7 +402,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   // order with before.
   // Step 1. Check correctness
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+  if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
     throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
   }
   // Currently, loops not starting with 0 are not supported
@@ -649,7 +649,7 @@ const ffi::String get_sblock_name(Stmt loop_body) {
 ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref,
                                    const ffi::Array<PrimExpr>& factors, bool preserve_unit_iters) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+  if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
     throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
   }
 
@@ -825,7 +825,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     std::vector<For> nest_loop_i_loops;
     for (auto p = sref.get(); p != lca.get(); p = p->parent) {
       if (auto loop = p->StmtAs<ForNode>()) {
-        if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+        if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
           throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
         }
         CheckLoopStartsWithZero(self, ffi::GetRef<StmtSRef>(p), analyzer.get());
@@ -890,7 +890,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
     const ForNode* loop = TVM_SREF_TO_FOR(sref);
-    if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+    if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
       throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
     }
     if (outer_loop_sref.defined()) {

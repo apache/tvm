@@ -87,7 +87,7 @@ Type InferTypeAllGather(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
   auto input_shape = input_ty->GetShape();
-  if (!input_shape.defined()) {
+  if (!input_shape.has_value()) {
     return input_ty;
   }
   ffi::Array<PrimExpr> output_shape = input_shape.value();
@@ -150,7 +150,7 @@ Type InferTypeScatter(const Call& call, const BlockBuilder& ctx) {
 
   arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = input_ty->GetShape();
-  TVM_FFI_ICHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.has_value())
       << "input tensor of scatter_from_worker0 should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers)) != 0)) {

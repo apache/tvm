@@ -30,7 +30,7 @@ inline IRModuleFrame FindModuleFrame(const ffi::String& method) {
   IRBuilder builder = IRBuilder::Current();
   if (ffi::Optional<IRModuleFrame> frame = builder->FindFrame<IRModuleFrame>()) {
     const ffi::Optional<IRModuleFrame>& last_module_frame = builder->GetLastFrame<IRModuleFrame>();
-    if (last_module_frame.defined() && last_module_frame.value() == frame) {
+    if (last_module_frame.has_value() && last_module_frame.value() == frame) {
       return frame.value();
     }
   } else {

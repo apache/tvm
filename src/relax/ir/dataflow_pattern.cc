@@ -653,13 +653,13 @@ ExprPattern IsOp(const ffi::String& op_name) { return IsExpr(Op::Get(op_name)); 
 CallPattern IsCallTIR(const ffi::String& name, ffi::Optional<TuplePattern> var_args,
                       ffi::Optional<DFPattern> tir_vars) {
   DFPattern arg_pattern;
-  if (!var_args.defined()) {
+  if (!var_args.has_value()) {
     arg_pattern = Wildcard();
   } else {
     arg_pattern = var_args.value();
   }
 
-  if (tir_vars.defined()) {
+  if (tir_vars.has_value()) {
     return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern, tir_vars.value());
   }
   return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern);
@@ -670,7 +670,7 @@ CallPattern IsCallTIR(const ffi::String& name, TuplePattern var_args) {
 }
 CallPattern IsCallDPSPacked(const ffi::String& name, ffi::Optional<TuplePattern> var_args) {
   DFPattern arg_pattern;
-  if (!var_args.defined()) {
+  if (!var_args.has_value()) {
     arg_pattern = Wildcard();
   } else {
     arg_pattern = var_args.value();

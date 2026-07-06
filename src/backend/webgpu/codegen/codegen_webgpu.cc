@@ -534,7 +534,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   // to ensure correctness in the case of nested-expression
   // do not try to lift common printings from each case
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
-  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
+  TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer load is not supported.";
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
@@ -606,7 +606,7 @@ void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
 
 void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
-  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
+  TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer store is not supported.";
 
   PrimType value_ty = op->value.ty();
   const PrimType& element_ty = op->buffer->dtype;

@@ -336,7 +336,7 @@ class ConstantFolder : public ExprMutator {
     for (auto arg : post_call->args) {
       if (arg->IsInstance<VarNode>()) {
         ffi::Optional<Expr> val = LookupBinding(arg.as_or_throw<Var>());
-        if (val.defined() && val.value()->IsInstance<ShapeExprNode>()) {
+        if (val.has_value() && val.value()->IsInstance<ShapeExprNode>()) {
           new_args.push_back(val.value());
           continue;
         }

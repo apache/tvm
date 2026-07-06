@@ -62,7 +62,7 @@ ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifie
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ShapeType>(
         "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          if (n->values.defined()) {
+          if (n->values.has_value()) {
             ffi::Array<PrimExpr> shape = n->values.value();
             AccessPath shape_p = n_p->Attr("values");
             ffi::Array<ExprDoc> shape_docs;
@@ -81,7 +81,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ffi::Array<ExprDoc> args;
           ffi::Array<ffi::String> kwargs_keys;
           ffi::Array<ExprDoc> kwargs_values;
-          if (n->shape.defined()) {
+          if (n->shape.has_value()) {
             // Need to dig into ShapeExpr to preserve the `R.shape` prefix
             if (const auto* shape = n->shape.value().as<relax::ShapeExprNode>()) {
               auto shape_expr = ffi::GetRef<relax::ShapeExpr>(shape);
@@ -101,11 +101,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             kwargs_values.push_back(
                 LiteralDoc::DataType(n->dtype.value()->dtype, n_p->Attr("dtype")));
           }
-          if (!n->shape.defined() && !n->IsUnknownNdim()) {
+          if (!n->shape.has_value() && !n->IsUnknownNdim()) {
             kwargs_keys.push_back("ndim");
             kwargs_values.push_back(LiteralDoc::Int(n->ndim, n_p->Attr("ndim")));
           }
-          if (n->vdevice.defined() && n->vdevice.value()->target.defined()) {
+          if (n->vdevice.has_value() && n->vdevice.value()->target.defined()) {
             kwargs_keys.push_back("vdevice");
             std::string dev_kind = n->vdevice.value()->target->kind->name;
             int dev_index = FindVDeviceIndexByTargetKind(n->vdevice.value(), d);

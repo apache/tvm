@@ -81,7 +81,7 @@ class ExternFunctionRewriter : ExprMutator {
     auto new_op = VisitExpr(call_node->op);
     if (auto var = new_op.as<Var>()) {
       if (auto callee = builder_->LookupBinding(var.value());
-          callee && callee->IsInstance<FunctionNode>() &&
+          callee && callee.value()->IsInstance<FunctionNode>() &&
           callee.value().as_or_throw<Function>()->GetAttr<ffi::String>(attr::kComposite)) {
         // Append the workspace argument to this call. The callee should have been updated to accept
         // a workspace as the last parameter.

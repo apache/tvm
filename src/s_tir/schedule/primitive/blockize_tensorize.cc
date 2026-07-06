@@ -530,7 +530,7 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
   // 1. The original block has init stmt.
   // 2. There are outer reduction iter vars.
   bool has_outer_reduction = false;
-  if (block_subst->init.defined()) {
+  if (block_subst->init.has_value()) {
     for (const IterVar& iter_var : outer_iter_vars) {
       if (iter_var->iter_type == kCommReduce) {
         has_outer_reduction = true;
@@ -555,7 +555,7 @@ SBlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
              /*name_hint=*/block_subst->name_hint + "_o",
              /*body=*/MakeLoopNest(inner_realize, loops),
              /*init=*/
-             block_subst->init.defined()  //
+             block_subst->init.has_value()  //
                  ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
                                      block_subst->name_hint + "_init")
                  : ffi::Optional<Stmt>(std::nullopt)));
@@ -628,7 +628,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     outer_block_name += block_subst->name_hint + "_";
     // Step 4: Generate the inner block. No reduction iter vars allowed for the outer loops.
     bool has_outer_reduction = false;
-    if (block_subst->init.defined()) {
+    if (block_subst->init.has_value()) {
       for (const IterVar& iter_var : outer_iter_vars) {
         if (iter_var->iter_type == kCommReduce) {
           has_outer_reduction = true;
@@ -854,7 +854,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
       block->annotations.Set(key, val);
     }
   }
-  if (old_block.defined()) {
+  if (old_block.has_value()) {
     self->Replace(sref, block_realize->block, {{old_block.value(), block_realize->block}});
   } else {
     self->Replace(sref, block_realize, {});

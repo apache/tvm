@@ -242,7 +242,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("ir.Range_from_min_extent", Range::FromMinExtent)
       .def("ir.Range", [](PrimExpr begin, ffi::Optional<PrimExpr> end, Span span) -> Range {
-        if (end.defined()) {
+        if (end.has_value()) {
           return Range(begin, end.value(), span);
         } else {
           return Range(IntImm(begin.ty(), 0), begin, span);

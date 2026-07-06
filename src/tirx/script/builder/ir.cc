@@ -51,12 +51,12 @@ Buffer BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer
                 ValueError)
       << "ValueError: `buffer_type` must be `auto` or `default` or empty";
   if (!allocated_addr.empty()) {
-    TVM_FFI_ICHECK(!data.defined() && !elem_offset.defined() && !offset_factor)
+    TVM_FFI_ICHECK(!data.has_value() && !elem_offset.has_value() && !offset_factor)
         << "ValueError: `allocated_addr` can only be used with `data`, `elem_offset`, and "
            "`offset_factor` undefined";
   }
   Var buffer_data;
-  if (!data.defined()) {
+  if (!data.has_value()) {
     DLDataType storage_dtype = dtype->dtype;
     if (storage_dtype == DLDataType{kDLBool, 8, 1}) {
       storage_dtype = DLDataType{kDLInt, 8, 1};
@@ -65,7 +65,7 @@ Buffer BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer
   } else {
     buffer_data = data.value();
   }
-  if (!elem_offset.defined() && offset_factor) {
+  if (!elem_offset.has_value() && offset_factor) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::tirx::PrimVar("elem_offset", shape_dtype);
   }
@@ -142,7 +142,7 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
 
 tvm::Type FuncRet(tvm::Type ret_type) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.ret_type");
-  if (frame->ret_type.defined()) {
+  if (frame->ret_type.has_value()) {
     TVM_FFI_THROW(InternalError) << "ValueError: Duplicate prim func return type, previous one is "
                                  << frame->ret_type.value();
   }
@@ -229,7 +229,7 @@ ffi::Array<tvm::tirx::Var> ClusterId(ffi::Optional<ffi::Array<PrimExpr>> extents
 
 ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent,
                                  ffi::Optional<ffi::Array<PrimExpr>> preferred) {
-  if (preferred.defined()) {
+  if (preferred.has_value()) {
     TVM_FFI_ICHECK(parent == "cluster")
         << "ValueError: preferred is only valid when parent=\"cluster\", got parent=\"" << parent
         << "\"";
@@ -275,7 +275,7 @@ BlockInitFrame Init() { return BlockInitFrame(ffi::make_object<BlockInitFrameNod
 
 void Where(PrimExpr predicate) {
   SBlockFrame frame = FindSBlockFrame("T.where");
-  if (frame->predicate.defined()) {
+  if (frame->predicate.has_value()) {
     TVM_FFI_THROW(InternalError)
         << "ValueError: Duplicate block predicate declaration, previous one is "
         << frame->predicate;
@@ -286,7 +286,7 @@ void Where(PrimExpr predicate) {
 void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
   using namespace tvm::tirx;
   SBlockFrame frame = FindSBlockFrame("T.reads");
-  if (frame->reads.defined()) {
+  if (frame->reads.has_value()) {
     TVM_FFI_THROW(InternalError)
         << "ValueError: Duplicate read region declaration, previous one is " << frame->reads;
   }
@@ -306,7 +306,7 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
 void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
   using namespace tvm::tirx;
   SBlockFrame frame = FindSBlockFrame("T.writes");
-  if (frame->writes.defined()) {
+  if (frame->writes.has_value()) {
     TVM_FFI_THROW(InternalError)
         << "ValueError: Duplicate write region declaration, previous one is " << frame->writes;
   }
@@ -358,8 +358,8 @@ ffi::Map<ffi::String, Any> MergeAnnotations(const ffi::Map<ffi::String, Any>& ne
 void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
   // First try to find an SBlockFrame
   ffi::Optional<SBlockFrame> sblock_frame = IRBuilder::Current()->FindFrame<SBlockFrame>();
-  if (sblock_frame.defined()) {
-    if (!sblock_frame.value()->annotations.defined()) {
+  if (sblock_frame.has_value()) {
+    if (!sblock_frame.value()->annotations.has_value()) {
       sblock_frame.value()->annotations = attrs;
     } else {
       sblock_frame.value()->annotations =
@@ -610,9 +610,9 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
 Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var) {
   Expr value_expr = value;
   Var bind_var = [&]() {
-    if (var.defined()) {
+    if (var.has_value()) {
       return var.value();
-    } else if (type_annotation.defined()) {
+    } else if (type_annotation.has_value()) {
       return Var("v", type_annotation.value());
     } else {
       return Var("v", value_expr->ty);
@@ -678,7 +678,7 @@ AttrFrame DeviceEntry() {
       Attr(IntImm::Int32(0), ffi::String(tvm::tirx::attr::kDeviceEntry), IntImm::Bool(true));
   IRBuilder builder = IRBuilder::Current();
   ffi::Optional<PrimFuncFrame> pf_frame = builder->FindFrame<PrimFuncFrame>();
-  TVM_FFI_ICHECK(pf_frame.defined())
+  TVM_FFI_ICHECK(pf_frame.has_value())
       << "T.device_entry() must be called inside a @T.prim_func body";
   // Capture the AttrFrame by ObjectRef value so the lambda holds a strong
   // reference while the callback runs. Without this, the only reference is
@@ -825,19 +825,19 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
   // Enforce rules for T.decl_buffer based on storage scope
   ffi::Array<PrimExpr> allocated_addr_arr;
   if (scope == "tmem") {
-    TVM_FFI_ICHECK(!data.defined())
+    TVM_FFI_ICHECK(!data.has_value())
         << "ValueError: For `tmem` scope, T.decl_buffer accepts only `allocated_addr`";
-    TVM_FFI_ICHECK(allocated_addr.defined())
+    TVM_FFI_ICHECK(allocated_addr.has_value())
         << "ValueError: For `tmem` scope, T.decl_buffer requires `allocated_addr` (PrimExpr)";
     allocated_addr_arr = ffi::Array<PrimExpr>({allocated_addr.value()});
   } else if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
-    TVM_FFI_ICHECK(!allocated_addr.defined())
+    TVM_FFI_ICHECK(!allocated_addr.has_value())
         << "ValueError: For `" << scope
         << "` scope, T.decl_buffer does not accept `allocated_addr`";
     allocated_addr_arr = ffi::Array<PrimExpr>();
   } else {
     // Other scopes: fall back to provided value if any
-    if (allocated_addr.defined()) {
+    if (allocated_addr.has_value()) {
       allocated_addr_arr = ffi::Array<PrimExpr>({allocated_addr.value()});
     } else {
       allocated_addr_arr = ffi::Array<PrimExpr>();
@@ -849,7 +849,7 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
       BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
                  offset_factor, buffer_type, axis_separators, layout, allocated_addr_arr);
   // For tmem, even without `data`, we should not emit an Allocate node.
-  n->allocated = (scope == "tmem") || data.defined();
+  n->allocated = (scope == "tmem") || data.has_value();
   return DeclBufferFrame(n);
 }
 

@@ -90,7 +90,7 @@ class Mutator : public ExprMutator {
       }
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-      if (vdevice.defined()) {
+      if (vdevice.has_value()) {
         std::string dev_kind = vdevice.value()->target->kind->name;
         PrimExpr dev_size = IntImm::Int64(1);
         if (vdevice.value()->memory_scope != "global") {

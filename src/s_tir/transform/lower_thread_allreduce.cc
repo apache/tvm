@@ -486,7 +486,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       local_bufs.push_back(decl_buffer(shape, dtypes[idx], "t" + std::to_string(idx), "local"));
     }
 
-    if (predicate.defined()) {
+    if (predicate.has_value()) {
       seq->push_back(IfThenElse(predicate.value(), SeqStmt::Flatten(load_values)));
     } else {
       seq->insert(seq->end(), load_values.begin(), load_values.end());
@@ -728,7 +728,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                        PrimExpr delta_or_lane) {
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask;
-    if (mask_buffer.defined()) {
+    if (mask_buffer.has_value()) {
       mask = BufferLoad(mask_buffer.value(), indices);
     } else {
       mask = IntImm::Int32(0);
@@ -916,7 +916,7 @@ Pass LowerThreadAllreduce() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    TVM_FFI_ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
+    TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
     ThreadAllreduceBuilder thread_all_reduce(target_node);
     n->body = thread_all_reduce(n->body);

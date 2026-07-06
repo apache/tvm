@@ -41,7 +41,7 @@ using tvm::tirx::Buffer;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();
-  TVM_FFI_ICHECK(shape.defined());
+  TVM_FFI_ICHECK(shape.has_value());
   return shape.value();
 }
 
@@ -87,9 +87,9 @@ class SpecializeTIRCallArgs : ExprMutator {
       TVM_FFI_ICHECK(ty->IsInstance<TensorTypeNode>())
           << "Expected Tensor struct Info for call :" << call->op;
       auto tensor_ty = ty.as_or_throw<TensorType>();
-      TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Shape undefined for call:" << call->args[0];
+      TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Shape undefined for call:" << call->args[0];
       ffi::String scope = "global";
-      if (tensor_ty->vdevice.defined()) {
+      if (tensor_ty->vdevice.has_value()) {
         scope = tensor_ty->vdevice.value()->memory_scope;
       }
       ffi::String name;
@@ -107,7 +107,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto out_ty = call->ty_args[0];
     if (out_ty->IsInstance<TensorTypeNode>()) {
       auto ty = out_ty.as_or_throw<TensorType>();
-      if (ty->vdevice.defined()) {
+      if (ty->vdevice.has_value()) {
         scope = ty->vdevice.value()->memory_scope;
       }
       const Buffer& buffer =
@@ -128,7 +128,7 @@ class SpecializeTIRCallArgs : ExprMutator {
                "output structinfo, but got "
             << si;
         auto ty = si.as_or_throw<TensorType>();
-        if (ty->vdevice.defined()) {
+        if (ty->vdevice.has_value()) {
           scope = ty->vdevice.value()->memory_scope;
         }
 

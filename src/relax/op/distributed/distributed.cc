@@ -161,7 +161,7 @@ Type InferTypeRtoS(const Call& call, const BlockBuilder& ctx) {
 
   arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = input_ty->GetShape();
-  TVM_FFI_ICHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.has_value())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {
@@ -189,7 +189,7 @@ Type InferDistTypeRtoS(const Call& call, const BlockBuilder& ctx) {
   int num_workers = attrs->num_workers;
   arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = tensor_ty->GetShape();
-  TVM_FFI_ICHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.has_value())
       << "input tensor of redistribute_replica_to_shard should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers))) != 0) {

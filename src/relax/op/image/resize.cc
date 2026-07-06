@@ -99,7 +99,7 @@ Type InferTypeResize2D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
-  if (!data_shape.defined() || size_value == nullptr) {
+  if (!data_shape.has_value() || size_value == nullptr) {
     return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
 
@@ -215,7 +215,7 @@ Type InferTypeResize3D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
-  if (!data_shape.defined() || size_value == nullptr) {
+  if (!data_shape.has_value() || size_value == nullptr) {
     return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
 
@@ -325,7 +325,7 @@ Type InferTypeGridSample(const Call& call, const BlockBuilder& ctx) {
       CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
   const auto* grid_shape = grid_ty->shape.as<ShapeExprNode>();
 
-  if (!data_shape.defined() || grid_shape == nullptr) {
+  if (!data_shape.has_value() || grid_shape == nullptr) {
     return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
 

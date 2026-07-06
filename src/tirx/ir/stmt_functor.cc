@@ -135,7 +135,7 @@ void StmtVisitor::VisitStmt_(const SBlockNode* op) {
                this->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
                fvisit_buffer_region(match_buffer_region->source);
              });
-  if (op->init.defined()) {
+  if (op->init.has_value()) {
     this->VisitStmt(op->init.value());
   }
   this->VisitStmt(op->body);
@@ -366,7 +366,7 @@ Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   // diverges from the rewritten shape and structural-equal mismatches occur.
   ffi::Optional<Layout> new_layout = buffer->layout;
   bool layout_changed = false;
-  if (buffer->layout.defined()) {
+  if (buffer->layout.has_value()) {
     if (auto opt_tile = buffer->layout.value().as<TileLayoutNode>()) {
       auto remap_iter = [this](const Iter& it) -> Iter {
         PrimExpr new_extent = this->VisitPrimExpr(it->extent);
@@ -755,7 +755,7 @@ class IRTransformer final : public StmtExprMutator {
 Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Function& f_postorder,
                  ffi::Optional<ffi::Array<ffi::String>> only_enable) {
   std::unordered_set<uint32_t> only_type_index;
-  if (only_enable.defined()) {
+  if (only_enable.has_value()) {
     for (auto s : only_enable.value()) {
       only_type_index.insert(ffi::TypeKeyToIndex(s.c_str()));
     }
@@ -771,7 +771,7 @@ class IRSubstitute : public StmtExprMutator {
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto ret = vmap_(var);
-    if (ret.defined()) {
+    if (ret.has_value()) {
       // Allow substitution of void variables with any expression. The TVM script parser
       // uses void variables for lambda parameters (since exact types are not known yet).
       if (auto var_prim_type = var->ty.as<PrimType>();
@@ -882,7 +882,7 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto ret = vmap_(var);
-    if (ret.defined()) {
+    if (ret.has_value()) {
       return ret.value();
     }
     return var;

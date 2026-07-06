@@ -399,18 +399,17 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
           // mappings are applied.
           for (const auto& relax_or_tir_var : source_set) {
             if (relax_or_tir_var.as<relax::VarNode>()) {
-              if (auto it = var_remap.find(relax_or_tir_var.as_or_throw<Var>());
-                  it != var_remap.end()) {
+              if (auto it = var_remap.find(relax_or_tir_var.get<Var>()); it != var_remap.end()) {
                 target_set.insert((*it).second.as_or_throw<relax::Var>());
               } else {
-                target_set.insert(relax_or_tir_var.as_or_throw<relax::Var>());
+                target_set.insert(relax_or_tir_var.get<relax::Var>());
               }
             } else {
-              if (auto it = tir_var_remap.find(relax_or_tir_var.as_or_throw<tirx::Var>());
+              if (auto it = tir_var_remap.find(relax_or_tir_var.get<tirx::Var>());
                   it != tir_var_remap.end()) {
                 target_set.insert((*it).second.as_or_throw<tirx::Var>());
               } else {
-                target_set.insert(relax_or_tir_var.as_or_throw<tirx::Var>());
+                target_set.insert(relax_or_tir_var.get<tirx::Var>());
               }
             }
           }

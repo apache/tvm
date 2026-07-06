@@ -314,7 +314,7 @@ class IRConvertSSA final : public StmtExprMutator {
     // test_dynamic_launch_thread).
     ffi::Optional<Layout> new_layout = buf->layout;
     bool layout_changed = false;
-    if (buf->layout.defined()) {
+    if (buf->layout.has_value()) {
       if (auto opt_tile = buf->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [&](const Iter& it) -> Iter {
           PrimExpr new_extent = VisitPrimExpr(it->extent);
@@ -802,7 +802,7 @@ ConditionalBoundsContext::ConditionalBoundsContext(
 
 void ConditionalBoundsContext::EnterWithScope() {
   ffi::Optional<arith::IntConstraints> constraints = TrySolveCondition();
-  if (!constraints.defined()) {
+  if (!constraints.has_value()) {
     // fail to process the condition, add to unresolved
     pending_conditions_->push_back(condition_);
     return;

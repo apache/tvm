@@ -52,7 +52,7 @@ class HasInitBlock : public ScheduleError {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   static void Check(const IRModule& mod, const SBlock& block) {
-    if (block->init.defined()) {
+    if (block->init.has_value()) {
       throw HasInitBlock(mod, block);
     }
   }
@@ -683,7 +683,7 @@ class ReverseComputeInliner : public BaseInliner {
 
     const BufferStoreNode* producer_store = nullptr;
     if (const auto* producer_if = producer_block_->body.as<tirx::IfThenElseNode>()) {
-      if (producer_if->else_case.defined()) {
+      if (producer_if->else_case.has_value()) {
         return false;
       }
       producer_store = producer_if->then_case.as<BufferStoreNode>();
@@ -745,7 +745,7 @@ class ReverseComputeInliner : public BaseInliner {
       return producer_block_realize;
     }
     if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
-      if (!if_->else_case.defined()) {
+      if (!if_->else_case.has_value()) {
         PrimExpr if_predicate = analyzer_->Simplify(if_->condition);
         if (!ffi::StructuralEqual()(predicate, if_predicate)) {
           predicate = analyzer_->Simplify(predicate && if_->condition);

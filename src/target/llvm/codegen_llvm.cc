@@ -1829,7 +1829,7 @@ void CodeGenLLVM::BufferAccessHelper(
     all_index_values.push_back(last_index_value);
 
     llvm::Value* predicate_value = nullptr;
-    if (predicate.defined()) {
+    if (predicate.has_value()) {
       predicate_value = MakeValue(predicate.value());
     }
 

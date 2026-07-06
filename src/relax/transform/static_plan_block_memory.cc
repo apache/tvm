@@ -145,7 +145,7 @@ class StorageToken : public ffi::ObjectRef {
     PrimExpr size = IntImm::Int64(1);
     bool size_computed = false;
 
-    if (vdevice.defined()) {
+    if (vdevice.has_value()) {
       VDevice vdev = vdevice.value();
       std::string dev_kind = vdev->target->kind->name;
 
@@ -849,7 +849,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   /*! \brief Request a storage reuse, or allocate storage if no appropriate storage is reusable. */
   StorageToken RequestReuseOrAlloc(StorageToken prototype) {
     ffi::Optional<StorageToken> token = allocator_.RequestReuse(prototype);
-    if (!token.defined()) {
+    if (!token.has_value()) {
       return allocator_.Alloc(prototype, this->n_storage_++);
     } else {
       return token.value();

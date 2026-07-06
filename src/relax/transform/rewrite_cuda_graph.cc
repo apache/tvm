@@ -788,7 +788,7 @@ class CUDAGraphRewriter : public ExprMutator {
     Expr launch_subgraph;
     if (plan->is_alloc) {
       // Storage allocation should be fully static and shouldn't depend on any symbolic variables.
-      TVM_FFI_ICHECK(!plan->propogated_tir_vars.defined());
+      TVM_FFI_ICHECK(!plan->propogated_tir_vars.has_value());
       TVM_FFI_ICHECK(plan->inputs.empty());
       auto gv_alloc = gv_global_alloc_.value();
       auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
@@ -805,7 +805,7 @@ class CUDAGraphRewriter : public ExprMutator {
       for (const auto& arg : plan->inputs) {
         args.push_back(VisitExpr_(arg));
       }
-      if (plan->propogated_tir_vars.defined()) {
+      if (plan->propogated_tir_vars.has_value()) {
         ShapeExpr propogated_tir_vars = plan->propogated_tir_vars.value();
         args.push_back(propogated_tir_vars);
         // The ret_ty of the lifted function can contain symbolic variables. We need to
@@ -823,7 +823,7 @@ class CUDAGraphRewriter : public ExprMutator {
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
                                         PrimExpr(IntImm::Int64(index_capture_++))};
-      if (plan->propogated_tir_vars.defined()) {
+      if (plan->propogated_tir_vars.has_value()) {
         // The shape expr is explicitly passed twice, one as the last argument of the lifted
         // function, one as the last argument of builtin_run_or_capture as the cache key. Explicitly
         // passing it twice simplifies the handling during the capture phase.

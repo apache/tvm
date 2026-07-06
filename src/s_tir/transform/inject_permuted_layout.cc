@@ -232,8 +232,8 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
         << "The buffer corresponding to data Var " << access_ptr_call->args[1] << " is not found";
     int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
 
-    PrimExpr smem_offset =
-        access_ptr_call->args[2].as_or_throw<PrimExpr>() + (offset.defined() ? offset.value() : 0);
+    PrimExpr smem_offset = access_ptr_call->args[2].as_or_throw<PrimExpr>() +
+                           (offset.has_value() ? offset.value() : 0);
 
     // Convert offset to 2-dimension, reindex it and convert it back
     PrimExpr row_idx = floordiv(smem_offset, buffer_row_size);

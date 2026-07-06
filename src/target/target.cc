@@ -92,7 +92,7 @@ static std::vector<ffi::String> DeduplicateKeys(const std::vector<ffi::String>& 
 
 static TargetKind GetTargetKind(const ffi::String& name) {
   ffi::Optional<TargetKind> kind = TargetKind::Get(name);
-  if (!kind.defined()) {
+  if (!kind.has_value()) {
     TVM_FFI_THROW(TypeError) << "Target kind \"" + name + "\" is not defined";
   }
   return kind.value();
@@ -154,7 +154,7 @@ ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
       {"tag", this->tag},
       {"keys", this->keys},
   };
-  if (this->host.defined()) {
+  if (this->host.has_value()) {
     result.Set("host", this->GetHost().value_or(Target())->ToConfig());
   }
   for (const auto& kv : attrs) {

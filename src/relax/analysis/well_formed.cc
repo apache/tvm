@@ -170,7 +170,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = ffi::GetRef<GlobalVar>(op);
-    if (mod_.defined()) {
+    if (mod_.has_value()) {
       if (!(mod_.value()->ContainGlobalVar(var->name_hint) &&
             mod_.value()->GetGlobalVar(var->name_hint).same_as(var))) {
         TVM_FFI_VISIT_THROW(ValueError, var)
@@ -363,7 +363,7 @@ class WellFormedChecker : public relax::ExprVisitor,
             << "However, normalization of " << before_normalize << " resulted in the error: \n"
             << err.what();
       }
-      if (after_normalize && !before_normalize.same_as(after_normalize)) {
+      if (after_normalize && !after_normalize.same_as(before_normalize)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "If an operator defines an operator-specific normalization function (FNormalize), "
             << "calls to that operator must be normalized with it.  "
@@ -403,7 +403,7 @@ class WellFormedChecker : public relax::ExprVisitor,
             << " resulted in the error: \n"
             << err.what();
       }
-      if (normalized.defined()) {
+      if (normalized.has_value()) {
         auto inferred_ty = GetType(normalized.value());
         auto current_ty = call->ty.as_or_throw<Type>();
 
@@ -587,7 +587,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitType_(const FuncTypeNode* op) final {
-    if (op->params.defined()) {
+    if (op->params.has_value()) {
       WithMode(VisitMode::kMatchVarDef, [&]() {
         TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
         for (Type param : op->params.value()) {

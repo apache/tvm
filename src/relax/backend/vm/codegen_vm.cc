@@ -221,7 +221,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto arg = builder_->ConvertConstant(op->data);
 
     if (auto tensor_ty = op->ty.as<TensorTypeNode>()) {
-      if (tensor_ty->vdevice.defined()) {
+      if (tensor_ty->vdevice.has_value()) {
         VDevice vdev = tensor_ty->vdevice.value();
         builder_->SaveMemoryScope(arg, vdev->memory_scope);
       }
@@ -359,7 +359,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-    if (vdevice.defined()) {
+    if (vdevice.has_value()) {
       args.push_back(this->VisitExpr(StringImm(vdevice.value()->memory_scope)));
     }
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
@@ -503,7 +503,7 @@ ffi::Module VMLink(ExecBuilder builder, Target target, ffi::Optional<ffi::Module
                    ffi::Array<ffi::Module> ext_libs,
                    ffi::Map<ffi::String, runtime::Tensor> params) {
   ffi::ObjectPtr<VMExecutable> executable = builder->Get();
-  if (!lib.defined()) {
+  if (!lib.has_value()) {
     lib = codegen::CSourceModuleCreate(";", "c", ffi::Array<ffi::String>{});
   }
   LinkModules(executable, params, lib.value(), ext_libs);

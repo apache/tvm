@@ -55,7 +55,7 @@ struct ReductionBlockFinder : private StmtVisitor {
   }
 
   void VisitStmt_(const SBlockRealizeNode* realize) final {
-    if (realize->block->init.defined() && AllReductionIterVarAreUnbound(realize)) {
+    if (realize->block->init.has_value() && AllReductionIterVarAreUnbound(realize)) {
       results_.push_back(realize->block.get());
     }
     StmtVisitor::VisitStmt_(realize);

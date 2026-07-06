@@ -108,7 +108,7 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
 
 void FuncRetType(const tvm::Type& ret_ty) {
   FunctionFrame frame = FindFunctionFrame("R.func_ret_type");
-  if (frame->ret_ty.defined()) {
+  if (frame->ret_ty.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate function return type, previous one is:\n "
                               << frame->ret_ty.value();
   }
@@ -136,7 +136,7 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   }
   // Step 2. Add the output value to the function frame.
   FunctionFrame frame = FindFunctionFrame("return");
-  TVM_FFI_CHECK(!frame->output.defined(), ValueError)
+  TVM_FFI_CHECK(!frame->output.has_value(), ValueError)
       << "Relax functions do not support multiple return statement.  "
       << "However, return of " << normalized_value << " occurred after a return of "
       << frame->output << ".  "
@@ -177,7 +177,7 @@ void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
   // Step 1. Check that we're in a Dataflow block that is not ended.
   ffi::Optional<BindingBlockFrame> block_frame =
       IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
-  TVM_FFI_CHECK(block_frame.defined() && block_frame.value()->is_dataflow, ValueError)
+  TVM_FFI_CHECK(block_frame.has_value() && block_frame.value()->is_dataflow, ValueError)
       << "`R.output` should appear inside a dataflow block. However, the current "
          "innermost block is not a dataflow block.";
   TVM_FFI_CHECK(!block_frame.value()->block_ended, ValueError)
@@ -216,7 +216,7 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr, const ffi::Optional<tvm::Type
   using tvm::relax::GetType;
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
-  if (annotate_ty.defined()) {
+  if (annotate_ty.has_value()) {
     const auto& ty = annotate_ty.value();
     if (expr->ty.IsMissing()) {
       tvm::relax::UpdateType(expr, ty);
