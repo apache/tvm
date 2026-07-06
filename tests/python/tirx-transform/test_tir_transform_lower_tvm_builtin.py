@@ -114,6 +114,36 @@ def test_lower_call_packed():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_lower_call_packed_raw_string():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.call_packed("testing.echo", "payload")
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 2)
+            T.tvm_struct_set(stack_ffi_any, 0, 13, 8)
+            T.tvm_struct_set(stack_ffi_any, 0, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 0, 15, T.reinterpret(T.handle().ty, "payload"))
+            T.tvm_struct_set(stack_ffi_any, 1, 13, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 15, T.int64(0))
+            T.call_packed_lowered("testing.echo", stack_ffi_any, 0, 1)
+
+    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+    # The typed pointer is required by the LLVM TVMFFIAny lowering.
+    tvm.compile(Before, target="llvm")
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_return_non_i32():
     # This call packed that return non i32 types
     expected_value = np.array([1.2, 1.4], dtype="float32")

@@ -3292,15 +3292,11 @@ def relax_symbolic_var():
 
 
 def relax_float_symbolic_var():
-    """Relax symbolic variables may hold any dtype"""
+    """Relax scalar variables may use any dtype."""
 
     @R.function
-    def func(A: R.Tensor(["N"], "float16"), _: R.Prim(value="threshold")):
-        N = T.int64()
-        threshold = T.float16()
-
-        B = A >= R.prim_value(threshold / T.cast(N, "float16"))
-        return B
+    def func(value: R.Prim("float16")):
+        return value
 
     return func
 
