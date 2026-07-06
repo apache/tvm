@@ -121,6 +121,7 @@ class ElectSyncFinder : public StmtExprVisitor {
   }
 
  private:
+  using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
   void VisitExpr_(const CallNode* op) final {
@@ -149,6 +150,7 @@ class ScopeIdVarFinder : public StmtExprVisitor {
  private:
   explicit ScopeIdVarFinder(const std::vector<Var>& vars) : vars_(vars) {}
 
+  using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
   void VisitExpr_(const VarNode* op) final {

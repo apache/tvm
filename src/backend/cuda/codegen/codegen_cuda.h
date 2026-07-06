@@ -118,9 +118,6 @@ class CodeGenCUDA final : public CodeGenC {
   const std::string barrier_name_ = "barrier";
   // The size of the barrier array in shared memory
   std::unordered_map<int, int> barrier_count_;
-  // The alignment of the barrier array in shared memory
-  // Set to 16 to maintain minimum alignment requirements for async bulk copy
-  const int barrier_alignment_bytes_ = 16;
   // Functions to be added to the util functions during codegen
   std::unordered_map<std::string, std::string> util_funcs_;
 
