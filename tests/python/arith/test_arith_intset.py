@@ -442,6 +442,31 @@ def test_constraint_scope_preserves_parametric_bounds():
         assert analyzer.can_prove_equal(res.max_value, 14)
 
 
+def test_relax_bound_does_not_preserve_relaxable_variable():
+    """A bound containing a relaxed variable must not leak into the result."""
+    analyzer = tvm.arith.Analyzer()
+    i = tvm.tirx.Var("i", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    pos_inf = tvm.arith.int_set.pos_inf()
+    dmap = {
+        i: tvm.arith.IntervalSet(0, m - 1),
+        m: tvm.arith.IntervalSet(1, pos_inf),
+    }
+
+    res = analyzer.int_set(i, dmap)
+    assert analyzer.can_prove_equal(res.min_value, 0)
+    assert res.max_value.same_as(pos_inf)
+
+    neg_inf = tvm.arith.int_set.neg_inf()
+    dmap = {
+        i: tvm.arith.IntervalSet(m + 1, 0),
+        m: tvm.arith.IntervalSet(neg_inf, -1),
+    }
+    res = analyzer.int_set(i, dmap)
+    assert res.min_value.same_as(neg_inf)
+    assert analyzer.can_prove_equal(res.max_value, 0)
+
+
 def test_estimate_region_accepts_external_analyzer():
     i = tvm.tirx.Var("i", "int32")
     tile = tvm.tirx.Var("tile", "int32")
