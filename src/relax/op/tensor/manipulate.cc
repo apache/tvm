@@ -259,7 +259,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
           vdev = ty->vdevice.value();
         } else if (ty->vdevice.value()->target.defined()) {
           // mismatch
-          if (ty->vdevice.value() != vdev) {
+          if (ty->vdevice.value() != vdev.value()) {
             vdevice_unknown = true;
           }
         }
@@ -727,7 +727,7 @@ Type InferTypeLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   if (optional_pad_value.has_value()) {
     PrimExpr padded_value = optional_pad_value.value();
     PrimType padded_dtype = padded_value.ty();
-    if (padded_dtype != data_ty->dtype) {
+    if (!data_ty->dtype.has_value() || padded_dtype != data_ty->dtype.value()) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "layout_transform pad_value dtype (" << padded_dtype << ") and input dtype ("
           << data_ty->dtype << ") must be the same";
@@ -1526,7 +1526,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
       if (ty->vdevice.has_value()) {
         if (!vdev.has_value()) {
           vdev = ty->vdevice.value();
-        } else if (ty->vdevice.value() != vdev) {
+        } else if (ty->vdevice.value() != vdev.value()) {
           vdevice_unknown = true;
         }
       }
@@ -2579,7 +2579,7 @@ Type InferTypeMeshgrid(const Call& call, const BlockBuilder& ctx) {
       if (ty->vdevice.has_value()) {
         if (!vdev.has_value()) {
           vdev = ty->vdevice.value();
-        } else if (ty->vdevice.value() != vdev) {
+        } else if (ty->vdevice.value() != vdev.value()) {
           vdevice_unknown = true;
         }
       }
