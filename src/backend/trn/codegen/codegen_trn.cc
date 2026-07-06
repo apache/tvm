@@ -657,7 +657,7 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
 
 void CodeGenTrainium::VisitStmt_(const IfThenElseNode* op) {
   if (ctx_.tensorizing) {
-    TVM_FFI_ICHECK(!op->else_case.defined()) << "Else not allowed in tensorized instruction";
+    TVM_FFI_ICHECK(!op->else_case.has_value()) << "Else not allowed in tensorized instruction";
     TVM_FFI_ICHECK(!ctx_.mask.defined()) << "Only one if stmt allowed in tensorized instruction";
     ctx_.mask = op->condition;
     VisitStmt(op->then_case);

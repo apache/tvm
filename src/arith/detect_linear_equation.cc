@@ -235,17 +235,17 @@ bool DetectClipBound(const PrimExpr& cond,
       min_value = max_value;
     }
   }
-  if (!min_value.defined() && !max_value.defined()) {
+  if (!min_value.has_value() && !max_value.has_value()) {
     return false;
   }
-  if (min_value.defined()) {
+  if (min_value.has_value()) {
     if (p.min_value.defined()) {
       p.min_value = max(p.min_value, min_value.value());
     } else {
       p.min_value = min_value.value();
     }
   }
-  if (max_value.defined()) {
+  if (max_value.has_value()) {
     if (p.max_value.defined()) {
       p.max_value = min(p.max_value, max_value.value());
     } else {

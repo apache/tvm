@@ -408,7 +408,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
   TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
       << "Index dtype and buffer dtype can't both be scalable.";
 
-  if (predicate.defined()) {
+  if (predicate.has_value()) {
     bool is_predicate_dtype_scalable = predicate.value().ty().IsScalableVector();
     TVM_FFI_ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
         << "Predicate mask dtype and value dtype must both be scalable.";
@@ -427,7 +427,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
 
-  if (predicate.defined()) {
+  if (predicate.has_value()) {
     PrimType predicate_ty = predicate.value().ty();
     int predicate_dtype_lanes = GetLanesOrVScaleFactor(predicate_ty);
     TVM_FFI_ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)

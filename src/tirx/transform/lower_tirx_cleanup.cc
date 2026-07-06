@@ -51,7 +51,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     std::unordered_map<Var, Buffer> new_buffer_map;
     std::vector<Buffer> param_flattened_buffers;
     for (const auto& kv : buffer_map) {
-      if (kv.second->layout.defined()) {
+      if (kv.second->layout.has_value()) {
         param_flattened_buffers.push_back(storage_lower.GetFlattenedBuffer(kv.second));
         Buffer buffer = kv.second;
         auto* writer = buffer.CopyOnWrite();
@@ -91,7 +91,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     auto mutate = [this](Buffer buf) {
-      if (target_->kind->name == "trn" && !buf->layout.defined()) {
+      if (target_->kind->name == "trn" && !buf->layout.has_value()) {
         return buf;
       }
       return GetFlattenedBuffer(buf, /*is_alloc=*/true);
@@ -206,7 +206,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
-    if (buffer->layout.defined()) {
+    if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
       if (tile_layout && tile_layout->IsTrainium()) {
         auto coord = buffer->layout.value()->Apply(indices, buffer->shape);
@@ -240,7 +240,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     TVM_FFI_ICHECK(node->buffer.defined());
-    if (target_->kind->name == "trn" && !node->buffer->layout.defined()) {
+    if (target_->kind->name == "trn" && !node->buffer->layout.has_value()) {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
@@ -318,7 +318,7 @@ class BufferOffsetRemover : public StmtExprMutator {
 namespace {
 Target ResolveTarget(const PrimFunc& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-  if (!target.defined()) {
+  if (!target.has_value()) {
     target = Target::Current(false);
   }
   return target.value();

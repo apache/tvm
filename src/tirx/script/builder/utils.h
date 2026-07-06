@@ -38,7 +38,8 @@ namespace tirx {
 inline void AddToParent(tvm::tirx::Stmt stmt) {
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
-    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
+        << "Builder.result has already been set";
     builder->result = stmt;
   } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
     ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);

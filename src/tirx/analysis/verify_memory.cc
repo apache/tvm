@@ -171,7 +171,7 @@ std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   // Skip verification for functions without a target attribute, as they are
   // typically host-only helper functions that do not have device-memory constraints.
-  if (!target.defined()) return {};
+  if (!target.has_value()) return {};
 
   VLOG(1) << "verifying memory for target '" << target.value()->str()
           << "' for primitive:" << std::endl

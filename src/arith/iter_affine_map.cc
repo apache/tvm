@@ -673,15 +673,15 @@ class IterMapRewriter : public ExprMutator {
     PrimExpr base = expr->base;
     if (!is_zero(base)) {
       expr.CopyOnWrite()->base = 0;
-      if (predicate_induced_min.defined())
+      if (predicate_induced_min.has_value())
         predicate_induced_min = predicate_induced_min.value() - base;
-      if (predicate_induced_max.defined())
+      if (predicate_induced_max.has_value())
         predicate_induced_max = predicate_induced_max.value() - base;
     }
     ffi::Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, false);
-    TVM_FFI_ICHECK(!opt.defined() || opt.value()->args.size() == 1);
+    TVM_FFI_ICHECK(!opt.has_value() || opt.value()->args.size() == 1);
     // scale should be 1
-    if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
+    if (opt.has_value() && is_one(opt.value()->args[0]->scale)) {
       const IterSplitExpr split = opt.value()->args[0];
       IterSumExpr structured_form = split->source->source.as_or_throw<IterSumExpr>();
       // get the flattened form
@@ -697,11 +697,11 @@ class IterMapRewriter : public ExprMutator {
       PrimExpr iter_max = iter_min + mark->extent;
       // the delta of iter_min when it is updated when the lower bound predicate is present
       PrimExpr iter_min_delta = IntImm(iter_min.ty(), 0);
-      if (predicate_induced_min.defined()) {
+      if (predicate_induced_min.has_value()) {
         iter_min_delta = max(predicate_induced_min.value(), iter_min) - iter_min;
         iter_min = max(predicate_induced_min.value(), iter_min);
       }
-      if (predicate_induced_max.defined()) {
+      if (predicate_induced_max.has_value()) {
         // NOTE: important to do explicit prove here
         // because we have a domain knowledge that most predicates
         // tries to constraint the expression and we favor predicate_induced_max
@@ -749,7 +749,7 @@ class IterMapRewriter : public ExprMutator {
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
     ffi::Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, true);
-    if (opt.defined()) {
+    if (opt.has_value()) {
       return opt.value();
     } else {
       ErrorLogger(this) << "Could not normalize iterators";
@@ -861,7 +861,7 @@ class IterMapRewriter : public ExprMutator {
 
     for (int i = rbegin; i >= 0; --i) {
       if (skip_flag[i]) continue;
-      if (match_source.defined() && !match_source.same_as(expr->args[i]->source)) continue;
+      if (match_source.has_value() && !match_source.same_as(expr->args[i]->source)) continue;
       if (const auto* op = expr->args[i]->scale.as<IntImmNode>()) {
         if (base_index == -1 || op->value < min_const_scale) {
           min_const_scale = op->value;
@@ -881,7 +881,7 @@ class IterMapRewriter : public ExprMutator {
     int min_reduce_size = 0;
     for (int i = rbegin; i >= 0; --i) {
       if (skip_flag[i]) continue;
-      if (match_source.defined() && !match_source.same_as(expr->args[i]->source)) continue;
+      if (match_source.has_value() && !match_source.same_as(expr->args[i]->source)) continue;
       int reduce_size = 0;
       auto fcollect = [&](const PrimExpr&) { ++reduce_size; };
       UnpackReduction<tirx::MulNode>(expr->args[i]->scale, fcollect);
@@ -929,7 +929,7 @@ class IterMapRewriter : public ExprMutator {
     // use reverse search, as smallest scale usually are near the end.
     for (int j = rbegin; j >= 0; --j) {
       if (skip_flag[j]) continue;
-      if (match_source.defined() && !match_source.same_as(expr->args[j]->source)) continue;
+      if (match_source.has_value() && !match_source.same_as(expr->args[j]->source)) continue;
       const PrimExpr& cur_scale = expr->args[j]->scale;
       // for bijective mapping, the matched scale must equal to expected scale
       if (analyzer_->CanProveEqual(cur_scale, expected_scale)) {
@@ -1406,8 +1406,8 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
         if (it != input_iters->end()) {
           PrimExpr iter_min = (*it).second->min;
           PrimExpr iter_max = (*it).second->min + (*it).second->extent;
-          if (lower_bound.defined()) iter_min = max(iter_min, lower_bound.value());
-          if (upper_bound.defined()) iter_max = min(iter_max, upper_bound.value());
+          if (lower_bound.has_value()) iter_min = max(iter_min, lower_bound.value());
+          if (upper_bound.has_value()) iter_max = min(iter_max, upper_bound.value());
           input_iters->Set(var, Range(iter_min, iter_max));
         }
       } else {
