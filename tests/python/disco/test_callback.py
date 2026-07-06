@@ -32,7 +32,9 @@ from tvm.testing import env
 
 
 @pytest.mark.gpu
+@pytest.mark.skipif(tvm.runtime.disco is None, reason="disco runtime is not available")
 @pytest.mark.skipif(not env.has_nccl(), reason="need nccl")
+@pytest.mark.skipif(not env.has_multi_gpu(), reason="need multiple gpus")
 def test_callback():
     """Simulate lazy loading of parameters in a callback
 
