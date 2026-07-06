@@ -111,6 +111,7 @@ interface CrossOriginStorageHandle {
 
 interface CrossOriginStorageRequestFileHandleOptions {
   create?: boolean;
+  origins?: string[] | string | undefined;
 }
 
 interface CrossOriginStorageWritable {
