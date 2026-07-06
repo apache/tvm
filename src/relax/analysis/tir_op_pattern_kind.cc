@@ -28,6 +28,8 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
+#include <algorithm>
+
 namespace tvm {
 namespace relax {
 
@@ -477,7 +479,12 @@ bool HasReshapePattern(const PrimFunc& func) {
         nontrivial_buffer = dst_buffer_;
       }
 
-      if (nontrivial_indices.defined()) {
+      // Skip check 1 on zero-extent iters: the inverse index map would divide by zero.
+      bool has_zero_extent = std::any_of(
+          block->iter_vars.begin(), block->iter_vars.end(),
+          [this](const IterVar& v) { return this->ana_->CanProveEqual(v->dom->extent, 0); });
+
+      if (nontrivial_indices.defined() && !has_zero_extent) {
         PrimType dtype =
             !block->iter_vars.empty() ? block->iter_vars[0]->var.ty() : PrimType::Int(64);
         tirx::Var fused_var("fused", dtype);
