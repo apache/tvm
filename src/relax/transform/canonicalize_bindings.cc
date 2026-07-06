@@ -179,7 +179,7 @@ class CanonicalizePlanner : public ExprVisitor {
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
       if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
-        DataflowVar new_var(var->name_hint(), GetType(var));
+        DataflowVar new_var(var->name_hint, GetType(var));
 
         plan.replace_binding.Set(var, new_var);
         plan.replace_usage.Set(var, new_var);

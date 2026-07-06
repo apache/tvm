@@ -50,7 +50,7 @@ ffi::Optional<Function> ExpandParams(Function func) {
       ffi::Array<Expr> internal_tuple;
       for (size_t i = 0; i < ty->fields.size(); i++) {
         auto name = static_cast<const std::stringstream&>(std::stringstream()
-                                                          << param->name_hint() << "_" << i)
+                                                          << param->name_hint << "_" << i)
                         .str();
         Var new_param(name, ty->fields[i]);
         internal_tuple.push_back(new_param);

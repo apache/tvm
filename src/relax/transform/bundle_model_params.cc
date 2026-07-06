@@ -77,7 +77,7 @@ class ModelParamBundler : public ExprMutator {
   Expr VisitExpr_(const VarNode* op) override {
     auto var = ffi::GetRef<Var>(op);
     if (auto it = var_to_expr_.find(var); it != var_to_expr_.end()) {
-      return builder_->Emit((*it).second, op->name_hint());
+      return builder_->Emit((*it).second, op->name_hint);
     } else {
       return ExprMutator::VisitExpr_(op);
     }

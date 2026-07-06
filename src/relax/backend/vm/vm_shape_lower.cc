@@ -305,7 +305,7 @@ class VMShapeLowerMutator
         Type ty = GetType(func->params[i]);
         std::ostringstream err_ctx;
         err_ctx << "ErrorContext(fn=" << gvar->name_hint << ", loc=param[" << i
-                << "], param=" << func->params[i]->name_hint() << ", annotation=" << ty << ") ";
+                << "], param=" << func->params[i]->name_hint << ", annotation=" << ty << ") ";
         this->CheckMatchCast(ty, func->params[i], true, i >= num_input, err_ctx.str(),
                              &match_todos);
       }

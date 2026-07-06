@@ -584,7 +584,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitVar_(const typename T::ContainerType* var) {
     // Parameters and free-vars must be present with type
     // Other vars must have already been normalized through binding
-    TVM_FFI_ICHECK(!var->ty.IsMissing()) << "Var " << var->name_hint() << " does not have type.";
+    TVM_FFI_ICHECK(!var->ty.IsMissing()) << "Var " << var->name_hint << " does not have type.";
     return ffi::GetRef<Var>(var);
   }
 

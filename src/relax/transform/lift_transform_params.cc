@@ -106,7 +106,7 @@ struct BaseCollectInfo {
     }
 
     for (const auto& var : outputs) {
-      Var out_var(var->name_hint() + "_output", GetType(var));
+      Var out_var(var->name_hint + "_output", GetType(var));
       output_var_binding.push_back(VarBinding(out_var, var));
       output_exprs.push_back(out_var);
     }
@@ -280,7 +280,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       return global_outputs;
     }();
     for (const auto& var : compile_time_outputs) {
-      Var param_var(var->name_hint(), GetType(var));
+      Var param_var(var->name_hint, GetType(var));
       bindings.push_back(VarBinding(var, param_var));
       params.push_back(param_var);
     }

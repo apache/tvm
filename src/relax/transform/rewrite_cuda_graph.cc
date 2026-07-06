@@ -137,7 +137,7 @@ class FuncBuilder : public ExprMutator {
     }
     // Set up the parameters
     for (const auto* input : inputs_) {
-      auto new_var = Var(input->name_hint(), VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
+      auto new_var = Var(input->name_hint, VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
       var_remap_[ffi::GetRef<Var>(input)] = new_var;
       params.push_back(new_var);
     }
@@ -871,7 +871,7 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   Var EmitRedef(const VarNode* var, const Expr& redef) {
-    auto new_var = builder_->Emit(redef, var->name_hint());
+    auto new_var = builder_->Emit(redef, var->name_hint);
     var_remap_[ffi::GetRef<Var>(var)] = new_var;
     return new_var;
   }

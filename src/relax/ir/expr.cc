@@ -141,7 +141,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Var::Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
-  n->name_hint_ = std::move(name_hint);
+  n->name_hint = std::move(name_hint);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
@@ -157,7 +157,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 DataflowVar::DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
-  n->name_hint_ = std::move(name_hint);
+  n->name_hint = std::move(name_hint);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }

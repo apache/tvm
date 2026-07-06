@@ -502,7 +502,7 @@ class FunctionCreator : public ExprMutator {
       TVM_FFI_ICHECK(!item_indices.empty());
       int param_idx = tuple_param_idx_[tuple_arg];
       Var param = params_[param_idx];
-      ffi::String param_name = params_[param_idx]->name_hint();
+      ffi::String param_name = params_[param_idx]->name_hint;
       TupleType param_ty = tuple_arg->ty.as_or_throw<TupleType>();
 
       ffi::Array<Expr> item_args;
@@ -624,7 +624,7 @@ class FunctionCreator : public ExprMutator {
     if ((var == nullptr || defined_vars_.count(var) == 0) &&
         (lift_constant_ || !expr->IsInstance<ConstantNode>())) {
       ffi::String name = var != nullptr
-                             ? var->name_hint()
+                             ? var->name_hint
                              : ffi::String("param_" + std::to_string(n_param_for_const_++));
       Type param_ty = GetType(expr);
       if (!IsInlinableConstants(expr)) {
@@ -931,8 +931,8 @@ class OperatorFusor : public ExprMutator {
           if (producer_group != cur_group) {
             for (Group* depgroup : group_deps_[producer_group]) {
               TVM_FFI_ICHECK(depgroup != cur_group)
-                  << "A cyclic dependency detected between the groups " << binding->var->name_hint()
-                  << " and " << used_var->name_hint() << " are in.";
+                  << "A cyclic dependency detected between the groups " << binding->var->name_hint
+                  << " and " << used_var->name_hint << " are in.";
             }
             group_deps_[cur_group].push_back(producer_group);
           }
@@ -1332,7 +1332,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     ffi::Array<Expr> params;
 
     for (auto v : func_node->params) {
-      Var new_v(v->name_hint(), GetType(v));
+      Var new_v(v->name_hint, GetType(v));
       param_vars.push_back(new_v);
       params.push_back(new_v);
     }

@@ -303,7 +303,7 @@ class FunctionCopier : public SymbolicVarRenewMutator {
 
   Var VisitVarDef_(const DataflowVarNode* var) override {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = DataflowVar(new_var->name_hint(), GetType(new_var), new_var->span);
+    Var copied_var = DataflowVar(new_var->name_hint, GetType(new_var), new_var->span);
     var_remap_[ffi::GetRef<Var>(var)] = copied_var;
     relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;
@@ -311,7 +311,7 @@ class FunctionCopier : public SymbolicVarRenewMutator {
 
   Var VisitVarDef_(const VarNode* var) override {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = Var(new_var->name_hint(), GetType(new_var), new_var->span);
+    Var copied_var = Var(new_var->name_hint, GetType(new_var), new_var->span);
     var_remap_[ffi::GetRef<Var>(var)] = copied_var;
     relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;

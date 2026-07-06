@@ -139,14 +139,11 @@ class VarNode : public ExprNode {
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
-  ffi::String name_hint_;
-
-  /*! \return The name hint of the variable */
-  const ffi::String& name_hint() const { return name_hint_; }
+  ffi::String name_hint;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>().def_ro("name_hint", &VarNode::name_hint_,
+    refl::ObjectDef<VarNode>().def_ro("name_hint", &VarNode::name_hint,
                                       refl::AttachFieldFlag::SEqHashIgnore());
   }
 

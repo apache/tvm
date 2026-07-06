@@ -166,7 +166,7 @@ class CheckpointCollector : private ExprMutator {
       // Add remapping from binding->var to new_var
       if (!binding->var.as<DataflowVarNode>() && var->IsInstance<DataflowVarNode>()) {
         // For output binding, emit a dummy binding
-        this->var_remap_[binding->var] = builder_->EmitOutput(orig_var, orig_var->name_hint());
+        this->var_remap_[binding->var] = builder_->EmitOutput(orig_var, orig_var->name_hint);
       } else {
         this->var_remap_[binding->var] = orig_var;
       }
@@ -231,7 +231,7 @@ class CheckpointGenerator : private ExprMutator {
     if (it != checkpoint_map_.end()) {
       return std::make_pair((*it).second, new_value);
     }
-    auto new_var = builder_->Emit(new_value, var->name_hint() + "_cp");
+    auto new_var = builder_->Emit(new_value, var->name_hint + "_cp");
     checkpoint_map_.Set(var, new_var);
     return std::make_pair(new_var, new_value);
   }
@@ -250,7 +250,7 @@ class CheckpointGenerator : private ExprMutator {
     if (it != checkpoint_map_.end()) {
       return (*it).second;
     }
-    Var new_var = builder_->Emit(VisitExpr(binding_map_[var]), var->name_hint() + "_cp");
+    Var new_var = builder_->Emit(VisitExpr(binding_map_[var]), var->name_hint + "_cp");
     checkpoint_map_.Set(var, new_var);
     return new_var;
   }
@@ -520,9 +520,9 @@ class BackwardBindingGenerator : private ExprVisitor {
   Var EmitAdjoint(const Var& source_var, const Expr& adjoint, bool is_output) {
     Var adjoint_var;
     if (is_output) {
-      adjoint_var = builder_->EmitOutput(adjoint, source_var->name_hint() + "_adjoint_out");
+      adjoint_var = builder_->EmitOutput(adjoint, source_var->name_hint + "_adjoint_out");
     } else {
-      adjoint_var = builder_->Emit(adjoint, source_var->name_hint() + "_adjoint");
+      adjoint_var = builder_->Emit(adjoint, source_var->name_hint + "_adjoint");
       adjoint_var_map_.Set(source_var, adjoint_var);
     }
     return adjoint_var;
@@ -768,16 +768,16 @@ class GradientMutator : private ExprMutator {
     for (const auto& var : require_grads) {
       auto it = var_map.find(var);
       TVM_FFI_ICHECK(it != var_map.end())
-          << "There is no Var named " << var->name_hint() << " in the function " << func_name;
+          << "There is no Var named " << var->name_hint << " in the function " << func_name;
       TVM_FFI_ICHECK_EQ(var_set.count(var), 0)
-          << "Var " << var->name_hint() << " appears more than once";
+          << "Var " << var->name_hint << " appears more than once";
       var_set.emplace(var);
       mapped_vars.push_back((*it).second);
 
       TVM_FFI_ICHECK(IsNestedTensorConditioned(GetType(var), IsFloatTensorType))
           << "Only Tensors of floating point dtype or Tuples of float "
              "Tensors can require gradients, but the Type of Var "
-          << var->name_hint() << " is " << GetType(var);
+          << var->name_hint << " is " << GetType(var);
     }
     return mapped_vars;
   }

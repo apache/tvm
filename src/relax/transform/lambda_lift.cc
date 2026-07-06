@@ -96,7 +96,7 @@ class LambdaNameCollector : ExprVisitor {
       lifted_with_global_symbol_.insert({func, public_name});
     }
 
-    name_stack_.push_back(binding->var->name_hint());
+    name_stack_.push_back(binding->var->name_hint);
     lambda_location_.insert({func, name_stack_});
     ExprVisitor::VisitBinding_(binding, func);
     name_stack_.pop_back();
@@ -285,7 +285,7 @@ class LambdaLifter : public ExprMutator {
     ffi::Array<Var> typed_captured_vars;
     ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name_hint(), GetType(free_var), free_var->span);
+      Var var = Var(free_var->name_hint, GetType(free_var), free_var->span);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }

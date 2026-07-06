@@ -37,7 +37,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using tvm::relax::VarNode;
       VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
-      var->name_hint_ = name;
+      var->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
@@ -45,7 +45,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
                                                   ffi::String name) -> void {
       using tvm::relax::DataflowVarNode;
       DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
-      var->name_hint_ = name;
+      var->name_hint = name;
     });
 
 /////////////////////////////// Function ////////////////////////////////
