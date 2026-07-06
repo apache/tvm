@@ -204,7 +204,7 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) 
     if (send.has_value()) {
       LOG(WARNING) << "ValueError: buffer `send` must be None when (worker_id != 0 && !in_group) "
                       "or (worker_id % group_size != 0 && in_group). However, got send = "
-                   << send.value().get() << ". This will be ignored.";
+                   << send.value().GetDLTensorPtr() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }
@@ -253,7 +253,7 @@ void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
     if (recv.has_value()) {
       LOG(WARNING) << "ValueError: buffer `recv` must be None when (worker_id != 0 && !in_group) "
                       "or (worker_id % group_size != 0 && in_group). However, got recv = "
-                   << recv.value().get() << ". This will be ignored.";
+                   << recv.value().GetDLTensorPtr() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }
