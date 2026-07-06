@@ -426,11 +426,16 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     PrimExpr min_value = min_set->min_value;
     PrimExpr max_value = max_set->max_value;
     // IntSet keeps symbolic bounds parametric.  If relaxing a bound under
-    // one-sided constraints loses it to infinity, keep the original bound.
-    if (is_neg_inf(min_value) && val->HasLowerBound()) {
+    // one-sided constraints loses it to infinity, keep the original bound,
+    // unless it references a dom_map_ var that must be relaxed out.
+    auto f_depends_on_relaxed = [this](const PrimExpr& bound) {
+      return UsesVar(bound,
+                     [this](const VarNode* v) { return dom_map_.count(ffi::GetRef<Var>(v)) != 0; });
+    };
+    if (is_neg_inf(min_value) && val->HasLowerBound() && !f_depends_on_relaxed(val->min_value)) {
       min_value = val->min_value;
     }
-    if (is_pos_inf(max_value) && val->HasUpperBound()) {
+    if (is_pos_inf(max_value) && val->HasUpperBound() && !f_depends_on_relaxed(val->max_value)) {
       max_value = val->max_value;
     }
     return IntervalSet(min_value, max_value);

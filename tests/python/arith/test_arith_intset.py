@@ -442,6 +442,19 @@ def test_constraint_scope_preserves_parametric_bounds():
         assert analyzer.can_prove_equal(res.max_value, 14)
 
 
+def test_relax_does_not_leak_dom_map_vars():
+    analyzer = tvm.arith.Analyzer()
+    i = tvm.tirx.Var("i", "int64")
+    j = tvm.tirx.Var("j", "int64")
+    zero = tvm.tirx.const(0, "int64")
+    dom = {
+        j: tvm.arith.IntervalSet(zero, i),
+        i: tvm.arith.IntervalSet(zero, tvm.arith.int_set.pos_inf()),
+    }
+    res = analyzer.int_set(j, dom)
+    assert res.max_value.same_as(tvm.arith.int_set.pos_inf())
+
+
 def test_estimate_region_accepts_external_analyzer():
     i = tvm.tirx.Var("i", "int32")
     tile = tvm.tirx.Var("tile", "int32")
