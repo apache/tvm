@@ -408,6 +408,9 @@ bool HasReshapePattern(const PrimFunc& func) {
 
       ffi::Map<tirx::Var, Range> var_range;
       for (const IterVar& v : block->iter_vars) {
+        if (is_zero(v->dom->extent)) {
+          return;
+        }
         ana_->Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
         var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
       }

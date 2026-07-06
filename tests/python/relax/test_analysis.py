@@ -811,5 +811,31 @@ def test_reshape_pattern_reject_reduction():
     assert not has_reshape_pattern(reduction)
 
 
+def test_reshape_pattern_reject_zero_extent_slice():
+    @T.prim_func(s_tir=True)
+    def strided_slice(A: T.Buffer((3,), "float32"), T_out: T.Buffer((0,), "float32")):
+        for i in T.serial(0):
+            with T.sblock("T_strided_slice"):
+                vi = T.axis.spatial(0, i)
+                T.reads(A[vi])
+                T.writes(T_out[vi])
+                T_out[vi] = A[vi]
+
+    assert not has_reshape_pattern(strided_slice)
+
+
+def test_reshape_pattern_reject_zero_extent_multi_dim():
+    @T.prim_func(s_tir=True)
+    def reshape_empty(A: T.Buffer((0, 4), "float32"), T_out: T.Buffer((0, 2, 2), "float32")):
+        for i0, i1, i2 in T.grid(0, 2, 2):
+            with T.sblock("T_reshape"):
+                v0, v1, v2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(A[v0, v1 * 2 + v2])
+                T.writes(T_out[v0, v1, v2])
+                T_out[v0, v1, v2] = A[v0, v1 * 2 + v2]
+
+    assert not has_reshape_pattern(reshape_empty)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
