@@ -530,7 +530,7 @@ class FunctionCreator : public ExprMutator {
           auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
           if (it != tuple_get_item_remap.end()) {
             TVM_FFI_ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
-            var_remap_[var_binding->var->vid] = it->second[tuple_get_item->index];
+            var_remap_[var_binding->var] = it->second[tuple_get_item->index];
             if (auto output_idx = GetOutputIndex(binding->var)) {
               outputs.Set(*output_idx, it->second[tuple_get_item->index]);
             }
@@ -545,7 +545,7 @@ class FunctionCreator : public ExprMutator {
         const auto* var_binding = binding.as<VarBindingNode>();
         TVM_FFI_ICHECK_NOTNULL(var_binding);
         Var output_var = builder_->EmitOutput(VisitExpr(var_binding->value));
-        var_remap_[var_binding->var->vid] = output_var;
+        var_remap_[var_binding->var] = output_var;
         outputs.Set(*output_idx, output_var);
       } else {
         // Case 2. It is an internal binding, add it to the binding list.
@@ -881,10 +881,10 @@ class OperatorFusor : public ExprMutator {
         // available in pending_tuple_get and tuple_get_indices_ respectively.
         for (const auto& var : pending_tuple_get[group]) {
           auto tuple_get = TupleGetItem(new_var, tuple_get_indices_[var.get()]);
-          var_remap_[var->vid] = builder_->Emit(tuple_get);
+          var_remap_[var] = builder_->Emit(tuple_get);
         }
       } else {
-        var_remap_[var_binding->var->vid] = new_var;
+        var_remap_[var_binding->var] = new_var;
       }
     }
     // Step 5. Finish the binding block generation.

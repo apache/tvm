@@ -544,19 +544,36 @@ PrimExpr ExprMutatorBase::VisitTypePrimExprField(const PrimExpr& expr) {
 // ==================
 // ExprMutator
 
+namespace {
+
+template <typename TMap>
+void RedirectVarRemapTargets(TMap* var_remap, const Var& old_target, const Var& new_target) {
+  if (old_target.same_as(new_target)) {
+    return;
+  }
+  for (auto& entry : *var_remap) {
+    if (entry.second.same_as(old_target)) {
+      entry.second = new_target;
+    }
+  }
+}
+
+}  // namespace
+
 Expr ExprMutator::VisitExpr(const Expr& expr) {
   return builder_->Normalize(ExprFunctor::VisitExpr(expr));
 }
 
 // Visit the use-site of a defined Var
 Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  auto it = var_remap_.find(op->vid);
+  Var var = ffi::GetRef<Var>(op);
+  auto it = var_remap_.find(var);
   if (it != var_remap_.end()) {
     return it->second;
   }
 
   // default case return self.
-  return ffi::GetRef<Expr>(op);
+  return var;
 }
 
 // Visit the use-site of a defined DataflowVar
@@ -571,7 +588,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
     Var new_param = this->VisitVarDef(param);
     params.push_back(new_param);
     if (!param.same_as(new_param)) {
-      var_remap_[param->vid] = new_param;
+      var_remap_[param] = new_param;
       all_params_unchanged = false;
     }
   }
@@ -660,6 +677,7 @@ RELAX_EXPR_MUTATOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
   Var new_var = this->VisitVarDef(binding->var);
+  Var visited_var = new_var;
 
   // fast path: re-emit binding if nothing changes
   if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
@@ -679,8 +697,10 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     new_var = temp;
   }
 
-  this->var_remap_[binding->var->vid] = new_var;
-  this->var_remap_[new_var->vid] = new_var;
+  RedirectVarRemapTargets(&var_remap_, visited_var, new_var);
+  this->var_remap_[binding->var] = new_var;
+  this->var_remap_[visited_var] = new_var;
+  this->var_remap_[new_var] = new_var;
 
   builder_->EmitNormalized(VarBinding(new_var, new_value));
 }
@@ -690,6 +710,7 @@ void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
   Type new_ty = this->VisitExprDepTypeField(binding->ty);
 
   Var new_var = this->VisitVarDef(binding->var);
+  Var visited_var = new_var;
 
   MatchCast new_binding = [&]() -> MatchCast {
     if (new_var.same_as(binding->var) && new_value.same_as(binding->value) &&
@@ -700,8 +721,10 @@ void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
       new_value = builder_->NormalizeArgument(new_value);
       new_var = WithType(new_var, new_ty);
 
-      var_remap_[binding->var->vid] = new_var;
-      var_remap_[new_var->vid] = new_var;
+      RedirectVarRemapTargets(&var_remap_, visited_var, new_var);
+      var_remap_[binding->var] = new_var;
+      var_remap_[visited_var] = new_var;
+      var_remap_[new_var] = new_var;
 
       return MatchCast(new_var, new_value, new_ty, binding->span);
     }
@@ -733,7 +756,9 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
   // provide default behavior in subclasses, we may produce a Var
   // where we should produce a DataflowVar.
   if (!output->IsInstance<DataflowVarNode>()) {
-    output = DataflowVar(output->vid, GetType(output), output->span);
+    Var delegated_output = output;
+    output = DataflowVar(output->name_hint(), GetType(output), output->span);
+    var_remap_[delegated_output] = output;
   }
   return output;
 }
@@ -744,7 +769,7 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) {
     if (ty.same_as(var->ty)) {
       return ffi::GetRef<Var>(var);
     } else {
-      return Var(var->vid, ty, var->span);
+      return Var(var->name_hint(), ty, var->span);
     }
   } else {
     return ffi::GetRef<Var>(var);
@@ -830,6 +855,9 @@ Expr ExprMutator::VisitWithInnerScope(const Expr& expr) {
 }
 
 ffi::Optional<Expr> ExprMutator::LookupBinding(const Var& var) {
+  if (auto it = var_remap_.find(var); it != var_remap_.end()) {
+    return builder_->LookupBinding(it->second);
+  }
   return builder_->LookupBinding(var);
 }
 
@@ -842,8 +870,8 @@ Var ExprMutator::WithType(Var var, Type ty) {
     if (var->ty.same_as(ty) || ffi::StructuralEqual()(var->ty, ty)) {
       return var;
     } else {
-      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->vid, ty, var->span)
-                                              : Var(var->vid, ty, var->span);
+      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->name_hint(), ty, var->span)
+                                              : Var(var->name_hint(), ty, var->span);
       return new_var;
     }
   } else {

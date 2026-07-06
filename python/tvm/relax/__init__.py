@@ -26,7 +26,6 @@ from tvm.ir import Call
 from .expr import (
     Expr,
     Span,
-    Id,
     GlobalVar,
     Var,
     DataflowVar,

@@ -141,7 +141,7 @@ class CommonSubexprEliminator : public ExprMutator {
               << "and occurrences of " << binding->var << " will be replaced with "
               << it->second[0];
       output_binding = VarBinding(binding->var, it->second[0]);
-      var_remap_.insert({binding->var->vid, it->second[0]});
+      var_remap_.insert({binding->var, it->second[0]});
       it->second.push_back(binding->var);
 
     } else {

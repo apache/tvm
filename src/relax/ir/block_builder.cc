@@ -152,7 +152,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   // Scope management
   //-------------------------------
   ffi::Optional<Expr> LookupBinding(const Var& var) final {
-    auto it = binding_table_.find(var->vid);
+    auto it = binding_table_.find(var);
     if (it == binding_table_.end()) return std::nullopt;
     return it->second;
   }
@@ -276,7 +276,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       TVM_FFI_ICHECK(!var_binding->var->ty.IsMissing());
       TVM_FFI_ICHECK(!var_binding->value->ty.IsMissing());
       cur_frame->bindings.push_back(binding);
-      binding_table_[var_binding->var->vid] = var_binding->value;
+      binding_table_[var_binding->var] = var_binding->value;
     } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
       if (!cur_frame->is_dataflow) {
         TVM_FFI_ICHECK(!match_cast->var.as<DataflowVarNode>())
@@ -342,7 +342,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   std::vector<ScopeFrame> scope_stack_;
 
   /*! \brief A binding table that maps var to value. */
-  std::unordered_map<Id, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> binding_table_;
+  std::unordered_map<Var, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> binding_table_;
 
   /*! \brief A unique name supply to get unique names for IR construction. */
   UniqueNameSupply name_supply_;
@@ -393,7 +393,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
     // update the binding table
-    binding_table_[var->vid] = expr;
+    binding_table_[var] = expr;
 
     return var;
   }
@@ -408,9 +408,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     if (name_hint.empty()) {
       name_hint = is_dataflow ? "lv" : "gv";
     }
-    Id vid = Id(GetUniqueName(name_hint));
-    return is_dataflow ? DataflowVar(vid, /*ty_annotation=*/std::nullopt)
-                       : Var(vid, /*ty_annotation=*/std::nullopt);
+    name_hint = GetUniqueName(name_hint);
+    return is_dataflow ? DataflowVar(name_hint, /*ty_annotation=*/std::nullopt)
+                       : Var(name_hint, /*ty_annotation=*/std::nullopt);
   }
 
  private:

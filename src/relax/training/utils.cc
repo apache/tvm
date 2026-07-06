@@ -167,7 +167,7 @@ class AppendLossMutator : private ExprMutator {
           << " while the corresponding type of parameter of loss function is " << loss_param_ty
           << ", which is different.";
 
-      this->var_remap_[loss_param->vid] = backbone_ret;
+      this->var_remap_[loss_param] = backbone_ret;
     }
   }
 
@@ -190,8 +190,8 @@ class AppendLossMutator : private ExprMutator {
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];
       if (other_outputs_var.count(var) == 0) {
-        auto new_var = DataflowVar(var->vid, GetType(var), var->span);
-        this->var_remap_[var->vid] = new_var;
+        auto new_var = DataflowVar(var->name_hint(), GetType(var), var->span);
+        this->var_remap_[var] = new_var;
         backbone_return_arr_.Set(i, new_var);
       }
     }

@@ -339,7 +339,7 @@ class LayoutConvertMutator : public ExprMutator {
     } else {
       Var new_var = builder_->EmitMatchCast(RewriteExpr(binding->value, input_layout), new_ty);
       var_layout_map_[binding->var] = input_layout;
-      this->var_remap_[binding->var->vid] = new_var;
+      this->var_remap_[binding->var] = new_var;
     }
   }
 

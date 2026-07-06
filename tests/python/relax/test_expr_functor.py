@@ -303,7 +303,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         temp = self.with_type(new_var, new_value.ty)
         if not temp.same_as(new_var):
             new_var = temp
-            self.set_var_remap(binding.var.vid, new_var)
+            self.set_var_remap(binding.var, new_var)
 
         self.builder_.emit_normalized(VarBinding(new_var, new_value))
 
@@ -315,7 +315,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         temp = self.with_type(new_var, binding.ty)
         if not temp.same_as(new_var):
             new_var = temp
-            self.set_var_remap(binding.var.vid, new_var)
+            self.set_var_remap(binding.var, new_var)
 
         self.log.add("MatchCast")
         self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.ty))

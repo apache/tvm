@@ -680,9 +680,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.PyExprMutatorWithType",
            [](PyExprMutator mutator, Var var, Type ty) { return mutator->WithType(var, ty); })
       .def("relax.PyExprMutatorSetVarRemap",
-           [](PyExprMutator mutator, Id id, Var var) { return mutator->var_remap_[id] = var; })
+           [](PyExprMutator mutator, Var old_var, Var new_var) {
+             return mutator->var_remap_[old_var] = new_var;
+           })
       .def("relax.PyExprMutatorGetVarRemap",
-           [](PyExprMutator mutator, Id id) { return mutator->var_remap_[id]; });
+           [](PyExprMutator mutator, Var var) { return mutator->var_remap_[var]; });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

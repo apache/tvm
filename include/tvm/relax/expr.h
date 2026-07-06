@@ -36,44 +36,6 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief The unique identifier of variables.
- *
- * Id is like name to the variables,
- * except that id is unique for each Var.
- *
- * \note Do not create Id directly, they are created in Var.
- */
-class IdNode : public ffi::Object {
- public:
-  /*!
-   * \brief The name of the variable,
-   *  this only acts as a hint to the user,
-   *  and is not used for equality.
-   */
-  ffi::String name_hint;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IdNode>().def_ro("name_hint", &IdNode::name_hint,
-                                     refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.Id", IdNode, ffi::Object);
-};
-
-class Id : public ffi::ObjectRef {
- public:
-  /*!
-   * \brief The constructor
-   * \param name_hint The name of the variable.
-   */
-  TVM_DLL explicit Id(ffi::String name_hint);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ffi::ObjectRef, IdNode);
-};
-
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
@@ -173,48 +135,31 @@ class ShapeExpr : public Expr {
 /*! \brief The variable class for all Relax bindings. */
 class VarNode : public ExprNode {
  public:
-  /*! \brief The identifier of the variable, which is used for comparing stable equality across
-   * transformations. */
-  Id vid;
+  /*!
+   * \brief The hint to the variable name.
+   * \note Each variable is uniquely identified by its address.
+   */
+  ffi::String name_hint_;
 
   /*! \return The name hint of the variable */
-  const ffi::String& name_hint() const { return vid->name_hint; }
+  const ffi::String& name_hint() const { return name_hint_; }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
-    // customize structural equal and hash to include ty
-    refl::TypeAttrDef<VarNode>()
-        .def("__s_equal__", &VarNode::SEqual)
-        .def("__s_hash__", &VarNode::SHash);
+    refl::ObjectDef<VarNode>().def_ro("name_hint", &VarNode::name_hint_,
+                                      refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqual(const VarNode* other,
-              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    return equal(vid, other->vid, false, "vid") && equal(ty, other->ty, false, "ty");
-  }
-
-  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
-    int64_t hash_value = init_hash;
-    hash_value = hash(vid, hash_value, false);
-    hash_value = hash(ty, hash_value, false);
-    return hash_value;
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const uint32_t _type_child_slots = 1;
   TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, ExprNode);
 };
 
 class Var : public Expr {
  public:
-  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span = Span())
-      : Var(Id(name_hint), ty_annotation, span) {}
-
-  TVM_DLL explicit Var(Id vid, ffi::Optional<Type> ty_annotation, Span span = Span());
+  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
+                       Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
-
-  VarNode* CopyOnWrite();
 };
 
 /*! \brief A sub-type of the variable node used to mark dataflow variables from
@@ -227,20 +172,16 @@ class DataflowVarNode : public VarNode {
     refl::ObjectDef<DataflowVarNode>();
   }
 
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowVar", DataflowVarNode, VarNode);
 };
 
 class DataflowVar : public Var {
  public:
   TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
-                               Span span = Span())
-      : DataflowVar(Id(name_hint), ty_annotation, span) {}
-
-  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<Type> ty_annotation, Span span = Span());
+                               Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
 };
 
 /*!

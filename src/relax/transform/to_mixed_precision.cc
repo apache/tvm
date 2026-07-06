@@ -279,7 +279,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
  private:
   Var GetRemapped(const Var& var) {
-    auto it = var_remap_.find(var->vid);
+    auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
       return it->second;
     } else {
@@ -291,8 +291,8 @@ class ToMixedPrecisionRewriter : public ExprMutator {
             vdev = tensor_ty->vdevice.value();
           }
           TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
-          Var fp16_var(var->vid, fp16_ty, var->span);
-          var_remap_[var->vid] = fp16_var;
+          Var fp16_var(var->name_hint(), fp16_ty, var->span);
+          var_remap_[var] = fp16_var;
           return fp16_var;
         }
       }
@@ -424,13 +424,13 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // If cur_var is not rewritten, we don't need to emit a new var
     if (!rewrite.same_as(cur_var)) {
       // Emit a new var, and update the var remap
-      var_remap_[var->vid] = builder_->Emit(rewrite);
+      var_remap_[var] = builder_->Emit(rewrite);
     }
   }
 
   Expr VisitVar_(const Var& var) {
     // We rewrite the remapped var to the original dtype
-    auto it = var_remap_.find(var->vid);
+    auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
       return RewriteExpr(it->second, NTypeFrom(var));
     }
@@ -577,7 +577,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
     for (auto param : params_) {
       // remove the local version of params
-      auto it = var_remap_.find(param->vid);
+      auto it = var_remap_.find(param);
       if (it != var_remap_.end()) {
         var_remap_.erase(it);
       }

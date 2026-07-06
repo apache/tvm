@@ -166,7 +166,7 @@ class GradientSimplifier : private ExprMutator {
     if (IsTransposeOp(prev_call_node)) {
       // rewrite rule #1: permute_dims(permute_dims(a)) -> a
       if (prev_call_node->args[0]->IsInstance<VarNode>()) {
-        var_remap_[binding->var->vid] = prev_call_node->args[0].as_or_throw<Var>();
+        var_remap_[binding->var] = prev_call_node->args[0].as_or_throw<Var>();
         return;
       } else {
         return reemit_and_return();
