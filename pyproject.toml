@@ -167,10 +167,7 @@ addopts = "-v --tb=short"
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = [
-  "gpu: Mark a test as requiring a GPU",
-  "xdist_group(name): Run related tests in one pytest-xdist load group",
-]
+markers = ["gpu: Mark a test as requiring a GPU"]
 
 [tool.ruff]
 include = [

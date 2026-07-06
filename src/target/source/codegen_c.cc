@@ -650,6 +650,12 @@ void CodeGenC::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
 void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
                                const ffi::Array<Expr>& args, bool skip_first_arg,
                                std::ostream& os) {  // NOLINT(*)
+  bool cast_pointer_return = ret_type.as<PointerTypeNode>();
+  if (cast_pointer_return) {
+    os << "((";
+    PrintType(ret_type, os);
+    os << ")";
+  }
   os << global_symbol << "(";
   for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
     this->PrintExpr(args[i], os);
@@ -658,6 +664,9 @@ void CodeGenC::PrintCallExtern(Type ret_type, ffi::String global_symbol,
     }
   }
   os << ")";
+  if (cast_pointer_return) {
+    os << ")";
+  }
 }
 
 void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
