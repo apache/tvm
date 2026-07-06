@@ -85,7 +85,7 @@ Pass MetaScheduleApplyDatabase(ffi::Optional<ffi::String> work_dir, bool enable_
 
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     Database database{ffi::UnsafeInit()};
-    if (Database::Current().defined()) {
+    if (Database::Current().has_value()) {
       database = Database::Current().value();
     } else {
       TVM_FFI_ICHECK(work_dir.has_value());

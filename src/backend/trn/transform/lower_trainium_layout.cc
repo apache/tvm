@@ -62,7 +62,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     std::unordered_map<Var, Buffer> new_buffer_map;
     std::vector<Buffer> param_flattened_buffers;
     for (const auto& kv : buffer_map) {
-      if (kv.second->layout.defined()) {
+      if (kv.second->layout.has_value()) {
         param_flattened_buffers.push_back(storage_lower.GetFlattenedBuffer(kv.second));
         Buffer buffer = kv.second;
         auto* writer = buffer.CopyOnWrite();
@@ -101,7 +101,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    if (!op->buffer->layout.defined()) {
+    if (!op->buffer->layout.has_value()) {
       return ffi::GetRef<Stmt>(op);
     }
     auto buffer = GetFlattenedBuffer(op->buffer, /*is_alloc=*/true);
@@ -234,7 +234,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
-    if (buffer->layout.defined()) {
+    if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
       if (IsTrainiumLayout(tile_layout)) {
         auto coord = buffer->layout.value()->Apply(indices, buffer->shape);
@@ -268,7 +268,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     TVM_FFI_ICHECK(node->buffer.defined());
-    if (!node->buffer->layout.defined()) {
+    if (!node->buffer->layout.has_value()) {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);

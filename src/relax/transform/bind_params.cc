@@ -48,7 +48,7 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
   TensorType const_ty = opt_const_ty.value();
   TVM_FFI_ICHECK(!const_ty->IsUnknownDtype());
   TVM_FFI_ICHECK(!const_ty->IsUnknownNdim());
-  TVM_FFI_ICHECK(const_ty->shape.defined());
+  TVM_FFI_ICHECK(const_ty->shape.has_value());
 
   // dtype mismatch
   if (!arg_ty->IsUnknownDtype() && arg_ty->dtype != const_ty->dtype) {
@@ -60,7 +60,7 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
     TVM_FFI_THROW(InternalError) << "The ndim of the bound parameter is expected to be "
                                  << arg_ty->ndim << ", but got: " << const_ty->ndim;
   }
-  if (!arg_ty->shape.defined()) return;
+  if (!arg_ty->shape.has_value()) return;
   const auto* arg_shape = arg_ty->shape.value().as<ShapeExprNode>();
   const auto* const_shape = const_ty->shape.value().as<ShapeExprNode>();
 

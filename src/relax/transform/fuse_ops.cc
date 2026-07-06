@@ -407,7 +407,7 @@ class FunctionCreator : public ExprMutator {
    * // TODO(tvm-team): handle match shape
    */
   void AppendBinding(const Binding& binding) {
-    TVM_FFI_ICHECK(!function_.defined())
+    TVM_FFI_ICHECK(!function_.has_value())
         << "The `function_` is supposed to be uncreated when adding bindings";
 
     if (const auto* var_binding = binding.as<VarBindingNode>()) {
@@ -830,7 +830,7 @@ class OperatorFusor : public ExprMutator {
       TVM_FFI_ICHECK(it_creator != group2func_.end());
       const FunctionCreator& func_info = it_creator->second;
 
-      if (!func_info.function_.defined()) {
+      if (!func_info.function_.has_value()) {
         // The function is not created yet, so we skip the binding.
         continue;
       }

@@ -178,7 +178,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ffi::Array<PrimExpr>> output_shape = std::nullopt;
   int output_ndim = kUnknownNDim;
-  if (view_shape_ty && view_shape_ty->values.defined()) {
+  if (view_shape_ty && view_shape_ty->values.has_value()) {
     output_shape = view_shape_ty->values.value();
   } else if (view_shape_ty) {
     output_ndim = view_shape_ty->ndim;
@@ -204,7 +204,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
   // given the shape of that array.
   auto get_num_elements =
       [&ctx](const ffi::Optional<ffi::Array<PrimExpr>>& shape) -> ffi::Optional<PrimExpr> {
-    if (!shape.defined()) {
+    if (!shape.has_value()) {
       return std::nullopt;
     }
 
@@ -219,9 +219,9 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimExpr> output_nelements = get_num_elements(output_shape);
 
   ffi::Optional<IntImm> input_element_size =
-      data_ty->dtype.defined() ? get_size_bytes(data_ty->dtype.value()->dtype) : std::nullopt;
+      data_ty->dtype.has_value() ? get_size_bytes(data_ty->dtype.value()->dtype) : std::nullopt;
   ffi::Optional<IntImm> output_element_size =
-      output_dtype.defined() ? get_size_bytes(output_dtype.value()->dtype) : std::nullopt;
+      output_dtype.has_value() ? get_size_bytes(output_dtype.value()->dtype) : std::nullopt;
 
   if (input_nelements && output_nelements && input_element_size && output_element_size &&
       view_relative_byte_offset) {
@@ -310,7 +310,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (output_shape.defined()) {
+  if (output_shape.has_value()) {
     return TensorType(ShapeExpr(output_shape.value()), output_dtype, data_ty->vdevice);
   } else {
     return TensorType(output_dtype, output_ndim, data_ty->vdevice);
@@ -358,7 +358,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
   if (HasVoidType(shape)) {
     auto data_shape = data->ty.as<TensorType>().value()->GetShape();
-    TVM_FFI_ICHECK(data_shape.defined())
+    TVM_FFI_ICHECK(data_shape.has_value())
         << "Legalization of " << call->op
         << " requires that either the output shape be explicitly specified, "
         << "or the input shape is known.  "

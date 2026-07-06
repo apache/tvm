@@ -128,7 +128,7 @@ class DataflowReshapeRewriter : public ExprMutator {
     if (inp_ty->IsUnknownDtype() || inp_ty->dtype != res_ty->dtype) {
       return false;
     }
-    TVM_FFI_ICHECK(inp_ty->shape.defined() && res_ty->shape.defined());
+    TVM_FFI_ICHECK(inp_ty->shape.has_value() && res_ty->shape.has_value());
     if (inp_ty->IsUnknownNdim() || res_ty->IsUnknownNdim()) {
       return false;
     }

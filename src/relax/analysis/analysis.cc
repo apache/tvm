@@ -200,7 +200,7 @@ ffi::Optional<Expr> FindImpureCall(const Expr& expr, const ffi::Optional<Expr>& 
 }
 
 bool ContainsImpureCall(const Expr& expr, const ffi::Optional<Expr>& own_name) {
-  return FindImpureCall(expr, own_name).defined();
+  return FindImpureCall(expr, own_name).has_value();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

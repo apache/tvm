@@ -110,7 +110,7 @@ Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets,
   attrs->ignore_index = ignore_index;
 
   static const Op& op = Op::Get("relax.grad.nll_loss_backward");
-  if (weights.defined()) {
+  if (weights.has_value()) {
     return Call(
         Type::Missing(), op,
         {std::move(output_grad), std::move(predictions), std::move(targets), weights.value()},

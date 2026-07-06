@@ -32,7 +32,7 @@ void TypeVisitor::VisitType_(const AnyTypeNode* op) {}
 void TypeVisitor::VisitType_(const PrimTypeNode* op) {}
 
 void TypeVisitor::VisitType_(const ShapeTypeNode* op) {
-  if (op->values.defined()) {
+  if (op->values.has_value()) {
     for (PrimExpr value : op->values.value()) {
       this->VisitTypeExprField(value);
     }
@@ -40,7 +40,7 @@ void TypeVisitor::VisitType_(const ShapeTypeNode* op) {
 }
 
 void TypeVisitor::VisitType_(const TensorTypeNode* op) {
-  if (op->shape.defined()) {
+  if (op->shape.has_value()) {
     this->VisitTypeExprField(op->shape.value());
   }
 }
@@ -56,7 +56,7 @@ void TypeVisitor::VisitType_(const TupleTypeNode* op) {
 }
 
 void TypeVisitor::VisitType_(const FuncTypeNode* op) {
-  if (op->params.defined()) {
+  if (op->params.has_value()) {
     for (Type param : op->params.value()) {
       this->VisitType(param);
     }
@@ -69,7 +69,7 @@ Type TypeMutator::VisitType_(const AnyTypeNode* op) { return ffi::GetRef<Type>(o
 Type TypeMutator::VisitType_(const PrimTypeNode* op) { return ffi::GetRef<Type>(op); }
 
 Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
-  if (!op->values.defined()) {
+  if (!op->values.has_value()) {
     return ffi::GetRef<Type>(op);
   }
 
@@ -85,7 +85,7 @@ Type TypeMutator::VisitType_(const ShapeTypeNode* op) {
 }
 
 Type TypeMutator::VisitType_(const TensorTypeNode* op) {
-  if (!op->shape.defined()) {
+  if (!op->shape.has_value()) {
     return ffi::GetRef<Type>(op);
   }
 
@@ -117,7 +117,7 @@ Type TypeMutator::VisitType_(const TupleTypeNode* op) {
 Type TypeMutator::VisitType_(const FuncTypeNode* op) {
   ffi::Optional<ffi::Array<Type>> params;
 
-  if (op->params.defined()) {
+  if (op->params.has_value()) {
     params = op->params.value().Map([this](const Type& ty) { return this->VisitType(ty); });
   }
 
@@ -127,7 +127,7 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
     return ffi::GetRef<Type>(op);
   } else {
     TVM_FFI_ICHECK(ret.defined()) << "FuncType must contain ret";
-    if (params.defined()) {
+    if (params.has_value()) {
       return FuncType(params.value(), ret, op->purity, op->span);
     } else {
       return FuncType::OpaqueFunc(ret, op->purity, op->span);

@@ -78,11 +78,11 @@ class CallTIRMutator : public ExprMutator {
       if (const auto& tensor_ty = MatchType<TensorType>(expr)) {
         // single output case
         const TensorType& output_ty = tensor_ty.value();
-        TVM_FFI_ICHECK(output_ty->shape.defined())
+        TVM_FFI_ICHECK(output_ty->shape.has_value())
             << "the TensorType shape of call_tir has not populated";
         int dev_index = 0;
         ffi::String scope = "global";
-        if (output_ty->vdevice.defined()) {
+        if (output_ty->vdevice.has_value()) {
           dev_index = GetDeviceIndex(mod_, output_ty->vdevice.value());
           scope = output_ty->vdevice.value()->memory_scope;
         } else {
@@ -114,13 +114,13 @@ class CallTIRMutator : public ExprMutator {
               << "call_tir expects Tuple of TensorType, but got " << field
               << " as an element of TupleType";
           const auto& field_tensor = field.as_or_throw<TensorType>();
-          TVM_FFI_ICHECK(field_tensor->shape.defined())
+          TVM_FFI_ICHECK(field_tensor->shape.has_value())
               << "call_tir expects all TensorType has shape, but got " << field_tensor
               << " as an element of TupleType";
 
           int dev_index = 0;
           ffi::String scope = "global";
-          if (field_tensor->vdevice.defined()) {
+          if (field_tensor->vdevice.has_value()) {
             dev_index = GetDeviceIndex(mod_, field_tensor->vdevice.value());
             scope = field_tensor->vdevice.value()->memory_scope;
           }

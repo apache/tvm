@@ -59,7 +59,7 @@ class VDeviceLookup {
     int32_t device_id = attrs->index;
     ffi::String memory_scope = attrs->memory_scope;
 
-    TVM_FFI_CHECK(opt_vdevices_.defined(), ValueError)
+    TVM_FFI_CHECK(opt_vdevices_.has_value(), ValueError)
         << "The target VDevice in the GlobalInfos was not found.";
 
     auto vdevices = opt_vdevices_.value();
@@ -108,7 +108,7 @@ class DeviceHintCollector : ExprVisitor {
       // specific device, then that annotation may be propagated into
       // the returned variable.
       if (auto tensor_info = ty.as<TensorTypeNode>();
-          tensor_info && tensor_info->vdevice.defined()) {
+          tensor_info && tensor_info->vdevice.has_value()) {
         if (auto opt_var = expr.as<Var>()) {
           auto var = opt_var.value();
           if (!known_vdevice_.count(var)) {
@@ -154,7 +154,7 @@ class DeviceHintCollector : ExprVisitor {
   }
 
   void VisitVarDef(const Var& var) override {
-    if (auto tinfo = var->ty.as<TensorTypeNode>(); tinfo && tinfo->vdevice.defined()) {
+    if (auto tinfo = var->ty.as<TensorTypeNode>(); tinfo && tinfo->vdevice.has_value()) {
       known_vdevice_.Set(var, tinfo->vdevice.value());
     }
     ExprVisitor::VisitVarDef(var);
@@ -355,7 +355,7 @@ class VDeviceTypeUpdater : ExprMutator {
       if (auto opt = vdevice_map_.Get(old_var)) {
         auto vdevice = opt.value();
         TensorType new_ty = [&]() {
-          if (tinfo->shape.defined()) {
+          if (tinfo->shape.has_value()) {
             return TensorType(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span);
           } else {
             return TensorType(tinfo->dtype, tinfo->ndim, vdevice, tinfo->span);
@@ -387,7 +387,7 @@ class VDeviceTypeUpdater : ExprMutator {
     auto input_vdevice = arg->ty.as_or_throw<TensorType>()->vdevice;
     auto output_vdevice = vdevice_lookup_(call->attrs);
 
-    if (input_vdevice.defined() && input_vdevice.value() == output_vdevice) {
+    if (input_vdevice.has_value() && input_vdevice.value() == output_vdevice) {
       return arg;
     } else {
       ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();

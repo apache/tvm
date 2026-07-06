@@ -117,8 +117,8 @@ class ExprDeepEqualChecker : private ExprFunctor<bool(const Expr&, const PrimExp
 
   bool OptionalDeepEqual(const ffi::Optional<PrimExpr>& lhs, const ffi::Optional<PrimExpr>& rhs) {
     if (lhs.same_as(rhs)) return true;
-    if (!lhs.defined() && rhs.defined()) return false;
-    if (lhs.defined() && !rhs.defined()) return false;
+    if (!lhs.has_value() && rhs.has_value()) return false;
+    if (lhs.has_value() && !rhs.has_value()) return false;
     return VisitExpr(*lhs, *rhs);
   }
 

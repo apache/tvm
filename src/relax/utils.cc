@@ -129,11 +129,11 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
   auto bind_from_shape = [&bind_from_prim_expr](const Type& var, const Type& expr) {
     auto var_shape = var.as<ShapeTypeNode>();
     if (!var_shape) return;
-    if (!var_shape->values.defined()) return;
+    if (!var_shape->values.has_value()) return;
 
     auto expr_shape = expr.as<ShapeTypeNode>();
     if (!expr_shape) return;
-    if (!expr_shape->values.defined()) return;
+    if (!expr_shape->values.has_value()) return;
 
     auto var_shape_arr = var_shape->values.value();
     auto expr_shape_arr = expr_shape->values.value();
@@ -146,11 +146,11 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
   auto bind_from_tensor = [&bind_from_shape](const Type& var, const Type& expr) {
     auto var_tensor = var.as<TensorTypeNode>();
     if (!var_tensor) return;
-    if (!var_tensor->shape.defined()) return;
+    if (!var_tensor->shape.has_value()) return;
 
     auto expr_tensor = expr.as<TensorTypeNode>();
     if (!expr_tensor) return;
-    if (!expr_tensor->shape.defined()) return;
+    if (!expr_tensor->shape.has_value()) return;
 
     bind_from_shape(GetType(var_tensor->shape.value()), GetType(expr_tensor->shape.value()));
   };

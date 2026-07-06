@@ -976,7 +976,7 @@ class FusedTIRConstructor : public ExprVisitor {
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
       PrimType dtype = tensor->dtype.value();
       tirx::Buffer buffer;
-      if (tir_buffer_param.defined()) {
+      if (tir_buffer_param.has_value()) {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
                                    tir_buffer_param.value().scope(),
                                    tir_buffer_param.value()->axis_separators);
@@ -1254,7 +1254,8 @@ class TIRFuseMutator : public ExprMutator {
           << relax_func->params[i] << " to have type " << relax_func->params[i]->ty;
 
       if (const auto* shape = ty.as<ShapeTypeNode>()) {
-        TVM_FFI_ICHECK(shape->values.defined()) << "FuseTIR requires all shape input has ty value.";
+        TVM_FFI_ICHECK(shape->values.has_value())
+            << "FuseTIR requires all shape input has ty value.";
         for (const PrimExpr& prim_value : shape->values.value()) {
           TVM_FFI_ICHECK(prim_value->IsInstance<tirx::VarNode>())
               << "All shape inputs are expected to be single tirx var.";

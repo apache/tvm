@@ -55,7 +55,7 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
   ffi::Optional<PrimType> output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);
 
   if (lhs_ty.as<PrimTypeNode>() && rhs_ty.as<PrimTypeNode>()) {
-    TVM_FFI_ICHECK(output_dtype.defined());
+    TVM_FFI_ICHECK(output_dtype.has_value());
     return output_dtype.value();
   }
 
@@ -102,7 +102,7 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
   if (lhs_shape && rhs_shape) {
     ffi::Optional<ffi::Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, lhs_shape.value(), rhs_shape.value());
-    if (output_shape.defined()) {
+    if (output_shape.has_value()) {
       TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
       return TensorType(ShapeExpr(output_shape.value()), output_dtype, vdevice);
     }
@@ -121,7 +121,7 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
   // variable to the output.
   auto lhs_shape_expr = get_shape_expr(lhs_ty);
   auto rhs_shape_expr = get_shape_expr(rhs_ty);
-  if (lhs_shape_expr.defined() && lhs_shape_expr.same_as(rhs_shape_expr)) {
+  if (lhs_shape_expr.has_value() && lhs_shape_expr.same_as(rhs_shape_expr)) {
     return TensorType(lhs_shape_expr.value(), output_dtype, vdevice);
   }
 
@@ -159,12 +159,12 @@ InferLayoutOutput InferLayoutBinaryEwise(
   if ((layout1->layout.ndim() != layout1->layout.ndim_primal()) ||
       (layout2->layout.ndim() != layout2->layout.ndim_primal())) {
     if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
-      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.defined()) {
+      if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.has_value()) {
         if (CanProveLayoutTransform(InitialLayout(shape2.value()->values.size()), layout1->layout,
                                     shape2.value()->values)) {
           return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
         }
-      } else if (shape1.defined()) {
+      } else if (shape1.has_value()) {
         if (CanProveLayoutTransform(InitialLayout(shape1.value()->values.size()), layout2->layout,
                                     shape1.value()->values)) {
           return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));

@@ -174,7 +174,7 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       continue;
     }
     ffi::Optional<s_tir::SBlockRV> opt_block_rv = s_tir::ParseAnnotate(sch, inst, &vector_lane);
-    if (!opt_block_rv.defined()) {
+    if (!opt_block_rv.has_value()) {
       continue;
     }
     auto task = [thread_extent_x, thread_extent_y, vector_lane, sch,

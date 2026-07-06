@@ -63,13 +63,13 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   TensorType x2_ty = input_ty[1];
 
   VDevice vdev = VDevice();
-  if (x1_ty->vdevice.defined() && x2_ty->vdevice.defined()) {
+  if (x1_ty->vdevice.has_value() && x2_ty->vdevice.has_value()) {
     if (x1_ty->vdevice.value() == x2_ty->vdevice.value()) {
       vdev = x1_ty->vdevice.value();
     }
-  } else if (x1_ty->vdevice.defined()) {
+  } else if (x1_ty->vdevice.has_value()) {
     vdev = x1_ty->vdevice.value();
-  } else if (x2_ty->vdevice.defined()) {
+  } else if (x2_ty->vdevice.has_value()) {
     vdev = x2_ty->vdevice.value();
   }
 
@@ -126,7 +126,7 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
                                        x2_shape->values.end() - 2 + x2_appended};
   ffi::Optional<ffi::Array<PrimExpr>> output_shape_prefix =
       InferBinaryBroadcastShape(call, ctx, x1_shape_prefix, x2_shape_prefix);
-  if (!output_shape_prefix.defined()) {
+  if (!output_shape_prefix.has_value()) {
     if (vdev.defined()) {
       return TensorType(out_dtype, output_ndim, vdev);
     }
@@ -203,7 +203,7 @@ Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
   VDevice vdev = VDevice();
   for (TensorType ty : operands_tensor_ty) {
     if (!vdevice_unknown) {
-      if (ty->vdevice.defined()) {
+      if (ty->vdevice.has_value()) {
         if (!vdev.defined()) {
           vdev = ty->vdevice.value();
         } else if (ty->vdevice.value()->target.defined()) {

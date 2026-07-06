@@ -260,7 +260,7 @@ using tvm::tirx::Buffer;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();
-  TVM_FFI_ICHECK(shape.defined());
+  TVM_FFI_ICHECK(shape.has_value());
   return shape.value();
 }
 
@@ -640,7 +640,7 @@ class DefineVDevice : ExprMutator {
       auto tensor_ty = updated_ret_ty.as_or_throw<TensorType>();
       auto shape = tensor_ty->shape.value();
       auto dtype = tensor_ty->dtype;
-      if (tensor_ty->vdevice.defined()) {
+      if (tensor_ty->vdevice.has_value()) {
         auto vdev = tensor_ty->vdevice.value();
         const VDevice& vdev_global = MakeGlobalVDevice(vdev);
         updated_ret_ty = TensorType(shape, dtype, vdev_global);
@@ -664,7 +664,7 @@ class DefineVDevice : ExprMutator {
 
         auto shape = ty->shape.value();
         auto dtype = ty->dtype;
-        if (ty->vdevice.defined()) {
+        if (ty->vdevice.has_value()) {
           auto vdev = ty->vdevice.value();
           const VDevice& vdev_global = MakeGlobalVDevice(vdev);
           ty_fields.push_back(TensorType(shape, dtype, vdev_global));
@@ -716,9 +716,9 @@ class DefineVDevice : ExprMutator {
   Expr HintArg(const Expr& arg, ffi::String scope) {
     if (arg->IsInstance<ConstantNode>()) {
       if (auto tensor_ty = arg->ty.as<TensorTypeNode>()) {
-        if (!tensor_ty->vdevice.defined()) {
+        if (!tensor_ty->vdevice.has_value()) {
           const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
-          TVM_FFI_ICHECK(tensor_ty->shape.defined())
+          TVM_FFI_ICHECK(tensor_ty->shape.has_value())
               << "Shape not defined for a constant tensor ..!";
           arg->ty = TensorType(tensor_ty->shape.value(), tensor_ty->dtype, vdev, tensor_ty->span);
           return arg;
@@ -738,7 +738,7 @@ class DefineVDevice : ExprMutator {
 
   ffi::Optional<Target> GetTarget(const Type& ty) {
     auto tinfo = ty.as<TensorTypeNode>();
-    if (tinfo->vdevice.defined()) {
+    if (tinfo->vdevice.has_value()) {
       auto vdevice = tinfo->vdevice.value();
       if (vdevice->target.defined()) {
         return vdevice->target;

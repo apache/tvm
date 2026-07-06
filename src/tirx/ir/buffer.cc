@@ -578,7 +578,7 @@ Expr Buffer::access_ptr(int access_mask, PointerType ptr_type, int content_lanes
     e_dtype = tirx::TypeAnnotation(self->dtype);
   }
 
-  if (input_extent.defined()) {
+  if (input_extent.has_value()) {
     extent = input_extent.value();
   }
   ffi::Array<Expr> acc_args{e_dtype, self->data, elem_offset, extent, IntImm::Int32(access_mask)};

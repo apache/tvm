@@ -162,13 +162,13 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> 
   check_tuple("axes", axes);
   check_tuple("begin", begin);
   check_tuple("end", end);
-  if (strides.defined()) check_tuple("strides", strides.value());
+  if (strides.has_value()) check_tuple("strides", strides.value());
 
   ffi::ObjectPtr<StridedSliceAttrs> attrs = ffi::make_object<StridedSliceAttrs>();
   attrs->assume_inbound = assume_inbound;
 
   ffi::Array<Expr> args = {x, axes, begin, end};
-  if (strides.defined()) {
+  if (strides.has_value()) {
     args.push_back(strides.value());
   }
 
@@ -388,7 +388,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
         << ") and " << end_tuple.size() << " 'end' indices specified (" << end_tuple << ")";
 
     ffi::Array<PrimExpr> strides_tuple;
-    if (strides.defined()) {
+    if (strides.has_value()) {
       auto opt_strides_tuple = UnpackTupleOfPrimExpr(strides);
       if (!opt_strides_tuple) return std::nullopt;
 
@@ -406,9 +406,9 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
     auto opt_data_shape = data_ty->GetShape();
 
-    if (axes_tuple.empty() && !opt_data_shape.defined()) {
+    if (axes_tuple.empty() && !opt_data_shape.has_value()) {
       return data_ty->shape.value();
-    } else if (!opt_data_shape.defined()) {
+    } else if (!opt_data_shape.has_value()) {
       return std::nullopt;
     }
 
@@ -441,7 +441,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
     return ShapeExpr(output_shape);
   }();
 
-  if (shape.defined()) {
+  if (shape.has_value()) {
     return TensorType(shape.value(), dtype, vdevice);
   } else {
     return TensorType(dtype, ndim, vdevice);

@@ -67,7 +67,7 @@ class NormalizeMutator : public ExprMutatorBase {
 
   Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {
     builder_->BeginBindingBlock();
-    if (params.defined()) {
+    if (params.has_value()) {
       builder_->BeginScope(params);
     } else {
       builder_->BeginInnerScope();

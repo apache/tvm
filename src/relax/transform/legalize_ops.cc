@@ -52,9 +52,9 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", bool);
  */
 bool KnowAllShapeValues(const Type& ty) {
   if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
-    return tensor_ty->shape.defined() && tensor_ty->shape.value()->IsInstance<ShapeExprNode>();
+    return tensor_ty->shape.has_value() && tensor_ty->shape.value()->IsInstance<ShapeExprNode>();
   } else if (const auto* shape_ty = ty.as<ShapeTypeNode>()) {
-    return shape_ty->values.defined();
+    return shape_ty->values.has_value();
   } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
     return std::all_of(tuple_ty->fields.begin(), tuple_ty->fields.end(),
                        [](Type field_ty) { return KnowAllShapeValues(field_ty); });
@@ -75,7 +75,7 @@ class LegalizeMutator : public ExprMutator {
     if (cmap) {
       cmap_ = cmap.value();
     }
-    if (skip_ops.defined()) {
+    if (skip_ops.has_value()) {
       for (const auto name : skip_ops.value()) {
         skip_ops_.insert(Op::Get(name));
       }
@@ -154,7 +154,7 @@ class LegalizeMutator : public ExprMutator {
   ffi::Optional<Target> GetTarget(const ffi::Array<Type>& types) {
     for (auto ty : types) {
       if (const auto* tinfo = ty.as<TensorTypeNode>()) {
-        if (tinfo->vdevice.defined()) {
+        if (tinfo->vdevice.has_value()) {
           auto vdevice = tinfo->vdevice.value();
           if (vdevice->target.defined()) {
             return vdevice->target;
@@ -181,7 +181,7 @@ class LegalizeMutator : public ExprMutator {
     auto call = expr.as_or_throw<Call>();
 
     auto vdevice_target = GetTarget(call->ty_args);
-    if (!vdevice_target.defined()) {
+    if (!vdevice_target.has_value()) {
       // No vdevice annotation is present, so we don't need to apply
       // any updates.
       return expr;

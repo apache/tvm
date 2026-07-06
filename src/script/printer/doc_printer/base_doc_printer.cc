@@ -371,7 +371,7 @@ void DocPrinter::MarkSpan(const ByteSpan& span, const AccessPath& path) {
   for (int i = 0; i < n; ++i) {
     AccessPath p = path_to_underline_[i];
     if (path->depth >= current_max_path_depth_[i] && path->IsPrefixOf(p)) {
-      if (path->depth > current_max_path_depth_[i] || !current_visible_paths_[i].defined()) {
+      if (path->depth > current_max_path_depth_[i] || !current_visible_paths_[i].has_value()) {
         current_max_path_depth_[i] = path->depth;
         current_visible_paths_[i] = path;
         current_underline_candidates_[i].clear();

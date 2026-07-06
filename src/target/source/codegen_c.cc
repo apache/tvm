@@ -907,7 +907,7 @@ void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
 
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
-  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
+  TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer load is not supported.";
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
@@ -982,7 +982,7 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
 
 void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
-  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
+  TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer store is not supported.";
 
   PrimType value_ty = op->value.ty();
   const PrimType& element_ty = op->buffer->dtype;

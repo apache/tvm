@@ -227,7 +227,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
         s_tir::GetAutoTensorizeMappingInfo(
             sch->state(), sch->GetSRef(block_rv),
             tirx::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
-    if (mapping_info.defined()) {
+    if (mapping_info.has_value()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }
   }
@@ -294,7 +294,7 @@ void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(
     Schedule* sch, const SBlockRV& block_rv, const ffi::String& intrin_name,
     const ffi::String& permuted_layout_annotate_value) const {
   ffi::Optional<LoopRV> loop = s_tir::TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
-  TVM_FFI_ICHECK(loop.defined());
+  TVM_FFI_ICHECK(loop.has_value());
   SBlockRV blockized_outer = (*sch)->Blockize(loop.value());
   (*sch)->Annotate(blockized_outer, s_tir::attr::meta_schedule_auto_tensorize, intrin_name);
   if (!permuted_layout_annotate_value.empty()) {
@@ -902,7 +902,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
   // Do reindex and layout transformations.
   ffi::Optional<LoopRV> transformed_loop_rv =
       TransformWithTensorIntrin(state.operator->(), state->intrin_group.compute_intrin);
-  if (!transformed_loop_rv.defined()) {
+  if (!transformed_loop_rv.has_value()) {
     // The workload can't be tensorized.
     return {};
   }
@@ -925,7 +925,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write, bool use_software_pipeline) {
-  if (tile_binds.defined()) {
+  if (tile_binds.has_value()) {
     for (const ffi::String& tile_bind : tile_binds.value()) {
       TVM_FFI_ICHECK_NE(tile_bind, "threadIdx.x")
           << "Cannot bind to threadIdx.x when using tensor core.";

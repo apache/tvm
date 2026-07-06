@@ -366,7 +366,7 @@ class HoistInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const IfThenElseNode* op) final {
     AttemptHoistConditional(op->condition, HoistedConditionals::kIfElseStmt,
-                            op->else_case.defined());
+                            op->else_case.has_value());
     Parent::VisitStmt_(op);
   }
 
@@ -569,7 +569,7 @@ Pass HoistExpression() {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
 
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<HoistExpressionConfig>();
     }
     n->body = ExpressionHoister::Hoist(std::move(n->body), cfg.value());
@@ -603,7 +603,7 @@ static Pass HoistIfThenElseImpl() {
       n->body = ExpressionHoister::Hoist(std::move(n->body), config);
       return f;
     }
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<HoistIfThenElseConfig>();
     }
     int block_var = static_cast<int>(cfg.value()->support_block_scope_hoisting

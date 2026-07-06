@@ -383,7 +383,7 @@ ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
   ffi::Array<BufferRegion> writes = detector.CollectWrites();
   std::unordered_set<const BufferNode*> excluded_buffers;
   // exclude write buffers from read regions for reductions if init block is defined.
-  if (block->init.defined()) {
+  if (block->init.has_value()) {
     for (const BufferRegion& write_access : writes) {
       excluded_buffers.insert(write_access->buffer.get());
     }
@@ -403,7 +403,7 @@ ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
     excluded_buffers.insert(opaque_access->buffer.get());
   }
   ffi::Array<BufferRegion> writes = detector.CollectWrites(&excluded_buffers);
-  if (block->init.defined()) {
+  if (block->init.has_value()) {
     for (const BufferRegion& write_access : writes) {
       excluded_buffers.insert(write_access->buffer.get());
     }

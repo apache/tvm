@@ -61,7 +61,7 @@ inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_
   const int64_t max_range = std::numeric_limits<int64_t>::max();
   std::vector<int64_t> begin_vec;
   for (size_t i = 0; i < begin.size(); ++i) {
-    if (!begin[i].defined()) {
+    if (!begin[i].has_value()) {
       // value=None
       begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
     } else {
@@ -71,7 +71,7 @@ inline std::tuple<std::vector<int64_t>, std::vector<int64_t>, std::vector<int64_
   std::vector<int64_t> end_vec;
   for (size_t i = 0; i < end.size(); ++i) {
     // allow end to be None
-    if (!end[i].defined()) {
+    if (!end[i].has_value()) {
       end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
     } else if (slice_mode == "size") {
       int64_t end_val = end[i].value()->value;

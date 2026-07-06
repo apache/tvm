@@ -92,7 +92,7 @@ Type InferTypePool1D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
-  if (!data_shape.defined()) {
+  if (!data_shape.has_value()) {
     return TensorType(data_ty->dtype, out_layout.ndim(), data_ty->vdevice);
   }
 
@@ -216,7 +216,7 @@ Type InferTypePool2D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
-  if (!data_shape.defined()) {
+  if (!data_shape.has_value()) {
     return TensorType(data_ty->dtype, out_layout.ndim(), data_ty->vdevice);
   }
 
@@ -373,7 +373,7 @@ Type InferTypePool3D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
-  if (!data_shape.defined()) {
+  if (!data_shape.has_value()) {
     return TensorType(data_ty->dtype, out_layout.ndim(), data_ty->vdevice);
   }
 
@@ -528,7 +528,7 @@ Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   ffi::ObjectPtr<AdaptivePool1DAttrs> attrs = ffi::make_object<AdaptivePool1DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
-  if (output_size.defined()) {
+  if (output_size.has_value()) {
     ffi::Array<int64_t> _output_size = output_size.value();
     TVM_FFI_ICHECK_EQ(_output_size.size(), 1)
         << "The output_size length is expected to be 1. However, the given output_size is "
@@ -558,9 +558,9 @@ Type InferTypeAdaptiveAvgPool1D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
-  if (!data_shape.defined()) {
-    if (data_ty->shape.defined() && attrs->out_layout == attrs->layout &&
-        !attrs->output_size.defined()) {
+  if (!data_shape.has_value()) {
+    if (data_ty->shape.has_value() && attrs->out_layout == attrs->layout &&
+        !attrs->output_size.has_value()) {
       return data_ty;
     } else {
       return TensorType(data_ty->dtype, out_layout.ndim(), data_ty->vdevice);
@@ -569,7 +569,7 @@ Type InferTypeAdaptiveAvgPool1D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Array<PrimExpr> data_NCW_shape = data2NCW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> out_NCW_shape(data_NCW_shape);
-  if (attrs->output_size.defined()) {
+  if (attrs->output_size.has_value()) {
     out_NCW_shape.Set(2, IntImm::Int32(attrs->output_size.value()[0]));
   }
 
@@ -610,7 +610,7 @@ Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   ffi::ObjectPtr<AdaptivePool2DAttrs> attrs = ffi::make_object<AdaptivePool2DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
-  if (output_size.defined()) {
+  if (output_size.has_value()) {
     ffi::Array<int64_t> _output_size = output_size.value();
     if (_output_size.size() == 1) {
       _output_size.push_back(_output_size[0]);
@@ -643,9 +643,9 @@ Type InferTypeAdaptiveAvgPool2D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
-  if (!data_shape.defined()) {
-    if (data_ty->shape.defined() && attrs->out_layout == attrs->layout &&
-        !attrs->output_size.defined()) {
+  if (!data_shape.has_value()) {
+    if (data_ty->shape.has_value() && attrs->out_layout == attrs->layout &&
+        !attrs->output_size.has_value()) {
       return data_ty;
     } else {
       return TensorType(data_ty->dtype, out_layout.ndim(), data_ty->vdevice);
@@ -654,7 +654,7 @@ Type InferTypeAdaptiveAvgPool2D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Array<PrimExpr> data_NCHW_shape = data2NCHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> out_NCHW_shape(data_NCHW_shape);
-  if (attrs->output_size.defined()) {
+  if (attrs->output_size.has_value()) {
     out_NCHW_shape.Set(2, IntImm::Int32(attrs->output_size.value()[0]));
     out_NCHW_shape.Set(3, IntImm::Int32(attrs->output_size.value()[1]));
   }
@@ -713,7 +713,7 @@ Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   ffi::ObjectPtr<AdaptivePool3DAttrs> attrs = ffi::make_object<AdaptivePool3DAttrs>();
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
-  if (output_size.defined()) {
+  if (output_size.has_value()) {
     ffi::Array<int64_t> _output_size = output_size.value();
     if (_output_size.size() == 1) {
       _output_size.push_back(_output_size[0]);
@@ -746,9 +746,9 @@ Type InferTypeAdaptiveAvgPool3D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ShapeExpr> data_shape =
       CheckNdimPerLayoutAndGetShape(call, ctx, data_ty, data_layout);
-  if (!data_shape.defined()) {
-    if (data_ty->shape.defined() && attrs->out_layout == attrs->layout &&
-        !attrs->output_size.defined()) {
+  if (!data_shape.has_value()) {
+    if (data_ty->shape.has_value() && attrs->out_layout == attrs->layout &&
+        !attrs->output_size.has_value()) {
       return data_ty;
     } else {
       return TensorType(data_ty->dtype, out_layout.ndim(), data_ty->vdevice);
@@ -757,7 +757,7 @@ Type InferTypeAdaptiveAvgPool3D(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Array<PrimExpr> data_NCDHW_shape = data2NCDHW.ForwardShape(data_shape.value()->values);
   ffi::Array<PrimExpr> out_NCDHW_shape(data_NCDHW_shape);
-  if (attrs->output_size.defined()) {
+  if (attrs->output_size.has_value()) {
     out_NCDHW_shape.Set(2, IntImm::Int32(attrs->output_size.value()[0]));
     out_NCDHW_shape.Set(3, IntImm::Int32(attrs->output_size.value()[1]));
     out_NCDHW_shape.Set(4, IntImm::Int32(attrs->output_size.value()[2]));

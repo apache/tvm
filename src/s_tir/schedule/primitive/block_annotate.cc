@@ -90,7 +90,7 @@ class NonAllocatedBufferError : public ScheduleError {
   static StmtSRef CheckAndGetBufferAllocationSite(const IRModule& mod, const StmtSRef& block_sref,
                                                   const Buffer& buffer) {
     auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, buffer);
-    if (!defining_site_sref.defined() || !is_alloc) {
+    if (!defining_site_sref.has_value() || !is_alloc) {
       throw NonAllocatedBufferError(mod, buffer);
     }
 

@@ -165,7 +165,7 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
   ffi::Array<int64_t> axes;
   bool keepdims;
   if (const auto* attrs = call->attrs.as<StatisticalAttrs>()) {
-    if (attrs->axis.defined()) {
+    if (attrs->axis.has_value()) {
       axes = attrs->axis.value();
     }
     keepdims = attrs->keepdims;
@@ -286,7 +286,7 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
   TVM_FFI_ICHECK(attrs);
   int ndim = GetTensorType(input_tensor)->ndim;
   std::vector<int> normalized_axes;
-  if (attrs->axes.defined()) {
+  if (attrs->axes.has_value()) {
     for (int64_t i : attrs->axes.value()) {
       int val = static_cast<int>(i);
       TVM_FFI_ICHECK(val < ndim && val >= -ndim);

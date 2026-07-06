@@ -274,7 +274,7 @@ class LambdaLifter : public ExprMutator {
     bool is_recursive = false;
     bool is_closure = false;
     for (const auto& var : FreeVars(func)) {
-      if (var.same_as(current_lambda_var_)) {
+      if (current_lambda_var_.same_as(var)) {
         is_recursive = true;
       } else {
         is_closure = true;
@@ -369,7 +369,7 @@ class LambdaLifter : public ExprMutator {
 
       if (IsClosure(var) && builder_->LookupBinding(var).as<CallNode>()) {
         // if the original op was pure, we should use invoke_pure_closure
-        Call orig_call = builder_->LookupBinding(var).as_or_throw<Call>();
+        Call orig_call = builder_->LookupBinding(var).value().as_or_throw<Call>();
         bool is_pure = [&]() -> bool {
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");

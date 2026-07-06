@@ -759,7 +759,7 @@ class ThreadExtentCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
   void VisitStmt_(const ForNode* op) final {
-    if (op->thread_binding.defined() && op->thread_binding.value()->iter_type == kThreadIndex) {
+    if (op->thread_binding.has_value() && op->thread_binding.value()->iter_type == kThreadIndex) {
       if (const auto* extent = op->extent.as<IntImmNode>()) {
         thread_extent_.Set(op->thread_binding.value()->thread_tag, extent->value);
       }

@@ -50,7 +50,7 @@ static ffi::Array<Range> ConstructRangeFromShape(const ffi::Array<PrimExpr>& sha
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();
-  TVM_FFI_ICHECK(shape.defined());
+  TVM_FFI_ICHECK(shape.has_value());
   return shape.value();
 }
 
@@ -304,11 +304,11 @@ class AlterOpImplMutator : public ExprMutator {
     for (const auto& input : inputs->fields) {
       ffi::Array<IntImm> axis_separator;
       ffi::Array<IntImm> input_axis_separator;
-      if (axis_separators.defined()) {
+      if (axis_separators.has_value()) {
         ffi::Array<ffi::Array<IntImm>> axis_separators_value = axis_separators.value();
         axis_separator = axis_separators_value[index];
       }
-      if (input_axis_separators.defined()) {
+      if (input_axis_separators.has_value()) {
         ffi::Array<ffi::Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
         input_axis_separator = input_axis_separators_value[index];
       }
@@ -353,7 +353,7 @@ class AlterOpImplMutator : public ExprMutator {
     auto shape = GetShapeFromTensorType(tensor_ty);
     arith::Analyzer analyzer;
     auto new_shape = transform->MapShape(shape, analyzer);
-    if (tensor_ty->vdevice.defined()) {
+    if (tensor_ty->vdevice.has_value()) {
       return TensorType(ShapeExpr(new_shape), tensor_ty->dtype, tensor_ty->vdevice.value());
     }
     return TensorType(ShapeExpr(new_shape), tensor_ty->dtype);
@@ -375,11 +375,11 @@ class AlterOpImplMutator : public ExprMutator {
     // If there is a single output, return the transformed output.
     if (num_outputs == 1) {
       IndexMap output_map = buffer_transforms[first_output_index];
-      if (axis_separators.defined()) {
+      if (axis_separators.has_value()) {
         ffi::Array<ffi::Array<IntImm>> axis_separators_value = axis_separators.value();
         axis_sep = axis_separators_value[first_output_index];
       }
-      if (input_axis_separators.defined()) {
+      if (input_axis_separators.has_value()) {
         ffi::Array<ffi::Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
         input_axis_sep = input_axis_separators_value[first_output_index];
       }
@@ -391,11 +391,11 @@ class AlterOpImplMutator : public ExprMutator {
     ffi::Array<Expr> transformed_outputs;
     for (size_t i = 0; i + first_output_index < buffer_transforms.size(); ++i) {
       const auto& output_map = buffer_transforms[i + first_output_index];
-      if (axis_separators.defined()) {
+      if (axis_separators.has_value()) {
         ffi::Array<ffi::Array<IntImm>> axis_separators_value = axis_separators.value();
         axis_sep = axis_separators_value[i + first_output_index];
       }
-      if (input_axis_separators.defined()) {
+      if (input_axis_separators.has_value()) {
         ffi::Array<ffi::Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
         input_axis_sep = input_axis_separators_value[i + first_output_index];
       }

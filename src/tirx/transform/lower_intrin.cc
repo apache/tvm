@@ -431,7 +431,7 @@ Pass LowerIntrin() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    TVM_FFI_ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
+    TVM_FFI_ICHECK(target.has_value()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
     bool enable_fast_math = ctx->GetConfig<bool>("tirx.enable_fast_math", false).value();
     n->body = IntrinInjecter(analyzer, target.value(), enable_fast_math)(std::move(n->body));

@@ -86,7 +86,7 @@ Tuple::Tuple(tvm::ffi::Array<Expr> fields, Span span) {
   ffi::ObjectPtr<TupleNode> n = ffi::make_object<TupleNode>();
   n->fields = std::move(fields);
   n->span = std::move(span);
-  if (tuple_ty.defined()) {
+  if (tuple_ty.has_value()) {
     n->ty = tuple_ty.value();
   }
   data_ = std::move(n);
@@ -149,7 +149,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Var::Var(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
   n->vid = std::move(vid);
-  if (ty_annotation.defined()) {
+  if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
   n->span = std::move(span);
@@ -188,7 +188,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 DataflowVar::DataflowVar(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
   n->vid = std::move(vid);
-  if (ty_annotation.defined()) {
+  if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
   n->span = std::move(span);
@@ -218,7 +218,7 @@ Constant::Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span
   for (size_t dim = 0; dim < shape_tuple.size(); ++dim) {
     values.push_back(IntImm::Int64(shape_tuple[dim]));
   }
-  if (ty_annotation.defined()) {
+  if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   } else {
     TensorType tinfo(ShapeExpr(values), PrimType(n->data.DataType()), VDevice(), span);
@@ -411,7 +411,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
     body_ty = GetType(body);
   }
 
-  TVM_FFI_ICHECK(body_ty.defined() || ret_ty.defined())
+  TVM_FFI_ICHECK(body_ty.has_value() || ret_ty.has_value())
       << "Function must be constructed with either "
       << "an explicit type for the return type, "
       << "or a normalized body with type.";
@@ -419,7 +419,7 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
   // Use the body's type if there is no explicit return type,
   // or if the body may provide a more granular return type.
   bool use_body_ty =
-      !ret_ty.defined() || (body_ty && ret_ty && IsBaseOf(ret_ty.value(), body_ty.value()));
+      !ret_ty.has_value() || (body_ty && ret_ty && IsBaseOf(ret_ty.value(), body_ty.value()));
 
   if (use_body_ty) {
     // MatchCast nodes within the body may introduce new symbolic
@@ -546,7 +546,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ExternFunc",
                         [](ffi::String global_symbol, ffi::Optional<Type> ty, Span span) {
-                          if (ty.defined()) {
+                          if (ty.has_value()) {
                             return ExternFunc(global_symbol, ty.value(), span);
                           } else {
                             return ExternFunc(global_symbol, span);
@@ -560,7 +560,7 @@ Expr GetShapeOf(const Expr& expr) {
   auto* tinfo = GetTypeAs<TensorTypeNode>(expr);
 
   TVM_FFI_ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorType";
-  if (tinfo->shape.defined()) return tinfo->shape.value();
+  if (tinfo->shape.has_value()) return tinfo->shape.value();
 
   static const Op& op = Op::Get("relax.shape_of");
   // default case, call shape of, eagerly normalize the expr.

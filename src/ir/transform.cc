@@ -636,7 +636,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         pctx->disabled_pass = std::move(disabled);
         pctx->instruments = std::move(instruments);
 
-        if (config.defined()) {
+        if (config.has_value()) {
           pctx->config = config.value();
         }
         PassConfigManager::Global()->Legalize(&(pctx->config));

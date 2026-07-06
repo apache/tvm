@@ -330,7 +330,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::RValueRef<IRModule> mod, ffi::Map<ffi::String, ffi::Any> attr_map) -> IRModule {
              return WithAttrs(*std::move(mod), attr_map);
            })
-      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::ObjectRef {
+      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::Optional<ffi::ObjectRef> {
         return mod->GetAttr<ffi::ObjectRef>(key);
       });
 }

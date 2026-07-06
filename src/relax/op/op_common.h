@@ -212,7 +212,7 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
     auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
     TVM_FFI_ICHECK(defined_ty);
     auto shape = output_ty->GetShape();
-    TVM_FFI_ICHECK(shape.defined());
+    TVM_FFI_ICHECK(shape.has_value());
     TVM_FFI_ICHECK(defined_ty->vdevice.has_value());
     return TensorType(ShapeExpr(shape.value()), output_ty->dtype, defined_ty->vdevice.value());
   } else {
@@ -278,7 +278,7 @@ inline std::optional<PrimType> GetElementDType(const Type& ty) {
   if (const auto* prim = ty.as<PrimTypeNode>()) {
     return ffi::GetRef<PrimType>(prim);
   } else if (const auto* tensor = ty.as<TensorTypeNode>()) {
-    if (tensor->dtype.defined()) {
+    if (tensor->dtype.has_value()) {
       return tensor->dtype.value();
     } else {
       return std::nullopt;
@@ -370,10 +370,10 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
   auto lhs_vdevice = get_vdevice(lhs_ty);
   auto rhs_vdevice = get_vdevice(rhs_ty);
 
-  if (!lhs_vdevice.defined() || !lhs_vdevice.value()->target.defined()) {
+  if (!lhs_vdevice.has_value() || !lhs_vdevice.value()->target.defined()) {
     return rhs_vdevice;
   }
-  if (!rhs_vdevice.defined() || !rhs_vdevice.value()->target.defined()) {
+  if (!rhs_vdevice.has_value() || !rhs_vdevice.value()->target.defined()) {
     return lhs_vdevice;
   }
 

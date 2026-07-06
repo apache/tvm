@@ -43,7 +43,9 @@ IndexMap::IndexMap(ffi::Array<PrimVar> initial_indices, ffi::Array<PrimExpr> fin
   auto n = ffi::make_object<IndexMapNode>();
   n->initial_indices = std::move(initial_indices);
   n->final_indices = std::move(final_indices);
-  n->inverse_index_map = std::move(inverse_index_map);
+  if (inverse_index_map.has_value()) {
+    n->inverse_index_map = inverse_index_map.value();
+  }
   data_ = std::move(n);
 }
 
@@ -68,7 +70,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
                                                   arith::AnalyzerObj* analyzer) {
   TVM_FFI_ICHECK(analyzer != nullptr);
   arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-  if (self->inverse_index_map.defined()) {
+  if (self->inverse_index_map.has_value()) {
     // return the pre-defined inverse index map if exists.  In this
     // case, the user-defined inverse is assumed to be correct and
     // bijective.
@@ -225,7 +227,7 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
       ffi::Optional<PrimExpr> extent = std::nullopt;
       for (const auto& term : index->args) {
         PrimExpr term_extent = term->extent * term->scale;
-        if (extent.defined()) {
+        if (extent.has_value()) {
           extent = tvm::max(extent.value(), term_extent);
         } else {
           extent = term_extent;
@@ -395,9 +397,9 @@ IndexMap IndexMap::RenameVariables(
   auto new_final_indices =
       n->final_indices.Map([&](const PrimExpr& expr) { return Substitute(expr, var_remap); });
   ffi::Optional<IndexMap> new_inverse_index_map = std::nullopt;
-  if (n->inverse_index_map.defined()) {
+  if (n->inverse_index_map.has_value()) {
     new_inverse_index_map =
-        n->inverse_index_map.as_or_throw<IndexMap>().RenameVariables(f_name_map);
+        n->inverse_index_map.value().as_or_throw<IndexMap>().RenameVariables(f_name_map);
   }
   return IndexMap(new_initial_indices, new_final_indices, new_inverse_index_map);
 }
@@ -437,7 +439,7 @@ ffi::String IndexMapNode::ToPythonString(
   auto index_map = ffi::GetRef<IndexMap>(this).RenameVariables(f_name_map);
   std::string lambda_expr =
       IndexMap2PythonLambdaExpr(index_map->initial_indices, index_map->final_indices);
-  if (!index_map->inverse_index_map.defined()) {
+  if (!index_map->inverse_index_map.has_value()) {
     return ffi::String(lambda_expr);
   }
   // Also convert the inverse index map.
@@ -459,7 +461,7 @@ IndexMap Substitute(const IndexMap& index_map,
   ffi::Array<PrimExpr> new_output = index_map->final_indices.Map(
       [&](const PrimExpr& expr) { return Substitute(expr, general_subst); });
   ffi::Optional<IndexMap> new_inverse_map = std::nullopt;
-  if (index_map->inverse_index_map.defined()) {
+  if (index_map->inverse_index_map.has_value()) {
     new_inverse_map =
         Substitute(index_map->inverse_index_map.value().as_or_throw<IndexMap>(), f_subst);
   }

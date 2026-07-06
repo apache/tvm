@@ -799,7 +799,7 @@ BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
-  if (predicate.defined()) {
+  if (predicate.has_value()) {
     PrimType predicate_ty = predicate.value().ty();
     bool is_index_scalable = indices.empty() ? false : indices.back().ty().IsScalableVector();
     bool is_predicate_scalable = predicate_ty.IsScalableVector();

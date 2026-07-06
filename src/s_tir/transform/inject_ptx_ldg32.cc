@@ -131,7 +131,7 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
   auto pass_func = [enable_inject_ptx_intrin](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_inject_ptx_intrin) {
       auto target = f->GetAttr<Target>("target");
-      if (!target.defined() || target.value()->kind->name != "cuda") {
+      if (!target.has_value() || target.value()->kind->name != "cuda") {
         return f;
       }
       auto* n = f.CopyOnWrite();

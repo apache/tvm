@@ -266,7 +266,7 @@ class RemoveUnusedVars : public ExprMutator {
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
-    bool capture_output = (block == caught_rewrite.get());
+    bool capture_output = caught_rewrite && block == caught_rewrite.value().get();
 
     bool cache = in_dataflow_block_;
     in_dataflow_block_ = true;

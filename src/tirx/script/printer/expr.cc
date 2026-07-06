@@ -217,8 +217,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](tirx::IndexMap m, AccessPath m_p, IRDocsifier d) -> Doc {
           LambdaDoc map = PrintIndexMap(m, m->initial_indices, m_p->Attr("initial_indices"),
                                         m->final_indices, m_p->Attr("final_indices"), d);
-          if (m->inverse_index_map.defined()) {
-            tirx::IndexMap inverse = m->inverse_index_map.as_or_throw<tirx::IndexMap>();
+          if (m->inverse_index_map.has_value()) {
+            tirx::IndexMap inverse = m->inverse_index_map.value().as_or_throw<tirx::IndexMap>();
             LambdaDoc inv = PrintIndexMap(inverse, inverse->initial_indices,
                                           m_p->Attr("inverse_index_map")->Attr("initial_indices"),
                                           inverse->final_indices,
@@ -259,7 +259,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   ffi::Optional<PrimType> call_prim_type = call->ty.as<PrimType>();
   auto get_call_type_doc = [&](AccessPath type_p) -> ExprDoc {
-    if (call_prim_type.defined()) {
+    if (call_prim_type.has_value()) {
       return LiteralDoc::DataType(call_prim_type.value()->dtype, type_p);
     }
     if (const auto* pointer_type = call->ty.as<PointerTypeNode>()) {

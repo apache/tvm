@@ -39,7 +39,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   ffi::Array<s_tir::LoopRV> loops = sch->GetLoops(block);
   for (const s_tir::LoopRV& loop : loops) {
     // skip block if already scheduled
-    if (sch->Get(loop)->thread_binding.defined()) {
+    if (sch->Get(loop)->thread_binding.has_value()) {
       return;
     }
   }
@@ -160,7 +160,7 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
   tvm::Target target = tvm::Target::Current();
   // the Target in kTarget attribute of PrimFunc
   ffi::Optional<tvm::Target> func_target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
-  if (func_target.defined()) {
+  if (func_target.has_value()) {
     target = func_target.value();
   }
 
@@ -208,7 +208,7 @@ Pass DefaultGPUSchedule() {
             // get the target from kTarget attribute
             ffi::Optional<tvm::Target> func_target =
                 func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
-            if (func_target.defined()) {
+            if (func_target.has_value()) {
               target = func_target.value();
             }
             TVM_FFI_ICHECK(target.defined())

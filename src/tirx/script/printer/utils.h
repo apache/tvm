@@ -137,13 +137,13 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
         bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
-                              !store->predicate.defined() && store->indices.size() == 1 &&
+                              !store->predicate.has_value() && store->indices.size() == 1 &&
                               tirx::is_zero(store->indices[0]) &&
                               !value_refs_buffer(store->value, alloc->buffer);
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);
           if (const auto* assign = alloc_doc.as<AssignDocNode>()) {
-            if (assign->annotation.defined() && !assign->rhs.defined()) {
+            if (assign->annotation.has_value() && !assign->rhs.has_value()) {
               ExprDoc init_rhs =
                   d->AsDoc<ExprDoc>(store->value, p->Attr("seq")->ArrayItem(i + 1)->Attr("value"));
               auto fused = AssignDoc(assign->lhs, init_rhs, assign->annotation);

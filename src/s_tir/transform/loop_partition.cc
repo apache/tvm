@@ -830,7 +830,7 @@ Pass LoopPartition() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<LoopPartitionConfig>();
     }
     n->body = s_tir::LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,

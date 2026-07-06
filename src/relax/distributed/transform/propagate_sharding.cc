@@ -283,7 +283,7 @@ class ShardingConflictHandler : public ExprVisitor {
         continue;
       }
 
-      if (device_mesh.defined()) {
+      if (device_mesh.has_value()) {
         TVM_FFI_ICHECK(ffi::StructuralEqual()(device_mesh.value(), sharding_spec.first))
             << "Sharding conflict detected for tensor " << var->name_hint()
             << ": Device Mesh mismatch"

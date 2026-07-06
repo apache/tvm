@@ -385,7 +385,7 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
     runtime::StorageScope scope =
         relax_storage_scope ? runtime::StorageScope::Create(buffer.scope()) : global_scope;
     runtime::StorageRank rank = scope.rank;
-    if (rank != previous_rank || !var_dom.defined()) {
+    if (rank != previous_rank || !var_dom.has_value()) {
       previous_rank = rank;
       var_dom = arith::AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/relax_path_low_inclusive,
@@ -470,7 +470,8 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
       }
     }
   }
-  TVM_FFI_CHECK(var.defined(), ValueError) << "BufferRegion pattern match failed: " << provided_min;
+  TVM_FFI_CHECK(var.has_value(), ValueError)
+      << "BufferRegion pattern match failed: " << provided_min;
   return {var.value(), BlockVarDomainInfo{var_dom, var_bound}};
 }
 

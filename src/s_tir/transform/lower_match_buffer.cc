@@ -124,7 +124,7 @@ class MatchBufferLower : public StmtExprMutator {
       auto n = CopyOnWrite(op);
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
       n->buffer = source->buffer;
-      TVM_FFI_ICHECK(!op->predicate.defined())
+      TVM_FFI_ICHECK(!op->predicate.has_value())
           << "Predicated buffer store is not currently supported in lower match buffer pass.";
       return Stmt(n);
     }
@@ -144,7 +144,7 @@ class MatchBufferLower : public StmtExprMutator {
       const Buffer& buffer = (*it).first;
       const BufferRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      TVM_FFI_ICHECK(!op->predicate.defined())
+      TVM_FFI_ICHECK(!op->predicate.has_value())
           << "Predicated buffer load is not currently supported in lower match buffer pass.";
       return BufferLoad(source->buffer, indices);
     }

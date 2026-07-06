@@ -56,7 +56,17 @@ jobs:
       - name: Install TVM from wheel
         shell: bash -l {0}
         run: |
-          pip install dist/*.whl
+          export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
+          pip install ml_dtypes
+          # Keep the source-matched tvm-ffi installed by the setup action.
+          pip install --no-deps dist/*.whl
+          python - <<'PY'
+          import os
+          from importlib.metadata import requires, version
+
+          assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
+          assert "apache-tvm-ffi>=0.1.13" in requires("apache-tvm")
+          PY
 
       - name: Test
         shell: bash -l {0}

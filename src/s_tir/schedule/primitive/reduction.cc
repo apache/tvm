@@ -717,7 +717,7 @@ class BaseBlockCreator {
     PreProcess();
     Stmt block_body = Substitute(CreateBlockBody(has_reduce_iter), var_map_);
     ffi::Optional<Stmt> block_init = CreateBlockInit(has_reduce_iter);
-    if (block_init.defined()) {
+    if (block_init.has_value()) {
       block_init = Substitute(block_init.value(), var_map_);
     }
     CreateReadWriteRegions();
@@ -965,7 +965,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
           region.begin() + factor_axis_,
           Range::FromMinExtent(additional_iter_->var, IntImm(additional_iter_->var.ty(), 1)));
       ffi::Optional<Buffer> rf_buffer = buffer_map.Get(write_region->buffer);
-      TVM_FFI_ICHECK(rf_buffer.defined());
+      TVM_FFI_ICHECK(rf_buffer.has_value());
       write_regions_.push_back(BufferRegion(rf_buffer.value(), Substitute(region, var_map_)));
     }
   }

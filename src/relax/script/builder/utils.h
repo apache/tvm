@@ -52,8 +52,8 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
 
 inline tvm::relax::BlockBuilder GetBlockBuilder() {
   ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
-  TVM_FFI_CHECK(frame.defined(), ValueError) << "Relax Function frame not find. Please ensure "
-                                                "assignment is called under R.function()";
+  TVM_FFI_CHECK(frame.has_value(), ValueError) << "Relax Function frame not find. Please ensure "
+                                                  "assignment is called under R.function()";
   return frame.value()->block_builder;
 }
 
@@ -63,7 +63,7 @@ inline BindingBlockFrame CheckBindingBlockFrameExistAndUnended() {
 
   ffi::Optional<BindingBlockFrame> block_frame =
       IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
-  TVM_FFI_CHECK(block_frame.defined(), ValueError) << "Block frame not find";
+  TVM_FFI_CHECK(block_frame.has_value(), ValueError) << "Block frame not find";
   TVM_FFI_CHECK(!block_frame.value()->block_ended, ValueError)
       << "New binding is not allowed after dataflow block output.";
   return block_frame.value();

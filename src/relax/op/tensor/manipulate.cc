@@ -99,11 +99,11 @@ Type InferTypeBroadcastTo(const Call& call, const BlockBuilder& ctx) {
   }
 
   // Trust the input target shape when there is no possibility to do any compile-time check.
-  if (!data_ty->shape.defined()) {
+  if (!data_ty->shape.has_value()) {
     return TensorType(/*shape=*/call->args[1], data_ty->dtype, data_ty->vdevice);
   }
   ShapeType shape_ty = data_ty->shape.value()->ty.as_or_throw<ShapeType>();
-  if (!shape_ty->values.defined() || !tgt_shape_ty->values.defined()) {
+  if (!shape_ty->values.has_value() || !tgt_shape_ty->values.has_value()) {
     return TensorType(/*shape=*/call->args[1], data_ty->dtype, data_ty->vdevice);
   }
 
@@ -231,7 +231,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
     // Update the output dtype.
     if (ty->IsUnknownDtype()) {
       is_void_dtype = true;
-    } else if (!output_dtype.defined()) {
+    } else if (!output_dtype.has_value()) {
       output_dtype = ty->dtype;
     } else if (ty->dtype != output_dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -254,12 +254,12 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
 
     // Update the virtual device.
     if (!vdevice_unknown) {
-      if (ty->vdevice.defined()) {
-        if (!vdev.defined()) {
+      if (ty->vdevice.has_value()) {
+        if (!vdev.has_value()) {
           vdev = ty->vdevice.value();
         } else if (ty->vdevice.value()->target.defined()) {
           // mismatch
-          if (ty->vdevice.value() != vdev) {
+          if (ty->vdevice.value() != vdev.value()) {
             vdevice_unknown = true;
           }
         }
@@ -274,12 +274,12 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
     }
     shape_unknown = true;
 
-    if (!ty->shape.defined()) {
+    if (!ty->shape.has_value()) {
       continue;
     }
     // Keep the shape value for equality check.
     ShapeType shape_ty = ty->shape.value()->ty.as_or_throw<ShapeType>();
-    if (shape_ty->values.defined()) {
+    if (shape_ty->values.has_value()) {
       shape_values.push_back(shape_ty->values.value());
     }
   }
@@ -312,7 +312,7 @@ Type InferTypeConcat(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<ffi::Array<PrimExpr>> output_shape =
       CheckConcatOutputShape(call, ctx, shape_values, axis);
 
-  if (shape_unknown || !output_shape.defined()) {
+  if (shape_unknown || !output_shape.has_value()) {
     if (!vdevice_unknown) {
       return TensorType(output_dtype, output_ndim, vdev);
     }
@@ -667,7 +667,7 @@ Type InferTypeIndexTensor(const Call& call, const BlockBuilder& ctx) {
   int out_ndim = kUnknownNDim;
   if (!data_ty->IsUnknownNdim()) {
     int tail_ndim = data_ty->ndim - n_indices;
-    if (broadcast_shape.defined()) {
+    if (broadcast_shape.has_value()) {
       out_ndim = static_cast<int>(broadcast_shape.value().size()) + tail_ndim;
     } else if (!shape_unknown) {
       out_ndim = max_index_ndim + tail_ndim;
@@ -675,7 +675,7 @@ Type InferTypeIndexTensor(const Call& call, const BlockBuilder& ctx) {
   }
 
   // Derive output shape
-  if (broadcast_shape.defined()) {
+  if (broadcast_shape.has_value()) {
     const auto* data_shape_expr = data_ty->shape.as<ShapeExprNode>();
     if (data_shape_expr) {
       ffi::Array<PrimExpr> result_shape = broadcast_shape.value();
@@ -724,10 +724,10 @@ Type InferTypeLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimExpr> optional_pad_value = attrs->pad_value;
 
   // Check pad_value has same dtype as input.
-  if (optional_pad_value.defined()) {
+  if (optional_pad_value.has_value()) {
     PrimExpr padded_value = optional_pad_value.value();
     PrimType padded_dtype = padded_value.ty();
-    if (padded_dtype != data_ty->dtype) {
+    if (!data_ty->dtype.has_value() || padded_dtype != data_ty->dtype.value()) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << "layout_transform pad_value dtype (" << padded_dtype << ") and input dtype ("
           << data_ty->dtype << ") must be the same";
@@ -747,12 +747,12 @@ Type InferTypeLayoutTransform(const Call& call, const BlockBuilder& ctx) {
         << data_ty->ndim << " != " << index_map->initial_indices.size();
   }
 
-  if (!data_ty->shape.defined()) {
+  if (!data_ty->shape.has_value()) {
     return TensorType(data_ty->dtype, /*ndim=*/index_map->final_indices.size(), data_ty->vdevice);
   }
 
   ShapeType shape_ty = data_ty->shape.value()->ty.as_or_throw<ShapeType>();
-  if (!shape_ty->values.defined()) {
+  if (!shape_ty->values.has_value()) {
     return TensorType(data_ty->dtype, /*ndim=*/index_map->final_indices.size(), data_ty->vdevice);
   }
 
@@ -800,11 +800,11 @@ Type InferTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
 
   // Todo(relax-team): revisit here for better check on if the input tensor has
   // ndim same as the number of input axes.
-  if (!attrs->axes.defined() && data_ty->IsUnknownNdim()) {
+  if (!attrs->axes.has_value() && data_ty->IsUnknownNdim()) {
     return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
   }
 
-  if (attrs->axes.defined()) {
+  if (attrs->axes.has_value()) {
     int n_axis = attrs->axes.value().size();
     if (!data_ty->IsUnknownNdim() && n_axis != data_ty->ndim) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -815,7 +815,7 @@ Type InferTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
   }
 
   std::vector<int> axes;
-  if (attrs->axes.defined()) {
+  if (attrs->axes.has_value()) {
     axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axes.value());
   } else {
     // Construct the reverse permutation via std::iota
@@ -858,7 +858,7 @@ InferLayoutOutput InferLayoutPermuteDims(
   }
 
   ffi::Array<int64_t> order;
-  if (attrs->axes.defined()) {
+  if (attrs->axes.has_value()) {
     order = attrs->axes.value();
   } else {
     order.reserve(ndim);
@@ -954,11 +954,11 @@ Expr ConvertNewShapeToExpr(const Expr& data,
   TVM_FFI_ICHECK(data_ty != nullptr)
       << "Reshape expects the input data to be a Tensor. However, the given input is "
       << data->ty->GetTypeKey();
-  TVM_FFI_ICHECK(data_ty->shape.defined())
+  TVM_FFI_ICHECK(data_ty->shape.has_value())
       << "Reshape expects the input tensor to have known shape when there is some dimension length "
          "to infer. However, the given input has no shape.";
   const auto* shape_ty = GetTypeAs<ShapeTypeNode>(data_ty->shape.value());
-  TVM_FFI_ICHECK(shape_ty != nullptr && shape_ty->values.defined())
+  TVM_FFI_ICHECK(shape_ty != nullptr && shape_ty->values.has_value())
       << "Reshape expects the input tensor to have known shape when there is some dimension length "
          "to infer. However, the given input shape is "
       << data_ty->shape << " whose shape value is unknown.";
@@ -1021,13 +1021,13 @@ Type InferTypeReshape(const Call& call, const BlockBuilder& ctx) {
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     const auto* old_shape_ty = GetTypeAs<ShapeTypeNode>(data_ty->shape.value());
     TVM_FFI_ICHECK_NOTNULL(old_shape_ty);
     old_shape_values = old_shape_ty->values;
   }
 
-  if (new_shape_ty->values.defined() && old_shape_values.defined()) {
+  if (new_shape_ty->values.has_value() && old_shape_values.has_value()) {
     PrimExpr new_shape_prod = ComputeShapeProduct(new_shape_ty->values.value());
     PrimExpr old_shape_prod = ComputeShapeProduct(old_shape_values.value());
     if (ctx->GetAnalyzer()->CanProve(old_shape_prod != new_shape_prod)) {
@@ -1040,7 +1040,7 @@ Type InferTypeReshape(const Call& call, const BlockBuilder& ctx) {
   }
   Expr target_shape = call->args[1];
   // If shape values are defined, use them
-  if (target_shape->IsInstance<VarNode>() && new_shape_ty->values.defined()) {
+  if (target_shape->IsInstance<VarNode>() && new_shape_ty->values.has_value()) {
     return TensorType(ShapeExpr(new_shape_ty->values.value()), data_ty->dtype, data_ty->vdevice);
   }
   return TensorType(target_shape, data_ty->dtype, data_ty->vdevice);
@@ -1202,7 +1202,7 @@ InferLayoutOutput InferLayoutSplit(
                                                        << si;
       auto ty = si.as_or_throw<TensorType>();
       ffi::Optional<ShapeExpr> shape_expr = ffi::GetRef<ShapeExpr>(ty->shape.as<ShapeExprNode>());
-      TVM_FFI_ICHECK(shape_expr.defined());
+      TVM_FFI_ICHECK(shape_expr.has_value());
       auto shape_arr = shape_expr.value();
       if (!CanProveLayoutTransform(InitialLayout(tensor_ty->ndim), existing_layout->layout,
                                    shape_arr->values)) {
@@ -1246,7 +1246,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferTypeSqueeze(const Call& call, const BlockBuilder& ctx) {
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   const auto* attrs = call->attrs.as<SqueezeAttrs>();
-  if (attrs->axis.defined() && attrs->axis.value().empty()) {
+  if (attrs->axis.has_value() && attrs->axis.value().empty()) {
     return data_ty;
   }
 
@@ -1255,17 +1255,17 @@ Type InferTypeSqueeze(const Call& call, const BlockBuilder& ctx) {
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> shape_value;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     shape_value = data_ty->shape.value()->ty.as_or_throw<ShapeType>()->values;
   }
 
   std::vector<bool> axis_removal_mask;
   axis_removal_mask.resize(data_ty->ndim, /*value=*/false);
 
-  if (attrs->axis.defined()) {
+  if (attrs->axis.has_value()) {
     std::vector<int> axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
 
-    if (!shape_value.defined()) {
+    if (!shape_value.has_value()) {
       return TensorType(data_ty->dtype, data_ty->ndim - axes.size(), data_ty->vdevice);
     }
     for (int i = 0; i < static_cast<int>(axes.size()); ++i) {
@@ -1282,7 +1282,7 @@ Type InferTypeSqueeze(const Call& call, const BlockBuilder& ctx) {
     // Note: This is a less well-defined path in Array API standard's squeeze
     // (https://data-apis.org/array-api/latest/API_specification/generated/array_api.squeeze.html).
     // Consider discourage usage later.
-    if (!shape_value.defined()) {
+    if (!shape_value.has_value()) {
       return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
     }
     for (int i = 0; i < data_ty->ndim; ++i) {
@@ -1308,7 +1308,7 @@ Type InferTypeSqueeze(const Call& call, const BlockBuilder& ctx) {
   if (data_ty->shape.value()->IsInstance<VarNode>()) {
     if (static_cast<int>(output_shape.size()) == data_ty->ndim) {
       return data_ty;
-    } else if (attrs->axis.defined()) {
+    } else if (attrs->axis.has_value()) {
       return TensorType(data_ty->dtype, output_shape.size(), data_ty->vdevice);
     } else {
       return TensorType(data_ty->dtype, kUnknownNDim, data_ty->vdevice);
@@ -1328,13 +1328,13 @@ InferLayoutOutput InferLayoutSqueeze(
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty != nullptr) << "Invalid Call";
   TVM_FFI_ICHECK(!tensor_ty->IsUnknownNdim()) << "Only support static ndim for now";
-  TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Only support static shape for now";
+  TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Only support static shape for now";
   int ndim = tensor_ty->ndim;
   const auto* shape = tensor_ty->shape.as<ShapeExprNode>();
   TVM_FFI_ICHECK(shape != nullptr) << "Only support static shape for now";
 
   ffi::Array<int64_t> axis;
-  if (attrs->axis.defined()) {
+  if (attrs->axis.has_value()) {
     axis = attrs->axis.value();
   } else {
     axis.reserve(ndim);
@@ -1506,7 +1506,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
     // Check dtype consistency
     if (ty->IsUnknownDtype()) {
       is_void_dtype = true;
-    } else if (!output_dtype.defined()) {
+    } else if (!output_dtype.has_value()) {
       output_dtype = ty->dtype;
     } else if (ty->dtype != output_dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -1523,10 +1523,10 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
 
     // Check virtual device consistency
     if (!vdevice_unknown) {
-      if (ty->vdevice.defined()) {
-        if (!vdev.defined()) {
+      if (ty->vdevice.has_value()) {
+        if (!vdev.has_value()) {
           vdev = ty->vdevice.value();
-        } else if (ty->vdevice.value() != vdev) {
+        } else if (ty->vdevice.value() != vdev.value()) {
           vdevice_unknown = true;
         }
       }
@@ -1540,9 +1540,9 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
     }
     shape_unknown = true;
 
-    if (!ty->shape.defined()) continue;
+    if (!ty->shape.has_value()) continue;
     ShapeType shape_ty = ty->shape.value()->ty.as_or_throw<ShapeType>();
-    if (shape_ty->values.defined()) {
+    if (shape_ty->values.has_value()) {
       shape_values.push_back(shape_ty->values.value());
     }
   }
@@ -1587,7 +1587,7 @@ Type InferTypeStack(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<ffi::Array<PrimExpr>> output_shape =
       CheckStackOutputShape(call, ctx, shape_values, axis);
-  if (shape_unknown || !output_shape.defined()) {
+  if (shape_unknown || !output_shape.has_value()) {
     if (!vdevice_unknown) {
       return TensorType(output_dtype, output_ndim, vdev);
     }
@@ -1658,20 +1658,20 @@ Type InferTypeCollapseSumLike(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimType> output_dtype = data_ty->dtype;
 
   ffi::Optional<ffi::Array<PrimExpr>> data_shape_value;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     data_shape_value = GetTypeAs<ShapeTypeNode>(data_ty->shape.value())->values;
   }
   ffi::Optional<ffi::Array<PrimExpr>> collapse_target_shape_value;
-  if (collapse_target_ty->shape.defined()) {
+  if (collapse_target_ty->shape.has_value()) {
     collapse_target_shape_value =
         GetTypeAs<ShapeTypeNode>(collapse_target_ty->shape.value())->values;
   }
 
-  if (data_shape_value.defined() && collapse_target_shape_value.defined()) {
+  if (data_shape_value.has_value() && collapse_target_shape_value.has_value()) {
     CheckCollapseShape(call, ctx, data_shape_value.value(), collapse_target_shape_value.value());
   }
 
-  if (collapse_target_ty->shape.defined()) {
+  if (collapse_target_ty->shape.has_value()) {
     return TensorType(collapse_target_ty->shape.value(), output_dtype, collapse_target_ty->vdevice);
   } else {
     return TensorType(output_dtype, collapse_target_ty->ndim, collapse_target_ty->vdevice);
@@ -1719,11 +1719,11 @@ Type InferTypeCollapseSumTo(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimType> output_dtype = data_ty->dtype;
 
   ffi::Optional<ffi::Array<PrimExpr>> data_shape_value;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     data_shape_value = GetTypeAs<ShapeTypeNode>(data_ty->shape.value())->values;
   }
 
-  if (data_shape_value.defined() && shape_ty->values.defined()) {
+  if (data_shape_value.has_value() && shape_ty->values.has_value()) {
     CheckCollapseShape(call, ctx, data_shape_value.value(), shape_ty->values.value());
   }
   return TensorType(/*shape=*/call->args[1], output_dtype, data_ty->vdevice);
@@ -2112,7 +2112,7 @@ Type InferTypeReverseSequence(const Call& call, const BlockBuilder& ctx) {
            "seq_lengths has dtype "
         << seq_lengths_ty->dtype;
   }
-  if (seq_lengths_dtype.defined() &&
+  if (seq_lengths_dtype.has_value() &&
       seq_lengths_dtype.value().MatchesCode(DLDataTypeCode::kDLInt) &&
       seq_lengths_dtype.value()->dtype.bits != 32 && seq_lengths_dtype.value()->dtype.bits != 64) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -2141,11 +2141,11 @@ Type InferTypeReverseSequence(const Call& call, const BlockBuilder& ctx) {
       batch_axis += ndim;
     }
 
-    if (data_ty->shape.defined() && seq_lengths_ty->shape.defined()) {
+    if (data_ty->shape.has_value() && seq_lengths_ty->shape.has_value()) {
       const auto* data_shape_ty = GetTypeAs<ShapeTypeNode>(data_ty->shape.value());
       const auto* seq_lengths_shape_ty = GetTypeAs<ShapeTypeNode>(seq_lengths_ty->shape.value());
       if (data_shape_ty != nullptr && seq_lengths_shape_ty != nullptr &&
-          data_shape_ty->values.defined() && seq_lengths_shape_ty->values.defined()) {
+          data_shape_ty->values.has_value() && seq_lengths_shape_ty->values.has_value()) {
         PrimExpr batch_extent = data_shape_ty->values.value()[batch_axis];
         PrimExpr seq_lengths_extent = seq_lengths_shape_ty->values.value()[0];
         if (ctx->GetAnalyzer()->CanProve(seq_lengths_extent != batch_extent)) {
@@ -2224,7 +2224,7 @@ Type InferTypeGatherElements(const Call& call, const BlockBuilder& ctx) {
         << "GatherElements requires data and indices to have the same rank. However, "
         << "data rank is " << data_ty->ndim << " while indices rank is " << indices_ty->ndim;
   }
-  if (indices_ty->shape.defined()) {
+  if (indices_ty->shape.has_value()) {
     return TensorType(indices_ty->shape.value(), data_ty->dtype, data_ty->vdevice);
   }
   return TensorType(data_ty->dtype, indices_ty->ndim, data_ty->vdevice);
@@ -2560,7 +2560,7 @@ Type InferTypeMeshgrid(const Call& call, const BlockBuilder& ctx) {
 
     if (ty->IsUnknownDtype()) {
       continue;
-    } else if (!common_dtype.defined()) {
+    } else if (!common_dtype.has_value()) {
       common_dtype = ty->dtype;
     } else if (ty->dtype != common_dtype) {
       TVM_FFI_VISIT_THROW(TypeError, call)
@@ -2576,10 +2576,10 @@ Type InferTypeMeshgrid(const Call& call, const BlockBuilder& ctx) {
     }
 
     if (!vdevice_unknown) {
-      if (ty->vdevice.defined()) {
-        if (!vdev.defined()) {
+      if (ty->vdevice.has_value()) {
+        if (!vdev.has_value()) {
           vdev = ty->vdevice.value();
-        } else if (ty->vdevice.value() != vdev) {
+        } else if (ty->vdevice.value() != vdev.value()) {
           vdevice_unknown = true;
         }
       }
@@ -3082,7 +3082,7 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), data_ty->dtype, data_ty->vdevice);
   }
   return TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice);

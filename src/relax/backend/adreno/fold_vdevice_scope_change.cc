@@ -72,7 +72,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     const auto* tir_out_ty = call_tir->ty_args[0].as<TensorTypeNode>();
     if (!tir_out_ty) return expr;
 
-    if (!tir_out_ty->vdevice.defined()) return expr;
+    if (!tir_out_ty->vdevice.has_value()) return expr;
 
     const VarNode* arg_var = out->args[0].as<VarNode>();
     if (consumers.find(ffi::GetRef<Expr>(arg_var)) != consumers.end()) {

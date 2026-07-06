@@ -87,7 +87,7 @@ Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                          : data_ty->dtype;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   }
   return TensorType(out_type, data_ty->ndim, data_ty->vdevice);

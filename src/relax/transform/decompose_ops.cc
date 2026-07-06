@@ -36,7 +36,7 @@ namespace relax {
 
 TensorType MatchTensorType(Expr data) {
   auto _ty = MatchType<TensorType>(data);
-  TVM_FFI_ICHECK(_ty.defined()) << "Expect data to be a tensor, but get " << GetType(data);
+  TVM_FFI_ICHECK(_ty.has_value()) << "Expect data to be a tensor, but get " << GetType(data);
   return _ty.value();
 }
 

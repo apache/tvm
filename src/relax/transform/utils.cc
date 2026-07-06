@@ -29,7 +29,7 @@ bool IsScalarTensor(const Type& ty) {
     return false;
   }
   TensorType tensor_ty = ty.as_or_throw<TensorType>();
-  if (!tensor_ty->shape.defined() || !tensor_ty->shape->IsInstance<ShapeExprNode>()) {
+  if (!tensor_ty->shape.has_value() || !tensor_ty->shape.value()->IsInstance<ShapeExprNode>()) {
     return false;
   }
   return tensor_ty->shape.as<ShapeExprNode>()->values.size() == 0;

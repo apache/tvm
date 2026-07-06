@@ -655,7 +655,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.schedule.TraceGetDecision", &TraceNode::GetDecision)
       .def("s_tir.schedule.TraceAppend",
            [](Trace self, Instruction inst, ffi::Optional<ffi::ObjectRef> decision) {
-             if (decision.defined()) {
+             if (decision.has_value()) {
                return self->Append(inst, decision.value());
              } else {
                return self->Append(inst);

@@ -170,7 +170,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // TODO(relax-team): Add support for relax Var in type annotations.
 
     scope_stack_.emplace_back(ScopeFrame());
-    if (params.defined()) {
+    if (params.has_value()) {
       for (const auto& param : params.value()) {
         AddDefinitionToScope(param);
       }
@@ -867,7 +867,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {
-    if (params.defined()) {
+    if (params.has_value()) {
       this->BeginScope(params.value());
     } else {
       this->BeginInnerScope();

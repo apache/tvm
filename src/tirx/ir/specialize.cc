@@ -229,7 +229,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     // stale layout extents from before specialization).
     ffi::Optional<Layout> layout = buffer->layout;
     bool layout_changed = false;
-    if (buffer->layout.defined()) {
+    if (buffer->layout.has_value()) {
       if (auto opt_tile = buffer->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [this](const Iter& it) -> Iter {
           PrimExpr new_extent = VisitPrimExpr(it->extent);

@@ -517,12 +517,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     Stmt then_case = VisitStmt(op->then_case);
     while (pushed_ctx-- > 0) ctx_stack_.pop_back();
     ffi::Optional<Stmt> else_case;
-    if (op->else_case.defined()) {
+    if (op->else_case.has_value()) {
       else_case = VisitStmt(op->else_case.value());
     }
     bool unchanged = new_cond.same_as(op->condition) && then_case.same_as(op->then_case) &&
-                     ((!op->else_case.defined() && !else_case.defined()) ||
-                      (op->else_case.defined() && else_case.defined() &&
+                     ((!op->else_case.has_value() && !else_case.has_value()) ||
+                      (op->else_case.has_value() && else_case.has_value() &&
                        else_case.value().same_as(op->else_case.value())));
     if (unchanged) return ffi::GetRef<Stmt>(op);
     return IfThenElse(new_cond, then_case, else_case);
@@ -708,7 +708,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       add_launch_param(ScopeBinding::kClusterCta, "clusterCtaIdx.");
       // Preferred cluster size (CUDA 12.8+)
       const auto& cta_def = (*cluster_cta_it).second;
-      if (cta_def->preferred_extents.defined()) {
+      if (cta_def->preferred_extents.has_value()) {
         const auto& pref = cta_def->preferred_extents.value();
         for (size_t i = 0; i < pref.size(); i++) {
           std::string tag = "preferredClusterCtaIdx." + std::string(1, 'x' + i);
@@ -1475,7 +1475,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 namespace {
 Target ResolveTarget(const PrimFunc& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-  if (!target.defined()) {
+  if (!target.has_value()) {
     target = Target::Current(false);
   }
   return target.value();

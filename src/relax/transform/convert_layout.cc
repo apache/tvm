@@ -232,7 +232,7 @@ class LayoutConvertMutator : public ExprMutator {
         GetInferLayoutInfo(call_node, desired_layouts_, layout_cb_, var_layout_map_);
     ffi::ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
     new_call->ty = Type::Missing();
-    if (!res.defined() ||
+    if (!res.has_value() ||
         (!IsNestedTensor(binding->var) && !binding->var->IsInstance<DataflowVarNode>())) {
       // Default policy: use the initial layout.
       // When we don't have the infer layout info, or it's a non-tensor global var binding.
@@ -319,7 +319,7 @@ class LayoutConvertMutator : public ExprMutator {
           << "Cannot convert when exactly one of the layouts is unknown";
       const TensorTypeNode* tensor_ty = ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(tensor_ty != nullptr) << "We can not set layout for non-tensor struct";
-      if (!tensor_ty->shape.defined()) return ty;
+      if (!tensor_ty->shape.has_value()) return ty;
       const ShapeExprNode* shape = tensor_ty->shape.value().as<ShapeExprNode>();
       if (shape == nullptr) return ty;
       TVM_FFI_ICHECK_EQ(shape->values.size(), to.LeafValue()->layout.ndim());

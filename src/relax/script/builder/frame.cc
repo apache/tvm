@@ -47,7 +47,7 @@ void SeqExprFrameNode::ExitWithScope() {
   if (ffi::Optional<BindingBlockFrame> block_frame =
           IRBuilder::Current()->GetLastFrame<BindingBlockFrame>()) {
     block_frame.value()->ExitWithScope();
-    TVM_FFI_CHECK(!IRBuilder::Current()->GetLastFrame<BindingBlockFrame>().defined(), ValueError)
+    TVM_FFI_CHECK(!IRBuilder::Current()->GetLastFrame<BindingBlockFrame>().has_value(), ValueError)
         << "There is some remaining BindingBlockFrame that is not properly popped out.";
   }
   RelaxFrameNode::ExitWithScope();
@@ -69,7 +69,7 @@ void FunctionFrameNode::ExitWithScope() {
   IRBuilder builder = IRBuilder::Current();
   SeqExprFrameNode::ExitWithScope();
   // Step 1: Create the function.
-  TVM_FFI_CHECK(output.defined(), ValueError)
+  TVM_FFI_CHECK(output.has_value(), ValueError)
       << "A Relax function must have a return value. Please use "
          "`return` to return an Expr";
 
@@ -87,7 +87,8 @@ void FunctionFrameNode::ExitWithScope() {
   // Step 2: Update IRModule.
   if (builder->frames.empty()) {
     // Case 0. No outer frame, return function directly
-    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
+        << "Builder.result has already been set";
     builder->result = func;
   } else if (ffi::Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
     // Case 1. A global function of an IRModule
@@ -113,7 +114,7 @@ void BindingBlockFrameNode::EnterWithScope() {
   // last block frame.
   ffi::Optional<BindingBlockFrame> block_frame =
       IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
-  if (block_frame.defined()) {
+  if (block_frame.has_value()) {
     block_frame.value()->ExitWithScope();
     // Block frames cannot appear consecutively.
     TVM_FFI_ICHECK(!IRBuilder::Current()->GetLastFrame<BindingBlockFrame>());
@@ -121,7 +122,7 @@ void BindingBlockFrameNode::EnterWithScope() {
   // Step 2. Deal with the new block frame.
   RelaxFrameNode::EnterWithScope();
   ffi::Optional<FunctionFrame> func_frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
-  TVM_FFI_CHECK(func_frame.defined(), ValueError)
+  TVM_FFI_CHECK(func_frame.has_value(), ValueError)
       << "Cannot find FunctionFrame when creating BindingBlocks, Please ensure "
          "creating the block under Relax function scope.";
   const tvm::relax::BlockBuilder& block_builder = func_frame.value()->block_builder;
@@ -184,14 +185,14 @@ void BindingBlockFrameNode::ExitWithScope() {
 
     // Step 3.4 Rewrite usage of output var, if any
     auto function = FindFunctionFrame("R.dataflow()");
-    if (function->output.defined()) {
+    if (function->output.has_value()) {
       function->output = mutator.VisitExpr(function->output.value());
     }
   }
 
   // Step 3. Get the last frame from the IRBuilder frame stack.
   ffi::Optional<RelaxFrame> opt_last_frame = IRBuilder::Current()->GetLastFrame<RelaxFrame>();
-  TVM_FFI_ICHECK(opt_last_frame.defined());
+  TVM_FFI_ICHECK(opt_last_frame.has_value());
   RelaxFrame last_frame = opt_last_frame.value();
 
   // Step 4. Since we popped out any possible block frame when entering the "with" scope of the
@@ -228,9 +229,9 @@ void IfFrameNode::EnterWithScope() {
 
 void IfFrameNode::ExitWithScope() {
   RelaxFrameNode::ExitWithScope();
-  TVM_FFI_CHECK(then_expr.defined(), ValueError)
+  TVM_FFI_CHECK(then_expr.has_value(), ValueError)
       << "The body of then part is expected to be defined before exiting.";
-  TVM_FFI_CHECK(then_expr.defined(), ValueError)
+  TVM_FFI_CHECK(then_expr.has_value(), ValueError)
       << "The body of else part is expected to be defined before exiting.";
   auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value());
   var = Emit(body);
@@ -239,7 +240,7 @@ void IfFrameNode::ExitWithScope() {
 
 void ThenFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("R.Then");
-  TVM_FFI_CHECK(!frame->then_expr.defined(), ValueError)
+  TVM_FFI_CHECK(!frame->then_expr.has_value(), ValueError)
       << "Duplicate then branch declaration, previous one is " << frame->then_expr.value();
   SeqExprFrameNode::EnterWithScope();
 }
@@ -255,8 +256,8 @@ void ThenFrameNode::ExitWithScope() {
 
 void ElseFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("R.Else");
-  TVM_FFI_ICHECK(frame->then_expr.defined()) << "The else branch should follow then branch";
-  TVM_FFI_CHECK(!frame->else_expr.defined(), ValueError)
+  TVM_FFI_ICHECK(frame->then_expr.has_value()) << "The else branch should follow then branch";
+  TVM_FFI_CHECK(!frame->else_expr.has_value(), ValueError)
       << "Duplicate else branch declaration, previous one is " << frame->else_expr.value();
   SeqExprFrameNode::EnterWithScope();
 }

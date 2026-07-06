@@ -200,7 +200,7 @@ class RollingBufferInfoCollector {
         return false;
       }
       auto bound_overlap = 0;
-      if (iter_var.defined()) {
+      if (iter_var.has_value()) {
         auto extent = bound->extent.as_or_throw<IntImm>()->value;
         bound_overlap = extent - stride;
         // Since Pass CompactBufferAllocation will be responsible for compacting the buffer
@@ -224,7 +224,7 @@ class RollingBufferInfoCollector {
 
       auto it{std::find_if(
           bound_iter_vars.begin(), bound_iter_vars.end(),
-          [&](ffi::Optional<Var> var) { return var && (var.get() == loop_var.get()); })};
+          [&](ffi::Optional<Var> var) { return var && (var.value().get() == loop_var.get()); })};
       if (it != bound_iter_vars.end()) {
         auto i = std::distance(bound_iter_vars.begin(), it);
         roll_iter_var = loop_var;
@@ -233,7 +233,7 @@ class RollingBufferInfoCollector {
       }
     }
 
-    if (!roll_iter_var.defined()) {
+    if (!roll_iter_var.has_value()) {
       return false;
     }
     ffi::Array<PrimExpr> new_shape = buffer->shape;
