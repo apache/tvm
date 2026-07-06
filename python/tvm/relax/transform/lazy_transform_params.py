@@ -312,7 +312,7 @@ class LazyOutputMutator(PyExprMutator):
         if binding.var == self.func_creator.out_tuple_var:
             # The function after rewriting returns a empty tuple.
             func_output = self.builder_.emit(relax.Tuple([]))
-            self.set_var_remap(binding.var.vid, func_output)
+            self.set_var_remap(binding.var, func_output)
             return
 
         super().visit_var_binding_(binding)

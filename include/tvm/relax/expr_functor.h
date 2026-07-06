@@ -559,7 +559,7 @@ class ExprMutator : public ExprMutatorBase {
   BlockBuilder builder_;
 
   /*! \brief Remap a var to a new var in use-site. */
-  std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
+  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap_;
 
  private:
   using TSelf = ExprMutator;

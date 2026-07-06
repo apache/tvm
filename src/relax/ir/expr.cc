@@ -28,7 +28,6 @@ namespace tvm {
 namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IdNode::RegisterReflection();
   TupleNode::RegisterReflection();
   TupleGetItemNode::RegisterReflection();
   ShapeExprNode::RegisterReflection();
@@ -46,12 +45,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfNode::RegisterReflection();
   FunctionNode::RegisterReflection();
   ExternFuncNode::RegisterReflection();
-}
-
-Id::Id(ffi::String name_hint) {
-  ffi::ObjectPtr<IdNode> n = ffi::make_object<IdNode>();
-  n->name_hint = std::move(name_hint);
-  data_ = std::move(n);
 }
 
 If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
@@ -146,9 +139,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-Var::Var(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
+Var::Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
-  n->vid = std::move(vid);
+  n->name_hint = std::move(name_hint);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
@@ -156,38 +149,15 @@ Var::Var(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
   data_ = std::move(n);
 }
 
-VarNode* Var::CopyOnWrite() {
-  // The `TVM_DEFINE_OBJECT_REF_COW_METHOD` cannot be used for
-  // Var, because it is the base class for `DataflowBlock`.
-  // If the `TVM_DEFINE_OBJECT_REF_COW_METHOD` were used, the
-  // automatic implementation would erroneously convert from a
-  // `DataflowBlock` to a `Var`.
-  TVM_FFI_ICHECK(data_ != nullptr);
-  if (!data_.unique()) {
-    ffi::ObjectPtr<VarNode> node;
-    if (auto dataflow_var = as<DataflowVarNode>()) {
-      node = ffi::make_object<DataflowVarNode>(*dataflow_var);
-    } else {
-      node = ffi::make_object<VarNode>(*(operator->()));
-    }
-    ffi::ObjectPtr<ffi::Object>(std::move(node)).swap(data_);
-  }
-  return static_cast<VarNode*>(data_.get());
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.Var", [](ffi::String name_hint, ffi::Optional<Type> ty_annotation,
-                           Span span) { return Var(name_hint, ty_annotation, span); })
-      .def("relax.VarFromId", [](Id vid, ffi::Optional<Type> ty_annotation, Span span) {
-        return Var(vid, ty_annotation, span);
-      });
+  refl::GlobalDef().def("relax.Var", [](ffi::String name_hint, ffi::Optional<Type> ty_annotation,
+                                        Span span) { return Var(name_hint, ty_annotation, span); });
 }
 
-DataflowVar::DataflowVar(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
+DataflowVar::DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
-  n->vid = std::move(vid);
+  n->name_hint = std::move(name_hint);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
@@ -197,14 +167,10 @@ DataflowVar::DataflowVar(Id vid, ffi::Optional<Type> ty_annotation, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("relax.DataflowVar",
-           [](ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
-             return DataflowVar(name_hint, ty_annotation, span);
-           })
-      .def("relax.DataflowVarFromId", [](Id vid, ffi::Optional<Type> ty_annotation, Span span) {
-        return DataflowVar(vid, ty_annotation, span);
-      });
+  refl::GlobalDef().def("relax.DataflowVar",
+                        [](ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
+                          return DataflowVar(name_hint, ty_annotation, span);
+                        });
 }
 
 Constant::Constant(runtime::Tensor data, ffi::Optional<Type> ty_annotation, Span span) {

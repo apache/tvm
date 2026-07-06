@@ -238,7 +238,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   void serialize(Function func) {
     // First we convert all the parameters into input nodes.
     for (const auto& param : func->params) {
-      auto node_ptr = std::make_shared<JSONGraphNode>(param->name_hint(), "input" /* op_type_ */);
+      auto node_ptr = std::make_shared<JSONGraphNode>(param->name_hint, "input" /* op_type_ */);
       memo_[param] = AddNode(node_ptr, param);
     }
     heads_ = VisitExpr(func->body);

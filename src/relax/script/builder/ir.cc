@@ -36,20 +36,16 @@ using tvm::script::ir_builder::details::Namer;
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using tvm::relax::VarNode;
-      using tvm::relax::IdNode;
-      const VarNode* var = node.as<VarNode>();
-      IdNode* vid = const_cast<IdNode*>(var->vid.get());
-      vid->name_hint = name;
+      VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
+      var->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::DataflowVarNode>([](const ffi::ObjectRef& node,
                                                   ffi::String name) -> void {
       using tvm::relax::DataflowVarNode;
-      using tvm::relax::IdNode;
-      const DataflowVarNode* var = node.as<DataflowVarNode>();
-      IdNode* vid = const_cast<IdNode*>(var->vid.get());
-      vid->name_hint = name;
+      DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
+      var->name_hint = name;
     });
 
 /////////////////////////////// Function ////////////////////////////////

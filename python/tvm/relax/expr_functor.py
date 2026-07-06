@@ -40,7 +40,6 @@ from .expr import (
     ExternFunc,
     Function,
     GlobalVar,
-    Id,
     If,
     MatchCast,
     SeqExpr,
@@ -1453,26 +1452,28 @@ class PyExprMutator:
         """
         return _ffi_api.PyExprMutatorVisitExprPostOrder(self._outer(), expr)  # type: ignore
 
-    def set_var_remap(self, vid: Id, var: Var) -> None:
+    def set_var_remap(self, old_var: Var, new_var: Var) -> None:
         """Remap a var to a new var in use-site.
 
         Parameters
         ----------
-        vid : Id
-            The vid of the old var.
-        var : Var
+        old_var : Var
+            The old var.
+        new_var : Var
             The new var.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorSetVarRemap(self._outer(), vid, var)  # type: ignore
+        return _ffi_api.PyExprMutatorSetVarRemap(  # type: ignore
+            self._outer(), old_var, new_var
+        )
 
-    def get_var_remap(self, vid: Id) -> Var:
+    def get_var_remap(self, var: Var) -> Var:
         """Remap a var to a new var in use-site.
 
         Parameters
         ----------
-        vid : Id
-            The vid of the old var
+        var : Var
+            The old var.
 
         Returns
         -------
@@ -1480,7 +1481,7 @@ class PyExprMutator:
             The remapped var.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), vid)  # type: ignore
+        return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), var)  # type: ignore
 
     def visit_with_new_scope(self, expr: Expr) -> Expr:
         """Rewrite the expr with a new scope, used in a Function's body and the branches of If.

@@ -30,7 +30,6 @@ import tvm.ir
 import tvm.relax
 import tvm.runtime
 from tvm import DataType
-from tvm.runtime import Object
 
 from ..ir import BaseFunc, Node, Span
 from ..runtime import Scriptable
@@ -73,18 +72,6 @@ def prim_value(value: Expr | int | float, dtype: str | None = None) -> Expr:
     if tvm.ir.is_prim_expr(tvm_value):
         return tvm_value
     raise TypeError(f"Cannot convert {value} with type {type(value)} to `Expr`")
-
-
-@tvm_ffi.register_object("relax.Id")
-class Id(Object):
-    """Unique identifier(name) used in Var.
-    Guaranteed to be stable across all passes.
-    """
-
-    name_hint: str
-
-    def __init__(self):
-        raise RuntimeError("Cannot directly construct Id")
 
 
 def _relax_type_is_base_of(self: Type, derived: Type) -> bool:
@@ -429,7 +416,7 @@ class Var(ExprWithOp):
 
     Parameters
     ----------
-    name_hint: str | Id
+    name_hint: str
         The name hint of the variable.
 
     ty: Optional[Type]
@@ -439,12 +426,12 @@ class Var(ExprWithOp):
         Span that points to original source code
     """
 
-    vid: Id
+    name_hint: str
     span: Span | None
 
     def __init__(
         self,
-        name_hint: str | Id,
+        name_hint: str,
         ty: Type | None = None,
         span: Span | None = None,
     ) -> None:
@@ -457,17 +444,11 @@ class Var(ExprWithOp):
                     "use relax.TensorType(shape, dtype)."
                 )
         self.__init_handle_by_constructor__(
-            _ffi_api.Var if isinstance(name_hint, str) else _ffi_api.VarFromId,  # type: ignore
+            _ffi_api.Var,  # type: ignore
             name_hint,
             ty,
             span,
         )
-
-    @property
-    def name_hint(self) -> str:
-        """Get name hint of the current var."""
-        name = str(self.vid.name_hint)
-        return name
 
 
 @tvm_ffi.register_object("relax.expr.DataflowVar")
@@ -478,7 +459,7 @@ class DataflowVar(Var):
 
     Parameters
     ----------
-    name_hint: str | Id
+    name_hint: str
         The name hint of the variable.
 
     ty: Optional[Type]
@@ -488,12 +469,12 @@ class DataflowVar(Var):
         Span that points to original source code
     """
 
-    vid: Id
+    name_hint: str
     span: Span | None
 
     def __init__(
         self,
-        name_hint: str | Id,
+        name_hint: str,
         ty: Type | None = None,
         span: Span | None = None,
     ) -> None:
@@ -507,16 +488,7 @@ class DataflowVar(Var):
                     "use relax.TensorType(shape, dtype)."
                 )
 
-        self.__init_handle_by_constructor__(
-            (
-                _ffi_api.DataflowVar  # type: ignore
-                if isinstance(name_hint, str)
-                else _ffi_api.DataflowVarFromId
-            ),  # type: ignore
-            name_hint,
-            ty,
-            span,
-        )
+        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name_hint, ty, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.StringImm")

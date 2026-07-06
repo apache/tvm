@@ -230,7 +230,7 @@ class DataflowBlockMutator : public ExprMutator {
         }
       }
       if (!var.as<DataflowVarNode>()) {
-        global_scope_vars.Set(var->name_hint(), var);
+        global_scope_vars.Set(var->name_hint, var);
       }
     }
 
@@ -252,10 +252,10 @@ class DataflowBlockMutator : public ExprMutator {
           }
         }
       }
-      if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint()) > 0) {
-        TVM_FFI_ICHECK(var.same_as(global_scope_vars[var->name_hint()]))
+      if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint) > 0) {
+        TVM_FFI_ICHECK(var.same_as(global_scope_vars[var->name_hint]))
             << "Error: DataflowBlock Pass should not rewrite any GlobalScope Var.";
-        global_scope_vars.erase(var->name_hint());
+        global_scope_vars.erase(var->name_hint);
       }
     }
     TVM_FFI_ICHECK(global_scope_vars.empty() && symbolic_vars.empty())

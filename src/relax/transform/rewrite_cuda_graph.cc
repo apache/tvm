@@ -137,8 +137,8 @@ class FuncBuilder : public ExprMutator {
     }
     // Set up the parameters
     for (const auto* input : inputs_) {
-      auto new_var = Var(input->name_hint(), VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
-      var_remap_[input->vid] = new_var;
+      auto new_var = Var(input->name_hint, VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
+      var_remap_[ffi::GetRef<Var>(input)] = new_var;
       params.push_back(new_var);
     }
     if (shape_expr) {
@@ -846,7 +846,7 @@ class CUDAGraphRewriter : public ExprMutator {
       LaunchSubgraph(op, subgraph_launches_[op->var.get()]);
     }
     if (auto it = var_redef_.find(op->var.get());
-        it != var_redef_.end() && !var_remap_.count(op->var->vid)) {
+        it != var_redef_.end() && !var_remap_.count(op->var)) {
       EmitRedef(op->var.get(), it->second);
       return;
     }
@@ -858,7 +858,8 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
-    if (auto it = var_remap_.find(op->vid); it != var_remap_.end()) {
+    Var var = ffi::GetRef<Var>(op);
+    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
       return it->second;
     }
     if (auto it = var_redef_.find(op); it != var_redef_.end()) {
@@ -870,8 +871,8 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   Var EmitRedef(const VarNode* var, const Expr& redef) {
-    auto new_var = builder_->Emit(redef, var->name_hint());
-    var_remap_[var->vid] = new_var;
+    auto new_var = builder_->Emit(redef, var->name_hint);
+    var_remap_[ffi::GetRef<Var>(var)] = new_var;
     return new_var;
   }
 

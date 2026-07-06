@@ -129,7 +129,7 @@ class FunctionInliner : public ExprMutator {
       //
       // This implementation uses Option 4.
 
-      Var param_var(func->params[i]->name_hint(), args[i]->ty.as<Type>());
+      Var param_var(func->params[i]->name_hint, args[i]->ty.as<Type>());
       param_bindings.push_back(VarBinding(param_var, args[i]));
       param_map.Set(func->params[i], param_var);
     }

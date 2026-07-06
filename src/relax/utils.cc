@@ -49,7 +49,7 @@ class ExprBinder : public ExprMutator {
         Var new_param = this->VisitVarDef(param);
         params.push_back(new_param);
         if (!param.same_as(new_param)) {
-          this->var_remap_[param->vid] = new_param;
+          this->var_remap_[param] = new_param;
           all_params_unchanged = false;
         }
       }

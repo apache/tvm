@@ -1173,12 +1173,12 @@ def test_canonicalization_causes_ty_update():
     better type as a result.  If this happens, the
 
     In previous implementations, ExprMutator::ReEmitBinding defined a
-    remap for `binding->var->vid`, even if the derived class defined a
+    remap for `binding->var`, even if the derived class defined a
     replacement by overriding `VisitVarDef`.  If the derived class
     defines a new variable binding by overriding `VisitVarDef`, and
     also causes a variable replacement by overriding `VisitExpr` and
     returning a type with different type, then `ExprMutator`
-    must check for both `binding->var->vid` *AND* `new_var->vid`.  The
+    must check for both `binding->var` *AND* `new_var`.  The
     former may be present in the unmodified graph, and the latter may
     be produced by the derived class before delegating to the base
     class.

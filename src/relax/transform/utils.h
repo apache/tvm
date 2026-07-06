@@ -199,7 +199,7 @@ bool IsNestedTensor(const Expr& expr);
 // TODO(@bohan): implements some postorder function accepts a visitor closure
 class VarReplacer : public ExprMutator {
  public:
-  using VarMap = std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
+  using VarMap = std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
   explicit VarReplacer(const VarMap& var_remap) : var_remap_(var_remap) {}
 
@@ -211,7 +211,7 @@ class VarReplacer : public ExprMutator {
  private:
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
-    auto it = var_remap_.find(var->vid);
+    auto it = var_remap_.find(var);
     return it == var_remap_.end() ? var : it->second;
   }
 
@@ -269,7 +269,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
       Var new_param = this->VisitVarDef(param);
       params.push_back(new_param);
       if (!param.same_as(new_param)) {
-        var_remap_[param->vid] = new_param;
+        var_remap_[param] = new_param;
         all_params_unchanged = false;
       }
     }
@@ -303,16 +303,16 @@ class FunctionCopier : public SymbolicVarRenewMutator {
 
   Var VisitVarDef_(const DataflowVarNode* var) override {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = DataflowVar(new_var->name_hint(), GetType(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
+    Var copied_var = DataflowVar(new_var->name_hint, GetType(new_var), new_var->span);
+    var_remap_[ffi::GetRef<Var>(var)] = copied_var;
     relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;
   }
 
   Var VisitVarDef_(const VarNode* var) override {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = Var(new_var->name_hint(), GetType(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
+    Var copied_var = Var(new_var->name_hint, GetType(new_var), new_var->span);
+    var_remap_[ffi::GetRef<Var>(var)] = copied_var;
     relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;
   }

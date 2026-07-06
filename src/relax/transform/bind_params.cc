@@ -92,7 +92,7 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tirx::Var, PrimExpr>> NormalizeBindings
   std::unordered_map<std::string, ffi::Array<relax::Var>> string_lookup;
   std::unordered_set<const relax::VarNode*> var_set;
   for (const auto& param : func->params) {
-    string_lookup[param->name_hint()].push_back(param);
+    string_lookup[param->name_hint].push_back(param);
     var_set.insert(param.get());
   }
 
@@ -105,7 +105,7 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tirx::Var, PrimExpr>> NormalizeBindings
       TVM_FFI_ICHECK(it != string_lookup.end())
           << "Function does not have parameter with name \"" << str << "\".  "
           << "Function parameters are named "
-          << func->params.Map([](const auto& param) { return param->name_hint(); });
+          << func->params.Map([](const auto& param) { return param->name_hint; });
       TVM_FFI_ICHECK_EQ(it->second.size(), 1)
           << "Function contains multiple parameters with name \"" << str << "\".  "
           << "The Relax variables " << it->second << " are all named \"" << str << "\"";

@@ -968,7 +968,7 @@ class FusedTIRConstructor : public ExprVisitor {
         << "All tuple parameters should be expanded before this point in FuseTIR.  "
         << "However, parameter " << relax_param << " has type " << ty;
 
-    auto name_hint = relax_param->name_hint();
+    auto name_hint = relax_param->name_hint;
 
     if (const auto* tensor = ty.as<TensorTypeNode>()) {
       // Case 1. The relax param is a Tensor, we directly create a tirx var and buffer
@@ -1263,8 +1263,8 @@ class TIRFuseMutator : public ExprMutator {
         }
       } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
         if (const auto* var = arg.as<VarNode>()) {
-          tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype))
-                                 .as_or_throw<PrimExpr>());
+          tir_vars.push_back(
+              tirx::Var(var->name_hint, tvm::PrimType(prim_value->dtype)).as_or_throw<PrimExpr>());
         } else if (auto literal = arg.as<PrimExpr>()) {
           tir_vars.push_back(literal.value());
         } else {

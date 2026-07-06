@@ -96,7 +96,7 @@ class LambdaNameCollector : ExprVisitor {
       lifted_with_global_symbol_.insert({func, public_name});
     }
 
-    name_stack_.push_back(binding->var->name_hint());
+    name_stack_.push_back(binding->var->name_hint);
     lambda_location_.insert({func, name_stack_});
     ExprVisitor::VisitBinding_(binding, func);
     name_stack_.pop_back();
@@ -285,7 +285,7 @@ class LambdaLifter : public ExprMutator {
     ffi::Array<Var> typed_captured_vars;
     ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name_hint(), GetType(free_var), free_var->span);
+      Var var = Var(free_var->name_hint, GetType(free_var), free_var->span);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -367,9 +367,10 @@ class LambdaLifter : public ExprMutator {
 
       // Call "relax.invoke_closure" to invoke closure
 
-      if (IsClosure(var) && builder_->LookupBinding(var).as<CallNode>()) {
+      auto bound_value = LookupBinding(var);
+      if (IsClosure(var) && bound_value.as<CallNode>()) {
         // if the original op was pure, we should use invoke_pure_closure
-        Call orig_call = builder_->LookupBinding(var).value().as_or_throw<Call>();
+        Call orig_call = bound_value.value().as_or_throw<Call>();
         bool is_pure = [&]() -> bool {
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
@@ -422,7 +423,7 @@ class LambdaLifter : public ExprMutator {
       if (closures_.count(opt_var.value())) {
         return true;
       }
-      if (auto bound_value = builder_->LookupBinding(opt_var.value())) {
+      if (auto bound_value = LookupBinding(opt_var.value())) {
         val = bound_value.value();
       }
     }

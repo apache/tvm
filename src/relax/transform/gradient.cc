@@ -46,7 +46,7 @@ namespace relax {
 
 // We will use NestedMsg<Expr> to handle adjoint updates involving tuple handling
 using AdjointMsg = NestedMsg<Expr>;
-using VarIdSet = std::unordered_set<Id, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
+using VarSet = std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 // Used in CallTIRWithGradCollector. call_tir -> call_tir_with_grad
 using CallTIRWithGradInfo = std::unordered_map<Call, Call, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
@@ -63,7 +63,7 @@ class CallTIRWithGradEliminator : private ExprMutator {
    *
    * \param func The original function
    * \return The function with all start_checkpoint and end_checkpoint bindings removed, and a
-   * VarIdSet containing all checkpointed vars.
+   * VarSet containing all checkpointed vars.
    */
   static Function Transform(const Function& func) {
     return CallTIRWithGradEliminator().VisitExpr(func).as_or_throw<Function>();
@@ -109,14 +109,14 @@ class CheckpointCollector : private ExprMutator {
   }
 
   // checkpointed vars
-  VarIdSet checkpoints;
+  VarSet checkpoints;
   // mapping from vars that are wrapped in start_checkpoint or end_checkpoint to the original vars
-  std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_mapping;
+  std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_mapping;
 
  private:
   Expr VisitExpr_(const FunctionNode* func) final {
     for (auto var : func->params) {
-      checkpoints.insert(var->vid);
+      checkpoints.insert(var);
     }
 
     return ExprMutator::VisitExpr_(func);
@@ -137,13 +137,14 @@ class CheckpointCollector : private ExprMutator {
       bool all_inner_var_checkpointed = true;
       PostOrderVisit(var_binding->value, [this, &all_inner_var_checkpointed](const Expr& expr) {
         if (auto var = expr.as<VarNode>()) {
+          Var var_ref = ffi::GetRef<Var>(var);
           all_inner_var_checkpointed &=
-              (checkpoints.count(var->vid) != 0 || e_vars_.count(var->vid) != 0);
+              (checkpoints.count(var_ref) != 0 || e_vars_.count(var_ref) != 0);
         }
       });
 
       if (all_inner_var_checkpointed) {
-        checkpoints.insert(var_binding->var->vid);
+        checkpoints.insert(var_binding->var);
       }
     }
 
@@ -165,17 +166,17 @@ class CheckpointCollector : private ExprMutator {
       // Add remapping from binding->var to new_var
       if (!binding->var.as<DataflowVarNode>() && var->IsInstance<DataflowVarNode>()) {
         // For output binding, emit a dummy binding
-        this->var_remap_[binding->var->vid] = builder_->EmitOutput(orig_var, orig_var->name_hint());
+        this->var_remap_[binding->var] = builder_->EmitOutput(orig_var, orig_var->name_hint);
       } else {
-        this->var_remap_[binding->var->vid] = orig_var;
+        this->var_remap_[binding->var] = orig_var;
       }
-      var_mapping[binding->var->vid] = orig_var;
+      var_mapping[binding->var] = orig_var;
 
       if (value->op.same_as(s_cp)) {
         // mark the original var to be checkpointed
-        checkpoints.insert(orig_var->vid);
+        checkpoints.insert(orig_var);
       } else if (value->op.same_as(e_cp)) {
-        e_vars_.insert(binding->var->vid);
+        e_vars_.insert(binding->var);
       }
     } else {
       ExprMutator::VisitBinding_(binding, value);
@@ -183,7 +184,7 @@ class CheckpointCollector : private ExprMutator {
   }
 
   // vars that are the output of end_checkpoint
-  VarIdSet e_vars_;
+  VarSet e_vars_;
 };
 
 /*!
@@ -205,7 +206,7 @@ class CheckpointGenerator : private ExprMutator {
    * checkpointed
    */
   CheckpointGenerator(const BlockBuilder& builder, const ffi::Array<Var>& orig_params,
-                      const DataflowBlock& forward_block, const VarIdSet& checkpoints)
+                      const DataflowBlock& forward_block, const VarSet& checkpoints)
       : builder_(builder) {
     // func params will always be checkpointed
     for (auto var : orig_params) {
@@ -217,7 +218,7 @@ class CheckpointGenerator : private ExprMutator {
       TVM_FFI_ICHECK(var_binding) << "Now only support VarBindingNode";
       auto var = var_binding->var;
       binding_map_.Set(var, var_binding->value);
-      if (checkpoints.count(var->vid)) {
+      if (checkpoints.count(var)) {
         checkpoint_map_.Set(var, var);
       }
     }
@@ -230,7 +231,7 @@ class CheckpointGenerator : private ExprMutator {
     if (it != checkpoint_map_.end()) {
       return std::make_pair((*it).second, new_value);
     }
-    auto new_var = builder_->Emit(new_value, var->name_hint() + "_cp");
+    auto new_var = builder_->Emit(new_value, var->name_hint + "_cp");
     checkpoint_map_.Set(var, new_var);
     return std::make_pair(new_var, new_value);
   }
@@ -249,7 +250,7 @@ class CheckpointGenerator : private ExprMutator {
     if (it != checkpoint_map_.end()) {
       return (*it).second;
     }
-    Var new_var = builder_->Emit(VisitExpr(binding_map_[var]), var->name_hint() + "_cp");
+    Var new_var = builder_->Emit(VisitExpr(binding_map_[var]), var->name_hint + "_cp");
     checkpoint_map_.Set(var, new_var);
     return new_var;
   }
@@ -499,8 +500,8 @@ class BackwardBindingGenerator : private ExprVisitor {
     for (Var var : require_grads) {
       // var might be wrapped in start_checkpoint or end_checkpoint, so we should find the original
       // var first
-      if (cp_collector_.var_mapping.count(var->vid)) {
-        var = cp_collector_.var_mapping[var->vid];
+      if (cp_collector_.var_mapping.count(var)) {
+        var = cp_collector_.var_mapping[var];
       }
       // If the var don't have adjoint var, it do not contribute to the target. So its adjoint is
       // zeros
@@ -519,9 +520,9 @@ class BackwardBindingGenerator : private ExprVisitor {
   Var EmitAdjoint(const Var& source_var, const Expr& adjoint, bool is_output) {
     Var adjoint_var;
     if (is_output) {
-      adjoint_var = builder_->EmitOutput(adjoint, source_var->name_hint() + "_adjoint_out");
+      adjoint_var = builder_->EmitOutput(adjoint, source_var->name_hint + "_adjoint_out");
     } else {
-      adjoint_var = builder_->Emit(adjoint, source_var->name_hint() + "_adjoint");
+      adjoint_var = builder_->Emit(adjoint, source_var->name_hint + "_adjoint");
       adjoint_var_map_.Set(source_var, adjoint_var);
     }
     return adjoint_var;
@@ -762,21 +763,21 @@ class GradientMutator : private ExprMutator {
   static ffi::Array<Var> CheckAndMapRequireGrads(const ffi::Array<Var>& require_grads,
                                                  const ffi::Map<Var, Var>& var_map,
                                                  const ffi::String& func_name) {
-    VarIdSet var_set;
+    VarSet var_set;
     ffi::Array<Var> mapped_vars;
     for (const auto& var : require_grads) {
       auto it = var_map.find(var);
       TVM_FFI_ICHECK(it != var_map.end())
-          << "There is no Var named " << var->name_hint() << " in the function " << func_name;
-      TVM_FFI_ICHECK_EQ(var_set.count(var->vid), 0)
-          << "Var " << var->name_hint() << " appears more than once";
-      var_set.emplace(var->vid);
+          << "There is no Var named " << var->name_hint << " in the function " << func_name;
+      TVM_FFI_ICHECK_EQ(var_set.count(var), 0)
+          << "Var " << var->name_hint << " appears more than once";
+      var_set.emplace(var);
       mapped_vars.push_back((*it).second);
 
       TVM_FFI_ICHECK(IsNestedTensorConditioned(GetType(var), IsFloatTensorType))
           << "Only Tensors of floating point dtype or Tuples of float "
              "Tensors can require gradients, but the Type of Var "
-          << var->name_hint() << " is " << GetType(var);
+          << var->name_hint << " is " << GetType(var);
     }
     return mapped_vars;
   }
