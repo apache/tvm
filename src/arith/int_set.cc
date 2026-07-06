@@ -423,7 +423,17 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const Expr&)> {
     IntervalSet max_set = this->Eval(val->max_value);
     --recur_depth_;
 
-    return IntervalSet(min_set->min_value, max_set->max_value);
+    PrimExpr min_value = min_set->min_value;
+    PrimExpr max_value = max_set->max_value;
+    // IntSet keeps symbolic bounds parametric.  If relaxing a bound under
+    // one-sided constraints loses it to infinity, keep the original bound.
+    if (is_neg_inf(min_value) && val->HasLowerBound()) {
+      min_value = val->min_value;
+    }
+    if (is_pos_inf(max_value) && val->HasUpperBound()) {
+      max_value = val->max_value;
+    }
+    return IntervalSet(min_value, max_value);
   }
 
   IntervalSet VisitExpr_(const IntImmNode* op) final {

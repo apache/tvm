@@ -424,6 +424,24 @@ def test_relax_cyclic_variable_dependency():
     assert res is not None
 
 
+def test_constraint_scope_preserves_parametric_bounds():
+    """One-sided constraints should not erase symbolic bounds."""
+    analyzer = tvm.arith.Analyzer()
+    i = tvm.tirx.Var("i", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    analyzer.bind(i, tvm.ir.Range.from_min_extent(0, m))
+
+    with analyzer.constraint_scope(m > 0):
+        res = analyzer.int_set(i - 1)
+        assert analyzer.can_prove_equal(res.min_value, -1)
+        assert analyzer.can_prove_equal(res.max_value, m - 2)
+
+    with analyzer.constraint_scope(m < 16):
+        res = analyzer.int_set(i)
+        assert analyzer.can_prove_equal(res.min_value, 0)
+        assert analyzer.can_prove_equal(res.max_value, 14)
+
+
 def test_estimate_region_accepts_external_analyzer():
     i = tvm.tirx.Var("i", "int32")
     tile = tvm.tirx.Var("tile", "int32")
