@@ -245,7 +245,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
 
   NestedMsg<IntImm> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
   auto expr = NestedMsgToExpr<IntImm>(msg, [&](ffi::Optional<IntImm> leaf) {
-    TVM_FFI_ICHECK(leaf.defined());
+    TVM_FFI_ICHECK(leaf.has_value());
     int value = leaf.value()->value;
     switch (value) {
       case 0:
