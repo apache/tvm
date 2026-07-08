@@ -1462,6 +1462,37 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], ExpectedRank2Axis1, 1)
 
 
+@pytest.mark.parametrize("index", [0, 2, 3, -1, -4])
+def test_gather_shape_dynamic_index(index):
+    """Gather a dimension out of a Shape result using a non-constant index.
+
+    Detection post-processing graphs (e.g. FasterRCNN) feed a runtime-computed
+    index into a Gather whose data is a Shape output. The index is not a
+    constant, so the importer must materialize the shape as a tensor and gather
+    from it at runtime rather than resolving the dimension at compile time.
+    """
+    data_shape = [3, 4, 5, 6]
+    shape_node = helper.make_node("Shape", ["data"], ["shape"])
+    gather_node = helper.make_node("Gather", ["shape", "index"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, gather_node],
+        "gather_shape_dynamic_index_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("index", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [])],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_shape_dynamic_index_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "index": np.array(index).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
 def _make_gather_negative_indices_expected(axis: int, indices_shape, indices_type):
     indices_shape = tuple(indices_shape)
     indices_dtype = "int64" if indices_type == TensorProto.INT64 else "int32"
