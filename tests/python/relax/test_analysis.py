@@ -591,6 +591,22 @@ def test_reshape_pattern_reshape_scheduled():
     assert has_reshape_pattern(reshape_scheduled)
 
 
+def test_reshape_pattern_zero_extent():
+    @T.prim_func(s_tir=True)
+    def transpose_zero(
+        rxplaceholder: T.Buffer((3, 0, 4), "float32"),
+        T_transpose: T.Buffer((0, 3, 4), "float32"),
+    ):
+        for i0, i1, i2 in T.grid(0, 3, 4):
+            with T.sblock("T_transpose"):
+                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(rxplaceholder[ax1, ax0, ax2])
+                T.writes(T_transpose[ax0, ax1, ax2])
+                T_transpose[ax0, ax1, ax2] = rxplaceholder[ax1, ax0, ax2]
+
+    assert not has_reshape_pattern(transpose_zero)
+
+
 def test_reshape_pattern_expand_dims():
     @T.prim_func(s_tir=True)
     def expand_dims(
