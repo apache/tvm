@@ -6290,9 +6290,18 @@ def test_attention(dynamic):
     )
 
 
-def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=14):
+def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=14, axes=None):
     len_dim = len(pads) // 2
     np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
+
+    if axes is not None:
+        rank = len(input_shape)
+        full_pads = [(0, 0)] * rank
+        for i, axis in enumerate(axes):
+            axis = axis if axis >= 0 else axis + rank
+            full_pads[axis] = np_pads[i]
+        np_pads = full_pads
+
     if mode == "constant":
         out_shape = np.pad(
             np.empty(input_shape, dtype=np.float32),
@@ -6307,6 +6316,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
     input_shape = tuple(input_shape)
     out_shape = tuple(out_shape)
     pads_shape = (len(pads),)
+    axes_shape = None if axes is None else (len(axes),)
 
     if mode == "constant" and opset >= 11:
 
@@ -6468,6 +6478,60 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         return ExpectedPadEdgeAttrs
 
+    if mode == "wrap" and opset >= 19:
+        if axes is None:
+
+            @I.ir_module
+            class ExpectedPadWrapWithInputs:
+                @T.prim_func(private=True, s_tir=True)
+                def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                    T.evaluate(0)
+
+                @R.function
+                def main(
+                    input: R.Tensor(input_shape, dtype="float32"),
+                    pads: R.Tensor(pads_shape, dtype="int64"),
+                ) -> R.Tensor(out_shape, dtype="float32"):
+                    R.func_attr({"num_input": 1})
+                    cls = ExpectedPadWrapWithInputs
+                    with R.dataflow():
+                        lv = R.call_tir(
+                            cls.circular_pad,
+                            (input,),
+                            out_ty=R.Tensor(out_shape, dtype="float32"),
+                        )
+                        gv: R.Tensor(out_shape, dtype="float32") = lv
+                        R.output(gv)
+                    return gv
+
+            return ExpectedPadWrapWithInputs
+
+        @I.ir_module
+        class ExpectedPadWrapWithAxes:
+            @T.prim_func(private=True, s_tir=True)
+            def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                T.evaluate(0)
+
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype="float32"),
+                pads: R.Tensor(pads_shape, dtype="int64"),
+                axes: R.Tensor(axes_shape, dtype="int64"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 1})
+                cls = ExpectedPadWrapWithAxes
+                with R.dataflow():
+                    lv = R.call_tir(
+                        cls.circular_pad,
+                        (input,),
+                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                    )
+                    gv: R.Tensor(out_shape, dtype="float32") = lv
+                    R.output(gv)
+                return gv
+
+        return ExpectedPadWrapWithAxes
+
     raise AssertionError(f"No Pad expected IR for mode={mode}, opset={opset}")
 
 
@@ -6476,21 +6540,39 @@ def test_pad(dynamic):
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
-    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0):
+    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0, opset=14, axes=None):
         len_dim = len(pads) // 2
         np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
-        pads = np.array(pads)
+
+        if axes is not None:
+            rank = len(input_shape)
+            full_pads = [(0, 0)] * rank
+            for i, axis in enumerate(axes):
+                axis = axis if axis >= 0 else axis + rank
+                full_pads[axis] = np_pads[i]
+            np_pads = full_pads
+
+        pads = np.array(pads, dtype=np.int64)
         #  onnx graph
-        if mode in ["edge", "reflect"]:
+        if mode in ["edge", "reflect", "wrap"]:
             outdata = np.pad(np.empty(input_shape, dtype=np.float32), pad_width=np_pads, mode=mode)
-            node = helper.make_node("Pad", inputs=["input", "pads"], outputs=["output"], mode=mode)
+
+            node_inputs = ["input", "pads"]
+            initializer = [helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)]
+
+            if axes is not None:
+                axes = np.array(axes, dtype=np.int64)
+                node_inputs = ["input", "pads", "", "axes"]
+                initializer.append(helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes))
+
+            node = helper.make_node("Pad", inputs=node_inputs, outputs=["output"], mode=mode)
             graph = helper.make_graph(
                 [node],
                 "pad_test",
                 inputs=[
                     helper.make_tensor_value_info("input", TensorProto.FLOAT, list(input_shape))
                 ],
-                initializer=[helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)],
+                initializer=initializer,
                 outputs=[
                     helper.make_tensor_value_info("output", TensorProto.FLOAT, list(outdata.shape))
                 ],
@@ -6523,8 +6605,8 @@ def test_pad(dynamic):
                 ],
             )
         model = helper.make_model(graph, producer_name="pad_test")
-        model.opset_import[0].version = 14
-        tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+        model.opset_import[0].version = opset
+        tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
         expected = tvm.IRModule(expected.functions)
         for gv in expected.get_global_vars():
@@ -6532,20 +6614,25 @@ def test_pad(dynamic):
                 expected.update_func(gv, tvm_model[gv.name_hint])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    for input_shape, pads, mode, value in [
-        ((2, 2), [0, 1, 0, 0], "constant", 0.0),
-        ((2, 3), [1, 0, 0, 1], "constant", 0.0),
-        ((3, 2), [0, 0, 1, 0], "constant", 5.0),
-        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect", 0.0),
-        ((2, 3), [1, 1, 1, 1], "edge", 0.0),
-        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge", 0.0),
+    for input_shape, pads, mode, value, opset, axes in [
+        ((2, 2), [0, 1, 0, 0], "constant", 0.0, 14, None),
+        ((2, 3), [1, 0, 0, 1], "constant", 0.0, 14, None),
+        ((3, 2), [0, 0, 1, 0], "constant", 5.0, 14, None),
+        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect", 0.0, 14, None),
+        ((2, 3), [1, 1, 1, 1], "edge", 0.0, 14, None),
+        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge", 0.0, 14, None),
+        ((1, 3, 4), [0, 0, 2, 0, 0, 2], "wrap", 0.0, 19, None),
+        ((1, 3, 4), [2, 2], "wrap", 0.0, 19, [2]),
+        ((1, 3, 4), [1, 2, 1, 2], "wrap", 0.0, 19, [1, 2]),
     ]:
         verify_pad(
             input_shape,
             pads,
-            _make_pad_expected_ir(input_shape, pads, mode=mode, value=value, opset=14),
+            _make_pad_expected_ir(input_shape, pads, mode=mode, value=value, opset=opset, axes=axes),
             mode,
             value,
+            opset,
+            axes,
         )
 
 
