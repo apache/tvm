@@ -2619,6 +2619,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         data_flat = self.block_builder.emit(relax.op.reshape(data, [-1]))
         mask_flat = self.block_builder.emit(relax.op.reshape(mask, [-1]))
         indices = self.block_builder.emit(relax.op.nonzero(mask_flat))
+        tensor_meta = node.meta.get("tensor_meta")
+        if tensor_meta is not None and len(tensor_meta.shape) == 1:
+            num_selected = tensor_meta.shape[0]
+            if not isinstance(num_selected, int):
+                num_selected = tirx.Var(str(num_selected), "int64")
+        else:
+            num_selected = tirx.Var(f"{node.name}_num_selected", "int64")
+        indices = self.block_builder.match_cast(
+            indices, relax.TensorType([1, num_selected], "int64")
+        )
         indices_1d = self.block_builder.emit(relax.op.squeeze(indices, axis=[0]))
 
         result = self.block_builder.emit(relax.op.take(data_flat, indices_1d, axis=0))
