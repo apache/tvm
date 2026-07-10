@@ -2124,7 +2124,7 @@ class ConstantOfShape(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
-        shape = inputs[0]
+        shape = get_constant(inputs[0], params)
         # ONNX spec: `value` is optional and defaults to a zero float32 scalar.
         # `get_numpy` requires a TensorProto, so dispatch on presence first.
         attr_value = attr.get("value")
@@ -2138,7 +2138,11 @@ class ConstantOfShape(OnnxOpConverter):
             shape = relax.ShapeExpr(list(shape.data.numpy()))
 
         # Special case where requested shape are constant
-        if len(shape) == 1 and all([isinstance(x, tirx.IntImm) for x in shape]):
+        if (
+            isinstance(shape, relax.ShapeExpr)
+            and len(shape) == 1
+            and all([isinstance(x, tirx.IntImm) for x in shape])
+        ):
             shape = [int(x) for x in shape]
             return relax.const(_np.full(shape, value, dtype), dtype)
 
