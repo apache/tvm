@@ -273,6 +273,21 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
 
+      // Interval-based bound of the truncated mod.
+      Entry interval_bound;
+      if (a.min_value >= 0) {
+        // 0 <= [a_min, a_max] < b_min
+        if (a.max_value < b.min_value) {
+          interval_bound = a;
+        } else {
+          // other case, we can get close to 0
+          interval_bound = MakeBound(0, std::min(a.max_value, b_max_cap));
+        }
+      } else {
+        interval_bound = MakeBound(std::max(a.min_value, -b_max_cap),
+                                   std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
+      }
+
       // Try to get tighter bounds using modular set information
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
@@ -290,6 +305,8 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
         //   negative results (only if a can be negative) are the mirrored
         //     set {-(modulus - gcd + neg_base), ..., -neg_base} with
         //     neg_base = (gcd - base_mod) % gcd.
+        // The modular bound is intersected with the interval bound so a
+        // tight dividend range is never lost.
         //
         // Example: expr = (bx * 2048 + tx * 16) % 7168
         //          where bx in [0, 3584), tx in [0, 128)
@@ -302,27 +319,23 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
           int64_t base_mod = mod_a->base % gcd_coeff_mod;
           if (base_mod < 0) base_mod += gcd_coeff_mod;
           int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
+          Entry modular_bound;
           if (a.min_value >= 0) {
-            return MakeBound(base_mod, tight_max);
+            modular_bound = MakeBound(base_mod, tight_max);
+          } else {
+            int64_t neg_base = (gcd_coeff_mod - base_mod) % gcd_coeff_mod;
+            int64_t tight_min = -(modulus - gcd_coeff_mod + neg_base);
+            if (a.max_value < 0) {
+              modular_bound = MakeBound(tight_min, -neg_base);
+            } else {
+              modular_bound = MakeBound(tight_min, tight_max);
+            }
           }
-          int64_t neg_base = (gcd_coeff_mod - base_mod) % gcd_coeff_mod;
-          int64_t tight_min = -(modulus - gcd_coeff_mod + neg_base);
-          if (a.max_value < 0) {
-            return MakeBound(tight_min, -neg_base);
-          }
-          return MakeBound(tight_min, tight_max);
+          return Intersect(interval_bound, modular_bound);
         }
       }
 
-      if (a.min_value >= 0) {
-        // 0 <= [a_min, a_max] < b_min
-        if (a.max_value < b.min_value) return a;
-        // other case, we can get close to 0
-        return MakeBound(0, std::min(a.max_value, b_max_cap));
-      } else {
-        return MakeBound(std::max(a.min_value, -b_max_cap),
-                         std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
-      }
+      return interval_bound;
     } else {
       TVM_FFI_ICHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
@@ -360,6 +373,22 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+
+      // Interval-based bound of the floor mod (result is always in
+      // [0, b_max_cap] for a positive divisor).
+      Entry interval_bound;
+      if (a.min_value >= 0) {
+        // 0 <= [a_min, a_max] < b_min
+        if (a.max_value < b.min_value) {
+          interval_bound = a;
+        } else {
+          // other case, we can get close to 0
+          interval_bound = MakeBound(0, std::min(a.max_value, b_max_cap));
+        }
+      } else {
+        interval_bound = MakeBound(0, b_max_cap);
+      }
+
       // Try to get tighter bounds using modular set information
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
@@ -374,6 +403,8 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
         // [0, gcd_coeff_mod)). The result (always in [0, modulus)) is thus
         // in {base_mod, base_mod + gcd_coeff_mod, ...,
         //     modulus - gcd_coeff_mod + base_mod}.
+        // The modular bound is intersected with the interval bound so a
+        // tight dividend range is never lost.
         //
         // Example: expr = (bx * 2048 + tx * 16) % 7168
         //          where bx in [0, 3584), tx in [0, 128)
@@ -386,18 +417,11 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
           int64_t base_mod = mod_a->base % gcd_coeff_mod;
           if (base_mod < 0) base_mod += gcd_coeff_mod;
           int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
-          return MakeBound(base_mod, tight_max);
+          return Intersect(interval_bound, MakeBound(base_mod, tight_max));
         }
       }
 
-      if (a.min_value >= 0) {
-        // 0 <= [a_min, a_max] < b_min
-        if (a.max_value < b.min_value) return a;
-        // other case, we can get close to 0
-        return MakeBound(0, std::min(a.max_value, b_max_cap));
-      } else {
-        return MakeBound(0, b_max_cap);
-      }
+      return interval_bound;
     } else {
       TVM_FFI_ICHECK(!b.is_const(0)) << "floormod by zero";
       int64_t b_min_cap = InfAwareAdd(b.min_value, 1);

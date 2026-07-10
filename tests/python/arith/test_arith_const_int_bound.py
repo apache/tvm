@@ -233,6 +233,14 @@ class TestModBoundWithModularSet(BaseCompare):
         TestCase(tmod(n * 64 + 3, 256), (-253, 195)),
         # non-negative dividend keeps the one-sided range
         TestCase(tmod(n * 64 + 3, 256), (3, 195), {n: (0, POS_INF)}),
+        # the modular bound must not discard a tighter interval bound:
+        # dividend in [63, 127] -> values {63, 127}, not [63, 255]
+        TestCase((n * 64 + 63) % 256, (63, 127), {n: (0, 1)}),
+        # same for truncmod with a negative dividend range: values {-67, -3}
+        TestCase(tmod(n * 64 + 61, 256), (-67, -3), {n: (-2, -1)}),
+        # floormod of the same negative range: values {189, 253}, the
+        # modular residue set {61, 125, 189, 253} bounds it to [61, 253]
+        TestCase((n * 64 + 61) % 256, (61, 253), {n: (-2, -1)}),
     )
 
 
