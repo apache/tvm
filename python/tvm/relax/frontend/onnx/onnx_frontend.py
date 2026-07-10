@@ -3576,17 +3576,74 @@ class BatchNormalization(OnnxOpConverter):
         epsilon = attr.get("epsilon", 1e-05)
         momentum = attr.get("momentum", 0.9)
         training_mode = attr.get("training_mode", 0)
-        return relax.op.nn.batch_norm(
-            data,
-            gamma=scale,
-            beta=bias,
-            moving_mean=mean,
-            moving_var=var,
+
+        data_dtype = data.ty.dtype
+        scale_dtype = scale.ty.dtype
+        bias_dtype = bias.ty.dtype
+        mean_dtype = mean.ty.dtype
+        var_dtype = var.ty.dtype
+
+        if scale_dtype != bias_dtype:
+            raise ValueError(
+                "ONNX BatchNormalization requires scale and bias to have the same "
+                f"dtype, but received {scale_dtype} and {bias_dtype}."
+            )
+
+        if mean_dtype != var_dtype:
+            raise ValueError(
+                "ONNX BatchNormalization requires mean and var to have the same "
+                f"dtype, but received {mean_dtype} and {var_dtype}."
+            )
+
+        if data_dtype == scale_dtype == mean_dtype:
+            compute_dtype = data_dtype
+        elif (
+            data_dtype == "float16"
+            and scale_dtype in ("float16", "float32")
+            and mean_dtype in ("float16", "float32")
+        ):
+            compute_dtype = "float32"
+        else:
+            raise NotImplementedError(
+                "ONNX BatchNormalization with mixed input dtypes is currently "
+                "supported only for float16 data with float16/float32 parameters "
+                "and statistics, but received "
+                f"data={data_dtype}, scale/bias={scale_dtype}, mean/var={mean_dtype}."
+            )
+
+        # ONNX requires float computation for float16 training statistics to avoid overflow.
+        if training_mode and data_dtype == "float16":
+            compute_dtype = "float32"
+
+        def cast_for_compute(expr, source_dtype):
+            if source_dtype == compute_dtype:
+                return expr
+            return relax.op.astype(expr, compute_dtype)
+
+        output = relax.op.nn.batch_norm(
+            cast_for_compute(data, data_dtype),
+            gamma=cast_for_compute(scale, scale_dtype),
+            beta=cast_for_compute(bias, bias_dtype),
+            moving_mean=cast_for_compute(mean, mean_dtype),
+            moving_var=cast_for_compute(var, var_dtype),
             axis=1,
             epsilon=epsilon,
             momentum=momentum,
             training=bool(training_mode),
         )
+
+        y = relax.TupleGetItem(output, 0)
+        running_mean = relax.TupleGetItem(output, 1)
+        running_var = relax.TupleGetItem(output, 2)
+
+        if compute_dtype != data_dtype:
+            y = relax.op.astype(y, data_dtype)
+        if compute_dtype != mean_dtype:
+            running_mean = relax.op.astype(running_mean, mean_dtype)
+        if compute_dtype != var_dtype:
+            running_var = relax.op.astype(running_var, var_dtype)
+
+        return relax.Tuple([y, running_mean, running_var])
 
 
 class MeanVarianceNormalization(OnnxOpConverter):
