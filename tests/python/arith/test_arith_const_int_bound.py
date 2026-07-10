@@ -204,6 +204,38 @@ class TestFloorModBound(BaseCompare):
     )
 
 
+class TestModBoundWithModularSet(BaseCompare):
+    """floormod/truncmod bounds tightened by modular-set information.
+
+    When the dividend satisfies `a == base (mod coeff)` and
+    `g = gcd(coeff, divisor) > 1`, `floormod(a, divisor)` can only take the
+    values `{r, r + g, ..., divisor - g + r}` where `r = base % g`.
+
+    Regression test for a bug where the residue was normalized modulo the
+    divisor instead of modulo `g`, yielding invalid bounds (min > max) such
+    as [255, 191] for `(n * 320 + 255) % 256`. Such bounds let
+    `CanProve(..., kSymbolicBound)` incorrectly validate the bounds
+    predicates of imperfect loop splits, so scheduled GPU kernels silently
+    lost their out-of-bounds guards.
+    """
+
+    n = tvm.tirx.Var("n", "int64")
+    tmod = tvm.tirx.truncmod
+
+    test_case = tvm.testing.parameter(
+        # gcd(320, 256) = 64, base 255 -> residue 63: values {63, 127, 191, 255}
+        TestCase((n * 320 + 255) % 256, (63, 255)),
+        # coeff divides the divisor, base 0: multiples of 16
+        TestCase((n * 16) % 7168, (0, 7152)),
+        # base already smaller than the gcd: values {3, 67, 131, 195}
+        TestCase((n * 64 + 3) % 256, (3, 195)),
+        # truncated mod mirrors the residues on the negative side
+        TestCase(tmod(n * 64 + 3, 256), (-253, 195)),
+        # non-negative dividend keeps the one-sided range
+        TestCase(tmod(n * 64 + 3, 256), (3, 195), {n: (0, POS_INF)}),
+    )
+
+
 class TestMinMaxBound(BaseCompare):
     x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 

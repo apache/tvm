@@ -279,9 +279,17 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
         int64_t modulus = b.min_value;
         int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
-        // If gcd_coeff_mod > 1, we can get tighter bounds
-        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
-        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        // If gcd_coeff_mod > 1, we can get tighter bounds.
+        // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
+        // a == mod_a->base (mod gcd_coeff_mod). Truncated mod keeps that
+        // residue on the non-negative side and mirrors it on the negative
+        // side, so with base_mod = mod_a->base % gcd_coeff_mod (normalized
+        // to [0, gcd_coeff_mod)):
+        //   non-negative results are in {base_mod, base_mod + gcd, ...,
+        //     modulus - gcd + base_mod}
+        //   negative results (only if a can be negative) are the mirrored
+        //     set {-(modulus - gcd + neg_base), ..., -neg_base} with
+        //     neg_base = (gcd - base_mod) % gcd.
         //
         // Example: expr = (bx * 2048 + tx * 16) % 7168
         //          where bx in [0, 3584), tx in [0, 128)
@@ -291,11 +299,18 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
         //          Without this optimization: bound = [0, 7167]
         //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
-          int64_t base_mod = mod_a->base % modulus;
-          if (base_mod < 0) base_mod += modulus;
+          int64_t base_mod = mod_a->base % gcd_coeff_mod;
+          if (base_mod < 0) base_mod += gcd_coeff_mod;
           int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
-          if (tight_max >= modulus) tight_max -= modulus;
-          return MakeBound(base_mod, tight_max);
+          if (a.min_value >= 0) {
+            return MakeBound(base_mod, tight_max);
+          }
+          int64_t neg_base = (gcd_coeff_mod - base_mod) % gcd_coeff_mod;
+          int64_t tight_min = -(modulus - gcd_coeff_mod + neg_base);
+          if (a.max_value < 0) {
+            return MakeBound(tight_min, -neg_base);
+          }
+          return MakeBound(tight_min, tight_max);
         }
       }
 
@@ -351,9 +366,14 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
         int64_t modulus = b.min_value;
         int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
-        // If gcd_coeff_mod > 1, we can get tighter bounds
-        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
-        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        // If gcd_coeff_mod > 1, we can get tighter bounds.
+        // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
+        // a == mod_a->base (mod gcd_coeff_mod), and therefore
+        // floormod(a, modulus) == base_mod (mod gcd_coeff_mod), where
+        // base_mod = mod_a->base % gcd_coeff_mod (normalized to
+        // [0, gcd_coeff_mod)). The result (always in [0, modulus)) is thus
+        // in {base_mod, base_mod + gcd_coeff_mod, ...,
+        //     modulus - gcd_coeff_mod + base_mod}.
         //
         // Example: expr = (bx * 2048 + tx * 16) % 7168
         //          where bx in [0, 3584), tx in [0, 128)
@@ -363,10 +383,9 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
         //          Without this optimization: bound = [0, 7167]
         //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
-          int64_t base_mod = mod_a->base % modulus;
-          if (base_mod < 0) base_mod += modulus;
+          int64_t base_mod = mod_a->base % gcd_coeff_mod;
+          if (base_mod < 0) base_mod += gcd_coeff_mod;
           int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
-          if (tight_max >= modulus) tight_max -= modulus;
           return MakeBound(base_mod, tight_max);
         }
       }
