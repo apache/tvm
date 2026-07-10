@@ -48,4 +48,5 @@ def _bucketize(bb, call):
     input_tensor = call.args[0]
     boundaries = call.args[1]
     right = call.attrs.right
-    return bb.call_te(topi.searchsorted, boundaries, input_tensor, right, input_tensor.ty.dtype)
+    out_dtype = "int32" if call.attrs.out_int32 else "int64"
+    return bb.call_te(topi.searchsorted, boundaries, input_tensor, right, out_dtype)

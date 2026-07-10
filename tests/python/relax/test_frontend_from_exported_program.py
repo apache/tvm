@@ -7845,6 +7845,19 @@ def test_bucketize():
     verify_model(Bucketize(), (input_tensor, boundaries), {}, Expected)
 
 
+@pytest.mark.parametrize("right", [False, True])
+@pytest.mark.parametrize("out_int32", [False, True])
+def test_bucketize_numerically(right, out_int32):
+    class Bucketize(Module):
+        def forward(self, input_tensor, boundaries):
+            return torch.bucketize(input_tensor, boundaries, right=right, out_int32=out_int32)
+
+    input_tensor = torch.tensor([-0.5, 0.0, 0.5, 1.0, 2.0, 2.5], dtype=torch.float32)
+    boundaries = torch.tensor([0.0, 1.0, 2.0], dtype=torch.float32)
+
+    verify_model_numerically(Bucketize(), (input_tensor, boundaries))
+
+
 def test_argsort():
     class Argsort(Module):
         def forward(self, x):
