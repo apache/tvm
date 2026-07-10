@@ -6563,7 +6563,9 @@ def test_pad(dynamic):
             if axes is not None:
                 axes = np.array(axes, dtype=np.int64)
                 node_inputs = ["input", "pads", "", "axes"]
-                initializer.append(helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes))
+                initializer.append(
+                    helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes)
+                )
 
             node = helper.make_node("Pad", inputs=node_inputs, outputs=["output"], mode=mode)
             graph = helper.make_graph(
@@ -6628,7 +6630,9 @@ def test_pad(dynamic):
         verify_pad(
             input_shape,
             pads,
-            _make_pad_expected_ir(input_shape, pads, mode=mode, value=value, opset=opset, axes=axes),
+            _make_pad_expected_ir(
+                input_shape, pads, mode=mode, value=value, opset=opset, axes=axes
+            ),
             mode,
             value,
             opset,
