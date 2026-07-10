@@ -5601,6 +5601,19 @@ def test_expand():
                 R.output(gv)
             return gv
 
+    @I.ir_module
+    class ExpectedHigherRankSamePaddedShape:
+        @R.function
+        def main(
+            in_: R.Tensor((1,), dtype="float32"),
+            in_2: R.Tensor((1, 1), dtype="float32"),
+        ) -> R.Tensor((1, 1), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 1), dtype="float32") = R.broadcast_to(in_, R.shape([1, 1]))
+                R.output(gv)
+            return gv
+
     _assert_expand_ir("expand_with_dim_unchanged_test", [3, 1], [3, 4], [3, 4], ExpectedSameRank)
     _assert_expand_ir("expand_with_diff_dim", [3, 1], [1, 3, 4], [1, 3, 4], ExpectedHigherRank)
     _assert_expand_ir(
@@ -5608,6 +5621,12 @@ def test_expand():
     )
     _assert_expand_dynamic_shapeexpr_ir(
         "expand_with_dynamic_dim", [1, 32, 32], ["batch", 32, 32], ExpectedDynamicShape
+    )
+    _assert_expand_dynamic_shapeexpr_ir(
+        "expand_with_higher_rank_same_padded_shape",
+        [1],
+        [1, 1],
+        ExpectedHigherRankSamePaddedShape,
     )
 
 

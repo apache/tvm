@@ -2875,6 +2875,7 @@ class Expand(OnnxOpConverter):
         shape = inputs[1]
         if isinstance(shape, relax.ShapeExpr):
             data_shape = list(data.ty.shape)
+            data_ndim = len(data_shape)
             target_shape = list(shape.values)
             original_data_shape = [
                 dim.value if hasattr(dim, "value") else str(dim) for dim in data_shape
@@ -2918,7 +2919,7 @@ class Expand(OnnxOpConverter):
                                 f"the same value or one of them to be 1."
                             )
                         # For dynamic shapes, let broadcast_to handle it
-            if target_shape == data_shape:
+            if target_shape == data_shape and len(target_shape) == data_ndim:
                 return data
             return relax.op.broadcast_to(data, relax.ShapeExpr(target_shape))
 
