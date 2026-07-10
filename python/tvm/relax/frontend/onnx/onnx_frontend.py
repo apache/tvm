@@ -4413,14 +4413,14 @@ class TopK(OnnxOpConverter):
         if sorted != 1:
             raise ValueError("TopK sorted must be 1 for Relax frontend")
 
-        return relax.op.topk(data, k, axis, ret_type="both", largest=largest)
+        return relax.op.topk(data, k, axis, ret_type="both", largest=largest, dtype="int64")
 
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         data = inputs[0]
         k = attr.get("k", 1)
         axis = attr.get("axis", -1)
-        return relax.op.topk(data, k, axis, ret_type="both")
+        return relax.op.topk(data, k, axis, ret_type="both", dtype="int64")
 
 
 class SkipLayerNormalization(OnnxOpConverter):
