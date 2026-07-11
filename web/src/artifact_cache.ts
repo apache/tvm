@@ -189,7 +189,7 @@ class CrossOriginStorage {
     if (!api) {
       throw new Error("Cross-origin storage API unavailable.");
     }
-    const handle = await api.requestFileHandle(hash, { create: true, origins: "*" });
+    const handle = await api.requestFileHandle(hash, { create: true, origins: "*" /* All origins */ });
     if (!handle) {
       throw new Error("Cross-origin storage API returned no handle.");
     }
