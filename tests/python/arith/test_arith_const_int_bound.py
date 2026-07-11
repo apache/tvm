@@ -241,6 +241,13 @@ class TestModBoundWithModularSet(BaseCompare):
         # floormod of the same negative range: values {189, 253}, the
         # modular residue set {61, 125, 189, 253} bounds it to [61, 253]
         TestCase((n * 64 + 61) % 256, (61, 253), {n: (-2, -1)}),
+        # Truncated mod with an entirely-negative dividend whose magnitude is
+        # below the divisor: no reduction happens, so the result equals the
+        # dividend and the bound is [a.min, a.max], not the loose [a.min, 0].
+        TestCase(tmod(n, 256), (-5, -3), {n: (-5, -3)}),
+        # A negative dividend that spans a multiple of the divisor can still
+        # reach 0, so the upper bound stays 0 (no tightening here).
+        TestCase(tmod(n, 256), (-255, 0), {n: (-1000, -300)}),
     )
 
 

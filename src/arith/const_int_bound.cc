@@ -283,6 +283,18 @@ class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::En
           // other case, we can get close to 0
           interval_bound = MakeBound(0, std::min(a.max_value, b_max_cap));
         }
+      } else if (a.max_value < 0) {
+        // The dividend is entirely negative. The truncated result keeps the
+        // sign of the dividend, so it is in [-(b-1), 0]. If additionally
+        // |a| < b for every value in range (a.min_value > -b.min_value),
+        // no reduction happens and the result equals a, giving the tight
+        // [a.min, a.max]. This mirrors the non-negative "return a" case
+        // above; without it the upper bound would be the loose 0.
+        if (a.min_value > -b.min_value) {
+          interval_bound = a;
+        } else {
+          interval_bound = MakeBound(std::max(a.min_value, -b_max_cap), 0);
+        }
       } else {
         interval_bound = MakeBound(std::max(a.min_value, -b_max_cap),
                                    std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
