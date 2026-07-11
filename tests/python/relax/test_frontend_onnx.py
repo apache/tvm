@@ -5258,7 +5258,7 @@ def test_topk(axis: int, largest: int):
     )
     model = helper.make_model(graph, producer_name="topk_test")
 
-    check_correctness(model)
+    check_correctness(model, check_dtypes=True)
 
 
 def test_expand():
