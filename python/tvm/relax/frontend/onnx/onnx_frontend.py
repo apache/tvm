@@ -1940,8 +1940,7 @@ class Squeeze(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         # Prior to opset 13, axes is provided as an attribute rather than an input.
         axes = attr.get("axes", None)
-        axis = tuple(int(x) for x in axes) if axes is not None else None
-        return cls._squeeze(bb, inputs[0], axis)
+        return cls._squeeze(bb, inputs[0], axes)
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
