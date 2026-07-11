@@ -1230,7 +1230,7 @@ def test_annotation_syntax_comprehensive():
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret(
+        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("void")))] = T.reinterpret(
             "handle", smem.access_ptr("rw")
         )
         T.evaluate(ptr)

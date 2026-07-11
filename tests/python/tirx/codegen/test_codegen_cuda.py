@@ -24,10 +24,13 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def _get_source(func: tvm.tirx.PrimFunc) -> str:
-    target = tvm.target.Target("cuda")
+def _get_source(func: tvm.tirx.PrimFunc, target=None) -> tuple[str, tvm.IRModule]:
+    if target is None:
+        target = {"kind": "cuda", "arch": "sm_100a"}
+    target = tvm.target.Target(target)
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    with target:
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
@@ -102,17 +105,18 @@ def test_cluster_cta_id_codegen_uses_coordinate_sregs():
     assert "cooperative_groups::cluster_group::block_index" not in src
 
 
+@pytest.mark.gpu
 def test_cuda_handle_uint64_reinterpret_codegen():
     @T.prim_func
     def main(A: T.Buffer((1,), "uint64")):
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            ptr = T.reinterpret("handle", A[0])
+            ptr: T.let = T.reinterpret("handle", A[0])
             A[0] = T.reinterpret("uint64", ptr)
 
     src, _ = _get_source(main)
-    assert "reinterpret_cast<void*>" in src
+    assert "(void*)A_ptr[0]" in src
     assert "reinterpret_cast<uint64_t>" in src
     assert "*(void* *)" not in src
 
@@ -166,6 +170,7 @@ def test_ptx_ld_acquire_and_volatile_codegen():
     assert "ld.volatile.global.u64" in src
 
 
+@pytest.mark.gpu
 def test_megamoe_extracted_intrinsics_codegen():
     @T.prim_func
     def main(
@@ -388,7 +393,7 @@ def test_tma_cache_policy_operand_codegen():
                     cache_policy=Cache[0],
                 )
 
-    src, _ = _get_source(main)
+    src, _ = _get_source(main, {"kind": "cuda", "arch": "sm_100a"})
     assert "ptx_cp_async_bulk_tensor_g2cluster_tile_2d_cache_hint" in src
     assert "ptx_cp_async_bulk_tensor_g2cluster_tile_2d_multicast_cache_hint" in src
     assert "g2cluster_unicast" not in src

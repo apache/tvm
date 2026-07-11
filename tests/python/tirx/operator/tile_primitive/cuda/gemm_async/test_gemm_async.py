@@ -2285,6 +2285,7 @@ def _build_smem_desc_kernel(smem_desc):
 
 
 @pytest.mark.parametrize("smem_desc", ["hoist", "recompute"])
+@pytest.mark.gpu
 def test_gemm_smem_desc_hoist_vs_recompute(smem_desc):
     """Compile-only: the SMEM matrix descriptor is built per-MMA from the buffer
     base address, selected by the ``smem_desc`` config.
