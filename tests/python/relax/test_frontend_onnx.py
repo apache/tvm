@@ -7546,6 +7546,101 @@ def test_batch_norm_defaults_to_inference_mode():
     assert batch_norm_attrs[0].training is False
 
 
+def test_batch_norm_mixed_dtype_params():
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT16, [1, 3, 2, 2])
+    output = helper.make_tensor_value_info("output", TensorProto.FLOAT16, [1, 3, 2, 2])
+    params = [
+        numpy_helper.from_array(np.array([1.0, 1.5, 2.0], dtype=np.float32), name="gamma"),
+        numpy_helper.from_array(np.array([0.0, 0.1, -0.1], dtype=np.float32), name="beta"),
+        numpy_helper.from_array(np.array([0.2, -0.3, 0.4], dtype=np.float32), name="mean"),
+        numpy_helper.from_array(np.array([1.0, 1.5, 2.0], dtype=np.float32), name="var"),
+    ]
+    batch_norm_node = helper.make_node(
+        "BatchNormalization",
+        ["data", "gamma", "beta", "mean", "var"],
+        ["output"],
+        epsilon=1e-5,
+        momentum=0.9,
+        training_mode=0,
+    )
+    graph = helper.make_graph(
+        [batch_norm_node],
+        "mixed_dtype_batchnorm",
+        [data],
+        [output],
+        initializer=params,
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 15)])
+
+    tvm_model = from_onnx(model, keep_params_in_input=False)
+
+    assert tuple(dim.value for dim in tvm_model["main"].ret_ty.shape.values) == (1, 3, 2, 2)
+    assert tvm_model["main"].ret_ty.dtype == "float16"
+
+    batch_norm_calls = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+            batch_norm_calls.append(expr)
+
+    relax.analysis.post_order_visit(tvm_model["main"], visit)
+
+    assert len(batch_norm_calls) == 1
+    arg_dtypes = [
+        str(getattr(arg, "struct_info", getattr(arg, "ty", None)).dtype)
+        for arg in batch_norm_calls[0].args
+    ]
+    assert arg_dtypes == ["float32"] * 5
+
+
+def test_batch_norm_training_preserves_output_dtypes():
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT16, [1, 3, 2, 2])
+    outputs = [
+        helper.make_tensor_value_info("output", TensorProto.FLOAT16, [1, 3, 2, 2]),
+        helper.make_tensor_value_info("running_mean", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("running_var", TensorProto.FLOAT16, [3]),
+    ]
+    inputs = [
+        data,
+        helper.make_tensor_value_info("gamma", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("beta", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("mean", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("var", TensorProto.FLOAT16, [3]),
+    ]
+    batch_norm_node = helper.make_node(
+        "BatchNormalization",
+        [value.name for value in inputs],
+        [value.name for value in outputs],
+        training_mode=1,
+    )
+    graph = helper.make_graph(
+        [batch_norm_node],
+        "mixed_dtype_training_batchnorm",
+        inputs,
+        outputs,
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 15)])
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    assert [str(field.dtype) for field in tvm_model["main"].ret_ty.fields] == [
+        "float16",
+        "float16",
+        "float16",
+    ]
+
+    batch_norm_calls = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+            batch_norm_calls.append(expr)
+
+    relax.analysis.post_order_visit(tvm_model["main"], visit)
+
+    assert len(batch_norm_calls) == 1
+    assert [str(arg.ty.dtype) for arg in batch_norm_calls[0].args] == ["float32"] * 5
+
+
 def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
     def get_pad_pair(input1d, kernel1d, stride1d, mode):
         if input1d % stride1d == 0:
