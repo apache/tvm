@@ -39,18 +39,21 @@ def package_lib_paths() -> list[Path]:
 
     Anchored on this file's location (``python/tvm/libinfo.py``), the list
     covers the wheel-install layout (``python/tvm/lib/``) and the in-tree dev
-    build layouts (``<worktree>/build/lib/`` and ``<worktree>/lib/``).
+    build layouts (``<worktree>/build/lib/``,
+    ``<worktree>/build/<wheel-tag>/lib/``, and ``<worktree>/lib/``).
     ``TVM_LIBRARY_PATH`` is prepended when set so it takes priority. Callers
     pick the basenames they want (e.g. ``libtvm_runtime.so``) and the load
     mode; this function only returns the search path.
     """
     pkg = _rel_top_directory()  # python/tvm/
+    build = _dev_top_directory() / "build"
     paths: list[Path] = []
     if os.environ.get("TVM_LIBRARY_PATH"):
         paths.append(Path(os.environ["TVM_LIBRARY_PATH"]))
     paths += [
         pkg / "lib",  # wheel layout
-        _dev_top_directory() / "build" / "lib",  # dev: <worktree>/build/lib
+        build / "lib",  # dev: <worktree>/build/lib
+        *sorted(build.glob("*/lib")),  # dev: <worktree>/build/<wheel-tag>/lib
         _dev_top_directory() / "lib",  # dev: <worktree>/lib
     ]
     return paths
