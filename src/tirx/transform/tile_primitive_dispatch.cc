@@ -982,7 +982,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                                  int64_t* base) {
     PrimExpr simplified = analyzer_->Simplify(diff);
     for (const auto& [var, candidate] : ScopeIdTargets()) {
-      ffi::Array<PrimExpr> linear = arith::DetectLinearEquation(simplified, {var});
+      ffi::Array<PrimExpr> linear =
+          arith::DetectLinearEquation(simplified, {var.as_or_throw<PrimVar>()});
       if (linear.size() != 2) continue;
       int64_t c = 0;
       int64_t b = 0;

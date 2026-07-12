@@ -253,7 +253,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       // args[1] is not a raw Var — e.g. a nested tvm_access_ptr or some
       // other PrimExpr. Recurse into sub-exprs so any inner buffer var
       // refs still get visited, but don't try to record an access entry
-      // here (GetScope(Var(nullptr)) would deref a null pointer).
+      // here (GetScope on a null Var would dereference a null pointer).
       StmtExprVisitor::VisitExpr_(op);
       return;
     }
@@ -267,7 +267,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       AccessEntry e;
       e.threads = env_threads();
       e.dtype = dtype;
-      e.buffer = op->args[1].as_or_throw<Var>();
+      e.buffer = ffi::GetRef<Var>(buffer);
       e.touched = {arith::IntSet::FromRange(Range::FromMinExtent(offset, extent))};
       e.scope = scope;
       if (flag->value & 1) {

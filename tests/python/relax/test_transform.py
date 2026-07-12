@@ -58,7 +58,7 @@ def test_to_non_dataflow():
     old_vars = []
 
     def fvisit(e):
-        if isinstance(e, relax.Var):
+        if isinstance(e, relax.Var) and not tvm.ir.is_prim_expr(e):
             nonlocal old_vars
             old_vars.append(e)
 
@@ -70,7 +70,7 @@ def test_to_non_dataflow():
     new_vars = []
 
     def fvisit(e):
-        if isinstance(e, relax.Var):
+        if isinstance(e, relax.Var) and not tvm.ir.is_prim_expr(e):
             nonlocal new_vars
             new_vars.append(e)
 

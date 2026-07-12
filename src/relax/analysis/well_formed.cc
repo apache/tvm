@@ -215,6 +215,10 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr_(const VarNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      VisitSymbolicVar(op);
+      return;
+    }
     Var var = ffi::GetRef<Var>(op);
     if (var_set_.count(var) == 0 && recur_vars_.count(var) == 0) {
       TVM_FFI_VISIT_THROW(ValueError, var) << "Var " << ffi::GetRef<Expr>(op) << " is not defined.";
@@ -564,7 +568,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     CheckType(var);
   }
 
-  void VisitExpr_(const tirx::VarNode* op) final {
+  void VisitSymbolicVar(const VarNode* op) {
     tirx::Var var = ffi::GetRef<tirx::Var>(op);
     // default mode, check defined.
     if (symbolic_var_set_.count(var) == 0) {
@@ -601,8 +605,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitTypeExprField(const Expr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
       // populate symbolic var in first occurrence
-      if (auto* op = expr.as<relax::VarNode>()) {
-        auto var = ffi::GetRef<relax::Var>(op);
+      if (auto* op = expr.as<VarNode>()) {
+        auto var = ffi::GetRef<Var>(op);
         if (var_set_.count(var) == 0) {
           var_set_.insert(var);
         }

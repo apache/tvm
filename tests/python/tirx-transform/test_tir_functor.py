@@ -112,8 +112,8 @@ class VariableReplacer(PyStmtExprMutator):
         self.replacements = replacements
 
     def visit_var_(self, op: Var):
-        if op.name in self.replacements:
-            return IntImm("int32", self.replacements[op.name])
+        if op.name_hint in self.replacements:
+            return IntImm("int32", self.replacements[op.name_hint])
         return op
 
 
@@ -177,7 +177,7 @@ class SimpleStmtExprVisitor(PyStmtExprVisitor):
         self.var_names = set()
 
     def visit_var_(self, op: Var):
-        self.var_names.add(op.name)
+        self.var_names.add(op.name_hint)
         self.expr_count += 1
 
     def visit_evaluate_(self, op: Evaluate):
@@ -204,7 +204,7 @@ class ComplexMutator(PyStmtExprMutator):
 
 def test_basic_visitor():
     """Test the basic AST printer visitor"""
-    expr = Add(Var("x", dtype="int32"), Var("y", dtype="int32"))
+    expr = Add(Var("x", ty="int32"), Var("y", ty="int32"))
     printer = ASTPrinter()
     printer.visit_expr(expr)
     assert str(printer.log) == "\n".join(["Stmt: Add", "Stmt: Var", "Stmt: Var"])
@@ -212,8 +212,8 @@ def test_basic_visitor():
 
 def test_simple_expr_counter():
     """Test simple expression counting visitor"""
-    x = Var("x", dtype="int32")
-    y = Var("y", dtype="int32")
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
 
     # Create simple expression: x + y
     expr = Add(x, y)
@@ -227,8 +227,8 @@ def test_simple_expr_counter():
 
 def test_variable_replacer():
     """Test expression mutator that replaces variables"""
-    x = Var("x", dtype="int32")
-    y = Var("y", dtype="int32")
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
     expr = Add(x, Mul(y, IntImm("int32", 3)))
 
     replacer = VariableReplacer({"x": 10, "y": 5})
@@ -245,8 +245,8 @@ def test_variable_replacer():
 
 def test_add_to_sub_mutator():
     """Test mutator that converts Add to Sub"""
-    x = Var("x", dtype="int32")
-    y = Var("y", dtype="int32")
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
     expr = Add(x, y)
 
     mutator = AddToSubMutator()
@@ -255,13 +255,13 @@ def test_add_to_sub_mutator():
     assert isinstance(result, Sub)
     assert isinstance(result.a, Var)
     assert isinstance(result.b, Var)
-    assert result.a.name == "x"
-    assert result.b.name == "y"
+    assert result.a.name_hint == "x"
+    assert result.b.name_hint == "y"
 
 
 def test_simple_stmt_counter():
     """Test statement visitor that counts statements"""
-    i = Var("i", dtype="int32")
+    i = Var("i", ty="int32")
 
     # Create a simple for loop
     loop_body = Evaluate(IntImm("int32", 0))
@@ -276,7 +276,7 @@ def test_simple_stmt_counter():
 
 def test_if_then_else_visitor():
     """Test visitor with if-then-else statements"""
-    x = Var("x", dtype="int32")
+    x = Var("x", ty="int32")
     condition = EQ(x, IntImm("int32", 0))
     then_stmt = Evaluate(IntImm("int32", 1))
     else_stmt = Evaluate(IntImm("int32", 2))
@@ -292,8 +292,8 @@ def test_if_then_else_visitor():
 
 def test_simple_stmt_expr_visitor():
     """Test stmt_expr_visitor with mixed statements and expressions"""
-    x = Var("x", dtype="int32")
-    y = Var("y", dtype="int32")
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
 
     # Create an evaluate statement with an expression
     expr = Add(x, y)
@@ -310,8 +310,8 @@ def test_simple_stmt_expr_visitor():
 
 def test_complex_mutator():
     """Test stmt_expr_mutator"""
-    x = Var("x", dtype="int32")
-    y = Var("y", dtype="int32")
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
 
     # Expression with Add operations
     expr = Add(x, y)
@@ -332,7 +332,7 @@ def test_complex_mutator():
 
 def test_different_expr_types():
     """Test visitor with various expression types"""
-    x = Var("x", dtype="int32")
+    x = Var("x", ty="int32")
 
     # Test different expression types individually
     exprs = [
@@ -371,7 +371,7 @@ def test_empty_expressions():
     counter = SimpleExprCounter()
 
     # Test with just a variable
-    x = Var("x", dtype="int32")
+    x = Var("x", ty="int32")
     counter.visit_expr(x)
 
     assert counter.var_count == 1
@@ -387,7 +387,7 @@ def test_empty_expressions():
 
 def test_stmt_mutator():
     """Test basic statement mutator functionality"""
-    x = Var("x", dtype="int32")
+    x = Var("x", ty="int32")
     stmt = Evaluate(Add(x, IntImm("int32", 1)))
 
     unroller = ForLoopUnroller()
@@ -399,9 +399,9 @@ def test_stmt_mutator():
 
 def test_nested_expressions():
     """Test with nested expressions"""
-    x = Var("x", dtype="int32")
-    y = Var("y", dtype="int32")
-    z = Var("z", dtype="int32")
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
+    z = Var("z", ty="int32")
 
     # Create nested expression: (x + y) * z
     inner_add = Add(x, y)
@@ -417,8 +417,8 @@ def test_nested_expressions():
 
 def test_simple_mutations():
     """Test simple expression mutations"""
-    x = Var("x", dtype="int32")
-    y = Var("y", dtype="int32")
+    x = Var("x", ty="int32")
+    y = Var("y", ty="int32")
 
     # Test multiple replacements
     expr = Add(x, y)

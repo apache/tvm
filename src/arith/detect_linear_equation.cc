@@ -48,7 +48,7 @@ struct IntervalEntry {
 
 class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const PrimExpr&)> {
  public:
-  explicit LinearEqDetector(Var var) : var_(var) {}
+  explicit LinearEqDetector(PrimVar var) : var_(var) {}
 
   bool Detect(const PrimExpr& e, LinearEqEntry* ret) {
     *ret = VisitExpr(e, e);
@@ -121,7 +121,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
   }
 
  private:
-  Var var_;
+  PrimVar var_;
   bool fail_{false};
   // Combine by add
   PrimExpr AddCombine(PrimExpr a, PrimExpr b) {
@@ -142,11 +142,12 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
   }
 };
 
-ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<Var>& vars) {
+ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
+                                          const ffi::Array<PrimVar>& vars) {
   PrimExpr base = e;
   ffi::Array<PrimExpr> coeff;
 
-  for (Var v : vars) {
+  for (PrimVar v : vars) {
     LinearEqEntry ret;
     if (!LinearEqDetector(v).Detect(base, &ret)) {
       return ffi::Array<PrimExpr>();
@@ -173,12 +174,13 @@ ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<Va
 bool DetectClipBound(const PrimExpr& cond,
                      std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
-  Var var;
+  PrimVar var;
   auto fvisit = [&bmap, &flag, &var](const ffi::ObjectRef& n) {
-    if (const VarNode* v = n.as<VarNode>()) {
+    if (auto prim_var = n.as<PrimVar>()) {
+      const VarNode* v = prim_var->get();
       if (bmap->count(v)) {
         if (flag == 0) {
-          var = n.as_or_throw<Var>();
+          var = *prim_var;
           flag = 1;
         } else if (flag == 1) {
           if (!var.same_as(n)) {
@@ -267,19 +269,19 @@ void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
 
 // Detect the lower and upper bound from the expression.
 // e must be connected by and.
-ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<Var>& vars) {
+ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
   std::vector<PrimExpr> splits;
   Analyzer analyzer;
   SplitCommExpr<tirx::AndNode>(analyzer->Simplify(e), &splits);
   std::unordered_map<const VarNode*, IntervalEntry> rmap;
-  for (Var v : vars) {
+  for (PrimVar v : vars) {
     rmap[v.get()] = IntervalEntry();
   }
   for (PrimExpr cond : splits) {
     if (!DetectClipBound(cond, &rmap)) return ffi::Array<PrimExpr>();
   }
   ffi::Array<PrimExpr> ret;
-  for (Var v : vars) {
+  for (PrimVar v : vars) {
     IntervalEntry e = rmap[v.get()];
     if (e.min_value.defined()) {
       e.min_value = analyzer->Simplify(e.min_value);
@@ -298,7 +300,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("arith.DetectLinearEquation", DetectLinearEquation)
       .def("arith.DetectClipBound",
-           [](const PrimExpr& e, const ffi::Array<Var>& vars) { return DetectClipBound(e, vars); });
+           [](const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
+             return DetectClipBound(e, vars);
+           });
 }
 }  // namespace arith
 }  // namespace tvm

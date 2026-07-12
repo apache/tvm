@@ -203,7 +203,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
     std::unordered_set<const VarNode*> reduce_set;
     for (size_t i = 2 + 2 * size; i < call->args.size(); ++i) {
-      const VarNode* v = call->args[i].as<VarNode>();
+      auto var = call->args[i].as<PrimVar>();
+      const VarNode* v = var.has_value() ? var.value().get() : nullptr;
       // The simply optimization replace a iteration variable with a constant
       // when extent of the iteration is 1. As threaded IterVar always started from 0,
       // we can just ignore this variable in this case.

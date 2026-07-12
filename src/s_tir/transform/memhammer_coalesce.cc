@@ -185,7 +185,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
 Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                              OutputSet* output) const {
   Stmt body = stmt;
-  ffi::Map<Var, Range> var_range;
+  ffi::Map<PrimVar, Range> var_range;
   ffi::Array<PrimExpr> loop_vars;
   // Step 1. Get index mapping
   ffi::Array<PrimExpr> mapping_pattern = GetMapping(stmt, constraints);

@@ -216,8 +216,8 @@ def test_binary_shape_type_deduction():
 
 
 def test_emit_match_cast():
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     x = rx.Var("tensor_value", rx.TensorType(dtype="float32", ndim=-1))
     y = rx.Var("shape_value", rx.ShapeType([16, 8]))
     bb = rx.BlockBuilder()
@@ -256,7 +256,7 @@ def test_emit_match_cast_binding_in_dataflow_block():
     bb = rx.BlockBuilder()
 
     x = rx.Var("x", rx.TensorType(dtype="float32", ndim=-1))
-    m = tirx.Var("m", dtype="int64")
+    m = tirx.Var("m", ty="int64")
     gv = rx.Var("gv", rx.TensorType(dtype="float32", ndim=-1))
     match_cast = rx.MatchCast(gv, x, rx.TensorType((m,), "float32"))
 
@@ -387,9 +387,9 @@ def test_call_te_unique_tensor_name():
     param_B = f_matmul.params[1]
     buffer_A = f_matmul.buffer_map[param_A]
     buffer_B = f_matmul.buffer_map[param_B]
-    assert param_A.name != param_B.name
+    assert param_A.name_hint != param_B.name_hint
     assert buffer_A.name != buffer_B.name
-    assert buffer_A.data.name != buffer_B.data.name
+    assert buffer_A.data.name_hint != buffer_B.data.name_hint
 
 
 def test_call_te_with_unsupported_shape_arg():

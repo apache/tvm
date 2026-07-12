@@ -1093,9 +1093,12 @@ class TorchFXImporter(BaseFXGraphImporter):
         # Find all the missing function types
         self._check_unsupported_func_type(graph.nodes)
 
-        from tvm import tirx
-
-        sym_vars = {v.name: v for shape, _ in input_info for v in shape if isinstance(v, tirx.Var)}
+        sym_vars = {
+            v.name_hint: v
+            for shape, _ in input_info
+            for v in shape
+            if isinstance(v, tvm.ir.Var)
+        }
 
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None

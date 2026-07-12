@@ -284,7 +284,7 @@ def _simplify_with_var_ranges(exprs, var_ranges, sctx: DispatchContext):
     for var, value_range in sctx.var_range_map.items():
         local_analyzer.bind(var, value_range)
     for var, extent in var_ranges:
-        if isinstance(var, tvm.tirx.Var):
+        if tvm.ir.is_prim_var(var):
             local_analyzer.bind(var, tvm.ir.Range.from_min_extent(0, extent))
     return [local_analyzer.simplify(expr) for expr in exprs]
 
@@ -1179,7 +1179,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
         tensor_map = cached_tensormap
         tensormap_is_cached = True
     else:
-        tensor_map = T.Var(g_buf.data.name + "_tensormap", dtype=T.handle("tensormap").ty)
+        tensor_map = T.Var(g_buf.data.name_hint + "_tensormap", ty=T.handle("tensormap").ty)
         tensormap_is_cached = False
 
     # fmt: off

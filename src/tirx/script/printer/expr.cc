@@ -87,7 +87,16 @@ Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
     .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
-      return PrintVar(var, p, d);
+      if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
+        return PrintVar(var, p, d);
+      }
+      if (!d->IsVarDefined(var)) {
+        ExprDoc ann = d->AsDoc<ExprDoc>(var->ty, p->Attr("ty"));
+        Frame f = d->frames.back();
+        ExprDoc lhs = d->Define(var, f, var->name_hint.empty() ? "v" : var->name_hint);
+        f->stmts.push_back(AssignDoc(lhs, std::nullopt, ann));
+      }
+      return d->GetVarDoc(var).value();
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

@@ -190,7 +190,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     InternalConstraintContext */
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     InternalConstraintContext ctx1(this, op->loop_var >= op->min);
-    InternalConstraintContext ctx2(this, op->loop_var < op->min + op->extent);
+    InternalConstraintContext ctx2(this,
+                                   static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
     return Parent::VisitStmt_(op);
   }
 

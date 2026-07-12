@@ -127,7 +127,7 @@ void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_in
   inequality_set->push_back(new_ineq);
 }
 
-void ClassifyByPolarity(const Var& var, const std::vector<PrimExpr>& current_ineq_set,
+void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current_ineq_set,
                         std::vector<PrimExpr>* next_ineq_set, std::vector<PrimExpr>* rest,
                         std::vector<std::pair<int64_t, PrimExpr>>* coef_pos,
                         std::vector<std::pair<int64_t, PrimExpr>>* coef_neg,

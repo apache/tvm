@@ -233,8 +233,13 @@ IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> r
   }
   TVM_FFI_ICHECK(relations.defined());
   for (const auto& var : variables) {
-    PrimType var_ty = var->ty.as_or_throw<PrimType>();
-    TVM_FFI_ICHECK(var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+    auto prim_var = var.as<tirx::PrimVar>();
+    TVM_FFI_CHECK(prim_var, TypeError)
+        << "Variables in IntConstraints must be exact primitive ir.Var values, but received "
+        << var.GetTypeKey();
+    TVM_FFI_CHECK(
+        prim_var.value().ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+        TypeError)
         << "Variables in IntConstraints must be integers";
   }
   node->variables = std::move(variables);
@@ -275,13 +280,15 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   Analyzer ana_first;
   ana_first->Bind(operator->()->src->ranges);
   for (auto p : other->dst_to_src) {
-    dst_to_src.Set(p.first, ana_first->Simplify(Substitute(p.second, operator->()->dst_to_src)));
+    dst_to_src.Set(p.first,
+                   ana_first->Simplify(tirx::Substitute(p.second, operator->()->dst_to_src)));
   }
 
   Analyzer ana_second;
   ana_second->Bind(other->dst->ranges);
   for (auto p : operator->()->src_to_dst) {
-    src_to_dst.Set(p.first, ana_second->Simplify(Substitute(p.second, other->src_to_dst)));
+    src_to_dst.Set(p.first,
+                   ana_second->Simplify(tirx::Substitute(p.second, other->src_to_dst)));
   }
   return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }

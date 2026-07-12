@@ -132,8 +132,8 @@ def test_tuple_ty_requires_fields_with_known_ty():
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
@@ -155,8 +155,8 @@ def test_match_cast() -> None:
 
 
 def test_match_cast() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     ivalue = rx.Var("input_value")
     ty = rx.TensorType([n, m], "float32")
     b0 = rx.MatchCast(rx.Var("v"), ivalue, ty)
@@ -174,8 +174,8 @@ def test_var_binding() -> None:
 
 
 def test_binding_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -189,8 +189,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -237,8 +237,8 @@ def test_shape_of():
 
 
 def test_shape_expr():
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     s = rx.ShapeExpr([m, n])
     assert s.values[0] == m
     assert s.values[1] == n

@@ -50,16 +50,19 @@ class SymbolicVarCanonicalizer : public ExprMutator {
   void VisitBinding_(const MatchCastNode* binding) override {
     auto tir_var_map =
         InferSymbolicVarMap({{binding->var, binding->value}}, builder_->GetAnalyzer());
-    for (const auto& [tir_var, prim_expr] : tir_var_map) {
-      if (auto it = known_values_.find(tir_var); it != known_values_.end()) {
+    for (const auto& [var, value] : tir_var_map) {
+      auto tir_var = var.as<tirx::PrimVar>();
+      if (!tir_var) continue;
+      PrimExpr prim_expr = value.as_or_throw<PrimExpr>();
+      if (auto it = known_values_.find(tir_var.value()); it != known_values_.end()) {
         TVM_FFI_CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr), ValueError)
             << "MatchCast statements must be consistent.  "
             << "However, the definition of Relax variable " << it->second.source->var
-            << " implies that TIR variable " << tir_var << " is " << it->second.expr
+            << " implies that TIR variable " << tir_var.value() << " is " << it->second.expr
             << ", while the later definition of Relax variable " << binding->var
-            << " instead implies that TIR variable " << tir_var << " is " << prim_expr;
+            << " instead implies that TIR variable " << tir_var.value() << " is " << prim_expr;
       } else {
-        known_values_[tir_var] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
+        known_values_[tir_var.value()] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
       }
     }
     ExprMutator::VisitBinding_(binding);

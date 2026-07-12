@@ -180,8 +180,8 @@ def gen_call_tir_inputs(
 
     def _copy_undefined_var(expr: tirx.Expr):
         def _visit_expr(e: tirx.Expr):
-            if isinstance(e, tirx.Var) and e not in tir_var_map:
-                new_var = tirx.Var(e.name, e.ty)
+            if type(e) is tvm.ir.Var and e not in tir_var_map:
+                new_var = tvm.ir.Var(e.name_hint, e.ty)
                 tir_var_map[e] = new_var
 
         tirx.stmt_functor.post_order_visit(expr, _visit_expr)
@@ -289,7 +289,7 @@ def gen_call_tir_inputs(
             if isinstance(expr, te_Tensor):
                 for dim in expr.shape:
                     _populate_bound_vars(dim)
-            elif isinstance(expr, tirx.Var):
+            elif type(expr) is tvm.ir.Var:
                 bound_vars.add(expr)
 
         def _populate_used_vars(expr):

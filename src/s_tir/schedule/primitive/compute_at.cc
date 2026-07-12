@@ -435,7 +435,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         PrimExpr var_expr = p_f1.Eval();
         PrimExpr fac = p_f2.Eval();
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
-          if (var_expr->IsInstance<VarNode>()) {
+          if (var_expr.as<PrimVar>()) {
             // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
             var = var_expr.as_or_throw<Var>();
             var_dom = arith::IntSet::Interval(required_min * fac,
@@ -450,7 +450,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         }
       } else if ((floormod(p_f1, p_f2).Match(provided_min))) {
         PrimExpr var_expr = p_f1.Eval();
-        if (var_expr->IsInstance<VarNode>()) {
+        if (var_expr.as<PrimVar>()) {
           // generally domain of (x % fac) enforce no constraints to domain of x
           Var var_mod = var_expr.as_or_throw<Var>();
           return {var_mod, BlockVarDomainInfo()};
@@ -561,7 +561,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
     if (!intset.CanProveSinglePoint(analyzer_ref)) return false;
   }
   // calculate forward mapping (block vars -> provided region point)
-  ffi::Map<Var, Range> dom_map;
+  ffi::Map<PrimVar, Range> dom_map;
   for (const IterVar& iter_var : iter_vars) {
     dom_map.Set(iter_var->var, iter_var->dom);
   }

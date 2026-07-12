@@ -322,7 +322,7 @@ class FuncType : public Type {
    * \param purity The purity of the function (true by default).
    * \param span The span of the AST.
    *
-   * \note If the ret contains variables(tirx::Var and relax::Var), they must be deducible from
+   * \note If the ret contains canonical tvm::Var values, they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
   TVM_DLL FuncType(ffi::Array<Type> params, Type ret, bool purity = true, Span span = Span());

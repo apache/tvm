@@ -287,6 +287,11 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   analyzer_problem->Bind(system_to_solve->ranges);
 
   size_t num_vars = system_to_solve->variables.size();
+  ffi::Array<tirx::PrimVar> primitive_variables;
+  primitive_variables.reserve(num_vars);
+  for (const Var& variable : system_to_solve->variables) {
+    primitive_variables.push_back(variable.as_or_throw<tirx::PrimVar>());
+  }
 
   // initialize V_{nxn} with identity matrix,
   // initialize V^{-1} x as x
@@ -303,7 +308,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
     if (const tirx::EQNode* eq = equation.as<tirx::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
       ffi::Array<PrimExpr> coeffs = arith::DetectLinearEquation(
-          analyzer_problem->Simplify(eq->a - eq->b), system_to_solve->variables);
+          analyzer_problem->Simplify(eq->a - eq->b), primitive_variables);
       if (!coeffs.empty()) {
         std::vector<int64_t> row;
         for (size_t j = 0; j < coeffs.size() - 1; ++j) {
@@ -392,8 +397,8 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
       // The j-th variable can take any integer value, create a tvm variable for it
       PrimExpr to_old = analyzer_problem->Simplify(V_inv_x[j]);
       std::string name_hint = "n" + std::to_string(new_vars.size());
-      if (const VarNode* v_old = to_old.as<VarNode>()) {
-        name_hint += "_" + v_old->name_hint;
+      if (auto old_var = to_old.as<tirx::PrimVar>()) {
+        name_hint += "_" + (*old_var)->name_hint;
       }
       Var v = Var(name_hint, V_inv_x[j].ty());
       solution_for_V_inv_x.push_back(v.as_or_throw<PrimExpr>());
@@ -450,7 +455,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 
   // Add the rest conditions
   for (const PrimExpr& cond : rest) {
-    new_relations.push_back(Substitute(cond, old_to_new_map));
+    new_relations.push_back(tirx::Substitute(cond, old_to_new_map));
   }
 
   IntConstraints solution(new_vars, new_ranges, new_relations);

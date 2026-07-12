@@ -1471,9 +1471,11 @@ def Bind(  # pylint: disable=invalid-name
         The bound variable.
     """
     if type_annotation is not None:
-        if callable(type_annotation):
+        # Canonical Vars are callable when they denote functions.  Here a Var is
+        # already a resolved type annotation, rather than a deferred annotation factory.
+        if callable(type_annotation) and not isinstance(type_annotation, Expr):
             type_annotation = type_annotation()
-        if isinstance(type_annotation, Var):
+        if isinstance(type_annotation, ir.Var):
             type_annotation = type_annotation.ty
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -1510,7 +1512,7 @@ class LetAnnotation:
     def as_var(self, rhs_dtype=None):
         """Resolve to a tir.Var."""
         if self.type_spec is not None:
-            if isinstance(self.type_spec, Var):
+            if isinstance(self.type_spec, ir.Var):
                 return self.type_spec  # Already a Var (e.g. T.handle(...))
             elif callable(self.type_spec):
                 return self.type_spec()  # e.g. T.int32() -> Var
@@ -2123,7 +2125,7 @@ def _name_meta_value(
         IRBuilder.name(prefix, resource)
         named_resources.append(resource)
         return
-    if isinstance(value, Var | IterVar):
+    if isinstance(value, ir.Var | IterVar):
         if owned_resources is not None:
             return
         IRBuilder.name(prefix, value)

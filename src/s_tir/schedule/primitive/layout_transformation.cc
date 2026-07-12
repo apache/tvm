@@ -1267,8 +1267,8 @@ IterVarType DetectNewBlockIterType(
   IterVarType result{kOpaque};
   bool found = false;
   PostOrderVisit(expr, [&](const ffi::ObjectRef& obj) {
-    if (const VarNode* var = obj.as<VarNode>()) {
-      auto it = block_iter_type_map.find(var);
+    if (auto var = obj.as<PrimVar>()) {
+      auto it = block_iter_type_map.find(var.value().get());
       if (it != block_iter_type_map.end()) {
         if (!found) {
           found = true;

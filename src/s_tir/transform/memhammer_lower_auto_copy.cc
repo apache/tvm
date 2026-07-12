@@ -579,8 +579,8 @@ class AutoPadder {
                 Region region = r->source->region;
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
-                  Var var("region" + std::to_string(i));
-                  indices.push_back(region[i]->min + var.as_or_throw<PrimExpr>());
+                  PrimVar var("region" + std::to_string(i));
+                  indices.push_back(region[i]->min + static_cast<PrimExpr>(var));
                   var_range_.Set(var, Range::FromMinExtent(0, region[i]->extent));
                 }
                 ffi::Array<PrimExpr> substitued_indices;

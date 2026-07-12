@@ -38,7 +38,7 @@ class CompileTimeCollector : ExprVisitor {
   static ffi::Array<Var> Collect(const Function& func) {
     CompileTimeCollector visitor;
     visitor(func);
-    return ffi::Array<Var>(visitor.known_relax_vars_.begin(), visitor.known_relax_vars_.end());
+    return ffi::Array<Var>(visitor.computable_vars_.begin(), visitor.computable_vars_.end());
   }
 
  private:
@@ -56,13 +56,8 @@ class CompileTimeCollector : ExprVisitor {
   void VisitBinding(const Binding& binding) override {
     Expr value = GetBoundValue(binding);
     bool can_compute_at_compile_time = [&]() {
-      for (const auto& relax_var : FreeVars(value)) {
-        if (!known_relax_vars_.count(relax_var)) {
-          return false;
-        }
-      }
-      for (const auto& tir_var : FreeSymbolicVars(value)) {
-        if (!known_tir_vars_.count(tir_var)) {
+      for (const Var& var : FreeVars(value)) {
+        if (!known_vars_.count(var)) {
           return false;
         }
       }
@@ -78,14 +73,15 @@ class CompileTimeCollector : ExprVisitor {
   }
 
   void MarkAsKnown(const Var& var) {
-    known_relax_vars_.insert(var);
+    known_vars_.insert(var);
+    computable_vars_.insert(var);
     for (const auto& tir_var : DefinableTIRVarsInType(GetType(var))) {
-      known_tir_vars_.insert(tir_var);
+      known_vars_.insert(tir_var);
     }
   }
 
-  support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_relax_vars_;
-  std::unordered_set<tirx::Var> known_tir_vars_;
+  support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_vars_;
+  support::OrderedSet<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> computable_vars_;
 };
 }  // namespace
 

@@ -38,13 +38,13 @@ namespace {
 struct InputNode {};
 struct OutputNode {};
 
-using DataflowNode = std::variant<InputNode, OutputNode, tvm::relax::Var>;
+using DataflowNode = std::variant<InputNode, OutputNode, tvm::Var>;
 
 bool operator==(const DataflowNode& a, const DataflowNode& b) {
-  if (const tvm::relax::Var* var_a = std::get_if<tvm::relax::Var>(&a)) {
-    if (const tvm::relax::Var* var_b = std::get_if<tvm::relax::Var>(&b)) {
-      const tvm::relax::VarNode* ptr_a = var_a->get();
-      const tvm::relax::VarNode* ptr_b = var_b->get();
+  if (const tvm::Var* var_a = std::get_if<tvm::Var>(&a)) {
+    if (const tvm::Var* var_b = std::get_if<tvm::Var>(&b)) {
+      const tvm::VarNode* ptr_a = var_a->get();
+      const tvm::VarNode* ptr_b = var_b->get();
       return ptr_a == ptr_b;
     }
   }
@@ -57,8 +57,8 @@ bool operator==(const DataflowNode& a, const DataflowNode& b) {
 template <>
 struct std::hash<DataflowNode> {
   std::size_t operator()(const DataflowNode& node) const noexcept {
-    if (const tvm::relax::Var* var = std::get_if<tvm::relax::Var>(&node)) {
-      const tvm::relax::VarNode* ptr = var->get();
+    if (const tvm::Var* var = std::get_if<tvm::Var>(&node)) {
+      const tvm::VarNode* ptr = var->get();
       std::hash<decltype(ptr)> hasher;
       return hasher(ptr);
     } else {

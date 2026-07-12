@@ -107,8 +107,8 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   ffi::Array<tvm::relax::Binding> last_block_bindings(last_block->bindings.begin(),
                                                       last_block->bindings.end() - 1);
 
-  tvm::relax::Var new_var =
-      tvm::relax::Var(last_binding->var->name_hint + output_var_suffix, GetType(last_binding->var));
+  tvm::Var new_var(last_binding->var->name_hint + output_var_suffix,
+                   tvm::relax::GetType(last_binding->var));
   tvm::relax::Expr body;
 
   const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();

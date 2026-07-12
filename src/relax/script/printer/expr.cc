@@ -143,25 +143,23 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return d->AddMetadata(n);
         });
 
-Doc PrintRelaxVar(relax::Var n, AccessPath p, IRDocsifier d) {
+Doc PrintRelaxVar(tvm::Var n, AccessPath p, IRDocsifier d) {
   if (!d->IsVarDefined(n)) {
     ExprDoc ann = d->AsDoc<ExprDoc>(n->ty, p->Attr("ty"));
     Frame f = d->frames.back();
-    ExprDoc var = DefineVar(n, f, d);
+    ExprDoc var = DefineRelaxVar(n, f, d);
     f->stmts.push_back(AssignDoc(var, std::nullopt, ann));
   }
   return d->GetVarDoc(n).value();
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::Var>("", PrintRelaxVar);
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::DataflowVar>("", PrintRelaxVar);
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::DataflowVar>("relax", PrintRelaxVar);
 
 TVM_REGISTER_SCRIPT_AS_REPR(relax::StringImmNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::DataTypeImmNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleGetItemNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeExprNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::VarNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowVarNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ConstantNode, ReprPrintRelax);
 

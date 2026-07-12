@@ -150,7 +150,7 @@ ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
-      expr.as<StringImmNode>() != nullptr || expr.as<VarNode>() != nullptr) {
+      expr.as<StringImmNode>() != nullptr || expr.as<PrimVar>()) {
     return {};
   }
 
@@ -204,7 +204,7 @@ void ComputationsDoneBy::VisitExpr(const Expr& expr_value) {
   }
   PrimExpr expr = opt_expr.value();
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
-      expr.as<StringImmNode>() != nullptr || expr.as<VarNode>() != nullptr) {
+      expr.as<StringImmNode>() != nullptr || expr.as<PrimVar>()) {
     return;
   }
 

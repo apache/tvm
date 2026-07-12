@@ -126,7 +126,7 @@ def test_basic():
     a = tvm.tirx.Var("a", "int32")
     b = tvm.tirx.Var("b", "int32")
     c = a + b
-    assert str(c) == f"{a.name} + {b.name}"
+    assert str(c) == f"{a.name_hint} + {b.name_hint}"
 
 
 def test_stmt():
@@ -161,11 +161,14 @@ def test_any():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tirx.any(x < y)) == f"{x.name} < {y.name}"
-    assert str(tvm.tirx.any(x < y, x > z)) == f"{x.name} < {y.name} or {x.name} > {z.name}"
+    assert str(tvm.tirx.any(x < y)) == f"{x.name_hint} < {y.name_hint}"
+    assert str(tvm.tirx.any(x < y, x > z)) == (
+        f"{x.name_hint} < {y.name_hint} or {x.name_hint} > {z.name_hint}"
+    )
     assert (
         str(tvm.tirx.any(x < y, y > z + 1, x < z * 2))
-        == f"{x.name} < {y.name} or {y.name} > {z.name} + 1 or {x.name} < {z.name} * 2"
+        == f"{x.name_hint} < {y.name_hint} or {y.name_hint} > {z.name_hint} + 1 or "
+        f"{x.name_hint} < {z.name_hint} * 2"
     )
 
 
@@ -183,11 +186,14 @@ def test_all():
         assert False
     except ValueError:
         pass
-    assert str(tvm.tirx.all(x < y)) == f"{x.name} < {y.name}"
-    assert str(tvm.tirx.all(x < y, x > z)) == f"{x.name} < {y.name} and {x.name} > {z.name}"
+    assert str(tvm.tirx.all(x < y)) == f"{x.name_hint} < {y.name_hint}"
+    assert str(tvm.tirx.all(x < y, x > z)) == (
+        f"{x.name_hint} < {y.name_hint} and {x.name_hint} > {z.name_hint}"
+    )
     assert (
         str(tvm.tirx.all(x < y, y > z + 1, x < z * 2))
-        == f"{x.name} < {y.name} and {y.name} > {z.name} + 1 and {x.name} < {z.name} * 2"
+        == f"{x.name_hint} < {y.name_hint} and {y.name_hint} > {z.name_hint} + 1 and "
+        f"{x.name_hint} < {z.name_hint} * 2"
     )
 
 

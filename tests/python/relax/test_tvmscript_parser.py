@@ -489,8 +489,8 @@ def test_match_cast():
 
     x = relax.Var("x", R.Tensor("float32"))
     y = relax.Var("y", R.Tensor("float32"))
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     y2 = relax.Var("y", R.Tensor([n], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
@@ -631,8 +631,8 @@ def test_dataflow_block_advanced():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     with bb.function("foo", (x,)):
         gv0 = bb.emit(
             relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))

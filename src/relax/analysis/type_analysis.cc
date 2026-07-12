@@ -120,12 +120,11 @@ Type TypeFromStaticType(const Type& type) {
 //--------------------------
 // EraseToWellDefined
 //--------------------------
-class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tirx::ExprMutator {
+class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
  public:
-  WellDefinedEraser(std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
-                    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
+  WellDefinedEraser(std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
                     arith::AnalyzerObj* ana)
-      : f_shape_var_map_(f_shape_var_map), f_var_map_(f_var_map), ana_(ana) {}
+      : f_var_map_(f_var_map), ana_(ana) {}
 
   Type VisitType_(const PrimTypeNode* op) final { return ffi::GetRef<Type>(op); }
 
@@ -135,8 +134,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
 
     if (op->values.has_value()) {
       std::swap(has_undefined_, has_undefined);
-      values =
-          op->values.value().Map([&](PrimExpr val) { return this->VisitTypePrimExprField(val); });
+      values = op->values.value().Map([&](PrimExpr val) { return VisitPrimitiveExpr(val); });
       std::swap(has_undefined_, has_undefined);
     }
     // erase symbolic shape if we have undefined.
@@ -188,11 +186,10 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
   }
 
   using relax::ExprMutatorBase::VisitExpr_;
-  using tirx::ExprMutator::VisitExpr_;
 
   PrimExpr VisitPrimitiveExpr(const PrimExpr& expr) {
     // apply eager simplification
-    PrimExpr val = tirx::ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
+    PrimExpr val = relax::ExprMutatorBase::VisitExpr(expr).as_or_throw<PrimExpr>();
     if (!val.same_as(expr)) {
       return ana_->Simplify(val);
     } else {
@@ -200,20 +197,28 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
     }
   }
 
-  Expr VisitExprFallback_(const ExprNode* op) final {
-    if (op->ty.as<PrimTypeNode>()) {
-      return VisitPrimitiveExpr(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
-    }
-    return ExprMutatorBase::VisitExprFallback_(op);
-  }
-
-  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return VisitPrimitiveExpr(expr); }
-
   Expr VisitExpr_(const VarNode* var) final {
+    Var id = ffi::GetRef<Var>(var);
     ffi::Optional<Expr> ret;
     if (f_var_map_ != nullptr) {
-      ret = f_var_map_(ffi::GetRef<Var>(var));
+      ret = f_var_map_(id);
     }
+
+    if (id->ty.as<PrimTypeNode>()) {
+      has_undefined_ = has_undefined_ || !ret.has_value();
+
+      if (ret.has_value()) {
+        PrimExpr value = ret.value().as_or_throw<PrimExpr>();
+        if (value->IsInstance<IntImmNode>()) {
+          return tvm::cast(PrimType::Int(64), value);
+        }
+        TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
+            << "Can only provide i64 expressions in shape";
+        return value;
+      }
+      return ffi::GetRef<Expr>(var);
+    }
+
     has_undefined_ = has_undefined_ || !ret.has_value();
     if (ret.has_value()) {
       TVM_FFI_ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
@@ -222,64 +227,32 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
     return ret.value_or(ffi::GetRef<Expr>(var));
   }
 
-  Expr VisitExpr_(const tirx::VarNode* var) final {
-    ffi::Optional<PrimExpr> ret;
-    if (f_shape_var_map_ != nullptr) {
-      ret = f_shape_var_map_(ffi::GetRef<tirx::Var>(var));
-    }
-    has_undefined_ = has_undefined_ || !ret.has_value();
-
-    if (ret.has_value()) {
-      PrimExpr value = ret.value();
-      if (value->IsInstance<IntImmNode>()) {
-        return tvm::cast(PrimType::Int(64), value);
-      }
-      TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
-          << "Can only provide i64 expressions in shape";
-      return value;
-    } else {
-      return ffi::GetRef<tirx::Var>(var);
-    }
-  }
-
  private:
   bool has_undefined_ = false;
-  std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map_;
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map_;
   arith::AnalyzerObj* ana_;
 };
 
-Type EraseToWellDefined(
-    const Type& info, std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
-    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map) {
+Type EraseToWellDefined(const Type& info,
+                        std::function<ffi::Optional<Expr>(const Var& var)> f_var_map) {
   arith::Analyzer analyzer;
-  return EraseToWellDefined(info, f_shape_var_map, f_var_map, analyzer);
+  return EraseToWellDefined(info, f_var_map, analyzer);
 }
 
-Type EraseToWellDefined(
-    const Type& info, std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map,
-    std::function<ffi::Optional<Expr>(const Var& var)> f_var_map, const arith::Analyzer& ana) {
-  return WellDefinedEraser(f_shape_var_map, f_var_map, ana.get()).VisitType(info);
+Type EraseToWellDefined(const Type& info,
+                        std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
+                        const arith::Analyzer& ana) {
+  return WellDefinedEraser(f_var_map, ana.get()).VisitType(info);
 }
 
-Type EraseToWellDefined(const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-                        ffi::Map<Var, Expr> var_map) {
+Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map) {
   arith::Analyzer analyzer;
-  return EraseToWellDefined(info, shape_var_map, var_map, analyzer);
+  return EraseToWellDefined(info, var_map, analyzer);
 }
 
-Type EraseToWellDefined(const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-                        ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana) {
-  std::function<ffi::Optional<PrimExpr>(const tirx::Var& var)> f_shape_var_map = nullptr;
+Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map,
+                        const arith::Analyzer& ana) {
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr;
-
-  if (!shape_var_map.empty()) {
-    f_shape_var_map = [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
-      auto it = shape_var_map.find(var);
-      if (it != shape_var_map.end()) return (*it).second;
-      return std::nullopt;
-    };
-  }
 
   if (!var_map.empty()) {
     f_var_map = [&](const Var& var) -> ffi::Optional<Expr> {
@@ -289,7 +262,7 @@ Type EraseToWellDefined(const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_va
     };
   }
 
-  return EraseToWellDefined(info, f_shape_var_map, f_var_map, ana);
+  return EraseToWellDefined(info, f_var_map, ana);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -297,7 +270,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "relax.analysis.EraseToWellDefined",
       [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-         ffi::Map<Var, Expr> var_map) { return EraseToWellDefined(info, shape_var_map, var_map); });
+        ffi::Map<Var, Expr> var_map) {
+        for (const auto& [var, value] : shape_var_map) {
+          var_map.Set(var, value);
+        }
+        return EraseToWellDefined(info, var_map);
+      });
 }
 
 //--------------------------
@@ -871,14 +849,13 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       TVM_FFI_VISIT_END(call->args[i]);
     }
     // map the ret using the populated var map.
-    return EraseToWellDefined(finfo->ret, shape_var_map_, var_map_);
+    return EraseToWellDefined(finfo->ret, var_map_);
   }
 
  protected:
   // Whether to populate map in params.
   bool populate_mapping_{true};
   // for simplicity, we make these fields public so the user can access them.
-  ffi::Map<tirx::Var, PrimExpr> shape_var_map_;
   ffi::Map<Var, Expr> var_map_;
 
   using TypeBaseChecker::ShapeMatchCheck;
@@ -889,16 +866,15 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::PrimExprMatchCheck(param, arg);
     }
 
-    if (auto* ptr = param.as<tirx::VarNode>()) {
-      auto var = ffi::GetRef<tirx::Var>(ptr);
-      auto it = shape_var_map_.find(var);
+    if (auto var = param.as<tirx::Var>()) {
+      auto it = var_map_.find(var.value());
       // not populated
-      if (it == shape_var_map_.end()) {
-        shape_var_map_.Set(var, arg);
+      if (it == var_map_.end()) {
+        var_map_.Set(var.value(), arg);
         return BaseCheckResult::kPass;
       } else {
         // Best effort prove.
-        PrimExpr mapped_value = (*it).second;
+        PrimExpr mapped_value = (*it).second.as_or_throw<PrimExpr>();
         if (analyzer_->CanProveEqual(mapped_value, arg)) return BaseCheckResult::kPass;
         return BaseCheckResult::kFailL2;
       }

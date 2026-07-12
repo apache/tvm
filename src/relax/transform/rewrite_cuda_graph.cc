@@ -812,13 +812,13 @@ class CUDAGraphRewriter : public ExprMutator {
         // bind the symbolic parameters to the actual values.
         const auto& shape_expr = plan->func->params.back();
         auto symbolic_params = shape_expr->ty.as_or_throw<ShapeType>()->values.value();
-        ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
+        ffi::Map<Var, Expr> var_remap;
         TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
         for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
-          tir_var_remap.Set(symbolic_params[i].as_or_throw<tirx::Var>(),
-                            propogated_tir_vars->values[i]);
+          var_remap.Set(symbolic_params[i].as_or_throw<tirx::PrimVar>(),
+                        propogated_tir_vars->values[i]);
         }
-        call_ty = Bind(call_ty, tir_var_remap);
+        call_ty = Bind(call_ty, var_remap);
       }
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),

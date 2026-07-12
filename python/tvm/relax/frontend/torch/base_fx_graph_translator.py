@@ -2623,9 +2623,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if tensor_meta is not None and len(tensor_meta.shape) == 1:
             num_selected = tensor_meta.shape[0]
             if not isinstance(num_selected, int):
-                num_selected = tirx.Var(str(num_selected), "int64")
+                num_selected = tvm.ir.Var(str(num_selected), "int64")
         else:
-            num_selected = tirx.Var(f"{node.name}_num_selected", "int64")
+            num_selected = tvm.ir.Var(f"{node.name}_num_selected", "int64")
         indices = self.block_builder.match_cast(
             indices, relax.TensorType([1, num_selected], "int64")
         )

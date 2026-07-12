@@ -1230,7 +1230,7 @@ def test_annotation_syntax_comprehensive():
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("void")))] = T.reinterpret(
+        ptr: T.let[T.Var(name_hint="ptr", ty=PointerType(PrimType("void")))] = T.reinterpret(
             "handle", smem.access_ptr("rw")
         )
         T.evaluate(ptr)
@@ -1254,7 +1254,7 @@ from tvm.script import tirx as T
 from tvm.ir import PointerType, PrimType
 @T.prim_func
 def func():
-    x: T.Var(name="x", dtype=PointerType(PrimType("float16"))) = T.int64(0)
+    x: T.Var(name_hint="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
 """
     with pytest.raises(tvm.error.DiagnosticError):
         from_source(src_ptr)

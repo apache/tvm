@@ -1191,6 +1191,10 @@ ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(const ffi::Array<Ran
                                                             const ffi::Map<Var, Range>& var_dom,
                                                             const PrimExpr& predicate,
                                                             const Analyzer& analyzer) {
+  ffi::Map<PrimVar, Range> input_iters;
+  for (const auto& [var, range] : var_dom) {
+    input_iters.Set(var.as_or_throw<PrimVar>(), range);
+  }
   AnalyzerObj* analyzer_ptr = analyzer.get();
   int ndim = region.size();
   ffi::Array<IterSumExpr> iter_sum_exprs{nullptr};
@@ -1205,7 +1209,7 @@ ffi::Optional<ffi::Array<IntSet>> EstimateRegionStrictBound(const ffi::Array<Ran
       affine_indices.push_back(range->min);
     }
     auto res = DetectIterMap(
-        /*indices=*/affine_indices, /*input_iters=*/var_dom,
+        /*indices=*/affine_indices, /*input_iters=*/input_iters,
         /*predicate=*/predicate, /*check_level=*/IterMapLevel::Surjective, analyzer);
     iter_sum_exprs = res->indices;
   }
@@ -1247,10 +1251,14 @@ ffi::Array<IntSet> EstimateRegionUpperBound(const ffi::Array<Range>& region,
   }
   ffi::Array<IntSet> result;
   result.reserve(region.size());
+  ffi::Map<PrimVar, Range> input_iters;
+  for (const auto& [var, range] : var_dom) {
+    input_iters.Set(var.as_or_throw<PrimVar>(), range);
+  }
   // try estimate each dimension independently
   for (const Range& range : region) {
     auto res = DetectIterMap(
-        /*indices=*/{range->min}, /*input_iters=*/var_dom,
+        /*indices=*/{range->min}, /*input_iters=*/input_iters,
         /*predicate=*/predicate, /*check_level=*/IterMapLevel::Surjective, analyzer);
     if (!res->indices.empty()) {
       TVM_FFI_ICHECK_EQ(res->indices.size(), 1U);

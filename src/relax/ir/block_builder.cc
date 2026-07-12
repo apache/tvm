@@ -858,12 +858,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return info;
     }
     auto* curr_scope = CurrentScopeFrame();
-    auto f_shape_var_map = [curr_scope](tirx::Var var) -> ffi::Optional<PrimExpr> {
-      auto it = curr_scope->shape_var_map.find(var);
+    auto f_var_map = [curr_scope](const Var& var) -> ffi::Optional<Expr> {
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var) return std::nullopt;
+      auto it = curr_scope->shape_var_map.find(prim_var.value());
       if (it != curr_scope->shape_var_map.end()) return (*it).second;
       return std::nullopt;
     };
-    return EraseToWellDefined(info, f_shape_var_map);
+    return EraseToWellDefined(info, f_var_map);
   }
 
   Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {

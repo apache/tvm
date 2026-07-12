@@ -23,7 +23,7 @@ from typing import Any
 import tvm_ffi
 
 import tvm
-from tvm import relax, tirx
+from tvm import relax
 from tvm.ir import GlobalVar
 from tvm.relax import Expr, Type
 from tvm.relax.script import builder as R
@@ -47,6 +47,10 @@ dispatch.register_op(relax.Expr, doc.LtE, 0)(lambda lhs, rhs: lhs <= rhs)
 dispatch.register_op(relax.Expr, doc.Lt, 0)(lambda lhs, rhs: lhs < rhs)
 
 
+def _is_primitive_var(value: Any) -> bool:
+    return type(value) is tvm.ir.Var and tvm.ir.is_prim_expr(value)
+
+
 def bind_assign_value(
     self: Parser,
     node: doc.expr,
@@ -57,8 +61,8 @@ def bind_assign_value(
 ) -> Any:
     var_table = self.var_table.get()
 
-    if isinstance(value, tirx.Var):
-        if value.name and var_name != value.name:
+    if _is_primitive_var(value):
+        if value.name_hint and var_name != value.name_hint:
             self.report_error(
                 node,
                 "Cannot define TIR variables with different names. The LHS of binding should "
@@ -66,7 +70,7 @@ def bind_assign_value(
             )
         if var_name in var_table:
             prev_value = var_table[var_name]
-            if not isinstance(prev_value, tirx.Var):
+            if not _is_primitive_var(prev_value):
                 self.report_error(
                     node,
                     "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
@@ -76,13 +80,6 @@ def bind_assign_value(
                 self.report_error(
                     node,
                     f"Expected the same dtype for TIR vars but got {value.ty} vs {prev_value.ty}",
-                )
-            if not isinstance(value, type(prev_value)):
-                self.report_error(
-                    node,
-                    f"Expected the same IR type for TIR vars "
-                    f"but existing value {type(value)} is mismatched "
-                    f"to previous {type(prev_value)}",
                 )
             value = prev_value
         IRBuilder.name(var_name, value)
@@ -168,8 +165,8 @@ def is_recursive(node: doc.FunctionDef) -> bool:
 
 
 def collect_symbolic_var_from_prelude(
-    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tirx.Var]
-) -> dict[str, tirx.Var]:
+    self: Parser, node: doc.FunctionDef, symbolic_vars: dict[str, tvm.ir.Var]
+) -> dict[str, tvm.ir.Var]:
     prelude_vars = {}
     for stmt in node.body:
         if isinstance(stmt, doc.Assign) and all(
@@ -200,7 +197,7 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
 
         for var_name in param_ty_proxy.get_symbolic_vars():
             if var_name not in symbolic_vars:
-                symbolic_vars[var_name] = tirx.Var(var_name, "int64")
+                symbolic_vars[var_name] = tvm.ir.Var(var_name, "int64")
 
     # Update symbolic vars based on
     symbolic_vars = collect_symbolic_var_from_prelude(self, node, symbolic_vars)
@@ -230,7 +227,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
             param_ty = eval_ty(self, arg.annotation, eval_str=True)
             params_ty.append(param_ty)
         # created a var for the local function, the same var could be used for recursive call
-        local_func_var = relax.Var(node.name, relax.FuncType(params_ty, ret_ty))
+        local_func_var = tvm.ir.Var(node.name, relax.FuncType(params_ty, ret_ty))
         self.var_table.add(node.name, local_func_var)
 
     purity = find_decorator_annotation(node, "pure")
@@ -294,7 +291,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
             param_ty = eval_ty(self, arg.annotation, eval_str=True)
-            params.append(relax.Var(arg.arg, param_ty))
+            params.append(tvm.ir.Var(arg.arg, param_ty))
 
     is_pure = find_decorator_annotation(node, "pure")
 

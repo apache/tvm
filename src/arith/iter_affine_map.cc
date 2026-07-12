@@ -174,7 +174,7 @@ class IterMapRewriter : public ExprMutator {
  public:
   using Parent = ExprMutator;
 
-  explicit IterMapRewriter(AnalyzerObj* analyzer, const ffi::Map<Var, Range>& input_iters,
+  explicit IterMapRewriter(AnalyzerObj* analyzer, const ffi::Map<PrimVar, Range>& input_iters,
                            IterMapLevel check_level, bool simplify_trivial_iterators,
                            ffi::Array<ffi::String>* errors)
       : analyzer_(analyzer),
@@ -182,7 +182,7 @@ class IterMapRewriter : public ExprMutator {
         errors_(*errors),
         padding_predicate_(IntImm::Bool(false)) {
     for (auto kv : input_iters) {
-      const Var& var = kv.first;
+      const PrimVar& var = kv.first;
       const Range& vrng = kv.second;
       if (simplify_trivial_iterators && is_one(vrng->extent)) {
         var_map_[var] = IterSumExpr({}, vrng->min);
@@ -1299,9 +1299,13 @@ struct IterConstraint {
  * \param result The result of predicate split.
  * \return A list of IterConstraint, empty if the split failed.
  */
-bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
+bool MatchBoundConstraints(PrimExpr pred, ffi::Map<PrimVar, Range>* input_iters,
                            std::vector<IterConstraint>* result) {
   arith::PVar<PrimExpr> lhs, rhs, rest;
+  std::unordered_set<const VarNode*> input_iter_nodes;
+  for (const auto& [var, _] : *input_iters) {
+    input_iter_nodes.insert(var.get());
+  }
   for (;;) {
     // try extract comparisions
     bool is_finish = false;
@@ -1342,8 +1346,8 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
     }
     // determine iter and bound, if we can not distinguish them simply,
     // try divide (lhs - rhs) into itervar aware and itervar free parts
-    auto f_use_itervar = [&input_iters](const VarNode* v) {
-      return input_iters->count(ffi::GetRef<Var>(v));
+    auto f_use_itervar = [&input_iter_nodes](const VarNode* v) {
+      return input_iter_nodes.count(v);
     };
     bool bound_at_left;
     if (UsesVar(lhs_expr, f_use_itervar) || UsesVar(rhs_expr, f_use_itervar)) {
@@ -1400,7 +1404,7 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
         }
       }
       // If it is a predicate for a single input iter
-      if (auto opt = iter.as<Var>()) {
+      if (auto opt = iter.as<PrimVar>()) {
         auto var = opt.value();
         auto it = input_iters->find(var);
         if (it != input_iters->end()) {
@@ -1422,7 +1426,7 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
   return true;
 }
 
-bool IterRangeSanityCheck(const ffi::Map<Var, Range>& iter_ranges) {
+bool IterRangeSanityCheck(const ffi::Map<PrimVar, Range>& iter_ranges) {
   std::unordered_set<Var> iters;
   for (const auto& it : iter_ranges) iters.insert(it.first);
   auto f = [&](const VarNode* var) { return iters.count(ffi::GetRef<Var>(var)); };
@@ -1433,7 +1437,8 @@ bool IterRangeSanityCheck(const ffi::Map<Var, Range>& iter_ranges) {
 }
 
 IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
-                            const ffi::Map<Var, Range>& input_iters, const PrimExpr& predicate,
+                            const ffi::Map<PrimVar, Range>& input_iters,
+                            const PrimExpr& predicate,
                             IterMapLevel check_level, const arith::Analyzer& analyzer,
                             bool simplify_trivial_iterators) {
   arith::AnalyzerObj* analyzer_ptr = analyzer.get();
@@ -1446,7 +1451,7 @@ IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
     result->errors.push_back("Invalid iterators.  Iterators may not be expressions of each other.");
     return result;
   }
-  ffi::Map<Var, Range> constrained_input_iters = input_iters;
+  ffi::Map<PrimVar, Range> constrained_input_iters = input_iters;
   std::vector<IterConstraint> constraints;
   if (!is_one(predicate) &&
       !MatchBoundConstraints(predicate, &constrained_input_iters, &constraints)) {
@@ -1523,7 +1528,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "arith.DetectIterMap",
-      [](const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& input_iters,
+      [](const ffi::Array<PrimExpr>& indices, const ffi::Map<PrimVar, Range>& input_iters,
          const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators,
          ffi::Optional<Analyzer> opt_analyzer) {
         Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
@@ -1532,7 +1537,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<Var, Range>& input_iters,
+IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<PrimVar, Range>& input_iters,
                                const arith::Analyzer& analyzer) {
   arith::AnalyzerObj* analyzer_ptr = analyzer.get();
   IterMapResult result;
@@ -1552,7 +1557,7 @@ IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<Var, Range>& input
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "arith.NormalizeToIterSum", [](PrimExpr index, const ffi::Map<Var, Range>& input_iters,
+      "arith.NormalizeToIterSum", [](PrimExpr index, const ffi::Map<PrimVar, Range>& input_iters,
                                      ffi::Optional<Analyzer> opt_analyzer) {
         Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return NormalizeToIterSum(index, input_iters, ana);
@@ -2159,7 +2164,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
-                                     const ffi::Map<Var, Range>& input_iters,
+                                     const ffi::Map<PrimVar, Range>& input_iters,
                                      const PrimExpr& input_pred, IterMapLevel check_level,
                                      const arith::Analyzer& ana, bool simplify_trivial_iterators) {
   arith::AnalyzerObj* ana_ptr = ana.get();
@@ -2191,7 +2196,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "arith.IterMapSimplify",
-      [](const ffi::Array<PrimExpr>& indices, const ffi::Map<Var, Range>& input_iters,
+      [](const ffi::Array<PrimExpr>& indices, const ffi::Map<PrimVar, Range>& input_iters,
          const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators,
          ffi::Optional<Analyzer> opt_analyzer) {
         Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
@@ -2495,8 +2500,8 @@ class SubspaceDivider {
 };
 
 ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bindings,
-                                                const ffi::Map<Var, Range>& input_iters,
-                                                const ffi::Array<Var>& sub_iters,
+                                                const ffi::Map<PrimVar, Range>& input_iters,
+                                                const ffi::Array<PrimVar>& sub_iters,
                                                 const PrimExpr& predicate, IterMapLevel check_level,
                                                 const arith::Analyzer& analyzer,
                                                 bool simplify_trivial_iterators) {
@@ -2508,7 +2513,7 @@ ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bind
   if (maps.empty()) return {};
 
   std::unordered_set<Var> inner_iter_set;
-  for (const Var& inner_iter : sub_iters) {
+  for (const PrimVar& inner_iter : sub_iters) {
     inner_iter_set.insert(inner_iter);
   }
 
@@ -2533,8 +2538,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "arith.SubspaceDivide",
-      [](const ffi::Array<PrimExpr>& bindings, const ffi::Map<Var, Range>& root_iters,
-         const ffi::Array<Var>& sub_iters, const PrimExpr& predicate, int check_level,
+      [](const ffi::Array<PrimExpr>& bindings, const ffi::Map<PrimVar, Range>& root_iters,
+         const ffi::Array<PrimVar>& sub_iters, const PrimExpr& predicate, int check_level,
          bool simplify_trivial_iterators, ffi::Optional<Analyzer> opt_analyzer) {
         Analyzer ana = opt_analyzer.has_value() ? opt_analyzer.value() : Analyzer();
         return SubspaceDivide(bindings, root_iters, sub_iters, predicate, IterMapLevel(check_level),

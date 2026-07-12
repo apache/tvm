@@ -808,8 +808,8 @@ def test_var_mutation():
             self.var_map = var_map
 
         def visit_var_(self, op: Var) -> tir.Expr:
-            if op.name in self.var_map:
-                return self.var_map[op.name]
+            if op.name_hint in self.var_map:
+                return self.var_map[op.name_hint]
             return op
 
     # Create a simple expression

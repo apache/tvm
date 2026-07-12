@@ -642,7 +642,7 @@ def create_test_statements():
 
     # Buffer operations
     buffer_var = tir.Var("buf", "handle")
-    buffer = tir.decl_buffer((10,), "int32", buffer_var.name)
+    buffer = tir.decl_buffer((10,), "int32", buffer_var.name_hint)
     buffer_store = tir.BufferStore(buffer, add_expr, [int_imm])
 
     # Sequence of statements

@@ -399,9 +399,20 @@ def test_var():
         obj,
         """
 x = T.int64()
-a: R.Tensor((1, x, 3), dtype="float32")
+a: R.Tensor((T.int64(1), x, T.int64(3)), dtype="float32")
 a""",
     )
+
+    func = tvm.script.from_source(
+        """
+@R.function
+def main(a: R.Tensor((1, "x", 3), dtype="float32")):
+    return a
+"""
+    )
+    source = func.script()
+    assert "I.Var" not in source
+    tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
 
 
 def test_dataflow_var():
@@ -514,7 +525,7 @@ R.call_tir_with_grad(tir_func, (v0,), out_ty=R.Tensor((54, 96), dtype="float32")
 def test_call_tir_inplace():
     x = relax.Var("x", R.Tensor((32, 32), dtype="int32"))
     y = relax.Var("y", R.Tensor((32, 32), dtype="int32"))
-    t = tirx.Var("t", dtype="int64")
+    t = tirx.Var("t", ty="int64")
     call = relax.call_tir_inplace(
         relax.GlobalVar("tir_func"),
         (

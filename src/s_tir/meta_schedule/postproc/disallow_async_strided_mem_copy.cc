@@ -114,7 +114,7 @@ struct AsyncStridedMemCopyFinder : private StmtExprVisitor {
   }
 
   bool found_ = false;
-  ffi::Map<Var, Range> input_iters = ffi::Map<Var, Range>();
+  ffi::Map<PrimVar, Range> input_iters = ffi::Map<PrimVar, Range>();
 };
 
 }  // namespace s_tir

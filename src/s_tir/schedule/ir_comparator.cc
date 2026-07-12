@@ -365,7 +365,9 @@ bool TensorizeComparator::VisitExpr_(const CastNode* op, const PrimExpr& other) 
 }
 
 bool TensorizeComparator::VisitExpr_(const VarNode* op, const PrimExpr& other) {
-  const auto* rhs = other.as<VarNode>();
+  auto rhs_ref = other.as<PrimVar>();
+  if (!rhs_ref.has_value()) return false;
+  const auto* rhs = rhs_ref.value().get();
   auto lhs = ffi::GetRef<Var>(op);
   if (lhs.same_as(other)) return true;
   PrimType lhs_ty = op->ty.as_or_throw<PrimType>();
@@ -795,7 +797,7 @@ bool AutoTensorizeComparator::CompareBufferAccess(const T* lhs, const T* rhs) {
     };
 
     for (const auto& index : rhs->indices) {
-      if (!index.template as<VarNode>() && !is_scalar_access(rhs->indices, index)) return false;
+      if (!index.template as<PrimVar>() && !is_scalar_access(rhs->indices, index)) return false;
     }
     lhs_buffer_indices_map_[lhs->buffer] = lhs_indices;
     rhs_buffer_indices_map_[rhs->buffer] = rhs->indices;

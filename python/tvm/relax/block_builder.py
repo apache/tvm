@@ -87,10 +87,10 @@ class TestingScope:
         self._bb = block_builder
         shape_vars = []
         for var in def_vars:
-            if isinstance(var, tvm.tirx.Var):
+            if isinstance(var, tvm.ir.Var):
                 shape_vars.append(var)
             else:
-                raise ValueError("def_vars only can take tirx.Var")
+                raise ValueError("def_vars can only contain Vars")
         # setup a dummy var so shape is in scope.
         sparam = rx.Var("sparam", rx.ShapeType(shape_vars))
         self._scope_params = [sparam]

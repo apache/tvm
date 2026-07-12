@@ -134,7 +134,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
       for (const auto& tir_var : free_tir_vars) {
         // Pass the symbolic var value as a 1-D shape, matching the ShapeType
         // param that now defines the var in the callee.
-        new_args.push_back(ShapeExpr({tir_binding.at(tir_var)}));
+        new_args.push_back(ShapeExpr({tir_binding.at(tir_var).as_or_throw<PrimExpr>()}));
       }
     }
 

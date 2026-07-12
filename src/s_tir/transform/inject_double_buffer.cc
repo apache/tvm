@@ -114,7 +114,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    const VarNode* buf = op->buffer->data.as<VarNode>();
+    const VarNode* buf = op->buffer->data.get();
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
       StorageEntry& entry = it->second;

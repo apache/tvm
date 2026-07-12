@@ -126,14 +126,15 @@ class BufferAxisGraphExtractor : public StmtExprVisitor {
 
   bool Match(PrimExpr a, PrimExpr buffer_shape_a, PrimExpr b, PrimExpr buffer_shape_b,
              const arith::Analyzer& analyzer) {
-    if (b.as<VarNode>()) {
+    if (b.as<PrimVar>()) {
       std::swap(a, b);
       std::swap(buffer_shape_a, buffer_shape_b);
     }
-    if (!a.as<VarNode>()) {
+    auto prim_var = a.as<PrimVar>();
+    if (!prim_var) {
       return false;
     }
-    Var var = a.as_or_throw<Var>();
+    Var var = *prim_var;
     analyzer->Bind(iter_var_range_);
     b = analyzer->Simplify(b);
     // index var `a` must access whole range of a specific buffer dimension

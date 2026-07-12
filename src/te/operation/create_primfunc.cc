@@ -644,8 +644,8 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     Buffer output_buffer = placeholder;
     if (!info->IsArg(output_tensor)) {
       PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
-      if (const auto* offset_var = placeholder->elem_offset.as<VarNode>()) {
-        var_map[offset_var] = zero_offset;
+      if (auto offset_var = placeholder->elem_offset.as<PrimVar>()) {
+        var_map[offset_var.value().get()] = zero_offset;
       }
       output_buffer.CopyOnWrite()->elem_offset = zero_offset;
       input_buffer_map[placeholder.get()] = output_buffer;
@@ -823,7 +823,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       Var param("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
       parameters.push_back(param);
       buffer_map.Set(param, it->second);
-    } else if (auto var = arg.as<tirx::Var>()) {
+    } else if (auto var = arg.as<tirx::PrimVar>()) {
       parameters.push_back(var.value());
     }
   }

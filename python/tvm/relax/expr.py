@@ -410,45 +410,8 @@ class Constant(ExprWithOp):
         )
 
 
-@tvm_ffi.register_object("relax.expr.Var")
-class Var(ExprWithOp):
-    """The variable class for all Relax bindings.
-
-    Parameters
-    ----------
-    name_hint: str
-        The name hint of the variable.
-
-    ty: Optional[Type]
-        The type annotation of the variable.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    name_hint: str
-    span: Span | None
-
-    def __init__(
-        self,
-        name_hint: str,
-        ty: Type | None = None,
-        span: Span | None = None,
-    ) -> None:
-        if ty is not None:
-            ty = tvm.runtime.convert(ty)
-            if not isinstance(ty, Type):
-                raise TypeError(
-                    "ty needs to be an instance of Type. "
-                    "If you attempt to pass in shape, "
-                    "use relax.TensorType(shape, dtype)."
-                )
-        self.__init_handle_by_constructor__(
-            _ffi_api.Var,  # type: ignore
-            name_hint,
-            ty,
-            span,
-        )
+# Ordinary Relax bindings use the canonical IR Var directly.
+Var = tvm.ir.Var
 
 
 @tvm_ffi.register_object("relax.expr.DataflowVar")
@@ -836,19 +799,21 @@ class TEPlaceholderOp(tvm.te.tensor.Operation):
 
 
 def te_tensor(
-    value: Expr, tir_var_map: dict[tvm.tirx.Var, tvm.tirx.Expr], name: str = "rxplaceholder"
+    value: Expr,
+    tir_var_map: dict[tvm.ir.Var, tvm.tirx.Expr],
+    name: str = "rxplaceholder",
 ):
-    """Create a TE tensor from relax expression, with TIR variables in the
-    tensor shape substituted by the given mapping
+    """Create a TE tensor from a Relax expression, with primitive variables
+    in the tensor shape substituted by the given mapping.
 
     Parameters
     ----------
     value : Expr
         The relax expression, which is required to have TensorType.
 
-    tir_var_map : Dict[tvm.tirx.Var, tvm.tirx.Expr]
-        The mapping to substitute the TIR variables appeared in the
-        shape of the input Expr.
+    tir_var_map : Dict[tvm.ir.Var, tvm.tirx.Expr]
+        The exact-identity mapping used to refresh canonical primitive Vars
+        that appear in the input shape.
 
     name : str
         The name of the created tensor.

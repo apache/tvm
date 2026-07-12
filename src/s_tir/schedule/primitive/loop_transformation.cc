@@ -81,7 +81,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
   explicit IterMapSimplifyBlockBinding(ffi::MapObj* opaque_blocks,
-                                       ffi::Map<Var, Range> loop_var2extent,
+                                       ffi::Map<PrimVar, Range> loop_var2extent,
                                        bool preserve_unit_iters)
       : opaque_blocks_(opaque_blocks),
         loop_var2extent_(loop_var2extent),
@@ -89,7 +89,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
 
   static For SimplifyBindings(Stmt stmt, const ffi::Array<StmtSRef>& loop_srefs,
                               ffi::MapObj* opaque_blocks, bool preserve_unit_iters) {
-    ffi::Map<Var, Range> loop_var2extent;
+    ffi::Map<PrimVar, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
@@ -139,7 +139,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   /*! \brief The reuse mapping */
   ffi::MapObj* opaque_blocks_;
   /*! \brief The range of loops */
-  ffi::Map<Var, Range> loop_var2extent_;
+  ffi::Map<PrimVar, Range> loop_var2extent_;
   /*! \brief Internal analyzer */
   arith::Analyzer analzyer_;
   /*! \brief Whether or not to simplify unit iterators */
@@ -480,12 +480,12 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < store->indices.size(); i++) {
-      const VarNode* var_node = store->indices[i].as<VarNode>();
-      if (var_node == nullptr) {
+      auto var = store->indices[i].as<PrimVar>();
+      if (!var.has_value()) {
         check_ = true;
         break;
       }
-      indices.push_back(var_node->name_hint);
+      indices.push_back(var.value()->name_hint);
     }
     if (buffer_indices_map.find(store->buffer->name) == buffer_indices_map.end() && !check_)
       buffer_indices_map.Set(store->buffer->name, indices);
@@ -496,12 +496,12 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < load->indices.size(); i++) {
-      const VarNode* var_node = load->indices[i].as<VarNode>();
-      if (var_node == nullptr) {
+      auto var = load->indices[i].as<PrimVar>();
+      if (!var.has_value()) {
         check_ = true;
         break;
       }
-      indices.push_back(var_node->name_hint);
+      indices.push_back(var.value()->name_hint);
     }
     if (buffer_indices_map.find(load->buffer->name) == buffer_indices_map.end() && !check_)
       buffer_indices_map.Set(load->buffer->name, indices);

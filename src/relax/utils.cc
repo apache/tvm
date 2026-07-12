@@ -32,9 +32,7 @@ namespace relax {
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
  public:
-  explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& args_map,
-                      const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map)
-      : args_map_(args_map), symbolic_var_map_(symbolic_var_map) {}
+  explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& bindings) : bindings_(bindings) {}
 
  private:
   using ExprMutator::VisitExpr_;
@@ -43,7 +41,7 @@ class ExprBinder : public ExprMutator {
     tvm::ffi::Array<Var> params;
     bool all_params_unchanged = true;
     for (const Var& param : op->params) {
-      if (args_map_.count(param)) {
+      if (bindings_.count(param)) {
         all_params_unchanged = false;
       } else {
         Var new_param = this->VisitVarDef(param);
@@ -68,8 +66,8 @@ class ExprBinder : public ExprMutator {
 
   Expr VisitExpr_(const VarNode* op) final {
     auto id = ffi::GetRef<Var>(op);
-    auto it = args_map_.find(id);
-    if (it != args_map_.end()) {
+    auto it = bindings_.find(id);
+    if (it != bindings_.end()) {
       return (*it).second;
     } else {
       return ExprMutator::VisitExpr_(op);
@@ -77,7 +75,15 @@ class ExprBinder : public ExprMutator {
   }
 
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
-    auto new_expr = tirx::Substitute(expr, symbolic_var_map_);
+    PrimExpr new_expr = tirx::Substitute(
+        expr, [this](const tirx::Var& var) -> ffi::Optional<tvm::Expr> {
+          auto it = bindings_.find(var);
+          if (it == bindings_.end()) return std::nullopt;
+          if (auto value = (*it).second.as<PrimExpr>()) {
+            return tvm::Expr(value.value());
+          }
+          return std::nullopt;
+        });
     if (!expr.same_as(new_expr)) {
       arith::Analyzer analyzer;
       new_expr = analyzer->Simplify(new_expr);
@@ -93,36 +99,32 @@ class ExprBinder : public ExprMutator {
   }
 
  private:
-  const tvm::ffi::Map<Var, Expr>& args_map_;
-  const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map_;
+  const tvm::ffi::Map<Var, Expr>& bindings_;
 };
 
 /*!
  * \brief Bind params on expr
  * \param expr The expr where to bind params
  * \param binds The map from param var to the expr it binds to
- * \param symbolic_var_map The map from symbolic var to the expr it binds to
  * \return The result expr after bind params
  */
-Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds,
-          const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map) {
-  return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
+Expr Bind(const Expr& expr, const tvm::ffi::Map<Var, Expr>& binds) {
+  return ExprBinder(binds).VisitExpr(expr);
 }
 
-Type Bind(const Type& ty, const tvm::ffi::Map<tirx::Var, PrimExpr>& symbolic_var_map) {
-  return ExprBinder({}, symbolic_var_map).VisitExprDepTypeField(ty);
+Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds) {
+  return ExprBinder(binds).VisitExprDepTypeField(ty);
 }
 
-tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
-    const tvm::ffi::Map<relax::Var, relax::Expr>& relax_var_remap,
-    const arith::Analyzer& analyzer) {
+tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
+    const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const arith::Analyzer& analyzer) {
   (void)analyzer;
-  tvm::ffi::Map<tirx::Var, PrimExpr> tir_var_remap;
+  tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
-  auto bind_from_prim_expr = [&tir_var_remap](const PrimExpr& var_shape,
-                                              const PrimExpr& expr_shape) {
+  auto bind_from_prim_expr = [&var_remap](const PrimExpr& var_shape,
+                                          const PrimExpr& expr_shape) {
     if (auto var = var_shape.as<tirx::Var>()) {
-      tir_var_remap.Set(var.value(), expr_shape);
+      var_remap.Set(var.value(), expr_shape);
     }
   };
 
@@ -182,7 +184,7 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
     bind_from_ty(var_ty, expr_ty);
   }
 
-  return tir_var_remap;
+  return var_remap;
 }
 
 bool IsBoolType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dtype) {

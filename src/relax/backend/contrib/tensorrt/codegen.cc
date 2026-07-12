@@ -196,11 +196,11 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     if (initial.size() != final_indices.size()) return true;
     ffi::Array<int64_t> permutation;
     for (const PrimExpr& expr : final_indices) {
-      const auto* var = expr.as<tirx::VarNode>();
-      if (var == nullptr) return true;
+      auto var = expr.as<tirx::PrimVar>();
+      if (!var.has_value()) return true;
       int64_t pos = -1;
       for (size_t j = 0; j < initial.size(); ++j) {
-        if (initial[j].get() == var) {
+        if (initial[j].get() == var.value().get()) {
           pos = static_cast<int64_t>(j);
           break;
         }

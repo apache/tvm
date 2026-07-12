@@ -174,9 +174,9 @@ def test_tensor_dict():
 
 
 def test_free_var_equal():
-    x = tvm.tirx.Var("x", dtype="int32")
-    y = tvm.tirx.Var("y", dtype="int32")
-    z = tvm.tirx.Var("z", dtype="int32")
+    x = tvm.tirx.Var("x", ty="int32")
+    y = tvm.tirx.Var("y", ty="int32")
+    z = tvm.tirx.Var("z", ty="int32")
     v1 = x + y
     v1 = y + z
     tvm.ir.assert_structural_equal(x, z, map_free_vars=True)
