@@ -4907,6 +4907,7 @@ _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
 _tfl_model = _get_tflite_schema_module("Model")
 _tfl_operator = _get_tflite_schema_module("Operator")
 _tfl_operator_code = _get_tflite_schema_module("OperatorCode")
+_tfl_pool2d_options = _get_tflite_schema_module("Pool2DOptions")
 _tfl_quantization_parameters = _get_tflite_schema_module("QuantizationParameters")
 _tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
 _tfl_subgraph = _get_tflite_schema_module("SubGraph")
@@ -11182,6 +11183,153 @@ def test_dequantize_op_uses_relax_dequantize():
                     R.const(3, "int32"),
                     axis=0,
                 )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_dequantize_float16_uses_astype():
+    """TFLite DEQUANTIZE float16 -> float32 uses R.astype."""
+    builder = flatbuffers.Builder(1024)
+
+    input_data = np.array([1.5, -2.0], dtype=np.float16)
+
+    input_tensor = _build_tensor(builder, 0, [2], tensor_type=_tfl_tensor_type.FLOAT16)
+    output_tensor = _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.FLOAT32)
+
+    dequantize_op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[dequantize_op],
+        inputs=[],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.DEQUANTIZE)]
+    input_buffer = _build_buffer(builder, input_data.tobytes())
+    output_buffer = _build_buffer(builder)
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[input_buffer, output_buffer],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2,), dtype="float32"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="float32") = R.astype(
+                    R.const(np.array([1.5, -2.0], dtype=np.float16)), dtype="float32"
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_quantized_avg_pool2d_uses_astype():
+    """Quantized AVERAGE_POOL_2D casts through int32 with R.astype."""
+    builder = flatbuffers.Builder(1024)
+
+    qparams = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+    input_tensor = _build_tensor(
+        builder,
+        0,
+        [1, 2, 2, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=qparams,
+    )
+    output_tensor = _build_tensor(
+        builder,
+        1,
+        [1, 1, 1, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=qparams,
+    )
+
+    _tfl_pool2d_options.Pool2DOptionsStart(builder)
+    _tfl_pool2d_options.Pool2DOptionsAddPadding(builder, _tfl_padding.VALID)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideH(builder, 1)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideW(builder, 1)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterHeight(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterWidth(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFusedActivationFunction(builder, _tfl_activation_fn.NONE)
+    pool_opts = _tfl_pool2d_options.Pool2DOptionsEnd(builder)
+
+    avg_pool_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.Pool2DOptions,
+        builtin_options=pool_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[avg_pool_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.AVERAGE_POOL_2D)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    subgraph = tflite_model.Subgraphs(0)
+    bb = relax.BlockBuilder()
+    exp_tab = tflite_frontend.ExprTable()
+    input_var = relax.Var("tvmgen_tensor_0", relax.TensorType((1, 2, 2, 1), dtype="int8"))
+    exp_tab.set_expr("tvmgen_tensor_0", input_var)
+    converter = tflite_frontend.OperatorConverter(tflite_model, subgraph, exp_tab, bb)
+    with bb.function("main", [input_var]):
+        with bb.dataflow():
+            output = converter.convert_pool2d(subgraph.Operators(0), "average")
+            gv = bb.emit_output(output)
+        bb.emit_func_output(gv)
+    mod = bb.get()
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(tvmgen_tensor_0: R.Tensor((1, 2, 2, 1), dtype="int8")) -> R.Tensor(
+            (1, 1, 1, 1), dtype="int8"
+        ):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 2, 1), dtype="int32") = R.astype(tvmgen_tensor_0, dtype="int32")
+                lv1: R.Tensor((1, 1, 1, 1), dtype="int32") = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[2, 2],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NHWC",
+                    out_layout="NHWC",
+                )
+                gv: R.Tensor((1, 1, 1, 1), dtype="int8") = R.astype(lv1, dtype="int8")
                 R.output(gv)
             return gv
 
