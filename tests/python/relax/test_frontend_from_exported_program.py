@@ -6387,7 +6387,10 @@ def test_masked_fill():
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(128, 128, dtype=torch.float32), torch.rand(128, 128) < 0.5)
+    example_args = (
+        torch.randn(128, 128, dtype=torch.float32),
+        torch.testing.make_tensor((128, 128), dtype=torch.bool, device="cpu"),
+    )
     verify_model(Masked_Fill(), example_args, {}, Expected)
 
 
@@ -6409,7 +6412,10 @@ def test_masked_fill_inplace():
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(128, 128, dtype=torch.float32), torch.rand(128, 128) < 0.5)
+    example_args = (
+        torch.randn(128, 128, dtype=torch.float32),
+        torch.testing.make_tensor((128, 128), dtype=torch.bool, device="cpu"),
+    )
     verify_model(Masked_Fill_Inplace(), example_args, {}, Expected)
 
 
@@ -7813,7 +7819,7 @@ def test_where():
                 R.output(gv)
             return gv
 
-    condition = torch.randint(0, 2, (5, 3), dtype=torch.bool)
+    condition = torch.testing.make_tensor((5, 3), dtype=torch.bool, device="cpu")
     x = torch.randn(5, 3, dtype=torch.float32)
     y = torch.randn(5, 3, dtype=torch.float32)
 
@@ -8281,8 +8287,8 @@ def test_linspace():
 )
 def test_dtypes(torch_dtype, relax_dtype):
     example_args = (
-        torch.randint(0, 10, (10, 10)).to(torch_dtype),
-        torch.randint(0, 10, (10, 10)).to(torch_dtype),
+        torch.testing.make_tensor((10, 10), dtype=torch_dtype, device="cpu", low=0, high=10),
+        torch.testing.make_tensor((10, 10), dtype=torch_dtype, device="cpu", low=0, high=10),
     )
 
     class Model(Module):
