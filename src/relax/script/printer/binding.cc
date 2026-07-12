@@ -17,7 +17,6 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
-
 #include "./utils.h"
 
 namespace tvm {
@@ -63,6 +62,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (const auto if_ = n->value.as<relax::IfNode>()) {
             ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
+            if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
+              ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
+            }
             ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
             return PrintIfExpr(ffi::GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
           } else if (n->value->IsInstance<tvm::BaseFuncNode>() &&
@@ -79,6 +81,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           } else {
             ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
             ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
+            if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
+              ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
+            }
             ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
             return AssignDoc(lhs, rhs, ann);
           }

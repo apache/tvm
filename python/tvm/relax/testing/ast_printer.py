@@ -221,7 +221,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_prim_expr_field_(self, prim_expr: Expr) -> str:
         # TODO: We may want to print Expr ASTs, but this is a simplification for now
-        value = prim_expr.name_hint if type(prim_expr) is tvm.ir.Var else str(prim_expr)
+        value = prim_expr.name_hint if isinstance(prim_expr, tvm.ir.Var) else str(prim_expr)
         return self.build_ast_node("Expr", value=f"`{value}`")
 
     def visit_expr_fallback_(self, op: Expr) -> str:
@@ -289,7 +289,7 @@ class ASTPrinter(ExprFunctor):
         elif isinstance(ty_node, relax.TensorType):
             fields = {}
             fields["dtype"] = ty_node.dtype
-            if ty_node.shape:
+            if ty_node.shape is not None:
                 fields["shape"] = self.visit_expr(ty_node.shape)
             else:
                 fields["ndim"] = str(ty_node.ndim)

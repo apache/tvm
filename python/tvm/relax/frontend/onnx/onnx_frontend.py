@@ -583,8 +583,12 @@ class BinaryBase(OnnxOpConverter):
         """Base implementation for binary operations."""
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
-        if all([not isinstance(inp, tvm.ir.Call | relax.Var) for inp in inputs]):
-            has_prim_expr = any([tvm.ir.is_prim_expr(inp) for inp in inputs])
+        is_prim_var = [tvm.ir.is_prim_var(inp) for inp in inputs]
+        if all(
+            is_var or not isinstance(inp, tvm.ir.Call | tvm.ir.Var)
+            for inp, is_var in zip(inputs, is_prim_var)
+        ):
+            has_prim_expr = any(tvm.ir.is_prim_expr(inp) for inp in inputs)
             x = _to_numpy(inputs[0])
             y = _to_numpy(inputs[1])
             output = cls.numpy_op(x, y)  # pylint: disable=not-callable
@@ -3252,7 +3256,7 @@ class Attention(OnnxOpConverter):
 
         QKV = relax.op.matmul(input_emb, weight)
 
-        if bias:
+        if bias is not None:
             bias_shape = [val.value for val in bias.ty.shape.values]
             assert bias_shape[0] == weight_shape[1], (
                 "bias and weight should share the same hidden size sum"
@@ -4812,24 +4816,24 @@ class EmbedLayerNormalization(OnnxOpConverter):
 
         (batch_size, seq_len) = [dim.value for dim in input_ids.ty.shape]
 
-        if segment_ids:
-            assert segment_emb
+        if segment_ids is not None:
+            assert segment_emb is not None
 
         if pos_ids is None:
             pos_ids = relax.const([list(range(seq_len))] * batch_size, dtype="int64")
         word_vec = relax.op.take(word_emb, input_ids, axis=0)
-        if segment_ids:
+        if segment_ids is not None:
             segment_vec = relax.op.take(segment_emb, segment_ids, axis=0)
         pos_vec = relax.op.take(pos_emb, pos_ids, axis=0)
 
         vec_sum = relax.op.add(word_vec, pos_vec)
-        if segment_ids:
+        if segment_ids is not None:
             vec_sum = relax.op.add(vec_sum, segment_vec)
 
         ln = relax.op.nn.layer_norm(vec_sum, gamma, beta, axes=-1, epsilon=epsilon)
 
         mask_index = relax.const(_np.zeros((batch_size,), dtype="int64"))
-        if mask:
+        if mask is not None:
             # Caculate number of words per sentence.
             mask_index = relax.op.sum(mask, axis=1)
 

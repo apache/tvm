@@ -170,7 +170,7 @@ def gen_call_tir_inputs(
         out_ty, and tir_vars.
     """
 
-    tir_var_map: dict[tirx.Var, tirx.Expr] = {}
+    tir_var_map: dict[tvm.ir.Var, tirx.Var] = {}
 
     call_tir_args = []
     create_primfunc_args = []
@@ -180,9 +180,8 @@ def gen_call_tir_inputs(
 
     def _copy_undefined_var(expr: tirx.Expr):
         def _visit_expr(e: tirx.Expr):
-            if type(e) is tvm.ir.Var and e not in tir_var_map:
-                new_var = tvm.ir.Var(e.name_hint, e.ty)
-                tir_var_map[e] = new_var
+            if isinstance(e, tvm.ir.Var) and e not in tir_var_map:
+                tir_var_map[e] = tvm.ir.Var(e.name_hint, e.ty)
 
         tirx.stmt_functor.post_order_visit(expr, _visit_expr)
 
@@ -207,9 +206,9 @@ def gen_call_tir_inputs(
         te_args : Any
             Argument to convert to TE
 
-        tir_var_map : Dict[tirx.Var, tirx.Expr]
-            The TIR variable mapping, which maps TIR variables on the Relax function
-            side to the new set of variables used on the PrimFunc side.
+        tir_var_map : Dict[tvm.ir.Var, tirx.Var]
+            The variable mapping from caller-side canonical Vars to exact ordinary
+            Vars used on the PrimFunc side.
 
         Returns
         -------
@@ -219,7 +218,11 @@ def gen_call_tir_inputs(
         """
 
         def _convert_te_arg_helper(arg):
-            if isinstance(arg, tvm.relax.Var) and tvm.ir.is_prim_expr(arg):
+            if (
+                isinstance(arg, tvm.ir.Var)
+                and tvm.ir.is_prim_expr(arg)
+                and not (tvm.ir.is_prim_var(arg) and arg.ty.dtype == "int64")
+            ):
                 name = arg.name_hint or f"scalar_input_{len(create_primfunc_args)}"
                 tir_param = tirx.Var(name, arg.ty.dtype)
                 call_tir_args.append(arg)
@@ -289,7 +292,7 @@ def gen_call_tir_inputs(
             if isinstance(expr, te_Tensor):
                 for dim in expr.shape:
                     _populate_bound_vars(dim)
-            elif type(expr) is tvm.ir.Var:
+            elif isinstance(expr, tvm.ir.Var):
                 bound_vars.add(expr)
 
         def _populate_used_vars(expr):

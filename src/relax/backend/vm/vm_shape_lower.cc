@@ -69,6 +69,13 @@ struct MatchShapeTodoItem {
   ffi::String err_ctx;
 };
 
+/*! \brief A runtime check deferred until after a dataflow block. */
+struct PendingDataflowPrimValue {
+  Var var;
+  ffi::Optional<Type> match_type;
+  ffi::String err_ctx;
+};
+
 /*! \brief Slot map used for shape lowering. */
 using PrimExprSlotMap =
     std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, tirx::ExprDeepEqual>;
@@ -93,6 +100,10 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
     // collect shape declaration in func params
     for (auto param : func->params) {
       collector.VisitType(GetType(param));
+      if (auto prim_var = param.as<tirx::PrimVar>();
+          prim_var && (*prim_var)->ty.as_or_throw<PrimType>()->dtype == ShapeDType()) {
+        collector.CollectPrimExprSlot(*prim_var);
+      }
       collector.VisitExpr(param);
     }
     collector.VisitExpr(func->body);
@@ -100,19 +111,44 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
   }
 
  private:
-  void VisitExpr_(const CallNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>(); prim_expr && !IsRelaxOwnedCall(op)) {
-      CollectPrimExprSlot(prim_expr.value());
-      return;
+  static DLDataType ShapeDType() { return DLDataType{kDLInt, 64, 1}; }
+
+  void VisitExpr_(const ShapeExprNode* op) final {
+    for (PrimExpr value : op->values) {
+      CollectPrimExprSlot(value);
     }
-    ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExprFallback_(const ExprNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>()) {
-      CollectPrimExprSlot(prim_expr.value());
+  void VisitBinding_(const VarBindingNode* op) final {
+    if (op->var.as<DataflowVarNode>()) {
+      ExprVisitor::VisitBinding_(op);
+      return;
+    }
+    ffi::Optional<PrimExpr> root = std::nullopt;
+    if (op->value.as<VarNode>()) {
+      if (auto prim_var = op->value.as<tirx::PrimVar>()) {
+        root = PrimExpr(*prim_var);
+      }
+    } else if (op->value.as<IfNode>() || op->value.as<TupleGetItemNode>()) {
+      // Primitive-typed Relax control flow and tuple projection are runtime values,
+      // not symbolic expressions that can be evaluated by a generated shape function.
+    } else if (const auto* call = op->value.as<CallNode>()) {
+      if (!IsRelaxOwnedCall(call)) {
+        root = op->value.as<PrimExpr>();
+      }
     } else {
-      ExprVisitor::VisitExprFallback_(op);
+      root = op->value.as<PrimExpr>();
+    }
+    if (root.has_value() &&
+        root.value()->ty.as_or_throw<PrimType>()->dtype != ShapeDType()) {
+      root = std::nullopt;
+    }
+
+    if (root.has_value()) {
+      CollectPrimExprSlot(root.value());
+      VisitVarDef(op->var);
+    } else {
+      ExprVisitor::VisitBinding_(op);
     }
   }
 
@@ -150,14 +186,62 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
     // Do not recurse into function type as it is self-contained
   }
 
-  void VisitTypePrimExprField(const PrimExpr& expr) final { CollectPrimExprSlot(expr); }
-
   void VisitTypeExprField(const PrimExpr& expr) final { CollectPrimExprSlot(expr); }
 
-  void VisitTypeExprField(const Expr& expr) final { ExprVisitor::VisitExpr(expr); }
+  void VisitTypeExprField(const Expr& expr) final {
+    if (const auto* shape = expr.as<ShapeExprNode>()) {
+      for (PrimExpr value : shape->values) {
+        CollectPrimExprSlot(value);
+      }
+    } else {
+      ExprVisitor::VisitExpr(expr);
+    }
+  }
 
   std::vector<std::unique_ptr<PrimExprSlot>>* slot_vec_;
   PrimExprSlotMap* slot_map_;
+};
+
+/*! \brief Collect external primitive Vars used as runtime values in a dataflow block. */
+class DataflowRuntimePrimVarCollector : public ExprVisitor {
+ public:
+  static std::vector<Var> Collect(const DataflowBlockNode* block) {
+    DataflowRuntimePrimVarCollector collector;
+    for (const Binding& binding : block->bindings) {
+      collector.defined_vars_.insert(binding->var);
+    }
+    for (const Binding& binding : block->bindings) {
+      if (const auto* var_binding = binding.as<VarBindingNode>()) {
+        collector.VisitExpr(var_binding->value);
+      } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
+        collector.VisitExpr(match_cast->value);
+      }
+    }
+    return collector.runtime_prim_vars_;
+  }
+
+ private:
+  void VisitExpr_(const VarNode* op) final {
+    Var var = ffi::GetRef<Var>(op);
+    if (defined_vars_.count(var) || !var.as<tirx::PrimVar>()) return;
+    if (visited_vars_.insert(var).second) {
+      runtime_prim_vars_.push_back(var);
+    }
+  }
+
+  void VisitExpr_(const DataflowVarNode* op) final {
+    VisitExpr_(static_cast<const VarNode*>(op));
+  }
+
+  // Shape expressions and dependent type fields are handled by shape lowering itself,
+  // rather than serving as runtime VM inputs to the dataflow block.
+  void VisitExpr_(const ShapeExprNode*) final {}
+  void VisitExprDepTypeField(const Type&) final {}
+  void VisitExpr_(const FunctionNode*) final {}
+
+  std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> defined_vars_;
+  std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_vars_;
+  std::vector<Var> runtime_prim_vars_;
 };
 
 /*!
@@ -256,20 +340,132 @@ class VMShapeLowerMutator
   explicit VMShapeLowerMutator(IRModule mod, bool emit_err_ctx)
       : ExprMutator(mod), emit_err_ctx_(emit_err_ctx) {}
 
-  using ExprMutator::VisitExpr_;
-
-  Expr VisitExpr_(const CallNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>(); prim_expr && !IsRelaxOwnedCall(op)) {
-      return RewritePrimValue(prim_expr.value());
+  Expr VisitExpr_(const VarNode* op) final {
+    if (!inside_dataflow_block_) {
+      FlushPendingDataflowPrimValues();
+    }
+    Var var = ffi::GetRef<Var>(op);
+    if (rewrite_slot_backed_prim_values_) {
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var) return ExprMutator::VisitExpr_(op);
+      PrimExpr value = *prim_var;
+      if (slot_map_.count(value)) {
+        return RewritePrimValue(value);
+      }
     }
     return ExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExprFallback_(const ExprNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>()) {
-      return RewritePrimValue(prim_expr.value());
+  Expr VisitExpr_(const SeqExprNode* op) final {
+    bool all_blocks_unchanged = true;
+    ffi::Array<BindingBlock> blocks;
+    for (BindingBlock block : op->blocks) {
+      if (const auto* dataflow_block = block.as<DataflowBlockNode>()) {
+        builder_->BeginBindingBlock();
+        FlushPendingDataflowPrimValues();
+        MaterializeDataflowRuntimePrimVars(dataflow_block);
+        BindingBlock prologue = builder_->EndBlock();
+        if (!prologue->bindings.empty()) {
+          blocks.push_back(prologue);
+          all_blocks_unchanged = false;
+        }
+      }
+
+      BindingBlock new_block = this->VisitBindingBlock(block);
+      if (!new_block->bindings.empty()) {
+        blocks.push_back(new_block);
+      }
+      all_blocks_unchanged &= block.same_as(new_block);
     }
-    return ExprMutator::VisitExprFallback_(op);
+
+    builder_->BeginBindingBlock();
+    FlushPendingDataflowPrimValues();
+    Expr body = this->VisitExpr(op->body);
+    BindingBlock prologue = builder_->EndBlock();
+    if (!prologue->bindings.empty()) {
+      blocks.push_back(prologue);
+      all_blocks_unchanged = false;
+    }
+
+    if (all_blocks_unchanged && body.same_as(op->body) &&
+        VisitAndCheckTypeFieldUnchanged(op->ty)) {
+      return ffi::GetRef<Expr>(op);
+    }
+    return SeqExpr(blocks, body);
+  }
+
+  BindingBlock VisitBindingBlock_(const BindingBlockNode* block) final {
+    builder_->BeginBindingBlock();
+    FlushPendingDataflowPrimValues();
+    for (Binding binding : block->bindings) {
+      this->VisitBinding(binding);
+    }
+    return builder_->EndBlock();
+  }
+
+  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) final {
+    bool cached_inside_dataflow = inside_dataflow_block_;
+    bool cached_rewrite_prim_values = rewrite_slot_backed_prim_values_;
+    inside_dataflow_block_ = true;
+    rewrite_slot_backed_prim_values_ = false;
+    BindingBlock output = ExprMutator::VisitBindingBlock_(block);
+    rewrite_slot_backed_prim_values_ = cached_rewrite_prim_values;
+    inside_dataflow_block_ = cached_inside_dataflow;
+    return output;
+  }
+
+  void MaterializeDataflowRuntimePrimVars(const DataflowBlockNode* block) {
+    for (const Var& var : DataflowRuntimePrimVarCollector::Collect(block)) {
+      if (function_params_.count(var) || this->LookupBinding(var).has_value()) continue;
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var) continue;
+      PrimExpr value = *prim_var;
+      if (!slot_map_.count(value)) continue;
+      Var runtime_var = builder_->Emit(RewritePrimValue(value), var->name_hint);
+      var_remap_[var] = runtime_var;
+    }
+  }
+
+  void VisitBinding_(const VarBindingNode* binding) final {
+    if (binding->var.as<DataflowVarNode>()) {
+      bool cached = rewrite_slot_backed_prim_values_;
+      rewrite_slot_backed_prim_values_ = false;
+      ExprMutator::VisitBinding_(binding);
+      rewrite_slot_backed_prim_values_ = cached;
+      return;
+    }
+    ffi::Optional<PrimExpr> root = std::nullopt;
+    if (binding->value.as<VarNode>()) {
+      if (auto prim_var = binding->value.as<tirx::PrimVar>()) {
+        root = PrimExpr(*prim_var);
+      }
+    } else if (binding->value.as<IfNode>() || binding->value.as<TupleGetItemNode>()) {
+      // Preserve primitive-typed Relax runtime results as VM registers.
+    } else if (const auto* call = binding->value.as<CallNode>()) {
+      if (!IsRelaxOwnedCall(call)) {
+        root = binding->value.as<PrimExpr>();
+      }
+    } else {
+      root = binding->value.as<PrimExpr>();
+    }
+    if (root.has_value() &&
+        root.value()->ty.as_or_throw<PrimType>()->dtype != ShapeDType()) {
+      root = std::nullopt;
+    }
+
+    bool capture_runtime_prim_value = GetDemandedPrimValuePattern(binding->var).has_value();
+    if (!inside_dataflow_block_ && root.has_value() && slot_map_.count(root.value())) {
+      ReEmitBinding(binding, builder_->Normalize(RewritePrimValue(root.value())));
+    } else {
+      ExprMutator::VisitBinding_(binding);
+    }
+    if (capture_runtime_prim_value) {
+      if (inside_dataflow_block_) {
+        pending_dataflow_prim_values_.push_back({binding->var, std::nullopt, ""});
+      } else {
+        SeedDemandedPrimValue(binding->var, "");
+      }
+    }
   }
 
   // Unit rewrite function per function.
@@ -277,6 +473,11 @@ class VMShapeLowerMutator
     // prepare mapping and heap var
     slot_vec_.clear();
     slot_map_.clear();
+    pending_dataflow_prim_values_.clear();
+    function_params_.clear();
+    function_params_.insert(func->params.begin(), func->params.end());
+    inside_dataflow_block_ = false;
+    rewrite_slot_backed_prim_values_ = true;
     current_gvar_ = gvar;
     PrimExprSlotCollector::Collect(func, &slot_vec_, &slot_map_);
     heap_size_ = IntImm(tvm::PrimType(ShapeDType()), static_cast<int64_t>(slot_vec_.size()));
@@ -308,6 +509,7 @@ class VMShapeLowerMutator
                 << "], param=" << func->params[i]->name_hint << ", annotation=" << ty << ") ";
         this->CheckMatchCast(ty, func->params[i], true, i >= num_input, err_ctx.str(),
                              &match_todos);
+        AppendPrimValueMatch(func->params[i], func->params[i], err_ctx.str(), &match_todos);
       }
       // insert heap generation logic.
       match_todos = this->RunMatch(match_todos, false);
@@ -325,6 +527,7 @@ class VMShapeLowerMutator
     {
       // Insert the return value check
       builder_->BeginBindingBlock();
+      this->FlushPendingDataflowPrimValues();
       std::ostringstream err_ctx;
       err_ctx << "ErrorContext(fn=" << gvar->name_hint
               << ", loc=return, annotation=" << func->ret_ty << ") ";
@@ -349,6 +552,56 @@ class VMShapeLowerMutator
   // PrimExpr slot handling
   //-------------------------------------------------------
   static DLDataType ShapeDType() { return DLDataType{kDLInt, 64, 1}; }
+
+  ffi::Optional<PrimExpr> GetDemandedPrimValuePattern(const Var& var) {
+    auto prim_var = var.as<tirx::PrimVar>();
+    if (!prim_var || (*prim_var)->ty.as_or_throw<PrimType>()->dtype != ShapeDType()) {
+      return std::nullopt;
+    }
+    PrimExpr pattern = *prim_var;
+    return slot_map_.count(pattern) ? ffi::Optional<PrimExpr>(pattern) : std::nullopt;
+  }
+
+  void AppendPrimValueMatch(const Var& var, const Expr& value, const ffi::String& err_ctx,
+                            std::vector<MatchShapeTodoItem>* match_todos) {
+    auto pattern = GetDemandedPrimValuePattern(var);
+    if (pattern) {
+      match_todos->push_back(MatchShapeTodoItem{value, {pattern.value()}, err_ctx});
+    }
+  }
+
+  void SeedDemandedPrimValue(const Var& var, const ffi::String& err_ctx) {
+    if (!GetDemandedPrimValuePattern(var).has_value()) return;
+    Var runtime_var = var;
+    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
+      runtime_var = it->second;
+    }
+    std::vector<MatchShapeTodoItem> match_todos;
+    AppendPrimValueMatch(var, runtime_var, err_ctx, &match_todos);
+    match_todos = this->RunMatch(match_todos, false);
+    this->EmitOutstandingPrimExprCompute();
+    this->RunMatch(match_todos, true);
+  }
+
+  void FlushPendingDataflowPrimValues() {
+    std::vector<PendingDataflowPrimValue> pending = std::move(pending_dataflow_prim_values_);
+    pending_dataflow_prim_values_.clear();
+    for (const PendingDataflowPrimValue& item : pending) {
+      Var runtime_var = item.var;
+      if (auto it = var_remap_.find(item.var); it != var_remap_.end()) {
+        runtime_var = it->second;
+      }
+      if (item.match_type.has_value()) {
+        std::vector<MatchShapeTodoItem> match_todos;
+        this->CheckMatchCast(item.match_type.value(), runtime_var, true, false, item.err_ctx,
+                             &match_todos);
+        match_todos = this->RunMatch(match_todos, false);
+        this->EmitOutstandingPrimExprCompute();
+        this->RunMatch(match_todos, true);
+      }
+      SeedDemandedPrimValue(item.var, item.err_ctx);
+    }
+  }
 
   /*! \brief populate additional information in the slot. */
   void PopulateSlotInfo() {
@@ -439,6 +692,9 @@ class VMShapeLowerMutator
   }
 
   Expr VisitExpr_(const ShapeExprNode* op) final {
+    if (!inside_dataflow_block_) {
+      FlushPendingDataflowPrimValues();
+    }
     using runtime::vm::MakeShapeCode;
     // Constant shape can be preserved.
     bool is_const_shape = std::all_of(op->values.begin(), op->values.end(), [](const PrimExpr& e) {
@@ -462,10 +718,19 @@ class VMShapeLowerMutator
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
-    Expr value = this->VisitExpr(binding->value);
-    std::vector<MatchShapeTodoItem> match_todos;
     std::ostringstream err_ctx;
     err_ctx << "ErrorContext(match_cast, ty=" << binding->ty << ") ";
+    if (inside_dataflow_block_) {
+      TVM_FFI_CHECK(!binding->var.as<DataflowVarNode>(), ValueError)
+          << "VMShapeLower cannot defer a MatchCast bound to an internal DataflowVar; "
+             "make it a dataflow output or move it outside the dataflow block";
+      ExprMutator::VisitBinding_(binding);
+      pending_dataflow_prim_values_.push_back({binding->var, binding->ty, err_ctx.str()});
+      return;
+    }
+
+    Expr value = this->VisitExpr(binding->value);
+    std::vector<MatchShapeTodoItem> match_todos;
     // always_check=false
     this->CheckMatchCast(binding->ty, value, false, false, err_ctx.str(), &match_todos);
 
@@ -476,6 +741,9 @@ class VMShapeLowerMutator
     // These checks are emitted as extra, in codegen
     // match-cast is simply ignored and treated as a normal binding.
     ExprMutator::VisitBinding_(binding);
+    if (!binding->var.as<DataflowVarNode>()) {
+      SeedDemandedPrimValue(binding->var, err_ctx.str());
+    }
   }
 
   // Do not override shape in type fields
@@ -811,6 +1079,14 @@ class VMShapeLowerMutator
   //-------------------------------------------------------
   /*! \brief whether to emit error context, can be turned off for testing purposes. */
   bool emit_err_ctx_{true};
+  /*! \brief whether the current binding is nested in a dataflow block. */
+  bool inside_dataflow_block_{false};
+  /*! \brief whether slot-backed primitive values should be materialized at use sites. */
+  bool rewrite_slot_backed_prim_values_{true};
+  /*! \brief dataflow outputs whose slot matches must be emitted in a later ordinary block. */
+  std::vector<PendingDataflowPrimValue> pending_dataflow_prim_values_;
+  /*! \brief function parameters that already have runtime VM registers. */
+  std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> function_params_;
   /*! \brief heap ptr to store the PrimExpr slots. */
   Var shape_heap_;
   /*! \brief heap size. */

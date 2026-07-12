@@ -64,13 +64,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->AddDispatchToken(d, "relax");
       (*f)->is_func = true;
       (*f)->func_vars = &func_vars;
-      // Step 1. Print the return type
-      ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (const auto& func_ty = relax::MatchType<relax::FuncType>(n)) {
-        ret_type = d->AsDoc<ExprDoc>(func_ty.value()->ret,  //
-                                     n_p->Attr("ty")->Attr("ret"));
-      }
-      // Step 2. Print params
+      // Step 1. Print params
       ffi::Array<AssignDoc> params;
       {
         AccessPath params_p = n_p->Attr("params");
@@ -81,6 +75,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               TypeAsAnn(n->params[i], params_p->ArrayItem(i), d, std::nullopt)));
         }
       }
+      // Step 2. Print the return type
+      ffi::Optional<ExprDoc> ret_type = d->AsDoc<ExprDoc>(n->ret_ty, n_p->Attr("ret_ty"));
       // Step 3. Clean up func variables
       (*f)->func_vars = nullptr;
       // Step 4. Print attributes

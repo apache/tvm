@@ -75,7 +75,7 @@ def test_emit_te_with_symbolic_arg():
 
 
 def test_symbolic_shape_in_prim_value():
-    """Scalar Relax vars may be provided to TE as PrimFunc parameters."""
+    """Scalar primitive Vars flow through the optimistic tir_vars path."""
 
     def te_slice(tensor, i):
         return tvm.te.compute([tensor.shape[1]], lambda j: tensor[i, j], name="slice")
@@ -96,8 +96,8 @@ def test_symbolic_shape_in_prim_value():
         @T.prim_func(private=True, s_tir=True)
         def te_slice(
             A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
-            row_index: T.int64,
             Output: T.Buffer(T.int64(16), "float32"),
+            row_index: T.int64,
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -115,8 +115,9 @@ def test_symbolic_shape_in_prim_value():
 
             gv = R.call_tir(
                 cls.te_slice,
-                (A, arg_row_index),
+                (A,),
                 out_ty=R.Tensor([16], "float32"),
+                tir_vars=R.shape([arg_row_index]),
             )
             return gv
 

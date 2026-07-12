@@ -24,6 +24,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/index.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/utils.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -31,11 +33,21 @@ namespace relax {
 
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
+  class ShapeTypeBinder;
+
  public:
   explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& bindings) : bindings_(bindings) {}
 
+  Type VisitExprDepTypeField(const Type& ty) final { return ShapeTypeBinder(this).VisitType(ty); }
+
  private:
   using ExprMutator::VisitExpr_;
+
+  Expr VisitExpr_(const ShapeExprNode* op) final {
+    ffi::Array<PrimExpr> values =
+        op->values.Map([this](const PrimExpr& value) { return BindShapeValue(value); });
+    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->span);
+  }
 
   Expr VisitExpr_(const FunctionNode* op) final {
     tvm::ffi::Array<Var> params;
@@ -74,32 +86,51 @@ class ExprBinder : public ExprMutator {
     }
   }
 
-  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
-    PrimExpr new_expr = tirx::Substitute(
-        expr, [this](const tirx::Var& var) -> ffi::Optional<tvm::Expr> {
-          auto it = bindings_.find(var);
-          if (it == bindings_.end()) return std::nullopt;
-          if (auto value = (*it).second.as<PrimExpr>()) {
-            return tvm::Expr(value.value());
-          }
-          return std::nullopt;
-        });
-    if (!expr.same_as(new_expr)) {
-      arith::Analyzer analyzer;
-      new_expr = analyzer->Simplify(new_expr);
+  Expr VisitExpr_(const DataflowVarNode* op) final {
+    Var id = ffi::GetRef<DataflowVar>(op);
+    auto it = bindings_.find(id);
+    if (it != bindings_.end()) {
+      return (*it).second;
     }
-    return new_expr;
-  }
-
-  Expr VisitExprFallback_(const ExprNode* op) final {
-    if (op->ty.as<PrimTypeNode>()) {
-      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
-    }
-    return ExprMutator::VisitExprFallback_(op);
+    return ExprMutator::VisitExpr_(static_cast<const VarNode*>(op));
   }
 
  private:
+  class ShapeTypeBinder : public TypeMutator {
+   public:
+    explicit ShapeTypeBinder(ExprBinder* parent) : parent_(parent) {}
+
+   protected:
+    PrimExpr VisitTypeExprField(const PrimExpr& expr) final {
+      return parent_->BindShapeValue(expr);
+    }
+
+    Expr VisitTypeExprField(const Expr& expr) final {
+      if (const auto* shape = expr.as<ShapeExprNode>()) {
+        return parent_->VisitExpr_(shape);
+      }
+      return expr;
+    }
+
+   private:
+    ExprBinder* parent_;
+  };
+
+  PrimExpr BindShapeValue(const PrimExpr& expr) {
+    PrimExpr output = tirx::Substitute(
+        expr, [this](const Var& var) -> ffi::Optional<Expr> {
+          auto it = bindings_.find(var);
+          if (it == bindings_.end()) return std::nullopt;
+          if (auto value = (*it).second.as<PrimExpr>()) {
+            return ffi::Optional<Expr>(*value);
+          }
+          return std::nullopt;
+        });
+    return output.same_as(expr) ? expr : analyzer_->Simplify(output);
+  }
+
   const tvm::ffi::Map<Var, Expr>& bindings_;
+  arith::Analyzer analyzer_;
 };
 
 /*!
@@ -118,13 +149,21 @@ Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds) {
 
 tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
     const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const arith::Analyzer& analyzer) {
-  (void)analyzer;
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
-  auto bind_from_prim_expr = [&var_remap](const PrimExpr& var_shape,
-                                          const PrimExpr& expr_shape) {
-    if (auto var = var_shape.as<tirx::Var>()) {
-      var_remap.Set(var.value(), expr_shape);
+  auto bind_from_prim_expr = [&var_remap, &analyzer](const PrimExpr& var_shape,
+                                                     const PrimExpr& expr_shape) {
+    if (auto var = var_shape.as<tirx::PrimVar>()) {
+      auto it = var_remap.find(var.value());
+      if (it == var_remap.end()) {
+        var_remap.Set(var.value(), expr_shape);
+      } else {
+        auto explicit_value = (*it).second.as<PrimExpr>();
+        TVM_FFI_CHECK(explicit_value.has_value() &&
+                          analyzer->CanProveEqual(explicit_value.value(), expr_shape),
+                      ValueError)
+            << "Conflicting replacements for canonical Var " << var.value();
+      }
     }
   };
 
@@ -221,9 +260,14 @@ bool IsImpureCall(const Call& call) {
   if (auto op_ptr = call->op.as<OpNode>()) {
     auto op = ffi::GetRef<Op>(op_ptr);
     static auto purity_map = Op::GetAttrMap<bool>("FPurity");
-    TVM_FFI_ICHECK(purity_map.count(op))
-        << "Cannot find the registered purity of this op: " << op->name;
-    return !(purity_map[op]);
+    if (purity_map.count(op)) {
+      return !(purity_map[op]);
+    }
+    static auto effect_map = Op::GetAttrMap<tirx::TCallEffectKind>("TCallEffectKind");
+    TVM_FFI_ICHECK(effect_map.count(op))
+        << "Cannot find the registered purity or call effect of this op: " << op->name;
+    auto effect = static_cast<tirx::CallEffectKind>(effect_map[op]);
+    return effect > tirx::CallEffectKind::kPure;
   }
   // the Type must be FuncType
   auto func_ty = GetTypeAs<FuncTypeNode>(call->op);

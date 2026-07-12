@@ -94,6 +94,8 @@ class VarVisitor : protected ExprVisitor {
     vars_.Insert(v);
   }
 
+  void VisitExprDepTypeField(const Type&) final {}
+
   void VisitExpr_(const VarNode* var) final { vars_.Insert(ffi::GetRef<Var>(var)); }
 
   void VisitExpr_(const FunctionNode* op) final {
@@ -169,6 +171,12 @@ ffi::Optional<Expr> FindImpureCall(const Expr& expr, const ffi::Optional<Expr>& 
     void VisitExpr_(const FunctionNode* func) override {
       // we don't visit inner functions because an impure call in an inner function
       // does *not* mean the outer function contains an impure call
+    }
+
+    void VisitExprDepTypeField(const Type&) final {
+      // Purity is a property of runtime value computation.  Dependent type
+      // expressions may contain TIRX calls, but those calls are not executed
+      // as part of the Relax expression being checked.
     }
 
     void VisitExpr_(const CallNode* call) override {

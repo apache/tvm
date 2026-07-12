@@ -30,7 +30,6 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type_functor.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {
@@ -197,6 +196,12 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
     }
   }
 
+  Expr VisitExpr_(const ShapeExprNode* op) final {
+    ffi::Array<PrimExpr> values =
+        op->values.Map([this](const PrimExpr& expr) { return VisitPrimitiveExpr(expr); });
+    return values.same_as(op->values) ? ffi::GetRef<Expr>(op) : ShapeExpr(values, op->span);
+  }
+
   Expr VisitExpr_(const VarNode* var) final {
     Var id = ffi::GetRef<Var>(var);
     ffi::Optional<Expr> ret;
@@ -204,10 +209,14 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
       ret = f_var_map_(id);
     }
 
-    if (id->ty.as<PrimTypeNode>()) {
+    if (auto prim_var = id.as<tirx::PrimVar>()) {
       has_undefined_ = has_undefined_ || !ret.has_value();
 
       if (ret.has_value()) {
+        PostOrderVisit(ret.value(), [](const Expr& expr) {
+          TVM_FFI_ICHECK(!expr.as<DataflowVarNode>())
+              << "DataflowVar cannot define a symbolic value in a dependent type";
+        });
         PrimExpr value = ret.value().as_or_throw<PrimExpr>();
         if (value->IsInstance<IntImmNode>()) {
           return tvm::cast(PrimType::Int(64), value);
@@ -221,10 +230,15 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
 
     has_undefined_ = has_undefined_ || !ret.has_value();
     if (ret.has_value()) {
-      TVM_FFI_ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
+      TVM_FFI_ICHECK((ret.as<VarNode>() && !ret.as<DataflowVarNode>()) || ret.as<ShapeExprNode>())
           << "Only allow Expr in Type to be ShapeExpr or Var";
     }
     return ret.value_or(ffi::GetRef<Expr>(var));
+  }
+
+  Expr VisitExpr_(const DataflowVarNode* var) final {
+    has_undefined_ = true;
+    return ffi::GetRef<Expr>(var);
   }
 
  private:
@@ -270,8 +284,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "relax.analysis.EraseToWellDefined",
       [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-        ffi::Map<Var, Expr> var_map) {
+         ffi::Map<Var, Expr> var_map) {
         for (const auto& [var, value] : shape_var_map) {
+          TVM_FFI_CHECK(var.as<tirx::PrimVar>(), TypeError)
+              << "Expected an exact primitive Var, but received " << var;
+          auto it = var_map.find(var);
+          TVM_FFI_CHECK(it == var_map.end() || (*it).second.same_as(value) ||
+                            ffi::StructuralEqual()((*it).second, value),
+                        ValueError)
+              << "Conflicting replacements for Var " << var;
           var_map.Set(var, value);
         }
         return EraseToWellDefined(info, var_map);
@@ -866,7 +887,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::PrimExprMatchCheck(param, arg);
     }
 
-    if (auto var = param.as<tirx::Var>()) {
+    if (auto var = param.as<tirx::PrimVar>()) {
       auto it = var_map_.find(var.value());
       // not populated
       if (it == var_map_.end()) {
@@ -892,7 +913,8 @@ class CallRetTypeDeriver : public TypeBaseChecker {
       return TypeBaseChecker::ShapeMatchCheck(lhs, rhs);
     }
 
-    if (auto* ptr = lhs.as<VarNode>()) {
+    if (auto* ptr = lhs.as<VarNode>();
+        ptr && !lhs.as<DataflowVarNode>() && !lhs.as<tirx::PrimVar>()) {
       auto var = ffi::GetRef<Var>(ptr);
       auto it = var_map_.find(var);
       // not populated
@@ -1167,12 +1189,14 @@ class TIRVarsDetector : public TypeVisitor {
  private:
   void VisitTypePrimExprField(PrimExpr expr) {
     if (collection_type == VarType::Definition) {
-      if (auto opt = expr.as<tirx::Var>()) {
+      if (auto opt = expr.as<tirx::PrimVar>()) {
         RecordTIRVar(opt.value());
       }
     } else if (collection_type == VarType::Usage) {
       for (const tirx::Var& tir_var : tirx::UndefinedVars(expr)) {
-        RecordTIRVar(tir_var);
+        if (auto prim_var = tir_var.as<tirx::PrimVar>()) {
+          RecordTIRVar(prim_var.value());
+        }
       }
     } else {
       TVM_FFI_THROW(InternalError)
@@ -1280,9 +1304,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         CollectNonNegativeExpressions);
 }
 
-class SymbolicVarCollector : public relax::ExprVisitor,
-                             public relax::TypeVisitor,
-                             public tirx::ExprVisitor {
+class SymbolicVarCollector : public relax::ExprVisitor, public relax::TypeVisitor {
  public:
   static ffi::Array<tirx::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
@@ -1303,8 +1325,6 @@ class SymbolicVarCollector : public relax::ExprVisitor,
  private:
   using relax::ExprVisitor::VisitExpr;
   using relax::ExprVisitor::VisitExpr_;
-  using tirx::ExprVisitor::VisitExpr;
-  using tirx::ExprVisitor::VisitExpr_;
 
   // Possible mode of visitor, used as bit-flags
   enum VisitMode {
@@ -1373,34 +1393,51 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   }
 
   void VisitTypeExprField(const Expr& expr) final {
-    relax::ExprVisitor::VisitExpr(expr);
     if (auto* shape = expr.as<relax::ShapeExprNode>()) {
       for (const auto& val : shape->values) {
         this->VisitTypeExprField(val);
       }
-    }
-    if (auto prim_value = expr.as<PrimExpr>()) {
+      return;
+    } else if (auto prim_value = expr.as<PrimExpr>()) {
       this->VisitTypeExprField(prim_value.value());
+      return;
     }
+    relax::ExprVisitor::VisitExpr(expr);
   }
 
   void VisitTypeExprField(const PrimExpr& expr) final {
     if (mode_ & VisitMode::kProvideDefinition) {
-      if (auto var = expr.as<tirx::Var>()) {
+      if (auto var = expr.as<tirx::PrimVar>()) {
         defined_symbolic_var_.insert(var.value());
       }
     }
     if (mode_ & VisitMode::kRequireDefinition) {
-      tirx::ExprVisitor::VisitExpr(expr);
+      relax::ExprVisitor::VisitExpr(expr);
     }
   }
 
-  void VisitExpr_(const tirx::VarNode* op) final {
-    tirx::Var var = ffi::GetRef<tirx::Var>(op);
+  void VisitExpr_(const VarNode* op) final {
+    if (!op->ty.as<PrimTypeNode>()) {
+      return;
+    }
+    tirx::PrimVar var = ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>();
     // default mode, check defined.
     if (defined_symbolic_var_.count(var) == 0) {
       free_symbolic_var_.insert(var);
     }
+  }
+
+  void VisitExpr_(const DataflowVarNode*) final {}
+
+  void VisitVarDef_(const VarNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      defined_symbolic_var_.insert(ffi::GetRef<Var>(op).as_or_throw<tirx::PrimVar>());
+    }
+    relax::ExprVisitor::VisitVarDef_(op);
+  }
+
+  void VisitVarDef_(const DataflowVarNode* op) final {
+    relax::ExprVisitor::VisitVarDef_(static_cast<const VarNode*>(op));
   }
 
   // Run callback with mode.

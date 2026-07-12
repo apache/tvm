@@ -47,10 +47,6 @@ dispatch.register_op(relax.Expr, doc.LtE, 0)(lambda lhs, rhs: lhs <= rhs)
 dispatch.register_op(relax.Expr, doc.Lt, 0)(lambda lhs, rhs: lhs < rhs)
 
 
-def _is_primitive_var(value: Any) -> bool:
-    return type(value) is tvm.ir.Var and tvm.ir.is_prim_expr(value)
-
-
 def bind_assign_value(
     self: Parser,
     node: doc.expr,
@@ -61,25 +57,26 @@ def bind_assign_value(
 ) -> Any:
     var_table = self.var_table.get()
 
-    if _is_primitive_var(value):
+    if tvm.ir.is_prim_var(value) and not emit_prim_expr:
         if value.name_hint and var_name != value.name_hint:
             self.report_error(
                 node,
-                "Cannot define TIR variables with different names. The LHS of binding should "
-                "has the same name provided in RHS.",
+                "Cannot define PrimType values with different names. The LHS of binding "
+                "must have the same name provided in the RHS.",
             )
         if var_name in var_table:
             prev_value = var_table[var_name]
-            if not _is_primitive_var(prev_value):
+            if not tvm.ir.is_prim_var(prev_value):
                 self.report_error(
                     node,
-                    "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
-                    "define the TIR variable with another name.",
+                    "Cannot redefine a non-PrimType object to a PrimType value. Please "
+                    "define the PrimType value with another name.",
                 )
             if prev_value.ty != value.ty:
                 self.report_error(
                     node,
-                    f"Expected the same dtype for TIR vars but got {value.ty} vs {prev_value.ty}",
+                    f"Expected the same dtype for PrimType values but got "
+                    f"{value.ty} vs {prev_value.ty}",
                 )
             value = prev_value
         IRBuilder.name(var_name, value)
@@ -174,10 +171,13 @@ def collect_symbolic_var_from_prelude(
         ):
             values = self.eval_expr(stmt.value)
 
-            try:
-                iter(values)
-            except TypeError:
+            if tvm.ir.is_prim_var(values):
                 values = [values]
+            else:
+                try:
+                    iter(values)
+                except TypeError:
+                    values = [values]
 
             assert len(stmt.targets) == len(values)
             for target, value in zip(stmt.targets, values):
@@ -188,7 +188,8 @@ def collect_symbolic_var_from_prelude(
 
 
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
-    # Collect symbolic vars from parameters
+    # Collect symbolic variables referenced by parameter annotations before
+    # constructing the runtime parameters themselves.
     symbolic_vars = {}
     for arg in node.args.args:
         if arg.annotation is None:
@@ -214,7 +215,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
 
     # reserve a var for local function
     func_val = self.var_table.get().get(node.name)
-    if not func_val and is_recursive(node):
+    if func_val is None and is_recursive(node):
         collect_symbolic_var_from_params(self, node)
         if node.returns is None:
             ret_ty = relax.TupleType([])
@@ -224,8 +225,7 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_ty = eval_ty(self, arg.annotation, eval_str=True)
-            params_ty.append(param_ty)
+            params_ty.append(eval_ty(self, arg.annotation, eval_str=True))
         # created a var for the local function, the same var could be used for recursive call
         local_func_var = tvm.ir.Var(node.name, relax.FuncType(params_ty, ret_ty))
         self.var_table.add(node.name, local_func_var)
@@ -312,7 +312,7 @@ def post_visit_local_function(self: Parser, node: doc.Expr) -> None:
     ir_builder.__exit__(None, None, None)
     # reuse var if it is reserved
     reserved_var = self.var_table.get().get(node.name)
-    if reserved_var:
+    if reserved_var is not None:
         var = R.emit_var_binding(relax.VarBinding(reserved_var, result))
     else:
         var = R.emit(result)
@@ -405,7 +405,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         bind_value=functools.partial(
             bind_assign_value,
             anno_ty=anno_ty,
-            emit_prim_expr=is_prim_value_call(node.value),
+            emit_prim_expr=is_prim_value_call(node.value) or isinstance(anno_ty, tvm.ir.PrimType),
         ),
         allow_shadowing=True,
     )

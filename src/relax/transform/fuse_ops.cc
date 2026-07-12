@@ -35,6 +35,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr_functor.h>
@@ -923,7 +924,7 @@ class OperatorFusor : public ExprMutator {
       // - If the var's group is different with the binding's, the var must be the output from
       //   another group. Mark it to be the group output.
       auto update_boundary = [this, binding, &cur_group](const Expr& e) {
-        if (e->IsInstance<VarNode>()) {
+        if (e->IsInstance<VarNode>() && obj2group_.count(e.get())) {
           const Var& used_var = e.as_or_throw<Var>();
           Group* producer_group = GetGroupFromVar(used_var);
           // Only check those group defined before.

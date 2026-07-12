@@ -177,7 +177,10 @@ class TorchFXImporter(BaseFXGraphImporter):
                 return self.block_builder.emit(op(lhs, rhs))
 
             lhs, rhs = self.retrieve_args(node)
-            if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+
+            if (isinstance(lhs, tvm.ir.Var) and isinstance(lhs.ty, relax.TensorType)) or (
+                isinstance(rhs, tvm.ir.Var) and isinstance(rhs.ty, relax.TensorType)
+            ):
                 output = call_binary_op(relax_op, lhs, rhs)
                 self.env[node.args[0]] = output
                 return output
@@ -1094,10 +1097,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         self._check_unsupported_func_type(graph.nodes)
 
         sym_vars = {
-            v.name_hint: v
-            for shape, _ in input_info
-            for v in shape
-            if isinstance(v, tvm.ir.Var)
+            v.name_hint: v for shape, _ in input_info for v in shape if isinstance(v, tvm.ir.Var)
         }
 
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):

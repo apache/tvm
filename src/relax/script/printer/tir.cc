@@ -26,14 +26,13 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-/*! \brief Find the outmost Relax function frame. If not exist, the outmost Relax frame. */
+/*! \brief Find the innermost Relax function frame, or the innermost Relax frame. */
 RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
   RelaxFrameNode* f = nullptr;
-  for (const Frame& frame : d->frames) {
-    if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
+  for (auto it = d->frames.rbegin(); it != d->frames.rend(); ++it) {
+    if (const auto* relax_frame = (*it).as<RelaxFrameNode>()) {
       if (relax_frame->is_func) {
-        f = const_cast<RelaxFrameNode*>(relax_frame);
-        break;
+        return const_cast<RelaxFrameNode*>(relax_frame);
       } else if (f == nullptr) {
         f = const_cast<RelaxFrameNode*>(relax_frame);
       }

@@ -262,6 +262,8 @@ Var::Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
 }
 
 Var Var::copy_with_name(const ffi::String& name) const {
+  TVM_FFI_CHECK_EQ(type_index(), VarNode::RuntimeTypeIndex(), TypeError)
+      << "Cannot copy a Var runtime subtype as an ordinary Var";
   ffi::ObjectPtr<VarNode> copy = ffi::make_object<VarNode>(*get());
   copy->name_hint = name;
   return Var(std::move(copy));
@@ -272,6 +274,8 @@ Var Var::CopyWithSuffix(const ffi::String& suffix) const {
 }
 
 Var Var::copy_with_dtype(PrimType dtype) const {
+  TVM_FFI_CHECK_EQ(type_index(), VarNode::RuntimeTypeIndex(), TypeError)
+      << "Cannot copy a Var runtime subtype as an ordinary Var";
   ffi::ObjectPtr<VarNode> copy = ffi::make_object<VarNode>(*get());
   copy->ExprNode::ty = std::move(dtype);
   return Var(std::move(copy));

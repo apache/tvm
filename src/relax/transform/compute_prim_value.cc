@@ -43,35 +43,60 @@ class PrimExprComputeInjector : public ExprMutator {
  public:
   IRModule Finalize() const { return builder_->Finalize(); }
 
+  Type VisitExprDepTypeField(const Type& ty) final { return ty; }
+
  private:
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* op) final {
     Call call = ffi::GetRef<Call>(op);
     if (auto prim_expr = call.as<PrimExpr>()) {
-      if (call->op.as<Op>()) {
-        if (!HasRelaxCallCapabilities(op)) {
-          return LiftPrimValue(prim_expr.value());
-        }
+      if (call->op.as<Op>() && !HasRelaxCallCapabilities(op)) {
+        return LiftPrimValue(prim_expr.value());
       }
     }
     return ExprMutator::VisitExpr_(op);
   }
 
-  Expr VisitExprFallback_(const ExprNode* op) final {
-    Expr expr = ffi::GetRef<Expr>(op);
-    if (auto prim_expr = expr.as<PrimExpr>()) {
-      return LiftPrimValue(prim_expr.value());
-    }
-    return ExprMutator::VisitExprFallback_(op);
+#define RELAX_LIFT_PRIM_EXPR(OP)                                            \
+  Expr VisitExpr_(const OP* op) final {                                     \
+    return LiftPrimValue(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());    \
   }
+
+  RELAX_LIFT_PRIM_EXPR(tirx::BufferLoadNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::AddNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::SubNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::MulNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::DivNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::ModNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::FloorDivNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::FloorModNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::MinNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::MaxNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::EQNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::NENode);
+  RELAX_LIFT_PRIM_EXPR(tirx::LTNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::LENode);
+  RELAX_LIFT_PRIM_EXPR(tirx::GTNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::GENode);
+  RELAX_LIFT_PRIM_EXPR(tirx::AndNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::OrNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::CastNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::NotNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::SelectNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::RampNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::BroadcastNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::ShuffleNode);
+  RELAX_LIFT_PRIM_EXPR(tvm::IntImmNode);
+  RELAX_LIFT_PRIM_EXPR(tvm::FloatImmNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::StringImmNode);
+
+#undef RELAX_LIFT_PRIM_EXPR
 
   Expr VisitExpr_(const ShapeExprNode* op) final { return ffi::GetRef<Expr>(op); }
 
-  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return expr; }
-
   Expr LiftPrimValue(const PrimExpr& node) {
-    if (node->IsInstance<tirx::IntImmNode>() || node->IsInstance<tirx::VarNode>()) {
+    if (node->IsInstance<tirx::IntImmNode>() || node->IsInstance<VarNode>()) {
       return node;
     }
 

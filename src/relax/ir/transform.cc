@@ -32,6 +32,8 @@
 #include <tvm/relax/type_functor.h>
 #include <tvm/runtime/logging.h>
 
+#include <unordered_set>
+
 namespace tvm {
 namespace relax {
 namespace transform {
@@ -214,75 +216,60 @@ class DataflowBlockMutator : public ExprMutator {
   /*!
    * \brief Rewrite the DataflowBlockNode with pass_func_
    *
-   * This function will check that there are no rewrites of the global scope Vars
-   * and symbolic shape Vars defined inside the dataflow block.
+   * This function will check that there are no rewrites of the global-scope
+   * Vars or symbolic Vars defined inside the dataflow block.
    */
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
-    // collect Global Scope Vars and Symbolic Vars inside the DataflowBlock
-    ffi::Map<ffi::String, Var> global_scope_vars;
-    ffi::Map<ffi::String, tirx::Var> symbolic_vars;
-    for (const Binding& binding : n->bindings) {
-      Var var = binding->var;
-      if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        auto collected_vars = SymbolicVarCollector::Collect(match_cast->ty);
-        for (const tirx::VarNode* var : collected_vars) {
-          symbolic_vars.Set(var->name_hint, ffi::GetRef<tirx::Var>(var));
-        }
-      }
-      if (!var.as<DataflowVarNode>()) {
-        global_scope_vars.Set(var->name_hint, var);
-      }
-    }
+    VarSet preserved_vars = CollectPreservedVars(n->bindings);
 
     // apply pass_func_ to the DataflowBlock
     DataflowBlock block = ffi::GetRef<DataflowBlock>(n);
     DataflowBlock updated_block = pass_func_(block, mod_, pass_ctx_);
 
-    // raise error if there are updates of recorded Global Scope Vars and Symbolic Vars
-    for (const Binding& binding : updated_block->bindings) {
-      Var var = binding->var;
-      if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        auto collected_vars = SymbolicVarCollector::Collect(match_cast->ty);
-        for (const tirx::VarNode* var : collected_vars) {
-          if (symbolic_vars.count(var->name_hint) > 0) {
-            tirx::Var old_var = symbolic_vars[var->name_hint];
-            TVM_FFI_ICHECK(var == old_var.get())
-                << "Error: DataflowBlock Pass should not rewrite any Symbolic Var.";
-            symbolic_vars.erase(var->name_hint);
-          }
-        }
-      }
-      if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint) > 0) {
-        TVM_FFI_ICHECK(var.same_as(global_scope_vars[var->name_hint]))
-            << "Error: DataflowBlock Pass should not rewrite any GlobalScope Var.";
-        global_scope_vars.erase(var->name_hint);
-      }
+    VarSet updated_vars = CollectPreservedVars(updated_block->bindings);
+    for (const VarNode* var : preserved_vars) {
+      TVM_FFI_ICHECK(updated_vars.count(var))
+          << "Error: DataflowBlock Pass should not rewrite or delete any global-scope or "
+             "symbolic Var.";
     }
-    TVM_FFI_ICHECK(global_scope_vars.empty() && symbolic_vars.empty())
-        << "Error: DataflowBlock Pass should not delete any GlobalScope/Symbolic Var.";
 
     return updated_block;
   }
 
  private:
+  using VarSet = std::unordered_set<const VarNode*>;
+
   class SymbolicVarCollector : public TypeVisitor {
    public:
-    static std::unordered_set<const tirx::VarNode*> Collect(const Type& info) {
-      SymbolicVarCollector collector;
-      collector.VisitType(info);
-      return std::move(collector.symbolic_vars_);
+    static void Collect(const Type& type, VarSet* vars) {
+      SymbolicVarCollector collector(vars);
+      collector.VisitType(type);
     }
 
    private:
+    explicit SymbolicVarCollector(VarSet* vars) : vars_(vars) {}
+
     void VisitTypeExprField(const PrimExpr& expr) final {
-      if (const tirx::VarNode* sym_var = expr.as<tirx::VarNode>()) {
-        symbolic_vars_.insert(sym_var);
+      if (auto var = expr.as<tirx::PrimVar>()) {
+        vars_->insert(var.value().get());
       }
     }
 
-   private:
-    std::unordered_set<const tirx::VarNode*> symbolic_vars_;
+    VarSet* vars_;
   };
+
+  static VarSet CollectPreservedVars(const ffi::Array<Binding>& bindings) {
+    VarSet vars;
+    for (const Binding& binding : bindings) {
+      if (const auto* match_cast = binding.as<MatchCastNode>()) {
+        SymbolicVarCollector::Collect(match_cast->ty, &vars);
+      }
+      if (!binding->var.as<DataflowVarNode>()) {
+        vars.insert(binding->var.get());
+      }
+    }
+    return vars;
+  }
 
   std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func_;
   IRModule mod_;

@@ -94,9 +94,27 @@ class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
    * \return The result.
    */
   R operator()(const ffi::ObjectRef& n, Args... args) const {
-    TVM_FFI_ICHECK(can_dispatch(n))
+    uint32_t type_index = n->type_index();
+    if (type_index >= begin_type_index_) {
+      uint32_t index = type_index - begin_type_index_;
+      if (index < func_.size() && func_[index] != nullptr) {
+        return (*func_[index])(n, std::forward<Args>(args)...);
+      }
+    }
+
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
+    for (int32_t i = type_info->type_depth - 1; i >= 0; --i) {
+      type_index = type_info->type_ancestors[i]->type_index;
+      if (type_index >= begin_type_index_) {
+        uint32_t index = type_index - begin_type_index_;
+        if (index < func_.size() && func_[index] != nullptr) {
+          return (*func_[index])(n, std::forward<Args>(args)...);
+        }
+      }
+    }
+    TVM_FFI_THROW(InternalError)
         << "NodeFunctor calls un-registered function on type " << n->GetTypeKey();
-    return (*func_[n->type_index() - begin_type_index_])(n, std::forward<Args>(args)...);
+    throw;
   }
   /*!
    * \brief set the dispatcher for type TNode

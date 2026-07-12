@@ -106,7 +106,7 @@ class PyExprVisitorNode : public ffi::Object, public ExprVisitor {
       if (vtable.can_dispatch(expr)) {
         vtable(expr, this);
       } else {
-        VisitExprFallback_(expr.get());
+        ExprVisitor::VisitExpr(expr);
       }
     }
   }
@@ -350,7 +350,7 @@ class PyExprMutatorNode : public ffi::Object, public ExprMutator {
       if (vtable.can_dispatch(expr)) {
         return builder_->Normalize(vtable(expr, this));
       }
-      return builder_->Normalize(VisitExprFallback_(expr.get()));
+      return ExprMutator::VisitExpr(expr);
     }
   }
 

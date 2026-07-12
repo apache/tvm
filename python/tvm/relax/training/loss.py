@@ -275,7 +275,7 @@ class CrossEntropyLoss(Loss):
         targets = _create_param_var(targets, "targets")
 
         arg_list = [predictions, targets]
-        if weights:
+        if weights is not None:
             weights = _create_param_var(weights, "weights")
             arg_list.append(weights)
 
@@ -355,7 +355,7 @@ class CategoricalCrossEntropyLoss(Loss):
         targets = _create_param_var(targets, "targets")
 
         arg_list = [predictions, targets]
-        if weights:
+        if weights is not None:
             weights = _create_param_var(weights, "weights")
             arg_list.append(weights)
 
@@ -374,7 +374,7 @@ class CategoricalCrossEntropyLoss(Loss):
                     )
                 else:
                     lv = bb.emit(-logits * targets.astype("float32"))
-                    if weights:
+                    if weights is not None:
                         lv = bb.emit(lv * weights)
                     loss = bb.emit_output(self._with_reduction(lv))
             bb.emit_func_output(loss)

@@ -132,10 +132,11 @@ class BindingOrderCollector : ExprVisitor {
   }
 
  private:
-  void VisitVarDef(const Var& var) override { dependencies_.binding_order.push_back(var); }
+  void VisitVarDef(const Var&) override {}
 
   void VisitExpr_(const FunctionNode* op) override {
     for (const auto& var : op->params) {
+      graph_vars_.insert(var);
       dependencies_.downstream_users[InputNode()].push_back(var);
       dependencies_.upstream_requirements[var].push_back(InputNode());
     }
@@ -145,12 +146,17 @@ class BindingOrderCollector : ExprVisitor {
   void VisitBinding(const Binding& binding) override {
     auto cache = current_binding_;
     current_binding_ = binding->var;
+    graph_vars_.insert(binding->var);
+    dependencies_.binding_order.push_back(binding->var);
     ExprVisitor::VisitBinding(binding);
     current_binding_ = cache;
   }
 
   void VisitExpr_(const VarNode* op) override {
     Var upstream_requirement = ffi::GetRef<Var>(op);
+    if (!graph_vars_.count(upstream_requirement)) {
+      return;
+    }
     auto downstream_user = current_binding_;
 
     dependencies_.downstream_users[upstream_requirement].push_back(downstream_user);
@@ -158,6 +164,7 @@ class BindingOrderCollector : ExprVisitor {
   }
 
   DataflowNode current_binding_ = OutputNode();
+  std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> graph_vars_;
   Dependencies dependencies_;
 };
 

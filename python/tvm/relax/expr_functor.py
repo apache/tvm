@@ -22,7 +22,8 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.ir import Call, Op
+from tvm import tirx as _tirx
+from tvm.ir import Call, Op, is_prim_expr
 from tvm.ir.utils import derived_object
 from tvm.runtime import Object
 
@@ -151,6 +152,60 @@ class ExprFunctor:
             ret = self.visit_function_(expr)
         elif isinstance(expr, Call):  # type: ignore
             ret = self.visit_call_(expr)
+        elif isinstance(expr, _tirx.BufferLoad):
+            ret = self.visit_buffer_load_(expr)
+        elif isinstance(expr, _tirx.Add):
+            ret = self.visit_add_(expr)
+        elif isinstance(expr, _tirx.Sub):
+            ret = self.visit_sub_(expr)
+        elif isinstance(expr, _tirx.Mul):
+            ret = self.visit_mul_(expr)
+        elif isinstance(expr, _tirx.Div):
+            ret = self.visit_div_(expr)
+        elif isinstance(expr, _tirx.Mod):
+            ret = self.visit_mod_(expr)
+        elif isinstance(expr, _tirx.FloorDiv):
+            ret = self.visit_floor_div_(expr)
+        elif isinstance(expr, _tirx.FloorMod):
+            ret = self.visit_floor_mod_(expr)
+        elif isinstance(expr, _tirx.Min):
+            ret = self.visit_min_(expr)
+        elif isinstance(expr, _tirx.Max):
+            ret = self.visit_max_(expr)
+        elif isinstance(expr, _tirx.EQ):
+            ret = self.visit_eq_(expr)
+        elif isinstance(expr, _tirx.NE):
+            ret = self.visit_ne_(expr)
+        elif isinstance(expr, _tirx.LT):
+            ret = self.visit_lt_(expr)
+        elif isinstance(expr, _tirx.LE):
+            ret = self.visit_le_(expr)
+        elif isinstance(expr, _tirx.GT):
+            ret = self.visit_gt_(expr)
+        elif isinstance(expr, _tirx.GE):
+            ret = self.visit_ge_(expr)
+        elif isinstance(expr, _tirx.And):
+            ret = self.visit_and_(expr)
+        elif isinstance(expr, _tirx.Or):
+            ret = self.visit_or_(expr)
+        elif isinstance(expr, _tirx.Cast):
+            ret = self.visit_cast_(expr)
+        elif isinstance(expr, _tirx.Not):
+            ret = self.visit_not_(expr)
+        elif isinstance(expr, _tirx.Select):
+            ret = self.visit_select_(expr)
+        elif isinstance(expr, _tirx.Ramp):
+            ret = self.visit_ramp_(expr)
+        elif isinstance(expr, _tirx.Broadcast):
+            ret = self.visit_broadcast_(expr)
+        elif isinstance(expr, _tirx.Shuffle):
+            ret = self.visit_shuffle_(expr)
+        elif isinstance(expr, _tirx.IntImm):
+            ret = self.visit_int_imm_(expr)
+        elif isinstance(expr, _tirx.FloatImm):
+            ret = self.visit_float_imm_(expr)
+        elif isinstance(expr, _tirx.StringImm):
+            ret = self.visit_tirx_string_imm_(expr)
         elif isinstance(expr, SeqExpr):
             ret = self.visit_seq_expr_(expr)
         elif isinstance(expr, If):  # type: ignore
@@ -163,7 +218,11 @@ class ExprFunctor:
             ret = self.visit_string_imm_(expr)
         elif isinstance(expr, DataTypeImm):
             ret = self.visit_data_type_imm_(expr)
+        elif isinstance(expr, (_tirx.Let, _tirx.Reduce, _tirx.ProducerLoad)):
+            raise TypeError(f"Relax does not support {type(expr).__name__} expressions")
         elif isinstance(expr, Expr):
+            if is_prim_expr(expr):
+                raise TypeError(f"Invalid primitive expression type: {type(expr)}")
             ret = self.visit_expr_fallback_(expr)
         else:
             raise TypeError(f"Invalid type: {type(expr)}")
@@ -196,6 +255,87 @@ class ExprFunctor:
 
     def visit_call_(self, op: Call):
         raise NotImplementedError()
+
+    def visit_buffer_load_(self, op: _tirx.BufferLoad):
+        return self.visit_expr_fallback_(op)
+
+    def visit_add_(self, op: _tirx.Add):
+        return self.visit_expr_fallback_(op)
+
+    def visit_sub_(self, op: _tirx.Sub):
+        return self.visit_expr_fallback_(op)
+
+    def visit_mul_(self, op: _tirx.Mul):
+        return self.visit_expr_fallback_(op)
+
+    def visit_div_(self, op: _tirx.Div):
+        return self.visit_expr_fallback_(op)
+
+    def visit_mod_(self, op: _tirx.Mod):
+        return self.visit_expr_fallback_(op)
+
+    def visit_floor_div_(self, op: _tirx.FloorDiv):
+        return self.visit_expr_fallback_(op)
+
+    def visit_floor_mod_(self, op: _tirx.FloorMod):
+        return self.visit_expr_fallback_(op)
+
+    def visit_min_(self, op: _tirx.Min):
+        return self.visit_expr_fallback_(op)
+
+    def visit_max_(self, op: _tirx.Max):
+        return self.visit_expr_fallback_(op)
+
+    def visit_eq_(self, op: _tirx.EQ):
+        return self.visit_expr_fallback_(op)
+
+    def visit_ne_(self, op: _tirx.NE):
+        return self.visit_expr_fallback_(op)
+
+    def visit_lt_(self, op: _tirx.LT):
+        return self.visit_expr_fallback_(op)
+
+    def visit_le_(self, op: _tirx.LE):
+        return self.visit_expr_fallback_(op)
+
+    def visit_gt_(self, op: _tirx.GT):
+        return self.visit_expr_fallback_(op)
+
+    def visit_ge_(self, op: _tirx.GE):
+        return self.visit_expr_fallback_(op)
+
+    def visit_and_(self, op: _tirx.And):
+        return self.visit_expr_fallback_(op)
+
+    def visit_or_(self, op: _tirx.Or):
+        return self.visit_expr_fallback_(op)
+
+    def visit_cast_(self, op: _tirx.Cast):
+        return self.visit_expr_fallback_(op)
+
+    def visit_not_(self, op: _tirx.Not):
+        return self.visit_expr_fallback_(op)
+
+    def visit_select_(self, op: _tirx.Select):
+        return self.visit_expr_fallback_(op)
+
+    def visit_ramp_(self, op: _tirx.Ramp):
+        return self.visit_expr_fallback_(op)
+
+    def visit_broadcast_(self, op: _tirx.Broadcast):
+        return self.visit_expr_fallback_(op)
+
+    def visit_shuffle_(self, op: _tirx.Shuffle):
+        return self.visit_expr_fallback_(op)
+
+    def visit_int_imm_(self, op: _tirx.IntImm):
+        return self.visit_expr_fallback_(op)
+
+    def visit_float_imm_(self, op: _tirx.FloatImm):
+        return self.visit_expr_fallback_(op)
+
+    def visit_tirx_string_imm_(self, op: _tirx.StringImm):
+        return self.visit_expr_fallback_(op)
 
     def visit_seq_expr_(self, op: SeqExpr):
         raise NotImplementedError()

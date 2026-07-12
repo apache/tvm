@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/node_functor.h>
+#include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -40,6 +41,31 @@ TEST(IRF, Basic) {
   f.set_dispatch<AddNode>([](const ffi::ObjectRef& n, int b) { return b + 2; });
   TVM_FFI_ICHECK_EQ(f(x, 2), 2);
   TVM_FFI_ICHECK_EQ(f(z, 2), 4);
+}
+
+TEST(IRF, ExactDispatchAndAncestorFallback) {
+  using namespace tvm;
+  using namespace tvm::relax;
+
+  DataflowVar dataflow_var("value", PrimType::Int(64));
+  NodeFunctor<int(const ffi::ObjectRef& n)> f;
+  f.set_dispatch<ExprNode>([](const ffi::ObjectRef&) { return 0; });
+  f.set_dispatch<VarNode>([](const ffi::ObjectRef&) { return 1; });
+
+  EXPECT_FALSE(f.can_dispatch(dataflow_var));
+  // The nearest registered ancestor wins over more distant ancestors.
+  EXPECT_EQ(f(dataflow_var), 1);
+
+  f.set_dispatch<DataflowVarNode>([](const ffi::ObjectRef&) { return 2; });
+  EXPECT_TRUE(f.can_dispatch(dataflow_var));
+  EXPECT_EQ(f(dataflow_var), 2);
+
+  NodeFunctor<int(const ffi::ObjectRef& n)> finalized;
+  finalized.set_dispatch<ExprNode>([](const ffi::ObjectRef&) { return 0; });
+  finalized.set_dispatch<VarNode>([](const ffi::ObjectRef&) { return 1; });
+  finalized.Finalize();
+  EXPECT_FALSE(finalized.can_dispatch(dataflow_var));
+  EXPECT_EQ(finalized(dataflow_var), 1);
 }
 
 TEST(IRF, CountVar) {

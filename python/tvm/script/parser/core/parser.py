@@ -27,6 +27,7 @@ import numpy as np
 
 from tvm.error import DiagnosticError
 from tvm.ir import GlobalVar
+from tvm.runtime import Object
 
 from . import dispatch, doc
 from .diagnostics import Diagnostics, Source
@@ -262,9 +263,13 @@ class VarTable:
         """
         # Skip if the key and value are equal to those in the var_table
         if self.name2value[var] and isinstance(self.name2value[var][-1], type(value)):
-            if isinstance(value, np.ndarray) and (self.name2value[var][-1] == value).all():
+            old_value = self.name2value[var][-1]
+            if isinstance(value, np.ndarray) and (old_value == value).all():
                 return
-            elif self.name2value[var][-1] == value:
+            if isinstance(old_value, Object):
+                if old_value.same_as(value):
+                    return
+            elif old_value == value:
                 return
         if allow_shadowing and var in self.frames[-1].vars:
             # Shadowing

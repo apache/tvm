@@ -557,7 +557,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(op(lhs, rhs))
 
             lhs, rhs = self.retrieve_args(node)
-            if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+
+            if (isinstance(lhs, tvm.ir.Var) and isinstance(lhs.ty, relax.TensorType)) or (
+                isinstance(rhs, tvm.ir.Var) and isinstance(rhs.ty, relax.TensorType)
+            ):
                 return call_binary_op(relax_op, lhs, rhs)
             elif isinstance(lhs, relax.expr.Constant) and not isinstance(rhs, relax.expr.Constant):
                 return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.ty.dtype))
@@ -2714,7 +2717,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         if isinstance(x, list | tuple | relax.ShapeExpr | relax.Tuple):
             return x[node.args[1]]
-        elif isinstance(x, relax.Var):
+        elif isinstance(x, tvm.ir.Var) and isinstance(x.ty, relax.TupleType | relax.TensorType):
             if isinstance(x.ty, relax.TupleType):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 
