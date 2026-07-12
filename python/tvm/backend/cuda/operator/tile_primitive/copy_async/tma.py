@@ -1131,6 +1131,19 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
         fail(f"tma_dtype={_tma_dtype!r} requires a float32 descriptor; got {plan.elem_dtype}")
     force_cu_dtype = _TMA_DTYPE_TO_CU.get(_tma_dtype, -1)
 
+    # CUtensorMapL2promotion values from cuda.h.  Keep the existing 128B
+    # default, while allowing kernels to match a reference implementation's
+    # tensor-map promotion policy explicitly.
+    _TMA_L2_PROMOTION_TO_CU = {0: 0, 64: 1, 128: 2, 256: 3}
+    l2_promotion = op_call.config.get("l2_promotion", 128)
+    l2_promotion = getattr(l2_promotion, "value", l2_promotion)
+    if l2_promotion not in _TMA_L2_PROMOTION_TO_CU:
+        fail(
+            f"Unsupported l2_promotion={l2_promotion!r}; "
+            f"expected one of {sorted(_TMA_L2_PROMOTION_TO_CU)}"
+        )
+    l2_promotion_cu = _TMA_L2_PROMOTION_TO_CU[l2_promotion]
+
     # Direction / runtime-config bits that don't affect the plan itself.
     cta_group = op_call.config.get("cta_group", None)
     if cta_group is None:
@@ -1172,6 +1185,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
         f":{tuple(val_key(v) for v in tma_g_strides_for_map)}"
         f":{tuple(val_key(v) for v in plan.box_dim)}"
         f":{val_key(plan.swizzle_mode.value)}:{oob_fill_kind}:{force_cu_dtype}"
+        f":{l2_promotion_cu}"
     )
 
     cached_tensormap = sctx.cache_get(tensormap_cache_key)
@@ -1246,7 +1260,7 @@ def copy_tma_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc
                 *element_strides,
                 0,  # CU_TENSOR_MAP_INTERLEAVE_NONE
                 plan.swizzle_mode.value,
-                2,  # CU_TENSOR_MAP_L2_PROMOTION_L2_128B
+                l2_promotion_cu,
                 oob_fill_kind,
                 # Append the dtype override ONLY when requested, so the default
                 # (derive-from-dtype) path emits a byte-identical encode call (the

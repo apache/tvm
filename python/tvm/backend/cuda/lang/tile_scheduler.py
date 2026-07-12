@@ -211,6 +211,7 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         serpentine: bool = False,
     ):
         super().__init__(prefix)
+        serpentine = getattr(serpentine, "value", serpentine)
         self._num_m_tiles = num_m_tiles
         self._num_n_tiles = num_n_tiles
         self._num_clusters = num_clusters
@@ -304,17 +305,13 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
 
     @T.inline
     def _gm_emit_full_only(self, tile_linear, set_tile_coords):
-        FULL_GROUPS = T.meta_var(self._FULL_GROUPS)
         GROUP_SIZE = T.meta_var(self._l2_group_size)
         GROUP_SPAN = T.meta_var(self._l2_group_size * self._N_TILE_COLS)
-        if (FULL_GROUPS > 0) & (tile_linear < FULL_GROUPS * GROUP_SPAN):
-            group_id: T.let = tile_linear // GROUP_SPAN
-            within_group: T.let = tile_linear % GROUP_SPAN
-            tile_row: T.let = group_id * GROUP_SIZE + (within_group % GROUP_SIZE)
-            tile_col: T.let = within_group // GROUP_SIZE
-            set_tile_coords(tile_row, tile_col)
-        else:
-            set_tile_coords(0, 0)
+        group_id: T.let = tile_linear // GROUP_SPAN
+        within_group: T.let = tile_linear % GROUP_SPAN
+        tile_row: T.let = group_id * GROUP_SIZE + (within_group % GROUP_SIZE)
+        tile_col: T.let = within_group // GROUP_SIZE
+        set_tile_coords(tile_row, tile_col)
 
     @T.inline
     def _gm_emit_tail_only(self, tile_linear, set_tile_coords):
@@ -322,13 +319,10 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         TAIL_ROWS = T.meta_var(self._TAIL_ROWS)
         GROUP_SIZE = T.meta_var(self._l2_group_size)
         GROUP_SPAN = T.meta_var(self._l2_group_size * self._N_TILE_COLS)
-        if TAIL_ROWS > 0:
-            rem: T.let = tile_linear - FULL_GROUPS * GROUP_SPAN
-            tile_row: T.let = FULL_GROUPS * GROUP_SIZE + (rem % TAIL_ROWS)
-            tile_col: T.let = rem // TAIL_ROWS
-            set_tile_coords(tile_row, tile_col)
-        else:
-            set_tile_coords(0, 0)
+        rem: T.let = tile_linear - FULL_GROUPS * GROUP_SPAN
+        tile_row: T.let = FULL_GROUPS * GROUP_SIZE + (rem % TAIL_ROWS)
+        tile_col: T.let = rem // TAIL_ROWS
+        set_tile_coords(tile_row, tile_col)
 
     @T.inline
     def _gm_emit_full_and_tail(self, tile_linear, set_tile_coords):
@@ -370,7 +364,6 @@ class ClusterPersistentScheduler2D(BaseTileScheduler):
         BLOCK_SIZE = T.meta_var(self._BLOCK_SIZE)  # S * S
         FULL_BLOCK_TILES = T.meta_var(self._FULL_BLOCK_TILES)
         M_TILE_ROWS = T.meta_var(self._M_TILE_ROWS)
-        T.meta_var(self._N_TILE_COLS)
         RESIDUAL_N = T.meta_var(self._RESIDUAL_N)
         RESIDUAL_M = T.meta_var(self._RESIDUAL_M)
 

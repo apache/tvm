@@ -91,6 +91,32 @@ def test_mbarrier_try_wait_once_codegen():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_tcgen05_block_scaled_mma_predicate_codegen():
+    # fmt: off
+    @T.prim_func
+    def test_predicated_mma(A: T.Buffer((1,), "uint32")):
+        T.device_entry()
+        T.cta_id([2])
+        T.thread_id([256])
+        issue: T.uint32 = T.ptx.elect_sync()
+        T.ptx.tcgen05.mma.block_scale(
+            T.uint32(0), T.uint64(0), T.uint64(0),
+            T.uint32(0), T.uint32(0), T.uint32(0),
+            d_dtype="float32", a_dtype="float8_e4m3fn", b_dtype="float8_e4m3fn",
+            sfa_dtype="float8_e8m0fnu", sfb_dtype="float8_e8m0fnu",
+            use_a_tmem=False, cta_group=2, enable_input_d=0, pred=issue,
+        )
+    # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        src, _ = _get_source(test_predicated_mma)
+    assert "setp.ne.b32 p_issue" in src
+    assert "@p_issue tcgen05.mma.cta_group::2.kind::mxf8f6f4.block_scale" in src
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_fence_before_after_thread_sync():
     # fmt: off
     @T.prim_func

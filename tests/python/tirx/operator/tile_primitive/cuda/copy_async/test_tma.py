@@ -407,6 +407,16 @@ TMA_CASES = [
         encode_args=[3, 64, 8, 4, 512, 128, 64, 8, 4, 1, 1, 1, 0, 3, 2, 0],
     ),
     _tma_case(
+        id="g2s-2d-8x256-l2-promotion-256b",
+        g_shape=(8, 256), g_region=((0, 8), (0, 256)),
+        s_shape=(8, 256), s_region=((0, 8), (0, 256)),
+        gmem_layout=TileLayout(S[8, 256]),
+        smem_layout=mma_shared_layout("float16", 3, (8, 256)),
+        config={"l2_promotion": 256},
+        impl_spec=dict(loop_extents=[1], dim=3, coord_fn=lambda lv: _zeros(3)),
+        encode_args=[3, 64, 8, 4, 512, 128, 64, 8, 4, 1, 1, 1, 0, 3, 3, 0],
+    ),
+    _tma_case(
         id="g2s-2d-8x256-swizzle2",
         g_shape=(8, 256), g_region=((0, 8), (0, 256)),
         s_shape=(8, 256), s_region=((0, 8), (0, 256)),
@@ -975,6 +985,15 @@ TMA_CASES = [
         smem_layout=mma_shared_layout("float16", 3, (8, 256)),
         config={"oob": "bogus"},
         raises=(Exception, "Unsupported TMA oob mode"),
+    ),
+    _tma_case(
+        id="reject-unknown-l2-promotion",
+        g_shape=(8, 256), g_region=((0, 8), (0, 256)),
+        s_shape=(8, 256), s_region=((0, 8), (0, 256)),
+        gmem_layout=TileLayout(S[8, 256]),
+        smem_layout=mma_shared_layout("float16", 3, (8, 256)),
+        config={"l2_promotion": 192},
+        raises=(Exception, "Unsupported l2_promotion"),
     ),
     _tma_case(
         id="reject-g2s-nan-on-non-float",
