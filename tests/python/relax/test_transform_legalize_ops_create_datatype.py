@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501
+# ruff: noqa: E501, F841
 
 import tvm
 import tvm.testing
@@ -614,6 +614,123 @@ def test_arange_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Arange)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_shape_to_tensor():
+    # fmt: off
+    @tvm.script.ir_module
+    class ShapeToTensor:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), "float32")):
+            gv = R.shape_to_tensor(R.shape_of(x))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((3,), "int64"):
+            cls = Expected
+            gv: R.Shape([2, 3, 4]) = R.shape_of(x)
+            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), out_ty=R.Tensor((3,), dtype="int64"))
+            return gv_1
+
+        @T.prim_func(private=True, s_tir=True)
+        def shape_to_tensor(shape_to_tensor: T.Buffer((T.int64(3),), "int64")):
+            T.func_attr({"tirx.noalias": True})
+            for i in range(T.int64(3)):
+                with T.sblock("shape_to_tensor"):
+                    v_i = T.axis.spatial(T.int64(3), i)
+                    shape_to_tensor[v_i] = T.if_then_else(v_i == T.int64(0), T.int64(2), T.if_then_else(v_i == T.int64(1), T.int64(3), T.if_then_else(v_i == T.int64(2), T.int64(4), T.int64(0))))
+    # fmt: on
+
+    mod = LegalizeOps()(ShapeToTensor)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_shape_to_tensor_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class ShapeToTensor:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")):
+            gv = R.shape_to_tensor(R.shape_of(x))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor((2,), "int64"):
+            m = T.int64()
+            n = T.int64()
+            cls = Expected
+            gv: R.Shape([m, n]) = R.shape_of(x)
+            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), out_ty=R.Tensor((2,), dtype="int64"), tir_vars=R.shape([m, n]))
+            return gv_1
+
+        @T.prim_func(private=True, s_tir=True)
+        def shape_to_tensor(shape_to_tensor: T.Buffer((T.int64(2),), "int64"), m: T.int64, n: T.int64):
+            T.func_attr({"tirx.noalias": True})
+            for i in range(T.int64(2)):
+                with T.sblock("shape_to_tensor"):
+                    v_i = T.axis.spatial(T.int64(2), i)
+                    shape_to_tensor[v_i] = T.if_then_else(v_i == T.int64(0), m, T.if_then_else(v_i == T.int64(1), n, T.int64(0)))
+    # fmt: on
+
+    mod = LegalizeOps()(ShapeToTensor)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_shape_to_tensor_mixed():
+    # fmt: off
+    @tvm.script.ir_module
+    class ShapeToTensor:
+        @R.function
+        def main(x: R.Tensor(("m", 3), "float32")):
+            gv = R.shape_to_tensor(R.shape_of(x))
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("m", 3), "float32")) -> R.Tensor((2,), "int64"):
+            m = T.int64()
+            cls = Expected
+            gv: R.Shape([m, 3]) = R.shape_of(x)
+            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), out_ty=R.Tensor((2,), dtype="int64"), tir_vars=R.shape([m]))
+            return gv_1
+
+        @T.prim_func(private=True, s_tir=True)
+        def shape_to_tensor(shape_to_tensor: T.Buffer((T.int64(2),), "int64"), m: T.int64):
+            T.func_attr({"tirx.noalias": True})
+            for i in range(T.int64(2)):
+                with T.sblock("shape_to_tensor"):
+                    v_i = T.axis.spatial(T.int64(2), i)
+                    shape_to_tensor[v_i] = T.if_then_else(v_i == T.int64(0), m, T.if_then_else(v_i == T.int64(1), T.int64(3), T.int64(0)))
+    # fmt: on
+
+    mod = LegalizeOps()(ShapeToTensor)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_shape_to_tensor_unknown_values():
+    @tvm.script.ir_module
+    class ShapeToTensor:
+        @R.function
+        def main(s: R.Shape(ndim=2)):
+            gv = R.shape_to_tensor(s)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(s: R.Shape(ndim=2)) -> R.Tensor((2,), "int64"):
+            gv: R.Tensor((2,), dtype="int64") = R.call_pure_packed(
+                "relax.run.shape_to_tensor", s, ty_args=(R.Tensor((2,), dtype="int64"),)
+            )
+            return gv
+
+    mod = LegalizeOps()(ShapeToTensor)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 

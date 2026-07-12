@@ -280,6 +280,9 @@ class ConstantFolder : public ExprMutator {
 
     if (!func || !arr_args) return {};
 
+    // tir_vars are passed as extra scalar arguments to the PrimFunc, which we cannot supply here.
+    if (call->args.size() > 2) return {};
+
     // Handle tuple output: ty_args[0] is a TupleType.
     if (const auto* tuple_ty = call->ty_args[0].as<TupleTypeNode>()) {
       return ConstEvaluateCallTIRTuple(func.value(), arr_args.value(), tuple_ty);
