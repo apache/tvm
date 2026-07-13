@@ -177,7 +177,7 @@ def test_relax_dynamo_dynamic():
         x = torch.randn(s, 100)
         y = torch.randn(s, 100)
         with torch.no_grad():
-            tvm.testing.assert_allclose(opt_func(x, y), opt_func(x, y))
+            tvm.testing.assert_allclose(Func1(x, y), opt_func(x, y))
 
 
 def test_relax_dynamo_dynamic_sym_input_reference():
