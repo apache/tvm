@@ -356,6 +356,78 @@ class QuantizeLinear(OnnxOpConverter):
             zp = relax.const(0, out_dtype)
         return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
 
+    @classmethod
+    def _impl_v19(cls, bb, inputs, attr, params):
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+            axis = 0
+        out_dtype = "uint8" if zp is None else zp.ty.dtype.dtype
+        if attr.get("saturate", 1) != 1 and str(out_dtype).startswith("float8"):
+            raise ValueError(
+                "QuantizeLinear float8 quantization with saturate=0 is not supported yet."
+            )
+        if zp is None:
+            zp = relax.const(0, out_dtype)
+        return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+    @classmethod
+    def _impl_v21(cls, bb, inputs, attr, params):
+        if attr.get("block_size", 0) != 0:
+            raise ValueError("QuantizeLinear blocked quantization is not supported yet.")
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+            axis = 0
+        output_dtype = attr.get("output_dtype", 0)
+        out_dtype = (
+            get_type(output_dtype) if output_dtype else "uint8" if zp is None else zp.ty.dtype.dtype
+        )
+        if attr.get("saturate", 1) != 1 and str(out_dtype).startswith("float8"):
+            raise ValueError(
+                "QuantizeLinear float8 quantization with saturate=0 is not supported yet."
+            )
+        if zp is not None and zp.ty.dtype.dtype != out_dtype:
+            raise ValueError(
+                "QuantizeLinear output_dtype must match the zero-point dtype, "
+                f"but got {out_dtype} and {zp.ty.dtype.dtype}."
+            )
+        if zp is None:
+            zp = relax.const(0, out_dtype)
+        return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+    @classmethod
+    def _impl_v23(cls, bb, inputs, attr, params):
+        if attr.get("block_size", 0) != 0:
+            raise ValueError("QuantizeLinear blocked quantization is not supported yet.")
+        if attr.get("precision", 0) != 0:
+            raise ValueError(
+                "QuantizeLinear with a non-default precision attribute is not supported yet."
+            )
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+            axis = 0
+        output_dtype = attr.get("output_dtype", 0)
+        out_dtype = (
+            get_type(output_dtype) if output_dtype else "uint8" if zp is None else zp.ty.dtype.dtype
+        )
+        if attr.get("saturate", 1) != 1 and str(out_dtype).startswith("float8"):
+            raise ValueError(
+                "QuantizeLinear float8 quantization with saturate=0 is not supported yet."
+            )
+        if zp is not None and zp.ty.dtype.dtype != out_dtype:
+            raise ValueError(
+                "QuantizeLinear output_dtype must match the zero-point dtype, "
+                f"but got {out_dtype} and {zp.ty.dtype.dtype}."
+            )
+        if zp is None:
+            zp = relax.const(0, out_dtype)
+        return relax.op.quantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
 
 class DequantizeLinear(OnnxOpConverter):
     @classmethod
@@ -379,6 +451,47 @@ class DequantizeLinear(OnnxOpConverter):
         if zp is None:
             zp = relax.const(0, x.ty.dtype.dtype)
         return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype="float32")
+
+    @classmethod
+    def _impl_v19(cls, bb, inputs, attr, params):
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+            axis = 0
+        out_dtype = scale.ty.dtype.dtype
+        if zp is None:
+            zp = relax.const(0, x.ty.dtype.dtype)
+        return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+    @classmethod
+    def _impl_v21(cls, bb, inputs, attr, params):
+        if attr.get("block_size", 0) != 0:
+            raise ValueError("DequantizeLinear blocked quantization is not supported yet.")
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+            axis = 0
+        out_dtype = scale.ty.dtype.dtype
+        if zp is None:
+            zp = relax.const(0, x.ty.dtype.dtype)
+        return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
+
+    @classmethod
+    def _impl_v23(cls, bb, inputs, attr, params):
+        if attr.get("block_size", 0) != 0:
+            raise ValueError("DequantizeLinear blocked quantization is not supported yet.")
+        x, scale = inputs[0], inputs[1]
+        zp = inputs[2] if len(inputs) > 2 and inputs[2] is not None else None
+        axis = attr.get("axis", 1)
+        if hasattr(x.ty, "ndim") and x.ty.ndim <= 1 and axis == 1:
+            axis = 0
+        output_dtype = attr.get("output_dtype", 0)
+        out_dtype = get_type(output_dtype) if output_dtype else scale.ty.dtype.dtype
+        if zp is None:
+            zp = relax.const(0, x.ty.dtype.dtype)
+        return relax.op.dequantize(x, scale, zp, axis=axis, out_dtype=out_dtype)
 
 
 class DynamicQuantizeLinear(OnnxOpConverter):

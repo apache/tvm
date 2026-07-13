@@ -12272,5 +12272,254 @@ def test_dequantizelinear_default_axis_opset10():
     check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
 
 
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+def test_quantizelinear_output_dtype(opset):
+    node = helper.make_node("QuantizeLinear", ["x", "scale"], ["y"], output_dtype=TensorProto.INT16)
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_output_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.INT16, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"),
+            scale: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="int16"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="int16") = R.quantize(
+                    x, scale, R.const(0, "int16"), out_dtype="int16", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_dequantizelinear_scale_dtype(opset):
+    node = helper.make_node("DequantizeLinear", ["x", "scale", "zero_point"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "dequantizelinear_scale_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT16, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT16, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int8"),
+            scale: R.Tensor((), dtype="float16"),
+            zero_point: R.Tensor((), dtype="int8"),
+        ) -> R.Tensor((2, 3), dtype="float16"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float16") = R.dequantize(
+                    x, scale, zero_point, out_dtype="float16", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [23, 24, 25])
+def test_dequantizelinear_output_dtype(opset):
+    node = helper.make_node(
+        "DequantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        output_dtype=TensorProto.FLOAT,
+    )
+    graph = helper.make_graph(
+        [node],
+        "dequantizelinear_output_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT16, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int8"),
+            scale: R.Tensor((), dtype="float16"),
+            zero_point: R.Tensor((), dtype="int8"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.dequantize(
+                    x, scale, zero_point, out_dtype="float32", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_quantizelinear_integer_saturate(opset):
+    node = helper.make_node("QuantizeLinear", ["x", "scale"], ["y"], saturate=0)
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_integer_saturate",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"),
+            scale: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="uint8"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="uint8") = R.quantize(
+                    x, scale, R.const(0, "uint8"), out_dtype="uint8", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_quantizelinear_float8_saturate_rejected(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        saturate=0,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_float8_saturate",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.FLOAT8E4M3FN, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT8E4M3FN, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="saturate=0"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+@pytest.mark.parametrize(
+    "op_name,input_dtype,output_dtype",
+    [
+        ("QuantizeLinear", TensorProto.FLOAT, TensorProto.INT8),
+        ("DequantizeLinear", TensorProto.INT8, TensorProto.FLOAT),
+    ],
+)
+def test_qdq_blocked_quantization_rejected(opset, op_name, input_dtype, output_dtype):
+    node = helper.make_node(
+        op_name,
+        ["x", "scale", "zero_point"],
+        ["y"],
+        axis=1,
+        block_size=2,
+    )
+    graph = helper.make_graph(
+        [node],
+        "qdq_blocked_quantization",
+        [
+            helper.make_tensor_value_info("x", input_dtype, [1, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [1, 2]),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, [1, 2]),
+        ],
+        [helper.make_tensor_value_info("y", output_dtype, [1, 4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="blocked quantization"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [23, 24, 25])
+def test_quantizelinear_precision_rejected(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale"],
+        ["y"],
+        output_dtype=TensorProto.INT8,
+        precision=TensorProto.FLOAT16,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_precision",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.INT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="precision attribute"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+def test_quantizelinear_output_dtype_mismatch(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        output_dtype=TensorProto.UINT8,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_output_dtype_mismatch",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="must match the zero-point dtype"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
