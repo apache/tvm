@@ -492,7 +492,7 @@ class LowBatchGEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
                     _, _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
-                    _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
+                    _, tx = sch.split(sch.fuse(*s), factors=[None, TS])
                     sch.bind(tx, TAG_S)
                 else:
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
