@@ -45,7 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IntConstraintsTransformNode::RegisterReflection();
 }
 
-ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
+ffi::Array<PrimExpr> AsConditions(const ffi::Array<PrimVar>& variables,
                                   const ffi::Map<Var, IntGroupBounds>& bounds,
                                   const ffi::Array<PrimExpr>& relations) {
   ffi::Array<PrimExpr> res;
@@ -222,24 +222,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Pattern A (RM): auto-default repr from reflection.
 
-IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
+IntConstraints::IntConstraints(ffi::Array<PrimVar> variables, ffi::Map<Var, Range> ranges,
                                ffi::Array<PrimExpr> relations) {
   ffi::ObjectPtr<IntConstraintsNode> node = ffi::make_object<IntConstraintsNode>();
   if (!variables.defined()) {
-    variables = ffi::Array<Var>();
+    variables = ffi::Array<PrimVar>();
   }
   if (!ranges.defined()) {
     ranges = ffi::Map<Var, Range>();
   }
   TVM_FFI_ICHECK(relations.defined());
-  for (const auto& var : variables) {
-    auto prim_var = var.as<tirx::PrimVar>();
-    TVM_FFI_CHECK(prim_var, TypeError)
-        << "Variables in IntConstraints must be exact primitive ir.Var values, but received "
-        << var.GetTypeKey();
-    TVM_FFI_CHECK(
-        prim_var.value().ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
-        TypeError)
+  for (const PrimVar& var : variables) {
+    TVM_FFI_CHECK(var.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt), TypeError)
         << "Variables in IntConstraints must be integers";
   }
   node->variables = std::move(variables);
@@ -252,7 +246,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "arith.IntConstraints",
-      [](ffi::Array<Var> variables, ffi::Map<Var, Range> ranges, ffi::Array<PrimExpr> relations) {
+      [](ffi::Array<PrimVar> variables, ffi::Map<Var, Range> ranges,
+         ffi::Array<PrimExpr> relations) {
         return IntConstraints(variables, ranges, relations);
       });
 }

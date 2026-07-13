@@ -213,13 +213,13 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>>* S, std::vector<std::
 }
 
 ffi::Map<Var, Range> InferRange(const ffi::Map<Var, PrimExpr>& vars_to_infer,
-                                const ffi::Array<Var>& ori_vars,
+                                const ffi::Array<PrimVar>& ori_vars,
                                 const ffi::Map<Var, Range>& ori_ranges) {
   // The resulting ranges
   ffi::Map<Var, Range> new_ranges;
 
   std::unordered_set<const VarNode*> ori_vset;
-  for (const Var& v : ori_vars) {
+  for (const PrimVar& v : ori_vars) {
     ori_vset.insert(v.get());
   }
 
@@ -287,11 +287,6 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   analyzer_problem->Bind(system_to_solve->ranges);
 
   size_t num_vars = system_to_solve->variables.size();
-  ffi::Array<tirx::PrimVar> primitive_variables;
-  primitive_variables.reserve(num_vars);
-  for (const Var& variable : system_to_solve->variables) {
-    primitive_variables.push_back(variable.as_or_throw<tirx::PrimVar>());
-  }
 
   // initialize V_{nxn} with identity matrix,
   // initialize V^{-1} x as x
@@ -308,7 +303,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
     if (const tirx::EQNode* eq = equation.as<tirx::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
       ffi::Array<PrimExpr> coeffs = arith::DetectLinearEquation(
-          analyzer_problem->Simplify(eq->a - eq->b), primitive_variables);
+          analyzer_problem->Simplify(eq->a - eq->b), system_to_solve->variables);
       if (!coeffs.empty()) {
         std::vector<int64_t> row;
         for (size_t j = 0; j < coeffs.size() - 1; ++j) {
@@ -346,7 +341,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   // Uy is U \times y
   SmithNormalFormDiag(&S, &V, &V_inv_x, &Uy);
 
-  ffi::Array<Var> new_vars;
+  ffi::Array<PrimVar> new_vars;
   ffi::Array<PrimExpr> new_relations;
   ffi::Map<Var, PrimExpr> new_to_old_map;
   ffi::Map<Var, PrimExpr> old_to_new_map;
@@ -400,8 +395,8 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
       if (auto old_var = to_old.as<tirx::PrimVar>()) {
         name_hint += "_" + (*old_var)->name_hint;
       }
-      Var v = Var(name_hint, V_inv_x[j].ty());
-      solution_for_V_inv_x.push_back(v.as_or_throw<PrimExpr>());
+      PrimVar v(name_hint, V_inv_x[j].ty());
+      solution_for_V_inv_x.push_back(v);
       new_vars.push_back(v);
       new_to_old_map.Set(v, to_old);
     } else {
@@ -471,7 +466,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         if (args.size() == 1) {
           *ret = SolveLinearEquations(args[0].cast<IntConstraints>());
         } else if (args.size() == 3) {
-          auto opt_vars = args[0].cast<ffi::Optional<ffi::Array<Var>>>();
+          auto opt_vars = args[0].cast<ffi::Optional<ffi::Array<PrimVar>>>();
           auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
           auto opt_relations = args[2].cast<ffi::Optional<ffi::Array<PrimExpr>>>();
           IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}),

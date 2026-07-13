@@ -141,29 +141,28 @@ class ElectSyncFinder : public StmtExprVisitor {
 
 class ScopeIdVarFinder : public StmtExprVisitor {
  public:
-  static bool Contains(const PrimExpr& expr, const std::vector<Var>& vars) {
+  static bool Contains(const PrimExpr& expr, const std::vector<PrimVar>& vars) {
     ScopeIdVarFinder finder(vars);
     finder(expr);
     return finder.found_;
   }
 
  private:
-  explicit ScopeIdVarFinder(const std::vector<Var>& vars) : vars_(vars) {}
+  explicit ScopeIdVarFinder(const std::vector<PrimVar>& vars) : vars_(vars) {}
 
   using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
   void VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    for (const auto& candidate : vars_) {
-      if (candidate.same_as(var)) {
+    for (const PrimVar& candidate : vars_) {
+      if (candidate.get() == op) {
         found_ = true;
         return;
       }
     }
   }
 
-  const std::vector<Var>& vars_;
+  const std::vector<PrimVar>& vars_;
   bool found_{false};
 };
 
@@ -953,8 +952,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return false;
   }
 
-  std::vector<std::pair<Var, ScopeIdTarget>> ScopeIdTargets() const {
-    std::vector<std::pair<Var, ScopeIdTarget>> out;
+  std::vector<std::pair<PrimVar, ScopeIdTarget>> ScopeIdTargets() const {
+    std::vector<std::pair<PrimVar, ScopeIdTarget>> out;
     for (auto it = scope_id_defs_at_level_.rbegin(); it != scope_id_defs_at_level_.rend(); ++it) {
       for (const auto& def : *it) {
         for (size_t i = 0; i < def->def_ids.size(); ++i) {
@@ -966,8 +965,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return out;
   }
 
-  std::vector<Var> ScopeIdVars() const {
-    std::vector<Var> vars;
+  std::vector<PrimVar> ScopeIdVars() const {
+    std::vector<PrimVar> vars;
     for (const auto& [var, _] : ScopeIdTargets()) {
       vars.push_back(var);
     }
@@ -982,8 +981,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                                  int64_t* base) {
     PrimExpr simplified = analyzer_->Simplify(diff);
     for (const auto& [var, candidate] : ScopeIdTargets()) {
-      ffi::Array<PrimExpr> linear =
-          arith::DetectLinearEquation(simplified, {var.as_or_throw<PrimVar>()});
+      ffi::Array<PrimExpr> linear = arith::DetectLinearEquation(simplified, {var});
       if (linear.size() != 2) continue;
       int64_t c = 0;
       int64_t b = 0;
@@ -1351,7 +1349,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return TryPushSelectorForTarget(target, selector);
   }
 
-  std::optional<Var> FindLaneScopeVar() const {
+  std::optional<PrimVar> FindLaneScopeVar() const {
     // Walk innermost-first; the first single-axis kWarpThread def wins.
     for (auto it = scope_id_defs_at_level_.rbegin(); it != scope_id_defs_at_level_.rend(); ++it) {
       for (const auto& def : *it) {
