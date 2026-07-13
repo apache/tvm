@@ -91,7 +91,7 @@ dev = [{ include-group = "test" }, { include-group = "lint" }]
 [tool.scikit-build]
 cmake.build-type = "Release"
 wheel.py-api = "py3"
-build-dir = "build/{wheel_tag}"
+build-dir = "build"
 
 # Wheel configuration
 wheel.packages = ["python/tvm"]
