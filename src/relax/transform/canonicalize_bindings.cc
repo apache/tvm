@@ -40,16 +40,15 @@ namespace relax {
 namespace {
 
 class SymbolicVarCanonicalizer : public ExprMutator {
-  class ShapeTypeCanonicalizer;
   class RuntimePrimVarCollector;
   class ParameterSymbolCollector;
 
  public:
   static Expr Apply(Expr expr);
 
-  Type VisitExprDepTypeField(const Type& ty) final {
-    if (!canonicalize_shape_values_) return ty;
-    return ShapeTypeCanonicalizer(this).VisitType(ty);
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
+    if (!canonicalize_shape_values_) return expr;
+    return CanonicalizeShapeValue(expr);
   }
 
   Expr VisitExpr_(const ShapeExprNode* op) final {
@@ -220,26 +219,6 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 
    private:
     std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> symbols_;
-  };
-
-  class ShapeTypeCanonicalizer : public TypeMutator {
-   public:
-    explicit ShapeTypeCanonicalizer(SymbolicVarCanonicalizer* parent) : parent_(parent) {}
-
-   protected:
-    PrimExpr VisitTypeExprField(const PrimExpr& expr) final {
-      return parent_->CanonicalizeShapeValue(expr);
-    }
-
-    Expr VisitTypeExprField(const Expr& expr) final {
-      if (const auto* shape = expr.as<ShapeExprNode>()) {
-        return parent_->VisitExpr_(shape);
-      }
-      return expr;
-    }
-
-   private:
-    SymbolicVarCanonicalizer* parent_;
   };
 
   PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {

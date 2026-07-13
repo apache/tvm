@@ -33,12 +33,8 @@ namespace relax {
 
 /*! \brief Helper to implement bind params.*/
 class ExprBinder : public ExprMutator {
-  class ShapeTypeBinder;
-
  public:
   explicit ExprBinder(const tvm::ffi::Map<Var, Expr>& bindings) : bindings_(bindings) {}
-
-  Type VisitExprDepTypeField(const Type& ty) final { return ShapeTypeBinder(this).VisitType(ty); }
 
  private:
   using ExprMutator::VisitExpr_;
@@ -86,35 +82,7 @@ class ExprBinder : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const DataflowVarNode* op) final {
-    Var id = ffi::GetRef<DataflowVar>(op);
-    auto it = bindings_.find(id);
-    if (it != bindings_.end()) {
-      return (*it).second;
-    }
-    return ExprMutator::VisitExpr_(static_cast<const VarNode*>(op));
-  }
-
- private:
-  class ShapeTypeBinder : public TypeMutator {
-   public:
-    explicit ShapeTypeBinder(ExprBinder* parent) : parent_(parent) {}
-
-   protected:
-    PrimExpr VisitTypeExprField(const PrimExpr& expr) final {
-      return parent_->BindShapeValue(expr);
-    }
-
-    Expr VisitTypeExprField(const Expr& expr) final {
-      if (const auto* shape = expr.as<ShapeExprNode>()) {
-        return parent_->VisitExpr_(shape);
-      }
-      return expr;
-    }
-
-   private:
-    ExprBinder* parent_;
-  };
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return BindShapeValue(expr); }
 
   PrimExpr BindShapeValue(const PrimExpr& expr) {
     PrimExpr output = tirx::Substitute(
@@ -149,21 +117,13 @@ Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds) {
 
 tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
     const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const arith::Analyzer& analyzer) {
+  (void)analyzer;
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
-  auto bind_from_prim_expr = [&var_remap, &analyzer](const PrimExpr& var_shape,
-                                                     const PrimExpr& expr_shape) {
+  auto bind_from_prim_expr = [&var_remap](const PrimExpr& var_shape,
+                                          const PrimExpr& expr_shape) {
     if (auto var = var_shape.as<tirx::PrimVar>()) {
-      auto it = var_remap.find(var.value());
-      if (it == var_remap.end()) {
-        var_remap.Set(var.value(), expr_shape);
-      } else {
-        auto explicit_value = (*it).second.as<PrimExpr>();
-        TVM_FFI_CHECK(explicit_value.has_value() &&
-                          analyzer->CanProveEqual(explicit_value.value(), expr_shape),
-                      ValueError)
-            << "Conflicting replacements for canonical Var " << var.value();
-      }
+      var_remap.Set(var.value(), expr_shape);
     }
   };
 

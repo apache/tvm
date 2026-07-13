@@ -43,8 +43,6 @@ class PrimExprComputeInjector : public ExprMutator {
  public:
   IRModule Finalize() const { return builder_->Finalize(); }
 
-  Type VisitExprDepTypeField(const Type& ty) final { return ty; }
-
  private:
   using ExprMutator::VisitExpr_;
 
@@ -94,6 +92,8 @@ class PrimExprComputeInjector : public ExprMutator {
 #undef RELAX_LIFT_PRIM_EXPR
 
   Expr VisitExpr_(const ShapeExprNode* op) final { return ffi::GetRef<Expr>(op); }
+
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return expr; }
 
   Expr LiftPrimValue(const PrimExpr& node) {
     if (node->IsInstance<tirx::IntImmNode>() || node->IsInstance<VarNode>()) {

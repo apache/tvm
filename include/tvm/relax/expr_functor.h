@@ -354,7 +354,8 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
    * \brief Visit ty may recursively contain Expr/PrimExpr.
    *
    * By default, this function recurse into type such as
-   * TensorType and ShapeType and call VisitExpr accordingly. It does not
+   * TensorType and ShapeType and call VisitExpr/VisitTypePrimExprField
+   * accordingly. It does not
    * recurse into FunctionType as it does
    * not contain Expr defined in the current scope.
    *
@@ -371,6 +372,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitVarDef_(const DataflowVarNode* var);
 
   virtual void VisitSpan(const Span& span);
+  virtual void VisitTypePrimExprField(const PrimExpr& expr);
 
  private:
   using TSelf = ExprVisitor;
@@ -469,10 +471,19 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
 
   /*!
+   * \brief Used to visit the PrimExpr inside of dependent type fields.
+   *
+   * Can be overloaded to transform shape expressions without changing
+   * runtime PrimExpr traversal.
+   */
+  virtual PrimExpr VisitTypePrimExprField(const PrimExpr& expr);
+
+  /*!
    * \brief Visit ty that may recursively contain Expr/PrimExpr.
    *
    * By default, this function recurse into type such as
-   * TensorType and ShapeType and call VisitExpr accordingly. It does not
+   * TensorType and ShapeType and call VisitExpr/VisitTypePrimExprField
+   * accordingly. It does not
    * recurse into FunctionType as it does
    * not contain Expr defined in the current scope.
    *

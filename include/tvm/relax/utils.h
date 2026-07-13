@@ -109,7 +109,8 @@ TVM_DLL bool IsLeafOrTuple(const Expr& expr);
 /*!
  * \brief Check if the given Call node is an impure operation. If the callee is a general
  * expression, this simply requires checking the purity field of the FuncType. If it is an Op,
- * then this checks the `fPurity` field.
+ * then this checks the Relax `FPurity` attribute, falling back to the TIR
+ * `TCallEffectKind` attribute for primitive operators.
  *
  * \param call The input call
  *

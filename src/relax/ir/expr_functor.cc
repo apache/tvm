@@ -103,7 +103,7 @@ void ExprVisitor::DefaultTypeFieldVisitor::VisitTypeExprField(const Expr& expr) 
 }
 
 void ExprVisitor::DefaultTypeFieldVisitor::VisitTypeExprField(const PrimExpr& expr) {
-  parent_->VisitExpr(expr);
+  parent_->VisitTypePrimExprField(expr);
 }
 
 void ExprVisitor::DefaultTypeFieldVisitor::VisitType_(const FuncTypeNode* op) {
@@ -314,6 +314,8 @@ void ExprVisitor::VisitExpr_(const DataTypeImmNode* op) { this->VisitSpan(op->sp
 
 void ExprVisitor::VisitSpan(const Span& span) {}
 
+void ExprVisitor::VisitTypePrimExprField(const PrimExpr& expr) { this->VisitExpr(expr); }
+
 // implementations of binding visitor dispatch
 RELAX_VAR_BINDING_DISPATCH_IMPL(ExprVisitor);
 RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(ConstantNode);
@@ -428,7 +430,7 @@ Expr ExprMutatorBase::DefaultTypeFieldMutator::VisitTypeExprField(const Expr& ex
 }
 
 PrimExpr ExprMutatorBase::DefaultTypeFieldMutator::VisitTypeExprField(const PrimExpr& expr) {
-  return parent_->VisitExpr(expr).as_or_throw<PrimExpr>();
+  return parent_->VisitTypePrimExprField(expr);
 }
 
 Type ExprMutatorBase::DefaultTypeFieldMutator::VisitType_(const FuncTypeNode* op) {
@@ -720,6 +722,10 @@ BindingBlock ExprMutatorBase::VisitBindingBlock(const BindingBlock& block) {
   } else {
     return BindingBlock(bindings);
   }
+}
+
+PrimExpr ExprMutatorBase::VisitTypePrimExprField(const PrimExpr& expr) {
+  return this->VisitExpr(expr).as_or_throw<PrimExpr>();
 }
 
 // ==================

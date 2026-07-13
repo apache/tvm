@@ -288,11 +288,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         for (const auto& [var, value] : shape_var_map) {
           TVM_FFI_CHECK(var.as<tirx::PrimVar>(), TypeError)
               << "Expected an exact primitive Var, but received " << var;
-          auto it = var_map.find(var);
-          TVM_FFI_CHECK(it == var_map.end() || (*it).second.same_as(value) ||
-                            ffi::StructuralEqual()((*it).second, value),
-                        ValueError)
-              << "Conflicting replacements for Var " << var;
           var_map.Set(var, value);
         }
         return EraseToWellDefined(info, var_map);
