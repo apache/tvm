@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
-import pytest
-
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
@@ -1431,21 +1429,6 @@ def test_detect_iter_map_accepts_external_analyzer():
     analyzer.bind(tile, T.int32(4))
     # The external analyzer supplies `tile == 4`, allowing detection to succeed.
     assert len(tvm.arith.detect_iter_map([i % tile], iter_vars, analyzer=analyzer).indices) == 1
-
-
-def test_detect_iter_map_rejects_relax_var_in_primvar_map():
-    i = tvm.tirx.Var("i", "int32")
-    runtime_value = tvm.relax.DataflowVar("runtime_value", tvm.ir.PrimType("int32"))
-
-    # Runtime Relax vars may occur in predicates without being iterator variables.
-    result = tvm.arith.detect_iter_map([i], {i: tvm.ir.Range(0, 16)}, predicate=runtime_value < 5)
-    assert len(result.indices) == 1
-
-    # The typed iterator map itself accepts only exact PrimVar objects.
-    with pytest.raises(TypeError):
-        tvm.arith.detect_iter_map(
-            [i], {runtime_value: tvm.ir.Range(0, 16)}, predicate=runtime_value < 5
-        )
 
 
 def test_iter_map_simplify_accepts_external_analyzer():

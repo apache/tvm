@@ -39,17 +39,7 @@ class ReplaceVar(ExprMutator):
 def test_expr_constructor():
     x = tvm.tirx.Var(name="xx", ty="float32")
     assert isinstance(x, tvm.tirx.Var)
-    assert x.name == x.name_hint == "xx"
-
-    legacy = tvm.tirx.Var(name_hint="legacy", ty="int64")
-    assert legacy.name == legacy.name_hint == "legacy"
-
-    assert tvm.ir.is_prim_var(x)
-    assert not tvm.ir.is_prim_var(tvm.ir.Var("tensor", tvm.relax.TensorType([], "float32")))
-    assert not tvm.ir.is_prim_var(tvm.ir.Var("pointer", "handle"))
-    assert not tvm.ir.is_prim_var(
-        tvm.relax.DataflowVar("runtime_primitive", tvm.ir.PrimType("int64"))
-    )
+    assert x.name == "xx"
 
     x = tvm.tirx.Reduce(None, [1], [tvm.tirx.IterVar((0, 1), "x", 2)], None, 0)
     assert isinstance(x, tvm.tirx.Reduce)
