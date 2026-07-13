@@ -27,8 +27,10 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/tensor.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "tensorrt_logger.h"
 #include "tensorrt_ops.h"
@@ -109,13 +111,35 @@ void TensorRTBuilder::AddOutput(const JSONGraphNodeEntry& node, uint32_t entry_i
   entry_id_map_[name] = entry_id;
 }
 
+namespace {
+std::string SupportedOperatorList(
+    const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& map) {
+  std::vector<std::string> names;
+  names.reserve(map.size());
+  for (const auto& kv : map) names.push_back(kv.first);
+  std::sort(names.begin(), names.end());
+  std::string out;
+  for (size_t i = 0; i < names.size(); ++i) {
+    if (i) out += ", ";
+    out += names[i];
+  }
+  return out;
+}
+}  // namespace
+
 void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
   TensorRTOpConverterParams params(network_, nid, node, &trt_weights_);
   // Look up converter.
   const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& map =
       GetOpConverters();
   auto it = map.find(params.op_name);
-  TVM_FFI_ICHECK(it != map.end()) << params.op_name << ": Unsupported operator";
+  TVM_FFI_ICHECK(it != map.end())
+      << params.op_name
+      << ": Unsupported operator for the TensorRT BYOC backend. The composite function name must "
+         "match a registered TensorRT converter; prefer "
+         "tvm.relax.backend.contrib.tensorrt.partition_for_tensorrt over hand-written patterns. "
+         "Supported operators: "
+      << SupportedOperatorList(map);
   const TensorRTOpConverter& converter = *it->second;
   if (!converter.variable_input_count) {
     TVM_FFI_ICHECK_EQ(node.GetInputs().size(), converter.input_types.size())
