@@ -288,7 +288,7 @@ def arange(
     start = prim_value(start)
     end = prim_value(end)
     step = prim_value(step)
-    return _ffi_api.arange(start, end, step, dtype)  # type: ignore
+    return _ffi_api.arange(start, end, step, _raw_dtype(dtype))  # type: ignore
 
 
 def hamming_window(window_size, periodic, alpha, beta, dtype):
