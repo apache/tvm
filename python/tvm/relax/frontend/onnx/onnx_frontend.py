@@ -527,11 +527,39 @@ class Div(BinaryBase):
     numpy_op = _np.divide
     relax_op = relax.op.divide
 
+    @staticmethod
+    def _as_scalar_prim_expr(expr, dtype):
+        if tvm.ir.is_prim_expr(expr):
+            return expr
+        if isinstance(expr, relax.Constant):
+            data = expr.data.numpy()
+            if data.size == 1:
+                return tirx.const(data.item(), dtype)
+        return None
+
+    @staticmethod
+    def _is_zero(expr):
+        if isinstance(expr, relax.Constant):
+            return bool(_np.any(expr.data.numpy() == 0))
+        if isinstance(expr, tirx.IntImm):
+            return int(expr.value) == 0
+        return False
+
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
         try:
-            lhs_code = DataType(inputs[0].ty.dtype.dtype).type_code
-            rhs_code = DataType(inputs[1].ty.dtype.dtype).type_code
+            lhs_dtype = (
+                str(getattr(inputs[0], "dtype", None) or inputs[0].ty)
+                if tvm.ir.is_prim_expr(inputs[0])
+                else inputs[0].ty.dtype.dtype
+            )
+            rhs_dtype = (
+                str(getattr(inputs[1], "dtype", None) or inputs[1].ty)
+                if tvm.ir.is_prim_expr(inputs[1])
+                else inputs[1].ty.dtype.dtype
+            )
+            lhs_code = DataType(lhs_dtype).type_code
+            rhs_code = DataType(rhs_dtype).type_code
         except (AttributeError, ValueError, TypeError, RuntimeError):
             return cls.base_impl(bb, inputs, attr, params)
 
@@ -540,8 +568,14 @@ class Div(BinaryBase):
         if not (lhs_is_integer and rhs_is_integer):
             return cls.base_impl(bb, inputs, attr, params)
 
-        if isinstance(inputs[1], relax.Constant) and bool(_np.any(inputs[1].data.numpy() == 0)):
+        if cls._is_zero(inputs[1]):
             raise ValueError("ONNX Div with integer inputs encountered divisor value 0.")
+
+        has_prim_expr = any(tvm.ir.is_prim_expr(inp) for inp in inputs)
+        lhs = cls._as_scalar_prim_expr(inputs[0], lhs_dtype)
+        rhs = cls._as_scalar_prim_expr(inputs[1], rhs_dtype)
+        if has_prim_expr and lhs is not None and rhs is not None:
+            return relax.prim_value(tirx.truncdiv(lhs, rhs))
 
         return cls.base_impl(bb, inputs, attr, params)
 
