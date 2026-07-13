@@ -112,8 +112,8 @@ class VariableReplacer(PyStmtExprMutator):
         self.replacements = replacements
 
     def visit_var_(self, op: Var):
-        if op.name_hint in self.replacements:
-            return IntImm("int32", self.replacements[op.name_hint])
+        if op.name in self.replacements:
+            return IntImm("int32", self.replacements[op.name])
         return op
 
 
@@ -177,7 +177,7 @@ class SimpleStmtExprVisitor(PyStmtExprVisitor):
         self.var_names = set()
 
     def visit_var_(self, op: Var):
-        self.var_names.add(op.name_hint)
+        self.var_names.add(op.name)
         self.expr_count += 1
 
     def visit_evaluate_(self, op: Evaluate):
@@ -255,8 +255,8 @@ def test_add_to_sub_mutator():
     assert isinstance(result, Sub)
     assert isinstance(result.a, Var)
     assert isinstance(result.b, Var)
-    assert result.a.name_hint == "x"
-    assert result.b.name_hint == "y"
+    assert result.a.name == "x"
+    assert result.b.name == "y"
 
 
 def test_simple_stmt_counter():

@@ -351,7 +351,7 @@ def test_tir_loop_steps():
     assert stmts[1].step == 3
     assert stmts[2].step == 4
     assert stmts[3].step == 5
-    assert stmts[4].step.name_hint == "v"
+    assert stmts[4].step.name == "v"
 
 
 def test_tir_empty_tuple_index():

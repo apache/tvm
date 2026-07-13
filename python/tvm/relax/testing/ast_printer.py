@@ -221,7 +221,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_prim_expr_field_(self, prim_expr: Expr) -> str:
         # TODO: We may want to print Expr ASTs, but this is a simplification for now
-        value = prim_expr.name_hint if isinstance(prim_expr, tvm.ir.Var) else str(prim_expr)
+        value = prim_expr.name if isinstance(prim_expr, tvm.ir.Var) else str(prim_expr)
         return self.build_ast_node("Expr", value=f"`{value}`")
 
     def visit_expr_fallback_(self, op: Expr) -> str:

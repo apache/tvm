@@ -179,7 +179,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 
     def _convert_input(arg):
         if isinstance(arg, tvm.ir.Var):
-            return rx.Var(arg.name_hint, ty=ShapeType(values=[arg]))
+            return rx.Var(arg.name, ty=ShapeType(values=[arg]))
         if isinstance(arg, core.Tensor | core.Object):
             return arg._expr  # pylint: disable=protected-access
         if isinstance(arg, _spec.Tuple):
@@ -193,7 +193,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         inputs: list[rx.Var] = []
 
         def _get_var(shape_var: tirx.Var) -> tirx.Var:
-            name = shape_var.name_hint
+            name = shape_var.name
             if name in str2var_params:
                 return str2var_params[name]
             var = tirx.Var(name, "int64")

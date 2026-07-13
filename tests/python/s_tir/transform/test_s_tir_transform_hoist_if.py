@@ -35,7 +35,7 @@ def verify_structure(stmt, expected_struct):
     def _extract_vars(op):
         global var_list
         if isinstance(op, tvm.tirx.Var):
-            var_list.append(op.name_hint)
+            var_list.append(op.name)
 
     def _visit(op):
         key = op
@@ -45,7 +45,7 @@ def verify_structure(stmt, expected_struct):
             val = [(op.then_case, op.else_case), ("tirx.IfThenElse", tuple(var_list))]
             var_list.clear()
         elif isinstance(op, tvm.tirx.For):
-            val = [(op.body,), ("tirx.For", op.loop_var.name_hint)]
+            val = [(op.body,), ("tirx.For", op.loop_var.name)]
         elif isinstance(op, tvm.tirx.AttrStmt):
             val = [(op.body,), ("tirx.AttrStmt", op.attr_key, int(op.value))]
         else:

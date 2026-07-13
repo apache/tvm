@@ -1097,7 +1097,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         self._check_unsupported_func_type(graph.nodes)
 
         sym_vars = {
-            v.name_hint: v for shape, _ in input_info for v in shape if isinstance(v, tvm.ir.Var)
+            v.name: v for shape, _ in input_info for v in shape if isinstance(v, tvm.ir.Var)
         }
 
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):

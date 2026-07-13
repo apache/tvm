@@ -58,7 +58,7 @@ def bind_assign_value(
     var_table = self.var_table.get()
 
     if tvm.ir.is_prim_var(value) and not emit_prim_expr:
-        if value.name_hint and var_name != value.name_hint:
+        if value.name and var_name != value.name:
             self.report_error(
                 node,
                 "Cannot define PrimType values with different names. The LHS of binding "

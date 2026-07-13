@@ -65,14 +65,14 @@ def test_deduce():
 
     e2 = tvm.tirx.max(5, a * 4) < 0
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert res2.max_value.name_hint == "neg_inf"
-    assert res2.min_value.name_hint == "pos_inf"
+    assert res2.max_value.name == "neg_inf"
+    assert res2.min_value.name == "pos_inf"
 
     # expression containing variable a is on rhs
     e2 = zero < tvm.tirx.max(5, a * 4)
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
-    assert res2.max_value.name_hint == "neg_inf"
-    assert res2.min_value.name_hint == "pos_inf"
+    assert res2.max_value.name == "neg_inf"
+    assert res2.min_value.name == "pos_inf"
 
     e3 = (-b) + a * c - d
     res3 = tvm.arith.deduce_bound(a, e3 >= 0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
@@ -89,8 +89,8 @@ def test_deduce():
 
     # Unsatisfiable `EQ`, variable as one of the Operand
     res5 = tvm.arith.deduce_bound(a, (a == b), {b: b_s}, {b: b_s})
-    assert res5.max_value.name_hint == "neg_inf"
-    assert res5.min_value.name_hint == "pos_inf"
+    assert res5.max_value.name == "neg_inf"
+    assert res5.min_value.name == "pos_inf"
 
     # variable `a` on the RHS side
     res6 = tvm.arith.deduce_bound(a, 10 == a, {}, {})
@@ -112,8 +112,8 @@ def test_deduce():
     # Unsatisfiable Mul in `EQ`
     e5 = 4 * a == b
     res9 = tvm.arith.deduce_bound(a, e5, {b: b_s}, {})
-    assert res9.max_value.name_hint == "neg_inf"
-    assert res9.min_value.name_hint == "pos_inf"
+    assert res9.max_value.name == "neg_inf"
+    assert res9.min_value.name == "pos_inf"
 
     res10 = tvm.arith.deduce_bound(a, (b * a == b), {b: b_s}, {})
     # simplifier is now able to prove symbolic relation (b * a % b == 0)
@@ -237,11 +237,11 @@ def test_deduce_floordiv():
         expr = gen_expr(a)
         res = tvm.arith.deduce_bound(a, expr, dom_map, dom_map)
         if isinstance(expect_min, str):
-            assert res.min_value.name_hint == expect_min
+            assert res.min_value.name == expect_min
         else:
             tvm.testing.assert_prim_expr_equal(res.min_value, expect_min)
         if isinstance(expect_max, str):
-            assert res.max_value.name_hint == expect_max
+            assert res.max_value.name == expect_max
         else:
             tvm.testing.assert_prim_expr_equal(res.max_value, expect_max)
 

@@ -130,11 +130,11 @@ def extract_dynamic_var(
                     if isinstance(arg, relax.TensorType):
                         for val in arg.shape.values:
                             if tvm.ir.is_prim_var(val):
-                                dym_var_dict[gv][val.name_hint] = str(val.ty)
+                                dym_var_dict[gv][val.name] = str(val.ty)
                     elif isinstance(arg, relax.ShapeType):
                         for val in arg.values:
                             if tvm.ir.is_prim_var(val):
-                                dym_var_dict[gv][val.name_hint] = str(val.ty)
+                                dym_var_dict[gv][val.name] = str(val.ty)
                     else:
                         raise NotImplementedError
     return dym_var_dict
@@ -186,7 +186,7 @@ def extract_func_info_from_prim_func(
             if isinstance(dim, tvm.tirx.IntImm):
                 shape.append(dim.value)
             elif tvm.ir.is_prim_var(dim):
-                dym_var[dim.name_hint] = str(dim.ty)
+                dym_var[dim.name] = str(dim.ty)
                 shape.append(dim)
             else:
                 raise ValueError(f"Unknown shape: {buffer.shape}")

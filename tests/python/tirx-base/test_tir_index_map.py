@@ -105,7 +105,7 @@ def test_inverse():
 def test_inverse_preserves_passthrough_var_names():
     index_map = IndexMap.from_func(lambda i, j: [j, i], index_dtype="int32")
     inverse = index_map.inverse([8, 16])
-    assert [v.name_hint for v in inverse.initial_indices] == ["j", "i"]
+    assert [v.name for v in inverse.initial_indices] == ["j", "i"]
 
 
 def test_inverse_accepts_external_analyzer():

@@ -90,7 +90,7 @@ def populuate_input_shape(
         if isinstance(input_info, relax.ShapeType):
             # scalar input
             value = input_info.values[0]
-            key = value.name_hint if isinstance(value, tvm.ir.Var) else str(value)
+            key = value.name if isinstance(value, tvm.ir.Var) else str(value)
             results.append(((dym_var_sample[key],), "scalar"))
         else:
             if isinstance(input_info, relax.TensorType):
@@ -104,7 +104,7 @@ def populuate_input_shape(
                 elif isinstance(dim, tvm.tirx.IntImm):
                     shape.append(dim.value)
                 else:
-                    key = dim.name_hint if isinstance(dim, tvm.ir.Var) else str(dim)
+                    key = dim.name if isinstance(dim, tvm.ir.Var) else str(dim)
                     shape.append(dym_var_sample[key])
             results.append(((*shape,), _dtype_str(tensor_dtype)))
     return results

@@ -643,7 +643,7 @@ def create_test_statements():
 
     # Buffer operations
     buffer_var = tir.Var("buf", "handle")
-    buffer = tir.decl_buffer((10,), "int32", buffer_var.name_hint)
+    buffer = tir.decl_buffer((10,), "int32", buffer_var.name)
     buffer_store = tir.BufferStore(buffer, add_expr, [int_imm])
 
     # Sequence of statements
@@ -1091,7 +1091,7 @@ def test_op_call_config_visited():
             self.vars = set()
 
         def visit_var_(self, op):
-            self.vars.add(op.name_hint)
+            self.vars.add(op.name)
 
     @T.prim_func
     def op_call_with_config(A: T.Buffer((10,), "int32"), B: T.Buffer((10,), "int32")):
@@ -1150,8 +1150,8 @@ def test_op_call_config_mutated():
     cta_mask_expr = result.config["cta_mask"]
     assert isinstance(cta_mask_expr, tir.Add)
     assert isinstance(cta_mask_expr.a, tir.Var)
-    assert cta_mask_expr.a.name_hint == "new_let_var", (
-        f"Expected 'new_let_var' after substitution, got '{cta_mask_expr.a.name_hint}'. "
+    assert cta_mask_expr.a.name == "new_let_var", (
+        f"Expected 'new_let_var' after substitution, got '{cta_mask_expr.a.name}'. "
         "Substitute should visit Expr values in TilePrimitiveCall.config."
     )
 

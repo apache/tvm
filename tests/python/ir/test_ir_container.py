@@ -77,7 +77,7 @@ def test_map_save_load_json():
     json_str = tvm.ir.save_json(amap)
     amap = tvm.ir.load_json(json_str)
     assert len(amap) == 2
-    dd = {kv[0].name_hint: kv[1] for kv in amap.items()}
+    dd = {kv[0].name: kv[1] for kv in amap.items()}
     assert dd == {"a": 2, "b": 3}
 
 

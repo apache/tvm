@@ -39,7 +39,7 @@ def test_decl_buffer_data_is_use():
     stmt = tirx.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
-    undef_names = {v.name_hint for v in undef}
+    undef_names = {v.name for v in undef}
     # data_ptr must be undefined (it comes from outside the DeclBuffer)
     assert "buf_data" in undef_names, f"Expected buf_data in undefined vars, got {undef_names}"
 
@@ -62,7 +62,7 @@ def test_decl_buffer_elem_offset_is_use():
     stmt = tirx.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
-    undef_names = {v.name_hint for v in undef}
+    undef_names = {v.name for v in undef}
     assert "buf_data" in undef_names, f"Expected buf_data in undefined vars, got {undef_names}"
     assert "buf_elem_offset" in undef_names, (
         f"Expected buf_elem_offset in undefined vars, got {undef_names}"
@@ -83,10 +83,10 @@ def test_alloc_buffer_data_is_def():
     stmt = tirx.SeqStmt([alloc, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
-    undef_names = {v.name_hint for v in undef}
+    undef_names = {v.name for v in undef}
     # data should NOT be undefined — AllocBuffer defines it
-    assert buf.data.name_hint not in undef_names, (
-        f"AllocBuffer data should be defined, but found {buf.data.name_hint} in {undef_names}"
+    assert buf.data.name not in undef_names, (
+        f"AllocBuffer data should be defined, but found {buf.data.name} in {undef_names}"
     )
     # shape var n should be undefined (comes from enclosing scope)
     assert "n" in undef_names, f"Expected shape var 'n' in undefined vars, got {undef_names}"

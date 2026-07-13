@@ -208,9 +208,9 @@ def test_tir_schedule_get_loops(use_block_name):
     sch = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block = "update" if use_block_name else sch.get_sblock(name="update")
     i, j, k = sch.get_loops(block)
-    assert sch.get(i).loop_var.name_hint == "i"
-    assert sch.get(j).loop_var.name_hint == "j"
-    assert sch.get(k).loop_var.name_hint == "k"
+    assert sch.get(i).loop_var.name == "i"
+    assert sch.get(j).loop_var.name == "j"
+    assert sch.get(k).loop_var.name == "k"
 
 
 def test_tir_schedule_copy_1(use_block_name):
@@ -219,15 +219,15 @@ def test_tir_schedule_copy_1(use_block_name):
     sch_1 = tvm.s_tir.Schedule(matmul, debug_mask="all")
     block_rv = sch_1.get_sblock(name="update")
     i, j, k = sch_1.get_loops(block="update" if use_block_name else block_rv)
-    assert sch_1.get(i).loop_var.name_hint == "i"
-    assert sch_1.get(j).loop_var.name_hint == "j"
-    assert sch_1.get(k).loop_var.name_hint == "k"
+    assert sch_1.get(i).loop_var.name == "i"
+    assert sch_1.get(j).loop_var.name == "j"
+    assert sch_1.get(k).loop_var.name == "k"
 
     sch_2 = sch_1.copy()
     assert sch_2.get(block_rv).name_hint == "update"
-    assert sch_2.get(i).loop_var.name_hint == "i"
-    assert sch_2.get(j).loop_var.name_hint == "j"
-    assert sch_2.get(k).loop_var.name_hint == "k"
+    assert sch_2.get(i).loop_var.name == "i"
+    assert sch_2.get(j).loop_var.name == "j"
+    assert sch_2.get(k).loop_var.name == "k"
 
 
 def test_tir_schedule_copy_2():
