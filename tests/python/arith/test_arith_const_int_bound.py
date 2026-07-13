@@ -204,6 +204,53 @@ class TestFloorModBound(BaseCompare):
     )
 
 
+class TestModBoundWithModularSet(BaseCompare):
+    """floormod/truncmod bounds tightened by modular-set information.
+
+    When the dividend satisfies `a == base (mod coeff)` and
+    `g = gcd(coeff, divisor) > 1`, `floormod(a, divisor)` can only take the
+    values `{r, r + g, ..., divisor - g + r}` where `r = base % g`.
+
+    Regression test for a bug where the residue was normalized modulo the
+    divisor instead of modulo `g`, yielding invalid bounds (min > max) such
+    as [255, 191] for `(n * 320 + 255) % 256`. Such bounds let
+    `CanProve(..., kSymbolicBound)` incorrectly validate the bounds
+    predicates of imperfect loop splits, so scheduled GPU kernels silently
+    lost their out-of-bounds guards.
+    """
+
+    n = tvm.tirx.Var("n", "int64")
+    tmod = tvm.tirx.truncmod
+
+    test_case = tvm.testing.parameter(
+        # gcd(320, 256) = 64, base 255 -> residue 63: values {63, 127, 191, 255}
+        TestCase((n * 320 + 255) % 256, (63, 255)),
+        # coeff divides the divisor, base 0: multiples of 16
+        TestCase((n * 16) % 7168, (0, 7152)),
+        # base already smaller than the gcd: values {3, 67, 131, 195}
+        TestCase((n * 64 + 3) % 256, (3, 195)),
+        # truncated mod mirrors the residues on the negative side
+        TestCase(tmod(n * 64 + 3, 256), (-253, 195)),
+        # non-negative dividend keeps the one-sided range
+        TestCase(tmod(n * 64 + 3, 256), (3, 195), {n: (0, POS_INF)}),
+        # the modular bound must not discard a tighter interval bound:
+        # dividend in [63, 127] -> values {63, 127}, not [63, 255]
+        TestCase((n * 64 + 63) % 256, (63, 127), {n: (0, 1)}),
+        # same for truncmod with a negative dividend range: values {-67, -3}
+        TestCase(tmod(n * 64 + 61, 256), (-67, -3), {n: (-2, -1)}),
+        # floormod of the same negative range: values {189, 253}, the
+        # modular residue set {61, 125, 189, 253} bounds it to [61, 253]
+        TestCase((n * 64 + 61) % 256, (61, 253), {n: (-2, -1)}),
+        # Truncated mod with an entirely-negative dividend whose magnitude is
+        # below the divisor: no reduction happens, so the result equals the
+        # dividend and the bound is [a.min, a.max], not the loose [a.min, 0].
+        TestCase(tmod(n, 256), (-5, -3), {n: (-5, -3)}),
+        # A negative dividend that spans a multiple of the divisor can still
+        # reach 0, so the upper bound stays 0 (no tightening here).
+        TestCase(tmod(n, 256), (-255, 0), {n: (-1000, -300)}),
+    )
+
+
 class TestMinMaxBound(BaseCompare):
     x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
 
