@@ -1221,5 +1221,66 @@ def test_handle_existence_of_call_tir():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_tuple_get_item_dependency_prevents_cyclic_merge():
+    """TupleGetItem dependencies must be considered when merging composite regions."""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(private=True)
+        def relu(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            R.func_attr({"Composite": "compiler_A.relu", "Primitive": True})
+            return R.nn.relu(x)
+
+        @R.function(private=True)
+        def relu_half(
+            x: R.Tensor((1, 4), "float32"),
+        ) -> R.Tensor((1, 4), "float32"):
+            R.func_attr({"Composite": "compiler_A.relu", "Primitive": True})
+            return R.nn.relu(x)
+
+        @R.function(private=True)
+        def split(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            R.func_attr({"Composite": "compiler_A.split", "Primitive": True})
+            return R.split(x, indices_or_sections=2, axis=0)
+
+        @R.function(private=True)
+        def concat(
+            x: R.Tensor((2, 4), "float32"),
+            y: R.Tensor((1, 4), "float32"),
+        ) -> R.Tensor((3, 4), "float32"):
+            R.func_attr({"Composite": "compiler_A.concat", "Primitive": True})
+            return R.concat((x, y), axis=0)
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((3, 4), "float32"):
+            cls = Before
+            with R.dataflow():
+                producer = cls.relu(x)
+                parts = cls.split(producer)
+                right = parts[1]
+                side = cls.relu(producer)
+                right_out = cls.relu_half(right)
+                out = cls.concat(side, right_out)
+                R.output(out)
+            return out
+
+    after = relax.transform.MergeCompositeFunctions()(Before)
+    codegen_regions = [
+        func
+        for func in after.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Codegen") == "compiler_A"
+    ]
+    assert len(codegen_regions) == 2
+    relax.analysis.well_formed(after)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
