@@ -153,9 +153,22 @@ void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
 
 Tensor TensorCacheMetadata::FileRecord::ParamRecord::Load(
     Device device, const std::string* raw_data, ffi::Optional<Tensor>* staging_buffer) const {
+  // `byte_offset` and `nbytes` come from tensor-cache.json; FileRecord::Load only validates the shard
+  // total, not each parameter's range. Bounds-check this parameter against the shard buffer before the
+  // copy so a malformed/inconsistent cache fails with a clear error instead of reading out of bounds.
+  // (Written to avoid signed overflow on `byte_offset + nbytes`.)
+  TVM_FFI_CHECK(raw_data != nullptr, ValueError) << "Shard buffer must not be null.";
+  int64_t shard_len = static_cast<int64_t>(raw_data->length());
+  TVM_FFI_CHECK(byte_offset >= 0 && nbytes >= 0 && byte_offset <= shard_len &&
+                    nbytes <= shard_len - byte_offset,
+                ValueError)
+      << "Parameter byte range [" << byte_offset << ", " << (byte_offset + nbytes)
+      << ") is out of bounds of the " << shard_len << "-byte shard buffer.";
   Tensor arr = Tensor::Empty(shape, dtype, device);
   if (dtype == DLDataType{kDLFloat, 32, 1} && format == "f32-to-bf16") {
-    // decode bf16 to f32
+    // decode bf16 to f32; nbytes must be even so `buffer` (nbytes/2 uint16_t = nbytes bytes) holds the memcpy.
+    TVM_FFI_CHECK(nbytes % 2 == 0, ValueError)
+        << "Parameter nbytes must be even for the f32-to-bf16 format, but got " << nbytes << ".";
     std::vector<uint16_t> buffer(nbytes / 2);
     std::vector<uint32_t> decoded(nbytes / 2);
     std::memcpy(buffer.data(), raw_data->data() + byte_offset, nbytes);
