@@ -22,6 +22,8 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/transform.h>
 
+#include <mutex>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -147,6 +149,11 @@ class VerifyGPUCodeNode : public PostprocNode {
   }
 
   bool Apply(const s_tir::Schedule& sch) final {
+#ifdef _WIN32
+    // The lowering pipeline below is not safe to run concurrently on Windows.
+    static std::mutex lowering_mutex;
+    std::lock_guard<std::mutex> lock(lowering_mutex);
+#endif
     IRModule mod = sch->mod();
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;

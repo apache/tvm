@@ -19,6 +19,8 @@
 
 # pylint: disable=missing-function-docstring
 
+import sys
+
 import pytest
 
 import tvm
@@ -64,6 +66,41 @@ class OtherBlock:
                 with T.init():
                     C[vi, vj] = 0.0 # type: ignore
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+
+@tvm.script.ir_module
+class Conv2d:
+    @T.prim_func(s_tir=True)
+    def main(
+        x: T.Buffer((1, 3, 8, 8), "float32"),
+        weight: T.Buffer((4, 3, 3, 3), "float32"),
+        output: T.Buffer((1, 4, 8, 8), "float32"),
+    ) -> None:
+        T.func_attr({"tirx.noalias": True})
+        padded = T.sblock_alloc_buffer((1, 3, 10, 10))
+        for n, c, h, w in T.grid(1, 3, 10, 10):
+            with T.sblock("pad"):
+                vn, vc, vh, vw = T.axis.remap("SSSS", [n, c, h, w])
+                T.reads(x[vn, vc, vh - 1, vw - 1])
+                T.writes(padded[vn, vc, vh, vw])
+                padded[vn, vc, vh, vw] = T.if_then_else(
+                    1 <= vh and vh < 9 and 1 <= vw and vw < 9,
+                    x[vn, vc, vh - 1, vw - 1],
+                    T.float32(0),
+                )
+        for n, f, h, w, rc, rh, rw in T.grid(1, 4, 8, 8, 3, 3, 3):
+            with T.sblock("conv2d"):
+                vn, vf, vh, vw, vrc, vrh, vrw = T.axis.remap(
+                    "SSSSRRR", [n, f, h, w, rc, rh, rw]
+                )
+                T.reads(padded[vn, vrc, vh + vrh, vw + vrw], weight[vf, vrc, vrh, vrw])
+                T.writes(output[vn, vf, vh, vw])
+                with T.init():
+                    output[vn, vf, vh, vw] = T.float32(0)
+                output[vn, vf, vh, vw] = (
+                    output[vn, vf, vh, vw]
+                    + padded[vn, vrc, vh + vrh, vw + vrw] * weight[vf, vrc, vrh, vrw]
+                )
 
 # fmt: on
 # pylint: enable=missing-class-docstring,invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -269,6 +306,55 @@ def test_meta_schedule_evolutionary_search_early_stop():  # pylint: disable = in
         candidates = strategy.generate_measure_candidates()
     strategy.post_tuning()
     assert num_trials_each_iter == [1, 0, 0, 0, 0]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows-specific concurrency regression")
+def test_evolutionary_search_cuda_postprocessors_thread_safe():
+    target = tvm.target.Target(
+        {
+            "kind": "cuda",
+            "arch": "sm_120",
+            "max_num_threads": 1024,
+            "max_shared_memory_per_block": 49152,
+            "max_threads_per_block": 1024,
+            "thread_warp_size": 32,
+        }
+    )
+
+    for seed in range(3):
+        context = ms.TuneContext(
+            mod=Conv2d,
+            target=target,
+            space_generator=ms.space_generator.PostOrderApply(
+                sch_rules="from-target",
+                postprocs="from-target",
+                mutator_probs="from-target",
+            ),
+            search_strategy=ms.search_strategy.EvolutionarySearch(
+                population_size=512,
+                init_measured_ratio=0.2,
+                init_min_unmeasured=50,
+                max_fail_count=5,
+                genetic_num_iters=1,
+                genetic_mutate_prob=0.85,
+                genetic_max_fail_count=10,
+                eps_greedy=0.05,
+            ),
+            task_name="conv2d",
+            num_threads=2,
+            rand_state=seed,
+        )
+        strategy = context.search_strategy
+        strategy.pre_tuning(
+            max_trials=1,
+            num_trials_per_iter=1,
+            design_spaces=context.generate_design_space(),
+            database=ms.database.MemoryDatabase(),
+            cost_model=ms.cost_model.RandomModel(),
+        )
+        candidates = strategy.generate_measure_candidates()
+        strategy.post_tuning()
+        assert candidates is not None
 
 
 def test_meta_schedule_evolutionary_search_fail_init_population():  # pylint: disable = invalid-name
