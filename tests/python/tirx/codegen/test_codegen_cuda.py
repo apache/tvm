@@ -139,7 +139,7 @@ def test_cuda_atomic_add():
     B_np = np.zeros(1, dtype="float32")
 
     def run_and_check():
-        dev = tvm.device("cuda")
+        dev = tvm.cuda()
         A_tvm = tvm.runtime.tensor(A_np, device=dev)
         B_tvm = tvm.runtime.tensor(B_np, device=dev)
         mod["main"](A_tvm, B_tvm)
@@ -479,7 +479,7 @@ __device__ int32_t add_one(int32_t a) {
         B = np.zeros((16, 16), dtype="int32")
 
         def run_and_check():
-            dev = tvm.device("cuda")
+            dev = tvm.cuda()
             A_tvm = tvm.runtime.tensor(A, device=dev)
             B_tvm = tvm.runtime.tensor(B, device=dev)
             mod["main"](A_tvm, B_tvm)
@@ -510,7 +510,7 @@ __device__ void print(int32_t a) {
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
 
         def run_and_check():
-            dev = tvm.device("cuda")
+            dev = tvm.cuda()
             A_tvm = tvm.runtime.tensor(A, device=dev)
             mod["main"](A_tvm)
             dev.sync()
@@ -602,7 +602,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
             A_ref = np.ones(N, dtype="float16") * 6
 
     def run_and_check():
-        dev = tvm.device("cuda")
+        dev = tvm.cuda()
         A = tvm.runtime.tensor(A_np, device=dev)
         mod(A)
         np.testing.assert_allclose(A.numpy(), A_ref)
@@ -678,7 +678,7 @@ def test_ptx_ldmatrix(trans, num):
         B_ref[8:16, 8:16] = A_np[8:16, 8:16] if not trans else A_np[8:16, 8:16].T
 
     def run_and_check():
-        dev = tvm.device("cuda")
+        dev = tvm.cuda()
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         mod(A, B)

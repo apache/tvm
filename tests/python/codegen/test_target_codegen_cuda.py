@@ -329,7 +329,7 @@ def test_cuda_inf_nan():
         fun = tvm.compile(Module, target="cuda")
 
         def run_and_check():
-            dev = tvm.device("cuda", 0)
+            dev = tvm.cuda(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -387,7 +387,7 @@ def test_crossthread_reduction1(target):
         vals = [nthd - 1, nthd, nthd + 1]
 
         def run_and_check():
-            dev = tvm.device(target)
+            dev = tvm.device_from_target(target)
             for kk in vals:
                 size = (nn, kk)
                 a = tvm.runtime.tensor(np.random.uniform(size=size).astype("float32"), dev)
@@ -456,7 +456,7 @@ def test_crossthread_reduction2(target):
         vy = [nthdy - 1, nthdy, nthdy + 1]
 
         def run_and_check():
-            dev = tvm.device(target)
+            dev = tvm.device_from_target(target)
             for kk0, kk1 in [(x, y) for x in vx for y in vy]:
                 size = (nn, kk0, kk1)
                 a = tvm.runtime.tensor(np.random.uniform(size=size).astype("float32"), dev)

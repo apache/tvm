@@ -27,19 +27,41 @@ from tvm.testing import env
 
 def test_all_targets_device_type_verify():
     """Consistency verification for all targets' device type"""
-    target_kind_set = set(tvm.target.Target.list_kinds())
-    target_kind_set.remove("composite")
-    all_targets = [tvm.target.Target(t) for t in target_kind_set]
+    for target_kind in tvm.target.Target.list_kinds():
+        target = Target(target_kind)
+        device = tvm.device_from_target(target)
 
-    for tgt in all_targets:
-        if tgt.kind.name not in tvm.runtime.Device._DEVICE_NAME_TO_TYPE:
-            raise KeyError(
-                f"Cannot find target kind: {tgt.kind.name} in Device._DEVICE_NAME_TO_TYPE"
-            )
+        assert device.dlpack_device_type() == target.get_target_device_type()
 
-        assert (
-            tgt.get_target_device_type() == tvm.runtime.Device._DEVICE_NAME_TO_TYPE[tgt.kind.name]
-        )
+
+@pytest.mark.parametrize("target", ["llvm", {"kind": "llvm"}, Target("llvm")])
+def test_device_from_target_input_forms(target):
+    device = tvm.device_from_target(target)
+
+    assert device == tvm.cpu()
+    assert isinstance(device, tvm.runtime.Device)
+    assert tvm.runtime.device_from_target(target) == tvm.cpu()
+
+
+def test_device_from_target_compiler_only_kind():
+    assert tvm.device_from_target("composite") == tvm.cpu()
+
+
+def test_device_from_target_index():
+    assert tvm.device_from_target("llvm").index == 0
+    assert tvm.device_from_target("llvm", None).index == 0
+    assert tvm.device_from_target("llvm", 3).index == 3
+
+
+def test_device_from_target_override():
+    target = Target(
+        {
+            "kind": "llvm",
+            "target_device_type": int(tvm_ffi.DLDeviceType.kDLCUDA),
+        }
+    )
+
+    assert tvm.device_from_target(target).dlpack_device_type() == tvm_ffi.DLDeviceType.kDLCUDA
 
 
 def test_target_string_parse():
