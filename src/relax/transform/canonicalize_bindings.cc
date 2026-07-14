@@ -41,7 +41,6 @@ namespace {
 
 class SymbolicVarCanonicalizer : public ExprMutator {
   class RuntimePrimVarCollector;
-  class ParameterSymbolCollector;
 
  public:
   static Expr Apply(Expr expr);
@@ -64,13 +63,10 @@ class SymbolicVarCanonicalizer : public ExprMutator {
   Expr VisitExpr_(const FunctionNode* func) override {
     auto cached = known_values_;
     auto cached_runtime_uses = runtime_prim_var_uses_;
-    auto cached_available_definitions = available_symbolic_definitions_;
     runtime_prim_var_uses_ = RuntimePrimVarCollector::Collect(func->body);
-    available_symbolic_definitions_ = ParameterSymbolCollector::Collect(func);
     auto output = ExprMutator::VisitExpr_(func);
     known_values_ = cached;
     runtime_prim_var_uses_ = cached_runtime_uses;
-    available_symbolic_definitions_ = cached_available_definitions;
     return output;
   }
 
@@ -82,9 +78,7 @@ class SymbolicVarCanonicalizer : public ExprMutator {
       if (var.same_as(binding->var)) continue;
       auto tir_var = var.as<tirx::PrimVar>();
       if (!tir_var) continue;
-      has_runtime_use =
-          has_runtime_use || (runtime_prim_var_uses_.count(*tir_var) &&
-                              !available_symbolic_definitions_.count(*tir_var));
+      has_runtime_use = has_runtime_use || runtime_prim_var_uses_.count(*tir_var);
       PrimExpr prim_expr = value.as_or_throw<PrimExpr>();
       if (auto it = known_values_.find(tir_var.value()); it != known_values_.end()) {
         TVM_FFI_CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr), ValueError)
@@ -104,24 +98,16 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     canonicalize_shape_values_ = !has_runtime_use;
     ExprMutator::VisitBinding_(binding);
     canonicalize_shape_values_ = cached;
-    for (const auto& [var, _] : tir_var_map) {
-      if (auto tir_var = var.as<tirx::PrimVar>(); tir_var && !var.same_as(binding->var)) {
-        available_symbolic_definitions_.insert(*tir_var);
-      }
-    }
   }
 
   Expr VisitExpr_(const IfNode* op) override {
     Expr guard = this->VisitExpr(op->cond);
 
     auto cached = known_values_;
-    auto cached_available_definitions = available_symbolic_definitions_;
     Expr true_b = this->VisitWithInnerScope(op->true_branch);
     known_values_ = cached;
-    available_symbolic_definitions_ = cached_available_definitions;
     Expr false_b = this->VisitWithInnerScope(op->false_branch);
     known_values_ = cached;
-    available_symbolic_definitions_ = cached_available_definitions;
 
     if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
         op->false_branch.same_as(false_b)) {
@@ -189,38 +175,6 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> uses_;
   };
 
-  class ParameterSymbolCollector : public TypeVisitor {
-   public:
-    static std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
-        const FunctionNode* func) {
-      ParameterSymbolCollector collector;
-      for (const Var& param : func->params) {
-        collector.VisitType(GetType(param));
-      }
-      return collector.symbols_;
-    }
-
-   protected:
-    void VisitTypeExprField(const PrimExpr& expr) final {
-      tirx::PostOrderVisit(expr, [this](const ffi::ObjectRef& node) {
-        if (auto var = node.as<tirx::PrimVar>()) {
-          symbols_.insert(*var);
-        }
-      });
-    }
-
-    void VisitTypeExprField(const Expr& expr) final {
-      if (const auto* shape = expr.as<ShapeExprNode>()) {
-        for (const PrimExpr& value : shape->values) {
-          VisitTypeExprField(value);
-        }
-      }
-    }
-
-   private:
-    std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> symbols_;
-  };
-
   PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {
     PrimExpr output = tirx::Substitute(
         expr, [this](const Var& var) -> ffi::Optional<Expr> {
@@ -240,8 +194,6 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 
   std::unordered_map<tirx::Var, KnownValue, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> known_values_;
   std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> runtime_prim_var_uses_;
-  std::unordered_set<tirx::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      available_symbolic_definitions_;
   bool canonicalize_shape_values_ = true;
 };
 

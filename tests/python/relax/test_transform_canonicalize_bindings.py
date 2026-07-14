@@ -549,6 +549,9 @@ def test_match_cast_may_have_distinct_values_in_branches():
             if N == 16:
                 # Prior to the R.match_cast, the
                 weights: R.Tensor([M, 16], "float32") = A * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
                 # The scaled weights within the branch may perform
                 # shape inference knowing that N==16.
                 weights: R.Tensor([M, 16], "float32") = weights * scale
@@ -557,6 +560,9 @@ def test_match_cast_may_have_distinct_values_in_branches():
             else:
                 # Prior to the R.match_cast, the
                 weights: R.Tensor([M, 32], "float32") = B * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
                 # Within the else-branch, the R.match_cast implies
                 # that N==32.  While this conflicts with the earlier
                 # definition, the two occur in separate branches, so
