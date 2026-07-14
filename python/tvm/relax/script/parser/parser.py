@@ -59,6 +59,9 @@ def bind_assign_value(
 ) -> Any:
     var_table = self.var_table.get()
 
+    # Primitive assignments emit Relax bindings by default, reversing the old default.
+    # Explicit I.meta_var values and literal T.dtype() declarations are the two
+    # parser-time exceptions.
     if isinstance(value, I.meta_var):
         return value.value
 
@@ -117,7 +120,10 @@ def bind_assign_value(
 
 
 def is_symbolic_var_declaration(node: doc.expr) -> bool:
-    """Return whether an expression is syntactically ``T.dtype()``."""
+    """Return whether an expression is literal ``T.dtype()`` declaration syntax.
+
+    Detection is syntactic so declaration semantics do not depend on evaluating its RHS.
+    """
     if not (
         isinstance(node, doc.Call)
         and not node.args
@@ -134,7 +140,10 @@ def is_symbolic_var_declaration(node: doc.expr) -> bool:
 def collect_symbolic_var_declaration_nodes(
     target: doc.expr, value: doc.expr
 ) -> dict[str, doc.expr]:
-    """Pair assignment targets with matching ``T.dtype()`` syntax."""
+    """Pair targets with literal ``T.dtype()`` declarations.
+
+    Declaration-vs-binding is per target, allowing tuple unpacking to mix both.
+    """
     if isinstance(target, doc.Name):
         return {target.id: value} if is_symbolic_var_declaration(value) else {}
     if isinstance(target, doc.Tuple | doc.List) and isinstance(value, doc.Tuple | doc.List):
@@ -233,7 +242,8 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
             if var_name not in symbolic_vars:
                 symbolic_vars[var_name] = tvm.ir.Var(var_name, "int64")
 
-    # Update symbolic vars based on
+    # Prelude declarations select each scope symbol's canonical Var object.
+    # Per-assignment declaration classification separately controls emission.
     symbolic_vars = collect_symbolic_var_from_prelude(self, node, symbolic_vars)
 
     # Define symbolic vars to the current var_table frame

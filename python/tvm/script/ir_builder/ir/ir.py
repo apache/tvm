@@ -39,6 +39,7 @@ else:
         Assignments unwrap this object without emitting an IR binding.  The
         shared wrapper is exposed as ``I.meta_var``; dialect namespaces may
         provide compatibility aliases to the same implementation.
+        For Relax, this is the explicit opt-out from default primitive binding emission.
 
         Parameters
         ----------
