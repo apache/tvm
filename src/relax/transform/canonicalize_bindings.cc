@@ -91,9 +91,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
         known_values_[tir_var.value()] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
       }
     }
-    // A MatchCast that is the only definition of a runtime-used symbolic
-    // variable cannot be folded away.  Preserve its symbolic pattern while
-    // still canonicalizing downstream shape annotations.
+    // A MatchCast that defines a runtime-used symbolic variable cannot be folded away.
+    // Preserve its symbolic pattern while still canonicalizing downstream shape annotations.
     bool cached = canonicalize_shape_values_;
     canonicalize_shape_values_ = !has_runtime_use;
     ExprMutator::VisitBinding_(binding);
