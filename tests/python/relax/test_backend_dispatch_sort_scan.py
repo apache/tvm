@@ -439,7 +439,7 @@ def test_dispatch_cumsum_gpu(target):
         ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
+        dev = tvm.device_from_target(target)
         vm = tvm.relax.VirtualMachine(ex, dev)
         tvm_data = tvm.runtime.tensor(np_data, dev)
         cumsum = vm["main"](tvm_data)

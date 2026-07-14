@@ -415,7 +415,7 @@ def _get_targets(target_names=None):
             is_runnable = is_enabled and "ANDROID_SERIAL_NUMBER" in os.environ
         else:
             is_enabled = tvm.runtime.enabled(target_kind)
-            is_runnable = is_enabled and tvm.device(target_kind).exist
+            is_runnable = is_enabled and tvm.device_from_target(target).exist
 
         targets.append(
             {
@@ -521,7 +521,11 @@ def enabled_targets():
         A list of pairs of all enabled devices and the associated context
 
     """
-    return [(t["target"], tvm.device(t["target_kind"])) for t in _get_targets() if t["is_runnable"]]
+    return [
+        (t["target"], tvm.device_from_target(t["target"]))
+        for t in _get_targets()
+        if t["is_runnable"]
+    ]
 
 
 def _parse_target_entry(entry):

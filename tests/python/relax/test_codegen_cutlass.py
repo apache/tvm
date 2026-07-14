@@ -99,7 +99,7 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
         ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.device(target, 0)
+        dev = tvm.device_from_target(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
         inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
@@ -1497,7 +1497,7 @@ def test_fp16A_int4B_gemm():
     ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
     def run_and_check():
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
         residual_nd = tvm.runtime.tensor(residual, dev)
@@ -1655,7 +1655,7 @@ def test_fp16A_int8B_gemm():
         return x * 0.5 * (1.0 + erf_out)
 
     def run_and_check():
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
         inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev), bias_trans.copyto(dev)]
@@ -1922,7 +1922,7 @@ def test_fp16A_int8B_gemm_batched():
     ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
     def run_and_check():
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
         inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]
@@ -2080,7 +2080,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
     ex_cuda = tvm.compile(mod_deploy, target="cuda")
 
     def run_and_check():
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         vm = relax.vm.VirtualMachine(ex_cuda, dev)
         x_nd = tvm.runtime.tensor(x, dev)
         inp = [x_nd, packed_weight.copyto(dev), scales.copyto(dev)]

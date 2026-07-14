@@ -69,7 +69,7 @@ def build_and_run(mod, inputs_np, target, legalize=False):
         ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.device(target, 0)
+        dev = tvm.device_from_target(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
         inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
@@ -318,7 +318,7 @@ def test_tensorrt_int8_calibration(monkeypatch):
     ex = tvm.compile(offloaded, "cuda")
 
     def run_and_check():
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
         data_trt = tvm.runtime.tensor(data, dev)
         out = None

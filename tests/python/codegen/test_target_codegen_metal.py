@@ -49,7 +49,7 @@ def test_metal_inf_nan():
         fun = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.metal(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -116,7 +116,7 @@ def test_metal_erf():
         fun = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.metal(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)

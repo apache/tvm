@@ -981,7 +981,7 @@ def test_multinomial_from_uniform():
         mod = relax.backend.DispatchSampling()(mod)
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
-    dev = tvm.device(target.kind.name, 0)
+    dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()

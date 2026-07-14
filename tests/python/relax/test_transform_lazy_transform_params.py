@@ -617,7 +617,7 @@ def test_output_with_use_site():
 
 def test_output():
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module(s_tir=True)
     class TransformModule:

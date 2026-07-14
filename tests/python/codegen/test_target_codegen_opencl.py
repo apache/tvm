@@ -54,7 +54,7 @@ def test_opencl_ternary_expression():
         fun = tvm.tirx.build(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.opencl(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -84,7 +84,7 @@ def test_opencl_ternary_expression():
         fun = tvm.tirx.build(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.opencl(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -120,7 +120,7 @@ def test_opencl_inf_nan():
         fun = tvm.tirx.build(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.opencl(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -154,7 +154,7 @@ def test_opencl_max():
         fun = tvm.tirx.build(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.opencl(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -221,7 +221,7 @@ def test_opencl_type_casting():
         assert assembly.count(pattern_cond) != 0
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.opencl(0)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(c)
 
@@ -321,7 +321,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     b_np = np.zeros((n,), dtype="float32")
 
     def run_and_check():
-        dev = tvm.device(target, 0)
+        dev = tvm.opencl(0)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         reloaded["main"](a, b)

@@ -77,7 +77,7 @@ def test_fp8_conversions(input):
     cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
 
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     a = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
     b = tvm.runtime.tensor(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
@@ -130,7 +130,7 @@ def test_fp8_packing(dtype):
     mod = _create_mod(native_dtype, packed_dtype, length)
     target = "cuda"
     f = tvm.compile(mod, target=target)
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     np_shape = (length, vector_length)
     a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(dtype)
@@ -192,7 +192,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     target = "cuda"
     fadd = tvm.tirx.build(mod, target=target)
     cuda_src = fadd.imports[0].inspect_source()
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
@@ -242,7 +242,7 @@ def test_half_broadcast(bcast_length):
     mod = _create_mod(bcast_length, dtype)
     target = "cuda"
     func = tvm.compile(mod, target=target)
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
     a = tvm.runtime.tensor(a_np, device=dev)
@@ -277,7 +277,7 @@ def test_half_misaligned_vector_load(vector_length):
     target = "cuda"
     f = tvm.compile(vector_load, target=target)
 
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
     a_np = np.random.uniform(low=0, high=1, size=(length,)).astype(dtype)
     a = tvm.runtime.tensor(a_np, device=dev)
 
@@ -321,7 +321,7 @@ def test_half4_vector_add():
 
     target = "cuda"
     fadd = tvm.compile(Module, target=target)
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
     a = tvm.runtime.empty(shape=(length,), dtype=vec_dtype, device=dev)
@@ -780,7 +780,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         axis,
         target_str,
     ):
-        dev = tvm.device(target_str, 0)
+        dev = tvm.cuda(0)
         return self.compile_quant_and_dequant_by_scale(
             weight_shape,
             scale_shape,
@@ -800,7 +800,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
     @pytest.mark.skipif(not env.has_cuda_compute(8, 9), reason="need cuda compute >= 8.9")
     def test_main(self, weight_shape, model_dtype, target_str, compiled_functions):
         quant, dequant = compiled_functions
-        dev = tvm.device(target_str, 0)
+        dev = tvm.cuda(0)
 
         weight_np = np.random.uniform(-100, 100, weight_shape).astype(model_dtype)
         weight = tvm.runtime.tensor(weight_np, device=dev)
