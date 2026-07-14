@@ -2304,16 +2304,125 @@ def test_function_symbolic_variables_are_annotated():
     tvm.ir.assert_structural_equal(inferred_ty, expected)
 
 
-def test_constant_prim_expr_alias_is_not_symbolic_declaration():
-    """Constant Expr locals are constants, not declarations."""
+def test_non_declaration_prim_expr_emits_binding():
+    """Only zero-argument dtype calls declare symbolic variables."""
 
     @R.function(private=True)
-    def func(A: R.Tensor([4], "float32")):
+    def func(A: R.Tensor(["extent"], "float32")):
         extent = T.int64(4)
-        output: R.Tensor([extent], "float32") = A
+        output = A
         return output
 
-    tvm.ir.assert_structural_equal(func.ret_ty.shape.values[0], T.int64(4))
+    symbolic_extent = func.params[0].ty.shape[0]
+    extent_binding = func.body.blocks[0].bindings[0]
+    assert isinstance(extent_binding, relax.VarBinding)
+    assert tvm.ir.is_prim_var(symbolic_extent)
+    assert tvm.ir.is_prim_var(extent_binding.var)
+    assert not symbolic_extent.same_as(extent_binding.var)
+    tvm.ir.assert_structural_equal(extent_binding.value, T.int64(4))
+    _check(func)
+
+
+def test_primitive_assignments_emit_fresh_bindings():
+    """Primitive expressions follow ordinary Relax assignment semantics."""
+
+    @R.function(private=True)
+    def func(scalar: R.Prim("int64"), tensor: R.Tensor([1], "float32")):
+        alias = scalar
+        arithmetic = alias + 1
+        integer: R.Prim("int32") = 2
+        floating: R.Prim("float32") = 2.5
+        boolean: R.Prim("bool") = True
+        compatibility = R.prim_value(arithmetic)
+        tensor_alias = tensor
+        return tensor_alias
+
+    bindings = func.body.blocks[0].bindings
+    assert len(bindings) == 7
+    for binding in bindings:
+        assert isinstance(binding, relax.VarBinding)
+        assert not binding.var.same_as(binding.value)
+
+    alias, arithmetic, integer, floating, boolean, compatibility, tensor_alias = bindings
+    assert alias.value.same_as(func.params[0])
+    assert compatibility.value.same_as(arithmetic.var)
+    assert tensor_alias.value.same_as(func.params[1])
+    for binding, dtype in [
+        (integer, "int32"),
+        (floating, "float32"),
+        (boolean, "bool"),
+    ]:
+        assert isinstance(binding.var.ty, tvm.ir.PrimType)
+        assert binding.var.ty.dtype == dtype
+        assert tvm.ir.is_prim_expr(binding.value)
+        assert not isinstance(binding.value, relax.Constant)
+
+    source = func.script(show_all_ty=False)
+    assert "R.prim_value" not in source
+    for annotation in [
+        "alias: T.int64",
+        "integer: T.int32",
+        "floating: T.float32",
+        "boolean: T.bool",
+    ]:
+        assert annotation in source
+    _check(func)
+
+
+def test_shared_meta_var_skips_relax_bindings():
+    """I.meta_var and T.meta_var are one explicit parser-time escape."""
+
+    assert I.meta_var is T.meta_var
+
+    @R.function(private=True)
+    def func(A: R.Tensor(["N"], "float32")):
+        N: R.Prim("int64") = T.int64()
+        via_i = I.meta_var(N)
+        via_t = T.meta_var(via_i)
+        output = R.reshape(A, R.shape([via_t]))
+        return output
+
+    assert len(func.body.blocks[0].bindings) == 1
+    source = func.script(show_all_ty=False)
+    assert "meta_var" not in source
+    _check(func)
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function(private=True)
+        def mismatched_declaration():
+            value: R.Prim("float32") = T.int64()
+            return value
+
+
+def test_primitive_if_emits_fresh_result():
+    """A primitive If has a fresh Relax result and typed branch terminators."""
+
+    @R.function(private=True)
+    def func(cond: R.Prim("bool"), lhs: R.Prim("int64"), rhs: R.Prim("int64")):
+        if cond:
+            output = lhs
+        else:
+            output = rhs
+        return output
+
+    outer_binding = func.body.blocks[0].bindings[0]
+    assert isinstance(outer_binding, relax.VarBinding)
+    assert isinstance(outer_binding.value, relax.If)
+    assert isinstance(outer_binding.var.ty, tvm.ir.PrimType)
+    assert not outer_binding.var.same_as(func.params[1])
+    assert not outer_binding.var.same_as(func.params[2])
+    for branch, param in [
+        (outer_binding.value.true_branch, func.params[1]),
+        (outer_binding.value.false_branch, func.params[2]),
+    ]:
+        assert not branch.blocks
+        assert branch.body.same_as(param)
+
+    source = func.script(show_all_ty=False)
+    assert "R.prim_value" not in source
+    assert source.count("output: T.int64") == 2
+    _check(func)
 
 
 def test_conditional_may_use_symbolic_variables_from_function_scope():

@@ -20,6 +20,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import laneid, warpid
@@ -963,6 +964,25 @@ def test_range():
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
     tvm.ir.assert_structural_equal(test, expected)
+
+
+def test_shared_meta_var_alias():
+    assert I.meta_var is T.meta_var
+
+    @T.prim_func(private=True)
+    def via_ir_namespace():
+        value = I.meta_var(T.int32(1))
+        T.evaluate(value)
+
+    @T.prim_func(private=True)
+    def via_tirx_alias():
+        value = T.meta_var(T.int32(1))
+        T.evaluate(value)
+
+    assert_structural_equal(via_ir_namespace, via_tirx_alias)
+    code = via_ir_namespace.script()
+    assert "meta_var" not in code
+    assert_structural_equal(via_ir_namespace, from_source(code))
 
 
 def test_buffer():

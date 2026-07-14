@@ -39,6 +39,7 @@ from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.runtime import convert
 from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.ir import meta_var
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -2874,13 +2875,7 @@ def Range(begin: Expr, end: Expr) -> ir.Range:  # pylint: disable=invalid-name
 
 
 if TYPE_CHECKING:
-    T = TypeVar("T")
     C = TypeVar("C")
-
-    # When type checking (and by extension, for linters like Pylint), treat
-    # meta_var as an identity function.
-    def meta_var(x: T) -> T:
-        return x
 
     def meta_class(cls: C) -> C:
         return cls
@@ -2925,25 +2920,6 @@ else:
         Instances of decorated classes are treated as parser meta values.
         """
         return _install_meta_class(cls)
-
-    class meta_var:
-        """A meta variable used in TVMScript metaprogramming.
-
-        The value does not appear in the final TIR and only exists in the parser.
-
-        Parameters
-        ----------
-        value: Any
-            The meta variable.
-        """
-
-        def __init__(self, value: Any) -> None:
-            self.value = value
-
-        def __iter__(self):
-            # Return a generator that yields wrapped items.
-            return (meta_var(i) for i in self.value)
-
 
 # pylint: disable=invalid-name
 

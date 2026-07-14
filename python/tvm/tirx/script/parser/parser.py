@@ -196,7 +196,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         assert isinstance(value.scalar, T.BufferLoad)
         IRBuilder.name(var_name, value.scalar.buffer)
         return value.scalar
-    if isinstance(value, T.meta_var):
+    if isinstance(value, I.meta_var):
         return value.value
     elif getattr(type(value), "_is_meta_class", False):
         name_meta_class_value(var_name, value)

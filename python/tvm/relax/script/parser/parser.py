@@ -20,6 +20,7 @@ import functools
 import numbers
 from typing import Any
 
+import numpy as np
 import tvm_ffi
 
 import tvm
@@ -32,6 +33,7 @@ from tvm.relax.utils import convert_to_expr
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.parser._core import Parser, dispatch, doc
+from tvm.tirx.script import builder as T
 
 from .entry import (
     MatchCastPair,
@@ -53,11 +55,20 @@ def bind_assign_value(
     var_name: str,
     value: Any,
     anno_ty: Type | None = None,
-    emit_prim_expr: bool = False,
+    symbolic_declarations: set[str] | None = None,
 ) -> Any:
     var_table = self.var_table.get()
 
-    if tvm.ir.is_prim_var(value) and not emit_prim_expr:
+    if isinstance(value, I.meta_var):
+        return value.value
+
+    if tvm.ir.is_prim_var(value) and var_name in (symbolic_declarations or set()):
+        if anno_ty is not None and not tvm_ffi.structural_equal(anno_ty, value.ty):
+            self.report_error(
+                node,
+                f"Expected the declared symbolic variable to have type {anno_ty}, "
+                f"but got {value.ty}",
+            )
         if value.name and var_name != value.name:
             self.report_error(
                 node,
@@ -82,14 +93,13 @@ def bind_assign_value(
         IRBuilder.name(var_name, value)
         return value
 
-    if tvm.ir.is_prim_expr(value):
-        if not emit_prim_expr:
-            return value
-
     if isinstance(value, tuple):
         value = convert_to_expr(value)
-    if isinstance(value, numbers.Number):
-        value = R.const(value)
+    if isinstance(value, numbers.Number | np.bool_):
+        if isinstance(anno_ty, tvm.ir.PrimType):
+            value = relax.prim_value(value, dtype=anno_ty.dtype)
+        else:
+            value = R.const(value)
 
     if isinstance(value, relax.Expr):
         var = R.emit(value, anno_ty)
@@ -106,8 +116,40 @@ def bind_assign_value(
     return var
 
 
-def is_prim_value_call(node: doc.expr) -> bool:
-    return isinstance(node, doc.Call) and getattr(node.func, "attr", None) == "prim_value"
+def is_symbolic_var_declaration(node: doc.expr) -> bool:
+    """Return whether an expression is syntactically ``T.dtype()``."""
+    if not (
+        isinstance(node, doc.Call)
+        and not node.args
+        and not node.keywords
+        and isinstance(node.func, doc.Attribute)
+        and isinstance(node.func.value, doc.Name)
+        and node.func.value.id == "T"
+    ):
+        return False
+    constructor = getattr(T, node.func.attr, None)
+    return isinstance(constructor, T.DtypeConstructor) or constructor is T.bool
+
+
+def collect_symbolic_var_declaration_nodes(
+    target: doc.expr, value: doc.expr
+) -> dict[str, doc.expr]:
+    """Pair assignment targets with matching ``T.dtype()`` syntax."""
+    if isinstance(target, doc.Name):
+        return {target.id: value} if is_symbolic_var_declaration(value) else {}
+    if isinstance(target, doc.Tuple | doc.List) and isinstance(value, doc.Tuple | doc.List):
+        if len(target.elts) != len(value.elts):
+            return {}
+        declarations = {}
+        for lhs, rhs in zip(target.elts, value.elts):
+            declarations.update(collect_symbolic_var_declaration_nodes(lhs, rhs))
+        return declarations
+    return {}
+
+
+def collect_symbolic_var_declarations(target: doc.expr, value: doc.expr) -> set[str]:
+    """Collect assignment targets whose matching RHS is ``T.dtype()``."""
+    return set(collect_symbolic_var_declaration_nodes(target, value))
 
 
 def eval_ty_proxy(self: Parser, node: doc.expr) -> TypeProxy:
@@ -166,23 +208,14 @@ def collect_symbolic_var_from_prelude(
 ) -> dict[str, tvm.ir.Var]:
     prelude_vars = {}
     for stmt in node.body:
-        if isinstance(stmt, doc.Assign) and all(
-            isinstance(target, doc.Name) and target.id in symbolic_vars for target in stmt.targets
-        ):
-            values = self.eval_expr(stmt.value)
-
-            if tvm.ir.is_prim_var(values):
-                values = [values]
-            else:
-                try:
-                    iter(values)
-                except TypeError:
-                    values = [values]
-
-            assert len(stmt.targets) == len(values)
-            for target, value in zip(stmt.targets, values):
-                name = target.id
-                prelude_vars[name] = value
+        if isinstance(stmt, doc.Assign) and len(stmt.targets) == 1:
+            declarations = collect_symbolic_var_declaration_nodes(stmt.targets[0], stmt.value)
+            for name, value_node in declarations.items():
+                if name not in symbolic_vars:
+                    continue
+                declared_var = self.eval_expr(value_node)
+                if tvm.ir.is_prim_var(declared_var) and declared_var.ty == symbolic_vars[name].ty:
+                    prelude_vars[name] = declared_var
 
     return {**symbolic_vars, **prelude_vars}
 
@@ -388,7 +421,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         source=rhs,
         bind_value=functools.partial(
             bind_assign_value,
-            emit_prim_expr=is_prim_value_call(node.value),
+            symbolic_declarations=collect_symbolic_var_declarations(lhs, node.value),
         ),
         allow_shadowing=True,
     )
@@ -405,7 +438,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         bind_value=functools.partial(
             bind_assign_value,
             anno_ty=anno_ty,
-            emit_prim_expr=is_prim_value_call(node.value) or isinstance(anno_ty, tvm.ir.PrimType),
+            symbolic_declarations=collect_symbolic_var_declarations(lhs, node.value),
         ),
         allow_shadowing=True,
     )

@@ -16,11 +16,41 @@
 # under the License.
 """Package tvm.script.ir_builder.ir.ir"""
 
+from typing import TYPE_CHECKING, Any, TypeVar
+
 from tvm.ir import BaseFunc, DummyGlobalInfo, GlobalInfo, GlobalVar, VDevice
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
 from .frame import IRModuleFrame
+
+if TYPE_CHECKING:
+    T = TypeVar("T")
+
+    def meta_var(value: T) -> T:
+        """Mark a value for parser-time metaprogramming."""
+        return value
+
+else:
+
+    class meta_var:  # pylint: disable=invalid-name
+        """A value used only for TVMScript parser-time metaprogramming.
+
+        Assignments unwrap this object without emitting an IR binding.  The
+        shared wrapper is exposed as ``I.meta_var``; dialect namespaces may
+        provide compatibility aliases to the same implementation.
+
+        Parameters
+        ----------
+        value : Any
+            The parser-time value.
+        """
+
+        def __init__(self, value: Any) -> None:
+            self.value = value
+
+        def __iter__(self):
+            return (meta_var(item) for item in self.value)
 
 
 def ir_module() -> IRModuleFrame:
