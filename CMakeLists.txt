@@ -89,7 +89,7 @@ tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_AMX "Enable Intel AMX" OFF)
-tvm_option(USE_Z3 "Build with Z3 SMT solver support" OFF)
+tvm_option(USE_Z3 "Build with Z3 SMT solver support" AUTO)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_DNNL "Enable DNNL codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
