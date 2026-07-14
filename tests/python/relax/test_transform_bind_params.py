@@ -165,6 +165,18 @@ def test_bind_params_rejects_non_primitive_explicit_symbolic_var():
         )
 
 
+def test_bind_params_rejects_non_primitive_standalone_symbolic_var():
+    prim_type = tvm.ir.PrimType("int64")
+    n = relax.Var("n", prim_type)
+    before = relax.Function([n], n, prim_type)
+
+    with pytest.raises(
+        ValueError,
+        match="Explicit binding for symbolic variable n must be a primitive expression",
+    ):
+        before.bind_params({n: relax.const(np.array(5, dtype="int64"))})
+
+
 param_specification = tvm.testing.parameter("by_string", "by_var")
 
 
