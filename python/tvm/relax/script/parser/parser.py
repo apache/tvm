@@ -37,6 +37,7 @@ from tvm.tirx.script import builder as T
 
 from .entry import (
     MatchCastPair,
+    PrimProxy,
     TypeProxy,
     _normalize_ty,
     _normalize_ty_proxy,
@@ -230,17 +231,22 @@ def collect_symbolic_var_from_prelude(
 
 
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
-    # Collect symbolic variables referenced by parameter annotations before
-    # constructing the runtime parameters themselves.
     symbolic_vars = {}
-    for arg in node.args.args:
-        if arg.annotation is None:
-            self.report_error(arg, "Type annotation is required for function parameters.")
-        param_ty_proxy = eval_ty_proxy(self, arg.annotation)
+    prim_params = set()
+    with self.var_table.with_frame():
+        for arg in node.args.args:
+            if arg.annotation is None:
+                self.report_error(arg, "Type annotation is required for function parameters.")
+            param_ty_proxy = eval_ty_proxy(self, arg.annotation)
 
-        for var_name in param_ty_proxy.get_symbolic_vars():
-            if var_name not in symbolic_vars:
-                symbolic_vars[var_name] = tvm.ir.Var(var_name, "int64")
+            for var_name in param_ty_proxy.get_symbolic_vars():
+                if var_name not in prim_params and var_name not in symbolic_vars:
+                    symbolic_vars[var_name] = tvm.ir.Var(var_name, "int64")
+
+            if isinstance(param_ty_proxy, PrimProxy):
+                temp_param = tvm.ir.Var(arg.arg, param_ty_proxy.as_ty())
+                self.var_table.add(arg.arg, temp_param)
+                prim_params.add(arg.arg)
 
     # Prelude declarations select each scope symbol's canonical Var object.
     # Per-assignment declaration classification separately controls emission.
@@ -251,6 +257,20 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
         self.var_table.add(var_name, var, allow_shadowing=False)
 
 
+def parse_function_params(self: Parser, node: doc.FunctionDef, param_factory) -> list[tvm.ir.Var]:
+    collect_symbolic_var_from_params(self, node)
+    params = []
+    for arg in node.args.args:
+        if arg.annotation is None:
+            self.report_error(arg, "Type annotation is required for function parameters.")
+        param_ty = eval_ty(self, arg.annotation, eval_str=True)
+        param = param_factory(arg.arg, param_ty)
+        self.var_table.add(arg.arg, param)
+        params.append(param)
+
+    return params
+
+
 @dispatch.register(token="relax", type_name="FunctionDef")
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     is_inner_function = self.inside_function
@@ -259,16 +279,13 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     # reserve a var for local function
     func_val = self.var_table.get().get(node.name)
     if func_val is None and is_recursive(node):
-        collect_symbolic_var_from_params(self, node)
-        if node.returns is None:
-            ret_ty = relax.TupleType([])
-        else:
-            ret_ty = eval_ty(self, node.returns, eval_str=True)
-        params_ty = []
-        for arg in node.args.args:
-            if arg.annotation is None:
-                self.report_error(arg, "Type annotation is required for function parameters.")
-            params_ty.append(eval_ty(self, arg.annotation, eval_str=True))
+        with self.var_table.with_frame():
+            provisional_params = parse_function_params(self, node, tvm.ir.Var)
+            if node.returns is None:
+                ret_ty = relax.TupleType([])
+            else:
+                ret_ty = eval_ty(self, node.returns, eval_str=True)
+        params_ty = [param.ty for param in provisional_params]
         # created a var for the local function, the same var could be used for recursive call
         local_func_var = tvm.ir.Var(node.name, relax.FuncType(params_ty, ret_ty))
         self.var_table.add(node.name, local_func_var)
@@ -282,13 +299,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
         with self.with_dispatch_token("relax"):
             with R.function(is_pure=purity, is_private=privacy):
                 R.func_name(node.name)
-                collect_symbolic_var_from_params(self, node)
+                parse_function_params(self, node, R.arg)
 
                 if node.returns is not None:
                     ann_ty = eval_ty(self, node.returns, eval_str=True)
                     R.func_ret_ty(ann_ty)
-
-                self.visit(node.args)
 
                 for stmt in node.body:
                     if isinstance(stmt, doc.FunctionDef):
@@ -321,7 +336,7 @@ def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: b
 @dispatch.register(token="relax", type_name="tvm_declare_function")
 def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
     with self.var_table.with_frame():
-        collect_symbolic_var_from_params(self, node)
+        params = parse_function_params(self, node, tvm.ir.Var)
 
         if node.returns is None:
             # Use AnyType as unknown return type
@@ -329,13 +344,6 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
             ret_ty = relax.AnyType()
         else:
             ret_ty = eval_ty(self, node.returns, eval_str=True)
-        params = []
-        for arg in node.args.args:
-            if arg.annotation is None:
-                self.report_error(arg, "Type annotation is required for function parameters.")
-            param_ty = eval_ty(self, arg.annotation, eval_str=True)
-            params.append(tvm.ir.Var(arg.arg, param_ty))
-
     is_pure = find_decorator_annotation(node, "pure")
 
     func_signature = relax.Function.create_empty(params, ret_ty, is_pure=is_pure)

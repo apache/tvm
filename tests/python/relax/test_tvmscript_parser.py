@@ -1573,6 +1573,100 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     _check(bar, bb.get()["bar"])
 
 
+def test_bound_prim_param_reused_in_dependent_annotations():
+    func = tvm.script.from_source(
+        """
+@R.function
+def main(
+    n: R.Prim("int64"),
+    direct: R.Tensor([n], "float32"),
+    string_direct: R.Tensor(["n"], "float32"),
+    shape: R.Shape(["n"]),
+    compound: R.Tensor(["n + 1"], "float32"),
+) -> R.Tensor(["n + 1"], "float32"):
+    return compound
+"""
+    )
+
+    n, direct, string_direct, shape, compound = func.params
+    assert direct.ty.shape[0].same_as(n)
+    assert string_direct.ty.shape[0].same_as(n)
+    assert shape.ty.values[0].same_as(n)
+    assert compound.ty.shape[0].a.same_as(n)
+    assert func.ret_ty.shape[0].a.same_as(n)
+    _check(func)
+
+
+def test_bound_prim_param_reused_in_declared_function_signature():
+    mod = tvm.script.from_source(
+        """
+@I.ir_module
+class Module:
+    @R.function
+    def main(n: R.Prim("int64"), x: R.Tensor(["n + 1"], "float32")) -> R.Tensor(
+        ["n + 1"], "float32"
+    ):
+        return x
+"""
+    )
+
+    func = mod["main"]
+    n, x = func.params
+    assert x.ty.shape[0].a.same_as(n)
+    assert func.ret_ty.shape[0].a.same_as(n)
+    _check(mod)
+
+
+def test_later_prim_param_not_adopted_by_usage_first_symbol():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@R.function
+def main(x: R.Tensor(["n"], "float32"), n: R.Prim("int64")):
+    return x
+"""
+        )
+
+
+def test_non_int64_prim_param_rejected_in_shape_annotation():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@R.function
+def main(n: R.Prim("int32"), x: R.Tensor(["n"], "float32")):
+    return x
+"""
+        )
+
+
+def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
+    func = tvm.script.from_source(
+        """
+@R.function
+def main(n: R.Prim("int64"), x: R.Tensor([n], "float32")):
+    @R.function
+    def recurse(current: R.Prim("int64"), value: R.Tensor([current], "float32")) -> R.Tensor(
+        [current], "float32"
+    ):
+        return recurse(current, value)
+
+    return recurse(n, x)
+"""
+    )
+
+    recursive_binding = next(
+        binding
+        for block in func.body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.Function)
+    )
+    recursive_func = recursive_binding.value
+    current, value = recursive_func.params
+    assert value.ty.shape[0].same_as(current)
+    assert recursive_func.ret_ty.shape[0].same_as(current)
+    relax.analysis.well_formed(func)
+
+
 def test_symbolic_vars_in_shape():
     """Symbolic variable may be defined in R.Shape"""
 
