@@ -148,6 +148,7 @@ def test_stmatrix_sync_aligned(trans):
 
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("num", [1, 2, 4])
+@pytest.mark.gpu
 def test_ptx_stmatrix(trans, num):
     # fmt: off
     @T.prim_func

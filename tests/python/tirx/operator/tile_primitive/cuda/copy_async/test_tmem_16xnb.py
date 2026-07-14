@@ -826,6 +826,7 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
         ("16x256b", 64, 64),  # .16x256b.x8 fp32
     ],
 )
+@pytest.mark.gpu
 def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
     """Ensure T.alloc_tcgen05_ldst_frag yields a buffer that ``T.copy_async`` accepts
     and lowers to the correct tcgen05 atom for each supported instr_shape."""
