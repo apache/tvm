@@ -371,7 +371,9 @@ def device_from_target(target, index=None):
     """
     from tvm.target import Target  # pylint: disable=import-outside-toplevel
 
-    return device(Target(target).get_target_device_type(), index)
+    if not isinstance(target, Target):
+        target = Target(target)
+    return device(target.get_target_device_type(), index)
 
 
 def cpu(dev_id=0):
