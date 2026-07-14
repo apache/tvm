@@ -29,7 +29,6 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relax/type_functor.h>
 #include <tvm/runtime/logging.h>
 
 #include <unordered_set>
@@ -220,17 +219,21 @@ class DataflowBlockMutator : public ExprMutator {
    * Vars or symbolic Vars defined inside the dataflow block.
    */
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* n) final {
-    VarSet preserved_vars = CollectPreservedVars(n->bindings);
+    PreservedVars preserved_vars = CollectPreservedVars(n->bindings);
 
     // apply pass_func_ to the DataflowBlock
     DataflowBlock block = ffi::GetRef<DataflowBlock>(n);
     DataflowBlock updated_block = pass_func_(block, mod_, pass_ctx_);
 
-    VarSet updated_vars = CollectPreservedVars(updated_block->bindings);
-    for (const VarNode* var : preserved_vars) {
-      TVM_FFI_ICHECK(updated_vars.count(var))
-          << "Error: DataflowBlock Pass should not rewrite or delete any global-scope or "
-             "symbolic Var.";
+    PreservedVars updated_vars = CollectPreservedVars(updated_block->bindings);
+    for (const VarNode* var : preserved_vars.binding_vars) {
+      TVM_FFI_ICHECK(updated_vars.binding_vars.count(var))
+          << "Error: DataflowBlock Pass should not rewrite or delete any global-scope Var.";
+    }
+    for (const VarNode* var : preserved_vars.match_cast_symbolic_vars) {
+      TVM_FFI_ICHECK(updated_vars.match_cast_symbolic_vars.count(var))
+          << "Error: DataflowBlock Pass should not rewrite or delete any symbolic Var declared "
+             "by a MatchCast.";
     }
 
     return updated_block;
@@ -239,33 +242,21 @@ class DataflowBlockMutator : public ExprMutator {
  private:
   using VarSet = std::unordered_set<const VarNode*>;
 
-  class SymbolicVarCollector : public TypeVisitor {
-   public:
-    static void Collect(const Type& type, VarSet* vars) {
-      SymbolicVarCollector collector(vars);
-      collector.VisitType(type);
-    }
-
-   private:
-    explicit SymbolicVarCollector(VarSet* vars) : vars_(vars) {}
-
-    void VisitTypeExprField(const PrimExpr& expr) final {
-      if (auto var = expr.as<tirx::PrimVar>()) {
-        vars_->insert(var.value().get());
-      }
-    }
-
-    VarSet* vars_;
+  struct PreservedVars {
+    VarSet binding_vars;
+    VarSet match_cast_symbolic_vars;
   };
 
-  static VarSet CollectPreservedVars(const ffi::Array<Binding>& bindings) {
-    VarSet vars;
+  static PreservedVars CollectPreservedVars(const ffi::Array<Binding>& bindings) {
+    PreservedVars vars;
     for (const Binding& binding : bindings) {
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        SymbolicVarCollector::Collect(match_cast->ty, &vars);
+        for (const tirx::Var& var : DefinableTIRVarsInType(match_cast->ty)) {
+          vars.match_cast_symbolic_vars.insert(var.get());
+        }
       }
       if (!binding->var.as<DataflowVarNode>()) {
-        vars.insert(binding->var.get());
+        vars.binding_vars.insert(binding->var.get());
       }
     }
     return vars;

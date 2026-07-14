@@ -27,6 +27,54 @@ from tvm.script import relax as R
 from tvm.script import tirx as T
 
 
+def _make_dataflow_block_with_dual_role_var():
+    prim_ty = tvm.ir.PrimType("int64")
+    source = tvm.ir.Var("source", prim_ty)
+    data = tvm.ir.Var("data", relax.TensorType(dtype="float32", ndim=1))
+    extent = tvm.ir.Var("extent", prim_ty)
+    matched_ty = relax.TensorType([extent], "float32")
+    matched = relax.DataflowVar("matched", matched_ty)
+
+    block = relax.DataflowBlock(
+        [
+            relax.VarBinding(extent, source),
+            relax.MatchCast(matched, data, matched_ty),
+        ]
+    )
+    func = relax.Function([source, data], relax.SeqExpr([block], extent), prim_ty)
+    return relax.transform.Normalize()(tvm.IRModule.from_expr(func))
+
+
+def test_dataflowblock_pass_rejects_deleting_binding_role_of_symbolic_var():
+    mod = _make_dataflow_block_with_dual_role_var()
+
+    @relax.transform.dataflowblock_pass(opt_level=0)
+    def delete_ordinary_binding(block, _mod, _ctx):
+        return relax.DataflowBlock([block.bindings[1]])
+
+    with pytest.raises(tvm.error.InternalError, match="global-scope Var"):
+        delete_ordinary_binding(mod)
+
+
+def test_dataflowblock_pass_rejects_rewriting_match_cast_role_of_binding_var():
+    mod = _make_dataflow_block_with_dual_role_var()
+
+    @relax.transform.dataflowblock_pass(opt_level=0)
+    def rewrite_match_cast_symbol(block, _mod, _ctx):
+        old_match_cast = block.bindings[1]
+        replacement = tvm.ir.Var("replacement", "int64")
+        replacement_ty = relax.TensorType([replacement], "float32")
+        new_match_cast = relax.MatchCast(
+            relax.DataflowVar(old_match_cast.var.name, replacement_ty),
+            old_match_cast.value,
+            replacement_ty,
+        )
+        return relax.DataflowBlock([block.bindings[0], new_match_cast])
+
+    with pytest.raises(tvm.error.InternalError, match="symbolic Var declared by a MatchCast"):
+        rewrite_match_cast_symbol(mod)
+
+
 def test_to_non_dataflow():
     @tvm.script.ir_module
     class TestToNonDataflow:
