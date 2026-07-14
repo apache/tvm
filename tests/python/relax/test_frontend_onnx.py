@@ -5803,6 +5803,29 @@ def test_constantofshape_default_value():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_constantofshape_initializer_shape_with_keep_params_in_input():
+    shape_init = helper.make_tensor("shape", TensorProto.INT64, [1], [3])
+    node = helper.make_node(
+        "ConstantOfShape",
+        ["shape"],
+        ["y"],
+        value=helper.make_tensor("value", TensorProto.INT64, [1], [1]),
+    )
+    graph = helper.make_graph(
+        [node],
+        "constantofshape_initializer_shape_test",
+        inputs=[helper.make_tensor_value_info("shape", TensorProto.INT64, [1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [3])],
+        initializer=[shape_init],
+    )
+    model = helper.make_model(graph, producer_name="constantofshape_initializer_shape_test")
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    assert tuple(dim.value for dim in tvm_model["main"].ret_ty.shape.values) == (3,)
+    assert tvm_model["main"].ret_ty.dtype == "int64"
+
+
 def test_slice():
     def verify_slice(data_shape, output_shape, starts, ends, expected, axes=None, steps=None):
         if isinstance(starts, list):
