@@ -49,11 +49,11 @@ def _check_type_missing(ty):
 
 def test_var() -> None:
     v0 = rx.Var("v0")
-    assert v0.name_hint == "v0"
+    assert v0.name == "v0"
     _check_type_missing(v0.ty)
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
-    assert v1.name_hint == "v1"
+    assert v1.name == "v1"
     for s0, s1 in zip(v1.ty.shape, shape):
         assert s0 == s1
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float32"))
@@ -83,12 +83,12 @@ def test_relax_expr_ty_running_example() -> None:
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
-    assert v0.name_hint == "v0"
+    assert v0.name == "v0"
     _check_type_missing(v0.ty)
 
     shape = [54, 96]
     v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
-    assert v1.name_hint == "v1"
+    assert v1.name == "v1"
 
     assert isinstance(v1, rx.DataflowVar)
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float16"))
@@ -169,7 +169,7 @@ def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    assert b0.var.name_hint == "v0"
+    assert b0.var.name == "v0"
     assert b0.value == val
 
 

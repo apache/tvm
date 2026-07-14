@@ -121,11 +121,11 @@ def get_constant(
     # Params is actually both the graph nodes and param dictionary, unpack them.
     graph_nodes, params = params
     # Convert if possible
-    if isinstance(var, relax.Var) and var.name_hint in params:
+    if isinstance(var, relax.Var) and var.name in params:
         # When converting a parameter to a constant, update references to it as well.
-        _, value = params[var.name_hint]
+        _, value = params[var.name]
         const_value = relax.const(value)
-        graph_nodes[var.name_hint] = const_value
+        graph_nodes[var.name] = const_value
         return const_value
     # Otherwise return variable.
     else:
@@ -1208,8 +1208,8 @@ class Concat(OnnxOpConverter):
         # fast path; tensor fallback keeps the original Vars so runtime
         # weights aren't folded under keep_params_in_input=True.
         def resolve(x):
-            if isinstance(x, relax.Var) and x.name_hint in param_dict:
-                arr = param_dict[x.name_hint][1].numpy()
+            if isinstance(x, relax.Var) and x.name in param_dict:
+                arr = param_dict[x.name][1].numpy()
                 if arr.ndim == 1 and arr.dtype == _np.int64:
                     return relax.const(arr, "int64")
             return x
@@ -5300,7 +5300,7 @@ class NonMaxSuppression(OnnxOpConverter):
         elif max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Var
         ):
-            var_name = max_output_boxes_per_class.name_hint
+            var_name = max_output_boxes_per_class.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 max_output_boxes_per_class = int(param_value.numpy().item())
@@ -5312,7 +5312,7 @@ class NonMaxSuppression(OnnxOpConverter):
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
             iou_threshold = float(iou_threshold.data.numpy().item())
         elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
-            var_name = iou_threshold.name_hint
+            var_name = iou_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 iou_threshold = float(param_value.numpy().item())
@@ -5324,7 +5324,7 @@ class NonMaxSuppression(OnnxOpConverter):
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy().item())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
-            var_name = score_threshold.name_hint
+            var_name = score_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 score_threshold = float(param_value.numpy().item())
@@ -5396,7 +5396,7 @@ class AllClassNMS(OnnxOpConverter):
         elif max_output_boxes_per_class is not None and isinstance(
             max_output_boxes_per_class, relax.Var
         ):
-            var_name = max_output_boxes_per_class.name_hint
+            var_name = max_output_boxes_per_class.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 max_output_boxes_per_class = int(param_value.numpy().item())
@@ -5408,7 +5408,7 @@ class AllClassNMS(OnnxOpConverter):
         if iou_threshold is not None and isinstance(iou_threshold, relax.Constant):
             iou_threshold = float(iou_threshold.data.numpy().item())
         elif iou_threshold is not None and isinstance(iou_threshold, relax.Var):
-            var_name = iou_threshold.name_hint
+            var_name = iou_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 iou_threshold = float(param_value.numpy().item())
@@ -5420,7 +5420,7 @@ class AllClassNMS(OnnxOpConverter):
         if score_threshold is not None and isinstance(score_threshold, relax.Constant):
             score_threshold = float(score_threshold.data.numpy().item())
         elif score_threshold is not None and isinstance(score_threshold, relax.Var):
-            var_name = score_threshold.name_hint
+            var_name = score_threshold.name
             if var_name in params[1]:
                 _, param_value = params[1][var_name]
                 score_threshold = float(param_value.numpy().item())
@@ -5899,7 +5899,7 @@ class ONNXGraphImporter:
 
     def _new_var(self, var_name: str, shape: list, dtype: str = "float32"):
         """Creates a new Relax variable."""
-        return relax.Var(name_hint=var_name, ty=relax.TensorType(shape=shape, dtype=dtype))
+        return relax.Var(name=var_name, ty=relax.TensorType(shape=shape, dtype=dtype))
 
     def _parse_graph_input(self, graph: onnx.onnx_ml_pb2.GraphProto):
         """Parse model inputs to Relax parameters."""

@@ -37,7 +37,7 @@ def _create_param_var(param: Var | Type, param_name: str) -> Var:
         param = Var(param_name, param)
     if not isinstance(param, Var):
         raise TypeError("The type of param should be Var or Type, but got " + type(param))
-    return Var(param.name_hint, param.ty)
+    return Var(param.name, param.ty)
 
 
 class Loss:

@@ -1197,7 +1197,7 @@ def test_if_branch():
     y, ite = y_bind.var, y_bind.value
 
     assert isinstance(y, relax.Var)
-    assert y.name_hint == "y"
+    assert y.name == "y"
 
     assert isinstance(ite, relax.If)
     assert isinstance(ite.true_branch, relax.SeqExpr)
@@ -1215,13 +1215,13 @@ def test_if_branch():
     # the seq exprts in the branches are normalized to bind any call
     # in the seq expr "body" to a var
     y_bind = ite.true_branch.blocks[-1].bindings[-1]
-    assert w_bind.var.name_hint == "w"
+    assert w_bind.var.name == "w"
     check_call(w_bind.value, "relax.add", [x, x])
     check_call(y_bind.value, "relax.multiply", [w_bind.var, w_bind.var])
 
     w_bind = ite.false_branch.blocks[0].bindings[0]
     y_bind = ite.false_branch.blocks[-1].bindings[-1]
-    assert w_bind.var.name_hint == "w"
+    assert w_bind.var.name == "w"
     check_call(w_bind.value, "relax.multiply", [x, x])
     check_call(y_bind.value, "relax.add", [w_bind.var, w_bind.var])
 
@@ -1249,7 +1249,7 @@ def test_if_branch_with_match_cast():
 
     B_var = B_binding.var
     assert isinstance(B_var, relax.Var)
-    assert B_var.name_hint == "B"
+    assert B_var.name == "B"
 
     if_then_else = B_binding.value
     assert isinstance(if_then_else, relax.If)

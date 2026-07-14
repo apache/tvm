@@ -244,7 +244,7 @@ def _emit_method(  # pylint: disable=too-many-locals,too-many-branches,too-many-
                     updated_effect_input.append(
                         builder.emit(
                             rx.TupleGetItem(input_var, i),
-                            name_hint=effect_input_i.name_hint,
+                            name_hint=effect_input_i.name,
                         )
                     )
                     i += 1

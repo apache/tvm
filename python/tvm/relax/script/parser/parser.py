@@ -417,7 +417,7 @@ def visit_with(self: Parser, node: doc.With) -> None:
     if isinstance(frame, BindingBlockFrame) and frame.is_dataflow:
         output_vars = frame.output_vars
         for var in output_vars:
-            self.var_table.add(var.name_hint, var, allow_shadowing=True)
+            self.var_table.add(var.name, var, allow_shadowing=True)
 
 
 @dispatch.register(token="relax", type_name="Assign")

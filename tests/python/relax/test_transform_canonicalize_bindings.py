@@ -1301,7 +1301,7 @@ def test_trivial_binding_of_replaced_non_dataflow_var():
     tvm.ir.assert_structural_equal(After, Expected)
 
     def _get_binding_names(mod):
-        return [binding.var.name_hint for binding in mod["main"].body.blocks[0].bindings]
+        return [binding.var.name for binding in mod["main"].body.blocks[0].bindings]
 
     expected_names = _get_binding_names(Expected)
     after_names = _get_binding_names(After)

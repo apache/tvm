@@ -64,8 +64,8 @@ def test_function_simple():
 
     tvm.ir.assert_structural_equal(func, mod["foo"])
     # check names
-    assert func.params[0].name_hint == "x"
-    assert func.body.body.name_hint == "out"
+    assert func.params[0].name == "x"
+    assert func.body.body.name == "out"
 
 
 def test_emits():

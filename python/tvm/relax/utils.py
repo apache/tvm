@@ -223,7 +223,7 @@ def gen_call_tir_inputs(
                 and tvm.ir.is_prim_expr(arg)
                 and not (tvm.ir.is_prim_var(arg) and arg.ty.dtype == "int64")
             ):
-                name = arg.name_hint or f"scalar_input_{len(create_primfunc_args)}"
+                name = arg.name or f"scalar_input_{len(create_primfunc_args)}"
                 tir_param = tirx.Var(name, arg.ty.dtype)
                 call_tir_args.append(arg)
                 create_primfunc_args.append(tir_param)
@@ -245,7 +245,7 @@ def gen_call_tir_inputs(
 
                     n_args = len(create_primfunc_args)
                     if isinstance(arg, tvm.relax.Var):
-                        name = arg.name_hint
+                        name = arg.name
                     elif n_args < len(string.ascii_uppercase):
                         name = string.ascii_uppercase[n_args]
                     else:

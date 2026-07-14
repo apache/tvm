@@ -1009,9 +1009,9 @@ def test_attention_qkv():
         dfb = QKV_proj["main"].body.blocks[0]
         out = ctx.match_dfb(dfb)
 
-        assert out[Q_weight_pat].name_hint == "w0"
-        assert out[K_weight_pat].name_hint == "w1"
-        assert out[V_weight_pat].name_hint == "w2"
+        assert out[Q_weight_pat].name == "w0"
+        assert out[K_weight_pat].name == "w1"
+        assert out[V_weight_pat].name == "w2"
 
 
 def test_attention_fake_qkv():
