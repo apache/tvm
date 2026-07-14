@@ -116,11 +116,22 @@ Type Bind(const Type& ty, const tvm::ffi::Map<Var, Expr>& binds) {
 
 tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
     const tvm::ffi::Map<tvm::Var, relax::Expr>& relax_var_remap, const arith::Analyzer& analyzer) {
-  (void)analyzer;
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
-  auto bind_from_prim_expr = [&var_remap](const PrimExpr& var_shape, const PrimExpr& expr_shape) {
+  auto bind_from_prim_expr = [&relax_var_remap, &var_remap, &analyzer](const PrimExpr& var_shape,
+                                                                       const PrimExpr& expr_shape) {
     if (auto var = var_shape.as<tirx::PrimVar>()) {
+      if (auto it = relax_var_remap.find(var.value()); it != relax_var_remap.end()) {
+        auto explicit_value = (*it).second.as<PrimExpr>();
+        TVM_FFI_CHECK(explicit_value.has_value(), ValueError)
+            << "Explicit binding for symbolic variable " << var.value()
+            << " must be a primitive expression, but received " << (*it).second;
+        TVM_FFI_CHECK(analyzer->CanProveEqual(explicit_value.value(), expr_shape), ValueError)
+            << "Explicit binding for symbolic variable " << var.value()
+            << " conflicts with the value inferred from a parameter shape: explicit value "
+            << explicit_value.value() << ", inferred value " << expr_shape;
+        return;
+      }
       var_remap.Set(var.value(), expr_shape);
     }
   };
