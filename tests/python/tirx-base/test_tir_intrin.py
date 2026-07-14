@@ -318,7 +318,7 @@ def test_clz(target, dtype):
     func = tvm.compile(sch.mod, target=target)
 
     def run_and_check():
-        dev = tvm.device(target.kind.name)
+        dev = tvm.device_from_target(target)
         n = 10
         highs = [10, 100, 1000, 10000, 100000, 1000000]
 

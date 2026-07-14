@@ -58,7 +58,7 @@ def test_add_pipeline():
         n = nn
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.device_from_target(target, 0)
             a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
             c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
             f(a, c)

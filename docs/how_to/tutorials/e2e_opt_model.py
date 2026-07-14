@@ -143,7 +143,7 @@ if not IS_IN_CI:
     with target:
         mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target=target)
-    dev = tvm.device("cuda", 0)
+    dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
     # Need to allocate data and params on GPU device
     gpu_data = tvm.runtime.tensor(np.random.rand(1, 3, 224, 224).astype("float32"), dev)

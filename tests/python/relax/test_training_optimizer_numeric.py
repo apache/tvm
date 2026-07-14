@@ -89,7 +89,7 @@ def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_sgd(lr, weight_decay):
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
@@ -115,7 +115,7 @@ def test_sgd(lr, weight_decay):
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
@@ -152,7 +152,7 @@ def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_adam(lr, betas, eps, weight_decay):
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]

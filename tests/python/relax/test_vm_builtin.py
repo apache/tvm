@@ -79,7 +79,7 @@ def test_alloc_tensor_raises_out_of_memory():
     built = tvm.compile(Module, target=target)
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.cuda()
         vm = relax.VirtualMachine(built, dev)
         with pytest.raises(Exception, match="CUDA.*out of memory"):
             vm["main"]()

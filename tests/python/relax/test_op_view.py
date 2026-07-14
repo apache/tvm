@@ -682,7 +682,7 @@ def test_execute_no_op_view(target):
     np_expected = np_input
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
         tvm_output = vm["main"](tvm_input)
@@ -711,7 +711,7 @@ def test_execute_view_with_new_shape(target):
     np_expected = np_input.reshape(64, 64)
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
         tvm_output = vm["main"](tvm_input)
@@ -744,7 +744,7 @@ def test_execute_view_with_new_byte_offset(target):
     np_expected = np_input.reshape(64, 64)[32:48, :]
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
         tvm_output = vm["main"](tvm_input)
@@ -773,7 +773,7 @@ def test_execute_view_with_new_dtype(target):
     np_expected = np_input.view("uint32")
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
         tvm_output = vm["main"](tvm_input)
@@ -815,7 +815,7 @@ def test_execute_view_with_multiple_updated_fields(target):
     ]
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         vm = tvm.relax.VirtualMachine(built, device=dev)
         tvm_input = tvm.runtime.tensor(np_input, dev)
         tvm_output = vm["main"](tvm_input)

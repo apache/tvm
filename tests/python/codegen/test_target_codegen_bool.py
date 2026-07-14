@@ -89,7 +89,7 @@ def test_cmp_load_store(target):
     b_np = np.random.uniform(size=arr_size).astype("float32")
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         d = tvm.runtime.tensor(np.zeros(arr_size, dtype="float32"), dev)

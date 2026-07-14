@@ -63,7 +63,7 @@ def _run_mma(mod, K, no_c_ptr, np_in):
         ref = ref + C_np
 
     def run_and_check():
-        dev = tvm.device("cuda")
+        dev = tvm.cuda()
         D = tvm.runtime.tensor(np.zeros((16, 8), np.float32), device=dev)
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)

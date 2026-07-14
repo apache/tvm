@@ -88,7 +88,7 @@ def test_e2m1_vector_conversions(promoted_dtype):
         b_np = np.random.choice(valid_fp4_values, size=np_shape).astype(np.int8)
 
     def run_and_check():
-        dev = tvm.device(target, 0)
+        dev = tvm.cuda(0)
         a = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
         a.copyfrom(a_np)
         b = tvm.runtime.empty(shape=(vector_length,), dtype=native_dtype, device=dev)
@@ -188,7 +188,7 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
 def test_e2m1_dequantize():
     n = 128
 
-    dev = tvm.device("cuda", 0)
+    dev = tvm.cuda(0)
     target = tvm.target.Target.from_device(dev)
     num_elem_per_storage = 32 // 4
 
@@ -264,7 +264,7 @@ def test_e2m1_scalar_buffer_offset():
     expected = fp4_to_fp16[fp4_elements]
 
     def run_and_check():
-        dev = tvm.device(target, 0)
+        dev = tvm.cuda(0)
         a = tvm.runtime.empty(shape=(n // 2,), dtype="uint8", device=dev)
         a.copyfrom(packed)
         b = tvm.runtime.empty(shape=(n,), dtype="float16", device=dev)
