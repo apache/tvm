@@ -468,7 +468,6 @@ TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
-TVM_SCRIPT_REPR(tirx::VarNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterVarNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::StringImmNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::CastNode, ReprPrintTIR);

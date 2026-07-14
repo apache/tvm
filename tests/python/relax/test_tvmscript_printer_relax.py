@@ -414,7 +414,7 @@ def test_var():
         obj,
         """
 x = T.int64()
-a: R.Tensor((T.int64(1), x, T.int64(3)), dtype="float32")
+a: R.Tensor((1, x, 3), dtype="float32")
 a""",
     )
 

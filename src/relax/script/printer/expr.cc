@@ -22,6 +22,7 @@
 #include <cmath>
 #include <limits>
 
+#include "../../../tirx/script/printer/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -155,11 +156,20 @@ Doc PrintRelaxVar(tvm::Var n, AccessPath p, IRDocsifier d) {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<relax::DataflowVar>("relax", PrintRelaxVar);
 
+std::string ReprPrintVar(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
+  Var var = obj.as_or_throw<Var>();
+  if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
+    return ReprPrintTIR(obj, cfg);
+  }
+  return ReprPrintRelax(obj, cfg);
+}
+
 TVM_REGISTER_SCRIPT_AS_REPR(relax::StringImmNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::DataTypeImmNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleGetItemNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeExprNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(VarNode, ReprPrintVar);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowVarNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::ConstantNode, ReprPrintRelax);
 
