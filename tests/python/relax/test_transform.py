@@ -356,6 +356,133 @@ def test_call_dps_packed_rewrite():
     assert s2.op.global_symbol == "test.op.identity"
 
 
+def test_call_dps_packed_rewrite_nested_tuple_output():
+    """Nested outputs are flattened for the packed ABI and rebuilt afterwards."""
+    input_ty = relax.TensorType((2, 3), "float32")
+    flat_output_types = [
+        relax.TensorType((2, 3), "float32"),
+        relax.TensorType((4,), "int32"),
+        relax.TensorType((5, 6), "float16"),
+    ]
+    output_ty = tvm.ir.TupleType([flat_output_types[0], tvm.ir.TupleType(flat_output_types[1:])])
+
+    x = relax.Var("x", input_ty)
+    call = relax.Call(
+        tvm.ir.Op.get("relax.call_dps_packed"),
+        [relax.ExternFunc("test.op.nested_outputs"), relax.Tuple([x])],
+        ty_args=[output_ty],
+    )
+    builder = relax.BlockBuilder()
+    with builder.function("main", [x], attrs={"relax.force_pure": True}):
+        out = builder.emit(call)
+        builder.emit_func_output(out)
+    before = builder.get()
+
+    after = relax.transform.CallTIRRewrite()(before)
+    relax.analysis.well_formed(after)
+    func = after["main"]
+    block = func.body.blocks[0]
+
+    alloc_bindings = block.bindings[:3]
+    for binding, expected_ty in zip(alloc_bindings, flat_output_types):
+        assert binding.value.op.name == "relax.builtin.alloc_tensor"
+        tvm.ir.assert_structural_equal(binding.var.ty, expected_ty)
+
+    packed_call = block.bindings[3].value
+    assert packed_call.op.global_symbol == "test.op.nested_outputs"
+    assert len(packed_call.args) == 4
+    assert packed_call.args[0].same_as(func.params[0])
+    for arg, binding in zip(packed_call.args[1:], alloc_bindings):
+        assert arg.same_as(binding.var)
+
+    rebuilt = block.bindings[4].value
+    assert isinstance(rebuilt, relax.Tuple)
+    assert rebuilt.fields[0].same_as(alloc_bindings[0].var)
+    assert isinstance(rebuilt.fields[1], relax.Tuple)
+    assert rebuilt.fields[1].fields[0].same_as(alloc_bindings[1].var)
+    assert rebuilt.fields[1].fields[1].same_as(alloc_bindings[2].var)
+
+
+def test_call_dps_packed_rewrite_single_leaf_nested_tuple_output():
+    """A single flattened output must still retain its nested tuple structure."""
+    input_ty = relax.TensorType((2, 3), "float32")
+    output_leaf_ty = relax.TensorType((4,), "int32")
+    output_ty = tvm.ir.TupleType([tvm.ir.TupleType([output_leaf_ty])])
+
+    x = relax.Var("x", input_ty)
+    call = relax.Call(
+        tvm.ir.Op.get("relax.call_dps_packed"),
+        [relax.ExternFunc("test.op.single_nested_output"), relax.Tuple([x])],
+        ty_args=[output_ty],
+    )
+    builder = relax.BlockBuilder()
+    with builder.function("main", [x], attrs={"relax.force_pure": True}):
+        out = builder.emit(call)
+        builder.emit_func_output(out)
+    before = builder.get()
+
+    after = relax.transform.CallTIRRewrite()(before)
+    relax.analysis.well_formed(after)
+    func = after["main"]
+    block = func.body.blocks[0]
+
+    alloc_binding = block.bindings[0]
+    assert alloc_binding.value.op.name == "relax.builtin.alloc_tensor"
+    tvm.ir.assert_structural_equal(alloc_binding.var.ty, output_leaf_ty)
+
+    packed_call = block.bindings[1].value
+    assert packed_call.op.global_symbol == "test.op.single_nested_output"
+    assert len(packed_call.args) == 2
+    assert packed_call.args[0].same_as(func.params[0])
+    assert packed_call.args[1].same_as(alloc_binding.var)
+
+    rebuilt = block.bindings[2].value
+    assert isinstance(rebuilt, relax.Tuple)
+    assert len(rebuilt.fields) == 1
+    assert isinstance(rebuilt.fields[0], relax.Tuple)
+    assert len(rebuilt.fields[0].fields) == 1
+    assert rebuilt.fields[0].fields[0].same_as(alloc_binding.var)
+
+
+def test_call_dps_packed_rewrite_single_element_tuple_output():
+    """A single-element tuple output must not be collapsed into its tensor field."""
+    input_ty = relax.TensorType((2, 3), "float32")
+    output_leaf_ty = relax.TensorType((4,), "int32")
+    output_ty = tvm.ir.TupleType([output_leaf_ty])
+
+    x = relax.Var("x", input_ty)
+    call = relax.Call(
+        tvm.ir.Op.get("relax.call_dps_packed"),
+        [relax.ExternFunc("test.op.single_tuple_output"), relax.Tuple([x])],
+        ty_args=[output_ty],
+    )
+    builder = relax.BlockBuilder()
+    with builder.function("main", [x], attrs={"relax.force_pure": True}):
+        out = builder.emit(call)
+        builder.emit_func_output(out)
+    before = builder.get()
+
+    after = relax.transform.CallTIRRewrite()(before)
+    relax.analysis.well_formed(after)
+    func = after["main"]
+    block = func.body.blocks[0]
+
+    alloc_binding = block.bindings[0]
+    assert alloc_binding.value.op.name == "relax.builtin.alloc_tensor"
+    tvm.ir.assert_structural_equal(alloc_binding.var.ty, output_leaf_ty)
+
+    packed_call = block.bindings[1].value
+    assert packed_call.op.global_symbol == "test.op.single_tuple_output"
+    assert len(packed_call.args) == 2
+    assert packed_call.args[0].same_as(func.params[0])
+    assert packed_call.args[1].same_as(alloc_binding.var)
+
+    rebuilt = block.bindings[2].value
+    assert isinstance(rebuilt, relax.Tuple)
+    assert len(rebuilt.fields) == 1
+    assert rebuilt.fields[0].same_as(alloc_binding.var)
+
+
 def test_call_tir_inplace_simple():
     # simple case: one inplace argument
     @tvm.script.ir_module

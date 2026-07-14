@@ -1422,5 +1422,262 @@ def test_concat():
     check(mod, [("x.concat", pat_clip)], Expected2)
 
 
+def _get_codegen_calls(mod):
+    """Return main-function codegen calls, keyed by backend name."""
+    calls = {}
+    for block in mod["main"].body.blocks:
+        for binding in block.bindings:
+            value = binding.value
+            if not isinstance(value, relax.Call) or not isinstance(value.op, relax.GlobalVar):
+                continue
+            callee = mod[value.op]
+            if not isinstance(callee, relax.Function) or callee.attrs is None:
+                continue
+            if codegen := callee.attrs.get("Codegen"):
+                calls[str(codegen)] = (binding.var, value)
+    return calls
+
+
+def _find_tuple_get_item(mod, tuple_value, index):
+    """Find the variable bound to a specific TupleGetItem in main."""
+    matches = []
+    for block in mod["main"].body.blocks:
+        for binding in block.bindings:
+            value = binding.value
+            if (
+                isinstance(value, relax.TupleGetItem)
+                and value.index == index
+                and value.tuple_value.same_as(tuple_value)
+            ):
+                matches.append(binding.var)
+    assert len(matches) == 1
+    return matches[0]
+
+
+def test_tuple_output_remap_is_scoped_to_producer_group():
+    """One tuple-producing group must not suppress another group's output remapping."""
+
+    @I.ir_module
+    class Before:
+        @R.function(private=True)
+        def relu(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            R.func_attr({"Composite": "compiler_A.relu", "Primitive": True})
+            return R.nn.relu(x)
+
+        @R.function(private=True)
+        def split(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            R.func_attr({"Composite": "compiler_B.split", "Primitive": True})
+            return R.split(x, indices_or_sections=2, axis=0)
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(
+            R.Tensor((2, 4), "float32"),
+            R.Tensor((2, 4), "float32"),
+            R.Tensor((1, 4), "float32"),
+        ):
+            cls = Before
+            with R.dataflow():
+                first = cls.relu(x)
+                second = cls.relu(first)
+                parts = cls.split(x)
+                left = parts[0]
+                out = (first, second, left)
+                R.output(out)
+            return out
+
+    after = relax.transform.MergeCompositeFunctions()(Before)
+    relax.analysis.well_formed(after)
+    assert not relax.analysis.free_vars(after["main"])
+    assert set(_get_codegen_calls(after)) == {"compiler_A", "compiler_B"}
+
+
+def test_multiple_boundary_outputs_preserve_nested_tuple_indices():
+    """Fill missing output remaps without replacing existing nested tuple indices."""
+
+    @I.ir_module
+    class Before:
+        @R.function(private=True)
+        def relu(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            R.func_attr({"Composite": "compiler_A.relu", "Primitive": True})
+            return R.nn.relu(x)
+
+        @R.function(private=True)
+        def split_a(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            R.func_attr({"Composite": "compiler_A.split", "Primitive": True})
+            return R.split(x, indices_or_sections=2, axis=0)
+
+        @R.function(private=True)
+        def split_b(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            R.func_attr({"Composite": "compiler_B.split", "Primitive": True})
+            return R.split(x, indices_or_sections=2, axis=0)
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            cls = Before
+            with R.dataflow():
+                producer = cls.relu(x)
+                parts_a = cls.split_a(producer)
+                side = cls.relu(producer)
+                a_right = parts_a[1]
+                parts_b = cls.split_b(side)
+                b_left = parts_b[0]
+                out = (a_right, b_left)
+                R.output(out)
+            return out
+
+    after = relax.transform.MergeCompositeFunctions()(Before)
+    relax.analysis.well_formed(after)
+    assert not relax.analysis.free_vars(after["main"])
+
+    calls = _get_codegen_calls(after)
+    result_a, _ = calls["compiler_A"]
+    result_b, call_b = calls["compiler_B"]
+
+    parts_a = _find_tuple_get_item(after, result_a, 0)
+    side = _find_tuple_get_item(after, result_a, 1)
+    _find_tuple_get_item(after, parts_a, 1)
+    _find_tuple_get_item(after, result_b, 0)
+    assert call_b.args[0].same_as(side)
+
+
+def test_single_nested_tuple_boundary_output_is_not_unwrapped():
+    """A sole nested-tuple boundary output maps to the call, not call_result[0]."""
+
+    @I.ir_module
+    class Before:
+        @R.function(private=True)
+        def make_nested(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(
+            R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")),
+            R.Tensor((2, 4), "float32"),
+        ):
+            R.func_attr({"Composite": "compiler_A.make_nested", "Primitive": True})
+            parts = R.split(x, indices_or_sections=2, axis=0)
+            return (parts, x)
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((1, 4), "float32"):
+            cls = Before
+            with R.dataflow():
+                nested = cls.make_nested(x)
+                pair = nested[0]
+                right = pair[1]
+                R.output(right)
+            return right
+
+    after = relax.transform.MergeCompositeFunctions()(Before)
+    relax.analysis.well_formed(after)
+    assert not relax.analysis.free_vars(after["main"])
+
+    result, _ = _get_codegen_calls(after)["compiler_A"]
+    pair = _find_tuple_get_item(after, result, 0)
+    right = _find_tuple_get_item(after, pair, 1)
+    assert after["main"].body.body.same_as(right)
+
+
+def test_unique_boundary_output_precedes_last_group_binding():
+    """Export a sole boundary output even when a dead internal binding follows it."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            with R.dataflow():
+                first = R.nn.relu(x)
+                kept = R.nn.relu(first)
+                dead = R.nn.relu(kept)
+                R.output(kept)
+            return kept
+
+    pattern = is_op("relax.nn.relu")(is_op("relax.nn.relu")(is_op("relax.nn.relu")(wildcard())))
+    after = relax.transform.FuseOpsByPattern(
+        [("compiler_A.relu_chain", pattern)], annotate_codegen=True
+    )(Before)
+
+    relax.analysis.well_formed(after)
+    assert not relax.analysis.free_vars(after["main"])
+
+    grouped_result, _ = _get_codegen_calls(after)["compiler_A"]
+    assert not isinstance(grouped_result, relax.DataflowVar)
+    assert after["main"].body.body.same_as(grouped_result)
+
+
+def test_multiple_boundary_outputs_preserve_dataflow_status():
+    """Only boundary outputs that escape the dataflow block become output variables."""
+
+    @I.ir_module
+    class Before:
+        @R.function(private=True)
+        def relu(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            R.func_attr({"Composite": "compiler_A.relu", "Primitive": True})
+            return R.nn.relu(x)
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((2, 4), "float32"), R.Tensor((2, 4), "float32")):
+            cls = Before
+            with R.dataflow():
+                first = cls.relu(x)
+                out = cls.relu(first)
+                side = R.sigmoid(first)
+                R.output(out, side)
+            return (out, side)
+
+    after = relax.transform.MergeCompositeFunctions()(Before)
+    relax.analysis.well_formed(after)
+    assert not relax.analysis.free_vars(after["main"])
+
+    grouped_result, _ = _get_codegen_calls(after)["compiler_A"]
+    assert isinstance(grouped_result, relax.DataflowVar)
+
+    tuple_get_bindings = [
+        binding
+        for block in after["main"].body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.TupleGetItem)
+        and binding.value.tuple_value.same_as(grouped_result)
+    ]
+    assert len(tuple_get_bindings) == 2
+
+    output_var = after["main"].body.body.fields[0]
+    assert not isinstance(output_var, relax.DataflowVar)
+    assert any(binding.var.same_as(output_var) for binding in tuple_get_bindings)
+
+    sigmoid_calls = [
+        binding.value
+        for block in after["main"].body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.Call)
+        and isinstance(binding.value.op, tvm.ir.Op)
+        and binding.value.op.name == "relax.sigmoid"
+    ]
+    assert len(sigmoid_calls) == 1
+    internal_var = sigmoid_calls[0].args[0]
+    assert isinstance(internal_var, relax.DataflowVar)
+    assert any(binding.var.same_as(internal_var) for binding in tuple_get_bindings)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
