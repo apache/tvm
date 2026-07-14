@@ -96,7 +96,7 @@ def test_allreduce_sum(dims, target):
     b_np = a_np.sum(axis=-1).astype("float32")
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
         f(a, b)
@@ -161,7 +161,7 @@ def test_allreduce_max(dims, target):
     b_np = a_np.max(axis=-1).astype("float32")
 
     def run_and_check():
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
         f(a, b)

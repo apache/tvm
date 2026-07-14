@@ -138,7 +138,7 @@ def test_codegen_loop_step(target):
     if target == "c":
         assert src.find("for (int32_t i = 3; i < 1024; i += 96)") >= 0
 
-    dev = tvm.device(target, 0)
+    dev = tvm.cpu()
     a_np = np.random.rand(1024).astype("float32")
     b_np = np.random.rand(1024).astype("float32")
     c_np = np.zeros(1024, dtype="float32")

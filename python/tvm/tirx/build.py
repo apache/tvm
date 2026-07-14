@@ -18,6 +18,8 @@
 # pylint: disable=invalid-name
 """The build utils in python."""
 
+from tvm_ffi import DLDeviceType
+
 import tvm
 from tvm import ir
 from tvm.ir.module import IRModule
@@ -204,9 +206,7 @@ def build(
     if target is not None:
         if target.host is not None:
             target_host = target.host
-        elif (
-            tvm.device(target.kind.name, 0).dlpack_device_type() == tvm.cpu(0).dlpack_device_type()
-        ):
+        elif target.get_target_device_type() == DLDeviceType.kDLCPU:
             target_host = target
     target_host = Target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
