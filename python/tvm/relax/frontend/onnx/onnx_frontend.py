@@ -2141,7 +2141,7 @@ class ConstantOfShape(OnnxOpConverter):
         if (
             isinstance(shape, relax.ShapeExpr)
             and len(shape) == 1
-            and all([isinstance(x, tirx.IntImm) for x in shape])
+            and all(isinstance(x, tirx.IntImm) for x in shape)
         ):
             shape = [int(x) for x in shape]
             return relax.const(_np.full(shape, value, dtype), dtype)
