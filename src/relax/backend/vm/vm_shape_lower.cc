@@ -109,6 +109,24 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
   }
 
  private:
+  void VisitExpr(const Expr& expr) final {
+    auto prim_expr = expr.as<PrimExpr>();
+    bool is_intrinsic_scalar =
+        expr.as<tirx::AddNode>() || expr.as<tirx::SubNode>() || expr.as<tirx::MulNode>() ||
+        expr.as<tirx::DivNode>() || expr.as<tirx::ModNode>() || expr.as<tirx::FloorDivNode>() ||
+        expr.as<tirx::FloorModNode>() || expr.as<tirx::MinNode>() || expr.as<tirx::MaxNode>() ||
+        expr.as<tirx::CastNode>() || expr.as<tirx::SelectNode>();
+    auto call = expr.as<CallNode>();
+    bool is_symbolic_call = call && !IsRelaxOwnedCall(call);
+    if (collect_scalar_ && prim_expr &&
+        prim_expr.value().ty()->dtype == DLDataType{kDLInt, 64, 1} &&
+        (is_intrinsic_scalar || is_symbolic_call)) {
+      HandlePrimExpr(prim_expr.value());
+      return;
+    }
+    ExprVisitor::VisitExpr(expr);
+  }
+
   void VisitBinding_(const VarBindingNode* op) final {
     if (!collect_slots_) {
       VisitVarDef(op->var);
@@ -297,30 +315,11 @@ class VMShapeLowerMutator
 
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    if (!var.as<DataflowVarNode>()) {
-      if (auto prim_var = var.as<tirx::PrimVar>(); prim_var && slot_map_.count(*prim_var)) {
-        return RewritePrimValue(*prim_var);
-      }
+  Expr VisitExpr(const Expr& expr) final {
+    if (auto prim_expr = expr.as<PrimExpr>(); prim_expr && slot_map_.count(prim_expr.value())) {
+      return builder_->Normalize(RewritePrimValue(prim_expr.value()));
     }
-    return ExprMutator::VisitExpr_(op);
-  }
-
-  Expr VisitExpr_(const CallNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>();
-        prim_expr && slot_map_.count(prim_expr.value()) && !IsRelaxOwnedCall(op)) {
-      return RewritePrimValue(prim_expr.value());
-    }
-    return ExprMutator::VisitExpr_(op);
-  }
-
-  Expr VisitExprFallback_(const ExprNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>();
-        prim_expr && slot_map_.count(prim_expr.value())) {
-      return RewritePrimValue(prim_expr.value());
-    }
-    return ExprMutator::VisitExprFallback_(op);
+    return ExprMutator::VisitExpr(expr);
   }
 
   void VisitBinding_(const VarBindingNode* binding) final {
