@@ -669,6 +669,86 @@ def test_div_integer_constant_zero_divisor_raises_valueerror():
         from_onnx(model, opset=18, keep_params_in_input=False)
 
 
+def test_div_integer_constant_folding_truncates_toward_zero():
+    a = make_constant_node("a", TensorProto.INT64, [2], [-5, 5])
+    b = make_constant_node("b", TensorProto.INT64, [2], [2, 2])
+    node = helper.make_node("Div", ["a", "b"], ["y"])
+    graph = helper.make_graph(
+        [a, b, node],
+        "div_integer_constant",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.INT64, [2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
+
+    tvm_model = from_onnx(model, opset=13)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2,), dtype="int64"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const([-2, 2], "int64")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize(
+    ("input_size", "divisor_shape", "offset"),
+    [(386, [], None), (384, [1], 2)],
+)
+def test_div_integer_primexpr_folding_truncates_toward_zero(input_size, divisor_shape, offset):
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [0])
+    dim = helper.make_node("Gather", ["x_shape", "axis"], ["dim"])
+    nodes = [shape, axis, dim]
+    dividend = "dim"
+    if offset is not None:
+        offset_node = make_constant_node("offset", TensorProto.INT64, [], [offset])
+        shifted_dim = helper.make_node("Add", ["dim", "offset"], ["shifted_dim"])
+        nodes.extend([offset_node, shifted_dim])
+        dividend = "shifted_dim"
+
+    divisor = make_constant_node("divisor", TensorProto.INT64, divisor_shape, [3])
+    end = helper.make_node("Div", [dividend, "divisor"], ["end"])
+    starts = make_constant_node("starts", TensorProto.INT64, [1], [0])
+    axes = make_constant_node("axes", TensorProto.INT64, [1], [0])
+    steps = make_constant_node("steps", TensorProto.INT64, [1], [1])
+    slice_node = helper.make_node("Slice", ["x", "starts", "end", "axes", "steps"], ["y"])
+    nodes.extend([divisor, end, starts, axes, steps, slice_node])
+
+    graph = helper.make_graph(
+        nodes,
+        "div_integer_primexpr",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [input_size])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [128])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
+
+    tvm_model = from_onnx(model, opset=13)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((input_size,), dtype="float32"),
+        ) -> R.Tensor((128,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((128,), dtype="float32") = R.strided_slice(
+                    x, axes=[0], begin=[0], end=[128], strides=[1], assume_inbound=False
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 @pytest.mark.parametrize("int_mode", [True, False])
 def test_mod(int_mode: bool):
     if int_mode:
