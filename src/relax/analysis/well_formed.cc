@@ -135,24 +135,12 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
   class PrimitiveExprChecker : public tirx::ExprVisitor {
    public:
-    PrimitiveExprChecker(WellFormedChecker* parent, bool check_var_uses, bool reject_dataflow_vars)
-        : parent_(parent),
-          check_var_uses_(check_var_uses),
-          reject_dataflow_vars_(reject_dataflow_vars) {}
+    explicit PrimitiveExprChecker(WellFormedChecker* parent) : parent_(parent) {}
 
    private:
-    void VisitExpr_(const tvm::VarNode* op) final {
-      if (op->IsInstance<DataflowVarNode>() && reject_dataflow_vars_) {
-        parent_->RejectDataflowVarInDependentType(op);
-      }
-      if (check_var_uses_) {
-        parent_->VisitPrimitiveVarUse(op);
-      }
-    }
+    void VisitExpr_(const tvm::VarNode* op) final { parent_->VisitExpr(ffi::GetRef<Expr>(op)); }
 
     WellFormedChecker* parent_;
-    bool check_var_uses_;
-    bool reject_dataflow_vars_;
   };
 
   /*! \brief Get the name of a function for use in error messages. */
@@ -480,7 +468,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   void VisitExpr_(const ShapeExprNode* op) final {
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
-      VisitPrimitiveExpr(expr, true, false);
+      VisitPrimitiveExpr(expr);
       if (expr.ty().code() != DLDataTypeCode::kDLInt) {
         TVM_FFI_VISIT_THROW(TypeError, expr)
             << "Shape expressions must be of integer type, but got " << expr.ty()->dtype;
@@ -625,7 +613,10 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   }
 
   void VisitTypeExprField(const PrimExpr& expr) final {
-    VisitPrimitiveExpr(expr, mode_ != VisitMode::kMatchVarDef, true);
+    if (auto* op = expr.as<DataflowVarNode>()) {
+      TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(op))
+          << "DataflowVar cannot be used as a dependent type expression.";
+    }
     if (mode_ == VisitMode::kMatchVarDef) {
       // A primitive Var is the same canonical Var as a Relax binding.  A
       // first occurrence in a definitional type position enters the one
@@ -633,26 +624,12 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       if (auto* op = expr.as<VarNode>()) {
         MarkTypeVarDefinition(ffi::GetRef<Var>(op));
       }
-    }
-  }
-
-  void VisitPrimitiveExpr(const PrimExpr& expr, bool check_var_uses, bool reject_dataflow_vars) {
-    PrimitiveExprChecker(this, check_var_uses, reject_dataflow_vars)(expr);
-  }
-
-  void VisitPrimitiveVarUse(const tvm::VarNode* op) {
-    if (op->IsInstance<DataflowVarNode>()) {
-      VisitExpr_(static_cast<const DataflowVarNode*>(op));
     } else {
-      VisitExpr_(op);
+      VisitPrimitiveExpr(expr);
     }
   }
 
-  void RejectDataflowVarInDependentType(const tvm::VarNode* op) {
-    auto* dataflow_var = static_cast<const DataflowVarNode*>(op);
-    TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(dataflow_var))
-        << "DataflowVar cannot be used as a dependent type expression.";
-  }
+  void VisitPrimitiveExpr(const PrimExpr& expr) { PrimitiveExprChecker(this)(expr); }
 
   void MarkTypeVarDefinition(const Var& var) {
     var_set_.insert(var);

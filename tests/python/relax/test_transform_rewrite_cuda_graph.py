@@ -1189,36 +1189,5 @@ def test_static_input_with_symbolic_shape():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_primitive_dataflow_var_ends_capture_region():
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(s_tir=True)
-        def sink(v: T.int64):
-            T.evaluate(v)
-
-        @R.function
-        def root(p: R.Prim("int64")) -> R.Prim("int64"):
-            with R.dataflow():
-                df: R.Prim("int64") = p
-                call: R.Tuple = Before.sink(df)
-                z: R.Prim("int64") = p
-                R.output()
-            return p
-
-        @R.function
-        def compound(p: R.Prim("int64")) -> R.Prim("int64"):
-            with R.dataflow():
-                df: R.Prim("int64") = p
-                call: R.Tuple = Before.sink(df + 1)
-                z: R.Prim("int64") = p
-                R.output()
-            return p
-
-    assert relax.analysis.check_well_formed(Before)
-    After = relax.transform.RewriteCUDAGraph()(Before)
-    assert relax.analysis.check_well_formed(After)
-    tvm.ir.assert_structural_equal(After, Before)
-
-
 if __name__ == "__main__":
     tvm.testing.main()

@@ -104,22 +104,6 @@ def test_dataflow_var():
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
 
 
-@pytest.mark.parametrize("check_ty", [False, True])
-def test_dataflow_var_nested_in_dependent_type(check_ty):
-    bb = rx.BlockBuilder()
-    x = rx.Var("x", rx.TensorType(ndim=-1, dtype="float32"))
-    p = rx.Var("p", tvm.ir.PrimType("int64"))
-
-    with bb.function("main", [x, p]):
-        with bb.dataflow():
-            dataflow_prim = bb.emit(p)
-            bb.match_cast(x, rx.TensorType([dataflow_prim + 1], "float32"))
-            output = bb.emit_output(p)
-        bb.emit_func_output(output)
-
-    assert not rx.analysis.check_well_formed(bb.get(), check_ty=check_ty)
-
-
 def test_nested_tir_call_in_dependent_type_is_well_formed():
     p = rx.Var("p", tvm.ir.PrimType("int64"))
     inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)

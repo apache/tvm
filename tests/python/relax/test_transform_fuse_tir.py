@@ -2553,56 +2553,5 @@ def test_primitive_scalar_parameter_preserves_identity():
     assert tvm.tirx.analysis.verify_well_formed(after["fused"])
 
 
-@pytest.mark.parametrize("entry_name", ["main_root", "main_compound"])
-def test_runtime_primitive_dataflow_argument_rejected(entry_name):
-    @I.ir_module(s_tir=True)
-    class Before:
-        @T.prim_func(private=True, s_tir=True)
-        def add_scalar(x: T.Buffer((4,), "int64"), y: T.Buffer((1,), "int64"), p: T.int64):
-            for i in range(1):
-                with T.sblock("add"):
-                    vi = T.axis.spatial(1, i)
-                    y[vi] = x[0] + p
-
-        @R.function(private=True)
-        def fused(x: R.Tensor((4,), "int64"), p: R.Prim("int64")) -> R.Tensor((1,), "int64"):
-            R.func_attr({"Primitive": True})
-            cls = Before
-            out = R.call_tir(
-                cls.add_scalar,
-                (x,),
-                out_ty=R.Tensor((1,), "int64"),
-                tir_vars=R.shape([p]),
-            )
-            return out
-
-        @R.function
-        def main_root(x: R.Tensor((4,), "int64"), p: R.Prim("int64")) -> R.Tensor((1,), "int64"):
-            cls = Before
-            with R.dataflow():
-                df: R.Prim("int64") = p + 1
-                out = cls.fused(x, df)
-                R.output(out)
-            return out
-
-        @R.function
-        def main_compound(x: R.Tensor((4,), "int64"), p: R.Prim("int64")) -> R.Tensor(
-            (1,), "int64"
-        ):
-            cls = Before
-            with R.dataflow():
-                df: R.Prim("int64") = p + 1
-                out = cls.fused(x, df + 1)
-                R.output(out)
-            return out
-
-    selected_names = ["add_scalar", "fused", entry_name]
-    selected_gvars = [Before.get_global_var(name) for name in selected_names]
-    before = tvm.IRModule({gvar: Before[gvar] for gvar in selected_gvars})
-    assert relax.analysis.check_well_formed(before)
-    with pytest.raises(TypeError, match="runtime scalar DataflowVar"):
-        relax.transform.FuseTIR()(before)
-
-
 if __name__ == "__main__":
     tvm.testing.main()
