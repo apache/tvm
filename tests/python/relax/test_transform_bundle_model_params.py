@@ -195,7 +195,7 @@ def test_variable_names():
         after["main"].body.blocks[0].bindings,
         Expected["main"].body.blocks[0].bindings,
     ):
-        assert binding.var.name_hint == expected_binding.var.name_hint
+        assert binding.var.name == expected_binding.var.name
 
 
 def test_bundled_param_name():
@@ -235,7 +235,7 @@ def test_bundled_param_name():
     tvm.ir.assert_structural_equal(after, Expected)
 
     for param, expected_param in zip(after["main"].params, Expected["main"].params):
-        assert param.name_hint == expected_param.name_hint
+        assert param.name == expected_param.name
 
 
 def test_nested_function_preserves_outer_rewrite_context():

@@ -9006,7 +9006,7 @@ def from_tflite(
                         "(e.g. runtime string queries)"
                     )
                 input_var = relax.Var(
-                    name_hint=model_input_name,
+                    name=model_input_name,
                     ty=relax.TensorType(shape=shape, dtype=dtype),
                 )
                 exp_tab.set_expr(model_input_name, input_var)

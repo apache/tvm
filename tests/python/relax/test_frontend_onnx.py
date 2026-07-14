@@ -158,9 +158,7 @@ def check_correctness(
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
-    input_list = [
-        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
-    ]
+    input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
     if params:
         input_list += params["main"]
 
@@ -240,9 +238,7 @@ def run_in_tvm(
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    input_list = [
-        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
-    ]
+    input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
     if params:
         input_list += params["main"]
 
@@ -277,7 +273,7 @@ def test_sanitize(input_names, expected_names):
     tvm_model = from_onnx(model)
 
     for i, param in enumerate(tvm_model["main"].params):
-        assert param.name_hint == expected_names[i]
+        assert param.name == expected_names[i]
 
 
 def verify_unary(
@@ -639,7 +635,7 @@ def test_concat_with_param_tensor_keeps_runtime_param():
     onnx.checker.check_model(model)
 
     mod, params = relax.frontend.detach_params(from_onnx(model, keep_params_in_input=True))
-    assert "w" in [p.name_hint for p in mod["main"].params]
+    assert "w" in [p.name for p in mod["main"].params]
     assert len(params["main"]) == 1
     np.testing.assert_array_equal(params["main"][0].numpy(), weight_np)
 

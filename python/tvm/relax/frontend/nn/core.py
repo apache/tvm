@@ -144,7 +144,7 @@ class Tensor(_TensorOp):
         """
         return Tensor(
             _expr=rx.Var(
-                name_hint=name,
+                name=name,
                 ty=ty,
             )
         )
@@ -178,7 +178,7 @@ class Tensor(_TensorOp):
             new_shape.append(expr)
         return Tensor(
             _expr=rx.Var(
-                name_hint=name,
+                name=name,
                 ty=TensorType(
                     shape=new_shape,  # type: ignore[arg-type]
                     dtype=dtype,

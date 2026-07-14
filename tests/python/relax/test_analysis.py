@@ -40,7 +40,7 @@ from tvm.script import tirx as T
 
 
 def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
-    return set(map(lambda v: v.name_hint, vars))
+    return {v.name if isinstance(v, rx.Var) else v.name_hint for v in vars}
 
 
 def test_use_def():
@@ -450,7 +450,7 @@ class VarExample:
 def test_all_vars():
     vars = all_vars(VarExample["func"])
     assert len(vars) == 2
-    assert vars[0].name_hint == "a"
+    assert vars[0].name == "a"
     # the body of the seq expr in the func body is a var
     assert vars[1] == VarExample["func"].body.body
 
@@ -470,7 +470,7 @@ def test_all_vars_from_expr_using_dataflow():
 def test_bound_vars():
     vars = bound_vars(VarExample["func"])
     assert len(vars) == 2
-    assert vars[0].name_hint == "a"
+    assert vars[0].name == "a"
     # the body of the seq expr in the func body is a bound var
     assert vars[1] == VarExample["func"].body.body
 

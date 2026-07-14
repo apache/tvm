@@ -122,7 +122,7 @@ class ASTPrinter(ExprFunctor):
         return self.build_expr(op, "Tuple", fields=self.build_list(map(self.visit_expr, op.fields)))
 
     def visit_dataflow_var_(self, op: relax.DataflowVar) -> str:
-        return self.build_expr(op, "DataflowVar", name_hint=wrap_quotes(op.name))
+        return self.build_expr(op, "DataflowVar", name=wrap_quotes(op.name))
 
     def visit_var_(self, op: relax.Var) -> str:
         return self.build_expr(op, "Var", name=wrap_quotes(op.name))

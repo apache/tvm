@@ -91,11 +91,11 @@ def test_var() -> None:
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
     v0_str = dump_ast(v0)
-    assert v0_str == 'DataflowVar(name_hint="v0")'
+    assert v0_str == 'DataflowVar(name="v0")'
 
     v1 = rx.DataflowVar("v1", R.Tensor([54, 96], "float16"))
     v1_no_annos = dump_ast(v1, include_ty_annotations=False)
-    assert v1_no_annos == 'DataflowVar(name_hint="v1")'
+    assert v1_no_annos == 'DataflowVar(name="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "Expr" in v1_annos

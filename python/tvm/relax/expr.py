@@ -422,8 +422,8 @@ class DataflowVar(Var):
 
     Parameters
     ----------
-    name_hint: str
-        The name hint of the variable.
+    name: str
+        The API name of the variable.  It is stored internally as a name hint.
 
     ty: Optional[Type]
         The type annotation of the variable.
@@ -432,16 +432,25 @@ class DataflowVar(Var):
         Span that points to original source code
     """
 
-    name_hint: str
+    name: str
     span: Span | None
 
     def __init__(
         self,
-        name_hint: str,
+        name: str | None = None,
         ty: Type | None = None,
         span: Span | None = None,
+        *,
+        name_hint: str | None = None,
     ) -> None:
         # pylint: disable=super-init-not-called
+        if name is None:
+            name = name_hint
+        elif name_hint is not None:
+            raise TypeError("Specify either name or name_hint, not both")
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+
         if ty is not None:
             ty = tvm.runtime.convert(ty)
             if not isinstance(ty, Type):
@@ -451,7 +460,7 @@ class DataflowVar(Var):
                     "use relax.TensorType(shape, dtype)."
                 )
 
-        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name_hint, ty, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name, ty, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.StringImm")

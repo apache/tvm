@@ -227,8 +227,8 @@ def test_basic(consume_params):
         after = relax.transform.LiftTransformParams()(mod)
     tvm.ir.assert_structural_equal(after, expected)
 
-    names_after = [param.name_hint for param in after["main"].params]
-    names_expected = [param.name_hint for param in expected["main"].params]
+    names_after = [param.name for param in after["main"].params]
+    names_expected = [param.name for param in expected["main"].params]
     assert names_after == names_expected
 
 

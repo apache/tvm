@@ -59,6 +59,13 @@ def test_var() -> None:
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float32"))
 
 
+def test_var_name_keyword_compatibility() -> None:
+    assert tvm.ir.Var(name="primary").name == "primary"
+    assert tvm.ir.Var(name_hint="legacy").name == "legacy"
+    with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
+        tvm.ir.Var(name="primary", name_hint="legacy")
+
+
 def test_tensor_type_empty_dtype_is_unknown() -> None:
     tvm.ir.assert_structural_equal(rx.TensorType([1, 2], dtype=""), rx.TensorType([1, 2], None))
 
@@ -92,6 +99,13 @@ def test_dataflow_var() -> None:
 
     assert isinstance(v1, rx.DataflowVar)
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float16"))
+
+
+def test_dataflow_var_name_keyword_compatibility() -> None:
+    assert rx.DataflowVar(name="primary").name == "primary"
+    assert rx.DataflowVar(name_hint="legacy").name == "legacy"
+    with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
+        rx.DataflowVar(name="primary", name_hint="legacy")
 
 
 def test_tuple() -> None:
