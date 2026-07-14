@@ -94,6 +94,12 @@ class VarVisitor : protected ExprVisitor {
     vars_.Insert(v);
   }
 
+  void MarkTypeDefinitionsBound(const Type& type) {
+    for (const Var& var : DefinableTIRVarsInType(type)) {
+      MarkBounded(var);
+    }
+  }
+
   void VisitExprDepTypeField(const Type&) final {}
 
   void VisitExpr_(const VarNode* var) final { vars_.Insert(ffi::GetRef<Var>(var)); }
@@ -101,6 +107,7 @@ class VarVisitor : protected ExprVisitor {
   void VisitExpr_(const FunctionNode* op) final {
     for (const auto& param : op->params) {
       MarkBounded(param);
+      MarkTypeDefinitionsBound(GetType(param));
     }
     VisitExpr(op->body);
   }
@@ -130,6 +137,7 @@ class VarVisitor : protected ExprVisitor {
 
   void VisitBinding_(const MatchCastNode* binding) final {
     MarkBounded(binding->var);
+    MarkTypeDefinitionsBound(binding->ty);
     ExprVisitor::VisitBinding_(binding);
   }
 
