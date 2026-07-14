@@ -26,14 +26,17 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/attrs/statistical.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/index_map.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -215,6 +218,12 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   TensorRTJSONSerializer* serializer_;
   /*! \brief Accumulated translated arguments. */
   std::vector<JSONGraphNodeEntry> args_;
+  /*! \brief The first primitive operator call in the composite function. */
+  const CallNode* operator_call_{nullptr};
+  /*! \brief Total number of calls in the composite function. */
+  size_t num_calls_{0};
+  /*! \brief Number of primitive operator calls in the composite function. */
+  size_t num_operator_calls_{0};
   /*!
    * \brief Temporary node into which we'll accumulate attributes. Ideally this would be the
    * final JSONGraphNode however we don't yet know how many inputs that will have.
@@ -249,16 +258,74 @@ class TensorRTJSONSerializer : public JSONSerializer {
     CollectFromCompositeFunctionBody collector(this);
     collector.VisitExpr(fn->body);
 
-    // Capture the args to the "Composite" function as inputs for this node.
-    std::vector<JSONGraphNodeEntry> inputs;
-    for (const auto& arg : call_node->args) {
+    // Capture the args to the "Composite" function as inputs for this node, and bind the
+    // composite parameters back to those caller-side expressions.
+    TVM_FFI_ICHECK_EQ(fn->params.size(), call_node->args.size());
+    ffi::Map<Var, Expr> param_bindings;
+    std::vector<JSONGraphNodeEntry> arguments;
+    for (size_t i = 0; i < call_node->args.size(); ++i) {
+      const Expr& arg = call_node->args[i];
+      param_bindings.Set(fn->params[i], arg);
       auto res = VisitExpr(arg);
-      inputs.insert(inputs.end(), res.begin(), res.end());
+      arguments.insert(arguments.end(), res.begin(), res.end());
     }
 
     // Capture constants from the composite function body as additional inputs for this node.
-    for (const auto& node : collector.args_) {
-      inputs.emplace_back(node);
+    // FuseOps keeps constants in the composite body, so the legacy serializer discovered caller
+    // arguments and constants separately and always placed constants last.  For the single-op
+    // composites registered by TensorRT, bind the operator arguments back to caller expressions
+    // and visit them in their original order.  This matters for non-commutative operators such as
+    // subtract(constant, tensor), as well as for constants interleaved in tuple arguments.
+    std::vector<JSONGraphNodeEntry> inputs;
+    bool inputs_are_ordered = collector.num_calls_ == 1 && collector.num_operator_calls_ == 1;
+    if (inputs_are_ordered) {
+      TVM_FFI_ICHECK_NOTNULL(collector.operator_call_);
+      auto is_resolvable = [&](const auto& self, const Expr& expr) -> bool {
+        if (const auto* tuple = expr.as<TupleNode>()) {
+          return std::all_of(tuple->fields.begin(), tuple->fields.end(),
+                             [&](const Expr& field) { return self(self, field); });
+        }
+        Type type = GetType(expr);
+        if (!type->IsInstance<TensorTypeNode>() && !type->IsInstance<TupleTypeNode>()) return true;
+        if (expr->IsInstance<ConstantNode>()) return true;
+        if (const auto* var = expr.as<VarNode>()) {
+          return param_bindings.count(ffi::GetRef<Var>(var));
+        }
+        if (expr->IsInstance<TupleGetItemNode>()) {
+          for (const Var& var : FreeVars(expr)) {
+            if (!param_bindings.count(var)) return false;
+          }
+          return true;
+        }
+        return false;
+      };
+      for (const Expr& arg : collector.operator_call_->args) {
+        if (!is_resolvable(is_resolvable, arg)) {
+          inputs_are_ordered = false;
+          break;
+        }
+      }
+    }
+    if (inputs_are_ordered) {
+      auto append_tensor_inputs = [&](const auto& self, const Expr& expr) -> void {
+        if (const auto* tuple = expr.as<TupleNode>()) {
+          for (const Expr& field : tuple->fields) self(self, field);
+          return;
+        }
+        Type type = GetType(expr);
+        if (type->IsInstance<TensorTypeNode>() || type->IsInstance<TupleTypeNode>()) {
+          auto entries = VisitExpr(expr);
+          inputs.insert(inputs.end(), entries.begin(), entries.end());
+        }
+      };
+      for (const Expr& arg : collector.operator_call_->args) {
+        append_tensor_inputs(append_tensor_inputs, Bind(arg, param_bindings));
+      }
+    } else {
+      VLOG(1) << name << " is not a directly resolvable single-op composite; preserving the "
+              << "legacy argument ordering";
+      inputs = std::move(arguments);
+      inputs.insert(inputs.end(), collector.args_.begin(), collector.args_.end());
     }
 
     // Create the final node.
@@ -306,6 +373,11 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_n
 }
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
+  ++num_calls_;
+  if (call_node->op->IsInstance<OpNode>()) {
+    ++num_operator_calls_;
+    if (operator_call_ == nullptr) operator_call_ = call_node;
+  }
   if (!TrySetLayoutTransformAttributes(call_node)) {
     SetGenericAttributes(call_node);
     SetArgumentAttributes(call_node);

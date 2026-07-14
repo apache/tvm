@@ -224,6 +224,48 @@ def test_tensorrt_sigmoid():
     _offload_and_compare(Sigmoid, {}, patterns, data)
 
 
+def test_tensorrt_subtract_constant_lhs():
+    """A bound constant on the left-hand side must remain the minuend."""
+
+    @tvm.script.ir_module
+    class ConstantMinusTensor:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3, 4), "float32"),
+            constant: R.Tensor((2, 3, 4), "float32"),
+        ):
+            with R.dataflow():
+                out = relax.op.subtract(constant, data)
+                R.output(out)
+            return out
+
+    data = np.linspace(-2.0, 3.0, 24, dtype="float32").reshape(2, 3, 4)
+    constant = np.linspace(4.0, 9.0, 24, dtype="float32").reshape(2, 3, 4)
+    patterns = [("tensorrt.subtract", is_op("relax.subtract")(wildcard(), wildcard()))]
+    _offload_and_compare(ConstantMinusTensor, {"constant": constant}, patterns, data)
+
+
+def test_tensorrt_subtract_constant_rhs():
+    """A bound constant on the right-hand side must remain the subtrahend."""
+
+    @tvm.script.ir_module
+    class TensorMinusConstant:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3, 4), "float32"),
+            constant: R.Tensor((2, 3, 4), "float32"),
+        ):
+            with R.dataflow():
+                out = relax.op.subtract(data, constant)
+                R.output(out)
+            return out
+
+    data = np.linspace(-2.0, 3.0, 24, dtype="float32").reshape(2, 3, 4)
+    constant = np.linspace(4.0, 9.0, 24, dtype="float32").reshape(2, 3, 4)
+    patterns = [("tensorrt.subtract", is_op("relax.subtract")(wildcard(), wildcard()))]
+    _offload_and_compare(TensorMinusConstant, {"constant": constant}, patterns, data)
+
+
 def test_tensorrt_tanh():
     @tvm.script.ir_module
     class Tanh:
