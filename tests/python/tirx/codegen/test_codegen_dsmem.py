@@ -23,9 +23,10 @@ from tvm.script import tirx as T
 
 
 def _get_source(func: tvm.tirx.PrimFunc) -> str:
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    with target:
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src
 
