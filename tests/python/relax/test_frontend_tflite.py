@@ -2995,7 +2995,7 @@ def test_scatter_nd():
                 gv: R.Tensor(dtype="float32", ndim=1) = R.scatter_nd(
                     lv2, lv3, updates, reduction="update"
                 )
-                R.output(gv)
+                R.output(lv1, gv)
             return gv
 
     verify(Model, Expected)
