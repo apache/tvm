@@ -296,10 +296,8 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     return VisitExpr_(static_cast<const VarNode*>(op));
   }
 
-#define VM_TIR_PRIM_EXPR(OP)                                \
-  ffi::Optional<Expr> VisitExpr_(const OP* op) final {       \
-    return ffi::GetRef<Expr>(op);                            \
-  }
+#define VM_TIR_PRIM_EXPR(OP) \
+  ffi::Optional<Expr> VisitExpr_(const OP* op) final { return ffi::GetRef<Expr>(op); }
 
   VM_TIR_PRIM_EXPR(tirx::BufferLoadNode);
   VM_TIR_PRIM_EXPR(tirx::AddNode);

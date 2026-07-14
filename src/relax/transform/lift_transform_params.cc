@@ -223,8 +223,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
     ffi::Map<Var, Var> global_to_local;
     if (global_info) {
       auto record_reverse = [&](const Var& local_var) {
-        if (auto it = global_info->var_remap.find(local_var);
-            it != global_info->var_remap.end()) {
+        if (auto it = global_info->var_remap.find(local_var); it != global_info->var_remap.end()) {
           global_to_local.Set((*it).second.as_or_throw<Var>(), local_var);
         }
       };

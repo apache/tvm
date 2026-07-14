@@ -507,9 +507,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     if (wb_buffers[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
         if (loop->thread_binding.has_value()) {
-          wb_predicate =
-              wb_predicate &&
-              (static_cast<PrimExpr>(loop->loop_var) == IntImm(loop->loop_var.ty(), 0));
+          wb_predicate = wb_predicate &&
+                         (static_cast<PrimExpr>(loop->loop_var) == IntImm(loop->loop_var.ty(), 0));
         }
       }
     }

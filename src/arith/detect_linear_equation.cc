@@ -142,8 +142,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const Pri
   }
 };
 
-ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
-                                          const ffi::Array<PrimVar>& vars) {
+ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
   PrimExpr base = e;
   ffi::Array<PrimExpr> coeff;
 
@@ -299,10 +298,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("arith.DetectLinearEquation", DetectLinearEquation)
-      .def("arith.DetectClipBound",
-           [](const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
-             return DetectClipBound(e, vars);
-           });
+      .def("arith.DetectClipBound", [](const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
+        return DetectClipBound(e, vars);
+      });
 }
 }  // namespace arith
 }  // namespace tvm

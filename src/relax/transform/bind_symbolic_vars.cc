@@ -102,7 +102,8 @@ IRModule ModuleBindSymbolicVars(
       auto func = opt.value();
 
       // Collect bindings that are used by this function.
-      auto func_binding_map = [&]() -> ffi::Map<ffi::Variant<tirx::PrimVar, ffi::String>, PrimExpr> {
+      auto func_binding_map =
+          [&]() -> ffi::Map<ffi::Variant<tirx::PrimVar, ffi::String>, PrimExpr> {
         std::unordered_set<std::string> var_names;
         std::unordered_set<const tirx::VarNode*> vars;
         for (const auto& var : DefinedSymbolicVars(func)) {

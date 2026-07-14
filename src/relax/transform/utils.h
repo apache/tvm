@@ -262,8 +262,8 @@ class SymbolicVarRenewMutator : public ExprMutator {
 
     Type new_ty = RenewType(op);
     bool is_dataflow = op->IsInstance<DataflowVarNode>();
-    bool renew = renew_all_var_definitions_ ||
-                 (!is_dataflow && op->ty.as<PrimTypeNode>()) || !new_ty.same_as(op->ty);
+    bool renew = renew_all_var_definitions_ || (!is_dataflow && op->ty.as<PrimTypeNode>()) ||
+                 !new_ty.same_as(op->ty);
     if (!renew) {
       return old_var;
     }

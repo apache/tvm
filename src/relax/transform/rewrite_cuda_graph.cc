@@ -624,8 +624,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   std::unordered_set<const VarNode*> static_vars_;
   // Symbolic variables that are allowed to be captured. This can come from symbolic shapes of
   // weights or hints in the function annotations.
-  std::unordered_set<tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-      capture_symbolic_vars_;
+  std::unordered_set<tirx::PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> capture_symbolic_vars_;
   // Binding to the FuncBuilder if the binding is lifted. This is used to update the inputs/outputs
   // of the lifted function when its binding is used outside.
   std::unordered_map<const VarNode*, FuncBuilder*> binding_to_region_;

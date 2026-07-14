@@ -64,8 +64,7 @@ class PresburgerSetNode : public IntSetNode {
   explicit PresburgerSetNode(const PresburgerSpace& space, const ffi::Array<tirx::PrimVar>& vars)
       : disjuncts({}), space(space), vars(vars) {}
   explicit PresburgerSetNode(const std::vector<IntegerRelation>& disjuncts,
-                             const PresburgerSpace& space,
-                             const ffi::Array<tirx::PrimVar>& vars)
+                             const PresburgerSpace& space, const ffi::Array<tirx::PrimVar>& vars)
       : disjuncts(disjuncts), space(space), vars(vars) {}
 
   /*! \brief Represent the union of multiple IntegerRelation */

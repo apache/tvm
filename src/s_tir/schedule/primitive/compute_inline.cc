@@ -629,10 +629,9 @@ class ReverseComputeInliner : public BaseInliner {
     // Initialize the predicates to ensure consumer block iters are in-bound
     consumer_iter_in_bound_ = IntImm::Bool(true);
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
-      consumer_iter_in_bound_ =
-          consumer_iter_in_bound_ &&
-          (iter->var >= iter->dom->min &&
-           static_cast<PrimExpr>(iter->var) < iter->dom->min + iter->dom->extent);
+      consumer_iter_in_bound_ = consumer_iter_in_bound_ && (iter->var >= iter->dom->min &&
+                                                            static_cast<PrimExpr>(iter->var) <
+                                                                iter->dom->min + iter->dom->extent);
     }
   }
 

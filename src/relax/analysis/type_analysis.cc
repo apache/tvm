@@ -261,8 +261,7 @@ Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map) {
   return EraseToWellDefined(info, var_map, analyzer);
 }
 
-Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map,
-                        const arith::Analyzer& ana) {
+Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map, const arith::Analyzer& ana) {
   std::function<ffi::Optional<Expr>(const Var& var)> f_var_map = nullptr;
 
   if (!var_map.empty()) {
@@ -278,17 +277,16 @@ Type EraseToWellDefined(const Type& info, ffi::Map<Var, Expr> var_map,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "relax.analysis.EraseToWellDefined",
-      [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
-         ffi::Map<Var, Expr> var_map) {
-        for (const auto& [var, value] : shape_var_map) {
-          TVM_FFI_CHECK(var.as<tirx::PrimVar>(), TypeError)
-              << "Expected an exact primitive Var, but received " << var;
-          var_map.Set(var, value);
-        }
-        return EraseToWellDefined(info, var_map);
-      });
+  refl::GlobalDef().def("relax.analysis.EraseToWellDefined",
+                        [](const Type& info, ffi::Map<tirx::Var, PrimExpr> shape_var_map,
+                           ffi::Map<Var, Expr> var_map) {
+                          for (const auto& [var, value] : shape_var_map) {
+                            TVM_FFI_CHECK(var.as<tirx::PrimVar>(), TypeError)
+                                << "Expected an exact primitive Var, but received " << var;
+                            var_map.Set(var, value);
+                          }
+                          return EraseToWellDefined(info, var_map);
+                        });
 }
 
 //--------------------------

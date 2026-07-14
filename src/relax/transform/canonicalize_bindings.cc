@@ -52,8 +52,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 
   Expr VisitExpr_(const ShapeExprNode* op) final {
     if (!canonicalize_shape_values_) return ffi::GetRef<Expr>(op);
-    ffi::Array<PrimExpr> values = op->values.Map(
-        [this](const PrimExpr& value) { return CanonicalizeShapeValue(value); });
+    ffi::Array<PrimExpr> values =
+        op->values.Map([this](const PrimExpr& value) { return CanonicalizeShapeValue(value); });
     if (values.same_as(op->values)) {
       return ffi::GetRef<Expr>(op);
     }
@@ -175,14 +175,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
   };
 
   PrimExpr CanonicalizeShapeValue(const PrimExpr& expr) {
-    PrimExpr output = tirx::Substitute(
-        expr, [this](const Var& var) -> ffi::Optional<Expr> {
-          auto prim_var = var.as<tirx::PrimVar>();
-          if (!prim_var) return std::nullopt;
-          auto it = known_values_.find(*prim_var);
-          if (it == known_values_.end()) return std::nullopt;
-          return it->second.expr;
-        });
+    PrimExpr output = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var) return std::nullopt;
+      auto it = known_values_.find(*prim_var);
+      if (it == known_values_.end()) return std::nullopt;
+      return it->second.expr;
+    });
     return output.same_as(expr) ? expr : builder_->GetAnalyzer()->Simplify(output);
   }
 

@@ -78,8 +78,8 @@ class SplitExprCollector {
    */
   static std::vector<SplitExpr> Collect(const PrimExpr& index,
                                         const ffi::Map<PrimVar, Range>& input_iters,  //
-                                        const PrimExpr& predicate,                //
-                                        arith::IterMapLevel check_level,          //
+                                        const PrimExpr& predicate,                    //
+                                        arith::IterMapLevel check_level,              //
                                         arith::AnalyzerObj* analyzer) {
     arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
     arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,

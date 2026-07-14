@@ -112,8 +112,8 @@ class NodeFunctor<R(const ffi::ObjectRef& n, Args...)> {
         }
       }
     }
-    TVM_FFI_THROW(InternalError)
-        << "NodeFunctor calls un-registered function on type " << n->GetTypeKey();
+    TVM_FFI_THROW(InternalError) << "NodeFunctor calls un-registered function on type "
+                                 << n->GetTypeKey();
     throw;
   }
   /*!

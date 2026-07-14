@@ -170,9 +170,9 @@ TVM_DLL Type EraseToWellDefined(
  * \param ana Context analyzer to prove symbolic expression equality.
  * \return the corresponding erased type.
  */
-TVM_DLL Type EraseToWellDefined(
-    const Type& info, std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
-    const arith::Analyzer& ana);
+TVM_DLL Type EraseToWellDefined(const Type& info,
+                                std::function<ffi::Optional<Expr>(const Var& var)> f_var_map,
+                                const arith::Analyzer& ana);
 
 /*!
  * \brief EraseToWellDefined variant with map.

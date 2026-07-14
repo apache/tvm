@@ -183,18 +183,15 @@ ffi::Array<ffi::Array<arith::IterMark>> SubspaceDivide(const SBlockRealize& real
     } else {
       outer_vars.push_back(loop->loop_var);
     }
-    primitive_loop_var_domain.Set(loop->loop_var,
-                                  Range::FromMinExtent(loop->min, loop->extent));
+    primitive_loop_var_domain.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     if ((loop_sref_as_outer && sref->parent == loop_sref.get()) || sref == loop_sref.get()) {
       inner = false;
     }
   }
-  ffi::Array<ffi::Array<arith::IterMark>> result =
-      arith::SubspaceDivide(realize->iter_values, primitive_loop_var_domain,
-                            primitive_inner_vars, realize->predicate,
-                            arith::IterMapLevel::Surjective,
-                            ffi::GetRef<arith::Analyzer>(analyzer),
-                            /*simplify_trivial_iterators=*/!preserve_unit_iters);
+  ffi::Array<ffi::Array<arith::IterMark>> result = arith::SubspaceDivide(
+      realize->iter_values, primitive_loop_var_domain, primitive_inner_vars, realize->predicate,
+      arith::IterMapLevel::Surjective, ffi::GetRef<arith::Analyzer>(analyzer),
+      /*simplify_trivial_iterators=*/!preserve_unit_iters);
   if (!result.empty()) {
     return result;
   }

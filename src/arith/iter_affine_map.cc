@@ -1437,8 +1437,7 @@ bool IterRangeSanityCheck(const ffi::Map<PrimVar, Range>& iter_ranges) {
 }
 
 IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
-                            const ffi::Map<PrimVar, Range>& input_iters,
-                            const PrimExpr& predicate,
+                            const ffi::Map<PrimVar, Range>& input_iters, const PrimExpr& predicate,
                             IterMapLevel check_level, const arith::Analyzer& analyzer,
                             bool simplify_trivial_iterators) {
   arith::AnalyzerObj* analyzer_ptr = analyzer.get();

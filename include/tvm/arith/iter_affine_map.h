@@ -317,8 +317,8 @@ class IterMapResult : public ffi::ObjectRef {
  */
 IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
                             const ffi::Map<tirx::PrimVar, Range>& input_iters,
-                            const PrimExpr& predicate,
-                            IterMapLevel check_level, const arith::Analyzer& analyzer,
+                            const PrimExpr& predicate, IterMapLevel check_level,
+                            const arith::Analyzer& analyzer,
                             bool simplify_trivial_iterators = true);
 
 /*!
@@ -418,8 +418,7 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
  * \param analyzer The input analyzer.
  * \note This function is useful to detect iterator stride patterns.
  */
-IterSumExpr NormalizeToIterSum(PrimExpr index,
-                               const ffi::Map<tirx::PrimVar, Range>& input_iters,
+IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<tirx::PrimVar, Range>& input_iters,
                                const arith::Analyzer& analyzer);
 
 }  // namespace arith

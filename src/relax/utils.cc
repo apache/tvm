@@ -85,15 +85,14 @@ class ExprBinder : public ExprMutator {
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return BindShapeValue(expr); }
 
   PrimExpr BindShapeValue(const PrimExpr& expr) {
-    PrimExpr output = tirx::Substitute(
-        expr, [this](const Var& var) -> ffi::Optional<Expr> {
-          auto it = bindings_.find(var);
-          if (it == bindings_.end()) return std::nullopt;
-          if (auto value = (*it).second.as<PrimExpr>()) {
-            return ffi::Optional<Expr>(*value);
-          }
-          return std::nullopt;
-        });
+    PrimExpr output = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+      auto it = bindings_.find(var);
+      if (it == bindings_.end()) return std::nullopt;
+      if (auto value = (*it).second.as<PrimExpr>()) {
+        return ffi::Optional<Expr>(*value);
+      }
+      return std::nullopt;
+    });
     return output.same_as(expr) ? expr : analyzer_->Simplify(output);
   }
 
@@ -120,8 +119,7 @@ tvm::ffi::Map<Var, Expr> InferSymbolicVarMap(
   (void)analyzer;
   tvm::ffi::Map<Var, Expr> var_remap = relax_var_remap;
 
-  auto bind_from_prim_expr = [&var_remap](const PrimExpr& var_shape,
-                                          const PrimExpr& expr_shape) {
+  auto bind_from_prim_expr = [&var_remap](const PrimExpr& var_shape, const PrimExpr& expr_shape) {
     if (auto var = var_shape.as<tirx::PrimVar>()) {
       var_remap.Set(var.value(), expr_shape);
     }

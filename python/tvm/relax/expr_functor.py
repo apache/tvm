@@ -218,7 +218,7 @@ class ExprFunctor:
             ret = self.visit_string_imm_(expr)
         elif isinstance(expr, DataTypeImm):
             ret = self.visit_data_type_imm_(expr)
-        elif isinstance(expr, (_tirx.Let, _tirx.Reduce, _tirx.ProducerLoad)):
+        elif isinstance(expr, _tirx.Let | _tirx.Reduce | _tirx.ProducerLoad):
             raise TypeError(f"Relax does not support {type(expr).__name__} expressions")
         elif isinstance(expr, Expr):
             if is_prim_expr(expr):

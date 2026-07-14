@@ -56,9 +56,9 @@ class PrimExprComputeInjector : public ExprMutator {
     return ExprMutator::VisitExpr_(op);
   }
 
-#define RELAX_LIFT_PRIM_EXPR(OP)                                            \
-  Expr VisitExpr_(const OP* op) final {                                     \
-    return LiftPrimValue(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());    \
+#define RELAX_LIFT_PRIM_EXPR(OP)                                         \
+  Expr VisitExpr_(const OP* op) final {                                  \
+    return LiftPrimValue(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>()); \
   }
 
   RELAX_LIFT_PRIM_EXPR(tirx::BufferLoadNode);

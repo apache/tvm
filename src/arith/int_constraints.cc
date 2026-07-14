@@ -247,9 +247,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "arith.IntConstraints",
       [](ffi::Array<PrimVar> variables, ffi::Map<Var, Range> ranges,
-         ffi::Array<PrimExpr> relations) {
-        return IntConstraints(variables, ranges, relations);
-      });
+         ffi::Array<PrimExpr> relations) { return IntConstraints(variables, ranges, relations); });
 }
 
 // Pattern A (RM): auto-default repr from reflection.
@@ -282,8 +280,7 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   Analyzer ana_second;
   ana_second->Bind(other->dst->ranges);
   for (auto p : operator->()->src_to_dst) {
-    src_to_dst.Set(p.first,
-                   ana_second->Simplify(tirx::Substitute(p.second, other->src_to_dst)));
+    src_to_dst.Set(p.first, ana_second->Simplify(tirx::Substitute(p.second, other->src_to_dst)));
   }
   return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }
