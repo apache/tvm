@@ -14,16 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Suite-level hardware gate for the tirx tests.
-
-The tirx kernels and codegen paths target Blackwell (sm_100a) — they emit
-PTX/SASS (tcgen05, tmem, cp.async ``.async`` modifiers, fp8 conversions, ...)
-that ptxas/NVRTC reject for older targets, and many tests execute on the
-device. Running the suite on a CPU-only node or a pre-sm_100 GPU therefore
-fails at compile/run time rather than skipping. Gate the whole directory on a
-real sm_100a device so it skips cleanly where the hardware is absent and runs
-in full where it is present.
-"""
+"""Hardware requirements for TIRx codegen tests."""
 
 from pathlib import Path
 
@@ -32,20 +23,14 @@ import pytest
 from tvm.testing import env
 
 
-def pytest_collection_modifyitems(config, items):
+def pytest_collection_modifyitems(items):
     if env.has_cuda_compute(10):
         return
     suite_root = Path(__file__).resolve().parent
-    skip = pytest.mark.skip(
-        reason="tirx suite requires a CUDA compute capability 10.0 (sm_100a) device"
-    )
+    skip = pytest.mark.skip(reason="requires a CUDA compute capability 10.0 device")
     for item in items:
-        path = getattr(item, "path", None)
-        if path is None:
-            continue
-        try:
-            path = Path(path).resolve()
-        except TypeError:
-            continue
-        if path.is_relative_to(suite_root):
+        if (
+            Path(item.path).resolve().is_relative_to(suite_root)
+            and item.get_closest_marker("gpu") is not None
+        ):
             item.add_marker(skip)

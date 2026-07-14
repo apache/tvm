@@ -469,6 +469,7 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
 def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     """Regression: a warpgroup ``.16x256b`` tcgen05 register atom loaded from a
     128B-swizzled SMEM tile must dispatch to ``ldmatrix.x4``.

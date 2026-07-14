@@ -338,6 +338,7 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
 def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     """Regression: R→S copy where R has a ``wg_local_layout`` (thread iter
     ``1 @ tid_in_wg``) must pick the widest vec PTX ``st.shared.v4`` AND use the
