@@ -265,8 +265,8 @@ def MakePackedAPI():
     parameters, these are instead used to define the variables based on
     the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
     buffer of shape `[tirx.Var("n", "int64"), tirx.Var("m", "int64")]`,
-    when passed a `DLTensor` of shape `[16,32]`, will define `n = 16` and
-    `n=32`, based on the argument's shape.
+    when passed a `DLTensor` of shape `[16, 32]`, will define `n = 16` and
+    `m = 32`, based on the argument's shape.
 
     Returns
     -------
