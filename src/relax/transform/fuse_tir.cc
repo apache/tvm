@@ -1263,12 +1263,16 @@ class TIRFuseMutator : public ExprMutator {
           tir_vars.push_back(prim_value);
         }
       } else if (ty.as<PrimTypeNode>()) {
-        if (arg.as<DataflowVarNode>()) {
-          TVM_FFI_THROW(TypeError)
-              << "FuseTIR does not support runtime scalar DataflowVar arguments, but received "
-              << arg;
-        }
         if (auto literal = arg.as<PrimExpr>()) {
+          bool contains_dataflow_var = false;
+          tirx::PostOrderVisit(literal.value(), [&](const ffi::ObjectRef& expr) {
+            contains_dataflow_var |= expr.as<DataflowVarNode>() != nullptr;
+          });
+          if (contains_dataflow_var) {
+            TVM_FFI_THROW(TypeError)
+                << "FuseTIR does not support runtime scalar DataflowVar arguments, but received "
+                << arg;
+          }
           tir_vars.push_back(literal.value());
         } else {
           TVM_FFI_THROW(TypeError) << "FuseTIR expects scalar arguments to be PrimExpr, "
