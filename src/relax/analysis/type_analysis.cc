@@ -31,6 +31,7 @@
 #include <tvm/relax/type_functor.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
@@ -187,8 +188,23 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
   using relax::ExprMutatorBase::VisitExpr_;
 
   PrimExpr VisitPrimitiveExpr(const PrimExpr& expr) {
-    // apply eager simplification
-    PrimExpr val = relax::ExprMutatorBase::VisitExpr(expr).as_or_throw<PrimExpr>();
+    PrimExpr val = tirx::Substitute(expr, [this](const Var& var) -> ffi::Optional<Expr> {
+      if (var.as<DataflowVarNode>()) {
+        has_undefined_ = true;
+        return std::nullopt;
+      }
+      ffi::Optional<Expr> ret = f_var_map_ == nullptr ? std::nullopt : f_var_map_(var);
+      has_undefined_ = has_undefined_ || !ret.has_value();
+      if (!ret.has_value()) return std::nullopt;
+
+      PrimExpr value = ret.value().as_or_throw<PrimExpr>();
+      if (value->IsInstance<IntImmNode>()) {
+        return tvm::cast(PrimType::Int(64), value);
+      }
+      TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
+          << "Can only provide i64 expressions in shape";
+      return value;
+    });
     if (!val.same_as(expr)) {
       return ana_->Simplify(val);
     } else {
@@ -207,25 +223,6 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase {
     ffi::Optional<Expr> ret;
     if (f_var_map_ != nullptr) {
       ret = f_var_map_(id);
-    }
-
-    if (auto prim_var = id.as<tirx::PrimVar>()) {
-      has_undefined_ = has_undefined_ || !ret.has_value();
-
-      if (ret.has_value()) {
-        PostOrderVisit(ret.value(), [](const Expr& expr) {
-          TVM_FFI_ICHECK(!expr.as<DataflowVarNode>())
-              << "DataflowVar cannot define a symbolic value in a dependent type";
-        });
-        PrimExpr value = ret.value().as_or_throw<PrimExpr>();
-        if (value->IsInstance<IntImmNode>()) {
-          return tvm::cast(PrimType::Int(64), value);
-        }
-        TVM_FFI_ICHECK(value.ty().MatchesElementType(DLDataTypeCode::kDLInt, 64))
-            << "Can only provide i64 expressions in shape";
-        return value;
-      }
-      return ffi::GetRef<Expr>(var);
     }
 
     has_undefined_ = has_undefined_ || !ret.has_value();
