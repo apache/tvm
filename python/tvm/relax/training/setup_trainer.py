@@ -18,15 +18,14 @@
 """Setup Trainer Pass."""
 
 import tvm
-from tvm import TVMError
 from tvm.ir.module import IRModule
 from tvm.tirx.expr import IntImm
 
 from ..analysis import check_well_formed
 from ..expr import Tuple
-from ..struct_info import TensorStructInfo
 from ..training.utils import AppendLoss
 from ..transform import DecomposeOpsForInference, DecomposeOpsForTraining, Gradient, LegalizeOps
+from ..type import TensorType
 from .loss import Loss
 from .optimizer import Optimizer
 
@@ -104,7 +103,7 @@ class SetupTrainer:
     optimizer : Optimizer
         The optimizer. It will be put as the `optimizer` function of the transformed module.
 
-    loss_args : List[TensorStructInfo]
+    loss_args : List[TensorType]
         The arguments to call the loss function.
 
     legalize : bool
@@ -120,7 +119,7 @@ class SetupTrainer:
     STATE_NUM_ATTR_KEY: str = "state_num"
 
     def __init__(
-        self, loss: Loss, optimizer: Optimizer, loss_args: list[TensorStructInfo], legalize=True
+        self, loss: Loss, optimizer: Optimizer, loss_args: list[TensorType], legalize=True
     ):
         self._loss = loss
         self._optimizer = optimizer
@@ -132,7 +131,7 @@ class SetupTrainer:
             raise ValueError("SetupTrainer: The backbone module is not well formed.")
         try:
             func = mod[self.BACKBONE_FUNC]
-        except TVMError as exc:
+        except (KeyError, ValueError) as exc:
             raise ValueError(
                 f"SetupTrainer: The backbone module does not contain a function named "
                 f"{self.BACKBONE_FUNC}"

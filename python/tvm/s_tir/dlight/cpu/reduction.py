@@ -16,7 +16,7 @@
 # under the License.
 """CPU reduction rule for operators including softmax, layer norm, RMS norm, etc."""
 
-from tvm import DataType, s_tir, tirx
+from tvm import s_tir, tirx
 from tvm.target import Target
 from tvm.target.codegen import llvm_get_vector_width
 
@@ -86,7 +86,7 @@ class Reduction(CPUScheduleRule):
         # Infer dtype from the last block's write buffer.
         last_block_stmt = sch.get(block_infos[-1].block_rv)
         dtype_bits = (
-            DataType(last_block_stmt.writes[0].buffer.dtype).bits if last_block_stmt.writes else 32
+            last_block_stmt.writes[0].buffer.dtype.dtype.bits if last_block_stmt.writes else 32
         )
 
         # Determine vector lanes from target VLEN.

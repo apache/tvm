@@ -57,7 +57,7 @@ class ReplaceSelectedExpr : public StmtExprMutator {
                       const PrimExpr& new_expr,
                       std::function<bool(const PrimExpr&)> can_replace_inside);
 
-  PrimExpr VisitExpr(const PrimExpr& expr) override;
+  Expr VisitExpr(const Expr& expr) override;
 
  private:
   // The predicate used for selecting what will be replaced

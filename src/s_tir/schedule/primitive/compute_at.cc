@@ -263,16 +263,17 @@ class ScopeReconstructor : private StmtMutator {
     loop_vars.reserve(n_iters);
     loop_extents.reserve(n_iters);
     iter_values.reserve(n_iters);
-    PrimExpr predicate = const_true();
+    PrimExpr predicate = IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
       if (preserve_unit_loops || !is_one(iter_dom->extent)) {
-        int bits = std::max(iter_dom->min.dtype().bits(), iter_dom->extent.dtype().bits());
-        Var var("ax" + std::to_string(loop_vars.size()), DataType::Int(bits));
+        int bits = std::max(iter_dom->min.ty().bits(), iter_dom->extent.ty().bits());
+        Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
         loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
-        iter_values.push_back(iter_dom->min + var);
-        analyzer->Bind(var, Range::FromMinExtent(IntImm(var.dtype(), 0), iter_dom->extent));
+        iter_values.push_back(iter_dom->min + var.as_or_throw<PrimExpr>());
+        analyzer->Bind(var, Range::FromMinExtent(IntImm(var->ty.as_or_throw<PrimType>(), 0),
+                                                 iter_dom->extent));
       } else {
         iter_values.push_back(iter_dom->min);
       }
@@ -299,8 +300,8 @@ class ScopeReconstructor : private StmtMutator {
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
-      new_subtree = For(/*loop_var=*/loop_var,
-                        /*min=*/IntImm(DataType::Int(32), 0),
+      new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
+                        /*min=*/IntImm::Int32(0),
                         /*extent=*/loop_extent,
                         /*ForKind=*/ForKind::kSerial,
                         /*body=*/std::move(new_subtree));
@@ -384,7 +385,7 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
     runtime::StorageScope scope =
         relax_storage_scope ? runtime::StorageScope::Create(buffer.scope()) : global_scope;
     runtime::StorageRank rank = scope.rank;
-    if (rank != previous_rank || !var_dom.defined()) {
+    if (rank != previous_rank || !var_dom.has_value()) {
       previous_rank = rank;
       var_dom = arith::AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/relax_path_low_inclusive,
@@ -436,7 +437,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
           if (var_expr->IsInstance<VarNode>()) {
             // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
-            var = Downcast<Var>(var_expr);
+            var = var_expr.as_or_throw<Var>();
             var_dom = arith::IntSet::Interval(required_min * fac,
                                               analyzer->Simplify(required_max * fac + fac - 1));
             var_bound = arith::IntSet::Interval(0, analyzer->Simplify(dim_max * fac + fac - 1));
@@ -451,7 +452,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         PrimExpr var_expr = p_f1.Eval();
         if (var_expr->IsInstance<VarNode>()) {
           // generally domain of (x % fac) enforce no constraints to domain of x
-          Var var_mod = Downcast<Var>(var_expr);
+          Var var_mod = var_expr.as_or_throw<Var>();
           return {var_mod, BlockVarDomainInfo()};
         } else {
           PrimExpr mod_1 = p_f1.Eval();
@@ -469,7 +470,8 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
       }
     }
   }
-  TVM_FFI_CHECK(var.defined(), ValueError) << "BufferRegion pattern match failed: " << provided_min;
+  TVM_FFI_CHECK(var.has_value(), ValueError)
+      << "BufferRegion pattern match failed: " << provided_min;
   return {var.value(), BlockVarDomainInfo{var_dom, var_bound}};
 }
 
@@ -569,7 +571,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
   for (size_t i = 0; i < ndim; ++i) {
     provide_indices.push_back(provided_region[i].min());
   }
-  auto res = arith::DetectIterMap(provide_indices, dom_map, const_true(),
+  auto res = arith::DetectIterMap(provide_indices, dom_map, IntImm::Bool(true),
                                   arith::IterMapLevel::Bijective, analyzer_ref, false);
   if (res->indices.empty()) {
     return false;
@@ -578,7 +580,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
     required_bound.push_back(
-        arith::IntSet::Interval(make_zero(buffer->shape[i]->dtype), max(buffer->shape[i] - 1, 0)));
+        arith::IntSet::Interval(IntImm(buffer->shape[i].ty(), 0), max(buffer->shape[i] - 1, 0)));
   }
   ffi::Map<Var, arith::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);
@@ -753,7 +755,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Step 6. Create the new scope according to the iteration domain
   reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
                             /*analyzer=*/analyzer, /*preserve_unit_loops=*/preserve_unit_loops);
-  SBlock new_scope_root = Downcast<SBlock>(reconstructor(scope_root));
+  SBlock new_scope_root = reconstructor(scope_root).as_or_throw<SBlock>();
 
   // Step 7. Do the actual replacement
   if (check_only) {

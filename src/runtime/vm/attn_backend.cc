@@ -59,11 +59,21 @@ std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(ffi::Array<ffi::Any>
     return std::make_unique<TIRRaggedPrefillFunc>(std::move(attn_func), attn_kind);
   }
   if (backend_name == "flashinfer") {
-    TVM_FFI_ICHECK_EQ(args.size(), 3);
+    // Regular MHA passes [backend, run, plan]. MLA self-attention additionally
+    // passes [qk_head_dim, v_head_dim] because the ragged kernel runs on
+    // different head dims than the compressed MLA cache.
+    TVM_FFI_ICHECK(args.size() == 3 || args.size() == 5);
     ffi::Function attn_func = args[1].cast<ffi::Function>();
     ffi::Function plan_func = args[2].cast<ffi::Function>();
+    int64_t qk_head_dim_override = -1;
+    int64_t v_head_dim_override = -1;
+    if (args.size() == 5) {
+      qk_head_dim_override = args[3].cast<int64_t>();
+      v_head_dim_override = args[4].cast<int64_t>();
+    }
     return std::make_unique<FlashInferRaggedPrefillFunc>(std::move(attn_func), std::move(plan_func),
-                                                         attn_kind);
+                                                         attn_kind, qk_head_dim_override,
+                                                         v_head_dim_override);
   }
   TVM_FFI_THROW(InternalError) << "Cannot reach here";
   throw;

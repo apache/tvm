@@ -30,10 +30,11 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx import IntImm, Var
+from tvm.tirx.cuda.operator.tile_primitive.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.layout import S, TileLayout
-from tvm.tirx.operator.tile_primitive.cuda.copy_async.dsmem import copy_dsmem_impl
 from tvm.tirx.operator.tile_primitive.dispatch_context import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import DispatchFail
 from tvm.tirx.operator.tile_primitive.ops import CopyAsync
@@ -69,7 +70,7 @@ class _S2CCounter(StmtExprVisitor):
         self._loop_extents.pop()
 
     def visit_evaluate_(self, op):
-        if isinstance(op.value, tvm.tirx.Call):
+        if isinstance(op.value, tvm.ir.Call):
             if op.value.op.name == "tirx.ptx.cp_async_bulk_shared_to_cluster":
                 n = 1
                 for e in self._loop_extents:
@@ -122,7 +123,8 @@ def _layout_physical_elements(layout):
     return max_offset + 1
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 @pytest.mark.parametrize("shape,dtype,src_spec,dst_spec,expected", DSMEM_CONFIGS)
 def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     """Dispatch assertion + GPU correctness for DSMEM copy.
@@ -206,7 +208,6 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         # fmt: on
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": dsmem_copy})
@@ -219,10 +220,14 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         A_np = tvm.testing.generate_random_array(dtype, shape)
         B_np = np.zeros(shape, dtype=np_dtype)
 
+    def run_and_check():
+        dev = tvm.cuda(0)
         A_tvm = tvm.runtime.tensor(A_np, dev)
         B_tvm = tvm.runtime.tensor(B_np, dev)
         mod(A_tvm, B_tvm)
         np.testing.assert_allclose(A_np, B_tvm.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_dsmem_dispatch_missing_config():

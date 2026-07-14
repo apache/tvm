@@ -49,7 +49,8 @@ namespace relax {
  * \param dtype The data type of the output tensor.
  * \return The sampled result.
  */
-Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices, DataType dtype);
+Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices,
+                              DLDataType dtype);
 
 }  // namespace relax
 }  // namespace tvm

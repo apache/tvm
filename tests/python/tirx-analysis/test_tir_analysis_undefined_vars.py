@@ -28,7 +28,7 @@ def test_decl_buffer_data_is_use():
     an existing variable from the enclosing scope.  It must appear in the
     undefined list so that callers (e.g., CreateComputeScope) capture it.
     """
-    n = tirx.SizeVar("n", "int32")
+    n = tirx.Var("n", "int32")
     from tvm.ir import PointerType, PrimType
 
     data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
@@ -52,7 +52,7 @@ def test_decl_buffer_elem_offset_is_use():
     """
     from tvm.ir import PointerType, PrimType
 
-    n = tirx.SizeVar("n", "int32")
+    n = tirx.Var("n", "int32")
     data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
     elem_off = tirx.Var("buf_elem_offset", "int32")
     buf = tirx.decl_buffer((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
@@ -75,7 +75,7 @@ def test_alloc_buffer_data_is_def():
     AllocBuffer allocates new storage — the data pointer is a new definition,
     not a reference to an external variable.
     """
-    n = tirx.SizeVar("n", "int32")
+    n = tirx.Var("n", "int32")
     buf = tirx.decl_buffer((n,), "float32", "buf")
 
     body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))

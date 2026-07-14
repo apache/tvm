@@ -35,7 +35,7 @@ namespace tirx {
 class PredicateNode : public ffi::Object {
  public:
   /*! \brief The variables in the predicate */
-  Array<Var> vars;
+  Array<PrimVar> vars;
   /*! \brief The predicate */
   PrimExpr pred;
 
@@ -55,7 +55,7 @@ class PredicateNode : public ffi::Object {
 
 class Predicate : public ffi::ObjectRef {
  public:
-  explicit Predicate(Array<Var> vars, PrimExpr pred);
+  explicit Predicate(Array<PrimVar> vars, PrimExpr pred);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Predicate, ffi::ObjectRef, PredicateNode);
 };

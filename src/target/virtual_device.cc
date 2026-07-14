@@ -182,7 +182,7 @@ VirtualDevice VirtualDeviceCache::Make(int device_type, int virtual_device_id, T
   } else {
     TVM_FFI_ICHECK_EQ(prototype->target.defined(), (*itr)->target.defined());
     if (prototype->target.defined()) {
-      TVM_FFI_ICHECK_EQ(prototype->target->host.defined(), (*itr)->target->host.defined());
+      TVM_FFI_ICHECK_EQ(prototype->target->host.has_value(), (*itr)->target->host.has_value());
     }
     return *itr;
   }

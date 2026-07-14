@@ -54,27 +54,27 @@ Mutator Mutator::PyMutator(
 
 ffi::Map<Mutator, FloatImm> Mutator::DefaultLLVM() {
   return ffi::Map<Mutator, FloatImm>{
-      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
-      {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
-      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
-      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
+      {Mutator::MutateTileSize(), FloatImm(PrimType::Float(64), 0.9)},
+      {Mutator::MutateComputeLocation(), FloatImm(PrimType::Float(64), 0.05)},
+      {Mutator::MutateUnroll(), FloatImm(PrimType::Float(64), 0.03)},
+      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(PrimType::Float(64), 0.02)}};
 }
 
 ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDA() {
   return ffi::Map<Mutator, FloatImm>{
-      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
-      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.08)},
-      {Mutator::MutateThreadBinding(), FloatImm(DataType::Float(64), 0.02)}};
+      {Mutator::MutateTileSize(), FloatImm(PrimType::Float(64), 0.9)},
+      {Mutator::MutateUnroll(), FloatImm(PrimType::Float(64), 0.08)},
+      {Mutator::MutateThreadBinding(), FloatImm(PrimType::Float(64), 0.02)}};
 }
 
 ffi::Map<Mutator, FloatImm> Mutator::DefaultCUDATensorCore() { return Mutator::DefaultCUDA(); }
 
 ffi::Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
   return ffi::Map<Mutator, FloatImm>{
-      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
-      {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
-      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)},
-      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
+      {Mutator::MutateTileSize(), FloatImm(PrimType::Float(64), 0.9)},
+      {Mutator::MutateComputeLocation(), FloatImm(PrimType::Float(64), 0.05)},
+      {Mutator::MutateUnroll(), FloatImm(PrimType::Float(64), 0.03)},
+      {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(PrimType::Float(64), 0.02)}};
 }
 
 // Pattern A (RM): auto-default repr from reflection.

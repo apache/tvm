@@ -21,6 +21,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/target/target.h>
@@ -196,8 +197,8 @@ class AutoPadder {
       explicit Rewriter(const ffi::Map<Buffer, Buffer>& buffer_map) : buffer_map_(buffer_map) {}
 
      private:
-      PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
-        BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
+      Expr VisitExpr_(const BufferLoadNode* _op) final {
+        BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
         BufferLoadNode* op = load.CopyOnWrite();
         if (buffer_map_.count(op->buffer)) {
           op->buffer = buffer_map_[op->buffer];
@@ -206,7 +207,7 @@ class AutoPadder {
       }
 
       Stmt VisitStmt_(const BufferStoreNode* _op) final {
-        BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
+        BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
         BufferStoreNode* op = store.CopyOnWrite();
         if (buffer_map_.count(op->buffer)) {
           op->buffer = buffer_map_[op->buffer];
@@ -462,18 +463,18 @@ class AutoPadder {
 
    private:
     bool CheckVarContiguous(PrimExpr e, Var var, const ffi::Map<Var, PrimExpr>& subst_map) {
-      PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
+      PrimExpr e1 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
         if (v.same_as(var)) {
-          return IntImm(DataType::Int(32), 0);
+          return IntImm::Int32(0);
         } else {
-          return v;
+          return v.as_or_throw<PrimExpr>();
         }
       });
-      PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<PrimExpr> {
+      PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
         if (v.same_as(var)) {
-          return IntImm(DataType::Int(32), 1);
+          return IntImm::Int32(1);
         } else {
-          return v;
+          return v.as_or_throw<PrimExpr>();
         }
       });
       arith::Analyzer analyzer;
@@ -486,8 +487,7 @@ class AutoPadder {
       } else {
         int64_t extent =
             warp_thread_extent_.Get(op->thread_binding.value()->thread_tag).value_or(1);
-        var_range_.Set(op->loop_var,
-                       Range::FromMinExtent(op->min, IntImm(DataType::Int(64), extent)));
+        var_range_.Set(op->loop_var, Range::FromMinExtent(op->min, IntImm::Int64(extent)));
       }
       if (op->kind == ForKind::kVectorized) {
         vector_var = op->loop_var;
@@ -568,8 +568,10 @@ class AutoPadder {
     void VisitStmt_(const SBlockNode* op) final {
       if (const auto* eval = op->body.as<EvaluateNode>()) {
         if (const auto* call = eval->value.as<CallNode>()) {
-          if (call->op == builtin::tvm_load_matrix_sync() ||
-              call->op == builtin::tvm_store_matrix_sync()) {
+          static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+          static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+          if (call->op.same_as(tvm_load_matrix_sync_op) ||
+              call->op.same_as(tvm_store_matrix_sync_op)) {
             for (const MatchBufferRegion& r : op->match_buffers) {
               Buffer src_buffer = r->source->buffer;
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
@@ -578,7 +580,7 @@ class AutoPadder {
                 ffi::Array<PrimExpr> indices;
                 for (int i = 0; i < static_cast<int>(region.size()); i++) {
                   Var var("region" + std::to_string(i));
-                  indices.push_back(region[i]->min + var);
+                  indices.push_back(region[i]->min + var.as_or_throw<PrimExpr>());
                   var_range_.Set(var, Range::FromMinExtent(0, region[i]->extent));
                 }
                 ffi::Array<PrimExpr> substitued_indices;
@@ -666,7 +668,7 @@ class AutoCopyMutator : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
+    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
     // only rewrite the block annotated with "auto_copy"
     if (!GetAnn<bool>(op, s_tir::attr::auto_copy).value_or(false)) {
       SBlockNode* n = block.CopyOnWrite();
@@ -757,7 +759,7 @@ class ThreadExtentCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
   void VisitStmt_(const ForNode* op) final {
-    if (op->thread_binding.defined() && op->thread_binding.value()->iter_type == kThreadIndex) {
+    if (op->thread_binding.has_value() && op->thread_binding.value()->iter_type == kThreadIndex) {
       if (const auto* extent = op->extent.as<IntImmNode>()) {
         thread_extent_.Set(op->thread_binding.value()->thread_tag, extent->value);
       }

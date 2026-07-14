@@ -106,7 +106,7 @@ bool TileLayoutNode::VerifyWellFormed() const {
   //   }
   // }
   // 1. Check if the scope is connected
-  if (!GetScope().defined() && HasThreadAxis()) {
+  if (!GetScope().has_value() && HasThreadAxis()) {
     return false;
   }
   return true;
@@ -163,7 +163,7 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>
     ffi::Array<PrimExpr> per_shard_coords;
     per_shard_coords.reserve(grouped->shard.size());
     for (size_t i = 0; i < grouped->shard.size(); ++i) {
-      per_shard_coords.push_back(IntImm(DataType::Int(32), 0));
+      per_shard_coords.push_back(IntImm::Int32(0));
     }
     for (size_t d = 0; d < shape.size(); ++d) {
       int64_t start = seps[d];
@@ -262,7 +262,7 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
 
     auto subtile_primitivet = axis->GetSubscope();
     auto tile_primitivet = axis->GetScope();
-    TVM_FFI_ICHECK(subtile_primitivet.defined() && tile_primitivet.defined())
+    TVM_FFI_ICHECK(subtile_primitivet.has_value() && tile_primitivet.has_value())
         << "Thread axis " << axis->name << " has no subscope or scope";
 
     ffi::String subscope = subtile_primitivet.value()->name();

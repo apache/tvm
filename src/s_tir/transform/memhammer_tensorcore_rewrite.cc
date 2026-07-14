@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/op.h>
 
 #include "./memhammer_rewrite_rule.h"
 
@@ -49,15 +50,17 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.copy_with_suffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.copy_with_suffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.copy_with_suffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.copy_with_suffix("_1"),
+      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
   body = Substitute(std::move(body),
                     ffi::Map<Var, PrimExpr>{
-                        {loops[n - 2]->loop_var, new_loop_vars[0] * 16 + new_loop_vars[2]},
-                        {loops[n - 1]->loop_var, new_loop_vars[1] * 16 + new_loop_vars[3]},
+                        {loops[n - 2]->loop_var, new_loop_vars[0].as_or_throw<PrimExpr>() * 16 +
+                                                     new_loop_vars[2].as_or_throw<PrimExpr>()},
+                        {loops[n - 1]->loop_var, new_loop_vars[1].as_or_throw<PrimExpr>() * 16 +
+                                                     new_loop_vars[3].as_or_throw<PrimExpr>()},
                     });
   {
     PrimExpr factor[4] = {
@@ -66,12 +69,16 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
         /*3:*/ 16,                          //
         /*4:*/ 16,                          //
     };
-    body = For(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kSerial,
+               std::move(body));
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kSerial,
+               std::move(body));
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kSerial,
+               std::move(body));
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kSerial,
+               std::move(body));
   }
-  For compute_location = Downcast<For>(body);
+  For compute_location = body.as_or_throw<For>();
   for (int i = n - 3; i >= 0; i--) {
     auto new_loop = ffi::GetRef<For>(loops[i]);
     new_loop.CopyOnWrite()->body = std::move(body);
@@ -104,8 +111,9 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
  */
 Stmt RewriteWmmaLoad(Stmt stmt) {
   using arith::IntSet;
-  const DataType dtype = DataType::Float(16);
-  const DataType int32 = DataType::Int(32);
+  const PrimType dtype_ty = PrimType::Float(16);
+  const PrimType& dtype = dtype_ty;
+  const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
@@ -127,30 +135,31 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   Buffer tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
   Buffer new_src_buffer(
-      /*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
+      /*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
       /*dtype=*/dtype,
-      /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
-      /*strides=*/{Var("s1", int32), Var("s0", int32)},
-      /*elem_offset=*/Var("src_elem_offset", int32),
+      /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+      /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
+      /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
       /*name=*/"src",
       /*data_alignment=*/64,
       /*offset_factor=*/16,
       /*buffer_type=*/kDefault);
   Buffer new_tgt_buffer(
-      /*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
+      /*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
       /*dtype=*/dtype,
-      /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
+      /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
       /*strides=*/{},
-      /*elem_offset=*/Var("tgt_elem_offset", int32),
+      /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
       /*name=*/"tgt",
       /*data_alignment=*/64,
       /*offset_factor=*/16,
       /*buffer_type=*/kDefault);
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
+  static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
-      /*predicate=*/const_true(),
+      /*predicate=*/IntImm::Bool(true),
       SBlock(
           /*iter_vars=*/{},
           /*reads=*/{BufferRegion(src_buffer, read_region)},
@@ -158,26 +167,26 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
           /*name_hint=*/"wmma_load",
           /*body=*/
           Evaluate(Call(
-              /*data=*/runtime::DataType::Handle(),
-              /*op=*/builtin::tvm_load_matrix_sync(),
-              {
+              /*data=*/PrimType::Void(),
+              /*op=*/tvm_load_matrix_sync_op,
+              ffi::Array<Expr>{
                   /*0:*/ new_tgt_buffer->data,
-                  /*1:*/ 16,
-                  /*2:*/ 16,
-                  /*3:*/ 16,
+                  /*1:*/ PrimExpr(16),
+                  /*2:*/ PrimExpr(16),
+                  /*3:*/ PrimExpr(16),
                   /*4:*/ floordiv(new_tgt_buffer->elem_offset, 256) +
                       floordiv(floormod(new_tgt_buffer->elem_offset, 256), 16),
                   /*5:*/
                   Call(
-                      /*dtype=*/runtime::DataType::Handle(),
+                      /*dtype=*/new_src_buffer->data->ty,
                       /*op=*/builtin::tvm_access_ptr(),
                       /*args=*/
-                      {
+                      ffi::Array<Expr>{
                           /*0:*/ TypeAnnotation(new_src_buffer->dtype),
                           /*1:*/ new_src_buffer->data,
                           /*2:*/ new_src_buffer->elem_offset,
                           /*3:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2] * 16,
-                          /*4:*/ 1,
+                          /*4:*/ PrimExpr(1),
                       }),
                   /*6:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2],
                   /*7:*/ StringImm(layout),
@@ -205,7 +214,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
  */
 Stmt RewriteWmmaStore(Stmt stmt) {
   using arith::IntSet;
-  const DataType int32 = DataType::Int(32);
+  const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
@@ -234,22 +243,23 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   Buffer src_buffer = buf_load->buffer;
   Buffer tgt_buffer = buf_store->buffer;
 
-  const DataType dtype = src_buffer->dtype;
+  PrimType dtype_ty = src_buffer->dtype;
+  const PrimType& dtype = dtype_ty;
 
-  Buffer new_src_buffer(/*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
+  Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
+                        /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                         /*strides=*/{},
-                        /*elem_offset=*/Var("src_elem_offset", int32),
+                        /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
                         /*name=*/"src",
                         /*data_alignment=*/64,
                         /*offset_factor=*/16,
                         /*buffer_type=*/kDefault);
-  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
+  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 16), IntImm(DataType::Int(32), 16)},
-                        /*strides=*/{Var("s1", int32), Var("s0", int32)},
-                        /*elem_offset=*/Var("tgt_elem_offset", int32),
+                        /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+                        /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
+                        /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
                         /*name=*/"tgt",
                         /*data_alignment=*/64,
                         /*offset_factor=*/16,
@@ -257,35 +267,36 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
+  static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
-      /*predicate=*/const_true(),
+      /*predicate=*/IntImm::Bool(true),
       SBlock(/*iter_vars=*/{},
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
              /*name_hint=*/"wmma_store",
              Evaluate(Call(
-                 /*data=*/runtime::DataType::Handle(),
-                 /*op=*/builtin::tvm_store_matrix_sync(),
-                 {/*0:*/ new_src_buffer->data,
-                  /*1:*/ 16,
-                  /*2:*/ 16,
-                  /*3:*/ 16,
-                  /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
-                      floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
-                  /*5:*/
-                  Call(
-                      /*data=*/runtime::DataType::Handle(),
-                      /*op=*/builtin::tvm_access_ptr(),
-                      {
-                          /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
-                          /*1:*/ new_tgt_buffer->data,
-                          /*2:*/ new_tgt_buffer->elem_offset,
-                          /*3:*/ new_tgt_buffer->strides[0] * 16,
-                          /*4:*/ 2,
-                      }),
-                  /*6:*/ new_tgt_buffer->strides[0],
-                  /*7:*/ StringImm("row_major")})),
+                 /*data=*/PrimType::Void(),
+                 /*op=*/tvm_store_matrix_sync_op,
+                 ffi::Array<Expr>{/*0:*/ new_src_buffer->data,
+                                  /*1:*/ PrimExpr(16),
+                                  /*2:*/ PrimExpr(16),
+                                  /*3:*/ PrimExpr(16),
+                                  /*4:*/ floordiv(new_src_buffer->elem_offset, 256) +
+                                      floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
+                                  /*5:*/
+                                  Call(
+                                      /*data=*/new_tgt_buffer->data->ty,
+                                      /*op=*/builtin::tvm_access_ptr(),
+                                      ffi::Array<Expr>{
+                                          /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
+                                          /*1:*/ new_tgt_buffer->data,
+                                          /*2:*/ new_tgt_buffer->elem_offset,
+                                          /*3:*/ new_tgt_buffer->strides[0] * 16,
+                                          /*4:*/ PrimExpr(2),
+                                      }),
+                                  /*6:*/ new_tgt_buffer->strides[0],
+                                  /*7:*/ StringImm("row_major")})),
              /*init=*/std::nullopt,
              /*alloc_buffers=*/{},
              /*match_buffers=*/
@@ -377,15 +388,17 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     }
   }
   Var new_loop_vars[4] = {
-      /*0:*/ loops[n - 2]->loop_var.copy_with_suffix("_0"),
-      /*1:*/ loops[n - 1]->loop_var.copy_with_suffix("_0"),
-      /*2:*/ loops[n - 2]->loop_var.copy_with_suffix("_1"),
-      /*3:*/ loops[n - 1]->loop_var.copy_with_suffix("_1"),
+      /*0:*/ loops[n - 2]->loop_var.CopyWithSuffix("_0"),
+      /*1:*/ loops[n - 1]->loop_var.CopyWithSuffix("_0"),
+      /*2:*/ loops[n - 2]->loop_var.CopyWithSuffix("_1"),
+      /*3:*/ loops[n - 1]->loop_var.CopyWithSuffix("_1"),
   };
   body = Substitute(std::move(body),
                     ffi::Map<Var, PrimExpr>{
-                        {loops[n - 2]->loop_var, new_loop_vars[0] * 8 + new_loop_vars[2]},
-                        {loops[n - 1]->loop_var, new_loop_vars[1] * 8 + new_loop_vars[3]},
+                        {loops[n - 2]->loop_var, new_loop_vars[0].as_or_throw<PrimExpr>() * 8 +
+                                                     new_loop_vars[2].as_or_throw<PrimExpr>()},
+                        {loops[n - 1]->loop_var, new_loop_vars[1].as_or_throw<PrimExpr>() * 8 +
+                                                     new_loop_vars[3].as_or_throw<PrimExpr>()},
                     });
   {
     PrimExpr factor[4] = {
@@ -394,12 +407,16 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
         /*3:*/ 8,                          //
         /*4:*/ 8,                          //
     };
-    body = For(new_loop_vars[3], 0, factor[3], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[2], 0, factor[2], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[1], 0, factor[1], ForKind::kSerial, std::move(body));
-    body = For(new_loop_vars[0], 0, factor[0], ForKind::kSerial, std::move(body));
+    body = For(new_loop_vars[3].as_or_throw<PrimVar>(), 0, factor[3], ForKind::kSerial,
+               std::move(body));
+    body = For(new_loop_vars[2].as_or_throw<PrimVar>(), 0, factor[2], ForKind::kSerial,
+               std::move(body));
+    body = For(new_loop_vars[1].as_or_throw<PrimVar>(), 0, factor[1], ForKind::kSerial,
+               std::move(body));
+    body = For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factor[0], ForKind::kSerial,
+               std::move(body));
   }
-  For compute_location = Downcast<For>(body);
+  For compute_location = body.as_or_throw<For>();
   for (int i = n - 3; i >= 0; i--) {
     auto new_loop = ffi::GetRef<For>(loops[i]);
     new_loop.CopyOnWrite()->body = std::move(body);
@@ -415,7 +432,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
  */
 Stmt RewriteMmaStore(Stmt stmt) {
   using arith::IntSet;
-  const DataType int32 = DataType::Int(32);
+  const PrimType int32_ty = PrimType::Int(32);
 
   // Step 1. Get inner loop body
   Stmt body = stmt;
@@ -455,21 +472,22 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // Step 3.1. Generate new buffer
   Buffer src_buffer = buf_load->buffer;
   Buffer tgt_buffer = buf_store->buffer;
-  const DataType dtype = src_buffer->dtype;
-  Buffer new_src_buffer(/*data=*/Var("src", PointerType(PrimType(dtype), src_buffer.scope())),
+  PrimType dtype_ty = src_buffer->dtype;
+  const PrimType& dtype = dtype_ty;
+  Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 8), IntImm(DataType::Int(32), 8)},
+                        /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
                         /*strides=*/{},
-                        /*elem_offset=*/Var("src_elem_offset", int32),
+                        /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
                         /*name=*/"src",
                         /*data_alignment=*/64,
                         /*offset_factor=*/8,
                         /*buffer_type=*/kDefault);
-  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(PrimType(dtype), tgt_buffer.scope())),
+  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
-                        /*shape=*/{IntImm(DataType::Int(32), 8), IntImm(DataType::Int(32), 8)},
-                        /*strides=*/{Var("s1", int32), Var("s0", int32)},
-                        /*elem_offset=*/Var("tgt_elem_offset", int32),
+                        /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
+                        /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
+                        /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
                         /*name=*/"tgt",
                         /*data_alignment=*/64,
                         /*offset_factor=*/8,
@@ -482,11 +500,11 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // Step 3.3. Generate new inner loop body
   // for v in T.vectorized(2):
   //   tgt[tx // 4, (tx % 4) * 2 + vec] = src[tx // 4, (tx % 4) * 2 + vec]
-  Var tx = Var("tx");
-  Var vec = Var("vec");
+  PrimVar tx("tx");
+  PrimVar vec("vec");
   Stmt mma_body = SBlockRealize(
       /*iter_values=*/{},  //
-      /*predicate=*/const_true(),
+      /*predicate=*/IntImm::Bool(true),
       SBlock(/*iter_vars=*/{},
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
@@ -494,13 +512,13 @@ Stmt RewriteMmaStore(Stmt stmt) {
              AttrStmt(
                  /*node=*/IterVar(
                      /*dom=*/Range::FromMinExtent(0, 32),
-                     /*var=*/tx,
+                     /*var=*/tx.as_or_throw<PrimVar>(),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/"threadIdx.x"),
                  /*attr_key=*/"thread_extent",
-                 /*value=*/IntImm(DataType::Int(32), 32),
+                 /*value=*/IntImm::Int32(32),
                  /*body=*/
-                 For(vec, 0, 2, ForKind::kVectorized,
+                 For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                      /*body=*/
                      BufferStore(
                          new_tgt_buffer,

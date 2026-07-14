@@ -26,10 +26,10 @@
 TEST(Expr, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = max(x + 1 + 2, 100);
   ffi::ObjectRef tmp = z;
-  PrimExpr zz = Downcast<PrimExpr>(tmp);
+  PrimExpr zz = tmp.as_or_throw<PrimExpr>();
   std::ostringstream os;
   os << z;
   TVM_FFI_ICHECK(zz.same_as(z));
@@ -39,17 +39,26 @@ TEST(Expr, Basic) {
 TEST(Expr, VarTypeAnnotation) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x", DataType::Float(32));
-  Var y("y", PrimType(DataType::Float(32)));
+  PrimVar x("x", PrimType::Float(32));
+  PrimVar y("y", PrimType::Float(32));
   tvm::ffi::StructuralEqual checker;
-  TVM_FFI_ICHECK(checker(x->dtype, y->dtype));
-  TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
+  TVM_FFI_ICHECK(checker(x.ty(), y.ty()));
+  TVM_FFI_ICHECK(checker(x->ty, y->ty));
+}
+
+TEST(Expr, PrimTypeBoolLanes) {
+  using namespace tvm;
+  PrimType boolx4 = PrimType::Bool(4);
+  TVM_FFI_ICHECK(boolx4.IsFixedLengthVector());
+  TVM_FFI_ICHECK(boolx4.MatchesCode(DLDataTypeCode::kDLBool));
+  TVM_FFI_ICHECK_EQ(boolx4.lanes(), 4);
+  TVM_FFI_ICHECK(boolx4.MatchesElementType(DLDataTypeCode::kDLBool, 8));
 }
 
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tirx::MaxNode* op = z.as<tirx::MaxNode>();
   TVM_FFI_ICHECK(ffi::GetRef<ffi::ObjectRef>(op).same_as(z));

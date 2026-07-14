@@ -1439,7 +1439,6 @@ def test_conv2d_resize2d():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="void",
                 )
                 gv2: R.Tensor((2, 4, 52, 52), dtype="float32") = R.permute_dims(
                     lv2, axes=[0, 3, 1, 2]
@@ -1482,7 +1481,6 @@ def test_resize2d_conv2d():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="void",
                 )
                 lv1: R.Tensor((4, 3, 3, 3), dtype="float32") = R.permute_dims(w, axes=[0, 2, 3, 1])
                 lv2: R.Tensor((2, 50, 50, 4), dtype="float32") = R.nn.conv2d(

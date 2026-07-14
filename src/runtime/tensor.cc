@@ -33,7 +33,7 @@
 
 #include "../support/base64.h"
 #include "../support/bytes_io.h"
-#include "tvm/runtime/data_type.h"
+#include "tvm/ffi/dtype.h"
 
 namespace tvm {
 namespace runtime {
@@ -52,11 +52,11 @@ inline void VerifyDataType(DLDataType dtype) {
       return;
     else if (dtype.bits == 4 && dtype.code == kDLInt)
       return;
-    else if (dtype.bits == 6 && dtype.code == DataType::kFloat6_e2m3fn)
+    else if (dtype.bits == 6 && dtype.code == kDLFloat6_e2m3fn)
       return;
-    else if (dtype.bits == 6 && dtype.code == DataType::kFloat6_e3m2fn)
+    else if (dtype.bits == 6 && dtype.code == kDLFloat6_e3m2fn)
       return;
-    else if (dtype.bits == 4 && dtype.code == DataType::kFloat4_e2m1fn)
+    else if (dtype.bits == 4 && dtype.code == kDLFloat4_e2m1fn)
       return;
     else
       TVM_FFI_ICHECK_EQ(dtype.bits % 8, 0);

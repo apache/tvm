@@ -112,7 +112,7 @@ class PassContextNode : public ffi::Object {
     if (!config.defined()) return default_value;
     auto it = config.find(key);
     if (it != config.end()) {
-      return Downcast<ffi::Optional<TObjectRef>>((*it).second);
+      return (*it).second.as_or_throw<ffi::Optional<TObjectRef>>();
     } else {
       return default_value;
     }

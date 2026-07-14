@@ -109,7 +109,7 @@ class DataflowBlockRewrite(Object):
 
         Raises
         ------
-        TVMError if the variable is used or undefined (allow_undef=False).
+        RuntimeError if the variable is used or undefined (allow_undef=False).
         """
         _ffi_api.dfb_rewrite_remove_unused(self, var, allow_undef)  # type: ignore
 

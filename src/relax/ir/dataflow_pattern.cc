@@ -49,7 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OrPatternNode::RegisterReflection();
   NotPatternNode::RegisterReflection();
   WildcardPatternNode::RegisterReflection();
-  StructInfoPatternNode::RegisterReflection();
+  TypePatternNode::RegisterReflection();
   ShapePatternNode::RegisterReflection();
   SameShapeConstraintNode::RegisterReflection();
   DataTypePatternNode::RegisterReflection();
@@ -313,22 +313,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 RELAX_PATTERN_PRINTER_DEF(WildcardPatternNode, [](auto p, auto node) { p->stream << "*"; });
 
-StructInfoPattern::StructInfoPattern(DFPattern pattern, StructInfo struct_info) {
-  ffi::ObjectPtr<StructInfoPatternNode> n = ffi::make_object<StructInfoPatternNode>();
+TypePattern::TypePattern(DFPattern pattern, Type ty) {
+  ffi::ObjectPtr<TypePatternNode> n = ffi::make_object<TypePatternNode>();
   n->pattern = std::move(pattern);
-  n->struct_info = std::move(struct_info);
+  n->ty = std::move(ty);
   data_ = std::move(n);
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.dpl.StructInfoPattern",
-                        [](DFPattern pattern, StructInfo struct_info) {
-                          return StructInfoPattern(pattern, struct_info);
-                        });
+  refl::GlobalDef().def("relax.dpl.TypePattern",
+                        [](DFPattern pattern, Type ty) { return TypePattern(pattern, ty); });
 }
-RELAX_PATTERN_PRINTER_DEF(StructInfoPatternNode, [](auto p, auto node) {
-  p->stream << "StructInfoPattern(" << node->pattern << " has relax StructInfo "
-            << node->struct_info << ")";
+RELAX_PATTERN_PRINTER_DEF(TypePatternNode, [](auto p, auto node) {
+  p->stream << "TypePattern(" << node->pattern << " has relax Type " << node->ty << ")";
 });
 
 ShapePattern::ShapePattern(DFPattern pattern, ffi::Array<PrimExpr> shape) {
@@ -372,15 +369,15 @@ RELAX_PATTERN_PRINTER_DEF(SameShapeConstraintNode, [](auto p, auto node) {
   p->stream << ")";
 });
 
-DataTypePattern::DataTypePattern(DFPattern pattern, DataType dtype) {
+DataTypePattern::DataTypePattern(DFPattern pattern, DLDataType dtype) {
   ffi::ObjectPtr<DataTypePatternNode> n = ffi::make_object<DataTypePatternNode>();
   n->pattern = std::move(pattern);
-  n->dtype = std::move(dtype);
+  n->dtype = dtype;
   data_ = std::move(n);
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.dpl.DataTypePattern", [](DFPattern pattern, DataType dtype) {
+  refl::GlobalDef().def("relax.dpl.DataTypePattern", [](DFPattern pattern, DLDataType dtype) {
     return DataTypePattern(pattern, dtype);
   });
 }
@@ -448,8 +445,8 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   DFPattern VisitDFPattern_(const ShapePatternNode* op) override {
     return ShapePattern(op->pattern, op->shape);
   }
-  DFPattern VisitDFPattern_(const StructInfoPatternNode* op) override {
-    return StructInfoPattern(op->pattern, op->struct_info);
+  DFPattern VisitDFPattern_(const TypePatternNode* op) override {
+    return TypePattern(op->pattern, op->ty);
   }
 
   DFPattern VisitDFPattern_(const DataflowVarPatternNode* op) override {
@@ -476,14 +473,12 @@ NotPattern DFPattern::operator~() const { return NotPattern(*this); }
 AttrPattern DFPattern::HasAttr(const ffi::Map<ffi::String, Any>& attrs) const {
   return AttrPattern(*this, DictAttrs(attrs));
 }
-StructInfoPattern DFPattern::HasStructInfo(const StructInfo& struct_info) const {
-  return StructInfoPattern(*this, struct_info);
-}
-DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
+TypePattern DFPattern::HasType(const Type& ty) const { return TypePattern(*this, ty); }
+DataTypePattern DFPattern::HasDtype(DLDataType dtype) const {
   return DataTypePattern(*this, dtype);
 }
 DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
-  return HasDtype(DataType(ffi::StringToDLDataType(dtype)));
+  return HasDtype(ffi::StringToDLDataType(dtype));
 }
 ShapePattern DFPattern::HasShape(const ffi::Array<PrimExpr>& shape) const {
   return ShapePattern(*this, shape);
@@ -658,13 +653,13 @@ ExprPattern IsOp(const ffi::String& op_name) { return IsExpr(Op::Get(op_name)); 
 CallPattern IsCallTIR(const ffi::String& name, ffi::Optional<TuplePattern> var_args,
                       ffi::Optional<DFPattern> tir_vars) {
   DFPattern arg_pattern;
-  if (!var_args.defined()) {
+  if (!var_args.has_value()) {
     arg_pattern = Wildcard();
   } else {
     arg_pattern = var_args.value();
   }
 
-  if (tir_vars.defined()) {
+  if (tir_vars.has_value()) {
     return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern, tir_vars.value());
   }
   return IsOp("relax.call_tir")(GlobalVarPattern(name), arg_pattern);
@@ -675,7 +670,7 @@ CallPattern IsCallTIR(const ffi::String& name, TuplePattern var_args) {
 }
 CallPattern IsCallDPSPacked(const ffi::String& name, ffi::Optional<TuplePattern> var_args) {
   DFPattern arg_pattern;
-  if (!var_args.defined()) {
+  if (!var_args.has_value()) {
     arg_pattern = Wildcard();
   } else {
     arg_pattern = var_args.value();

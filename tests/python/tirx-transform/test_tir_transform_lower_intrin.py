@@ -16,14 +16,16 @@
 # under the License.
 # ruff: noqa: RUF005
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 
 def lower_intrin(params, stmt):
     """wrapper to call transformation in stmt"""
-    lower_expr = isinstance(stmt, tvm.tirx.PrimExpr)
+    lower_expr = tvm.ir.is_prim_expr(stmt)
     stmt = tvm.tirx.Evaluate(stmt) if lower_expr else stmt
     mod = tvm.IRModule.from_expr(
         tvm.tirx.PrimFunc(params, stmt).with_attr("target", tvm.target.Target("llvm"))
@@ -48,9 +50,9 @@ def check_value(expr, variables, data, fref):
 
     # Build input and output buffers
     input_bufs = [
-        tvm.tirx.decl_buffer((n,), dtype=variables[i].dtype, name=f"v{i}") for i in range(num_vars)
+        tvm.tirx.decl_buffer((n,), dtype=variables[i].ty, name=f"v{i}") for i in range(num_vars)
     ]
-    out_buf = tvm.tirx.decl_buffer((n,), dtype=expr.dtype, name="C")
+    out_buf = tvm.tirx.decl_buffer((n,), dtype=expr.ty, name="C")
 
     # Build loop body: for each i, bind variables[j] = input_bufs[j][i], then store expr to out
     loop_var = tvm.tirx.Var("i", "int32")
@@ -75,13 +77,41 @@ def check_value(expr, variables, data, fref):
     f = tvm.compile(prim_func, "llvm")
 
     arrays = [
-        tvm.runtime.tensor(np.array([row[j] for row in data], dtype=variables[j].dtype))
+        tvm.runtime.tensor(np.array([row[j] for row in data], dtype=str(variables[j].ty)))
         for j in range(num_vars)
     ]
-    c = tvm.runtime.tensor(np.zeros(n, dtype=expr.dtype))
+    c = tvm.runtime.tensor(np.zeros(n, dtype=str(expr.ty)))
     f(*arrays, c)
     cref = np.array([fref(*row) for row in data])
     np.testing.assert_equal(c.numpy(), cref)
+
+
+def test_lower_nested_access_ptr():
+    data = tvm.tirx.Var("data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    inner = tvm.tirx.tvm_access_ptr("float32", data, 2, 16, 1)
+    outer = tvm.tirx.tvm_access_ptr("float32", inner, 3, 8, 1)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", outer))
+    mod = tvm.IRModule.from_expr(
+        tvm.tirx.PrimFunc([data], body).with_attr("target", tvm.target.Target("llvm"))
+    )
+
+    lowered = tvm.tirx.transform.LowerIntrin()(mod)["main"]
+    access_ptr_calls = []
+    address_calls = []
+
+    def collect(node):
+        if isinstance(node, tvm.ir.Call):
+            if node.op.name == "tirx.tvm_access_ptr":
+                access_ptr_calls.append(node)
+            elif node.op.name == "tirx.address_of":
+                address_calls.append(node)
+
+    tvm.tirx.stmt_functor.post_order_visit(lowered.body, collect)
+    assert not access_ptr_calls
+    assert len(address_calls) == 1
+    load = address_calls[0].args[0]
+    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert int(tvm.arith.Analyzer().simplify(load.indices[0])) == 5
 
 
 def get_ref_data():
@@ -94,7 +124,7 @@ def get_ref_data():
     return list(itertools.product(x, y))
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floordiv():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:
@@ -128,7 +158,7 @@ def test_lower_floordiv():
         check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) // b)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floormod():
     data = get_ref_data()
     for dtype in ["int32", "int64", "int16"]:
@@ -157,7 +187,7 @@ def test_lower_floormod():
         check_value(res, [x, y], [(a, b) for a, b in data if b == 5], lambda a, b: (a + 4) % b)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_floordiv_overflow_checks():
     """
     Regression tests for overflow checks in TryFindShiftCoefficientForPositiveRange.

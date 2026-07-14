@@ -64,7 +64,7 @@ inline Tensor flatten(const Tensor& x, std::string name = "tensor", std::string 
 
   return tvm::te::compute(
       oshape,
-      [&](Var i, Var j) {
+      [&](PrimVar i, PrimVar j) {
         PrimExpr idx = j;
         std::vector<PrimExpr> index;
         for (auto s : extra_shape) {

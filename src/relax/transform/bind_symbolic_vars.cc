@@ -19,7 +19,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 
@@ -82,7 +81,7 @@ Function FunctionBindSymbolicVars(
     }
   }
 
-  auto new_func = Downcast<Function>(Bind(func, {}, var_remap));
+  auto new_func = Bind(func, {}, var_remap).as_or_throw<Function>();
 
   auto free_symbolic_vars = FreeSymbolicVars(new_func);
 
@@ -167,7 +166,7 @@ Pass BindSymbolicVars(ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> b
   auto pass_func = [=](IRModule mod, PassContext context) -> IRModule {
     if (func_name) {
       auto gvar = mod->GetGlobalVar(func_name.value());
-      auto func = Downcast<Function>(mod->Lookup(gvar));
+      auto func = mod->Lookup(gvar).as_or_throw<Function>();
       auto new_func = FunctionBindSymbolicVars(func, binding_map);
       if (!func.same_as(new_func)) {
         mod.CopyOnWrite()->Update(gvar, new_func);

@@ -57,7 +57,7 @@ class TestCase:
     def constraint(self):
         if self.preconditions is None:
             return True
-        elif isinstance(self.preconditions, tvm.ir.PrimExpr):
+        elif tvm.ir.is_prim_expr(self.preconditions):
             return self.preconditions
         else:
             return tvm.tirx.all(*self.preconditions)
@@ -675,10 +675,13 @@ class TestFloormodIndex(BaseCompare):
         TestCase(flm(x * 10, 2), 0),
         TestCase(flm(x * 9600, 6400), flm(x * 3200, 6400)),
         TestCase(flm(x * 10 + y, 2), flm(y, 2)),
-        TestCase(flm(x * 360 + y, 16), flm(x * 8 + y, 16)),
+        # coefficient is not shrunk unless it is a multiple of the divisor (#19825)
+        TestCase(flm(x * 360 + y, 16), flm(x * 360 + y, 16)),
+        TestCase(flm(x * 192 + y, 128), flm(x * 192 + y, 128)),
         TestCase(flm(x + 10, 2), flm(x, 2)),
         TestCase(flm(x + y * 10, 2), flm(x, 2)),
-        TestCase(flm(x + y * 360, 16), flm(x + y * 8, 16)),
+        TestCase(flm(x + y * 360, 16), flm(x + y * 360, 16)),
+        TestCase(flm(x + y * 192, 128), flm(x + y * 192, 128)),
         TestCase(flm(x * (-10), 2), 0),
         TestCase(flm(x * (-10) + y, 2), flm(y, 2)),
         TestCase(flm(x + (-10), 2), flm(x, 2)),
@@ -746,6 +749,13 @@ class TestFloorModPadded(BaseCompare):
         TestCase(flm(x - flm(x, -y), y), 0),
         TestCase(flm(x + flm(-x, y), y), 0),
     )
+
+
+def test_uint_floormod_const_fold():
+    analyzer = tvm.arith.Analyzer()
+    expr = flm(8192, T.uint32(128))
+    tvm.ir.assert_structural_equal(expr, T.uint32(0))
+    assert analyzer.can_prove_equal(expr, 0)
 
 
 class TestMinIndex(BaseCompare):
@@ -1265,10 +1275,10 @@ class TestDivZero(BaseCompare):
     broadcast = tvm.tirx.Broadcast(0, 2)
 
     test_case = tvm.testing.parameter(
-        TestCase(tvm.tirx.Div(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.Mod(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.FloorDiv(ramp, broadcast), tvm.error.TVMError),
-        TestCase(tvm.tirx.FloorMod(ramp, broadcast), tvm.error.TVMError),
+        TestCase(tvm.tirx.Div(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.Mod(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.FloorDiv(ramp, broadcast), RuntimeError),
+        TestCase(tvm.tirx.FloorMod(ramp, broadcast), RuntimeError),
     )
 
 

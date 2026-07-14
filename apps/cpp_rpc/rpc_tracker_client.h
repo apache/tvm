@@ -198,15 +198,15 @@ class TrackerClient {
       support::SockAddr addr(tracker_addr_);
       support::TCPSocket sock;
       sock.Create();
-      LOG(INFO) << "Tracker connecting to " << addr.AsString();
       if (sock.Connect(addr)) {
+        LOG(INFO) << "Connected to tracker " << addr.AsString();
         return sock;
       }
 
       auto period = (std::chrono::duration_cast<std::chrono::seconds>(
                          std::chrono::system_clock::now() - tbegin))
                         .count();
-      TVM_FFI_ICHECK(period < timeout) << "Failed to connect to server" << addr.AsString();
+      TVM_FFI_ICHECK(period < timeout) << "Failed to connect to tracker " << addr.AsString();
       LOG(WARNING) << "Cannot connect to tracker " << addr.AsString() << " retry in "
                    << retry_period << " seconds.";
       std::this_thread::sleep_for(std::chrono::seconds(retry_period));

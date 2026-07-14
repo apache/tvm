@@ -16,6 +16,7 @@
 # under the License.
 # ruff: noqa: E741
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -36,8 +37,11 @@ def _legalize_and_build(mod, target, dev):
     return vm
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_manual_gradient(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_manual_gradient():
+    target = "llvm"
+    dev = tvm.device(target)
+
     # The expression computed is sum((2x - 2y) * (y + z))
     # the gradient of x is broadcast_to(2y + 2z, x.shape)
     # the gradient of y is collapse_sum_to((2x - 4y - 2z), y.shape)
@@ -82,8 +86,10 @@ def test_manual_gradient(target, dev):
         assert_allclose(i.numpy(), j, atol=1e-4)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_mlp_blockbuilder(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_mlp_blockbuilder():
+    target = "llvm"
+    dev = tvm.device(target)
     layers, in_size, out_size, hidden_size, batch_size = 3, 5, 5, 5, 4
 
     input_list = [relax.Var("x", R.Tensor((batch_size, in_size), "float32"))]
@@ -119,8 +125,8 @@ def test_mlp_blockbuilder(target, dev):
     # Check numerical gradients equal
     args = []
     for arg in After["MLP_adjoint"].params:
-        shape = [int(l) for l in arg.struct_info.shape]
-        if arg.struct_info.dtype == "int64":
+        shape = [int(l) for l in arg.ty.shape]
+        if arg.ty.dtype == "int64":
             args.append(
                 tvm.runtime.tensor(np.random.randint(0, out_size, size=shape).astype(np.int64))
             )
@@ -138,8 +144,10 @@ def test_mlp_blockbuilder(target, dev):
     check_numerical_grads(func, [i.numpy() for i in args[1:-1]], [i.numpy() for i in grad])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_complex(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_complex():
+    target = "llvm"
+    dev = tvm.device(target)
     cst = relax.const(np.ones((6,)), dtype="float32")
     cst1 = relax.const(np.array(3), dtype="int64")
 
@@ -180,7 +188,7 @@ def test_complex(target, dev):
     After = relax.transform.Gradient("main")(Before)
     args = []
     for arg in After["main_adjoint"].params:
-        shape = [int(l) for l in arg.struct_info.shape]
+        shape = [int(l) for l in arg.ty.shape]
         args.append(rand("float32", *shape))
 
     vm_before = _legalize_and_build(Before, target, dev)
@@ -194,8 +202,11 @@ def test_complex(target, dev):
     check_numerical_grads(func, [i.numpy() for i in args], [i.numpy() for i in grad])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_matmul(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_matmul():
+    target = "llvm"
+    dev = tvm.device(target)
+
     @tvm.script.ir_module
     class Before:
         @R.function
@@ -217,7 +228,7 @@ def test_matmul(target, dev):
     After = relax.transform.Gradient("main")(Before)
     args = []
     for arg in After["main_adjoint"].params:
-        shape = [int(l) for l in arg.struct_info.shape]
+        shape = [int(l) for l in arg.ty.shape]
         args.append(rand("float32", *shape))
 
     vm_before = _legalize_and_build(Before, target, dev)

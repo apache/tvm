@@ -21,19 +21,19 @@
  * \brief Testing code to be compiled by Relax nn.SourceModule
  */
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/data_type.h>
 
 namespace {
 
 int _scalar_add(DLTensor* a, DLTensor* b, DLTensor* c) {
-  using namespace tvm::runtime;
   TVM_FFI_ICHECK(a->ndim == 0);
   TVM_FFI_ICHECK(b->ndim == 0);
   TVM_FFI_ICHECK(c->ndim == 0);
-  TVM_FFI_ICHECK(DataType(a->dtype) == DataType::Float(32));
-  TVM_FFI_ICHECK(DataType(b->dtype) == DataType::Float(32));
-  TVM_FFI_ICHECK(DataType(c->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK((a->dtype == DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK((b->dtype == DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK((c->dtype == DLDataType{kDLFloat, 32, 1}));
   float* a_data = static_cast<float*>(a->data);
   float* b_data = static_cast<float*>(b->data);
   float* c_data = static_cast<float*>(c->data);
@@ -42,13 +42,12 @@ int _scalar_add(DLTensor* a, DLTensor* b, DLTensor* c) {
 }
 
 int _test_sym(DLTensor* a, DLTensor* b, DLTensor* c) {
-  using namespace tvm::runtime;
   TVM_FFI_ICHECK(a->ndim == 3);  // [x, y, 1]
   TVM_FFI_ICHECK(b->ndim == 3);  // [y, z, 5]
   TVM_FFI_ICHECK(c->ndim == 4);  // [x, y, z, 9]
-  TVM_FFI_ICHECK(DataType(a->dtype) == DataType::Float(32));
-  TVM_FFI_ICHECK(DataType(b->dtype) == DataType::Float(32));
-  TVM_FFI_ICHECK(DataType(c->dtype) == DataType::Float(32));
+  TVM_FFI_ICHECK((a->dtype == DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK((b->dtype == DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK((c->dtype == DLDataType{kDLFloat, 32, 1}));
   int x = a->shape[0];
   int y = a->shape[1];
   int z = b->shape[1];

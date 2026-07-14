@@ -31,8 +31,9 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
+from tvm.tirx.cuda.operator.tile_primitive.tma_utils import SwizzleMode, mma_shared_layout
 from tvm.tirx.layout import R, S, TCol, TileLayout, TLane
-from tvm.tirx.operator.tile_primitive.cuda.tma_utils import SwizzleMode, mma_shared_layout
 
 T_LAY_BASIC = TileLayout(S[(32, 16) : (1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
 
@@ -208,18 +209,24 @@ def _execute(kernel, A_init, expected):
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
-    dev = tvm.cuda(0)
-    A = tvm.runtime.tensor(A_init, dev)
     B_np = np.zeros((32, 16), dtype=A_init.dtype)
-    B = tvm.runtime.tensor(B_np, dev)
-    mod(A, B)
-    B_out = B.numpy()
-    assert np.array_equal(B_out, expected), (
-        f"mismatch:\nlane 0 expected={expected[0].tolist()}\n        got     ={B_out[0].tolist()}"
-    )
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_init, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        mod(A, B)
+        B_out = B.numpy()
+        assert np.array_equal(B_out, expected), (
+            f"mismatch:\nlane 0 expected={expected[0].tolist()}\n"
+            f"        got     ={B_out[0].tolist()}"
+        )
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
     "name,s_full,s_full_shape,s_region",
     [
@@ -276,7 +283,8 @@ def test_single_cp(name, s_full, s_full_shape, s_region):
     _run_2d(s_full, T_LAY_BASIC, s_full_shape, s_region, "uint8", A_np, expected)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_multi_cp_sw0_4tiles():
     s_full = TileLayout(S[(4, 32, 16) : (512, 16, 1)])
     t_full = TileLayout(S[(4, 32, 16) : (16 @ TCol, 1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
@@ -285,7 +293,8 @@ def test_multi_cp_sw0_4tiles():
     _run_3d_4tile(s_full, t_full, [4, 32, 16], "uint8", A_np, expected)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_align_middle_2_to_1_nvfp4_sfb():
     """SFB-style nvfp4 case: TMEM mid canonicalizes to single iter
     (16@TCol + 4@TCol merge), but SMEM mid stays as 2 iters
@@ -394,7 +403,8 @@ def test_align_middle_2_to_1_nvfp4_sfb():
     _execute(kernel, A_np, expected)
 
 
-@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize(
     "bad",
     [
@@ -435,6 +445,35 @@ def test_dispatch_rejects_bad_inputs(bad):
         target = tvm.target.Target("cuda")
         with target:
             tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+
+
+def test_multi_cp_encodes_descriptor_once_and_patches_addr():
+    """Compile-only regression for the shared-descriptor cp path.
+
+    A multi-tile smem->tmem copy encodes ONE SMEM matrix descriptor template at
+    SMEM base 0 (so the cache key no longer depends on the buffer identity) and
+    patches its 14-bit address field per cp via ``cvta(addr) >> 4 & 0x3FFF``,
+    instead of re-encoding a descriptor per tile. Verifies the 4-tile copy emits
+    a single ``encode_matrix_descriptor`` reused across four
+    ``tcgen05.cp.32x128b.warpx4`` issues, each with the address-field patch.
+    """
+    s_full = TileLayout(S[(4, 32, 16) : (512, 16, 1)])
+    t_full = TileLayout(S[(4, 32, 16) : (16 @ TCol, 1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
+    kernel = _make_3d_4tile_kernel(s_full, t_full, [4, 32, 16], [4, 32, 16], "uint8")
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
+    src = mod.mod.imports[0].inspect_source()
+
+    assert "tcgen05.cp.cta_group::1.32x128b.warpx4" in src, f"cp not emitted; src=\n{src}"
+    # Descriptor encoded once (single matrix-descriptor encode call), then
+    # reused with a per-cp 14-bit SMEM address patch (0x3FFF == 16383 mask).
+    assert "16383" in src, "expected 14-bit SMEM address-field patch (0x3FFF mask)"
+    assert src.count("cp_desc[0] &") == 4, (
+        f"expected 4 address-patched cp's reusing one cp_desc; got "
+        f"{src.count('cp_desc[0] &')}\nsrc=\n{src}"
+    )
 
 
 if __name__ == "__main__":

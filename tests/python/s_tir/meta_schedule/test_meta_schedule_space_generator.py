@@ -23,7 +23,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.base import TVMError
 from tvm.ir.utils import derived_object
 from tvm.s_tir.meta_schedule.space_generator import (
     PySpaceGenerator,
@@ -101,7 +100,7 @@ def test_meta_schedule_design_space_generator_NIE():
             self.mutator_probs = {}
 
     with pytest.raises(
-        TVMError, match="PySpaceGenerator's InitializeWithTuneContext method not implemented!"
+        RuntimeError, match="PySpaceGenerator's InitializeWithTuneContext method not implemented!"
     ):
         generator = TestPySpaceGenerator()
         generator._initialize_with_tune_context(TuneContext())

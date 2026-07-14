@@ -70,10 +70,10 @@ inline PrimExpr bilinear_sample_nchw(const Tensor& input, const ffi::Array<PrimE
   auto in_y = indices[2];
   auto in_x = indices[3];
 
-  auto y_low = tvm::cast(DataType::Int(32), tvm::floor(in_y));
+  auto y_low = tvm::cast(PrimType::Int(32), tvm::floor(in_y));
   auto y_high = y_low + 1;
 
-  auto x_low = tvm::cast(DataType::Int(32), tvm::floor(in_x));
+  auto x_low = tvm::cast(PrimType::Int(32), tvm::floor(in_x));
   auto x_high = x_low + 1;
 
   auto wy_h = in_y - y_low;
@@ -114,10 +114,10 @@ inline PrimExpr bilinear_sample_nhwc(const Tensor& input, const ffi::Array<PrimE
   auto in_y = indices[1];
   auto in_x = indices[2];
 
-  auto y_low = tvm::cast(DataType::Int(32), tvm::floor(in_y));
+  auto y_low = tvm::cast(PrimType::Int(32), tvm::floor(in_y));
   auto y_high = y_low + 1;
 
-  auto x_low = tvm::cast(DataType::Int(32), tvm::floor(in_x));
+  auto x_low = tvm::cast(PrimType::Int(32), tvm::floor(in_x));
   auto x_high = x_low + 1;
 
   auto wy_h = in_y - y_low;

@@ -48,7 +48,7 @@ namespace relax {
     attrs->axis = std::move(axis);                                                 \
     attrs->keepdims = keepdims;                                                    \
     static const Op& op = Op::Get("relax." #OpName);                               \
-    return Call(op, {std::move(x)}, Attrs{attrs}, {});                             \
+    return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});            \
   }                                                                                \
   TVM_FFI_STATIC_INIT_BLOCK() {                                                    \
     tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);            \
@@ -56,7 +56,7 @@ namespace relax {
   TVM_REGISTER_OP("relax." #OpName)                                                \
       .set_num_inputs(1)                                                           \
       .add_argument("x", "Tensor", "The input data tensor")                        \
-      .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStatistical)  \
+      .set_attr<FInferType>("FInferType", InferTypeStatistical)                    \
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)    \
       .set_attr<bool>("FPurity", true)
 
@@ -99,7 +99,7 @@ Expr sum(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);
  * result.
  */
 Expr cumprod(Expr data, ffi::Optional<int64_t> axis = std::nullopt,
-             ffi::Optional<DataType> dtype = std::nullopt, bool exclusive = false);
+             ffi::Optional<DLDataType> dtype = std::nullopt, bool exclusive = false);
 
 /*!
  * \brief Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
@@ -114,7 +114,7 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis = std::nullopt,
  * \return The computed result.
  */
 Expr cumsum(Expr data, ffi::Optional<int64_t> axis = std::nullopt,
-            ffi::Optional<DataType> dtype = std::nullopt, bool exclusive = false);
+            ffi::Optional<DLDataType> dtype = std::nullopt, bool exclusive = false);
 
 /*! \brief Computes the variance of tensor elements over given axes. */
 Expr variance(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims);

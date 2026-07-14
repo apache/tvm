@@ -61,7 +61,7 @@ inline Tensor reorg(const Tensor& data, int stride = 1, std::string name = "tens
 
   auto out = tvm::te::compute(
       input_shape,
-      [&](Var b, Var k, Var j, Var i) {
+      [&](PrimVar b, PrimVar k, PrimVar j, PrimVar i) {
         return data(b * stride * stride, indexmod(k, out_c) * stride * stride,
                     (j * stride + indexdiv(indexdiv(k, out_c), stride)) * stride,
                     (i * stride + indexmod(indexdiv(k, out_c), stride)));

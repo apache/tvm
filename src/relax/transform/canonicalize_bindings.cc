@@ -29,8 +29,8 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
@@ -87,27 +87,27 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     // correctly return `R.Tensor(ndim=2)`, removing all shape
     // information.
     //
-    // Since we know the StructInfo prior to replacing TIR variables,
-    // this pass can provide a better StructInfo than the generic
+    // Since we know the Type prior to replacing TIR variables,
+    // this pass can provide a better Type than the generic
     // handling in ExprMutator, by restoring the symbolic variables
     // within each branch.
-    auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->struct_info_));
+    auto new_ty = VisitExprDepTypeField(op->ty.as_or_throw<Type>());
 
     ffi::StructuralEqual struct_equal;
-    if (!struct_equal(new_sinfo, GetStructInfo(true_b))) {
-      auto output_var = Var("then_branch_with_dyn", new_sinfo);
+    if (!struct_equal(new_ty, GetType(true_b))) {
+      auto output_var = Var("then_branch_with_dyn", new_ty);
 
       true_b = SeqExpr({BindingBlock({
-                           MatchCast(output_var, true_b, new_sinfo),
+                           MatchCast(output_var, true_b, new_ty),
                        })},
                        output_var);
     }
 
-    if (!struct_equal(new_sinfo, GetStructInfo(false_b))) {
-      auto output_var = Var("else_branch_with_dyn", new_sinfo);
+    if (!struct_equal(new_ty, GetType(false_b))) {
+      auto output_var = Var("else_branch_with_dyn", new_ty);
 
       false_b = SeqExpr({BindingBlock({
-                            MatchCast(output_var, false_b, new_sinfo),
+                            MatchCast(output_var, false_b, new_ty),
                         })},
                         output_var);
     }
@@ -115,14 +115,14 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return If(guard, true_b, false_b, op->span);
   }
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) override {
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) override {
     if (known_values_.empty()) {
       return expr;
     }
     PrimExpr output =
-        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<tvm::Expr> {
           if (auto it = known_values_.find(var); it != known_values_.end()) {
-            return it->second.expr;
+            return tvm::Expr(it->second.expr);
           } else {
             return std::nullopt;
           }
@@ -135,6 +135,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return output;
   }
 
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutator::VisitExprFallback_(op);
+  }
+
  private:
   struct KnownValue {
     PrimExpr expr;
@@ -145,10 +152,10 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 };
 
 struct CanonicalizationPlan {
-  ffi::Map<Id, Var> replace_usage;
-  ffi::Map<Id, Var> replace_binding;
-  std::unordered_set<Id, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> bindings_to_remove;
-  ffi::Map<Id, Constant> inline_constant;
+  ffi::Map<Var, Var> replace_usage;
+  ffi::Map<Var, Var> replace_binding;
+  std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> bindings_to_remove;
+  ffi::Map<Var, Constant> inline_constant;
 };
 
 /*! \brief Utility class to identify usage location
@@ -172,15 +179,15 @@ class CanonicalizePlanner : public ExprVisitor {
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
       if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
-        DataflowVar new_var(var->name_hint(), GetStructInfo(var));
+        DataflowVar new_var(var->name_hint, GetType(var));
 
-        plan.replace_binding.Set(var->vid, new_var);
-        plan.replace_usage.Set(var->vid, new_var);
+        plan.replace_binding.Set(var, new_var);
+        plan.replace_usage.Set(var, new_var);
       }
     }
 
     for (const auto& [var, constant] : visitor.known_bound_to_constant_) {
-      plan.inline_constant.Set(var->vid, constant);
+      plan.inline_constant.Set(var, constant);
     }
 
     for (const auto& binding_iter : visitor.trivial_bindings_) {
@@ -193,7 +200,7 @@ class CanonicalizePlanner : public ExprVisitor {
         // non-trivial binding.
         bound_to = opt.value();
       }
-      while (auto opt = plan.replace_binding.Get(bound_to->vid)) {
+      while (auto opt = plan.replace_binding.Get(bound_to)) {
         // The variable we are binding to may have already been
         // replaced, if it fell into Case 4 (Var = DataflowVar).  In
         // that case, we check against its replacement instead.
@@ -210,8 +217,8 @@ class CanonicalizePlanner : public ExprVisitor {
         //
         // For these four cases, the trivial binding can be unwrapped,
         // using the bound variable directly at the point of use.
-        plan.replace_usage.Set(bound_var->vid, bound_to);
-        plan.bindings_to_remove.insert(bound_var->vid);
+        plan.replace_usage.Set(bound_var, bound_to);
+        plan.bindings_to_remove.insert(bound_var);
       } else {
         // Case 4b: Var = DataflowVar, where the Var is used somewhere
         //          outside the DataflowBlock containing the binding
@@ -220,9 +227,9 @@ class CanonicalizePlanner : public ExprVisitor {
         // use of a DataflowVar outside of a DataflowBlock.  Instead,
         // we replace in the opposite direction, replacing the binding
         // of the DataflowVar with a binding of the Var.
-        plan.replace_binding.Set(bound_to->vid, bound_var);
-        plan.replace_usage.Set(bound_to->vid, bound_var);
-        plan.bindings_to_remove.insert(bound_var->vid);
+        plan.replace_binding.Set(bound_to, bound_var);
+        plan.replace_usage.Set(bound_to, bound_var);
+        plan.bindings_to_remove.insert(bound_var);
       }
     }
 
@@ -251,14 +258,14 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBindingBlock_(const BindingBlockNode* block) override {
-    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.has_value()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.has_value()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
@@ -316,7 +323,7 @@ class CanonicalizePlanner : public ExprVisitor {
       }
 
       auto earlier_tuple_size =
-          Downcast<TupleStructInfo>(GetStructInfo(first_element->tuple))->fields.size();
+          GetType(first_element->tuple).as_or_throw<TupleType>()->fields.size();
       if (earlier_tuple_size != expr_tuple->fields.size()) {
         return std::nullopt;
       }
@@ -349,12 +356,11 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBinding(const Binding& binding) override {
-    bool has_same_struct_info = [&]() {
+    bool has_same_ty = [&]() {
       if (binding.as<VarBindingNode>()) {
         return true;
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        return ffi::StructuralEqual()(GetStructInfo(binding->var),
-                                      GetStructInfo(match_cast->value));
+        return ffi::StructuralEqual()(GetType(binding->var), GetType(match_cast->value));
       } else {
         TVM_FFI_THROW(InternalError) << "Invalid binding type: " << binding->GetTypeKey();
       }
@@ -366,7 +372,7 @@ class CanonicalizePlanner : public ExprVisitor {
       value = unwrapped.value();
     }
 
-    if (auto parent = value.as<Var>(); parent && has_same_struct_info) {
+    if (auto parent = value.as<Var>(); parent && has_same_ty) {
       trivial_bindings_.Set(binding->var, parent.value());
     }
 
@@ -391,15 +397,15 @@ class CanonicalizePlanner : public ExprVisitor {
     // if a var is used in a dataflow block but *not* the one
     // where it was defined, it also needs to be exposed, so also we treat that as
     // used outside of a dataflow block
-    if (!inside_dataflow() ||
-        (def_blocks_.count(var_ref) &&
-         (current_block_.defined() && !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
+    if (!inside_dataflow() || (def_blocks_.count(var_ref) &&
+                               (current_block_.has_value() &&
+                                !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
       used_outside_home_dataflow_.insert(ffi::GetRef<Var>(var));
     }
   }
 
   inline bool inside_dataflow() {
-    return current_block_.defined() && current_block_.value().as<DataflowBlockNode>();
+    return current_block_.has_value() && current_block_.value().as<DataflowBlockNode>();
   }
 
   ffi::Optional<BindingBlock> current_block_;
@@ -427,14 +433,14 @@ class BindingCanonicalizer : public ExprMutator {
   explicit BindingCanonicalizer(CanonicalizationPlan plan) : plan_(plan) {}
 
   void VisitBinding(const Binding& binding) override {
-    if (!plan_.bindings_to_remove.count(binding->var->vid)) {
+    if (!plan_.bindings_to_remove.count(binding->var)) {
       ExprMutator::VisitBinding(binding);
     }
   }
 
   Var VisitVarDef(const Var& var) override {
     Var new_var = var;
-    while (auto opt = plan_.replace_binding.Get(new_var->vid)) {
+    while (auto opt = plan_.replace_binding.Get(new_var)) {
       new_var = opt.value();
     }
 
@@ -443,10 +449,10 @@ class BindingCanonicalizer : public ExprMutator {
 
   Expr VisitExpr_(const VarNode* var) override {
     Var new_var = ffi::GetRef<Var>(var);
-    while (auto opt = plan_.replace_usage.Get(new_var->vid)) {
+    while (auto opt = plan_.replace_usage.Get(new_var)) {
       new_var = opt.value();
     }
-    if (auto opt = plan_.inline_constant.Get(new_var->vid)) {
+    if (auto opt = plan_.inline_constant.Get(new_var)) {
       return VisitExpr(opt.value());
     }
 
@@ -457,7 +463,7 @@ class BindingCanonicalizer : public ExprMutator {
   // to be bound to the output. In this case, we will get rid of those bindings and
   // use the dataflow var's definition directly
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
-    auto new_block = Downcast<DataflowBlock>(ExprMutator::VisitBindingBlock_(block));
+    auto new_block = ExprMutator::VisitBindingBlock_(block).as_or_throw<DataflowBlock>();
     std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> disqualified_set;
     std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> output_vars;
 
@@ -468,7 +474,7 @@ class BindingCanonicalizer : public ExprMutator {
       auto value = GetBoundValue(binding);
 
       if (var->IsInstance<DataflowVarNode>()) {
-        auto df_var = Downcast<DataflowVar>(var);
+        auto df_var = var.as_or_throw<DataflowVar>();
 
         // disqualify any vars that appear in the RHS
         // (for a function literal, consider only free vars)
@@ -481,7 +487,7 @@ class BindingCanonicalizer : public ExprMutator {
 
         for (auto rhs_var : rhs_vars) {
           if (rhs_var->IsInstance<DataflowVarNode>()) {
-            disqualified_set.insert(Downcast<DataflowVar>(rhs_var));
+            disqualified_set.insert(rhs_var.as_or_throw<DataflowVar>());
           }
         }
 
@@ -511,7 +517,7 @@ class BindingCanonicalizer : public ExprMutator {
 
           for (auto rhs_var : disqualified) {
             if (rhs_var->IsInstance<DataflowVarNode>()) {
-              disqualified_set.insert(Downcast<DataflowVar>(rhs_var));
+              disqualified_set.insert(rhs_var.as_or_throw<DataflowVar>());
             }
           }
         }
@@ -524,21 +530,21 @@ class BindingCanonicalizer : public ExprMutator {
     bool changed = false;
     for (auto binding : new_block->bindings) {
       if (binding->var->IsInstance<DataflowVarNode>() &&
-          candidates.count(Downcast<DataflowVar>(binding->var))) {
+          candidates.count(binding->var.as_or_throw<DataflowVar>())) {
         changed = true;
         continue;
       } else if (!binding->var->IsInstance<DataflowVarNode>() &&
                  GetBoundValue(binding)->IsInstance<DataflowVarNode>() &&
-                 candidates.count(Downcast<DataflowVar>(GetBoundValue(binding)))) {
+                 candidates.count(GetBoundValue(binding).as_or_throw<DataflowVar>())) {
         changed = true;
         if (auto* match_binding = binding.as<MatchCastNode>()) {
-          auto new_binding =
-              MatchCast(binding->var, candidates.at(Downcast<DataflowVar>(match_binding->value)),
-                        match_binding->struct_info);
+          auto new_binding = MatchCast(
+              binding->var, candidates.at(match_binding->value.as_or_throw<DataflowVar>()),
+              match_binding->ty);
           new_bindings.push_back(new_binding);
         } else if (auto* var_binding = binding.as<VarBindingNode>()) {
-          auto new_binding =
-              VarBinding(binding->var, candidates.at(Downcast<DataflowVar>(var_binding->value)));
+          auto new_binding = VarBinding(
+              binding->var, candidates.at(var_binding->value.as_or_throw<DataflowVar>()));
           new_bindings.push_back(new_binding);
         } else {
           TVM_FFI_ICHECK(false) << "Invalid binding";  // never happens
@@ -573,14 +579,14 @@ namespace transform {
 
 Pass CanonicalizeTIRVariables() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(CanonicalizeTIRVariables(f));
+    return CanonicalizeTIRVariables(f).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables", {});
 }
 
 Pass CanonicalizeRelaxBindings() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(CanonicalizeBindings(f));
+    return CanonicalizeBindings(f).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings", {});
 }

@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @tvm.register_global_func("tvm.test_matmul")
@@ -112,14 +113,44 @@ def test_lower_call_packed():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_lower_call_packed_raw_string():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            T.call_packed("testing.echo", "payload")
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main():
+            T.func_attr({"target": tvm.target.Target("llvm")})
+            stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 2)
+            T.tvm_struct_set(stack_ffi_any, 0, 13, 8)
+            T.tvm_struct_set(stack_ffi_any, 0, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 0, 15, T.reinterpret(T.handle().ty, "payload"))
+            T.tvm_struct_set(stack_ffi_any, 1, 13, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 14, 0)
+            T.tvm_struct_set(stack_ffi_any, 1, 15, T.int64(0))
+            T.call_packed_lowered("testing.echo", stack_ffi_any, 0, 1)
+
+    After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+    # The typed pointer is required by the LLVM TVMFFIAny lowering.
+    tvm.compile(Before, target="llvm")
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_call_packed_return_non_i32():
     # This call packed that return non i32 types
     expected_value = np.array([1.2, 1.4], dtype="float32")
 
     def packed_echo(value):
         return tvm.tirx.call_intrin(
-            value.dtype, tvm.ir.Op.get("tirx.tvm_call_packed"), "testing.echo", value
+            value.ty, tvm.ir.Op.get("tirx.tvm_call_packed"), "testing.echo", value
         )
 
     def build_tir():
@@ -132,7 +163,7 @@ def test_call_packed_return_non_i32():
         )
 
         # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
-        Aptr_dup = tvm.tirx.Var("Aptr_dup", "handle")
+        Aptr_dup = tvm.tirx.Var("Aptr_dup", Ab.data.ty)
         store1 = tvm.tirx.BufferStore(Ab, tvm.tirx.const(expected_value[1], "float32"), [1])
         bind_stmt = tvm.tirx.Bind(Aptr_dup, packed_echo(Ab.data))
 
@@ -239,7 +270,7 @@ def test_lower_allocate_requires_device_id():
             buf = T.decl_buffer(16, "float32", data=ptr.data)
             buf[0] = 0.0
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.LowerTVMBuiltin()(Before)
 
 
@@ -263,7 +294,7 @@ def test_lower_allocate_requires_device_type():
             buf = T.decl_buffer(1024 * 1024, "float32", data=ptr.data)
             buf[0] = 0.0
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         tvm.tirx.transform.LowerTVMBuiltin()(Before)
 
 

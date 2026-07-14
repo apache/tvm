@@ -46,6 +46,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
+  decl_stream << "#include \"tvm/ffi/extra/c_env_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/base.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include \"tvm/ffi/c_api.h\"\n";
@@ -120,24 +121,24 @@ void CodeGenCHost::PrintFuncPrefix(std::ostream& os) {  // NOLINT(*)
      << "TVM_DLL ";
 }
 
-void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  int lanes = t.lanes();
-  if (t.is_handle()) {
+void CodeGenCHost::PrintType(const PrimType& type, std::ostream& os) {  // NOLINT(*)
+  int lanes = type.lanes();
+  if (type.MatchesCode(DLDataTypeCode::kDLOpaqueHandle) && !type.IsVoid()) {
     TVM_FFI_ICHECK_EQ(lanes, 1) << "does not support vector types";
     os << "void*";
     return;
   }
-  if (t.is_void()) {
+  if (type.IsVoid()) {
     os << "void";
     return;
   }
-  if (t == DataType::Bool()) {
+  if (type.MatchesCode(DLDataTypeCode::kDLBool) && lanes == 1) {
     os << "bool";
     return;
   }
   bool fail = false;
-  if (t.is_float()) {
-    switch (t.bits()) {
+  if (type.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    switch (type.bits()) {
       case 16:
         os << "half";
         break;
@@ -156,11 +157,11 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << lanes;
       return;
     }
-  } else if (t.is_uint() || t.is_int()) {
-    if (t.is_uint()) {
+  } else if (type.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
+    if (type.MatchesCode(DLDataTypeCode::kDLUInt)) {
       os << 'u';
     }
-    switch (t.bits()) {
+    switch (type.bits()) {
       case 8:
         os << "int8_t";
         break;
@@ -186,14 +187,14 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       return;
     }
   }
-  TVM_FFI_THROW(InternalError) << "Cannot convert type " << t << " to C type";
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << type->dtype << " to C type";
 }
 
 void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = op->dtype.lanes();
+  int lanes = op->ty.as_or_throw<PrimType>().lanes();
   os << "((";
-  PrintType(op->dtype, os);
+  PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << ")(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -208,8 +209,8 @@ void CodeGenCHost::PrintGetFuncFromBackend(const std::string& func_name,
   this->stream << "if (" << packed_func_name << " == NULL) {\n";
   int packed_func_if_scope = this->BeginScope();
   this->PrintIndent();
-  this->stream << "if (TVMBackendGetFuncFromEnv(" << module_name_ << ", \"" << func_name << "\""
-               << ", &" << packed_func_name << ") != 0) {\n";
+  this->stream << "if (TVMFFIEnvModLookupFromImports(" << module_name_ << ", \"" << func_name
+               << "\", &" << packed_func_name << ") != 0) {\n";
   int get_func_env_scope = this->BeginScope();
   this->PrintIndent();
   this->stream << "return -1;\n";
@@ -304,7 +305,9 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     }
     this->PrintIndent();
     this->stream << "TVMFFIAny " << stack_name << "[" << size << "];\n";
-    os << stack_name;
+    os << "((";
+    PrintType(op->ty, os);
+    os << ")" << stack_name << ")";
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     this->PrintCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
@@ -356,10 +359,10 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
                                                std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp_a;
   VisitExpr(op->a, temp_a);
-  std::string a_id = SSAGetID(temp_a.str(), op->a.dtype());
+  std::string a_id = SSAGetID(temp_a.str(), op->a.ty());
   std::ostringstream temp_b;
   VisitExpr(op->b, temp_b);
-  std::string b_id = SSAGetID(temp_b.str(), op->b.dtype());
+  std::string b_id = SSAGetID(temp_b.str(), op->b.ty());
 
   os << "((" << a_id << ") " << compare << " (" << b_id << ") "
      << "? (" << a_id << ") : (" << b_id << "))";
@@ -390,7 +393,7 @@ ffi::Module BuildCHost(IRModule mod, Target target) {
   std::vector<std::pair<GlobalVar, PrimFunc>> funcs;
   for (auto [gvar, base_func] : mod->functions) {
     TVM_FFI_ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodegenCHost: Can only take PrimFunc";
-    auto prim_func = Downcast<PrimFunc>(base_func);
+    auto prim_func = base_func.as_or_throw<PrimFunc>();
     funcs.push_back({gvar, prim_func});
   }
 

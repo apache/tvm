@@ -17,6 +17,7 @@
 # ruff: noqa: F841
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -24,10 +25,13 @@ from tvm.script import relax as R
 
 exec_mode = tvm.testing.parameter("bytecode", "compiled")
 
-pytestmark = tvm.testing.parametrize_targets("llvm")
+pytestmark = pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 
 
-def test_pass_tensor_to_function(exec_mode, target, dev):
+def test_pass_tensor_to_function(exec_mode):
+    target = "llvm"
+    dev = tvm.device(target)
+
     @R.function
     def relax_func(
         A: R.Tensor([16], "int32"),
@@ -59,7 +63,10 @@ def test_pass_tensor_to_function(exec_mode, target, dev):
     np.testing.assert_array_equal(np_A * 2, from_callback.numpy())
 
 
-def test_generate_tensor_in_function(exec_mode, target, dev):
+def test_generate_tensor_in_function(exec_mode):
+    target = "llvm"
+    dev = tvm.device(target)
+
     @R.function
     def relax_func(
         callback: R.Callable([], R.Tensor([16], "int32")),
@@ -85,7 +92,10 @@ def test_generate_tensor_in_function(exec_mode, target, dev):
     np.testing.assert_array_equal(np_A * 2, output.numpy())
 
 
-def test_catch_exception_with_full_stack_trace(exec_mode, target, dev):
+def test_catch_exception_with_full_stack_trace(exec_mode):
+    target = "llvm"
+    dev = tvm.device(target)
+
     @R.function
     def relax_func(
         callback: R.Callable([], R.Tensor([16], "int32")),

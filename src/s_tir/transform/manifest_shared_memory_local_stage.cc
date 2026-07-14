@@ -72,11 +72,11 @@ class IntermediateStageRewriter {
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
 
     // Step 3: Create BufferLoad from the intermediate buffer
-    TVM_FFI_ICHECK(!store->predicate.defined())
+    TVM_FFI_ICHECK(!store->predicate.has_value())
         << "Predicated buffer store is not currently supported in "
            "manifest shared memory local stage pass.";
     BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
-    BufferStore new_buffer_store = Downcast<BufferStore>(block->body);
+    BufferStore new_buffer_store = block->body.as_or_throw<BufferStore>();
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);
     new_block.CopyOnWrite()->body = std::move(new_buffer_store);
@@ -137,13 +137,13 @@ class IntermediateStageRewriter {
     local_stage = SBlockRealize(
         /*iter_values=*/{},
         /*predicate=*/ancestor_loop_or_blocks_.back().as<SBlockRealizeNode>()->predicate,
-        Downcast<SBlock>(local_stage));
+        local_stage.as_or_throw<SBlock>());
 
     // Step 2: Add outer loops
     ffi::Map<Var, Var> subst_map;
     for (const ForNode* relaxed_loop : relaxed_loops) {
       ffi::ObjectPtr<ForNode> for_node = ffi::make_object<ForNode>(*relaxed_loop);
-      for_node->loop_var = for_node->loop_var.copy_with_suffix("");
+      for_node->loop_var = for_node->loop_var.CopyWithSuffix("");
       for_node->body = std::move(local_stage);
       local_stage = For(for_node);
       subst_map.Set(relaxed_loop->loop_var, for_node->loop_var);

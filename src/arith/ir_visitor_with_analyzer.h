@@ -48,7 +48,7 @@ class IRVisitorWithAnalyzer : public tirx::StmtExprVisitor {
   void VisitStmt_(const tirx::AttrStmtNode* op);
   void VisitStmt_(const tirx::AssertStmtNode* op);
   void VisitStmt_(const tirx::SeqStmtNode* op);
-  void VisitExpr_(const tirx::CallNode* op);
+  void VisitExpr_(const CallNode* op);
   void VisitExpr_(const tirx::LetNode* op);
   void VisitExpr_(const tirx::ReduceNode* op);
 

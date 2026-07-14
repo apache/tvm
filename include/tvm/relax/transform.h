@@ -153,7 +153,7 @@ TVM_DLL Pass AttachGlobalSymbol();
 
 /*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
- * struct_info_ of expressions.
+ * ty of expressions.
  *
  * \return The Pass.
  */
@@ -663,9 +663,8 @@ TVM_DLL Pass DataflowUseInplaceCalls();
  *
  * \note Mainly operates within dataflow blocks. ConvertToDataflow may need to be called first.
  */
-TVM_DLL Pass
-ToMixedPrecision(const DataType& out_dtype,
-                 ffi::Optional<ffi::Array<ffi::String>> fp16_input_names = std::nullopt);
+TVM_DLL Pass ToMixedPrecision(
+    DLDataType out_dtype, ffi::Optional<ffi::Array<ffi::String>> fp16_input_names = std::nullopt);
 
 /*!
  * \brief Rewrite a Relax module for executing with CUDA graph. This pass identifies

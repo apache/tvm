@@ -239,7 +239,7 @@ def test_unary_with_bias_scale_2(op_type):
             # fmt: off
     with target:
         mod = tvm.IRModule({"main": unary})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         assert_structural_equal(mod["main"], expected)
 

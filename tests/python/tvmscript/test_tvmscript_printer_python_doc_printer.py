@@ -911,6 +911,10 @@ def test_print_comment_doc(comment, expected):
     assert to_python_script(doc) == format_script(expected)
 
 
+def test_print_comment_doc_preserves_trailing_tab():
+    assert to_python_script(CommentDoc("test comment\t")) == "# test comment\t"
+
+
 @pytest.mark.parametrize(
     "comment, expected",
     [

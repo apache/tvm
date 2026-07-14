@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import functools
+
 # ruff: noqa: E741
 import pytest
 import torch
@@ -35,6 +37,17 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
 )
 from tvm.s_tir import dlight as dl
 
+
+def has_flashinfer():
+    """Check whether FlashInfer (with the JIT module generator) is available."""
+    try:
+        from flashinfer.jit import gen_customize_batch_prefill_module  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 reserved_nseq = 32
 maximum_total_seq_length = 2048
 prefill_chunk_size = 512
@@ -48,7 +61,7 @@ rope_scale = 1.0
 rope_theta = 1e4
 dtype = "float16"
 dtype_torch = getattr(torch, dtype)
-device = tvm.cuda()
+device = None
 device_torch = torch.device("cuda")
 
 fclear = None
@@ -77,7 +90,7 @@ fcopy_cache = None
 fcompact_copy = None
 
 
-def set_global_func(rope_mode: RopeMode):
+def set_global_func(rope_mode: RopeMode, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fpopn
     global fbegin_forward, fend_forward, fattention, fattention_with_fuse_qkv, fdebug_get_kv
     global fattention_prefill, fattention_decode, fattention_prefill_ragged
@@ -97,7 +110,6 @@ def set_global_func(rope_mode: RopeMode):
     )
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    target = tvm.target.Target.from_device(device)
     flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
         dtype_q=dtype,
         dtype_kv=dtype,
@@ -195,8 +207,37 @@ def create_kv_cache(rope_mode):
 
 @pytest.fixture(params=[RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE])
 def kv_cache_and_rope_mode(request):
-    set_global_func()
-    return create_kv_cache(request.param), request.param
+    if not has_flashinfer():
+        pytest.skip("FlashInfer is not available")
+    if request.param == RopeMode.INLINE:
+        # FlashInfer does not support inline RoPE (see the assertion in
+        # tvm/relax/frontend/nn/llm/kv_cache.py); models pair FlashInfer with
+        # NORMAL/NONE rope and apply rotary embedding in a separate kernel.
+        pytest.skip("FlashInfer does not support inline RoPE mode")
+    target = tvm.testing.run_with_gpu_lock(_get_cuda_target)
+    set_global_func(request.param, target)
+    return request.param
+
+
+def _get_cuda_target():
+    return tvm.target.Target.from_device(tvm.cuda())
+
+
+def _run_with_kv_cache(test):
+    @functools.wraps(test)
+    def wrapper(kv_cache_and_rope_mode):
+        def run_and_check():
+            global device
+            device = tvm.cuda()
+            try:
+                cache = create_kv_cache(kv_cache_and_rope_mode)
+                return test((cache, kv_cache_and_rope_mode))
+            finally:
+                device = None
+
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+
+    return wrapper
 
 
 def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
@@ -410,7 +451,7 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -431,7 +472,7 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_rope_mode):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -454,7 +495,7 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_rope_mode):
         )
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -520,7 +561,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
     kv_cache, rope_mode = kv_cache_and_rope_mode
     fclear(kv_cache)
@@ -541,10 +582,4 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_rope_mode):
 
 
 if __name__ == "__main__":
-    for rope_mode in [RopeMode.NONE, RopeMode.NORMAL]:
-        set_global_func(rope_mode)
-        cache = create_kv_cache(rope_mode)
-        test_paged_attention_kv_cache_prefill_and_decode((cache, rope_mode))
-        test_paged_attention_kv_cache_remove_sequence((cache, rope_mode))
-        test_paged_attention_kv_cache_fork_sequence((cache, rope_mode))
-        test_paged_attention_kv_cache_popn((cache, rope_mode))
+    tvm.testing.main()

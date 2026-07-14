@@ -24,9 +24,9 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -80,21 +80,23 @@ void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
  */
 class NormalizeComparisons : public ExprMutator {
  public:
-  PrimExpr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
-  PrimExpr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
-  PrimExpr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
-  PrimExpr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
+  Expr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
+  Expr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
+  Expr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
+  Expr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
+  Expr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
+  Expr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
 
  private:
   template <class T>
   PrimExpr Make(const PrimExpr& a, const PrimExpr& b) {
     // rewrite LT to LE for ints
-    if (std::is_same<T, LT>::value && (a.dtype().is_int() || a.dtype().is_uint())) {
-      return LE(analyzer_->Simplify(a - b + 1), make_zero(a.dtype()));
+    PrimType a_ty = a.ty();
+    if (std::is_same<T, LT>::value &&
+        (a_ty.code() == DLDataTypeCode::kDLInt || a_ty.code() == DLDataTypeCode::kDLUInt)) {
+      return LE(analyzer_->Simplify(a - b + 1), IntImm(a.ty(), 0));
     }
-    return T(analyzer_->Simplify(a - b), make_zero(a.dtype()));
+    return T(analyzer_->Simplify(a - b), IntImm(a.ty(), 0));
   }
   arith::Analyzer analyzer_;
 };
@@ -214,14 +216,15 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(
-        &current_ineq_set_to_solve,
-        NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
-        analyzer.get());
+    AddInequality(&current_ineq_set_to_solve,
+                  NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite))
+                      .as_or_throw<PrimExpr>(),
+                  analyzer.get());
   }
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
-  for (const Var& v : system_to_solve->variables) {
+  for (const Var& var : system_to_solve->variables) {
+    PrimVar v = var.as_or_throw<PrimVar>();
     TVM_FFI_ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
@@ -248,16 +251,18 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     for (const auto& pos : coef_pos) {
       for (const auto& neg : coef_neg) {
         auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
-        PrimExpr c_pos = make_const(v.dtype(), neg.first / first_gcd);
-        PrimExpr c_neg = make_const(v.dtype(), pos.first / first_gcd);
+        PrimType v_ty = v.ty();
+        PrimExpr c_pos = MakeConst(v_ty, neg.first / first_gcd);
+        PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
         // eliminate the current variable
         PrimExpr new_lhs = c_neg * neg.second - c_pos * pos.second;
-        PrimExpr new_ineq = LE(new_lhs, make_zero(pos.second.dtype()));
+        PrimExpr new_ineq = LE(new_lhs, IntImm(pos.second.ty(), 0));
         // we need rewrite_simplify -> canonical_simplify -> rewrite_simplify
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
         new_ineq =
-            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
+            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite))
+                .as_or_throw<PrimExpr>();
         AddInequality(&next_ineq_set_to_solve, new_ineq, analyzer.get());
       }
     }
@@ -281,7 +286,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     lower_bounds.reserve(coef_neg.size());
 
     for (const auto& pos : coef_pos) {
-      PrimExpr bound = make_const(v.dtype(), -coef_lcm / pos.first) * pos.second;
+      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / pos.first) * pos.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(upper_bounds.begin(), upper_bounds.end(),
@@ -302,7 +307,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
       upper_bounds.push_back(bound);
     }
     for (const auto& neg : coef_neg) {
-      PrimExpr bound = make_const(v.dtype(), -coef_lcm / neg.first) * neg.second;
+      PrimExpr bound = MakeConst(v.ty(), -coef_lcm / neg.first) * neg.second;
       bound = analyzer->Simplify(bound, kSimplifyRewriteCanonicalRewrite);
       // Don't add if any of the existing bounds is better
       if (std::any_of(lower_bounds.begin(), lower_bounds.end(),
@@ -330,7 +335,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     std::sort(equal_list.begin(), equal_list.end(), ExprLess());
 
     // Write it to the result.
-    IntGroupBounds bnds(make_const(v.dtype(), coef_lcm),
+    IntGroupBounds bnds(MakeConst(v->ty.as_or_throw<PrimType>(), coef_lcm),
                         ffi::Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
                         ffi::Array<PrimExpr>(equal_list.begin(), equal_list.end()),
                         ffi::Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
@@ -345,7 +350,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     PrimExpr e_simp = analyzer->Simplify(e, kSimplifyRewriteCanonicalRewrite);
     if (is_const_int(e_simp, 0)) {
       // contradiction detected
-      other_conditions = {const_false()};
+      other_conditions = {IntImm::Bool(false)};
       break;
     } else if (is_const_int(e_simp, 1)) {
       continue;
@@ -413,7 +418,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
         if (analyzer->CanProveGreaterEqual(-best_range->extent, 0)) {
           // range.extent <= 0 implies the input inequality system is unsolvable
           return IntConstraints(/*variables=*/{}, /*ranges=*/{},
-                                /*relations=*/{tirx::make_zero(DataType::Bool())});
+                                /*relations=*/{IntImm::Bool(false)});
         }
         res_ranges.Set(var, best_range);
         vranges.Set(var, best_range);
@@ -484,10 +489,10 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
       auto best_range = bnd.FindBestRange(vranges);
 
-      Var new_var = var.copy_with_suffix(".shifted");
+      Var new_var = var.CopyWithSuffix(".shifted");
       if (!best_range.defined()) {
-        res_src_to_dst.Set(var, var);
-        res_dst_to_src.Set(var, var);
+        res_src_to_dst.Set(var, var.as_or_throw<PrimExpr>());
+        res_dst_to_src.Set(var, var.as_or_throw<PrimExpr>());
         res_variables.push_back(var);
       } else if (is_const_int(best_range->extent, 1)) {
         // Don't create an itervar, just replace it everywhere with its min
@@ -498,18 +503,19 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
                                        IntConstraints(
                                            /*variables=*/{},
                                            /*ranges=*/{},
-                                           /*relations=*/{tirx::make_zero(DataType::Bool())}),
+                                           /*relations=*/{IntImm::Bool(false)}),
                                        {}, {});
       } else {
         // created new_var starts from 0
-        res_src_to_dst.Set(var, new_var + best_range->min);
+        res_src_to_dst.Set(var, new_var.as_or_throw<PrimExpr>() + best_range->min);
         // Note that we are substituting old with new, so best_range contains new var,
         // that is we have to substitute new with old in best_range here
         res_dst_to_src.Set(new_var,
-                           analyzer->Simplify(var - Substitute(best_range->min, res_dst_to_src)));
+                           analyzer->Simplify(var.as_or_throw<PrimExpr>() -
+                                              Substitute(best_range->min, res_dst_to_src)));
 
         // Add the new var to the resulting axis
-        auto range = Range(make_zero(new_var.dtype()), best_range->extent);
+        auto range = Range(IntImm(new_var->ty.as_or_throw<PrimType>(), 0), best_range->extent);
         res_variables.push_back(new_var);
         res_ranges.Set(new_var, range);
 

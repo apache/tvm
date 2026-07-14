@@ -109,7 +109,7 @@ PrimExpr GetBroadcastedExtent(const PrimExpr& extent1, const PrimExpr& extent2) 
     if (extent1_imm->value == extent2_imm->value) {
       return extent1;
     } else if (extent1_imm->value == 1 || extent2_imm->value == 1) {
-      return IntImm(DataType::Int(32), std::max(extent1_imm->value, extent2_imm->value));
+      return IntImm::Int32(std::max(extent1_imm->value, extent2_imm->value));
     }
     TVM_FFI_THROW(InternalError) << "Cannot broadcast extents " << extent1 << " and " << extent2;
     throw;
@@ -122,12 +122,12 @@ PrimExpr GetBroadcastedExtent(const PrimExpr& extent1, const PrimExpr& extent2) 
   }
 }
 
-PrimExpr GetIndexForBroadcastedDim(const Var& index, const PrimExpr& extent,
+PrimExpr GetIndexForBroadcastedDim(const PrimVar& index, const PrimExpr& extent,
                                    const PrimExpr& broadcasted_extent) {
   // Check if current dimension is being broadcasted to `broadcasted_extent` (symbolic shape is
   // handled)
   if (is_one(extent) && !is_one(broadcasted_extent)) {
-    return make_zero(index.dtype());
+    return IntImm(index.ty(), 0);
   }
   return index;
 }
@@ -211,15 +211,15 @@ class EinsumBuilder {
     return output_shape_;
   }
 
-  PrimExpr BuildOutputExpr(const ffi::Array<Tensor> inputs, const ffi::Array<Var>& indices) {
-    std::unordered_map<EinsumEquation::Label, Var> label_to_index;
-    ffi::Array<Var> ellipsis_indices;
+  PrimExpr BuildOutputExpr(const ffi::Array<Tensor> inputs, const ffi::Array<PrimVar>& indices) {
+    std::unordered_map<EinsumEquation::Label, PrimVar> label_to_index;
+    ffi::Array<PrimVar> ellipsis_indices;
     ffi::Array<IterVar> reduce_axes;
 
     PrepareOutputIndicesMapping(indices, &label_to_index, &ellipsis_indices);
     PrepareReductionIndicesMapping(indices, &label_to_index, &ellipsis_indices, &reduce_axes);
 
-    auto zero = make_zero(inputs[0]->dtype);
+    auto zero = MakeConst(PrimType(inputs[0]->dtype), 0);
 
     PrimExpr result = zero;
     for (int i = 0, n = static_cast<int>(inputs.size()); i < n; ++i) {
@@ -240,15 +240,16 @@ class EinsumBuilder {
   /*!
    * \brief Prepare mapping from label (including ellipsis) to the output indices
    */
-  void PrepareOutputIndicesMapping(const ffi::Array<Var>& indices,
-                                   std::unordered_map<EinsumEquation::Label, Var>* label_to_index,
-                                   ffi::Array<Var>* ellipsis_indices) {
+  void PrepareOutputIndicesMapping(
+      const ffi::Array<PrimVar>& indices,
+      std::unordered_map<EinsumEquation::Label, PrimVar>* label_to_index,
+      ffi::Array<PrimVar>* ellipsis_indices) {
     int i = 0;
     for (auto label : equation_.output) {
       if (label == EinsumEquation::kEllipsis) {
         auto ellipsis_ndim = ellipsis_shape_.value().size();
         *ellipsis_indices =
-            ffi::Array<Var>(indices.begin() + i, indices.begin() + i + ellipsis_ndim);
+            ffi::Array<PrimVar>(indices.begin() + i, indices.begin() + i + ellipsis_ndim);
         i += ellipsis_ndim;
       } else {
         label_to_index->emplace(label, indices[i++]);
@@ -262,9 +263,9 @@ class EinsumBuilder {
    * necessary) to the reduction axes
    */
   void PrepareReductionIndicesMapping(
-      const ffi::Array<Var>& indices,
-      std::unordered_map<EinsumEquation::Label, Var>* label_to_index,
-      ffi::Array<Var>* ellipsis_indices, ffi::Array<IterVar>* reduction_axes) {
+      const ffi::Array<PrimVar>& indices,
+      std::unordered_map<EinsumEquation::Label, PrimVar>* label_to_index,
+      ffi::Array<PrimVar>* ellipsis_indices, ffi::Array<IterVar>* reduction_axes) {
     // Collect labels that need to be reduced, which is the union(input_labels) - output_labels
     std::set<char> reduction_labels;
     for (const EinsumEquation::Subscript& subscript : equation_.inputs) {
@@ -283,22 +284,23 @@ class EinsumBuilder {
         auto ellipsis_shape = ellipsis_shape_.value();
         for (int i = 0; i < static_cast<int>(ellipsis_shape.size()); ++i) {
           reduction_axes->push_back(
-              IterVar(Range(0, ellipsis_shape[i]), Var("k"), IterVarType::kCommReduce));
+              IterVar(Range(0, ellipsis_shape[i]), PrimVar("k"), IterVarType::kCommReduce));
           ellipsis_indices->push_back(reduction_axes->back()->var);
         }
       } else {
         // Normal label
-        reduction_axes->push_back(IterVar(
-            Range(0, label_to_extent_[label]),
-            Var(std::string(1, label), label_to_extent_[label].dtype()), IterVarType::kCommReduce));
+        reduction_axes->push_back(
+            IterVar(Range(0, label_to_extent_[label]),
+                    PrimVar(std::string(1, label), label_to_extent_[label].ty()),
+                    IterVarType::kCommReduce));
         label_to_index->emplace(label, reduction_axes->back()->var);
       }
     }
   }
 
   ffi::Array<PrimExpr> GetIndicesForOperand(
-      int operand_index, const std::unordered_map<EinsumEquation::Label, Var>& label_to_index,
-      const ffi::Array<Var>& ellipsis_indices) {
+      int operand_index, const std::unordered_map<EinsumEquation::Label, PrimVar>& label_to_index,
+      const ffi::Array<PrimVar>& ellipsis_indices) {
     const EinsumEquation::Subscript& subscript = equation_.inputs[operand_index];
     ffi::Array<PrimExpr> indices;  // the indices for the operand
     const ffi::Array<PrimExpr> input_shape = input_shapes_[operand_index];
@@ -353,7 +355,7 @@ Tensor einsum(const std::string& subscripts_str, const ffi::Array<Tensor> inputs
   auto output_shape = einsum_builder.InferShape();
   return te::compute(
       output_shape,
-      [&](const ffi::Array<Var>& indices) {
+      [&](const ffi::Array<PrimVar>& indices) {
         return einsum_builder.BuildOutputExpr(inputs, indices);
       },
       name, tag);

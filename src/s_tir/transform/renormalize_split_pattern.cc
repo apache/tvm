@@ -52,13 +52,13 @@ using namespace arith;
 
 class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
  public:
-  explicit SplitPatternReNormalizer(AnalyzerObj* analyzer) : IRMutatorWithAnalyzer(analyzer) {}
+  explicit SplitPatternReNormalizer(const Analyzer& analyzer) : IRMutatorWithAnalyzer(analyzer) {}
 
   using IRMutatorWithAnalyzer::VisitExpr_;
 
-  PrimExpr VisitExpr_(const FloorDivNode* op) final {
-    PrimExpr a = VisitExpr(op->a);
-    PrimExpr b = VisitExpr(op->b);
+  Expr VisitExpr_(const FloorDivNode* op) final {
+    PrimExpr a = VisitPrimExpr(op->a);
+    PrimExpr b = VisitPrimExpr(op->b);
     PrimExpr ret = floordiv(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x, y, z;
@@ -83,8 +83,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(floordiv(x.Eval() * c1_div + floordiv(y.Eval(), c3), c2_div));
         }
       }
@@ -95,12 +95,12 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
-          return RecursiveRewrite(floordiv(
-              x.Eval() * Broadcast(c1_div, lanes.Eval()) +
-                  floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
-              Broadcast(c2_div, lanes.Eval())));
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
+          return RecursiveRewrite(
+              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+                           floordiv(y.Eval(), Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
+                       Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -112,8 +112,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(
               floordiv(x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), c3), c2_div));
         }
@@ -125,12 +125,12 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
       if (c1_val > 0 && c2_val > 0) {
         int64_t c3 = ZeroAwareGCD(c1_val, c2_val);
         if (c3 > 1) {
-          IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
-          IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
+          IntImm c1_div = IntImm(c1.Eval().ty(), c1_val / c3);
+          IntImm c2_div = IntImm(c2.Eval().ty(), c2_val / c3);
           return RecursiveRewrite(
               floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
                            floordiv(y.Eval() + z.Eval(),
-                                    Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
+                                    Broadcast(IntImm(c1.Eval().ty(), c3), lanes.Eval())),
                        Broadcast(c2_div, lanes.Eval())));
         }
       }
@@ -139,15 +139,15 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  PrimExpr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
+  Expr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
 
-  PrimExpr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
+  Expr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
 
-  PrimExpr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
+  Expr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
 
-  PrimExpr VisitExpr_(const LTNode* op) {
-    PrimExpr a = VisitExpr(op->a);
-    PrimExpr b = VisitExpr(op->b);
+  Expr VisitExpr_(const LTNode* op) {
+    PrimExpr a = VisitPrimExpr(op->a);
+    PrimExpr b = VisitPrimExpr(op->b);
     PrimExpr ret = tirx::LT(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x;
@@ -158,8 +158,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  PrimExpr VisitExpr_(const NotNode* op) {
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  Expr VisitExpr_(const NotNode* op) {
+    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
     TRY_REWRITE(!(!x), x);
@@ -183,7 +183,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   PrimExpr RecursiveRewrite(const PrimExpr& x) {
     if (recur_depth_ >= kMaxRecurDepth) return x;
     ++recur_depth_;
-    PrimExpr res = this->VisitExpr(x);
+    PrimExpr res = this->VisitPrimExpr(x);
     --recur_depth_;
     return res;
   }
@@ -201,7 +201,7 @@ Pass RenormalizeSplitPattern() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     arith::Analyzer analyzer;
-    n->body = SplitPatternReNormalizer(analyzer.get())(std::move(n->body));
+    n->body = SplitPatternReNormalizer(analyzer)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.RenormalizeSplitPattern", {});

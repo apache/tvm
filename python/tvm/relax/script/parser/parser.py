@@ -22,9 +22,10 @@ from typing import Any
 
 import tvm_ffi
 
+import tvm
 from tvm import relax, tirx
 from tvm.ir import GlobalVar
-from tvm.relax import Expr, StructInfo
+from tvm.relax import Expr, Type
 from tvm.relax.script import builder as R
 from tvm.relax.script.builder.frame import BindingBlockFrame
 from tvm.relax.utils import convert_to_expr
@@ -34,10 +35,16 @@ from tvm.script.parser._core import Parser, dispatch, doc
 
 from .entry import (
     MatchCastPair,
-    StructInfoProxy,
-    _normalize_struct_info,
-    _normalize_struct_info_proxy,
+    TypeProxy,
+    _normalize_ty,
+    _normalize_ty_proxy,
 )
+
+relax.Expr._dispatch_type = relax.Expr  # pylint: disable=protected-access
+dispatch.register_op(relax.Expr, doc.GtE, 0)(lambda lhs, rhs: lhs >= rhs)
+dispatch.register_op(relax.Expr, doc.Gt, 0)(lambda lhs, rhs: lhs > rhs)
+dispatch.register_op(relax.Expr, doc.LtE, 0)(lambda lhs, rhs: lhs <= rhs)
+dispatch.register_op(relax.Expr, doc.Lt, 0)(lambda lhs, rhs: lhs < rhs)
 
 
 def bind_assign_value(
@@ -45,7 +52,8 @@ def bind_assign_value(
     node: doc.expr,
     var_name: str,
     value: Any,
-    anno_sinfo: StructInfo | None = None,
+    anno_ty: Type | None = None,
+    emit_prim_expr: bool = False,
 ) -> Any:
     var_table = self.var_table.get()
 
@@ -64,11 +72,10 @@ def bind_assign_value(
                     "Cannot redefine a non-TIR-variable object to a TIR variable. Please "
                     "define the TIR variable with another name.",
                 )
-            if prev_value.dtype != value.dtype:
+            if prev_value.ty != value.ty:
                 self.report_error(
                     node,
-                    "Expected the same dtype for TIR vars "
-                    f"but got {value.dtype} vs {prev_value.dtype}",
+                    f"Expected the same dtype for TIR vars but got {value.ty} vs {prev_value.ty}",
                 )
             if not isinstance(value, type(prev_value)):
                 self.report_error(
@@ -81,41 +88,48 @@ def bind_assign_value(
         IRBuilder.name(var_name, value)
         return value
 
+    if tvm.ir.is_prim_expr(value):
+        if not emit_prim_expr:
+            return value
+
     if isinstance(value, tuple):
         value = convert_to_expr(value)
     if isinstance(value, numbers.Number):
         value = R.const(value)
 
     if isinstance(value, relax.Expr):
-        var = R.emit(value, anno_sinfo)
+        var = R.emit(value, anno_ty)
     elif isinstance(value, MatchCastPair):
-        if anno_sinfo is not None and not tvm_ffi.structural_equal(anno_sinfo, value.struct_info):
+        if anno_ty is not None and not tvm_ffi.structural_equal(anno_ty, value.ty):
             self.report_error(
                 node, "Cannot specify inconsistent annotation for a match cast pair. "
             )
-        var = R.emit_match_cast(value.value, value.struct_info)
+        var = R.emit_match_cast(value.value, value.ty)
     else:
         return value
-        # raise TypeError(f"Unsupported type {type(value)} in assignment")
 
     IRBuilder.name(var_name, var)
     return var
 
 
-def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
+def is_prim_value_call(node: doc.expr) -> bool:
+    return isinstance(node, doc.Call) and getattr(node.func, "attr", None) == "prim_value"
+
+
+def eval_ty_proxy(self: Parser, node: doc.expr) -> TypeProxy:
     try:
         annotation = self.eval_expr(node)
-        return _normalize_struct_info_proxy(annotation)
+        return _normalize_ty_proxy(annotation)
     except Exception as err:  # pylint: disable=broad-except
         self.report_error(node, err)
         raise
 
 
-def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> StructInfo:
+def eval_ty(self: Parser, node: doc.expr, eval_str: bool = False) -> Type:
     var_table = self.var_table.get() if eval_str else None
     try:
-        struct_info = self.eval_expr(node)
-        return _normalize_struct_info(struct_info, var_table)
+        ty = self.eval_expr(node)
+        return _normalize_ty(ty, var_table)
     except Exception as err:  # pylint: disable=broad-except
         self.report_error(node, err)
         raise
@@ -182,9 +196,9 @@ def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> Non
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_sinfo_proxy = eval_struct_info_proxy(self, arg.annotation)
+        param_ty_proxy = eval_ty_proxy(self, arg.annotation)
 
-        for var_name in param_sinfo_proxy.get_symbolic_vars():
+        for var_name in param_ty_proxy.get_symbolic_vars():
             if var_name not in symbolic_vars:
                 symbolic_vars[var_name] = tirx.Var(var_name, "int64")
 
@@ -206,17 +220,17 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     if not func_val and is_recursive(node):
         collect_symbolic_var_from_params(self, node)
         if node.returns is None:
-            ret_sinfo = relax.TupleStructInfo([])
+            ret_ty = relax.TupleType([])
         else:
-            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
-        params_sinfo = []
+            ret_ty = eval_ty(self, node.returns, eval_str=True)
+        params_ty = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-            params_sinfo.append(param_sinfo)
+            param_ty = eval_ty(self, arg.annotation, eval_str=True)
+            params_ty.append(param_ty)
         # created a var for the local function, the same var could be used for recursive call
-        local_func_var = relax.Var(node.name, relax.FuncStructInfo(params_sinfo, ret_sinfo))
+        local_func_var = relax.Var(node.name, relax.FuncType(params_ty, ret_ty))
         self.var_table.add(node.name, local_func_var)
 
     purity = find_decorator_annotation(node, "pure")
@@ -231,8 +245,8 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 collect_symbolic_var_from_params(self, node)
 
                 if node.returns is not None:
-                    ann_sinfo = eval_struct_info(self, node.returns, eval_str=True)
-                    R.func_ret_struct_info(ann_sinfo)
+                    ann_ty = eval_ty(self, node.returns, eval_str=True)
+                    R.func_ret_ty(ann_ty)
 
                 self.visit(node.args)
 
@@ -270,21 +284,21 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
         collect_symbolic_var_from_params(self, node)
 
         if node.returns is None:
-            # Use ObjectStructInfo as unknown return type
-            # NOTE: Cannot use VoidStructInfo here because the return type can be refined later.
-            ret_sinfo = relax.ObjectStructInfo()
+            # Use AnyType as unknown return type
+            # NOTE: Cannot use VoidType here because the return type can be refined later.
+            ret_ty = relax.AnyType()
         else:
-            ret_sinfo = eval_struct_info(self, node.returns, eval_str=True)
+            ret_ty = eval_ty(self, node.returns, eval_str=True)
         params = []
         for arg in node.args.args:
             if arg.annotation is None:
                 self.report_error(arg, "Type annotation is required for function parameters.")
-            param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-            params.append(relax.Var(arg.arg, param_sinfo))
+            param_ty = eval_ty(self, arg.annotation, eval_str=True)
+            params.append(relax.Var(arg.arg, param_ty))
 
     is_pure = find_decorator_annotation(node, "pure")
 
-    func_signature = relax.Function.create_empty(params, ret_sinfo, is_pure=is_pure)
+    func_signature = relax.Function.create_empty(params, ret_ty, is_pure=is_pure)
     return I.decl_function(node.name, func_signature)
 
 
@@ -315,15 +329,13 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     if isinstance(value, relax.Expr):
         var = R.emit(value)
         IRBuilder.name("_", var)
-        is_void_value = (
-            isinstance(var.struct_info, relax.TupleStructInfo) and len(var.struct_info.fields) == 0
-        )
+        is_void_value = isinstance(var.ty, relax.TupleType) and len(var.ty.fields) == 0
 
         if not is_void_value:
             self.report_error(
                 node,
                 f"Non-void relax expressions must be bound to a variable, "
-                f"but expression of type {var.struct_info} was used as a statement.",
+                f"but expression of type {var.ty} was used as a statement.",
             )
 
     elif value is not None:
@@ -336,15 +348,15 @@ def visit_arguments(self: Parser, node: doc.arguments) -> None:
     for arg in node.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
-        param_sinfo = eval_struct_info(self, arg.annotation, eval_str=True)
-        param = R.arg(arg.arg, param_sinfo)
+        param_ty = eval_ty(self, arg.annotation, eval_str=True)
+        param = R.arg(arg.arg, param_ty)
 
         self.var_table.add(arg.arg, param)
 
 
 @dispatch.register(token="relax", type_name="tvm_annotation")
-def visit_tvm_annotation(self: Parser, node: doc.expr) -> StructInfo:
-    return eval_struct_info(self, node, eval_str=False)
+def visit_tvm_annotation(self: Parser, node: doc.expr) -> Type:
+    return eval_ty(self, node, eval_str=False)
 
 
 @dispatch.register(token="relax", type_name="With")
@@ -377,7 +389,10 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=bind_assign_value,
+        bind_value=functools.partial(
+            bind_assign_value,
+            emit_prim_expr=is_prim_value_call(node.value),
+        ),
         allow_shadowing=True,
     )
 
@@ -386,11 +401,15 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
 def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
     lhs = node.target
     rhs = self.eval_expr(node.value)
-    anno_sinfo = self.visit_tvm_annotation(node.annotation)
+    anno_ty = self.visit_tvm_annotation(node.annotation)
     self.eval_assign(
         target=lhs,
         source=rhs,
-        bind_value=functools.partial(bind_assign_value, anno_sinfo=anno_sinfo),
+        bind_value=functools.partial(
+            bind_assign_value,
+            anno_ty=anno_ty,
+            emit_prim_expr=is_prim_value_call(node.value),
+        ),
         allow_shadowing=True,
     )
 

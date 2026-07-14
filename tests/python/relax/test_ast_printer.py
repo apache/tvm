@@ -29,8 +29,8 @@ from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
-# Overload dump_ast to test both struct info and type annotations
-dump_ast = partial(dump_ast, include_struct_info_annotations=True)
+# Overload dump_ast to test both type and type annotations
+dump_ast = partial(dump_ast, include_ty_annotations=True)
 
 
 def strip_whitespace(text: str) -> str:
@@ -42,7 +42,7 @@ def strip_whitespace(text: str) -> str:
 
 def normalize(func: rx.Function) -> rx.Function:
     """
-    Normalize the expr to fill in the struct_info fields everywhere
+    Normalize the expr to fill in the ty fields everywhere
     """
 
     # using a default mutator to use the BlockBuilder's normalizer,
@@ -80,12 +80,12 @@ def test_var() -> None:
     assert v0_str == 'Var(name_hint="v0")'
 
     v1 = rx.Var("v1", R.Tensor([54, 96], "float32"))
-    v1_no_annos = dump_ast(v1, include_struct_info_annotations=False)
+    v1_no_annos = dump_ast(v1, include_ty_annotations=False)
     assert v1_no_annos == 'Var(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
-    assert "PrimExpr" in v1_annos
-    assert "struct_info" in v1_annos
+    assert "Expr" in v1_annos
+    assert "ty" in v1_annos
 
 
 def test_dataflow_var() -> None:
@@ -94,12 +94,12 @@ def test_dataflow_var() -> None:
     assert v0_str == 'DataflowVar(name_hint="v0")'
 
     v1 = rx.DataflowVar("v1", R.Tensor([54, 96], "float16"))
-    v1_no_annos = dump_ast(v1, include_struct_info_annotations=False)
+    v1_no_annos = dump_ast(v1, include_ty_annotations=False)
     assert v1_no_annos == 'DataflowVar(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
-    assert "PrimExpr" in v1_annos
-    assert "struct_info" in v1_annos
+    assert "Expr" in v1_annos
+    assert "ty" in v1_annos
 
 
 def test_match_cast() -> None:
@@ -112,8 +112,8 @@ def test_match_cast() -> None:
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchCast(")
     assert "Constant" in b0_str
-    assert "PrimExpr(value=`m" in b0_str
-    assert "PrimExpr(value=`n" in b0_str
+    assert "Expr(value=`m" in b0_str
+    assert "Expr(value=`n" in b0_str
     assert "16" in b0_str
     assert "8" in b0_str
 
@@ -124,16 +124,16 @@ def test_match_cast() -> None:
     b1 = rx.MatchCast(var, value, R.Tensor([m, n], "float32"))
     b1_str = dump_ast(b1)
     assert b1_str.startswith("MatchCast(")
-    assert "PrimExpr(value=`m" in b1_str
-    assert "PrimExpr(value=`n" in b1_str
-    assert b1_str != dump_ast(b1, include_struct_info_annotations=False)
+    assert "Expr(value=`m" in b1_str
+    assert "Expr(value=`n" in b1_str
+    assert b1_str != dump_ast(b1, include_ty_annotations=False)
 
 
 def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    b0_str = dump_ast(b0, include_struct_info_annotations=False)
+    b0_str = dump_ast(b0, include_ty_annotations=False)
     assert b0_str.startswith("VarBinding(")
     assert 'var=Var(name_hint="v0")' in b0_str
     assert "value=" in b0_str
@@ -201,8 +201,8 @@ def test_shape_expr() -> None:
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
     assert "values=" in s_str
-    assert "PrimExpr(value=`m: int32`)" in s_str
-    assert "PrimExpr(value=`n: int32`)" in s_str
+    assert "Expr(value=`m: int32`)" in s_str
+    assert "Expr(value=`n: int32`)" in s_str
 
 
 def test_func():
@@ -217,7 +217,7 @@ def test_func():
     assert func_str.startswith("Function(")
     assert "params=" in func_str
     assert "body=" in func_str
-    assert "ret_struct_info=" in func_str
+    assert "ret_ty=" in func_str
     assert "is_pure=" in func_str
     assert "attrs=" in func_str
     assert '"global_symbol": "func"' in func_str
@@ -240,8 +240,8 @@ def test_shape_of():
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str
     assert "values=" in s1_str
-    assert "PrimExpr(value=`T.int64(96)`)" in s1_str
-    assert "PrimExpr(value=`T.int64(54)`)" in s1_str
+    assert "Expr(value=`T.int64(96)`)" in s1_str
+    assert "Expr(value=`T.int64(54)`)" in s1_str
 
 
 def test_shape_expr():
@@ -249,16 +249,16 @@ def test_shape_expr():
     shape_expr_str = dump_ast(shape_expr)
     assert shape_expr_str.startswith("ShapeExpr(")
     assert "values" in shape_expr_str
-    assert "PrimExpr(value=`T.int64(10)`)" in shape_expr_str
-    assert "PrimExpr(value=`T.int64(20)`)" in shape_expr_str
+    assert "Expr(value=`T.int64(10)`)" in shape_expr_str
+    assert "Expr(value=`T.int64(20)`)" in shape_expr_str
 
 
 def test_types():
     printer = ASTPrinter()
     assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=-1))) == "ShapeType(ndim=-1)"
     assert strip_whitespace(printer.visit_type_(rx.ShapeType(ndim=1))) == "ShapeType(ndim=1)"
-    object_type = rx.ObjectType()
-    assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
+    object_type = rx.AnyType()
+    assert strip_whitespace(printer.visit_type_(object_type)) == "AnyType()"
     packed_type = rx.PackedFuncType()
     assert strip_whitespace(printer.visit_type_(packed_type)) == "PackedFuncType()"
     tensor_type = rx.TensorType(ndim=2, dtype="int32")
@@ -268,81 +268,82 @@ def test_types():
     tuple_type = rx.TupleType([rx.ShapeType(ndim=-1), object_type])
     assert_fields(
         "TupleType",
-        {"fields": "[ShapeType(ndim=-1),ObjectType()]"},
+        {"fields": "[ShapeType(ndim=-1),AnyType()]"},
         strip_whitespace(printer.visit_type_(tuple_type)),
     )
 
     func_type = rx.FuncType([tensor_type], unit_type)
     assert_fields(
         "FuncType",
-        {"arg_types": "[TensorType(ndim=2, dtype=int32)]", "ret_type": "TupleType(fields=[])"},
+        {
+            "params": "[TensorType(ndim=2, dtype=int32)]",
+            "ret": "TupleType(fields=[])",
+            "purity": "True",
+        },
         printer.visit_type_(func_type),
     )
 
 
-def test_struct_info():
+def test_ty():
     printer = ASTPrinter()
 
-    assert printer.visit_struct_info_(rx.ObjectStructInfo()) == "ObjectStructInfo()"
+    assert printer.visit_ty_(rx.AnyType()) == "AnyType()"
 
-    assert printer.visit_struct_info_(rx.PrimStructInfo("int32")) == "PrimStructInfo(dtype=int32)"
+    assert printer.visit_ty_(tvm.ir.PrimType("int32")) == "PrimType(dtype=int32)"
 
     # empty shape
-    empty_ssi = rx.ShapeStructInfo()
-    assert printer.visit_struct_info_(empty_ssi) == "ShapeStructInfo(ndim=-1)"
+    empty_ssi = rx.ShapeType()
+    assert printer.visit_ty_(empty_ssi) == "ShapeType(ndim=-1)"
 
     # include some dimensions
-    shape_info = rx.ShapeStructInfo([tirx.IntImm("int64", 1), tirx.IntImm("int64", 2)])
-    assert strip_whitespace(printer.visit_struct_info_(shape_info)) == strip_whitespace(
+    shape_info = rx.ShapeType([tirx.IntImm("int64", 1), tirx.IntImm("int64", 2)])
+    assert strip_whitespace(printer.visit_ty_(shape_info)) == strip_whitespace(
         """
-        ShapeStructInfo(
+        ShapeType(
             ndim=2,
             values=[
-                PrimExpr(value=`T.int64(1)`),
-                PrimExpr(value=`T.int64(2)`)
+                Expr(value=`T.int64(1)`),
+                Expr(value=`T.int64(2)`)
             ]
         )
         """
     )
 
-    # tensor struct info
-    default_tsi = rx.TensorStructInfo()
-    assert (
-        strip_whitespace(printer.visit_struct_info_(default_tsi))
-        == "TensorStructInfo(dtype=float32,ndim=-1)"
-    )
+    # tensor type
+    default_tsi = rx.TensorType()
+    assert strip_whitespace(printer.visit_ty_(default_tsi)) == "TensorType(dtype=float32,ndim=-1)"
 
     # use a var as the shape
-    x = rx.Var("x", struct_info=rx.ShapeStructInfo(values=[]))
-    var_tsi = rx.TensorStructInfo(shape=x, dtype="int32")
-    assert strip_whitespace(printer.visit_struct_info_(var_tsi)) == strip_whitespace(
+    x = rx.Var("x", ty=rx.ShapeType(values=[]))
+    var_tsi = rx.TensorType(shape=x, dtype="int32")
+    assert strip_whitespace(printer.visit_ty_(var_tsi)) == strip_whitespace(
         """
-        TensorStructInfo(
+        TensorType(
             dtype=int32,
             shape=Var(
                 name_hint="x",
-                struct_info=ShapeStructInfo(ndim=0, values=[])
+                ty=ShapeType(ndim=0, values=[])
             )
         )
         """
     )
 
-    empty_tuple = rx.TupleStructInfo([])
-    assert printer.visit_struct_info_(empty_tuple) == "TupleStructInfo(fields=[])"
+    empty_tuple = rx.TupleType([])
+    assert printer.visit_ty_(empty_tuple) == "TupleType(fields=[])"
 
-    tuple_of_shape = rx.TupleStructInfo([empty_ssi])
-    assert strip_whitespace(printer.visit_struct_info_(tuple_of_shape)) == strip_whitespace(
+    tuple_of_shape = rx.TupleType([empty_ssi])
+    assert strip_whitespace(printer.visit_ty_(tuple_of_shape)) == strip_whitespace(
         """
-        TupleStructInfo(fields=[
-            ShapeStructInfo(ndim=-1)
+        TupleType(fields=[
+            ShapeType(ndim=-1)
         ])
         """
     )
 
-    simple_func = rx.FuncStructInfo([], rx.ObjectStructInfo())
+    simple_func = rx.FuncType([], rx.AnyType())
     assert (
-        strip_whitespace(printer.visit_struct_info_(simple_func))
-        == "FuncStructInfo(params=[],ret=ObjectStructInfo(),purity=True)"
+        strip_whitespace(printer.visit_ty_(simple_func))
+        == "FuncType(params=[],ret=AnyType(),purity=True)"
     )
 
 
@@ -353,15 +354,15 @@ def test_call_packed():
         x: R.Tensor((32, "m"), "float32"),
         y: R.Tensor(("m",), "float32"),
         r: R.Tensor(dtype="int64"),
-    ) -> R.Object:
+    ) -> R.Any:
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor(ndim=2) = R.multiply(z, z)
         q: R.Tensor = R.add(w, w)
         t = R.add(w, z)
         sh: R.Shape = R.shape_of(t)
-        o: R.Object = R.call_packed(
-            "contrib.tensor_array_stack", x, y, sinfo_args=R.Object(), test_attr=True
+        o: R.Any = R.call_packed(
+            "contrib.tensor_array_stack", x, y, ty_args=R.Any(), test_attr=True
         )
         return o
 
@@ -369,13 +370,13 @@ def test_call_packed():
     f_str = strip_whitespace(
         dump_ast(
             f,
-            include_struct_info_annotations=False,
+            include_ty_annotations=False,
             include_call_attrs=True,
         )
     )
 
     # the function has an annotated return type
-    assert "ret_struct_info=ObjectStructInfo()" in f_str
+    assert "ret_ty=AnyType()" in f_str
     # the purity attribute is set to false
     assert "is_pure=False"
 
@@ -383,7 +384,7 @@ def test_call_packed():
     extern_call = f.body.blocks[0].bindings[-1].value
     extern_call_text = dump_ast(
         extern_call,
-        include_struct_info_annotations=False,
+        include_ty_annotations=False,
         include_call_attrs=True,
     )
     assert strip_whitespace(extern_call_text) in f_str
@@ -392,7 +393,7 @@ def test_call_packed():
         {
             "op": 'ExternFunc(global_symbol="contrib.tensor_array_stack")',
             "args": '[Var(name_hint="x"), Var(name_hint="y")]',
-            "sinfo_args": "[ObjectStructInfo()]",
+            "ty_args": "[AnyType()]",
             "attrs": '{"test_attr": True}',
         },
         extern_call_text,
@@ -402,7 +403,7 @@ def test_call_packed():
     op_call = f.body.blocks[0].bindings[0].value
     op_call_text = dump_ast(
         op_call,
-        include_struct_info_annotations=False,
+        include_ty_annotations=False,
         include_call_attrs=True,
     )
     assert strip_whitespace(op_call_text) in f_str
@@ -462,7 +463,7 @@ def test_call_tir():
     foo_str = strip_whitespace(
         dump_ast(
             foo,
-            include_struct_info_annotations=False,
+            include_ty_annotations=False,
             include_call_attrs=False,
         )
     )
@@ -473,7 +474,7 @@ def test_call_tir():
     tir_call = foo.body.blocks[0].bindings[0].value
     tir_call_text = dump_ast(
         tir_call,
-        include_struct_info_annotations=False,
+        include_ty_annotations=False,
         include_call_attrs=False,
     )
     assert_fields(
@@ -484,13 +485,13 @@ def test_call_tir():
                 GlobalVar(name_hint="addone"),
                 Tuple(fields=[Var(name_hint="x")])
             ]""",
-            "sinfo_args": """[
-                TensorStructInfo(
+            "ty_args": """[
+                TensorType(
                     dtype=float32,
                     shape=ShapeExpr(
                         values=[
-                            PrimExpr(value=`m`),
-                            PrimExpr(value=`n`)
+                            Expr(value=`m`),
+                            Expr(value=`n`)
                         ]
                     )
                 )
@@ -511,7 +512,7 @@ def test_call_dps_packed():
     foo_str = strip_whitespace(
         dump_ast(
             foo,
-            include_struct_info_annotations=False,
+            include_ty_annotations=False,
             include_call_attrs=False,
         )
     )
@@ -522,7 +523,7 @@ def test_call_dps_packed():
     tir_call = foo.body.blocks[0].bindings[0].value
     tir_call_text = dump_ast(
         tir_call,
-        include_struct_info_annotations=False,
+        include_ty_annotations=False,
         include_call_attrs=False,
     )
     assert_fields(
@@ -533,13 +534,13 @@ def test_call_dps_packed():
                 ExternFunc(global_symbol="test.op.identity"),
                 Tuple(fields=[Var(name_hint="x")])
             ]""",
-            "sinfo_args": """[
-                TensorStructInfo(
+            "ty_args": """[
+                TensorType(
                     dtype=float32,
                     shape=ShapeExpr(
                         values=[
-                            PrimExpr(value=`m`),
-                            PrimExpr(value=`n`)
+                            Expr(value=`m`),
+                            Expr(value=`n`)
                         ]
                     )
                 )
@@ -558,14 +559,14 @@ def test_operators():
     foo_str = strip_whitespace(
         dump_ast(
             foo,
-            include_struct_info_annotations=False,
+            include_ty_annotations=False,
         )
     )
     assert 'Op(name="relax.unique")' in foo_str
-    # the sorted argument is true, so it will be a PrimValue of 1
-    assert "PrimExpr(value=`T.int64(1)`)" in foo_str
+    # the sorted argument is true, so it will be a boolean Expr
+    assert "Expr(value=`T.bool(True)`)" in foo_str
     # axis is -1
-    assert "PrimExpr(value=`T.int64(-1)`)" in foo_str
+    assert "Expr(value=`T.int64(-1)`)" in foo_str
 
     @R.function(pure=False)
     def bar(x: R.Tensor):
@@ -574,14 +575,14 @@ def test_operators():
     bar_str = strip_whitespace(
         dump_ast(
             bar,
-            include_struct_info_annotations=False,
+            include_ty_annotations=False,
         )
     )
     # the format string is a StringImm argument
     assert 'StringImm(value="{}")' in bar_str
 
 
-def test_print_struct_info_annotation_non_var():
+def test_print_ty_annotation_non_var():
     @R.function
     def f() -> R.Tensor:
         return R.const([1, 2])
@@ -589,21 +590,21 @@ def test_print_struct_info_annotation_non_var():
     body = normalize(f).body
     body_str = strip_whitespace(dump_ast(body))
     # the constant has a shape of (2,)
-    struct_info = strip_whitespace(
+    ty = strip_whitespace(
         """
-        struct_info=TensorStructInfo(
+        ty=TensorType(
             dtype=int32,
             shape=ShapeExpr(
-                values=[PrimExpr(value=`T.int64(2)`)],
-                struct_info=ShapeStructInfo(
+                values=[Expr(value=`T.int64(2)`)],
+                ty=ShapeType(
                     ndim=1,
-                    values=[PrimExpr(value=`T.int64(2)`)]
+                    values=[Expr(value=`T.int64(2)`)]
                 )
             )
         )
         """
     )
-    assert struct_info in body_str
+    assert ty in body_str
 
 
 def test_print_type_annotation_non_var():
@@ -650,14 +651,11 @@ def test_tuple_get_item():
 
 
 def test_prim_value():
-    prim_value = rx.PrimValue(tirx.IntImm("int64", 1))
+    prim_value = tirx.IntImm("int64", 1)
     prim_str = strip_whitespace(dump_ast(prim_value))
     assert prim_str == strip_whitespace(
         """
-        PrimValue(
-            value=PrimExpr(value=`T.int64(1)`),
-            struct_info=PrimStructInfo(dtype=int64)
-        )
+        Expr(value=`T.int64(1)`)
     """
     )
 
@@ -669,7 +667,7 @@ def test_string_imm():
         """
         StringImm(
             value="test",
-            struct_info=ObjectStructInfo()
+            ty=AnyType()
         )
     """
     )
@@ -682,7 +680,7 @@ def test_datatype_imm():
         """
         DataTypeImm(
             value=int32,
-            struct_info=ObjectStructInfo()
+            ty=AnyType()
         )
     """
     )

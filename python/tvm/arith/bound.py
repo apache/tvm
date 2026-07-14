@@ -27,7 +27,7 @@ def deduce_bound(var, cond, hint_map, relax_map):
     var : tvm.tirx.Var
         The target variable to be deduced.
 
-    cond : PrimExpr
+    cond : Expr
         The condition
 
     hint_map : Map[tvm.tirx.Var, IntSet]

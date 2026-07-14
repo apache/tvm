@@ -26,63 +26,7 @@ import pytest
 import tvm
 from tvm.script import tirx as T
 from tvm.target import codegen
-
-llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
-    # Testing mcpu type
-    (8, {"kind": "c", "mcpu": "cortex-m4"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m7"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m33"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m55"}, "int8", "int8", False),
-    (8, {"kind": "c", "mcpu": "cortex-m3"}, "int8", "int8", False),
-    (
-        7,
-        {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]},
-        "int8",
-        "int8",
-        False,
-    ),
-    (8, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
-    (9, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
-    (8, {"kind": "llvm", "mtriple": "arm-linux-gnueabi"}, "int8", "int8", False),
-    (
-        7,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+v8.4a", "+dotprod"]},
-        "int8",
-        "int8",
-        False,
-    ),
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+v8.4a", "+dotprod"]},
-        "int8",
-        "int8",
-        True,
-    ),
-    (9, {"kind": "llvm", "mtriple": "arm-linux-gnueabi", "mattr": ["+neon"]}, "int8", "int8", True),
-    (8, {"kind": "llvm", "mtriple": "aarch64-linux-gnu"}, "int8", "int8", True),
-    # Testing dtype
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
-        "int16",
-        "int8",
-        False,
-    ),
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
-        "int8",
-        "int16",
-        False,
-    ),
-    (
-        8,
-        {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+neon"]},
-        "int16",
-        "int16",
-        False,
-    ),
-)
+from tvm.testing import env
 
 
 @pytest.fixture(scope="session")
@@ -107,7 +51,7 @@ def sve_device_vector_length():
     return int(out)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_div(sve_device_vector_length):
     np.random.seed(0)
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
@@ -128,7 +72,7 @@ def test_scalable_div(sve_device_vector_length):
     tvm.testing.assert_allclose(A_nd.numpy()[0], ref)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_buffer_load_store(sve_device_vector_length):
     np.random.seed(0)
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
@@ -153,7 +97,7 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_loop_bound(sve_device_vector_length):
     np.random.seed(0)
 
@@ -181,7 +125,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
     tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-@tvm.testing.requires_aarch64_sve
+@pytest.mark.skipif(not env.has_cpu_feature("sve"), reason="need aarch64 sve")
 def test_scalable_broadcast(sve_device_vector_length):
     target = {"kind": "llvm", "mtriple": "aarch64-linux-gnu", "mattr": ["+sve"]}
     num_elements = sve_device_vector_length // 32

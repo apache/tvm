@@ -79,16 +79,16 @@ def _attention_prefill_cpu(
         sm_scale: T.float32,
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32(is_size_var=True)
-        total_len = T.int32(is_size_var=True)
-        nnz_pages = T.int32(is_size_var=True)
-        max_num_pages = T.int32(is_size_var=True)
-        q_indptr_elem_offset = T.int32(is_size_var=True)
-        page_indptr_elem_offset = T.int32(is_size_var=True)
-        page_values_elem_offset = T.int32(is_size_var=True)
-        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
-        q_rope_position_elem_offset = T.int32(is_size_var=True)
-        length_info_elem_offset = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        total_len = T.int32()
+        nnz_pages = T.int32()
+        max_num_pages = T.int32()
+        q_indptr_elem_offset = T.int32()
+        page_indptr_elem_offset = T.int32()
+        page_values_elem_offset = T.int32()
+        k_rope_pos_offset_elem_offset = T.int32()
+        q_rope_position_elem_offset = T.int32()
+        length_info_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -153,10 +153,8 @@ def _attention_prefill_cpu(
                             )
                         for row_idx in T.serial(max_num_pages * page_size):
                             if row_idx < kv_chunk_len[0]:
-                                # seq_offset: T.let[T.int32(is_size_var=True)] = _get_seq_offset(row_idx, b_idx, length_info, sliding_window)
-                                #seq_offset: T.let[T.int32(is_size_var=True)] = row_idx
-                                page_no: T.let[T.int32(is_size_var=True)] = page_values[cur_page_indptr_begin + (_get_seq_offset(row_idx, b_idx, length_info, sliding_window) // page_size)]
-                                page_offset: T.let[T.int32(is_size_var=True)] = _get_seq_offset(row_idx, b_idx, length_info, sliding_window) % page_size
+                                page_no: T.let[T.int32()] = page_values[cur_page_indptr_begin + (_get_seq_offset(row_idx, b_idx, length_info, sliding_window) // page_size)]
+                                page_offset: T.let[T.int32()] = _get_seq_offset(row_idx, b_idx, length_info, sliding_window) % page_size
 
                                 # Load KV
                                 for d_idx in T.serial(d):
@@ -234,17 +232,17 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
         sm_scale: T.float32,
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32(is_size_var=True)
-        total_len = T.int32(is_size_var=True)
-        nnz_pages = T.int32(is_size_var=True)
-        max_num_pages = T.int32(is_size_var=True)
-        pages_elem_offset = T.int64(is_size_var=True)
-        q_indptr_elem_offset = T.int32(is_size_var=True)
-        page_indptr_elem_offset = T.int32(is_size_var=True)
-        page_values_elem_offset = T.int32(is_size_var=True)
-        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
-        q_rope_position_elem_offset = T.int32(is_size_var=True)
-        length_info_elem_offset = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        total_len = T.int32()
+        nnz_pages = T.int32()
+        max_num_pages = T.int32()
+        pages_elem_offset = T.int64()
+        q_indptr_elem_offset = T.int32()
+        page_indptr_elem_offset = T.int32()
+        page_values_elem_offset = T.int32()
+        k_rope_pos_offset_elem_offset = T.int32()
+        q_rope_position_elem_offset = T.int32()
+        length_info_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -330,9 +328,9 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
                                                 T.writes()
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
-                                                    seq_offset: T.let[T.int32(is_size_var=True)] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
-                                                    page_no: T.let[T.int32(is_size_var=True)] = page_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
-                                                    page_offset: T.let[T.int32(is_size_var=True)] = T.floormod(seq_offset, page_size)  # type: ignore
+                                                    seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
+                                                    page_no: T.let[T.int32()] = page_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
+                                                    page_offset: T.let[T.int32()] = T.floormod(seq_offset, page_size)  # type: ignore
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
                                                         _rope(pages, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (page_no, 0, by, page_offset, j), dtype, rope_scaling),
@@ -348,9 +346,9 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: 
                                                 T.writes()
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
-                                                    seq_offset: T.let[T.int32(is_size_var=True)] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
-                                                    page_no: T.let[T.int32(is_size_var=True)] = page_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
-                                                    page_offset: T.let[T.int32(is_size_var=True)] = T.floormod(seq_offset, page_size)  # type: ignore
+                                                    seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
+                                                    page_no: T.let[T.int32()] = page_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
+                                                    page_offset: T.let[T.int32()] = T.floormod(seq_offset, page_size)  # type: ignore
                                                     V_smem[i, j] = pages[page_no, 1, by, page_offset, j]
                                                 else:
                                                     V_smem[i, j] = 0.0
@@ -385,9 +383,9 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
         var_output: T.handle, # [total_len, h_q, d]
         var_lse: T.handle # [total_len, h_q]
     ):
-        batch_size = T.int32(is_size_var=True)
-        qo_len = T.int32(is_size_var=True)
-        kv_len = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        qo_len = T.int32()
+        kv_len = T.int32()
         q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
         k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
         v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
@@ -553,9 +551,9 @@ def _attention_sequence_prefill_with_mask(
         var_output: T.handle, # [batch_size, qo_len, h_q, d]
         var_lse: T.handle # [batch_size, qo_len, h_q]
     ):
-        batch_size = T.int32(is_size_var=True)
-        qo_len = T.int32(is_size_var=True)
-        kv_len = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        qo_len = T.int32()
+        kv_len = T.int32()
         q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
         k = T.match_buffer(var_k, (batch_size, kv_len, h_kv, d), dtype)
         v = T.match_buffer(var_v, (batch_size, kv_len, h_kv, d), dtype)
@@ -675,13 +673,13 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        batch_size = T.int32(is_size_var=True)
-        qo_len = T.int32(is_size_var=True)
-        kv_len = T.int32(is_size_var=True)
-        q_indptr_elem_offset = T.int32(is_size_var=True)
-        kv_indptr_elem_offset = T.int32(is_size_var=True)
-        q_rope_position_elem_offset = T.int32(is_size_var=True)
-        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        qo_len = T.int32()
+        kv_len = T.int32()
+        q_indptr_elem_offset = T.int32()
+        kv_indptr_elem_offset = T.int32()
+        q_rope_position_elem_offset = T.int32()
+        k_rope_pos_offset_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -794,13 +792,13 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
         rope_theta: T.float32,
         sm_scale: T.float32
     ):
-        batch_size = T.int32(is_size_var=True)
-        qo_len = T.int32(is_size_var=True)
-        kv_len = T.int32(is_size_var=True)
-        q_indptr_elem_offset = T.int32(is_size_var=True)
-        kv_indptr_elem_offset = T.int32(is_size_var=True)
-        q_rope_position_elem_offset = T.int32(is_size_var=True)
-        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        qo_len = T.int32()
+        kv_len = T.int32()
+        q_indptr_elem_offset = T.int32()
+        kv_indptr_elem_offset = T.int32()
+        q_rope_position_elem_offset = T.int32()
+        k_rope_pos_offset_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -929,15 +927,15 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
         sm_scale: T.float32,
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32(is_size_var=True)
-        total_len = T.int32(is_size_var=True)
-        nnz_pages = T.int32(is_size_var=True)
-        max_num_pages = T.int32(is_size_var=True)
-        pages_elem_offset = T.int64(is_size_var=True)
-        q_indptr_elem_offset = T.int32(is_size_var=True)
-        page_indptr_elem_offset = T.int32(is_size_var=True)
-        page_values_elem_offset = T.int32(is_size_var=True)
-        length_info_elem_offset = T.int32(is_size_var=True)
+        batch_size = T.int32()
+        total_len = T.int32()
+        nnz_pages = T.int32()
+        max_num_pages = T.int32()
+        pages_elem_offset = T.int64()
+        q_indptr_elem_offset = T.int32()
+        page_indptr_elem_offset = T.int32()
+        page_values_elem_offset = T.int32()
+        length_info_elem_offset = T.int32()
 
         q = T.match_buffer(var_q, (total_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
@@ -1016,9 +1014,9 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
                                             T.writes()
                                             cur_L: T.let[T.int32] = L_kv_start + i
                                             if cur_L < kv_chunk_len[0]:
-                                                seq_offset: T.let[T.int32(is_size_var=True)] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
-                                                page_no: T.let[T.int32(is_size_var=True)] = page_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
-                                                page_offset: T.let[T.int32(is_size_var=True)] = T.floormod(seq_offset, page_size)  # type: ignore
+                                                seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
+                                                page_no: T.let[T.int32()] = page_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
+                                                page_offset: T.let[T.int32()] = T.floormod(seq_offset, page_size)  # type: ignore
                                                 KV_smem[i, j] = pages[page_no, page_offset, j]
                                             else:
                                                 KV_smem[i, j] = 0.0

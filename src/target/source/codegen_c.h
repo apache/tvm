@@ -56,7 +56,7 @@ using namespace tirx;
  * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
  * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
-class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
+class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
                  public StmtFunctor<void(const Stmt&)>,
                  public CodeGenSourceBase {
  public:
@@ -108,11 +108,17 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param os The output stream
    */
   void PrintExpr(const PrimExpr& n, std::ostream& os);
+  void PrintExpr(const Expr& n, std::ostream& os);
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
   std::string PrintExpr(const PrimExpr& n) {
+    std::ostringstream os;
+    PrintExpr(n, os);
+    return os.str();
+  }
+  std::string PrintExpr(const Expr& n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();
@@ -209,25 +215,27 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
   virtual void PrintStorageSync(const CallNode* op);                           // NOLINT(*)
   // Binary vector op.
-  virtual void PrintVecBinaryOp(const std::string& op, DataType op_type, PrimExpr lhs, PrimExpr rhs,
+  virtual void PrintVecBinaryOp(const std::string& op, const PrimType& op_type, PrimExpr lhs,
+                                PrimExpr rhs,
                                 std::ostream& os);  // NOLINT(*)
   // print vector load
-  virtual std::string GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base);
+  virtual std::string GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base);
   // print vector store
-  virtual void PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
+  virtual void PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
                              const std::string& value);  // NOLINT(*)
   // print load of single element
-  virtual void PrintVecElemLoad(const std::string& vec, DataType t, int i,
+  virtual void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                                 std::ostream& os);  // NOLINT(*)
   // print store of single element.
-  virtual void PrintVecElemStore(const std::string& vec, DataType t, int i,
+  virtual void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                                  const std::string& value);
   // print vector constructor
-  virtual void PrintVecConstructor(DataType t, std::ostream& os);
+  virtual void PrintVecConstructor(const PrimType& t, std::ostream& os);
   // Get a cast type from to
-  virtual std::string CastFromTo(std::string value, DataType from, DataType target);
+  virtual std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target);
   // Get load of single element with expression
-  virtual void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os);
+  virtual void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
+                                    std::ostream& os);
   // Print restrict keyword for a given Var if applicable
   virtual void PrintRestrict(const Var& v, std::ostream& os);
 
@@ -239,9 +247,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*! \brief Print a C string literal with proper escaping of special chars. */
   void PrintEscapedCString(const std::string& str, std::ostream& os);
   // Print reference to struct location
-  std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
+  std::string GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
-  virtual std::string GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index);
+  virtual std::string GetBufferRef(const PrimType& t, const BufferNode* buffer, PrimExpr index);
 
   /*!
    * \brief Handle volatile loads.
@@ -287,20 +295,20 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param os The output stream.
    */
   virtual void PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               const ffi::Array<Expr>& args, bool skip_first_arg,
                                std::ostream& os);  // NOLINT(*)
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  bool HandleTypeMatch(const VarNode* buf_var, DataType t) const;
+  bool HandleTypeMatch(const VarNode* buf_var, const PrimType& t) const;
   /*!
    * \brief Register the data type of buf_var
    * \param buf_var The buffer variable.
    * \param t The type to be checked.
    */
-  void RegisterHandleType(const VarNode* buf_var, DataType t);
+  void RegisterHandleType(const VarNode* buf_var, const PrimType& t);
   /*!
    * \brief Register a typed pointer produced by explicit pointer-offset intrinsics.
    *
@@ -308,9 +316,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * code shape.  Only explicit pointer-offset values opt into typed pointer
    * arithmetic.
    */
-  void RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExpr* value);
+  void RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value);
   // override
-  void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) override;
+  void PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) override;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 
@@ -324,7 +332,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*! \brief the storage scope of allocation */
   std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
-  std::unordered_map<const VarNode*, DataType> handle_data_type_;
+  std::unordered_map<const VarNode*, PrimType> handle_data_type_;
   /*! \brief Handle vars whose address_of(buffer[index]) should print as ptr + index. */
   std::unordered_set<const VarNode*> pointer_offset_vars_;
   /*! \brief Record of ops that have pre-defined global symbol. */
@@ -357,8 +365,8 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    */
   std::unordered_map<GlobalVar, ffi::String> internal_functions_;
 
-  /* \brief Name supply to generate unique function names */
-  NameSupply func_name_supply_;
+  /* \brief Unique unique name supply to generate unique function names */
+  UniqueNameSupply func_name_supply_;
 };
 
 }  // namespace codegen

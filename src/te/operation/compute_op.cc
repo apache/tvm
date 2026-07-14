@@ -75,9 +75,9 @@ static inline void AssertReduceEqual(const tirx::ReduceNode* a, const tirx::Redu
 
 int ComputeOpNode::num_outputs() const { return body.size(); }
 
-DataType ComputeOpNode::output_dtype(size_t idx) const {
+PrimType ComputeOpNode::output_dtype(size_t idx) const {
   TVM_FFI_ICHECK_LT(idx, num_outputs());
-  return body[idx].dtype();
+  return body[idx].ty();
 }
 
 ffi::Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
@@ -96,12 +96,12 @@ Tensor compute(ffi::Array<PrimExpr> shape, FCompute fcompute, std::string name, 
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
-  std::vector<Var> args;
+  std::vector<PrimVar> args;
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVar(Range(IntImm(shape[i]->dtype, 0), shape[i]),
-                              Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(IntImm(shape[i].ty(), 0), shape[i]),
+                              PrimVar(os.str(), shape[i].ty()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -113,12 +113,12 @@ ffi::Array<Tensor> compute(ffi::Array<PrimExpr> shape, FBatchCompute fcompute, s
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
-  std::vector<Var> args;
+  std::vector<PrimVar> args;
   for (size_t i = 0; i < ndim; ++i) {
     std::ostringstream os;
     os << "ax" << i;
-    axis.emplace_back(IterVar(Range(IntImm(shape[i]->dtype, 0), shape[i]),
-                              Var(os.str(), shape[i].dtype()), kDataPar));
+    axis.emplace_back(IterVar(Range(IntImm(shape[i].ty(), 0), shape[i]),
+                              PrimVar(os.str(), shape[i].ty()), kDataPar));
     args.push_back(axis.back()->var);
   }
 
@@ -165,7 +165,7 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   for (auto& e : body) {
     tirx::PostOrderVisit(e, [&ret, &visited](const ffi::ObjectRef& n) {
       if (auto* pload = n.as<tirx::ProducerLoadNode>()) {
-        Tensor t = Downcast<Tensor>(pload->producer);
+        Tensor t = pload->producer.as_or_throw<Tensor>();
         if (!visited.count(t)) {
           ret.push_back(t);
           visited.insert(t);
@@ -222,7 +222,7 @@ class ComputeVerifier final : protected tirx::ExprVisitor {
  protected:
   /// Visitor implementation
   //@{
-  void VisitExpr(const PrimExpr& n) final {
+  void VisitExpr(const Expr& n) final {
     ++level_;
     ExprVisitor::VisitExpr(n);
     --level_;

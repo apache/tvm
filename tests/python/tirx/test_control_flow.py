@@ -15,23 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def run_test_break_continue(func, shape, expected):
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     with target:
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
     arr_np = np.zeros(shape, dtype="int32")
-    arr = tvm.runtime.tensor(arr_np, device=dev)
-    mod(arr)
-    np.testing.assert_allclose(arr.numpy(), expected)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        arr = tvm.runtime.tensor(arr_np, device=dev)
+        mod(arr)
+        np.testing.assert_allclose(arr.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue1():
     # fmt: off
     @T.prim_func
@@ -53,6 +61,8 @@ def test_break_continue1():
     run_test_break_continue(func, (10,), expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue2():
     # fmt: off
     @T.prim_func
@@ -79,6 +89,8 @@ def test_break_continue2():
     run_test_break_continue(func, (9,), expected)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue3():
     # fmt: off
     @T.prim_func

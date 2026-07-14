@@ -19,7 +19,6 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
-#include <tvm/ir/cast.h>
 #include <tvm/runtime/logging.h>
 
 #include <optional>
@@ -99,7 +98,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   static TransformPlan Plan(SBlock block, Buffer old_buffer, Buffer new_buffer, IndexMap index_map,
                             IndexMap inverse, PrimExpr padding_predicate,
                             ffi::Optional<IndexMap> pad_value, arith::AnalyzerObj* analyzer) {
-    TVM_FFI_ICHECK(!pad_value.defined() || pad_value.value()->final_indices.size() == 1)
+    TVM_FFI_ICHECK(!pad_value.has_value() || pad_value.value()->final_indices.size() == 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
     TransformLayoutPlanner visitor(old_buffer);
     visitor(block);
@@ -228,7 +227,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
                         ffi::Map<SBlock, SBlock>* new_block_to_old, arith::AnalyzerObj* analyzer)
         : info(info),
           new_buffer(new_buffer),
-          new_indices(inverse->initial_indices),
+          new_indices(
+              inverse->initial_indices.Map([](PrimVar var) { return static_cast<Var>(var); })),
           padding_predicate(padding_predicate),
           inverse(inverse),
           pad_value(pad_value),
@@ -292,10 +292,10 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       // Therefore, generate new virtual indices for iterating over
       // the post-transform buffer.
 
-      new_indices = inverse->initial_indices.Map([](Var var) {
+      new_indices = inverse->initial_indices.Map([](PrimVar var) {
         std::stringstream ss;
         ss << "v_" << var->name_hint;
-        return Var(ss.str(), var.dtype());
+        return Var(ss.str(), var.ty());
       });
 
       ffi::Map<Var, Var>
@@ -313,9 +313,9 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         Var var = inverse->initial_indices[i];
         Var virtual_var = new_indices[i];
         PrimExpr dim = new_buffer->shape[i];
-        new_iter_values.push_back(var);
-        new_iter_vars.push_back(
-            IterVar(Range::FromMinExtent(make_zero(dim.dtype()), dim), virtual_var, kDataPar));
+        new_iter_values.push_back(var.as_or_throw<PrimExpr>());
+        new_iter_vars.push_back(IterVar(Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
+                                        virtual_var.as_or_throw<PrimVar>(), kDataPar));
         loop_var_to_virtual_var.Set(var, virtual_var);
       }
 
@@ -326,7 +326,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
       TVM_FFI_ICHECK_EQ(inverse->final_indices.size(), old_indices.size());
       for (size_t i = 0; i < old_indices.size(); i++) {
-        Var var = Downcast<Var>(old_indices[i]);
+        Var var = old_indices[i].as_or_throw<Var>();
         PrimExpr expr = Substitute(inverse->final_indices[i], loop_var_to_virtual_var);
         var_remap.Set(var, expr);
       }
@@ -358,7 +358,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       BufferStore store = ffi::GetRef<BufferStore>(op);
       if (can_replace) {
         ffi::Array<PrimExpr> new_index_exprs =
-            new_indices.Map([](const auto& var) -> PrimExpr { return var; });
+            new_indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         PrimExpr pad_value_at_index = pad_value.value()->MapIndices(
             new_index_exprs, ffi::GetRef<arith::Analyzer>(analyzer))[0];
         store =
@@ -371,9 +371,10 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     }
 
     Stmt VisitStmt_(const SBlockRealizeNode* op) final {
-      SBlockRealize realize = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(op));
+      SBlockRealize realize = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
 
-      if (op == info.innermost_block_realize.get()) {
+      if (info.innermost_block_realize.has_value() &&
+          op == info.innermost_block_realize.value().get()) {
         SBlock block = realize->block;
         if (!block->iter_vars.same_as(this->new_iter_vars)) {
           block.CopyOnWrite()->iter_vars = this->new_iter_vars;
@@ -393,13 +394,13 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
     Stmt VisitStmt_(const SBlockNode* op) final {
       SBlock orig = ffi::GetRef<SBlock>(op);
-      SBlock mutated = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+      SBlock mutated = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
 
       RecordReplacement(orig, mutated);
       return mutated;
     }
 
-    PrimExpr VisitExpr_(const VarNode* op) final {
+    Expr VisitExpr_(const VarNode* op) final {
       Var var = ffi::GetRef<Var>(op);
       if (auto opt = var_remap.Get(var)) {
         return opt.value();
@@ -465,7 +466,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
                                                    IndexMap inverse, PrimExpr padding_predicate,
                                                    ffi::Optional<IndexMap> pad_value,
                                                    arith::AnalyzerObj* analyzer) const {
-    if (write_info_.size() || is_zero(padding_predicate) || !pad_value.defined()) {
+    if (write_info_.size() || is_zero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
@@ -477,8 +478,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
-      Var block_var("v_" + loop_var->name_hint, loop_var->dtype);
-      IterVar iter_var(Range(0, dim), block_var, kDataPar);
+      Var block_var("v_" + loop_var->name_hint, loop_var.ty());
+      IterVar iter_var(Range(0, dim), block_var.as_or_throw<PrimVar>(), kDataPar);
       loop_indices_to_block_indices.Set(loop_var, block_var);
       indices.push_back(iter_var->var);
       iter_vars.push_back(iter_var);
@@ -489,19 +490,19 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<arith::Analyzer>(analyzer))[0];
     PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
-    Stmt stmt = Evaluate(Call(DataType::Bool(), builtin::assume(), {expr}));
+    Stmt stmt = Evaluate(Call(PrimType::Bool(), builtin::assume(), {expr}).as_or_throw<PrimExpr>());
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer->name << "_assumptions";
     auto read_region = BufferRegion::FromPoint(new_buffer, indices);
-    stmt = SBlockRealize(iter_values, const_true(),
+    stmt = SBlockRealize(iter_values, IntImm::Bool(true),
                          SBlock(iter_vars, {read_region}, {}, block_name.str(), stmt));
 
     for (size_t rev_i = 0; rev_i < inverse->initial_indices.size(); rev_i++) {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
     }
     return ProloguePlan{stmt};
   }
@@ -511,13 +512,13 @@ class TransformLayoutPlanner : private StmtExprVisitor {
                                                          PrimExpr padding_predicate,
                                                          ffi::Optional<IndexMap> pad_value,
                                                          arith::AnalyzerObj* analyzer) const {
-    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
+    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
     ffi::Map<SBlock, SBlock> new_block_to_old;
     auto generate_if_then_else_block = [&](const WriteInfo& info) -> ffi::Optional<Stmt> {
-      if (!info.contains_row_major_traversal || !pad_value.defined() ||
+      if (!info.contains_row_major_traversal || !pad_value.has_value() ||
           is_zero(padding_predicate)) {
         return std::nullopt;
       }
@@ -534,7 +535,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         size_t i = (inverse->initial_indices.size() - 1) - rev_i;
         Var loop_var = inverse->initial_indices[i];
         PrimExpr extent = new_buffer->shape[i];
-        stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+        stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
       }
 
       return stmt;
@@ -561,7 +562,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
                                                    IndexMap inverse, PrimExpr padding_predicate,
                                                    ffi::Optional<IndexMap> pad_value,
                                                    arith::AnalyzerObj* analyzer) const {
-    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.defined()) {
+    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
@@ -572,8 +573,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
-      Var block_var("v_" + loop_var->name_hint, loop_var->dtype);
-      IterVar iter_var(Range(0, dim), block_var, kDataPar);
+      Var block_var("v_" + loop_var->name_hint, loop_var.ty());
+      IterVar iter_var(Range(0, dim), block_var.as_or_throw<PrimVar>(), kDataPar);
       indices.push_back(iter_var->var);
       iter_vars.push_back(iter_var);
       iter_values.push_back(loop_var);
@@ -594,7 +595,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       size_t i = (inverse->initial_indices.size() - 1) - rev_i;
       Var loop_var = inverse->initial_indices[i];
       PrimExpr extent = new_buffer->shape[i];
-      stmt = For(loop_var, 0, extent, ForKind::kSerial, stmt);
+      stmt = For(loop_var.as_or_throw<PrimVar>(), 0, extent, ForKind::kSerial, stmt);
     }
 
     const auto& info = write_info_.back();
@@ -636,10 +637,13 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   // binding must remain visible to subsequent sibling statements.
   struct BindVariableDefinition {
     BindVariableDefinition() {}
-    BindVariableDefinition(TransformLayoutPlanner* self, Var var, PrimExpr value) {
-      if (auto loop_depth = self->LoopDependencyRange(value); loop_depth.has_value()) {
+    BindVariableDefinition(TransformLayoutPlanner* self, Var var, Expr value) {
+      auto prim_value = value.as<PrimExpr>();
+      if (!prim_value) return;
+      if (auto loop_depth = self->LoopDependencyRange(prim_value.value()); loop_depth.has_value()) {
         self->loop_depth_lookup_[var.get()] = loop_depth.value();
-        self->active_var_bindings_[var.get()] = Substitute(value, self->active_var_bindings_);
+        self->active_var_bindings_[var.get()] =
+            Substitute(prim_value.value(), self->active_var_bindings_);
       }
     }
     ~BindVariableDefinition() {}
@@ -759,14 +763,14 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       const IndexMap& index_map, const ffi::Optional<IndexMap>& opt_inverse,
       const PrimExpr& padding_predicate, const ffi::Optional<IndexMap>& pad_value) {
     arith::Analyzer analyzer;
-    auto plan = pad_value.defined()
+    auto plan = pad_value.has_value()
                     ? TransformLayoutPlanner::Plan(scope_stmt, old_buffer, new_buffer, index_map,
                                                    opt_inverse.value(), padding_predicate,
                                                    pad_value, analyzer.get())
                     : TransformLayoutPlanner::NoPaddingRequired();
 
-    TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, analyzer.get());
-    SBlock result = Downcast<SBlock>(rewriter(scope_stmt));
+    TransformLayoutRewriter rewriter(old_buffer, new_buffer, index_map, plan, analyzer);
+    SBlock result = rewriter(scope_stmt).as_or_throw<SBlock>();
     if (auto plan_ptr = std::get_if<TransformLayoutPlanner::ProloguePlan>(&plan)) {
       auto write_ptr = result.CopyOnWrite();
       write_ptr->body = SeqStmt({plan_ptr->prologue, write_ptr->body});
@@ -782,7 +786,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   TransformLayoutRewriter(const Buffer& old_buffer, const Buffer& new_buffer,
                           const IndexMap& index_map,
                           const TransformLayoutPlanner::TransformPlan& plan,
-                          arith::AnalyzerObj* analyzer)
+                          const arith::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer),
         old_buffer_(old_buffer),
         new_buffer_(new_buffer),
@@ -829,8 +833,8 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad buffer_load = Downcast<BufferLoad>(Parent::VisitExpr_(op));
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad buffer_load = Parent::VisitExpr_(op).as_or_throw<BufferLoad>();
     if (buffer_load->buffer.same_as(old_buffer_)) {
       auto* n = buffer_load.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -839,7 +843,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore buffer_store = Downcast<BufferStore>(Parent::VisitStmt_(op));
+    BufferStore buffer_store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
     if (buffer_store->buffer.same_as(old_buffer_)) {
       auto* n = buffer_store.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
@@ -879,7 +883,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       return block;
     }();
 
-    SBlock block = Downcast<SBlock>(Parent::VisitStmt_(op));
+    SBlock block = Parent::VisitStmt_(op).as_or_throw<SBlock>();
 
     auto infered_access_regions = GetSBlockReadWriteRegion(block, buffer_data_to_buffer_);
     auto* n = block.CopyOnWrite();
@@ -992,7 +996,7 @@ class TransformationPaddingTypeError : public ScheduleError {
   TransformationPaddingTypeError(IRModule mod, Buffer buffer, IndexMap pad_value)
       : mod_(mod), buffer_(buffer), pad_value_(pad_value) {
     TVM_FFI_ICHECK_EQ(pad_value_->final_indices.size(), 1);
-    pad_value_dtype_ = pad_value_->final_indices[0].dtype();
+    pad_value_dtype_ = pad_value_->final_indices[0].ty()->dtype;
   }
 
   ffi::String FastErrorString() const final {
@@ -1016,7 +1020,7 @@ class TransformationPaddingTypeError : public ScheduleError {
   IRModule mod_;
   Buffer buffer_;
   IndexMap pad_value_;
-  DataType pad_value_dtype_;
+  DLDataType pad_value_dtype_;
 };
 
 class TransformationPaddingExpressionError : public ScheduleError {
@@ -1117,21 +1121,23 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
 
   ffi::Array<Var> initial_indices;
   ffi::Map<Var, PrimExpr> var_map;
-  std::optional<DataType> index_dtype = std::nullopt;
+  std::optional<DLDataType> index_dtype = std::nullopt;
 
   for (size_t i = 0; i < args.size(); ++i) {
+    DLDataType arg_dtype = args[i].ty()->dtype;
     if (index_dtype.has_value()) {
-      TVM_FFI_ICHECK_EQ(*index_dtype, args[i]->dtype)
-          << "Buffer index " << args[i] << " has dtype " << args[i]->dtype
+      TVM_FFI_ICHECK_EQ(*index_dtype, arg_dtype)
+          << "Buffer index " << args[i] << " has dtype " << arg_dtype
           << ", but previous index for the same buffer access used index type " << *index_dtype;
     } else {
-      index_dtype = args[i]->dtype;
+      index_dtype = arg_dtype;
     }
 
-    if (args[i]->dtype != initial_indices_orig[i].dtype()) {
-      auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i]->dtype);
+    DLDataType initial_dtype = initial_indices_orig[i].ty()->dtype;
+    if (arg_dtype != initial_dtype) {
+      auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i].ty());
       initial_indices.push_back(new_idx);
-      var_map.Set(initial_indices_orig[i], new_idx);
+      var_map.Set(initial_indices_orig[i], new_idx.as_or_throw<PrimExpr>());
     } else {
       initial_indices.push_back(initial_indices_orig[i]);
     }
@@ -1141,18 +1147,21 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
     auto final_indices = index_map->final_indices.Map([&](PrimExpr index) {
       if (auto* ptr = index.as<IntImmNode>()) {
         TVM_FFI_ICHECK(index_dtype.has_value());
-        return tirx::make_const(*index_dtype, ptr->value);
+        return tirx::MakeConst(PrimType(*index_dtype), ptr->value);
       } else {
         return SubstituteWithDataTypeLegalization(index,
                                                   [&](const Var& var) { return var_map.Get(var); });
       }
     });
-    ffi::Optional<IndexMap> opt_inverse_index_map =
-        Downcast<ffi::Optional<IndexMap>>(index_map->inverse_index_map);
-    if (opt_inverse_index_map.defined()) {
+    ffi::Optional<IndexMap> opt_inverse_index_map = std::nullopt;
+    if (index_map->inverse_index_map.has_value()) {
+      opt_inverse_index_map = index_map->inverse_index_map.value().as_or_throw<IndexMap>();
+    }
+    if (opt_inverse_index_map.has_value()) {
       opt_inverse_index_map = LegalizeIndexMapDType(opt_inverse_index_map.value(), final_indices);
     }
-    return IndexMap(initial_indices, final_indices, opt_inverse_index_map);
+    return IndexMap(initial_indices.Map([](Var var) { return var.as_or_throw<PrimVar>(); }),
+                    final_indices, opt_inverse_index_map);
   }
   return index_map;
 }
@@ -1170,39 +1179,39 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   auto index_map = LegalizeIndexMapDType(index_map_orig, old_buffer->shape);
 
   auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
-  if (defining_site_sref.defined() && !is_alloc) {
+  if (defining_site_sref.has_value() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);
   }
   if (pad_value) {
     if (pad_value.value()->final_indices.size() != 1) {
       throw TransformationPaddingIndexMapError(self->mod, pad_value.value());
     }
-    if (pad_value.value()->final_indices[0]->dtype != old_buffer->dtype) {
+    if (pad_value.value()->final_indices[0].ty() != old_buffer->dtype) {
       throw TransformationPaddingTypeError(self->mod, old_buffer, pad_value.value());
     }
 
     TransformationPaddingExpressionError::Check(self->mod, old_buffer, pad_value.value());
   }
 
-  StmtSRef scope_sref = defining_site_sref.defined()
+  StmtSRef scope_sref = defining_site_sref.has_value()
                             ? defining_site_sref.value()
                             : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
 
   ffi::Optional<IndexMap> opt_inverse = std::nullopt;
-  PrimExpr padding_predicate = const_false();
+  PrimExpr padding_predicate = IntImm::Bool(false);
   if (!assume_injective_transform) {
     std::tie(opt_inverse, padding_predicate) = [&]() {
       ffi::Array<Range> region;
       for (const auto& dim : old_buffer->shape) {
-        region.push_back(Range::FromMinExtent(make_zero(dim.dtype()), dim));
+        region.push_back(Range::FromMinExtent(IntImm(dim.ty(), 0), dim));
       }
       return index_map.NonSurjectiveInverse(region, analyzer);
     }();
   }
 
   bool has_padding = !is_zero(padding_predicate);
-  if (has_padding && !pad_value.defined()) {
+  if (has_padding && !pad_value.has_value()) {
     throw TransformationIntroducesPaddingError(self->mod, old_buffer, index_map, padding_predicate);
   }
 
@@ -1215,10 +1224,10 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   auto [new_stmt, block_sref_reuse] =
       TransformLayoutRewriter::Rewrite(ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer,
                                        index_map, opt_inverse, padding_predicate, pad_value);
-  SBlock new_scope_block = Downcast<SBlock>(new_stmt);
+  SBlock new_scope_block = new_stmt.as_or_throw<SBlock>();
 
   // Step 4: Rewrite buffer_map of the PrimFunc if necessary.
-  if (!defining_site_sref.defined()) {
+  if (!defining_site_sref.has_value()) {
     GlobalVar g_var;
     const auto* old_func = GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
@@ -1413,8 +1422,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   ffi::Array<IterVar> new_block_iters;  // new block iters
   ffi::Array<PrimExpr> new_block_vars;  // iter_var->var of new block iters
   for (size_t i = 0; i < transformed_block_iters.size(); ++i) {
-    Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i]->dtype};
-    new_block_vars.push_back(new_block_var);
+    Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i].ty()};
+    new_block_vars.push_back(new_block_var.as_or_throw<PrimExpr>());
     IterVarType iter_type;
     if (is_one(new_block_iter_range[i])) {
       iter_type = kDataPar;
@@ -1425,10 +1434,10 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
       throw OpaqueNewIterTypeError(self->mod, ffi::GetRef<SBlock>(block_ptr),
                                    transformed_block_iters[i]);
     }
-    auto dtype = new_block_var.dtype();
+    PrimType dtype = new_block_var->ty.as_or_throw<PrimType>();
     new_block_iters.push_back(IterVar(
-        /*dom=*/Range::FromMinExtent(make_zero(dtype), cast(dtype, new_block_iter_range[i])),
-        /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
+        /*dom=*/Range::FromMinExtent(IntImm(dtype, 0), cast(dtype, new_block_iter_range[i])),
+        /*var=*/std::move(new_block_var).as_or_throw<PrimVar>(), /*iter_type=*/iter_type));
   }
 
   // Step 5.2: Update the block body. Use the inverse map f^{-1} to replace the original block iters
@@ -1438,7 +1447,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   {
     ffi::Array<Range> initial_ranges;
     for (const PrimExpr& extent : block_iter_range_array) {
-      initial_ranges.push_back(Range::FromMinExtent(make_const(extent.dtype(), 0), extent));
+      initial_ranges.push_back(Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
     }
     IndexMap inverse_index_map{nullptr};
     try {
@@ -1450,20 +1459,21 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     ffi::Array<PrimExpr> inversed_new_block_vars =
         inverse_index_map->MapIndices(new_block_vars, analyzer);
     for (int i = 0, n = block_vars.size(); i < n; ++i) {
-      inverse_subst_map.Set(Downcast<Var>(block_vars[i]), inversed_new_block_vars[i]);
+      inverse_subst_map.Set(block_vars[i].as_or_throw<Var>(), inversed_new_block_vars[i]);
     }
   }
   SBlock new_block =
-      Downcast<SBlock>(Substitute(ffi::GetRef<SBlock>(block_ptr), inverse_subst_map));
+      Substitute(ffi::GetRef<SBlock>(block_ptr), inverse_subst_map).as_or_throw<SBlock>();
   new_block.CopyOnWrite()->iter_vars = new_block_iters;
-  new_block = Downcast<SBlock>(BlockBufferAccessSimplifier::Simplify(new_block, analyzer.get()));
+  new_block = BlockBufferAccessSimplifier::Simplify(new_block, analyzer).as_or_throw<SBlock>();
 
   // Step 5.3: Create outer loops for each new block iter.
 
   // Make new loop vars
   ffi::Array<PrimExpr> new_loop_vars;
   for (int i = 0; i < static_cast<int>(new_block_iters.size()); ++i) {
-    new_loop_vars.push_back(Var("ax" + std::to_string(i), new_block_iters[i]->var.dtype()));
+    new_loop_vars.push_back(
+        Var("ax" + std::to_string(i), new_block_iters[i]->var.ty()).as_or_throw<PrimExpr>());
   }
 
   // Make new block realize
@@ -1474,8 +1484,8 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   // Generate outer loops
   Stmt body = ffi::GetRef<Stmt>(new_block_realize);
   for (int i = static_cast<int>(new_loop_vars.size()) - 1; i >= 0; --i) {
-    body = For(Downcast<Var>(new_loop_vars[i]), 0, new_block_iter_range[i], ForKind::kSerial,
-               std::move(body));
+    body = For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, new_block_iter_range[i],
+               ForKind::kSerial, std::move(body));
   }
 
   // Step 6: Do the actual replacement
@@ -1491,7 +1501,7 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
   static SBlock Mutate(const SBlock& scope_block, const Buffer& old_buffer, Buffer new_buffer,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     BufferAxisSeparatorMutator mutator(old_buffer, std::move(new_buffer), block_sref_reuse);
-    return Downcast<SBlock>(mutator.VisitStmt(scope_block));
+    return mutator.VisitStmt(scope_block).as_or_throw<SBlock>();
   }
 
  private:
@@ -1508,8 +1518,8 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
       if (new_target_buffer->shape.size() == new_source_buffer->shape.size()) {
         new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
       } else {
-        new_target_buffer.CopyOnWrite()->axis_separators = ffi::Array<IntImm>(
-            new_source_buffer->axis_separators.size(), IntImm(DataType::Int(32), 0));
+        new_target_buffer.CopyOnWrite()->axis_separators =
+            ffi::Array<IntImm>(new_source_buffer->axis_separators.size(), IntImm::Int32(0));
         LOG(WARNING) << "Buffer view " << new_target_buffer
                      << " has different dimensionality than backing buffer " << new_source_buffer
                      << ".  The `axis_separators` for " << new_target_buffer << "."
@@ -1530,11 +1540,11 @@ void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer
   Buffer old_buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block_ptr), buffer_index, buffer_index_type);
   auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
-  if (defining_site_sref.defined() && !is_alloc) {
+  if (defining_site_sref.has_value() && !is_alloc) {
     throw BufferIsSubregionError(self->mod, old_buffer);
   }
 
-  StmtSRef scope_sref = defining_site_sref.defined()
+  StmtSRef scope_sref = defining_site_sref.has_value()
                             ? defining_site_sref.value()
                             : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
@@ -1548,13 +1558,13 @@ void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer
   // Step 2: Rewrite alloc_buffer of the block or buffer_map of the PrimFunc.
   SBlock new_scope_block = BufferAxisSeparatorMutator::Mutate(
       ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer, &block_sref_reuse);
-  if (!defining_site_sref.defined()) {
+  if (!defining_site_sref.has_value()) {
     // mutate buffer_map of the PrimFunc
     GlobalVar g_var;
     GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
-    PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
+    PrimFunc ref_new_func = std::move(new_map->at(g_var)).as_or_throw<PrimFunc>();
     PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
     ffi::MapObj* new_buffer_map = new_func->buffer_map.CopyOnWrite();
     for (auto it = new_buffer_map->begin(); it != new_buffer_map->end(); ++it) {
@@ -1625,12 +1635,13 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   }
 
   static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
-    ffi::Array<Any> attrs_record = Downcast<ffi::Array<Any>>(attrs_record_);
+    ffi::Array<Any> attrs_record = attrs_record_.as_or_throw<ffi::Array<Any>>();
     ffi::Array<Any> attrs;
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
     if (attrs_record[2] != nullptr) {
-      attrs.push_back(ffi::FromJSONGraph(ffi::json::Parse(Downcast<ffi::String>(attrs_record[2]))));
+      attrs.push_back(
+          ffi::FromJSONGraph(ffi::json::Parse(attrs_record[2].as_or_throw<ffi::String>())));
     } else {
       attrs.push_back(attrs_record[2]);
     }
@@ -1674,9 +1685,10 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   }
 
   static ffi::Array<Any> AttrsFromJSON(const ffi::ObjectRef& attrs_record_) {
-    ffi::Array<Any> attrs_record = Downcast<ffi::Array<Any>>(attrs_record_);
+    ffi::Array<Any> attrs_record = attrs_record_.as_or_throw<ffi::Array<Any>>();
     ffi::Array<Any> attrs;
-    attrs.push_back(ffi::FromJSONGraph(ffi::json::Parse(Downcast<ffi::String>(attrs_record[0]))));
+    attrs.push_back(
+        ffi::FromJSONGraph(ffi::json::Parse(attrs_record[0].as_or_throw<ffi::String>())));
     return attrs;
   }
 

@@ -171,7 +171,7 @@ class AliasAnalyzer {
     for (auto input : inputs) {
       int curr_idx = get_fresh_idx();
       alias_map_[input] = {curr_idx};
-      if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(input)) {
+      if (auto* tup_info = GetTypeAs<TupleTypeNode>(input)) {
         InsertFreshTuple(curr_idx, tup_info);
       }
     }
@@ -193,12 +193,12 @@ class AliasAnalyzer {
   }
 
   // Fresh tuple = each element is assumed to be a unique allocation
-  void InsertFreshTuple(int tup_idx, const TupleStructInfoNode* tup_info) {
+  void InsertFreshTuple(int tup_idx, const TupleTypeNode* tup_info) {
     std::vector<std::unordered_set<int>> tuple_set;
     for (int i = 0; i < static_cast<int>(tup_info->fields.size()); i++) {
       int curr_field = get_fresh_idx();
       tuple_set.push_back({curr_field});
-      if (auto* nested_tup_info = tup_info->fields[i].as<TupleStructInfoNode>()) {
+      if (auto* nested_tup_info = tup_info->fields[i].as<TupleTypeNode>()) {
         InsertFreshTuple(curr_field, nested_tup_info);
       }
     }
@@ -251,7 +251,7 @@ class AliasAnalyzer {
     std::unordered_set<int> ret;
     int res_idx = get_fresh_idx();
     // the result may be a tuple
-    if (auto* tup_info_node = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+    if (auto* tup_info_node = GetTypeAs<TupleTypeNode>(bound_var)) {
       InsertFreshTuple(res_idx, tup_info_node);
     }
     AddCapturedIndices(&ret, res_idx);
@@ -270,7 +270,7 @@ class AliasAnalyzer {
   }
 
   // given the expression value, return the set of memory locations corresponding to it
-  // (the var the expression is being bound to is needed for struct info)
+  // (the var the expression is being bound to is needed for type)
   std::unordered_set<int> GetAliasSet(const Expr& value, const Var& bound_var) {
     std::unordered_set<int> ret;
 
@@ -285,7 +285,7 @@ class AliasAnalyzer {
     // function constant: give them a fresh index (TODO: we can handle in more detail if this is a
     // case we need to support) prim value: fresh index if node: should not happen inside dataflow
     // block
-    if (value.as<ConstantNode>() || value.as<PrimValueNode>() || value.as<FunctionNode>()) {
+    if (value.as<ConstantNode>() || value.as<FunctionNode>()) {
       // TODO(@slyubomirsky): We will probably want special handling for closures
       ret.insert(get_fresh_idx());
     } else if (auto* target_var_node = value.as<VarNode>()) {
@@ -295,6 +295,8 @@ class AliasAnalyzer {
       } else {
         ret.insert(-1);
       }
+    } else if (value.as<PrimExpr>()) {
+      ret.insert(get_fresh_idx());
     } else if (auto* target_tuple = value.as<TupleNode>()) {
       // fresh idx but we update the tuple map
       int tup_idx = get_fresh_idx();
@@ -328,10 +330,10 @@ class AliasAnalyzer {
           return HandleMysteryCall(call_node, bound_var, true);
         } else if (op_node->name == "relax.call_tir") {
           // call_tir: can potentially return a tuple
-          if (auto* tuple_struct_info = call_node->sinfo_args[0].as<TupleStructInfoNode>()) {
+          if (auto* tuple_ty = call_node->ty_args[0].as<TupleTypeNode>()) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
-            InsertFreshTuple(tup_idx, tuple_struct_info);
+            InsertFreshTuple(tup_idx, tuple_ty);
           } else {
             ret.insert(get_fresh_idx());
           }
@@ -344,7 +346,7 @@ class AliasAnalyzer {
 
           // If the returned value is a tuple, we'll assume it's a fresh tuple
           // (there may be exceptions to this too)
-          if (auto* tup_info = GetStructInfoAs<TupleStructInfoNode>(bound_var)) {
+          if (auto* tup_info = GetTypeAs<TupleTypeNode>(bound_var)) {
             int tup_idx = get_fresh_idx();
             ret.insert(tup_idx);
             InsertFreshTuple(tup_idx, tup_info);
@@ -368,41 +370,41 @@ class AliasAnalyzer {
 
 // given a shape, return the number of elements corresponding to it (product of elements)
 PrimExpr NumElements(const ShapeExpr& shape) {
-  PrimExpr ret = IntImm(DataType::Int(64), 1);
+  PrimExpr ret = IntImm::Int64(1);
   for (auto dim : shape->values) {
     ret *= dim;
   }
   return ret;
 }
 
-// Given the struct info of the result, return any struct info nested in it
+// Given the type of the result, return any type nested in it
 // that is eleigible to be used for in-place computations (tensors are eligible
 // only if all their dimensions are integer constants, tuples are eligible if
 // all members are eligible though we can consider only individual members separately)
-std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidateSinfo(
-    const StructInfo& result_sinfo) {
-  if (auto* tensor_info = result_sinfo.as<TensorStructInfoNode>()) {
+std::unordered_set<Type, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCandidateType(
+    const Type& result_ty) {
+  if (auto* tensor_info = result_ty.as<TensorTypeNode>()) {
     // don't consider void dtype (don't know the size at compile time)
-    if (tensor_info->dtype.is_void()) {
+    if (tensor_info->IsUnknownDtype()) {
       return {};
     }
     // don't consider cases where we don't know the shape at compile time
     // (we will use the analyzer to do best-effort analysis where there are vars)
     if (tensor_info->shape.as<ShapeExprNode>()) {
-      return {ffi::GetRef<TensorStructInfo>(tensor_info)};
+      return {ffi::GetRef<TensorType>(tensor_info)};
     } else {
       return {};
     }
-  } else if (auto* tuple_info = result_sinfo.as<TupleStructInfoNode>()) {
+  } else if (auto* tuple_info = result_ty.as<TupleTypeNode>()) {
     // we can see if the whole tuple matches or go for any of the components
-    std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> ret;
+    std::unordered_set<Type, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> ret;
     for (auto field : tuple_info->fields) {
-      auto field_candidates = GatherCandidateSinfo(field);
+      auto field_candidates = GatherCandidateType(field);
       ret.insert(field_candidates.begin(), field_candidates.end());
     }
     // at least one field should be eligible to be done in-place
     if (!ret.empty()) {
-      ret.insert(ffi::GetRef<StructInfo>(tuple_info));
+      ret.insert(ffi::GetRef<Type>(tuple_info));
     }
     return ret;
   } else {
@@ -411,23 +413,23 @@ std::unordered_set<StructInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> GatherCa
   }
 }
 
-// Given the two struct info, return a pair of bools where the first element is true if
-// the two struct info have the same number of elements and dtype and the second element is true
+// Given the two type, return a pair of bools where the first element is true if
+// the two type have the same number of elements and dtype and the second element is true
 // if the shapes match _exactly_. Performs this check recursively and ensures the
-// stated condition is true for all tensor members of the struct info (return false
+// stated condition is true for all tensor members of the type (return false
 // if a single pair of corresponding tensors does not meet the condition).
-std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInfo& arg_info,
+std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
                                   const BlockBuilder& ctx) {
-  if (target_info.as<TensorStructInfoNode>() && arg_info.as<TensorStructInfoNode>()) {
-    auto target_tensor = Downcast<TensorStructInfo>(target_info);
-    auto arg_tensor = Downcast<TensorStructInfo>(arg_info);
-    if (target_tensor->shape.defined() && target_tensor->shape.as<ShapeExprNode>() &&
-        arg_tensor->shape.defined() && arg_tensor->shape.as<ShapeExprNode>()) {
+  if (target_info.as<TensorTypeNode>() && arg_info.as<TensorTypeNode>()) {
+    auto target_tensor = target_info.as_or_throw<TensorType>();
+    auto arg_tensor = arg_info.as_or_throw<TensorType>();
+    if (target_tensor->shape.has_value() && target_tensor->shape.as<ShapeExprNode>() &&
+        arg_tensor->shape.has_value() && arg_tensor->shape.as<ShapeExprNode>()) {
       if (target_tensor->dtype != arg_tensor->dtype) {
         return {false, false};
       }
-      auto target_shape = Downcast<ShapeExpr>(target_tensor->shape);
-      auto arg_shape = Downcast<ShapeExpr>(arg_tensor->shape);
+      auto target_shape = target_tensor->shape.value().as_or_throw<ShapeExpr>();
+      auto arg_shape = arg_tensor->shape.value().as_or_throw<ShapeExpr>();
       PrimExpr target_size = NumElements(target_shape);
       PrimExpr arg_size = NumElements(arg_shape);
       if (!ctx->GetAnalyzer()->CanProve(arg_size >= target_size)) {
@@ -446,9 +448,9 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
     } else {
       return {false, false};
     }
-  } else if (target_info.as<TupleStructInfoNode>() && arg_info.as<TupleStructInfoNode>()) {
-    auto target_tup = Downcast<TupleStructInfo>(target_info);
-    auto arg_tup = Downcast<TupleStructInfo>(arg_info);
+  } else if (target_info.as<TupleTypeNode>() && arg_info.as<TupleTypeNode>()) {
+    auto target_tup = target_info.as_or_throw<TupleType>();
+    auto arg_tup = arg_info.as_or_throw<TupleType>();
     if (target_tup->fields.size() != arg_tup->fields.size()) {
       return {false, false};
     }
@@ -456,10 +458,9 @@ std::pair<bool, bool> SizeMatches(const StructInfo& target_info, const StructInf
     for (size_t i = 0; i < target_tup->fields.size(); i++) {
       // if members aren't either tuples or tensors, simply skip them,
       // since they don't matter for in-place computations
-      if (!(target_tup->fields[i].as<TensorStructInfoNode>() ||
-            target_tup->fields[i].as<TupleStructInfoNode>()) &&
-          !(arg_tup->fields[i].as<TensorStructInfoNode>() ||
-            arg_tup->fields[i].as<TupleStructInfoNode>())) {
+      if (!(target_tup->fields[i].as<TensorTypeNode>() ||
+            target_tup->fields[i].as<TupleTypeNode>()) &&
+          !(arg_tup->fields[i].as<TensorTypeNode>() || arg_tup->fields[i].as<TupleTypeNode>())) {
         continue;
       }
       auto [field_size_match, field_exact_match] =
@@ -690,17 +691,17 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
         std::unordered_set<int> candidates;
         std::unordered_set<int> exact_match_candidates;
 
-        auto target_sinfo = GatherCandidateSinfo(GetStructInfo(defined_var));
+        auto target_ty = GatherCandidateType(GetType(defined_var));
         // can't be done in-place, ignore
-        if (target_sinfo.empty()) {
+        if (target_ty.empty()) {
           continue;
         }
 
         // Check that at least one argument matches size with the result
         for (size_t j = 0; j < call_node->args.size(); j++) {
           auto arg = call_node->args[j];
-          for (auto target : target_sinfo) {
-            auto [matches_size, matches_exactly] = SizeMatches(target, GetStructInfo(arg), ctx);
+          for (auto target : target_ty) {
+            auto [matches_size, matches_exactly] = SizeMatches(target, GetType(arg), ctx);
             if (matches_size) {
               candidates.insert(static_cast<int>(j));
               if (matches_exactly) {
@@ -770,36 +771,36 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
 
     tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
 
-    PrimExpr VisitExpr_(const tirx::BufferLoadNode* op) final {
-      auto node = Downcast<tirx::BufferLoad>(tirx::StmtExprMutator::VisitExpr_(op));
+    Expr VisitExpr_(const tirx::BufferLoadNode* op) final {
+      auto node = tirx::StmtExprMutator::VisitExpr_(op).as_or_throw<tirx::BufferLoad>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::BufferStoreNode* op) final {
-      auto node = Downcast<tirx::BufferStore>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::BufferStore>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::DeclBufferNode* op) final {
-      auto node = Downcast<tirx::DeclBuffer>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::DeclBuffer>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::AllocBufferNode* op) final {
-      auto node = Downcast<tirx::AllocBuffer>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::AllocBuffer>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
       return node;
     }
 
     tirx::Stmt VisitStmt_(const tirx::SBlockNode* op) final {
-      auto node = Downcast<tirx::SBlock>(tirx::StmtExprMutator::VisitStmt_(op));
+      auto node = tirx::StmtExprMutator::VisitStmt_(op).as_or_throw<tirx::SBlock>();
       auto* node_cow = node.CopyOnWrite();
       // need the lambdas because class methods are not first-class (how ironic)
       node_cow->alloc_buffers =
@@ -853,7 +854,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       if (auto* func_node = kv.second.as<FunctionNode>()) {
         auto gv = kv.first;
         auto func_params = func_node->params;
-        auto function = Downcast<Function>(VisitExpr(ffi::GetRef<Function>(func_node)));
+        auto function = VisitExpr(ffi::GetRef<Function>(func_node)).as_or_throw<Function>();
         builder_->UpdateFunction(gv, function);
       }
     }
@@ -899,7 +900,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // can just pick the first index arbitrarily (only using one output for now too)
     // now replace the binding appropriately
     auto arg_idxs = inplace_idxs.at(binding);
-    auto target = Downcast<Call>(GetBoundValue(binding));
+    auto target = GetBoundValue(binding).as_or_throw<Call>();
     auto new_call = CreateInplaceCall(target, {arg_idxs[0]});
     return builder_->Normalize(new_call);
   }
@@ -921,8 +922,7 @@ class ModuleInplaceTransformer : public ExprMutator {
       return;
     }
     Expr new_value = ReplaceBoundCall(binding_ref);
-    builder_->EmitNormalized(
-        MatchCast(binding->var, new_value, binding->struct_info, binding->span));
+    builder_->EmitNormalized(MatchCast(binding->var, new_value, binding->ty, binding->span));
   }
 
   // Given the call and indices of arguments that could be done in-place,
@@ -932,18 +932,18 @@ class ModuleInplaceTransformer : public ExprMutator {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
-    auto op = Downcast<Op>(call->op);
-    auto legalized_call = Downcast<Call>(legalize_map[op](builder_, call));
+    auto op = call->op.as_or_throw<Op>();
+    auto legalized_call = legalize_map[op](builder_, call).as_or_throw<Call>();
     auto* legalized_call_cow = legalized_call.CopyOnWrite();
 
     // The legalized call should be call_tir. We will replace it with call_tir_inplace
     // and replace the called PrimFunc with an inplace version
-    auto legal_op = Downcast<GlobalVar>(legalized_call->args[0]);
+    auto legal_op = legalized_call->args[0].as_or_throw<GlobalVar>();
     legalizers_added.push_back(legal_op);
     auto inline_legal_op_name = legal_op->name_hint + "_inplace";
 
     auto mod = builder_->GetContextIRModule();
-    auto old_primfunc = Downcast<tirx::PrimFunc>(mod->Lookup(legal_op));
+    auto old_primfunc = mod->Lookup(legal_op).as_or_throw<tirx::PrimFunc>();
 
     tirx::Stmt new_body = old_primfunc->body;
 
@@ -974,13 +974,13 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // apply substitutions
     new_body = RemapBuffers(new_body, buffer_subst_map);
-    new_body =
-        tirx::Substitute(new_body, [&var_subst_map](const tirx::Var& v) -> ffi::Optional<PrimExpr> {
-          if (var_subst_map.count(v)) {
-            return var_subst_map.at(v);
-          }
-          return ffi::Optional<PrimExpr>();
-        });
+    new_body = tirx::Substitute(new_body,
+                                [&var_subst_map](const tirx::Var& v) -> ffi::Optional<tvm::Expr> {
+                                  if (var_subst_map.count(v)) {
+                                    return tvm::Expr(var_subst_map.at(v));
+                                  }
+                                  return std::nullopt;
+                                });
 
     // remove the now-unused outputs from the buffer map
     auto new_buffer_map = old_primfunc->buffer_map;
@@ -1063,7 +1063,7 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
       }
       elem_aliases.push_back(dim_aliases);
     }
-    new_tuple_map.Set(IntImm(DataType::Int(32), kv.first), elem_aliases);
+    new_tuple_map.Set(IntImm::Int32(kv.first), elem_aliases);
   }
   return {new_alias_sets, new_tuple_map};
 }

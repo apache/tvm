@@ -20,7 +20,6 @@
 #define TVM_SCRIPT_IR_BUILDER_BASE_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/node_functor.h>
@@ -270,7 +269,7 @@ class Namer {
 template <class TObjectRef>
 inline TObjectRef IRBuilder::Name(ffi::String name, TObjectRef obj) {
   details::Namer::Name(obj, name);
-  return Downcast<TObjectRef>(obj);
+  return obj.template as_or_throw<TObjectRef>();
 }
 
 template <typename TFrame>
@@ -288,7 +287,7 @@ template <typename TFrame>
 inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
   using TFrameNode = typename TFrame::ContainerType;
   if (!frames.empty() && frames.back()->IsInstance<TFrameNode>()) {
-    return Downcast<TFrame>(frames.back());
+    return frames.back().as_or_throw<TFrame>();
   }
   return std::nullopt;
 }
@@ -296,7 +295,7 @@ inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
 template <typename TObjectRef>
 inline TObjectRef IRBuilderNode::Get() const {
   using TObject = typename TObjectRef::ContainerType;
-  TVM_FFI_CHECK(result.defined(), IndexError) << "No result exists in IRBuilder yet";
+  TVM_FFI_CHECK(result.has_value(), IndexError) << "No result exists in IRBuilder yet";
   const auto* n = result.as<TObject>();
   TVM_FFI_CHECK(n != nullptr, TypeError)
       << "IRBuilder result is not of type: " << TObject::_type_key;

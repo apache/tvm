@@ -26,7 +26,6 @@ from typing import Literal
 from tvm_ffi import get_global_func
 
 from tvm import ir, s_tir, tirx
-from tvm.runtime import DataType
 from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target.target import Target
@@ -39,14 +38,14 @@ class IterInfo:
 
     kind: Literal["S", "R", "O"]
     var: tirx.Var
-    _dom: tirx.PrimExpr
+    _dom: tirx.Expr
     loop_rv: s_tir.schedule.LoopRV
 
     def __init__(
         self,
         kind: Literal["S", "R", "O"],
         var: tirx.Var,
-        dom: tirx.PrimExpr,
+        dom: tirx.Expr,
         loop_rv: s_tir.schedule.LoopRV,
     ):
         """Construct an IterInfo object."""
@@ -56,7 +55,7 @@ class IterInfo:
         self.loop_rv = loop_rv
 
     @property
-    def dom(self) -> int | tirx.PrimExpr:
+    def dom(self) -> int | tirx.Expr:
         """The iteration domain of the loop."""
         return int(self._dom) if isinstance(self._dom, tirx.IntImm) else self._dom
 
@@ -159,7 +158,7 @@ class BufferInfo:
         )
         vbuf_extent = int(self.shape[-1]) & ~(int(self.shape[-1]) - 1)
 
-        return min(vlp_extent, vbuf_extent, vbits // DataType(self.buf_region.buffer.dtype).bits)
+        return min(vlp_extent, vbuf_extent, vbits // self.buf_region.buffer.dtype.dtype.bits)
 
     def __str__(self) -> str:
         return f"BufferInfo({self.buf_region})"
@@ -189,7 +188,7 @@ class SBlockInfo:
         self.iters = iters
         self._reduction_block = reduction_block
 
-    def dom(self) -> list[int | tirx.PrimExpr]:
+    def dom(self) -> list[int | tirx.Expr]:
         """The iteration domain of the block."""
         return [i.dom for i in self.iters]
 
@@ -416,8 +415,8 @@ def collect_block_iter_vars_used_in_access_region(
     return tir_vars
 
 
-def collect_vars_used_in_prim_expr(expr: tirx.PrimExpr) -> set[tirx.Var]:
-    """Collect the variables used in the PrimExpr."""
+def collect_vars_used_in_prim_expr(expr: tirx.Expr) -> set[tirx.Var]:
+    """Collect the variables used in the Expr."""
     tir_vars = set()
 
     def _collect_tir_var(expr):
@@ -428,7 +427,7 @@ def collect_vars_used_in_prim_expr(expr: tirx.PrimExpr) -> set[tirx.Var]:
     return tir_vars
 
 
-def detect_dominant_read(block: tirx.SBlock) -> tirx.PrimExpr:
+def detect_dominant_read(block: tirx.SBlock) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1

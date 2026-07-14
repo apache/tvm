@@ -47,7 +47,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
  public:
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    TVM_FFI_ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.has_value());
     if (this->max_jobs_per_core != -1) {
       Target target = context->target.value();
       this->max_parallel_extent_ = GetTargetNumCores(target) * max_jobs_per_core;
@@ -64,18 +64,18 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     // Parallelization
     if (max_jobs_per_core != -1) {
       sch->Annotate(root_rv, s_tir::attr::meta_schedule_parallel,
-                    IntImm(DataType::Int(32), this->max_parallel_extent_));
+                    IntImm::Int32(this->max_parallel_extent_));
     }
     // Vectorization
     if (max_vectorize_extent != -1) {
       sch->Annotate(root_rv, s_tir::attr::meta_schedule_vectorize,
-                    IntImm(DataType::Int(32), max_vectorize_extent));
+                    IntImm::Int32(max_vectorize_extent));
     }
     // Unroll
     if (!unroll_max_steps.empty() && !s_tir::CheckSpatialPrimFunc(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
-      ffi::Array<FloatImm> probs(n, FloatImm(DataType::Float(32), prob));
+      ffi::Array<FloatImm> probs(n, FloatImm(PrimType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
         sch->Annotate(root_rv, s_tir::attr::meta_schedule_unroll_explicit, max_step);

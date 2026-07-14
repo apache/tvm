@@ -32,7 +32,7 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   ffi::Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
-    args = Downcast<Tuple>(call->args[1])->fields;
+    args = call->args[1].as_or_throw<Tuple>()->fields;
   } else {
     args = call->args;
   }
@@ -40,7 +40,7 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
 }
 
 void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+  Op op = call->op.as_or_throw<Op>();
   int expected_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != expected_input) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -49,8 +49,8 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
-  Op op = Downcast<Op>(call->op);
+TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
+  Op op = call->op.as_or_throw<Op>();
 
   TVM_FFI_ICHECK_EQ(op->arguments.size(), call->args.size())
       << "Failure caught by this check "
@@ -58,54 +58,51 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
   TVM_FFI_ICHECK_LT(i_arg, op->arguments.size());
 
   auto arg = call->args[i_arg];
-  auto sinfo = GetStructInfo(arg);
+  auto ty = GetType(arg);
 
-  if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-    return tensor_sinfo.value();
+  if (auto tensor_ty = ty.as<TensorType>()) {
+    return tensor_ty.value();
   } else {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Operator " << op << " requires argument " << i_arg << " (" << op->arguments[i_arg]->name
         << ") to be a tensor.  "
-        << "However, the argument " << arg << " is instead of type " << sinfo;
-    // Unreachable, but [[noreturn]] attribute on virtual function
-    // `ReportFatal` is insufficient to silence -Wreturn-type, as
-    // child class might not be [[noreturn]].
-    return TensorStructInfo();
+        << "However, the argument " << arg << " is instead of type " << ty;
+    TVM_FFI_UNREACHABLE();
   }
 }
 
-ffi::Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
+ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
 
-  Op op = Downcast<Op>(call->op);
-  ffi::Array<TensorStructInfo> input_tensor_sinfo;
+  Op op = call->op.as_or_throw<Op>();
+  ffi::Array<TensorType> input_tensor_ty;
   for (size_t i = 0; i < call->args.size(); ++i) {
-    input_tensor_sinfo.push_back(GetInputTensorStructInfo(call, i, ctx));
+    input_tensor_ty.push_back(GetInputTensorType(call, i, ctx));
   }
-  return input_tensor_sinfo;
+  return input_tensor_ty;
 }
 
-ffi::Array<TensorStructInfo> GetTensorStructInfoFromTuple(const Call& call, const BlockBuilder& ctx,
-                                                          const Expr& tup) {
-  const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(tup);
-  if (tuple_sinfo == nullptr) {
+ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuilder& ctx,
+                                              const Expr& tup) {
+  const auto* tuple_ty = GetTypeAs<TupleTypeNode>(tup);
+  if (tuple_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
-        << tup->struct_info_->GetTypeKey();
+        << tup->ty->GetTypeKey();
   }
 
-  ffi::Array<TensorStructInfo> tensor_sinfo;
-  tensor_sinfo.reserve(tuple_sinfo->fields.size());
-  for (StructInfo field_sinfo : tuple_sinfo->fields) {
-    const auto* field_tensor_sinfo = field_sinfo.as<TensorStructInfoNode>();
-    if (field_tensor_sinfo == nullptr) {
+  ffi::Array<TensorType> tensor_ty;
+  tensor_ty.reserve(tuple_ty->fields.size());
+  for (Type field_ty : tuple_ty->fields) {
+    const auto* field_tensor_ty = field_ty.as<TensorTypeNode>();
+    if (field_tensor_ty == nullptr) {
       TVM_FFI_VISIT_THROW(TypeError, call)
           << call->op << " expects the input to be a Tuple of Tensors. However, the given input is "
-          << tup->struct_info_;
+          << tup->ty;
     }
-    tensor_sinfo.push_back(ffi::GetRef<TensorStructInfo>(field_tensor_sinfo));
+    tensor_ty.push_back(ffi::GetRef<TensorType>(field_tensor_ty));
   }
-  return tensor_sinfo;
+  return tensor_ty;
 }
 
 BinaryBroadcastShapeInferResult InferBinaryBroadcastShape(arith::AnalyzerObj* analyzer,

@@ -380,8 +380,8 @@ def test_do_not_eliminate_extern_func():
     class Before:
         @R.function(pure=False)
         def foo(x: R.Tensor((2, 3), dtype="float32")):
-            y = R.call_packed("extern_func_name", x, sinfo_args=R.Tensor([2, 3]))
-            z = R.call_packed("extern_func_name", y, sinfo_args=R.Tensor([2, 3]))
+            y = R.call_packed("extern_func_name", x, ty_args=R.Tensor([2, 3]))
+            z = R.call_packed("extern_func_name", y, ty_args=R.Tensor([2, 3]))
             return z
 
     Expected = Before
@@ -395,8 +395,8 @@ def test_call_tir_tuple_arg():
         @R.function
         def main(A: R.Tensor([16, 16], "int32"), B: R.Tensor([16, 16], "int32")):
             cls = Before
-            Prod = R.call_tir(cls.product, [A, B], out_sinfo=R.Tensor([16, 16], "int32"))
-            Sum = R.call_tir(cls.sum, [A, B], out_sinfo=R.Tensor([16, 16], "int32"))
+            Prod = R.call_tir(cls.product, [A, B], out_ty=R.Tensor([16, 16], "int32"))
+            Sum = R.call_tir(cls.sum, [A, B], out_ty=R.Tensor([16, 16], "int32"))
             return (Prod, Sum)
 
         @T.prim_func(private=True, s_tir=True)
@@ -441,9 +441,7 @@ def test_do_not_eliminate_dtype():
     class Before:
         @R.function(pure=False)
         def foo() -> R.Tensor((32, 64), "int32"):
-            obj: R.Object = R.vm.alloc_storage(
-                R.shape([24576]), runtime_device_index=0, dtype="uint8"
-            )
+            obj: R.Any = R.vm.alloc_storage(R.shape([24576]), runtime_device_index=0, dtype="uint8")
             a: R.Tensor([32, 64], dtype="int32") = R.vm.alloc_tensor(
                 obj, offset=0, shape=R.shape([32, 64]), dtype="int32"
             )

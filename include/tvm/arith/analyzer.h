@@ -27,6 +27,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/with_context.h>
 
@@ -180,6 +181,7 @@ class ConstIntBoundAnalyzer {
   friend class ConstraintContext;
   explicit ConstIntBoundAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~ConstIntBoundAnalyzer();
+  void CopyFrom(const ConstIntBoundAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -259,6 +261,7 @@ class ModularSetAnalyzer {
   friend class ConstraintContext;
   explicit ModularSetAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~ModularSetAnalyzer();
+  void CopyFrom(const ModularSetAnalyzer& other);
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -413,6 +416,7 @@ class RewriteSimplifier {
   friend class CanonicalSimplifier;
   explicit RewriteSimplifier(AnalyzerObj* parent);
   TVM_DLL ~RewriteSimplifier();
+  void CopyFrom(const RewriteSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -444,6 +448,7 @@ class CanonicalSimplifier {
   friend class ConstraintContext;
   explicit CanonicalSimplifier(AnalyzerObj* parent);
   TVM_DLL ~CanonicalSimplifier();
+  void CopyFrom(const CanonicalSimplifier& other);
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -529,6 +534,7 @@ class TransitiveComparisonAnalyzer {
   friend class ConstraintContext;
   TransitiveComparisonAnalyzer();
   TVM_DLL ~TransitiveComparisonAnalyzer();
+  void CopyFrom(const TransitiveComparisonAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
   std::unique_ptr<Impl> impl_;
@@ -583,8 +589,113 @@ class IntSetAnalyzer {
   friend class AnalyzerObj;
   explicit IntSetAnalyzer(AnalyzerObj* parent);
   TVM_DLL ~IntSetAnalyzer();
+  void CopyFrom(const IntSetAnalyzer& other);
   class Impl;
   /*! \brief Internal impl */
+  Impl* impl_;
+};
+
+class Z3Prover {
+ public:
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param new_range The range of allowed values for this var.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const Range& new_range, bool allow_override = false);
+
+  /*!
+   * \brief Update binding of var to a new expression.
+   *
+   * \param var The variable of interest.
+   * \param expr The bound expression.
+   * \param allow_override whether we allow override of existing information.
+   */
+  TVM_DLL void Bind(const Var& var, const PrimExpr& expr, bool allow_override = false);
+
+  /*!
+   * \brief Whether the Z3 backend is compiled into this build (USE_Z3=ON).
+   *
+   * \return true if the real Z3 prover is available, false for the stub.
+   */
+  TVM_DLL bool IsEnabled() const;
+
+  /*!
+   * \brief Whether can we prove expr is always true.
+   *
+   * \param expr The expression.
+   * \return Whether we can prove it.
+   */
+  TVM_DLL bool CanProve(const PrimExpr& expr);
+
+  /*!
+   * \brief Update the internal state to enter constraint.
+   *
+   * \param constraint A constraint expression.
+   * \return an exit function that must be called to cleanup the constraint can be nullptr.
+   */
+  std::function<void()> EnterConstraint(const PrimExpr& constraint);
+
+  /*!
+   * \brief Get the SMTLIB2 representation of the current context.
+   *
+   * \param expr The optional expression to check.
+   * \return The SMTLIB2 string.
+   */
+  ffi::String GetSMTLIB2(const ffi::Optional<PrimExpr> expr);
+
+  /*!
+   * \brief Get statistics about Z3 prover.
+   *
+   * \return The statistics string.
+   */
+  ffi::String GetStats();
+
+  /*!
+   * \brief Set timeout in milliseconds for Z3 prover.
+   *
+   * \param timeout_ms The timeout in milliseconds.
+   */
+  void SetTimeoutMs(unsigned timeout_ms);
+
+  /*!
+   * \brief Set resource limitation for Z3 prover.
+   *
+   * \param rlimit the resource limitation.
+   */
+  void SetRLimit(unsigned rlimit);
+
+  /*!
+   * \brief Get the Z3 model for the given expression if satisfiable.
+   *
+   * \param expr The expression to get the model for.
+   * \return The model as a string.
+   */
+  ffi::String GetModel(const PrimExpr& expr);
+
+  /*!
+   * \brief Count the number of integer values that satisfy the current constraints.
+   *
+   * This method uses Z3's model enumeration to count how many distinct values of
+   * the given variable satisfy all current constraints.
+   *
+   * \param var The variable to count satisfying values for.
+   * \param max_count Maximum number of solutions to enumerate.
+   * \param min_consecutive Minimum consecutive count requirement.
+   * \return The number of distinct values that satisfy the constraints, or a negative error code.
+   */
+  TVM_DLL int64_t CountSatisfyingValues(const Var& var, int64_t max_count = 2048,
+                                        int64_t min_consecutive = 1);
+
+ private:
+  friend class AnalyzerObj;
+  friend class Analyzer;
+  explicit Z3Prover(AnalyzerObj* parent);
+  TVM_DLL ~Z3Prover();
+  void CopyFrom(const Z3Prover& other);
+  class Impl;
   Impl* impl_;
 };
 
@@ -612,6 +723,8 @@ class TVM_DLL AnalyzerObj : public ffi::Object {
   IntSetAnalyzer int_set;
   /*! \brief sub-analyzer transitive comparisons */
   TransitiveComparisonAnalyzer transitive_comparisons;
+  /*! \brief sub-analyzer using Z3 */
+  Z3Prover z3_prover;
   /*! \brief constructor */
   AnalyzerObj();
   /*!
@@ -621,6 +734,10 @@ class TVM_DLL AnalyzerObj : public ffi::Object {
    * not context-dependent.
    *
    * This function does best-effort propagations to the sub-analyzers
+   *
+   * A canonical use of MarkGlobalNonNegValue is to record a non-negativity
+   * fact at a Var's definition site. Because each Var identity is defined
+   * exactly once in canonical IR, the fact is globally valid for that identity.
    *
    * \note We expose this function because non-negative global values,
    * such as symbolic buffer shapes in function arguments are really
@@ -748,6 +865,26 @@ class TVM_DLL AnalyzerObj : public ffi::Object {
   PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
 
   /*!
+   * \brief Deep-copy this analyzer into a new, independent Analyzer.
+   *
+   * The returned analyzer carries the same accumulated facts (variable
+   * bounds, modular sets, rewrite/canonical bindings, integer-set domains,
+   * literal constraints and transitive comparisons) as this one, but owns
+   * its own state: binding or simplifying on either analyzer afterwards does
+   * not affect the other. This is the deep copy that handle-copying an
+   * Analyzer does not provide.
+   *
+   * \note Do not call this while a `With<ConstraintContext>` scope is active
+   *       on this analyzer. The clone would inherit the scoped constraints
+   *       but not the recovery functions that pop them on scope exit, so the
+   *       constraints would leak as if they were global facts. Clone at a
+   *       point where no constraint scope is in effect.
+   *
+   * \return A new Analyzer holding an independent copy of the facts.
+   */
+  Analyzer Clone() const;
+
+  /*!
    * \brief Analyzer methods update facts, constraints, caches, and stats.
    *
    * Marking the object mutable makes the `Analyzer` ObjectRef expose a
@@ -810,7 +947,16 @@ class ConstraintContext {
    * \param constraint The constraint to be applied.
    */
   ConstraintContext(const Analyzer& analyzer, PrimExpr constraint)
-      : analyzer_(analyzer), constraint_(constraint) {}
+      : ConstraintContext(analyzer, std::move(constraint), false) {}
+  /*!
+   * \brief Construct a constraint context.
+   * \param analyzer The analyzer whose context is updated. The context
+   *        keeps a reference to the analyzer while the scope is active.
+   * \param constraint The constraint to be applied.
+   * \param is_assume Whether the constraint comes from an assumption.
+   */
+  ConstraintContext(const Analyzer& analyzer, PrimExpr constraint, bool is_assume)
+      : analyzer_(analyzer), constraint_(std::move(constraint)), is_assume_(is_assume) {}
   /*!
    * \brief Construct a constraint context from a borrowed analyzer object.
    * \param analyzer The borrowed analyzer object.
@@ -819,7 +965,15 @@ class ConstraintContext {
    * This overload is for internal callers that already operate on AnalyzerObj*.
    */
   ConstraintContext(AnalyzerObj* analyzer, PrimExpr constraint)
-      : ConstraintContext(ffi::GetRef<Analyzer>(analyzer), std::move(constraint)) {}
+      : ConstraintContext(ffi::GetRef<Analyzer>(analyzer), std::move(constraint), false) {}
+  /*!
+   * \brief Construct a constraint context from a borrowed analyzer object.
+   * \param analyzer The borrowed analyzer object.
+   * \param constraint The constraint to be applied.
+   * \param is_assume Whether the constraint comes from an assumption.
+   */
+  ConstraintContext(AnalyzerObj* analyzer, PrimExpr constraint, bool is_assume)
+      : ConstraintContext(ffi::GetRef<Analyzer>(analyzer), std::move(constraint), is_assume) {}
   // enter the scope.
   void EnterWithScope();
   // exit the scope.
@@ -830,6 +984,8 @@ class ConstraintContext {
   PrimExpr constraint_;
   /*! \brief functions to be called in recovery */
   std::vector<std::function<void()>> recovery_functions_;
+  /*! \brief Whether the constraint comes from an assumption. */
+  bool is_assume_;
 };
 
 }  // namespace arith

@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 """Relax vm primitives."""
 
-from ...expr import Call, DataTypeImm, Expr, PrimValue, StringImm, Tuple
+from tvm.ir import Call
+
+from ...expr import DataTypeImm, Expr, StringImm, Tuple, prim_value
 from ...utils import convert_to_expr
 from . import _ffi_api
 
@@ -55,7 +57,7 @@ def alloc_storage(
     if isinstance(storage_scope, str):
         storage_scope = StringImm(storage_scope)
     if isinstance(runtime_device_index, int):
-        runtime_device_index = PrimValue(runtime_device_index)
+        runtime_device_index = prim_value(runtime_device_index)
     return _ffi_api.alloc_storage(shape, runtime_device_index, dtype, storage_scope)  # type: ignore
 
 
@@ -64,7 +66,7 @@ def alloc_tensor(
     offset: int | Expr,
     shape: Expr,
     dtype: str | Expr,
-    runtime_device_ind: int | Expr = PrimValue(0),
+    runtime_device_ind: int | Expr = prim_value(0),
 ) -> Call:
     """Construct a Call to allocate a tensor on a certain storage starting from the given offset.
 
@@ -92,10 +94,12 @@ def alloc_tensor(
         A relax Call, which gets the allocated tensor.
     """
     if isinstance(offset, int):
-        offset = PrimValue(offset)
+        offset = prim_value(offset)
     shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
+    if isinstance(runtime_device_ind, int):
+        runtime_device_ind = prim_value(runtime_device_ind)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
 
 

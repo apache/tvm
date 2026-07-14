@@ -50,7 +50,8 @@ macro(file_glob_append _output_list)
   set(${_output_list} ${_tmp1})
 endmacro()
 
-set(TVMRT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime")
+set(TVMRT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/backend/hexagon/runtime")
+set(TVM_CORE_RUNTIME_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime")
 
 if(DEFINED USE_HEXAGON_DEVICE)
   message(WARNING "USE_HEXAGON_DEVICE is deprecated, use USE_HEXAGON instead")
@@ -79,7 +80,7 @@ endif()
 
 if(NOT USE_HEXAGON)
   # USE_HEXAGON=OFF: codegen still works through the per-backend fallback
-  # module (src/target/hexagon/hexagon_fallback_module.cc), which is always
+  # module (src/backend/hexagon/codegen/hexagon_fallback_module.cc), which is always
   # compiled into libtvm via CODEGEN_SRCS.  No opt-stub registration is
   # needed.
   return()
@@ -122,14 +123,14 @@ if(BUILD_FOR_HEXAGON)
   # When building FOR Hexagon (the DSP itself), all runtime sources go into
   # the single libtvm_runtime (static or shared). No per-backend DSO split.
   file_glob_append(RUNTIME_HEXAGON_SRCS
-    "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
+    "${TVMRT_SOURCE_DIR}/*.cc"
   )
   # Add builtins to RelaxVM
   tvm_file_glob(GLOB VM_BUILTIN_SRC_CC src/runtime/vm/hexagon/*.cc)
   list(APPEND RUNTIME_SRCS ${VM_BUILTIN_SRC_CC})
 else()
   file_glob_append(RUNTIME_HEXAGON_SRCS
-    "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
+    "${TVMRT_SOURCE_DIR}/hexagon_module.cc"
   )
 endif()
 
@@ -137,7 +138,7 @@ set(htp_supported_archs "v68" "v69" "v73" "v75")
 list(FIND htp_supported_archs "${USE_HEXAGON_ARCH}" supported_arch_index)
 if(${supported_arch_index} EQUAL -1)
   # Exclude User DMA files when building for archs below v68
-  list(REMOVE_ITEM RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/hexagon_user_dma.cc")
+  list(REMOVE_ITEM RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon_user_dma.cc")
 endif()
 
 if(BUILD_FOR_HEXAGON)
@@ -160,7 +161,7 @@ if(BUILD_FOR_HEXAGON)
   # QHL support.
   if(USE_HEXAGON_QHL)
     file_glob_append(TVM_QHL_WRAPPER_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/qhl/*.cc"
+      "${TVMRT_SOURCE_DIR}/qhl/*.cc"
     )
 
     include_directories(
@@ -181,20 +182,20 @@ if(BUILD_FOR_HEXAGON)
   if(${supported_arch_index} GREATER -1)
     # Hand-written ops
     file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/ops/*.cc"
+      "${TVMRT_SOURCE_DIR}/ops/*.cc"
     )
 
     include_directories(
-      "${TVMRT_SOURCE_DIR}/hexagon/ops"
+      "${TVMRT_SOURCE_DIR}/ops"
     )
 
     set_source_files_properties(
-      "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_quant_hvx.cc"
+      "${TVMRT_SOURCE_DIR}/ops/conv2d_quant_hvx.cc"
       PROPERTIES COMPILE_FLAGS "-mhvx"
     )
 
     set_source_files_properties(
-      "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_fp16_hvx.cc"
+      "${TVMRT_SOURCE_DIR}/ops/conv2d_fp16_hvx.cc"
       PROPERTIES COMPILE_FLAGS "-mhvx"
     )
   endif()
@@ -249,21 +250,21 @@ if(USE_HEXAGON_RPC)
 
     add_custom_command(
       OUTPUT
-        "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.h"
-        "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
-        "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+        "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc.h"
+        "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc_skel.c"
+        "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc_stub.c"
       COMMAND
         ${QAIC_EXE_PATH} ${QAIC_FLAGS}
-          "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
-          -o "${TVMRT_SOURCE_DIR}/hexagon/rpc"
-      MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
+          "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc.idl"
+          -o "${TVMRT_SOURCE_DIR}/rpc"
+      MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc.idl"
     )
 
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         # We can't easily fix this at the source-code level, because the .c file is generated
         # by the qaic program.  But it should be safe to ignore the warning:
         # https://stackoverflow.com/questions/13905200/is-it-wise-to-ignore-gcc-clangs-wmissing-braces-warning
-        set_source_files_properties("${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+        set_source_files_properties("${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc_stub.c"
             PROPERTY COMPILE_FLAGS "-Wno-missing-braces")
     endif()
   endfunction()
@@ -273,12 +274,12 @@ if(USE_HEXAGON_RPC)
     add_android_paths()
     build_rpc_idl()
     file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/android/*.cc"
+      "${TVMRT_SOURCE_DIR}/rpc/android/*.cc"
     )
     # Add this file separately, because it's auto-generated, and glob won't
     # find it during cmake-time.
     list(APPEND RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+      "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc_stub.c"
     )
     list(APPEND TVM_RUNTIME_LINKER_LIBS cdsprpc)
 
@@ -289,30 +290,30 @@ if(USE_HEXAGON_RPC)
 
     # Include the generic RPC code into the TVM runtime.
     list(APPEND RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/rpc/minrpc/minrpc_server.h"
-      "${TVMRT_SOURCE_DIR}/rpc/minrpc/rpc_reference.h"
-      "${TVMRT_SOURCE_DIR}/rpc/rpc_module.cc"
-      "${TVMRT_SOURCE_DIR}/rpc/rpc_endpoint.cc"
-      "${TVMRT_SOURCE_DIR}/rpc/rpc_session.cc"
+      "${TVM_CORE_RUNTIME_SOURCE_DIR}/rpc/minrpc/minrpc_server.h"
+      "${TVM_CORE_RUNTIME_SOURCE_DIR}/rpc/minrpc/rpc_reference.h"
+      "${TVM_CORE_RUNTIME_SOURCE_DIR}/rpc/rpc_module.cc"
+      "${TVM_CORE_RUNTIME_SOURCE_DIR}/rpc/rpc_endpoint.cc"
+      "${TVM_CORE_RUNTIME_SOURCE_DIR}/rpc/rpc_session.cc"
       # TODO(masahi): Remove rpc_local_session.cc after verifying that things work without it
-      "${TVMRT_SOURCE_DIR}/rpc/rpc_local_session.cc"
+      "${TVM_CORE_RUNTIME_SOURCE_DIR}/rpc/rpc_local_session.cc"
     )
-    set(HEXAGON_PROFILER_DIR "${TVMRT_SOURCE_DIR}/hexagon/profiler")
+    set(HEXAGON_PROFILER_DIR "${TVMRT_SOURCE_DIR}/profiler")
     # Add the hardware-specific RPC code into the skel library.
     set_property(SOURCE ${HEXAGON_PROFILER_DIR}/lwp_handler.S PROPERTY LANGUAGE C)
     add_library(hexagon_rpc_skel SHARED
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon/rpc_server.cc"
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
+      "${TVMRT_SOURCE_DIR}/rpc/hexagon/rpc_server.cc"
+      "${TVMRT_SOURCE_DIR}/rpc/hexagon_rpc_skel.c"
       "${HEXAGON_PROFILER_DIR}/prof_utils.cc"
       "${HEXAGON_PROFILER_DIR}/lwp_handler.S"
     )
     target_include_directories(hexagon_rpc_skel
-      SYSTEM PRIVATE "${TVMRT_SOURCE_DIR}/hexagon/rpc"
+      SYSTEM PRIVATE "${TVMRT_SOURCE_DIR}/rpc"
     )
     # Add the simulator-specific RPC code into a shared library to be
     # executed via run_main_on_sim.
     add_library(hexagon_rpc_sim SHARED
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/rpc_server.cc"
+      "${TVMRT_SOURCE_DIR}/rpc/simulator/rpc_server.cc"
       "${HEXAGON_PROFILER_DIR}/prof_utils.cc"
       "${HEXAGON_PROFILER_DIR}/lwp_handler.S"
     )
@@ -324,7 +325,7 @@ if(USE_HEXAGON_RPC)
     find_hexagon_toolchain()
     add_hexagon_wrapper_paths()
     file_glob_append(RUNTIME_HEXAGON_SRCS
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/session.cc"
+      "${TVMRT_SOURCE_DIR}/rpc/simulator/session.cc"
     )
     list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
   endif()

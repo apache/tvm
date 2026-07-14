@@ -39,12 +39,13 @@ TVM_FFI_STATIC_INIT_BLOCK() { QuantizeAttrs::RegisterReflection(); }
 
 /* relax.quantize */
 
-Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
+Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_dtype) {
   ffi::ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.quantize");
-  return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -52,54 +53,70 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.quantize", quantize);
 }
 
-StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
+TensorType WithUnknownDtype(const TensorType& input_ty) {
+  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
+  output_ty->dtype = ffi::Optional<PrimType>();
+  return TensorType(output_ty);
+}
+
+Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
-  if (attrs->out_dtype != DataType::Int(8) && attrs->out_dtype != DataType::UInt(8) &&
-      attrs->out_dtype != DataType::Int(16) && attrs->out_dtype != DataType::UInt(16) &&
-      attrs->out_dtype != DataType::Float8E4M3FN() && attrs->out_dtype != DataType::Float8E5M2()) {
+  if (attrs->out_dtype != DLDataType{kDLInt, 8, 1} &&
+      attrs->out_dtype != DLDataType{kDLUInt, 8, 1} &&
+      attrs->out_dtype != DLDataType{kDLInt, 16, 1} &&
+      attrs->out_dtype != DLDataType{kDLUInt, 16, 1} &&
+      attrs->out_dtype != DLDataType{static_cast<uint8_t>(kDLFloat8_e4m3fn),
+                                     static_cast<uint8_t>(8), static_cast<uint16_t>(1)} &&
+      attrs->out_dtype != DLDataType{static_cast<uint8_t>(kDLFloat8_e5m2), static_cast<uint8_t>(8),
+                                     static_cast<uint16_t>(1)}) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Unsupported output datatype attribute for operation: '" << attrs->out_dtype;
   }
 
-  TensorStructInfo input_sinfo = GetInputTensorStructInfo(call, ctx)[0];
-  TensorStructInfo scale_sinfo = GetInputTensorStructInfo(call, ctx)[1];
-  TensorStructInfo zp_sinfo = GetInputTensorStructInfo(call, ctx)[2];
+  TensorType input_ty = GetInputTensorType(call, ctx)[0];
+  TensorType scale_ty = GetInputTensorType(call, ctx)[1];
+  TensorType zp_ty = GetInputTensorType(call, ctx)[2];
+  if (input_ty->IsUnknownDtype() || scale_ty->IsUnknownDtype() || zp_ty->IsUnknownDtype()) {
+    return WithUnknownDtype(input_ty);
+  }
+  PrimType input_dtype = input_ty->dtype.value();
+  PrimType scale_dtype = scale_ty->dtype.value();
+  PrimType zp_dtype = zp_ty->dtype.value();
 
   // Check input datatype:
-  if (input_sinfo->dtype != DataType::Float(16) && input_sinfo->dtype != DataType::Float(32)) {
+  if (input_dtype != PrimType::Float(16) && input_dtype != PrimType::Float(32)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
-        << "Unsupported input datatype for operation: " << input_sinfo->dtype;
+        << "Unsupported input datatype for operation: " << input_ty->dtype;
   }
 
   // Check datatype of scale param:
-  if (scale_sinfo->dtype != DataType::Float(32) && scale_sinfo->dtype != DataType::Float(16)) {
+  if (scale_dtype != PrimType::Float(32) && scale_dtype != PrimType::Float(16)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
-        << "scale param datatype should be one of [float16, float32], but got "
-        << scale_sinfo->dtype;
+        << "scale param datatype should be one of [float16, float32], but got " << scale_ty->dtype;
   }
 
   // Check datatype of zero_point param:
-  if (zp_sinfo->dtype != DataType::Int(8) && zp_sinfo->dtype != DataType::UInt(8) &&
-      zp_sinfo->dtype != DataType::Int(16) && zp_sinfo->dtype != DataType::UInt(16) &&
-      zp_sinfo->dtype != DataType::Int(32) && zp_sinfo->dtype != DataType::UInt(32) &&
-      zp_sinfo->dtype != DataType::Float(16)) {
+  if (zp_dtype != PrimType::Int(8) && zp_dtype != PrimType::UInt(8) &&
+      zp_dtype != PrimType::Int(16) && zp_dtype != PrimType::UInt(16) &&
+      zp_dtype != PrimType::Int(32) && zp_dtype != PrimType::UInt(32) &&
+      zp_dtype != PrimType::Float(16)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "zero_point param datatype should be one of "
         << "['int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'float16'], "
-        << "but got " << zp_sinfo->dtype;
+        << "but got " << zp_ty->dtype;
   }
 
   // Check that "axis" attribute is not out of range:
-  int axis = (attrs->axis < 0) ? (input_sinfo->ndim + attrs->axis) : attrs->axis;
-  if (axis < 0 || axis > input_sinfo->ndim - 1) {
+  int axis = (attrs->axis < 0) ? (input_ty->ndim + attrs->axis) : attrs->axis;
+  if (axis < 0 || axis > input_ty->ndim - 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "relax.quantize: axis param is out of range (" << attrs->axis << ")";
   }
 
-  auto check_param_size = [&](const TensorStructInfo& param_sinfo,
-                              const TensorStructInfo& data_sinfo, ffi::String param_name) {
-    const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
-    const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
+  auto check_param_size = [&](const TensorType& param_ty, const TensorType& data_ty,
+                              ffi::String param_name) {
+    const PrimExpr& param_dim = param_ty->GetShape().value()[0];
+    const PrimExpr& input_dim = data_ty->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "Size mismatch: " << call->op << ": the input shape at dim " << attrs->axis << " is '"
@@ -107,10 +124,10 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
     }
   };
 
-  auto is_scalar_or_singleton_vector = [&](const TensorStructInfo& param_sinfo) {
-    if (IsScalarTensor(param_sinfo)) return true;
-    if (param_sinfo->shape.defined() && param_sinfo->shape->IsInstance<ShapeExprNode>()) {
-      const auto& values = param_sinfo->shape.as<ShapeExprNode>()->values;
+  auto is_scalar_or_singleton_vector = [&](const TensorType& param_ty) {
+    if (IsScalarTensor(param_ty)) return true;
+    if (param_ty->shape.has_value() && param_ty->shape.value()->IsInstance<ShapeExprNode>()) {
+      const auto& values = param_ty->shape.as<ShapeExprNode>()->values;
       if (!values.empty()) {
         return std::all_of(values.begin(), values.end(), [&](const PrimExpr& dim) {
           return ctx->GetAnalyzer()->CanProveEqual(dim, 1);
@@ -121,14 +138,12 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   };
 
   // Check size matching of scale/zp params with input shape at dim = attrs->axis.
-  if (!is_scalar_or_singleton_vector(scale_sinfo))
-    check_param_size(scale_sinfo, input_sinfo, "scale");
-  if (!is_scalar_or_singleton_vector(zp_sinfo))
-    check_param_size(zp_sinfo, input_sinfo, "zero_point");
+  if (!is_scalar_or_singleton_vector(scale_ty)) check_param_size(scale_ty, input_ty, "scale");
+  if (!is_scalar_or_singleton_vector(zp_ty)) check_param_size(zp_ty, input_ty, "zero_point");
 
-  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
-  output_sinfo->dtype = attrs->out_dtype;
-  return TensorStructInfo(output_sinfo);
+  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
+  output_ty->dtype = PrimType(attrs->out_dtype);
+  return TensorType(output_ty);
 }
 
 TVM_REGISTER_OP("relax.quantize")
@@ -137,17 +152,18 @@ TVM_REGISTER_OP("relax.quantize")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("scale", "Tensor", "The quantization scale of the output tensor.")
     .add_argument("zero_point", "Tensor", "The quantization zero_point of the output tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoQuantize)
+    .set_attr<FInferType>("FInferType", InferTypeQuantize)
     .set_attr<bool>("FPurity", true);
 
 /* relax.dequantize */
 
-Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dtype) {
+Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_dtype) {
   ffi::ObjectPtr<QuantizeAttrs> attrs = ffi::make_object<QuantizeAttrs>();
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.dequantize");
-  return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -155,56 +171,65 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dequantize", dequantize);
 }
 
-StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
-  if (attrs->out_dtype != DataType::Float(16) && attrs->out_dtype != DataType::Float(32)) {
+  if (attrs->out_dtype != DLDataType{kDLFloat, 16, 1} &&
+      attrs->out_dtype != DLDataType{kDLFloat, 32, 1}) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Unsupported output datatype attribute for operation: " << attrs->out_dtype;
   }
 
-  TensorStructInfo input_sinfo = GetInputTensorStructInfo(call, ctx)[0];
-  TensorStructInfo scale_sinfo = GetInputTensorStructInfo(call, ctx)[1];
-  TensorStructInfo zp_sinfo = GetInputTensorStructInfo(call, ctx)[2];
+  TensorType input_ty = GetInputTensorType(call, ctx)[0];
+  TensorType scale_ty = GetInputTensorType(call, ctx)[1];
+  TensorType zp_ty = GetInputTensorType(call, ctx)[2];
+  if (input_ty->IsUnknownDtype() || scale_ty->IsUnknownDtype() || zp_ty->IsUnknownDtype()) {
+    return WithUnknownDtype(input_ty);
+  }
+  PrimType input_dtype = input_ty->dtype.value();
+  PrimType scale_dtype = scale_ty->dtype.value();
+  PrimType zp_dtype = zp_ty->dtype.value();
 
   // Check input datatype:
-  if (input_sinfo->dtype != DataType::Int(8) && input_sinfo->dtype != DataType::UInt(8) &&
-      input_sinfo->dtype != DataType::Int(16) && input_sinfo->dtype != DataType::UInt(16) &&
-      input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::Float8E4M3FN() &&
-      input_sinfo->dtype != DataType::Float8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
-      input_sinfo->dtype != DataType::Float(32)) {
+  if (input_dtype != PrimType::Int(8) && input_dtype != PrimType::UInt(8) &&
+      input_dtype != PrimType::Int(16) && input_dtype != PrimType::UInt(16) &&
+      input_dtype != PrimType::Int(32) &&
+      input_dtype != PrimType(DLDataType{static_cast<uint8_t>(kDLFloat8_e4m3fn),
+                                         static_cast<uint8_t>(8), static_cast<uint16_t>(1)}) &&
+      input_dtype != PrimType(DLDataType{static_cast<uint8_t>(kDLFloat8_e5m2),
+                                         static_cast<uint8_t>(8), static_cast<uint16_t>(1)}) &&
+      input_dtype != PrimType::Float(16) && input_dtype != PrimType::Float(32)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Unsupported input datatype for operation: " << attrs->out_dtype;
   }
 
   // Check datatype of scale param:
-  if (scale_sinfo->dtype != DataType::Float(32) && scale_sinfo->dtype != DataType::Float(16)) {
+  if (scale_dtype != PrimType::Float(32) && scale_dtype != PrimType::Float(16)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
-        << "scale param datatype should be one of [float16, float32], but got "
-        << scale_sinfo->dtype;
+        << "scale param datatype should be one of [float16, float32], but got " << scale_ty->dtype;
   }
 
   // Check datatype of zero_point param:
-  if (zp_sinfo->dtype != DataType::Int(8) && zp_sinfo->dtype != DataType::UInt(8) &&
-      zp_sinfo->dtype != DataType::Int(16) && zp_sinfo->dtype != DataType::UInt(16) &&
-      zp_sinfo->dtype != DataType::Int(32) && zp_sinfo->dtype != DataType::UInt(32) &&
-      zp_sinfo->dtype != DataType::Float(16)) {
+  if (zp_dtype != PrimType::Int(8) && zp_dtype != PrimType::UInt(8) &&
+      zp_dtype != PrimType::Int(16) && zp_dtype != PrimType::UInt(16) &&
+      zp_dtype != PrimType::Int(32) && zp_dtype != PrimType::UInt(32) &&
+      zp_dtype != PrimType::Float(16)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "zero_point param datatype should be one of "
         << "['int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'float16'], "
-        << "but got " << zp_sinfo->dtype;
+        << "but got " << zp_ty->dtype;
   }
 
   // Check that "axis" attribute is not out of range:
-  int axis = (attrs->axis < 0) ? (input_sinfo->ndim + attrs->axis) : attrs->axis;
-  if (axis < 0 || axis > input_sinfo->ndim - 1) {
+  int axis = (attrs->axis < 0) ? (input_ty->ndim + attrs->axis) : attrs->axis;
+  if (axis < 0 || axis > input_ty->ndim - 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "relax.dequantize: axis param is out of range (" << attrs->axis << ")";
   }
 
-  auto check_param_size = [&](const TensorStructInfo& param_sinfo,
-                              const TensorStructInfo& data_sinfo, ffi::String param_name) {
-    const PrimExpr& param_dim = param_sinfo->GetShape().value()[0];
-    const PrimExpr& input_dim = data_sinfo->GetShape().value()[axis];
+  auto check_param_size = [&](const TensorType& param_ty, const TensorType& data_ty,
+                              ffi::String param_name) {
+    const PrimExpr& param_dim = param_ty->GetShape().value()[0];
+    const PrimExpr& input_dim = data_ty->GetShape().value()[axis];
     if (!ctx->GetAnalyzer()->CanProveEqual(param_dim, input_dim)) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "Size mismatch: " << call->op << ": the input shape at dim " << attrs->axis << " is '"
@@ -212,10 +237,10 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
     }
   };
 
-  auto is_scalar_or_singleton_vector = [&](const TensorStructInfo& param_sinfo) {
-    if (IsScalarTensor(param_sinfo)) return true;
-    if (param_sinfo->shape.defined() && param_sinfo->shape->IsInstance<ShapeExprNode>()) {
-      const auto& values = param_sinfo->shape.as<ShapeExprNode>()->values;
+  auto is_scalar_or_singleton_vector = [&](const TensorType& param_ty) {
+    if (IsScalarTensor(param_ty)) return true;
+    if (param_ty->shape.has_value() && param_ty->shape.value()->IsInstance<ShapeExprNode>()) {
+      const auto& values = param_ty->shape.as<ShapeExprNode>()->values;
       if (!values.empty()) {
         return std::all_of(values.begin(), values.end(), [&](const PrimExpr& dim) {
           return ctx->GetAnalyzer()->CanProveEqual(dim, 1);
@@ -226,14 +251,12 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   };
 
   // Check size matching of scale/zp params with input shape at dim = attrs->axis.
-  if (!is_scalar_or_singleton_vector(scale_sinfo))
-    check_param_size(scale_sinfo, input_sinfo, "scale");
-  if (!is_scalar_or_singleton_vector(zp_sinfo))
-    check_param_size(zp_sinfo, input_sinfo, "zero_point");
+  if (!is_scalar_or_singleton_vector(scale_ty)) check_param_size(scale_ty, input_ty, "scale");
+  if (!is_scalar_or_singleton_vector(zp_ty)) check_param_size(zp_ty, input_ty, "zero_point");
 
-  auto output_sinfo = ffi::make_object<TensorStructInfoNode>(*input_sinfo.get());
-  output_sinfo->dtype = attrs->out_dtype;
-  return TensorStructInfo(output_sinfo);
+  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
+  output_ty->dtype = PrimType(attrs->out_dtype);
+  return TensorType(output_ty);
 }
 
 TVM_REGISTER_OP("relax.dequantize")
@@ -242,7 +265,7 @@ TVM_REGISTER_OP("relax.dequantize")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("scale", "Tensor", "The quantization scale of the input tensor.")
     .add_argument("zero_point", "Tensor", "The quantization zero_point of the input tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoDequantize)
+    .set_attr<FInferType>("FInferType", InferTypeDequantize)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax

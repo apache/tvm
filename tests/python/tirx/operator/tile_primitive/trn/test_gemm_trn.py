@@ -283,7 +283,7 @@ def test_gemm_with_sbuf_output():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)
@@ -530,7 +530,7 @@ def test_gemm_guard():
             # fmt: on
     with target:
         mod = tvm.IRModule({"main": gemm})
-        mod = tvm.tirx.transform.trn.TrnPrivateBufferAlloc()(mod)
+        mod = tvm.tirx.trn.transform.TrnPrivateBufferAlloc()(mod)
         mod = tvm.tirx.transform.LowerTIRx()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         assert_structural_equal(mod["main"], expected)

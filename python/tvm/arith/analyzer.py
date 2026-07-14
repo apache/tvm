@@ -128,12 +128,97 @@ class Analyzer(Object):
     def __init__(self):
         self.__init_handle_by_constructor__(_ffi_api.Analyzer)
 
-    def const_int_bound(self, expr: tirx.PrimExpr) -> ConstIntBound:
+    @property
+    def is_z3_enabled(self) -> bool:
+        """Whether this build includes the Z3 backend (``USE_Z3=ON``).
+
+        The Z3-specific methods (:py:meth:`get_smtlib2`, :py:meth:`get_z3_stats`,
+        :py:meth:`set_z3_timeout_ms`, :py:meth:`set_z3_rlimit`) only work when
+        this is ``True``.
+        """
+        return bool(_ffi_api.AnalyzerIsZ3Enabled(self))
+
+    def _check_z3_enabled(self) -> None:
+        if not self.is_z3_enabled:
+            raise RuntimeError(
+                "The Z3 backend is not available in this build. "
+                "Rebuild TVM with USE_Z3=ON to use Z3-specific Analyzer APIs."
+            )
+
+    def get_smtlib2(self, expr: tirx.Expr | None = None) -> str:
+        """Get the current Z3 problem in SMT-LIB2 format.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``), since there is no
+            solver state to export. Use :py:attr:`is_z3_enabled` to check first.
+
+        Parameters
+        ----------
+        expr : Optional[Expr]
+            The expression to prove. If provided, its negation is added to the problem.
+        """
+        self._check_z3_enabled()
+        return _ffi_api.AnalyzerGetSMTLIB2(self, expr)
+
+    def set_z3_timeout_ms(self, timeout_ms: int) -> None:
+        """Set Z3 timeout in milliseconds.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``).
+
+        Parameters
+        ----------
+        timeout_ms : int
+            The timeout in milliseconds.
+        """
+        self._check_z3_enabled()
+        _ffi_api.AnalyzerSetZ3TimeoutMs(self, timeout_ms)
+
+    def set_z3_rlimit(self, rlimit: int) -> None:
+        """Set Z3 resource limit.
+
+        The resource limit gives deterministic solver budgeting (unlike a wall
+        clock timeout). A value of ``0`` disables the limit.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``).
+
+        Parameters
+        ----------
+        rlimit : int
+            The resource limit.
+        """
+        self._check_z3_enabled()
+        _ffi_api.AnalyzerSetZ3RLimit(self, rlimit)
+
+    def get_z3_stats(self) -> str:
+        """Get Z3 solver statistics.
+
+        Raises
+        ------
+        RuntimeError
+            If TVM was built without Z3 (``USE_Z3=OFF``).
+
+        Returns
+        -------
+        stats : str
+            The Z3 statistics.
+        """
+        self._check_z3_enabled()
+        return _ffi_api.AnalyzerGetZ3Stats(self)
+
+    def const_int_bound(self, expr: tirx.Expr) -> ConstIntBound:
         """Find constant integer bound for expr.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -158,12 +243,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerConstIntBoundIsBound(self, var)
 
-    def modular_set(self, expr: tirx.PrimExpr) -> ModularSet:
+    def modular_set(self, expr: tirx.Expr) -> ModularSet:
         """Find a modular set that expr belongs to.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -173,12 +258,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerModularSet(self, expr)
 
-    def simplify(self, expr: tirx.PrimExpr, steps: int = 2) -> tirx.PrimExpr:
+    def simplify(self, expr: tirx.Expr, steps: int = 2) -> tirx.Expr:
         """Simplify expression via both rewrite and canonicalization.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
         steps : The simplification runs in the order of
                 rewrite_simplify (step 1) -> canonical_simplify (step 2) ->
@@ -193,12 +278,30 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerSimplify(self, expr, steps)
 
-    def rewrite_simplify(self, expr: tirx.PrimExpr) -> tirx.PrimExpr:
+    def clone(self) -> "Analyzer":
+        """Return a deep copy of this analyzer with independent state.
+
+        The returned analyzer carries the same accumulated facts (variable
+        bounds, modular sets, bindings, integer-set domains, literal
+        constraints and transitive comparisons) as this one, but owns its own
+        state: binding or simplifying on either analyzer afterwards does not
+        affect the other. Unlike copying the handle, this is a true deep copy.
+
+        Do not call this while a constraint scope is active on this analyzer.
+
+        Returns
+        -------
+        result : Analyzer
+            A new analyzer holding an independent copy of the facts.
+        """
+        return _ffi_api.AnalyzerClone(self)
+
+    def rewrite_simplify(self, expr: tirx.Expr) -> tirx.Expr:
         """Simplify expression via rewriting rules.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -215,12 +318,12 @@ class Analyzer(Object):
     def reset_rewrite_simplify_stats(self):
         _ffi_api.AnalyzerResetRewriteSimplifyStats(self)
 
-    def canonical_simplify(self, expr: tirx.PrimExpr) -> tirx.PrimExpr:
+    def canonical_simplify(self, expr: tirx.Expr) -> tirx.Expr:
         """Simplify expression via canonicalization.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -230,12 +333,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerCanonicalSimplify(self, expr)
 
-    def int_set(self, expr: tirx.PrimExpr, dom_map: dict[tirx.Var, IntSet] | None = None) -> IntSet:
+    def int_set(self, expr: tirx.Expr, dom_map: dict[tirx.Var, IntSet] | None = None) -> IntSet:
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         dom_map : Optional[Dict[tvm.tirx.Var, tvm.arith.IntSet]]
@@ -249,18 +352,18 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerIntSet(self, expr, dom_map)
 
-    def can_prove(
-        self, expr: tirx.PrimExpr, strength: ProofStrength = ProofStrength.DEFAULT
-    ) -> bool:
+    def can_prove(self, expr: tirx.Expr, strength: ProofStrength = ProofStrength.DEFAULT) -> bool:
         """Check whether we can prove expr to be true.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         strength: ProofStrength
-            The proof strength
+            The proof strength. When TVM is built with Z3 (``USE_Z3=ON``), the
+            optional Z3 fallback is only consulted at ``SYMBOLIC_BOUND`` or
+            higher, after the native analyzers fail to prove the predicate.
 
         Returns
         -------
@@ -287,7 +390,7 @@ class Analyzer(Object):
     def bind(
         self,
         var: tirx.Var,
-        expr: tirx.PrimExpr | ir.Range,
+        expr: tirx.Expr | ir.Range,
         allow_override: bool = False,
     ) -> None:
         """Bind a variable to the expression.
@@ -297,7 +400,7 @@ class Analyzer(Object):
         var : tvm.tirx.Var
             The variable.
 
-        expr : Union[tirx.PrimExpr, ir.Range]
+        expr : Union[tirx.Expr, ir.Range]
             The expression or the range to bind to.
 
         allow_override : bool
@@ -305,12 +408,12 @@ class Analyzer(Object):
         """
         return _ffi_api.AnalyzerBind(self, var, expr, allow_override)
 
-    def constraint_scope(self, constraint: tirx.PrimExpr) -> ConstraintScope:
+    def constraint_scope(self, constraint: tirx.Expr) -> ConstraintScope:
         """Create a constraint scope.
 
         Parameters
         ----------
-        constraint : PrimExpr
+        constraint : Expr
             The constraint expression.
 
         returns
@@ -363,15 +466,15 @@ class Analyzer(Object):
         else:
             raise TypeError(f"Do not know how to handle type {type(info)}")
 
-    def can_prove_equal(self, lhs: tirx.PrimExpr, rhs: tirx.PrimExpr) -> bool:
+    def can_prove_equal(self, lhs: tirx.Expr, rhs: tirx.Expr) -> bool:
         """Whether we can prove that lhs == rhs
 
         Parameters
         ----------
-        lhs: PrimExpr
+        lhs: Expr
             The left-hand side of the comparison
 
-        rhs: PrimExpr
+        rhs: Expr
             The right-hand side of the comparison
 
         Returns
@@ -382,16 +485,16 @@ class Analyzer(Object):
         return _ffi_api.AnalyzerCanProveEqual(self, lhs, rhs)
 
     def try_compare(
-        self, lhs: tirx.PrimExpr, rhs: tirx.PrimExpr, propagate_inequalities: bool = True
+        self, lhs: tirx.Expr, rhs: tirx.Expr, propagate_inequalities: bool = True
     ) -> CompareResult:
         """Compare lhs and rhs using previously provided known comparisons.
 
         Parameters
         ----------
-        lhs : PrimExpr
+        lhs : Expr
             The left-hand side of the comparison.
 
-        rhs : PrimExpr
+        rhs : Expr
             The right-hand side of the comparison.
 
         propagate_inequalities : bool

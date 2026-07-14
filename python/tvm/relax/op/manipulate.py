@@ -18,14 +18,15 @@
 
 from collections.abc import Callable
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir import is_prim_expr
+from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IndexMap, IntImm
 
-from ..expr import Expr, PrimValue, ShapeExpr
+from ..expr import Expr, ShapeExpr, prim_value
 from ..expr import Tuple as RxTuple
 from . import _ffi_api
 
-PrimExprLike = int | PrimExpr
+PrimExprLike = int | Expr
 
 
 def broadcast_to(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
@@ -114,7 +115,7 @@ def flatten(x: Expr) -> Expr:
 def layout_transform(
     x: Expr,
     index_map: Callable | IndexMap,
-    pad_value: int | float | PrimValue | None = None,
+    pad_value: int | float | Expr | None = None,
     axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
     input_axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
 ):
@@ -128,7 +129,7 @@ def layout_transform(
     index_map : Callable | IndexMap
         The transformation to apply.
 
-    pad_value : Optional[int | float | PrimValue]
+    pad_value : Optional[int | float | Expr]
         The value used for padding if the transformation results in implicit padding.
         If not specified, any value can be used.
 
@@ -144,18 +145,20 @@ def layout_transform(
 
     if callable(index_map):
         index_map = IndexMap.from_func(index_map, index_dtype=default_index_dtype)
-    x_dtype = x.struct_info.dtype
+    x_dtype = x.ty.dtype
 
     # Explicitly convert python int/float pad_value to the x's type.  If the default behavior
     # is applied, it would be converted to int32/float32, which may not match the x's type.
     if pad_value is None:
         pass
-    elif not isinstance(pad_value, PrimValue):
-        if "int" in x_dtype and isinstance(pad_value, int):
-            pad_value = IntImm(x_dtype, pad_value)
-        elif "float" in x_dtype and (isinstance(pad_value, int | float)):
-            pad_value = FloatImm(x_dtype, float(pad_value))
-        pad_value = PrimValue(pad_value)
+    elif not is_prim_expr(pad_value):
+        if x_dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(pad_value, int):
+            pad_value = IntImm(x_dtype.dtype, pad_value)
+        elif x_dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT) and (
+            isinstance(pad_value, int | float)
+        ):
+            pad_value = FloatImm(x_dtype.dtype, float(pad_value))
+        pad_value = prim_value(pad_value)
 
     if axis_separators is None:
         axis_separators = []
@@ -219,6 +222,8 @@ def reshape(x: Expr, shape: tuple[PrimExprLike] | Expr) -> Expr:
     That is to say, in any case the dimension length of ``-1`` cannot be inferred in
     compile-time, an error will be thrown.
     """
+    if not isinstance(shape, tuple | list | Expr) or is_prim_expr(shape):
+        raise TypeError("shape must be a tuple/list or a Relax shape expression")
     return _ffi_api.reshape(x, shape)  # type: ignore
 
 
@@ -233,7 +238,7 @@ def split(
     along given axis (if possible). Last section will be smaller if the tensor
     size along the given dimension is not divisible by the integer.
 
-    If indices_or_sections is a tuple of mixture of int or PrimExpr,
+    If indices_or_sections is a tuple of mixture of int or Expr,
     the entries indicate the indices where along axis the array is split.
 
     Parameters
@@ -458,6 +463,31 @@ def flip(data, axis):
         relax.flip(x, axis=1) = [[2., 1.], [4., 3.]]
     """
     return _ffi_api.flip(data, axis)  # type: ignore
+
+
+def reverse_sequence(data: Expr, seq_lengths: Expr, seq_axis: int = 1, batch_axis: int = 0) -> Expr:
+    """Reverses variable length slices.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    seq_lengths : relax.Expr
+        A 1-D tensor containing sequence lengths for each batch.
+
+    seq_axis : int
+        The axis along which to reverse variable length slices.
+
+    batch_axis : int
+        The axis that indexes the batch.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.reverse_sequence(data, seq_lengths, seq_axis, batch_axis)  # type: ignore
 
 
 def gather_elements(data: Expr, indices: Expr, axis: int = 0) -> Expr:
@@ -817,17 +847,21 @@ def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
         The computed result tensor with the same shape as `data`.
 
     """
-    if not isinstance(start, PrimValue):
-        start = PrimValue(start)
-    if not isinstance(end, PrimValue):
-        end = PrimValue(end)
-    if not isinstance(step, PrimValue):
-        step = PrimValue(step)
+    if not is_prim_expr(start):
+        start = prim_value(start)
+    if not is_prim_expr(end):
+        end = prim_value(end)
+    if not is_prim_expr(step):
+        step = prim_value(step)
     return _ffi_api.slice_scatter(input_tensor, src, axis, start, end, step)
 
 
 def one_hot(
-    indices: Expr, on_value: PrimValue, off_value: PrimValue, depth: int, axis: int = -1
+    indices: Expr,
+    on_value: int | float | Expr,
+    off_value: int | float | Expr,
+    depth: int,
+    axis: int = -1,
 ) -> Expr:
     """Returns a one-hot tensor.
 
@@ -836,10 +870,10 @@ def one_hot(
     indices : relax.Expr
         The indices to set to `on_value`.
 
-    on_value : relax.PrimValue
+    on_value : int | float | Expr
         The value to fill at `indices`.
 
-    off_value : relax.PrimValue
+    off_value : int | float | Expr
         The value to fill at other locations.
 
     depth : int
@@ -867,4 +901,6 @@ def one_hot(
              [0, 1, 0],
              [0, 0, 1]]
     """
+    on_value = prim_value(on_value)
+    off_value = prim_value(off_value)
     return _ffi_api.one_hot(indices, on_value, off_value, depth, axis)  # type: ignore

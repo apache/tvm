@@ -413,7 +413,7 @@ class Conv2dx2_partitioned:
                     data_layout="NHWC",
                     kernel_layout="OHWI",
                     out_layout="NHWC",
-                    out_dtype="void",
+                    out_dtype=None,
                 )
                 R.output(gv_2)
             return gv_2
@@ -500,7 +500,7 @@ def test_cyclic_dependency():
     relu_pat = is_op("relax.nn.relu")(conv_pat)
     add_pat = is_op("relax.add")(relu_pat, wildcard())
 
-    with pytest.raises(tvm.error.TVMError) as err:
+    with pytest.raises(RuntimeError) as err:
         relax.transform.FuseOpsByPattern(
             [("compiler_A.conv2d_relu_add", add_pat)], bind_constants=True
         )(Branch)
@@ -591,8 +591,8 @@ def test_unmatched_calls_may_include_lambda_functions(annotate_codegen):
 
 
 def test_compare_with_merge_composite_path():
-    x = relax.Var("x", relax.TensorStructInfo([10, 10], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([10, 10], "float32"))
+    x = relax.Var("x", relax.TensorType([10, 10], "float32"))
+    y = relax.Var("y", relax.TensorType([10, 10], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("main", [x, y]):
         with bb.dataflow():
@@ -769,7 +769,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     cls.relu,
                     (lv,),
-                    out_sinfo=R.Tensor((1, 64, 56, 56), dtype="float32"),
+                    out_ty=R.Tensor((1, 64, 56, 56), dtype="float32"),
                 )
                 R.output(relu1)
             return relu1
@@ -838,7 +838,7 @@ def test_check_pattern():
         expr = context.annotated_expr["root"]
         assert isinstance(lhs, relax.expr.Var) and lhs.name_hint == "data"
         assert isinstance(rhs, relax.expr.Var) and rhs.name_hint == "weight1"
-        assert isinstance(expr, relax.expr.Call) and expr.op.name == "relax.nn.conv2d"
+        assert isinstance(expr, tvm.ir.Call) and expr.op.name == "relax.nn.conv2d"
         return False
 
     check(

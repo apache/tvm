@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import functools
 import itertools
 
 import numpy as np
@@ -35,6 +36,17 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
 )
 from tvm.s_tir import dlight as dl
 
+
+def has_flashinfer():
+    """Check whether FlashInfer (with the JIT module generator) is available."""
+    try:
+        from flashinfer.jit import gen_batch_mla_module  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 np.random.seed(0)
 
 reserved_nseq = 32
@@ -50,7 +62,7 @@ sm_scale = (qk_nope_head_dim + qk_rope_head_dim) ** (-0.5)
 kv_lora_rank = 512
 dtype = "float16"
 dtype_torch = getattr(torch, dtype)
-device = tvm.cuda()
+device = None
 device_torch = torch.device("cuda")
 
 fclear = None
@@ -88,7 +100,7 @@ def _dumb_function():
     raise RuntimeError("Dumb function isn't supposed to be accessed.")
 
 
-def set_global_func(dtype):
+def set_global_func(dtype, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence
     global fpopn, fbegin_forward, fend_forward
     global fself_attn, fcross_attn, fappend_mla_kv, fkv_merge_attn_output
@@ -96,7 +108,6 @@ def set_global_func(dtype):
     global ftranspose_append, fcopy_cache, fmla_prefill, fmla_prefill_plan
     global fattn_prefill_ragged, fattn_prefill_ragged_plan
     global fmerge_state, fmerge_state_additional, fcopy_single_page
-    global w_kv, w_uk, w_uv
 
     fclear = tvm.get_global_func("vm.builtin.kv_state_clear")
     fadd_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
@@ -114,7 +125,6 @@ def set_global_func(dtype):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv_mla")
 
-    target = tvm.target.Target.from_device(device)
     flashinfer_prefill_mod = relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
         dtype_q=dtype,
         dtype_kv=dtype,
@@ -158,6 +168,9 @@ def set_global_func(dtype):
         fcopy_single_page,
     ) = builts
 
+
+def _initialize_weights():
+    global w_kv, w_uk, w_uv
     w_kv = torch.empty(
         (kv_lora_rank, num_attention_heads * (qk_nope_head_dim + v_head_dim)),
         device=device_torch,
@@ -225,11 +238,40 @@ def create_kv_cache(dtype):
 
 @pytest.fixture(params=itertools.product(["float16"]))
 def kv_cache_and_config(request):
+    if not has_flashinfer():
+        pytest.skip("FlashInfer is not available")
     global dtype, dtype_torch
     (dtype,) = request.param
     dtype_torch = getattr(torch, dtype)
-    set_global_func(dtype)
-    return (create_kv_cache(dtype),)
+    target = tvm.testing.run_with_gpu_lock(_get_cuda_target)
+    set_global_func(dtype, target)
+    return request.param
+
+
+def _get_cuda_target():
+    return tvm.target.Target.from_device(tvm.cuda())
+
+
+def _run_with_kv_cache(test):
+    @functools.wraps(test)
+    def wrapper(kv_cache_and_config):
+        def run_and_check():
+            global device, w_kv, w_uk, w_uv
+            device = tvm.cuda()
+            (dtype,) = kv_cache_and_config
+            try:
+                _initialize_weights()
+                cache = create_kv_cache(dtype)
+                return test((cache,))
+            finally:
+                device = None
+                w_kv = None
+                w_uk = None
+                w_uv = None
+
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+
+    return wrapper
 
 
 def verify_cached_kv(kv_cache, seq_ids, expected_kv):
@@ -430,7 +472,7 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_kv)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -450,7 +492,7 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, batch, cached_kv)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -470,7 +512,7 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
         )
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -539,7 +581,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, [(10, 1), (12, 1)], cached_kv)
 
 
-@pytest.mark.skip(reason="Require FlashInfer enabled")
+@_run_with_kv_cache
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -569,10 +611,4 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_config):
 
 
 if __name__ == "__main__":
-    set_global_func(dtype)
-    cache = create_kv_cache(dtype)
-    cache_and_config = (cache,)
-    test_paged_attention_kv_cache_prefill_and_decode(cache_and_config)
-    test_paged_attention_kv_cache_remove_sequence(cache_and_config)
-    test_paged_attention_kv_cache_fork_sequence(cache_and_config)
-    test_paged_attention_kv_cache_popn(cache_and_config)
+    tvm.testing.main()

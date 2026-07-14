@@ -20,7 +20,6 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.base import TVMError
 from tvm.relax.analysis import name_to_binding
 from tvm.relax.binding_rewrite import DataflowBlockRewrite
 from tvm.relax.expr import DataflowVar, Var
@@ -141,7 +140,7 @@ def test_remove_unused_undef():
     root_fn = Identity["main"]
     dfb = root_fn.body.blocks[0]
 
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         rwt = DataflowBlockRewrite(dfb, root_fn)
         rwt.remove_unused(Var("whatever"))
 
@@ -290,7 +289,14 @@ def test_simple_replace_all_uses():
     n2binding = name_to_binding(root_fn)
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
+    missing = Var("missing")
+    with pytest.raises(RuntimeError, match="Cannot find"):
+        rwt.replace_all_uses(missing, missing)
+
     rwt.replace_all_uses(n2binding["lv0"][0].var, n2binding["lv1"][0].var)
+    rwt.replace_all_uses(n2binding["lv1"][0].var, n2binding["lv1"][0].var)
+    with pytest.raises(RuntimeError, match=r"is used by 2 vars"):
+        rwt.remove_unused(n2binding["lv1"][0].var)
     rwt.remove_unused(n2binding["lv0"][0].var)
 
     assert_immutability(rwt, dfb, root_fn)

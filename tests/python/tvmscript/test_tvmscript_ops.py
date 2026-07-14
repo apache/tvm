@@ -21,6 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -174,7 +175,7 @@ def ceildiv_test(A: T.Buffer(16, "int32")):
         A[i] = T.ceildiv(A[i], 4)
 
 
-@tvm.testing.requires_llvm
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_ceildiv():
     f = tvm.compile(ceildiv_test, "llvm")
     a = tvm.runtime.tensor(np.arange(16).astype("int32"))

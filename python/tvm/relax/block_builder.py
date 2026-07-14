@@ -32,7 +32,7 @@ from tvm.runtime import Object
 from . import _ffi_api
 from .expr import BaseFunc, Binding, BindingBlock, Expr, GlobalVar, Tuple, Var
 from .op.base import call_tir, call_tir_with_grad
-from .struct_info import StructInfo
+from .type import Type
 from .utils import gen_call_tir_inputs
 
 
@@ -92,7 +92,7 @@ class TestingScope:
             else:
                 raise ValueError("def_vars only can take tirx.Var")
         # setup a dummy var so shape is in scope.
-        sparam = rx.Var("sparam", rx.ShapeStructInfo(shape_vars))
+        sparam = rx.Var("sparam", rx.ShapeType(shape_vars))
         self._scope_params = [sparam]
 
     def __enter__(self):
@@ -114,8 +114,8 @@ class BlockBuilder(Object):
 
         m = tirx.Var("m", "int32")
         n = tirx.Var("n", "int32")
-        x = rx.Var("x", rx.TensorStructInfo([m, n], "float16"))
-        y = rx.Var("y", rx.TensorStructInfo([n], "float16")
+        x = rx.Var("x", rx.TensorType([m, n], "float16"))
+        y = rx.Var("y", rx.TensorType([n], "float16"))
         bb = rx.BlockBuilder()
         with bb.function([x, y], "func"):
             with bb.dataflow() as df:
@@ -361,13 +361,13 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
-        tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+        tir_func, call_args, output_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
 
         if not primfunc_name:
             primfunc_name = func.__name__
         gvar = self.add_func(tir_func, primfunc_name)
 
-        return call_tir(gvar, call_args, output_sinfo, tir_vars)
+        return call_tir(gvar, call_args, output_ty, tir_vars)
 
     def call_te_with_grad(
         self,
@@ -413,7 +413,7 @@ class BlockBuilder(Object):
         """
 
         primfunc_name = kwargs.pop("primfunc_name_hint", None)
-        tir_func, call_args, output_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+        tir_func, call_args, output_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
 
         if te_grad_kwargs is None:
             te_grad_kwargs = {}
@@ -423,7 +423,7 @@ class BlockBuilder(Object):
         gvar = self.add_func(tir_func, primfunc_name)
 
         return call_tir_with_grad(
-            gvar, call_args, output_sinfo, te_grad_name, te_grad_kwargs, tir_vars
+            gvar, call_args, output_ty, te_grad_name, te_grad_kwargs, tir_vars
         )
 
     def emit_te(self, func: Callable, *args: Any, **kwargs: Any) -> Var:
@@ -456,8 +456,8 @@ class BlockBuilder(Object):
 
             bb = rx.BlockBuilder()
             n, m = tirx.Var("n", "int64"), tirx.Var("m", "int64")
-            x = rx.Var("x", rx.TensorStructInfo([n, m], "float32"))
-            y = rx.Var("y", rx.TensorStructInfo([n, m], "float32"))
+            x = rx.Var("x", rx.TensorType([n, m], "float32"))
+            y = rx.Var("y", rx.TensorType([n, m], "float32"))
 
             def te_func(args, args_dict, msg):
                 A = args[0]
@@ -506,8 +506,8 @@ class BlockBuilder(Object):
 
             bb = relax.BlockBuilder()
             n = tirx.Var("n", "int64")
-            x = relax.Var("x", relax.TensorStructInfo([n], "float32"))
-            y = relax.Var("y", relax.TensorStructInfo([n + 1], "float32"))
+            x = relax.Var("x", relax.TensorType([n], "float32"))
+            y = relax.Var("y", relax.TensorType([n + 1], "float32"))
 
             def te_func(A):
                 C = te.compute((n + 1), lambda i: A[i])
@@ -547,7 +547,7 @@ class BlockBuilder(Object):
         name_hint = kwargs.pop("name_hint", "")
         return self.emit(self.call_te(func, *args, **kwargs), name_hint=name_hint)
 
-    def match_cast(self, value: Expr, struct_info: StructInfo, name_hint: str = "") -> Var:
+    def match_cast(self, value: Expr, ty: Type, name_hint: str = "") -> Var:
         """Emit a MatchCast.
 
         Parameters
@@ -555,8 +555,8 @@ class BlockBuilder(Object):
         value : tvm.relax.Expr
             The value of the MatchCast to be emitted.
 
-        struct_info : StructInfo
-            The struct info to be matched.
+        ty : Type
+            The type to be matched.
 
         name_hint : str
             The name of the match cast
@@ -569,7 +569,7 @@ class BlockBuilder(Object):
         return _ffi_api.BlockBuilderEmitMatchCast(
             self,
             value,
-            struct_info,
+            ty,
             name_hint,
         )  # type: ignore
 
@@ -651,8 +651,8 @@ class BlockBuilder(Object):
         finally:
             self.end_scope()
 
-        # do not specify ret_struct_info and let constructor deduce
-        # from seqe.struct_info
+        # do not specify ret_ty and let constructor deduce
+        # from seqe.ty
         func = rx.Function(self._func._params, seqe, is_pure=self._func._is_pure)
         for key, value in self._func._attrs.items():
             func = func.with_attr(key, value)

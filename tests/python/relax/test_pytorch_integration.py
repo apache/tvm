@@ -49,13 +49,13 @@ class PyTorchIntegrationModule(BasePyModule):
         n = x.shape[0]
 
         # Call TIR function
-        lv = self.call_tir(self.matmul, [x, w], out_sinfo=R.Tensor((n, 20), "float32"))
+        lv = self.call_tir(self.matmul, [x, w], out_ty=R.Tensor((n, 20), "float32"))
 
         # Apply ReLU
         lv1 = F.relu(lv)
 
         # Call packed function (will be added dynamically)
-        lv2 = self.call_dps_packed("my_softmax", [lv1, 1], out_sinfo=R.Tensor((n, 20), "float32"))
+        lv2 = self.call_dps_packed("my_softmax", [lv1, 1], out_ty=R.Tensor((n, 20), "float32"))
 
         # Call Python function
         lv3 = self.my_identity_func(lv2)
@@ -105,16 +105,20 @@ class TestPyTorchIntegration:
         module = PyTorchIntegrationModule
 
         if tvm.cuda().exist:
-            assert hasattr(module, "__call__"), "Module should be callable"
 
-            device = tvm.cuda(0)
-            instance = module(device)
+            def run_and_check():
+                assert hasattr(module, "__call__"), "Module should be callable"
 
-            assert isinstance(instance, BasePyModule), "Instance should be BasePyModule"
-            required_methods = ["main", "call_tir", "call_dps_packed"]
-            for method in required_methods:
-                assert hasattr(instance, method), f"Instance should have method: {method}"
-            assert "cuda" in str(instance.target)
+                device = tvm.cuda(0)
+                instance = module(device)
+
+                assert isinstance(instance, BasePyModule), "Instance should be BasePyModule"
+                required_methods = ["main", "call_tir", "call_dps_packed"]
+                for method in required_methods:
+                    assert hasattr(instance, method), f"Instance should have method: {method}"
+                assert "cuda" in str(instance.target)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 
@@ -230,29 +234,33 @@ class TestPyTorchIntegration:
         module = PyTorchIntegrationModule
 
         if tvm.cuda().exist:
-            device = tvm.cuda(0)
-            instance = module(device)
 
-            # Test basic GPU functionality without complex TIR operations
-            assert isinstance(instance, BasePyModule)
-            assert "cuda" in str(instance.target)
+            def run_and_check():
+                device = tvm.cuda(0)
+                instance = module(device)
 
-            # Test that we can create and work with GPU tensors
-            n = 5
-            x = torch.randn(n, 16, dtype=torch.float32, device="cuda")
-            w = torch.randn(16, 20, dtype=torch.float32, device="cuda")
+                # Test basic GPU functionality without complex TIR operations
+                assert isinstance(instance, BasePyModule)
+                assert "cuda" in str(instance.target)
 
-            assert x.device.type == "cuda"
-            assert w.device.type == "cuda"
-            assert x.shape == (n, 16)
-            assert w.shape == (16, 20)
+                # Test that we can create and work with GPU tensors
+                n = 5
+                x = torch.randn(n, 16, dtype=torch.float32, device="cuda")
+                w = torch.randn(16, 20, dtype=torch.float32, device="cuda")
 
-            # Test basic PyTorch operations on GPU
-            result = torch.matmul(x, w)
-            assert isinstance(result, torch.Tensor)
-            assert result.shape == (n, 20)
-            assert result.dtype == torch.float32
-            assert result.device.type == "cuda"
+                assert x.device.type == "cuda"
+                assert w.device.type == "cuda"
+                assert x.shape == (n, 16)
+                assert w.shape == (16, 20)
+
+                # Test basic PyTorch operations on GPU
+                result = torch.matmul(x, w)
+                assert isinstance(result, torch.Tensor)
+                assert result.shape == (n, 20)
+                assert result.dtype == torch.float32
+                assert result.device.type == "cuda"
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 

@@ -33,6 +33,7 @@ from tvm.relax.frontend.torch import from_fx
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def verify_model(torch_model, input_info, binding, expected):
@@ -900,7 +901,8 @@ def test_outer():
     verify_model(Outer(), input_infos, {}, expected)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_softplus():
     import torch
     from torch.nn import Module
@@ -937,7 +939,8 @@ def test_softplus():
     verify_model(Softplus1(), input_info, {}, expected)
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_leakyrelu():
     import torch
     from torch.nn import Module
@@ -3553,6 +3556,56 @@ def test_logical_and():
     verify_model(LogicalAnd(), input_info, {}, expected)
 
 
+def test_logical_or():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalOr(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_or(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_or(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalOr(), input_info, {}, expected)
+
+
+def test_logical_xor():
+    input_info = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
+
+    class LogicalXor(Module):
+        def forward(self, lhs, rhs):
+            return torch.logical_xor(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            rhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(lhs, dtype="bool")
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.astype(rhs, dtype="bool")
+                lv2: R.Tensor((1, 3, 10, 10), dtype="bool") = R.logical_xor(lv, lv1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalXor(), input_info, {}, expected)
+
+
 def test_pow_integer():
     input_info = [([4], "int64")]
 
@@ -3601,7 +3654,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 5, 5), dtype="float32") = lv
                 R.output(gv)
@@ -3638,7 +3690,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 20, 20), dtype="float32") = lv
                 R.output(gv)
@@ -3675,7 +3726,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
                 R.output(gv)
@@ -3712,7 +3762,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
                 R.output(gv)
@@ -3750,7 +3799,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 20, 20), dtype="float32") = lv
                 R.output(gv)
@@ -3786,7 +3834,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
                 R.output(gv)
@@ -3821,7 +3868,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
                 R.output(gv)
@@ -3856,7 +3902,6 @@ def test_interpolate():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 8, 40, 40), dtype="float32") = lv
                 R.output(gv)
@@ -3892,7 +3937,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 3, 5, 5), dtype="float32") = lv
                 R.output(gv)
@@ -3930,7 +3974,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 5, 5, 3), dtype="float32") = lv
                 R.output(gv)
@@ -3968,7 +4011,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 20, 20, 3), dtype="float32") = lv
                 R.output(gv)
@@ -4009,7 +4051,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
                 R.output(gv)
@@ -4048,7 +4089,6 @@ def test_interpolate_nhwc_layout():
                     cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
-                    out_dtype="",
                 )
                 gv: R.Tensor((1, 8, 40, 40, 3), dtype="float32") = lv
                 R.output(gv)
@@ -4350,7 +4390,7 @@ def test_masked_fill_inplace():
         ) -> R.Tensor((10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
-                    input, R.const(1.5, "float32"), dtype="void"
+                    input, R.const(1.5, "float32")
                 )
                 lv1: R.Tensor((10, 10), dtype="float32") = R.where(mask, lv, input)
                 gv: R.Tensor((10, 10), dtype="float32") = lv1
@@ -4983,8 +5023,8 @@ def test_keep_params():
 
     assert len(params) == len(func.params) - 1
     for param_var, param_tensor in zip(func.params[1:], params):
-        assert tuple(x.value for x in param_var.struct_info.shape.values) == param_tensor.shape
-        assert param_var.struct_info.dtype == param_tensor.dtype
+        assert tuple(x.value for x in param_var.ty.shape.values) == param_tensor.shape
+        assert param_var.ty.dtype == param_tensor.dtype
 
     tvm.testing.assert_allclose(params[0].numpy(), model.conv.bias.detach().detach().numpy())
     tvm.testing.assert_allclose(params[1].numpy(), model.conv.weight.detach().detach().numpy())
@@ -5280,6 +5320,27 @@ def test_min():
             return gv
 
     verify_model(Min(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1)
+
+
+def test_atan2():
+    class Atan2(Module):
+        def forward(self, x, y):
+            return torch.atan2(x, y)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_1: R.Tensor((256, 256), dtype="float32"),
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.atan2(inp_0, inp_1)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Atan2(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1)
 
 
 def test_attention():
@@ -6011,7 +6072,7 @@ def test_ones_like():
             (128, 128), dtype="float32"
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0, dtype="void")
+                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0)
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -6031,7 +6092,7 @@ def test_zero_inplace():
             (128, 128), dtype="float32"
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0)
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -6051,7 +6112,7 @@ def test_zeros_like():
             (128, 128), dtype="float32"
         ):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0)
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv

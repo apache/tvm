@@ -58,9 +58,9 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
   TVM_FFI_ICHECK(data_type == gamma_type && data_type == beta_type)
       << "instance_norm: data, gamma and beta must have the same type";
-  TVM_FFI_ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
+  TVM_FFI_ICHECK(data_type == PrimType::Float(32) || data_type == PrimType::Float(16))
       << "instance_norm: only support float32 and float16 for now";
-  bool is_float16 = data_type == DataType::Float(16);
+  bool is_float16 = data_type == PrimType::Float(16);
   // sum x and x^2
   auto ndim = data->shape.size();
   TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
@@ -69,9 +69,10 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   auto target_shape =
       MakeReduceTargetShape(real_axis, data, /*keepdims=*/false, /*atleast1d=*/true);
   auto func = MakeTupleSumReducer();
+  PrimType f32_ty = PrimType::Float(32);
 
-  auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func,
-                  &data](const ffi::Array<Var>& indices) {
+  auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func, &data,
+                  f32_ty](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
@@ -86,15 +87,14 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
         arg_counter++;
       }
     }
-    auto square = [is_float16](const PrimExpr& x) {
+    auto square = [is_float16, f32_ty](const PrimExpr& x) {
       if (is_float16) {
-        return Cast(DataType::Float(32), x) * Cast(DataType::Float(32), x);
+        return Cast(f32_ty, x) * Cast(f32_ty, x);
       }
       return x * x;
     };
     if (is_float16) {
-      return func({Cast(DataType::Float(32), data(eval_range)), square(data(eval_range))},
-                  reduce_axes, nullptr);
+      return func({Cast(f32_ty, data(eval_range)), square(data(eval_range))}, reduce_axes, nullptr);
     } else {
       return func({data(eval_range), square(data(eval_range))}, reduce_axes, nullptr);
     }
@@ -106,12 +106,12 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   auto temp_x = temp_x_x2[0];
   auto temp_x2 = temp_x_x2[1];
 
-  auto reduce_extent = make_const(data->dtype, 1);
+  auto reduce_extent = MakeConst(PrimType(data->dtype), 1);
   for (int i : real_axis) {
     reduce_extent *= data->shape[i];
   }
-  auto instance_norm_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> reduce_indices, non_reduce_indices;
+  auto instance_norm_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> reduce_indices, non_reduce_indices;
 
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
@@ -120,13 +120,13 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
         non_reduce_indices.push_back(indices[i]);
       }
     }
-    Var channel;
+    PrimVar channel;
     channel = indices[channel_axis];
     auto mean = temp_x(non_reduce_indices) / reduce_extent;
     auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;
-    auto instance_norm = (data(indices) - mean) * tvm::rsqrt(var + make_const(var->dtype, epsilon));
+    auto instance_norm = (data(indices) - mean) * tvm::rsqrt(var + MakeConst(var.ty(), epsilon));
     if (is_float16) {
-      instance_norm = Cast(DataType::Float(16), instance_norm);
+      instance_norm = Cast(PrimType::Float(16), instance_norm);
     }
     instance_norm = topi::multiply(instance_norm, gamma(channel));
     if (beta.defined()) {

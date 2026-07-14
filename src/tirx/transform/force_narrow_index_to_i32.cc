@@ -38,7 +38,7 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
   static PrimFunc RewriteDataType(PrimFunc func) {
     // Check if the integer parameter buffers have dtype other than int32.
     for (auto it : func->buffer_map) {
-      if (it.second->dtype.is_int() && it.second->dtype.bits() > 32) {
+      if (it.second->dtype.MatchesCode(DLDataTypeCode::kDLInt) && it.second->dtype.bits() > 32) {
         TVM_FFI_THROW(InternalError)
             << "The buffer " << it.second << " in the function buffer map has dtype "
             << it.second->dtype << ". The function is " << func;
@@ -51,22 +51,22 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
 
  private:
   explicit Int32DTypeNarrower(PrimFunc func)
-      : IndexDataTypeNormalizer(DataType::Int(32)), func_(std::move(func)) {}
+      : IndexDataTypeNormalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
-  PrimExpr VisitExpr_(const IntImmNode* op) final {
+  Expr VisitExpr_(const IntImmNode* op) final {
     // ignore the enabled condition and always rewrite i64
-    if (op->dtype == DataType::Int(64)) {
-      TVM_FFI_ICHECK_LE(op->value, Downcast<IntImm>(max_value(target_data_type_))->value);
-      return IntImm(DataType::Int(32), op->value);
+    if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
+      TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
+      return IntImm::Int32(op->value);
     }
     return ffi::GetRef<IntImm>(op);
   }
 
   Stmt VisitStmt_(const SBlockNode* block) final {
-    SBlock block_ = Downcast<SBlock>(IndexDataTypeNormalizer::VisitStmt_(block));
+    SBlock block_ = IndexDataTypeNormalizer::VisitStmt_(block).as_or_throw<SBlock>();
     // Check if the allocated integer buffers have dtype other than int32.
     for (const Buffer& buf : block_->alloc_buffers) {
-      if (buf->dtype.is_int() && buf->dtype.bits() > 32) {
+      if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {
         TVM_FFI_THROW(InternalError)
             << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
             << ". The function is " << func_;

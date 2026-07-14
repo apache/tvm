@@ -157,6 +157,7 @@ def test_meta_schedule_task_scheduler_single():
         [
             ms.TuneContext(
                 MatmulModule,
+                num_threads=1,
                 target=tvm.target.Target("llvm"),
                 space_generator=_schedule_matmul,
                 search_strategy=ms.search_strategy.ReplayTrace(),
@@ -183,6 +184,7 @@ def test_meta_schedule_task_scheduler_multiple():
     tasks = [
         ms.TuneContext(
             MatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -191,6 +193,7 @@ def test_meta_schedule_task_scheduler_multiple():
         ),
         ms.TuneContext(
             MatmulReluModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -199,6 +202,7 @@ def test_meta_schedule_task_scheduler_multiple():
         ),
         ms.TuneContext(
             BatchMatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_batch_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -255,6 +259,7 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
     tasks = [
         ms.TuneContext(
             MatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -263,6 +268,7 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
         ),
         ms.TuneContext(
             MatmulReluModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -271,6 +277,7 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
         ),
         ms.TuneContext(
             BatchMatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_batch_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -310,6 +317,7 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
     tasks = [
         ms.TuneContext(
             MatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -318,6 +326,7 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
         ),
         ms.TuneContext(
             MatmulReluModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -326,6 +335,7 @@ def test_meta_schedule_task_scheduler_multiple_gradient_based():
         ),
         ms.TuneContext(
             BatchMatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_batch_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),
@@ -394,6 +404,7 @@ def test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy()
     tasks = [
         ms.TuneContext(
             MatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=NullSearchStrategy(rounds_with_empty_candidates=5),
@@ -402,6 +413,7 @@ def test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy()
         ),
         ms.TuneContext(
             BatchMatmulModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_batch_matmul,
             search_strategy=NullSearchStrategy(rounds_with_empty_candidates=0),
@@ -410,6 +422,7 @@ def test_meta_schedule_task_scheduler_gradient_based_with_null_search_strategy()
         ),
         ms.TuneContext(
             MatmulReluModule,
+            num_threads=1,
             target=tvm.target.Target("llvm"),
             space_generator=_schedule_matmul,
             search_strategy=ms.search_strategy.ReplayTrace(),

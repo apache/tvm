@@ -89,7 +89,7 @@ def test_error_if_predicate_uses_block_variables():
                     T.where(vi < 6)
                     T.evaluate(0)
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         tvm.s_tir.transform.ConvertBlocksToOpaque()(Before)
 
 

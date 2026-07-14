@@ -18,10 +18,13 @@
 """Utility methods for generic GPU."""
 
 from tvm import DataType, s_tir, tirx
+from tvm.ir import PrimType
 from tvm.target import Target
 
 
-def get_bytes(dtype: DataType | str) -> int:
+def get_bytes(dtype: DataType | PrimType | str) -> int:
+    if isinstance(dtype, PrimType):
+        dtype = dtype.dtype
     if isinstance(dtype, str):
         dtype = DataType(dtype)
     return dtype.itemsize

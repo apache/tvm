@@ -39,7 +39,7 @@ namespace tvm {
 namespace tirx {
 
 Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
-  auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
+  auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),
              buffer_var->span);
@@ -52,7 +52,7 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
   }
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
+Expr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
   auto it = new_var_remap_.find(op);
   if (it == new_var_remap_.end()) {
     return ffi::GetRef<Var>(op);
@@ -79,7 +79,7 @@ Buffer UpdatePointerStorageScope::GetUpdatedBuffer(Buffer buf) {
   }
 
   // Update the buffer's var, if needed.
-  auto remapped = Downcast<Var>(StmtExprMutator::VisitExpr(buf->data));
+  auto remapped = StmtExprMutator::VisitExpr(buf->data).as_or_throw<Var>();
   if (!remapped.same_as(buf->data)) {
     auto writer = buf.CopyOnWrite();
     writer->data = remapped;
@@ -91,22 +91,22 @@ Buffer UpdatePointerStorageScope::GetUpdatedBuffer(Buffer buf) {
 }
 
 Stmt UpdatePointerStorageScope::VisitStmt_(const AllocBufferNode* op) {
-  auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+  auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
   return UpdateBufferAccess(node);
 }
 
 Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
-  auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+  auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
   return UpdateBufferAccess(node);
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
-  auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+Expr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
+  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
   return UpdateBufferAccess(node);
 }
 
 Stmt UpdatePointerStorageScope::VisitStmt_(const BufferStoreNode* op) {
-  auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+  auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
   return UpdateBufferAccess(node);
 }
 

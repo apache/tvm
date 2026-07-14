@@ -28,10 +28,9 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "jenkins"))
-sys.path.append(str(REPO_ROOT / "ci" / "scripts" / "github"))
 
+from cmd_utils import tags_from_title
 from git_utils import GitHubRepo, git
-from github_tag_teams import tags_from_title
 
 GITHUB_TOKEN = os.environ["GITHUB_TOKEN"]
 

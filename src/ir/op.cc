@@ -52,11 +52,13 @@ const Op& Op::Get(const ffi::String& name) {
   return reg->op();
 }
 
-OpRegEntry::OpRegEntry(uint32_t reg_index) {
+Op OpRegEntry::MakeOp(uint32_t reg_index) {
   ffi::ObjectPtr<OpNode> n = ffi::make_object<OpNode>();
   n->index_ = reg_index;
-  op_ = Op(n);
+  return Op(n);
 }
+
+OpRegEntry::OpRegEntry(uint32_t reg_index) : op_(MakeOp(reg_index)) {}
 
 OpRegEntry& OpRegEntry::RegisterOrGet(const ffi::String& name) {
   return OpRegistry::Global()->RegisterOrGet(name);

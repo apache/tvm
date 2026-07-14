@@ -42,22 +42,22 @@ namespace {
 /* \brief Lookup key for subexpression replacements
  *
  * The lookup key must contain the expression being bound, along with
- * the struct info used for a match cast, if applicable.  Using
+ * the type used for a match cast, if applicable.  Using
  * `MatchCast` with StructuralEqual and StructuralHash would be almost
  * correct, but acts as a point of definition for symbolic variables
- * within the output struct info.  As a result, it would erroneously
+ * within the output type.  As a result, it would erroneously
  * de-duplicate `R.match_cast(A, R.Tensor([m,n]))` and
  * `R.match_cast(A, R.Tensor([p,q]))`, even though they define
  * different symbolic variables.
  */
 struct ReplacementKey {
   tvm::relax::Expr bound_value;
-  tvm::ffi::Optional<tvm::relax::StructInfo> match_cast = std::nullopt;
+  tvm::ffi::Optional<tvm::Type> match_cast = std::nullopt;
 
   explicit ReplacementKey(const tvm::relax::Binding& binding)
       : bound_value(GetBoundValue(binding)) {
     if (const auto* ptr = binding.as<tvm::relax::MatchCastNode>()) {
-      match_cast = ptr->struct_info;
+      match_cast = ptr->ty;
     }
   }
 
@@ -116,7 +116,7 @@ class CommonSubexprEliminator : public ExprMutator {
       if (binding.as<VarBindingNode>()) {
         return VarBinding(binding->var, bound_value);
       } else if (auto match_cast = binding.as<MatchCastNode>()) {
-        return MatchCast(binding->var, bound_value, match_cast->struct_info);
+        return MatchCast(binding->var, bound_value, match_cast->ty);
       } else {
         TVM_FFI_THROW(InternalError) << "Binding must be either VarBinding or MatchCast, "
                                      << "but was " << binding->GetTypeKey();
@@ -125,7 +125,7 @@ class CommonSubexprEliminator : public ExprMutator {
 
     ReplacementKey lookup_key(output_binding);
 
-    if (call_only_ && !bound_value->IsInstance<relax::CallNode>()) {
+    if (call_only_ && !bound_value->IsInstance<tvm::CallNode>()) {
       VLOG(1) << "Since call_only_ is true, it is forbidden to de-duplicate " << bound_value;
 
     } else if (ContainsImpureCall(bound_value)) {
@@ -141,7 +141,7 @@ class CommonSubexprEliminator : public ExprMutator {
               << "and occurrences of " << binding->var << " will be replaced with "
               << it->second[0];
       output_binding = VarBinding(binding->var, it->second[0]);
-      var_remap_.insert({binding->var->vid, it->second[0]});
+      var_remap_.insert({binding->var, it->second[0]});
       it->second.push_back(binding->var);
 
     } else {
@@ -170,8 +170,7 @@ class CommonSubexprEliminator : public ExprMutator {
     Expr true_branch = VisitWithInnerScope(op->true_branch);
     Expr false_branch = VisitWithInnerScope(op->false_branch);
     if (op->cond.same_as(cond) && op->true_branch.same_as(true_branch) &&
-        op->false_branch.same_as(false_branch) &&
-        VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
+        op->false_branch.same_as(false_branch) && VisitAndCheckTypeFieldUnchanged(op->ty)) {
       return ffi::GetRef<Expr>(op);
     } else {
       return If(cond, true_branch, false_branch, op->span);
@@ -221,7 +220,7 @@ namespace transform {
 
 Pass EliminateCommonSubexpr(bool call_only) {
   auto pass_func = [=](Function func, IRModule m, PassContext pc) {
-    return Downcast<Function>(EliminateCommonSubexpr(func, call_only));
+    return EliminateCommonSubexpr(func, call_only).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }

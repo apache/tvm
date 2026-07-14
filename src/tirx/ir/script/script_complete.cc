@@ -45,8 +45,9 @@ class ScriptCompleter : public StmtMutator {
   ffi::Map<Var, Buffer>* buffer_var_map_;
   Stmt VisitStmt_(const SBlockRealizeNode* op) final {
     for (const PrimExpr& value : op->iter_values) {
-      TVM_FFI_ICHECK(value.dtype().is_int())
-          << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
+      PrimType value_ty = value.ty();
+      TVM_FFI_ICHECK(value_ty.code() == DLDataTypeCode::kDLInt)
+          << "BlockRealize iter_value expected a IntImm, but got " << value_ty->dtype;
     }
     return StmtMutator::VisitStmt_(op);
   }
@@ -63,7 +64,7 @@ class ScriptCompleter : public StmtMutator {
 
     bool is_root_block = this->is_root_block_;
     this->is_root_block_ = false;
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
+    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
@@ -79,7 +80,7 @@ class ScriptCompleter : public StmtMutator {
     int mask = 0;
     auto it = op->annotations.find(s_tir::attr::script_parsing_detect_access);
     if (it != op->annotations.end()) {
-      mask = Downcast<IntImm>((*it).second)->value;
+      mask = (*it).second.as_or_throw<IntImm>()->value;
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0 && s_tir_) {
@@ -154,7 +155,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<Buffer>& root_allocates,
 
   if (s_tir && should_insert_root) {
     SBlock root_block({}, {}, {}, "root", std::move(res), std::nullopt, root_allocates);
-    res = SBlockRealize({}, IntImm(DataType::Bool(), 1), std::move(root_block));
+    res = SBlockRealize({}, IntImm::Bool(true), std::move(root_block));
   }
 
   // generate surrounding loops automatically

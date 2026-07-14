@@ -20,10 +20,12 @@ from collections.abc import Callable
 
 import tvm
 from tvm import te
+from tvm.ir import Call
+from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IntImm
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Constant, Expr
+from ...expr import Constant, Expr
 
 ##################### Types #####################
 
@@ -38,7 +40,8 @@ TEFunc = Callable[..., te.Tensor]
 LegalizeFunc = Callable[[BlockBuilder, Call], Expr]
 
 
-##################### Utilities #####################
+def _is_relax_expr(expr: object) -> bool:
+    return isinstance(expr, Expr) and not tvm.ir.is_prim_expr(expr)
 
 
 def _try_convert_to_scalar_const(
@@ -65,17 +68,18 @@ def _try_convert_to_scalar_const(
         if the python native flag is True.
         Or return the input itself if it is not a scalar constant.
     """
-    if isinstance(expr, Constant) and expr.struct_info.ndim == 0:
+    if isinstance(expr, Constant) and expr.ty.ndim == 0:
         # get the value of the scalar constant
         value = expr.data.numpy()[()].item()
-        dtype = expr.struct_info.dtype
+        dtype = expr.ty.dtype
+        dtype_str = str(dtype.dtype)
         if python_native:
             return value
         # preserve the data type of the constant
-        if dtype.startswith("float"):
-            return tvm.tirx.FloatImm(dtype, value)
-        elif dtype.startswith("int") or dtype.startswith("uint") or dtype.startswith("bool"):
-            return tvm.tirx.IntImm(dtype, value)
+        if dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):
+            return tvm.tirx.FloatImm(dtype_str, value)
+        elif dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT, DataTypeCode.BOOL):
+            return tvm.tirx.IntImm(dtype_str, value)
     return expr
 
 

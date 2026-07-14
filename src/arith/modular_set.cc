@@ -97,7 +97,7 @@ struct ModularSetAnalyzer::Entry {
   }
 };
 
-class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(const PrimExpr&)> {
+class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
 
@@ -282,8 +282,8 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry VisitLeftShift(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0]);
-    Entry b = VisitExpr(op->args[1]);
+    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     if (b.is_const()) {
       return Entry(a.coeff << b.base, a.base << b.base);
     }
@@ -291,24 +291,28 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
   }
 
   Entry VisitRightShift(const CallNode* op) {
-    Entry b = VisitExpr(op->args[1]);
+    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     // a c x  / c -> a x
     if (b.is_const()) {
-      return DivByConst(op->args[0], static_cast<int64_t>(1) << b.base, true);
+      return DivByConst(op->args[0].as_or_throw<PrimExpr>(), static_cast<int64_t>(1) << b.base,
+                        true);
     }
     return Everything();
   }
 
   Entry VisitBitwiseAnd(const CallNode* op) {
-    Entry b = VisitExpr(op->args[1]);
+    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     if (b.is_const()) {
       int shift;
-      if (is_const_power_of_two_integer(IntImm(DataType::Int(32), b.base + 1), &shift)) {
-        return ModByConst(op->args[0], static_cast<int64_t>(1) << shift, true);
+      if (is_const_power_of_two_integer(IntImm::Int32(b.base + 1), &shift)) {
+        return ModByConst(op->args[0].as_or_throw<PrimExpr>(), static_cast<int64_t>(1) << shift,
+                          true);
       }
     }
     return Everything();
   }
+
+  void CopyFrom(const Impl& other) { var_map_ = other.var_map_; }
 
  private:
   /*! \brief pointer to parent. */
@@ -406,6 +410,10 @@ std::function<void()> ModularSetAnalyzer::EnterConstraint(const PrimExpr& constr
 ModularSetAnalyzer::ModularSetAnalyzer(AnalyzerObj* parent) : impl_(new Impl(parent)) {}
 
 ModularSetAnalyzer::~ModularSetAnalyzer() { delete impl_; }
+
+void ModularSetAnalyzer::CopyFrom(const ModularSetAnalyzer& other) {
+  impl_->CopyFrom(*other.impl_);
+}
 
 }  // namespace arith
 }  // namespace tvm

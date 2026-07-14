@@ -248,7 +248,7 @@ def conv2d_nhwc(
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns
@@ -789,7 +789,7 @@ def conv(
     auto_scheduler_rewritten_layout: str
         Layout from autoscheduler's layout rewritting.
 
-    meta_schedule_original_shape : Optional[List[PrimExpr]]
+    meta_schedule_original_shape : Optional[List[Expr]]
         The original shape of the input tensor.
 
     auto_scheduler_should_rewrite_layout : bool
@@ -1031,7 +1031,7 @@ def conv2d_winograd_nhwc(
         Whether the kernel is precomputed
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns
@@ -1087,7 +1087,7 @@ def conv2d_winograd_nchw(
         Whether the kernel is precomputed
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns
@@ -1148,7 +1148,7 @@ def _conv2d_winograd_nhwc_impl(
         The cache level to write to in multi-level tiling rule in MetaSchedule.
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns
@@ -1438,7 +1438,7 @@ def conv2d_winograd_nhwc_without_weight_transform(
         Specifies the output data type.
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns
@@ -1489,7 +1489,7 @@ def conv2d_winograd_nchw_without_weight_transform(
         Specifies the output data type.
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns

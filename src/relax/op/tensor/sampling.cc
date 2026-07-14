@@ -37,14 +37,16 @@ TVM_FFI_STATIC_INIT_BLOCK() { MultinomialFromUniformAttrs::RegisterReflection();
 
 /* relax.multinomial_from_uniform */
 
-Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices, DataType dtype) {
+Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices,
+                              DLDataType dtype) {
   ffi::ObjectPtr<MultinomialFromUniformAttrs> attrs =
       ffi::make_object<MultinomialFromUniformAttrs>();
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.multinomial_from_uniform");
-  return Call(op, {std::move(prob), std::move(uniform_sample), std::move(sample_indices)},
-              Attrs(attrs), {});
+  return Call(Type::Missing(), op,
+              {std::move(prob), std::move(uniform_sample), std::move(sample_indices)}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -52,64 +54,71 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.multinomial_from_uniform", multinomial_from_uniform);
 }
 
-StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
-  TensorStructInfo prob_sinfo = GetInputTensorStructInfo(call, 0, ctx);
-  TensorStructInfo uniform_sample_sinfo = GetInputTensorStructInfo(call, 1, ctx);
-  TensorStructInfo sample_indices_sinfo = GetInputTensorStructInfo(call, 2, ctx);
+  TensorType prob_ty = GetInputTensorType(call, 0, ctx);
+  TensorType uniform_sample_ty = GetInputTensorType(call, 1, ctx);
+  TensorType sample_indices_ty = GetInputTensorType(call, 2, ctx);
   const auto* attrs = call->attrs.as<MultinomialFromUniformAttrs>();
 
-  if (!prob_sinfo->dtype.is_float()) {
+  // Only the element kind matters here; shape inference does not depend on vector lanes.
+  if (!prob_ty->IsUnknownDtype() &&
+      !prob_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input prob to have float dtype. "
            "However, the given prob dtype is "
-        << prob_sinfo->dtype;
+        << prob_ty->dtype;
   }
-  if (!uniform_sample_sinfo->dtype.is_float()) {
+  // Only the element kind matters here; shape inference does not depend on vector lanes.
+  if (!uniform_sample_ty->IsUnknownDtype() &&
+      !uniform_sample_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat,
+                                                    DLDataTypeCode::kDLBfloat)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample to have float "
            "dtype. However, the given uniform_sample dtype is "
-        << uniform_sample_sinfo->dtype;
+        << uniform_sample_ty->dtype;
   }
-  if (!sample_indices_sinfo->dtype.is_int()) {
+  // Only the element kind matters here; shape inference does not depend on vector lanes.
+  if (!sample_indices_ty->IsUnknownDtype() &&
+      !sample_indices_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLInt)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Multinomial from uniform op requires the input sample_indices to have int "
            "dtype. However, the given sample_indices dtype is "
-        << sample_indices_sinfo->dtype;
+        << sample_indices_ty->dtype;
   }
-  if (prob_sinfo->IsUnknownNdim() || uniform_sample_sinfo->IsUnknownNdim() ||
-      sample_indices_sinfo->IsUnknownNdim()) {
-    return TensorStructInfo(attrs->dtype, kUnknownNDim, prob_sinfo->vdevice);
+  if (prob_ty->IsUnknownNdim() || uniform_sample_ty->IsUnknownNdim() ||
+      sample_indices_ty->IsUnknownNdim()) {
+    return TensorType(PrimType(attrs->dtype), kUnknownNDim, prob_ty->vdevice);
   }
-  if (prob_sinfo->ndim != 2) {
+  if (prob_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Multinomial_from_uniform op requires the input prob to be a 2D tensor. "
            "However, the given prob tensor has ndim "
-        << prob_sinfo->ndim;
+        << prob_ty->ndim;
   }
-  if (uniform_sample_sinfo->ndim != 2) {
+  if (uniform_sample_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Multinomial_from_uniform op requires the input uniform_sample to be a 2D "
            "tensor. However, the given uniform_sample tensor has ndim "
-        << uniform_sample_sinfo->ndim;
+        << uniform_sample_ty->ndim;
   }
-  if (sample_indices_sinfo->ndim != 2) {
+  if (sample_indices_ty->ndim != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Multinomial_from_uniform op requires the input sample_indices to be a 2D "
            "tensor. However, the given sample_indices tensor has ndim "
-        << sample_indices_sinfo->ndim;
+        << sample_indices_ty->ndim;
   }
 
   // Expected to be `(batch, vocab_size)`
-  const auto* prob_shape = prob_sinfo->shape.as<ShapeExprNode>();
+  const auto* prob_shape = prob_ty->shape.as<ShapeExprNode>();
   // Expected to be `(n, 1)`
-  const auto* uniform_sample_shape = uniform_sample_sinfo->shape.as<ShapeExprNode>();
+  const auto* uniform_sample_shape = uniform_sample_ty->shape.as<ShapeExprNode>();
   // Expected to be `(n, 1)`
-  const auto* sample_indices_shape = sample_indices_sinfo->shape.as<ShapeExprNode>();
+  const auto* sample_indices_shape = sample_indices_ty->shape.as<ShapeExprNode>();
   // The output shape is expected to be `(n, 1)`
 
   if (prob_shape == nullptr || uniform_sample_shape == nullptr || sample_indices_shape == nullptr) {
-    return TensorStructInfo(attrs->dtype, 2, prob_sinfo->vdevice);
+    return TensorType(PrimType(attrs->dtype), 2, prob_ty->vdevice);
   }
 
   PrimExpr batch = prob_shape->values[0];
@@ -129,10 +138,10 @@ StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBu
         << "Multinomial_from_uniform op requires the input uniform_sample and "
            "sample_indices to be 2D tensors with the second dimension being 1. "
            "However, the given uniform_sample tensor has shape "
-        << uniform_sample_sinfo->shape << " and the given sample_indices tensor has shape "
-        << sample_indices_sinfo->shape;
+        << uniform_sample_ty->shape << " and the given sample_indices tensor has shape "
+        << sample_indices_ty->shape;
   }
-  return TensorStructInfo(ShapeExpr({n, 1}), attrs->dtype, prob_sinfo->vdevice);
+  return TensorType(ShapeExpr({n, 1}), PrimType(attrs->dtype), prob_ty->vdevice);
 }
 
 TVM_REGISTER_OP("relax.multinomial_from_uniform")
@@ -141,7 +150,7 @@ TVM_REGISTER_OP("relax.multinomial_from_uniform")
     .add_argument("prob", "Tensor", "The probability tensor.")
     .add_argument("uniform_sample", "Tensor", "The uniform sample tensor.")
     .add_argument("sample_indices", "Tensor", "The sample indices tensor.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMultinomialFromUniform)
+    .set_attr<FInferType>("FInferType", InferTypeMultinomialFromUniform)
     .set_attr<bool>("FPurity", true);
 
 }  // namespace relax

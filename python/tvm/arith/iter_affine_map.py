@@ -20,14 +20,14 @@ from enum import IntEnum
 
 import tvm_ffi
 
-from tvm.ir import PrimExpr
+from tvm.ir import Expr
 from tvm.runtime import Object
 
 from . import _ffi_api
 
 
 @tvm_ffi.register_object("arith.IterMapExpr")
-class IterMapExpr(PrimExpr):
+class IterMapExpr(Expr):
     """Base class of all IterMap expressions."""
 
 
@@ -37,10 +37,10 @@ class IterMark(Object):
 
     Parameters
     ----------
-    source : PrimExpr.
+    source : Expr.
         The source expression.
 
-    extent : PrimExpr
+    extent : Expr
         The extent of the iterator.
     """
 
@@ -59,13 +59,13 @@ class IterSplitExpr(IterMapExpr):
     source : IterMark
         The source marked iterator.
 
-    lower_factor : PrimExpr
+    lower_factor : Expr
         The lower factor to split the domain.
 
-    extent : PrimExpr
+    extent : Expr
         The extent of the split.
 
-    scale : PrimExpr
+    scale : Expr
         Additional scale to the split.
     """
 
@@ -86,7 +86,7 @@ class IterSumExpr(IterMapExpr):
     args : List[IterSplitExpr]
         The input to the sum expression.
 
-    base : PrimExpr
+    base : Expr
         The base offset.
     """
 
@@ -135,13 +135,13 @@ def detect_iter_map(
 
     Parameters
     ----------
-    indices : List[PrimExpr]
+    indices : List[Expr]
         The input indices
 
     input_iters : Map[tvm.tirx.Var, Range]
         The domain of each input iterators.
 
-    predicate : PrimExpr
+    predicate : Expr
         The predicate constraints on the input iterators
 
     check_level : Union[str, IterMapLevel]
@@ -180,7 +180,7 @@ def normalize_to_iter_sum(index, input_iters, analyzer=None):
 
     Parameters
     ----------
-    index : PrimExpr
+    index : Expr
         The input index
 
     input_iters : Map[tvm.tirx.Var, Range]
@@ -218,13 +218,13 @@ def iter_map_simplify(
 
     Parameters
     ----------
-    indices : List[PrimExpr]
+    indices : List[Expr]
         The input indices
 
     input_iters : Map[tvm.tirx.Var, Range]
         The domain of each input iterators.
 
-    predicate : PrimExpr
+    predicate : Expr
         The predicate constraints on the input iterators
 
     check_level : Union[str, IterMapLevel]
@@ -255,7 +255,7 @@ def iter_map_simplify(
 
 
 def normalize_iter_map_to_expr(expr):
-    """Given an IterMapExpr, transform it to normal PrimExpr
+    """Given an IterMapExpr, transform it to normal Expr
 
     Parameters
     ----------
@@ -264,8 +264,8 @@ def normalize_iter_map_to_expr(expr):
 
     Returns
     -------
-    result : PrimExpr
-        the corresponding normal PrimExpr
+    result : Expr
+        the corresponding normal Expr
     """
     return _ffi_api.NormalizeIterMapToExpr(expr)
 
@@ -301,7 +301,7 @@ def subspace_divide(
 
     Parameters
     ----------
-    bindings : List[PrimExpr]
+    bindings : List[Expr]
         The input bindings
 
     input_iters : Map[tvm.tirx.Var, Range]
@@ -310,7 +310,7 @@ def subspace_divide(
     sub_iters : Array[tvm.tirx.Var]
         The subset of input_iters, which is the basis of the subspace
 
-    predicate : PrimExpr
+    predicate : Expr
         The predicate constraints on the input iterators
 
     check_level : Union[str, IterMapLevel]
@@ -326,7 +326,7 @@ def subspace_divide(
 
     Returns
     -------
-    results : List[List[PrimExpr]]
+    results : List[List[Expr]]
         The result list has length ``len(bindings) + 1``.
 
         - ``[0, len(bindings))``: The iter map matching result.
@@ -364,12 +364,12 @@ def inverse_affine_iter_map(iter_map, outputs):
     ----------
     iter_map : List[IterSumExpr]
         The bijective affine iter map.
-    outputs : List[PrimExpr]
+    outputs : List[Expr]
         The outputs of the affine transformation.
 
     Returns
     -------
-    results : Map[tvm.tirx.Var, PrimExpr]
+    results : Map[tvm.tirx.Var, Expr]
         The map from the input to the transformed result.
     """
     return _ffi_api.InverseAffineIterMap(iter_map, outputs)

@@ -61,7 +61,8 @@ struct RelaxCalleeCollector : relax::ExprVisitor {
 struct TIRxCalleeCollector : tirx::StmtExprVisitor {
   std::vector<GlobalVar>* callees;
   explicit TIRxCalleeCollector(std::vector<GlobalVar>* out) : callees(out) {}
-  void VisitExpr_(const tirx::CallNode* node) final {
+  using tirx::StmtExprVisitor::VisitExpr_;
+  void VisitExpr_(const CallNode* node) final {
     tirx::StmtExprVisitor::VisitExpr_(node);
     if (auto opt_gvar = node->op.as<GlobalVar>()) {
       callees->push_back(opt_gvar.value());
@@ -174,7 +175,7 @@ IRModule DeadCodeElimination(const IRModule& arg_mod,
     IRModule updates;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<Function>()) {
-        auto new_func = Downcast<Function>(RemoveAllUnused(opt.value()));
+        auto new_func = RemoveAllUnused(opt.value()).as_or_throw<Function>();
         if (!new_func.same_as(base_func)) {
           updates->Add(gvar, new_func);
         }

@@ -16,10 +16,12 @@
 # under the License.
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -37,17 +39,22 @@ def ptx_griddepcontrol(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float3
         T.evaluate(T.ptx.griddepcontrol.launch_dependents(dtype=""))
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_griddepcontrol():
     f = ptx_griddepcontrol
     mod = tvm.compile(f, target="cuda")
     A_np = np.random.default_rng(0).standard_normal(32).astype("float32")
     B_np = np.zeros((32,), dtype="float32")
-    dev = tvm.cuda(0)
-    A_nd = tvm.runtime.tensor(A_np, device=dev)
-    B_nd = tvm.runtime.tensor(B_np, device=dev)
-    mod(A_nd, B_nd)
-    tvm.testing.assert_allclose(B_nd.numpy(), A_np, rtol=0, atol=0)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
+        mod(A_nd, B_nd)
+        tvm.testing.assert_allclose(B_nd.numpy(), A_np, rtol=0, atol=0)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

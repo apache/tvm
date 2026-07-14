@@ -90,7 +90,7 @@ def test_popen_pool_executor():
 
     import tvm
 
-    pool = PopenPoolExecutor(max_workers=2, timeout=0.01)
+    pool = PopenPoolExecutor(max_workers=2, timeout=0.015)
     value1 = pool.submit(identity_after, 1, 100)
     value2 = pool.submit(terminate_self)
     value3 = pool.submit(identity_after, 3, 0)

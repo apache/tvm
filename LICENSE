@@ -210,7 +210,6 @@ Apache Software Foundation License 2.0
 --------------------------------------
 
 3rdparty/OpenCL-Headers
-3rdparty/nvbench (with LLVM exception)
 3rdparty/cutlass_fpA_intB_gemm
 3rdparty/tensorrt_llm
 3rdparty/tvm-ffi/3rdparty/dlpack

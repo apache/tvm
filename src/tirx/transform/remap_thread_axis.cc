@@ -41,7 +41,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
-      IterVar iv = Downcast<IterVar>(op->node);
+      IterVar iv = op->node.as_or_throw<IterVar>();
       TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
       auto it = tmap_.find(iv->thread_tag);
       if (it != tmap_.end()) {
@@ -59,7 +59,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = vmap_.find(op);
     if (it != vmap_.end()) return it->second;
     return StmtExprMutator::VisitExpr_(op);

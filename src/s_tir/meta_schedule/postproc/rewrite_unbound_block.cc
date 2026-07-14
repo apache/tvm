@@ -35,7 +35,7 @@ class UnboundBlockFinder : private StmtVisitor {
       BaseFunc base_func = kv.second;
       if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
         finder.global_var_name_ = g_var->name_hint;
-        finder(Downcast<SBlockRealize>(prim_func->body)->block->body);
+        finder(prim_func->body.as_or_throw<SBlockRealize>()->block->body);
       }
     }
     return std::move(finder.blocks_);
@@ -90,7 +90,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    TVM_FFI_CHECK(context->target.defined(), ValueError) << "target is not defined";
+    TVM_FFI_CHECK(context->target.has_value(), ValueError) << "target is not defined";
     ffi::Optional<int64_t> max_threads_per_block =
         context->target.value()->GetAttr<int64_t>("max_threads_per_block");
     TVM_FFI_CHECK(max_threads_per_block.has_value(), ValueError)
@@ -127,7 +127,7 @@ bool RewriteUnboundBlockNode::Apply(const s_tir::Schedule& sch) {
   using s_tir::Schedule;
   TVM_FFI_ICHECK_NE(this->max_threads_per_block_, -1);
   auto get_factor = [t = this->max_threads_per_block_](int max_extent) -> ExprRV {
-    return IntImm(DataType::Int(32), std::min(t, max_extent));
+    return IntImm::Int32(std::min(t, max_extent));
   };
   std::vector<std::pair<tirx::StmtSRef, ffi::String>> unbound_blocks =
       s_tir::UnboundBlockFinder::Find(sch->state());

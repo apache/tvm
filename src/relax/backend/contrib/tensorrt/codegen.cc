@@ -24,10 +24,15 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/attrs/nn.h>
+#include <tvm/relax/attrs/statistical.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/index_map.h>
 
 #include <memory>
 #include <string>
@@ -61,7 +66,8 @@ struct TensorRTCompilerConfigNode : public ffi::Object {
                 "TensorRT version as (major, minor, patch).",
                 refl::DefaultValue(ffi::Array<int64_t>({6, 0, 1})))
         .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
-                "Use implicit batch", refl::DefaultValue(true))
+                "Use implicit batch (removed in TensorRT 10; networks are always explicit-batch)",
+                refl::DefaultValue(false))
         .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
                 "Max workspace size", refl::DefaultValue(size_t(1) << 30))
         .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigNode::remove_no_mac_subgraphs,
@@ -111,6 +117,101 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     extractor.Extract(const_cast<ffi::Object*>(attr_obj));
   }
 
+  // Serialize an op's non-tensor arguments (scalars/shapes) as "arg_<name>" attributes; the "arg_"
+  // prefix avoids JSONGraphNode's reserved "shape"/"dtype".
+  void SetArgumentAttributes(const CallNode* call_node) {
+    const auto* op_node = call_node->op.as<OpNode>();
+    if (op_node == nullptr) return;
+    const ffi::Array<ArgumentInfo>& arg_infos = op_node->arguments;
+    for (size_t i = 0; i < call_node->args.size() && i < arg_infos.size(); ++i) {
+      const Expr& arg = call_node->args[i];
+      const std::string key = "arg_" + std::string(arg_infos[i]->name);
+      if (auto prim_value = arg.as<PrimExpr>()) {
+        PrimExpr value = prim_value.value();
+        if (const auto* imm = value.as<IntImmNode>()) {
+          node_->SetAttr(key, static_cast<int64_t>(imm->value));
+        } else if (const auto* fimm = value.as<FloatImmNode>()) {
+          node_->SetAttr(key, static_cast<double>(fimm->value));
+        }
+      } else if (const auto* shape_expr = arg.as<ShapeExprNode>()) {
+        SetIntArrayAttr(key, shape_expr->values);
+      }
+    }
+  }
+
+  // Relax reduce axis is optional; materialize the all-axes default (it otherwise serializes as
+  // "").
+  void MaybeFillReduceAxes(const CallNode* call_node) {
+    const auto* attrs = call_node->attrs.as<StatisticalAttrs>();
+    if (attrs == nullptr || attrs->axis.has_value()) return;
+    const auto* tensor_ty = GetType(call_node->args[0]).as<TensorTypeNode>();
+    if (tensor_ty == nullptr || !tensor_ty->shape.has_value()) return;
+    const auto* shape = tensor_ty->shape.value().as<ShapeExprNode>();
+    if (shape == nullptr) return;
+    ffi::Array<int64_t> all_axes;
+    for (size_t i = 0; i < shape->values.size(); ++i) all_axes.push_back(static_cast<int64_t>(i));
+    node_->SetAttr("axis", std::move(all_axes));
+  }
+
+  // strided_slice's axes/begin/end/strides are tuple args the op does not name; serialize by
+  // position.
+  void SetStridedSliceArguments(const CallNode* call_node) {
+    const auto* op_node = call_node->op.as<OpNode>();
+    if (op_node == nullptr || op_node->name != "relax.strided_slice") return;
+    static constexpr const char* kNames[] = {"arg_axes", "arg_begin", "arg_end", "arg_strides"};
+    for (size_t i = 1; i < call_node->args.size() && i <= 4; ++i) {
+      const auto* tuple = call_node->args[i].as<TupleNode>();
+      if (tuple == nullptr) continue;
+      ffi::Array<PrimExpr> values;
+      for (const Expr& field : tuple->fields) {
+        if (auto prim_value = field.as<PrimExpr>()) {
+          values.push_back(prim_value.value());
+        }
+      }
+      if (values.size() == tuple->fields.size()) SetIntArrayAttr(kNames[i - 1], values);
+    }
+  }
+
+  // Serialize static integer PrimExprs as an int64 array attribute (skips non-constant entries).
+  void SetIntArrayAttr(const std::string& key, const ffi::Array<PrimExpr>& exprs) {
+    ffi::Array<int64_t> values;
+    for (const PrimExpr& expr : exprs) {
+      const auto* imm = expr.as<IntImmNode>();
+      if (imm == nullptr) return;
+      values.push_back(imm->value);
+    }
+    node_->SetAttr(key, std::move(values));
+  }
+
+  // layout_transform's IndexMap is not generically serializable; emit a pure permutation as
+  // "arg_axes". Returns true for layout_transform (so generic extraction is skipped for it).
+  bool TrySetLayoutTransformAttributes(const CallNode* call_node) {
+    const auto* op_node = call_node->op.as<OpNode>();
+    if (op_node == nullptr || op_node->name != "relax.layout_transform") return false;
+    const auto* attrs = call_node->attrs.as<LayoutTransformAttrs>();
+    if (attrs == nullptr) return true;
+    auto index_map = attrs->index_map;
+    const auto& initial = index_map->initial_indices;
+    const auto& final_indices = index_map->final_indices;
+    if (initial.size() != final_indices.size()) return true;
+    ffi::Array<int64_t> permutation;
+    for (const PrimExpr& expr : final_indices) {
+      const auto* var = expr.as<tirx::VarNode>();
+      if (var == nullptr) return true;
+      int64_t pos = -1;
+      for (size_t j = 0; j < initial.size(); ++j) {
+        if (initial[j].get() == var) {
+          pos = static_cast<int64_t>(j);
+          break;
+        }
+      }
+      if (pos < 0) return true;
+      permutation.push_back(pos);
+    }
+    node_->SetAttr("arg_axes", std::move(permutation));
+    return true;
+  }
+
   TensorRTJSONSerializer* serializer_;
   /*! \brief Accumulated translated arguments. */
   std::vector<JSONGraphNodeEntry> args_;
@@ -138,7 +239,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     // The call must be to an inline "Composite" function
     const auto* fn_var = call_node->op.as<VarNode>();
     TVM_FFI_ICHECK(fn_var);
-    const auto fn = Downcast<Function>(bindings_[ffi::GetRef<Var>(fn_var)]);
+    const auto fn = bindings_[ffi::GetRef<Var>(fn_var)].as_or_throw<Function>();
 
     auto opt_composite = fn->GetAttr<ffi::String>(attr::kComposite);
     TVM_FFI_ICHECK(opt_composite.has_value());
@@ -179,7 +280,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
     }
     TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
@@ -205,7 +306,12 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_n
 }
 
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
-  SetGenericAttributes(call_node);
+  if (!TrySetLayoutTransformAttributes(call_node)) {
+    SetGenericAttributes(call_node);
+    SetArgumentAttributes(call_node);
+    SetStridedSliceArguments(call_node);
+    MaybeFillReduceAxes(call_node);
+  }
   ExprVisitor::VisitExpr_(call_node);
 }
 

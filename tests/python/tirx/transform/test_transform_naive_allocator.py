@@ -21,7 +21,7 @@ from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import F, P, S, TileLayout
-from tvm.tirx.transform.trn import TrnNaiveAllocator
+from tvm.tirx.trn.transform import TrnNaiveAllocator
 
 
 def test_one_alloc():

@@ -26,7 +26,9 @@ from tvm_ffi import Shape
 import tvm
 import tvm.testing
 from tvm.runtime import DataType, disco
-from tvm.runtime.disco import Session
+
+if disco is None:
+    pytest.skip("disco runtime is not available", allow_module_level=True)
 
 
 class AllReduceStrategyType(enum.IntEnum):
@@ -56,7 +58,7 @@ _ccl = [ccl for ccl in _compiled_ccl() if ccl == "nccl"]
 @pytest.mark.parametrize("strategy", _strategies)
 def test_allreduce(shape, ccl, strategy):
     devices = [0, 1]
-    sess: Session = disco.ProcessSession(num_workers=len(devices))
+    sess = disco.ProcessSession(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     num_elements = reduce(lambda x, y: x * y, shape)

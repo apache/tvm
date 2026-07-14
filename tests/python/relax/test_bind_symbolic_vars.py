@@ -43,8 +43,8 @@ def test_bind_static_value(replace_by_tir_var):
         return R.matmul(A, B)
 
     if replace_by_tir_var:
-        M, K = before.params[0].struct_info.shape
-        _, N = before.params[1].struct_info.shape
+        M, K = before.params[0].ty.shape
+        _, N = before.params[1].ty.shape
         symbolic_var_map = {M: 128, K: 64, N: 32}
     else:
         symbolic_var_map = {"M": 128, "K": 64, "N": 32}
@@ -68,7 +68,7 @@ def test_error_with_duplicate_var_names():
         out: R.Tensor((N1, N2)) = R.matmul(A, B)
         return out
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({"N": 64})
 
 
@@ -106,7 +106,7 @@ def test_error_with_nonexisting_var_name():
     def func(A: R.Tensor(("M", "N"))):
         return A
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({"non_existing_symbolic_var": 64})
 
 
@@ -117,7 +117,7 @@ def test_error_with_nonexisting_tir_var():
     def func(A: R.Tensor(["M", "N"])):
         return A
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({tvm.tirx.Var("M", "int64"): 64})
 
 
@@ -128,10 +128,10 @@ def test_error_with_multiple_definitions():
     def func(A: R.Tensor(["M", "N"])):
         return A
 
-    tir_var = func.params[0].struct_info.shape[0]
+    tir_var = func.params[0].ty.shape[0]
     symbolic_var_map = {tir_var: 0, "M": 0}
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars(symbolic_var_map)
 
 
@@ -144,7 +144,7 @@ def test_error_if_output_has_undefined():
 
     outside_var = tvm.tirx.Var("outside_var", "int64")
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         func.bind_symbolic_vars({"M": outside_var * 2})
 
 
@@ -166,19 +166,19 @@ def test_replacements_may_produce_new_symbolic_vars():
 
 
 def test_bind_symbolic_vars_in_tensor_shape():
-    """The bound variable should be replaced when appearing in struct info"""
+    """The bound variable should be replaced when appearing in type"""
 
     @R.function(private=True)
     def before(A: R.Tensor(["M", "N"])):
         M = T.int64()
         N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
     @R.function(private=True)
     def expected(A: R.Tensor(["M", 16])):
         M = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
@@ -192,86 +192,20 @@ def test_bind_symbolic_vars_in_shape_expr():
     def before(A: R.Tensor(["M * N"]), x: R.Shape(["M", "N"])):
         M = T.int64()
         N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([2 * M * N]))
         return B
 
     @R.function(private=True)
     def expected(A: R.Tensor(["M * 16"]), x: R.Shape(["M", 16])):
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
+        B = R.call_dps_packed("dummy_func", [A], out_ty=R.Tensor([M * 32]))
         return B
 
     after = before.bind_symbolic_vars({"N": 16})
-    tvm.ir.assert_structural_equal(expected, after)
-
-
-def test_bind_defining_of_symbolic_vars_in_prim_value():
-    """R.Prim may define symbolic variables
-
-    This case is a bit odd, because it always results in a
-    fully-constrained parameter at the relax level.  After binding in
-    this test case, we have a function that accepts three parameters,
-    and the third parameter must always be the number 16.
-
-    However, this provides the most consistent behavior with other
-    uses of `relax.Function.bind_symbolic_vars`, which restricts the
-    allowed values for each parameter, but does not alter the number
-    of parameters.  This is in contrast to the `BindParams` pass,
-    which provides a known value for relax parameters, removing them
-    from the function signature.
-
-    This convention also prevents surprise changes to the function
-    signature, such as shown in
-    `test_bind_symbolic_vars_with_expr_in_prim_value`.
-    """
-
-    @R.function(private=True)
-    def before(A: R.Tensor(["M * N"]), x: R.Prim(value="M"), y: R.Prim(value="N")):
-        M = T.int64()
-        N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
-        return B
-
-    @R.function(private=True)
-    def expected(A: R.Tensor(["M * 16"]), x: R.Prim(value="M"), y: R.Prim(value=16)):
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([M * 32]))
-        return B
-
-    after = before.bind_symbolic_vars({"N": 16})
-    tvm.ir.assert_structural_equal(expected, after)
-
-
-def test_bind_usage_of_symbolic_vars_in_prim_value():
-    """R.Prim may use symbolic variables defined by other parameters
-
-    Like test_bind_defining_of_symbolic_vars_in_prim_value, but with
-    R.Prim using a symbolic variable rather than defining it.
-
-    This also demonstrates why we should not remove fully-constrained
-    R.Prim function parameters.  In this case, we have a function that
-    accepts two parameters, and we have specialized the shape of the
-    first parameter.  It would be unexpected for specialization of the
-    first parameter to result in removal of a different parameter
-    altogether.
-    """
-
-    @R.function(private=True)
-    def before(A: R.Tensor(["M", "N"]), x: R.Prim(value="M*N")):
-        M = T.int64()
-        N = T.int64()
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([2 * M * N]))
-        return B
-
-    @R.function(private=True)
-    def expected(A: R.Tensor([16, 16]), x: R.Prim(value=256)):
-        B = R.call_dps_packed("dummy_func", [A], out_sinfo=R.Tensor([512]))
-        return B
-
-    after = before.bind_symbolic_vars({"M": 16, "N": 16})
     tvm.ir.assert_structural_equal(expected, after)
 
 
 def test_bind_strided_slice():
-    """relax.op.strided_slice stores PrimExpr attributes"""
+    """relax.op.strided_slice stores Expr attributes"""
 
     @R.function(private=True)
     def before(A: R.Tensor(["M", "N"])):

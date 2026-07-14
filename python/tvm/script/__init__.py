@@ -154,9 +154,11 @@ class _DialectRedirectFinder:
     When the import machinery asks for a module whose full name starts with
     ``tvm.script.<dialect>`` (or ``tvm.script.parser.<dialect>``, etc.) and
     that dialect is in ``_DIALECT_REGISTRY``, :meth:`find_spec` imports the
-    real target module (e.g. ``tvm.tirx.script.parser.entry``) and registers
-    it in ``sys.modules`` under the legacy name, so all subsequent imports and
-    attribute walks resolve correctly without going through the redirect again.
+    real target module (e.g. ``tvm.tirx.script.parser.entry``) and returns an
+    alias spec whose loader hands back that module, so the import machinery
+    registers it in ``sys.modules`` under the legacy name and all subsequent
+    imports and attribute walks resolve without going through the redirect
+    again.
     """
 
     @classmethod
@@ -164,9 +166,15 @@ class _DialectRedirectFinder:
         redirected = _redirect_target(fullname)
         if redirected is None:
             return None
-        # Resolve the target module and alias it under the legacy name.
+        # Resolve the target module and return an alias spec for it.  Do NOT
+        # pre-register ``sys.modules[fullname]`` here: if ``fullname`` is in
+        # ``sys.modules`` when find_spec returns, ``_bootstrap._find_spec``
+        # discards the returned spec in favor of ``module.__spec__`` — the
+        # target's original SourceFileLoader spec — and ``_load_unlocked``
+        # then RE-EXECUTES the target module and replaces its canonical
+        # ``sys.modules`` entry with the duplicate.  The machinery registers
+        # the alias under ``fullname`` itself when loading the spec below.
         module = importlib.import_module(redirected)
-        sys.modules[fullname] = module
         return importlib.util.spec_from_loader(fullname, _AliasLoader(module))
 
 
@@ -175,13 +183,24 @@ class _AliasLoader:
 
     def __init__(self, module):
         self._module = module
+        # ``module_from_spec`` unconditionally stamps the alias spec onto the
+        # module returned by ``create_module``; capture the canonical values
+        # so ``exec_module`` can restore them.
+        self._spec = getattr(module, "__spec__", None)
+        self._loader = getattr(module, "__loader__", None)
 
     def create_module(self, spec):
         return self._module
 
     def exec_module(self, module):
-        # Module is already populated by the redirect target.
-        return None
+        # Module is already populated by the redirect target; just restore
+        # the canonical ``__spec__``/``__loader__`` that the import machinery
+        # overwrote with the alias spec (a stale alias ``__spec__.parent``
+        # breaks relative imports inside the module).
+        if self._spec is not None:
+            module.__spec__ = self._spec
+        if self._loader is not None:
+            module.__loader__ = self._loader
 
 
 # Install the redirect finder once. Re-importing tvm.script (e.g. during a

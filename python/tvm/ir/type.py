@@ -28,6 +28,20 @@ from .base import Node
 class Type(Node, Scriptable):
     """The base class of all types."""
 
+    @staticmethod
+    def missing():
+        """Return the sentinel for missing type information."""
+        return _ffi_api.TypeMissing()
+
+    @staticmethod
+    def Missing():
+        """Return the sentinel for missing type information."""
+        return _ffi_api.TypeMissing()
+
+    def is_missing(self):
+        """Return whether this is the missing-type sentinel."""
+        return _ffi_api.TypeIsMissing(self)
+
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
         return bool(tvm_ffi.structural_equal(self, other))
@@ -37,7 +51,7 @@ class Type(Node, Scriptable):
 
     def same_as(self, other):
         """Compares two TVM types by referential equality."""
-        return super().__eq__(other)
+        return self.is_(other)
 
 
 @tvm_ffi.register_object("ir.PrimType")
@@ -52,6 +66,35 @@ class PrimType(Type):
 
     def __init__(self, dtype):
         self.__init_handle_by_constructor__(_ffi_api.PrimType, dtype)
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.dtype == other
+        return super().__eq__(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        dtype = self.dtype
+        return hash((dtype.type_code, dtype.bits, dtype.lanes))
+
+    def __str__(self):
+        return str(self.dtype)
+
+    def matches_code(self, *codes) -> bool:
+        """Return whether this type has any of the given DLPack dtype codes."""
+        type_code = self.dtype.type_code
+        return any(type_code == int(code) for code in codes)
+
+    def matches_element_type(self, code, bits: int) -> bool:
+        """Return whether this type has the given scalar element code and bits."""
+        dtype = self.dtype
+        return dtype.type_code == int(code) and dtype.bits == bits
+
+    def is_scalar(self) -> bool:
+        """Return whether this type has exactly one fixed lane."""
+        return self.dtype.lanes == 1
 
 
 @tvm_ffi.register_object("ir.PointerType")
@@ -81,8 +124,8 @@ class TupleType(Type):
         The fields in the tuple
     """
 
-    def __init__(self, fields):
-        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields)
+    def __init__(self, fields, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.TupleType, fields, span)
 
 
 @tvm_ffi.register_object("ir.FuncType")

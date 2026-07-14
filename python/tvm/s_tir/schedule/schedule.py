@@ -22,9 +22,9 @@ from typing import Literal
 
 from tvm_ffi import register_object as _register_object
 
-from tvm.error import TVMError, register_error
-from tvm.ir import GlobalVar, IRModule, PrimExpr
-from tvm.runtime import Object
+from tvm.error import register_error
+from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
+from tvm.runtime import DataTypeCode, Object
 from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock
 from tvm.tirx.function import IndexMap
 
@@ -35,7 +35,7 @@ from .trace import Trace
 
 
 @register_error
-class ScheduleError(TVMError):
+class ScheduleError(RuntimeError):
     """Error that happens during TensorIR scheduling."""
 
 
@@ -65,7 +65,7 @@ class SBlockRV(Object):
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
 # A random variable that evaluates to an integer
-ExprRV = PrimExpr  # pylint: disable=invalid-name
+ExprRV = Expr  # pylint: disable=invalid-name
 
 RAND_VAR_TYPE = ExprRV | SBlockRV | LoopRV  # pylint: disable=invalid-name
 
@@ -103,10 +103,10 @@ def _parse_seed(seed: int | None) -> int:
 
 def _get_sblock_default_dtype(block: SBlock) -> str:
     for i in block.iter_vars:
-        return i.var.dtype
+        return str(i.var.ty)
     for buffer_region in list(block.reads) + list(block.writes):
         for dom in buffer_region.region:
-            return dom.min.dtype
+            return str(dom.min.ty)
     return "int64"
 
 
@@ -3039,7 +3039,7 @@ class Schedule(Object):
                             B.elem_offset // 256,
                             C.data,
                             C.elem_offset // 256,
-                            dtype="handle",
+                            dtype="void",
                         )
                     )
 
@@ -3104,7 +3104,7 @@ class Schedule(Object):
                                 B_1.elem_offset // 256,
                                 C_1.data,
                                 C_1.elem_offset // 256,
-                                dtype="handle",
+                                dtype="void",
                             )
                         )
         """
@@ -3315,7 +3315,7 @@ class Schedule(Object):
         block: SBlockRV | str,
         buffer: tuple[str, int] | str | Buffer,
         index_map: IndexMap | Callable,
-        pad_value: int | float | PrimExpr | IndexMap | Callable | None = None,
+        pad_value: int | float | Expr | IndexMap | Callable | None = None,
         *,
         assume_injective_transform: bool = False,
     ) -> None:
@@ -3354,7 +3354,7 @@ class Schedule(Object):
             primitive will be called in addition to the
             TransformLayout primitive.
 
-        pad_value: Optional[int | float | PrimExpr | IndexMap | Callable]
+        pad_value: Optional[int | float | Expr | IndexMap | Callable]
 
             The value to be used for any padding introduced by the
             transformation.  If the schedule contains a producer block
@@ -3377,7 +3377,7 @@ class Schedule(Object):
 
             If None, the transformation may not introduce padding.
 
-            If an int, float or PrimExpr, the transformation is the
+            If an int, float or Expr, the transformation is the
             specific value to be present in the padding.
 
             If an IndexMap or Callable, the transformation is the
@@ -3465,10 +3465,14 @@ class Schedule(Object):
             # buffer's type.  If the default `tvm.runtime.convert`
             # behavior is applied, these would be converted to
             # int32/float32, which may not match the buffer's type.
-            if "int" in buffer_obj.dtype and isinstance(pad_value, int):
-                pad_value = IntImm(buffer_obj.dtype, pad_value)
-            elif "float" in buffer_obj.dtype and isinstance(pad_value, float):
-                pad_value = FloatImm(buffer_obj.dtype, pad_value)
+            if buffer_obj.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
+                pad_value, int
+            ):
+                pad_value = IntImm(buffer_obj.dtype.dtype, pad_value)
+            elif buffer_obj.dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT) and (
+                isinstance(pad_value, float)
+            ):
+                pad_value = FloatImm(buffer_obj.dtype.dtype, pad_value)
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value,
                 ndim=len(index_map.final_indices),
@@ -3983,10 +3987,10 @@ class Schedule(Object):
             The buffer type: "read" or "write"
         gen_new_ranges : Callable
             A function that takes the block's iter_vars and returns a
-            Tuple[Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], ...]
+            Tuple[Union[Expr, Tuple[Expr, Expr]], ...]
             which defines the new read or write region for the buffer.
             Each element in the tuple can be:
-            - A single PrimExpr representing the iter_var itself
+            - A single Expr representing the iter_var itself
             - A tuple of two PrimExprs representing the range (begin, end)
 
         Examples
@@ -4080,10 +4084,10 @@ class Schedule(Object):
                         "Tuple must have exactly 2 elements to represent (begin, end)."
                     )
                 result.extend(rng)
-            elif isinstance(rng, PrimExpr):
+            elif is_prim_expr(rng):
                 result.extend([rng, rng + 1])  # Single point represented as (rng, rng + 1)
             else:
-                raise TypeError(f"Expected PrimExpr or tuple of PrimExpr, got {type(rng)}")
+                raise TypeError(f"Expected Expr or tuple of Expr, got {type(rng)}")
 
         # Create index_map using IndexMap constructor
         index_map = IndexMap(

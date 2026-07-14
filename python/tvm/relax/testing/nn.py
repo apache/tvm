@@ -196,7 +196,7 @@ class Placeholder(relax.Var):
     def __init__(self, shape: list[Any] | tuple[Any, ...], dtype="float32", name="data"):
         if not isinstance(shape, list | tuple):
             raise TypeError("the shape of Placeholder is expected to be a list or a tuple")
-        super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
+        super().__init__(_try_unique_name(name), relax.TensorType(shape, dtype))
 
 
 class Parameter(relax.Var):
@@ -206,7 +206,7 @@ class Parameter(relax.Var):
         if not isinstance(shape, list | tuple):
             raise TypeError("the shape of Parameter is expected to be a list or a tuple")
 
-        super().__init__(_try_unique_name(name), relax.TensorStructInfo(shape, dtype))
+        super().__init__(_try_unique_name(name), relax.TensorType(shape, dtype))
 
 
 class Module(tvm.relax.frontend.nn.SubroutineMixin):
@@ -279,7 +279,7 @@ def _unpack_params(value: object) -> list[relax.Var]:
 
 def init_params(mod: tvm.IRModule) -> list[tvm.runtime.Tensor]:
     """Utility function to initialize model's parameters."""
-    shape_dict = {v.name_hint: v.struct_info.shape for v in mod["main"].params}
+    shape_dict = {v.name_hint: v.ty.shape for v in mod["main"].params}
     params = []
     for k, v in shape_dict.items():
         if k.startswith("data"):

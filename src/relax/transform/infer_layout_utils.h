@@ -175,15 +175,15 @@ SLayout InitialLayout(int ndim);
 LayoutDecision InitialLayoutDecision(int ndim);
 
 /*!
- * \brief Initialize a nested layout decision given the struct info.
- * \param sinfo The sinfo.
+ * \brief Initialize a nested layout decision given the type.
+ * \param ty The ty.
  * \return The initialized nested layout decision.
  */
-NLayout InitialNLayout(const StructInfo& sinfo);
+NLayout InitialNLayout(const Type& ty);
 
 /*!
  * \brief Initialize a nested layout decision given expression
- * \param sinfo The expr
+ * \param ty The expr
  * \return The initialized nested layout decision.
  */
 NLayout InitialNLayout(const Expr& expr);

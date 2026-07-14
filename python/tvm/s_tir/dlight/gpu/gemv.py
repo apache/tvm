@@ -148,7 +148,7 @@ class GEMV(GPUScheduleRule):
             for buf in vector_input_buffers:
                 dtype_bytes = get_bytes(buf.dtype)
                 buf_size = (
-                    reduce(lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].dtype, 1))
+                    reduce(lambda x, y: x * y, buf.shape, tirx.IntImm(buf.shape[0].ty, 1))
                     * dtype_bytes
                 )
                 shared_mem_usage += buf_size
@@ -288,7 +288,7 @@ class GEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
                     _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
-                    _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
+                    _, tx = sch.split(sch.fuse(*s), factors=[None, TR])
                     sch.bind(tx, "threadIdx.x")
                 else:
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)

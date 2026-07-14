@@ -136,7 +136,9 @@ def _odd_even_sort(
                             [tid + n],
                         )
 
-        T.evaluate(tvm.tirx.Call(None, "tirx.tvm_storage_sync", tvm.runtime.convert(["shared"])))
+        T.evaluate(
+            tvm.ir.Call("tirx.tvm_storage_sync", [tvm.tirx.StringImm("shared")], ret_ty="void")
+        )
 
         idxm = tvm.tirx.indexmod
         # OddEvenTransposeSort
@@ -165,7 +167,7 @@ def _odd_even_sort(
                                 )
                                 T.buffer_store(tmp_values_swap, temp_values[0], [tid + n + 1])
             T.evaluate(
-                tvm.tirx.Call(None, "tirx.tvm_storage_sync", tvm.runtime.convert(["shared"]))
+                tvm.ir.Call("tirx.tvm_storage_sync", [tvm.tirx.StringImm("shared")], ret_ty="void")
             )
 
         ## Copy sorted data to output
@@ -492,12 +494,12 @@ def _sort_common(
         target = tvm.target.Target.current()
         if "vulkan" in str(target):
             ntx = max_threads
-            nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-            nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
+            nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = cast(ceil_div(size, width), "int32")
         else:
-            ntx = tvm.tirx.generic.cast(tvm.te.min(max_threads, width), "int32")
-            nbx = tvm.tirx.generic.cast(ceil_div(width, max_threads * thread_work), "int32")
-            nbz = tvm.tirx.generic.cast(ceil_div(size, width), "int32")
+            ntx = cast(tvm.te.min(max_threads, width), "int32")
+            nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
+            nbz = cast(ceil_div(size, width), "int32")
 
         tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
         with T.frame_scope(
@@ -633,9 +635,7 @@ def sort_ir(
                     indices_out,
                     value_init_func=(
                         lambda _, tid: (
-                            tvm.tirx.generic.cast(tid, indices_out_orig.dtype)
-                            if indices_out is not None
-                            else None
+                            cast(tid, indices_out_orig.dtype) if indices_out is not None else None
                         )
                     ),
                 )
@@ -965,7 +965,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
     strides = [1] * ndim
     for i in range(ndim):
         if i == axis:
-            end.append(k if isinstance(k, int) else tvm.te.size_var("dim"))
+            end.append(k if isinstance(k, int) else tvm.te.var("dim"))
         else:
             end.append(dshape[i])
     if ret_type == "both":
@@ -1065,7 +1065,7 @@ def topk_thrust(
 
     if not isinstance(k, int) or k > 0:
         beg = [0] * ndim
-        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.size_var("dim")]
+        end = data.shape[:-1] + [k if isinstance(k, int) else tvm.te.var("dim")]
         strides = [1] * ndim
         out = [strided_slice(o, beg, end, strides) for o in out]
 

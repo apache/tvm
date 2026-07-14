@@ -79,7 +79,7 @@ class CompileTimeCollector : ExprVisitor {
 
   void MarkAsKnown(const Var& var) {
     known_relax_vars_.insert(var);
-    for (const auto& tir_var : DefinableTIRVarsInStructInfo(GetStructInfo(var))) {
+    for (const auto& tir_var : DefinableTIRVarsInType(GetType(var))) {
       known_tir_vars_.insert(tir_var);
     }
   }

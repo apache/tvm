@@ -21,7 +21,7 @@ import pytest
 import tvm_ffi
 
 import tvm
-from tvm import TVMError, relax
+from tvm import relax
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import relax as R
 
@@ -76,7 +76,7 @@ def test_vm_multiple_func():
 
 def test_vm_checker():
     ib = relax.ExecBuilder()
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         with ib.function("func0", num_inputs=2):
             ib.emit_call("test.vm.add", args=[ib.r(0), ib.r(2)], dst=ib.r(2))
             ib.emit_ret(ib.r(2))

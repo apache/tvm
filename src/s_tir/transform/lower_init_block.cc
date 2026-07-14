@@ -35,7 +35,7 @@ using namespace tvm::tirx;
 class InitBlockLower : public StmtMutator {
  private:
   Stmt VisitStmt_(const SBlockNode* block) final {
-    if (!block->init.defined()) {
+    if (!block->init.has_value()) {
       return StmtMutator::VisitStmt_(block);
     }
     Stmt init = DoLowering(block->init.value(), block->iter_vars);

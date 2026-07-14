@@ -22,19 +22,21 @@
 namespace tvm {
 namespace relax {
 
-NType NTypeFrom(const StructInfo& sinfo, DataType dtype) {
-  auto fmapleaf = [&](const StructInfo& sinfo) -> NType {
-    const auto* tensor = sinfo.as<TensorStructInfoNode>();
-    TVM_FFI_ICHECK(tensor) << "Expected TensorStructInfo, but got " << sinfo;
-    if (dtype == DataType::Void())
-      return NType(DLDataTypeToString(tensor->dtype));
-    else
+NType NTypeFrom(const Type& ty, DLDataType dtype) {
+  auto fmapleaf = [&](const Type& ty) -> NType {
+    const auto* tensor = ty.as<TensorTypeNode>();
+    TVM_FFI_ICHECK(tensor) << "Expected TensorType, but got " << ty;
+    if (dtype == DLDataType{kDLOpaqueHandle, 0, 0}) {
+      if (tensor->IsUnknownDtype()) return NType(ffi::String(""));
+      return NType(DLDataTypeToString(tensor->dtype.value()->dtype));
+    } else {
       return NType(DLDataTypeToString(dtype));
+    }
   };
-  return MapToNestedMsg<ffi::String>(sinfo, fmapleaf);
+  return MapToNestedMsg<ffi::String>(ty, fmapleaf);
 }
 
-NType NTypeFrom(const Expr& expr, DataType dtype) { return NTypeFrom(GetStructInfo(expr), dtype); }
+NType NTypeFrom(const Expr& expr, DLDataType dtype) { return NTypeFrom(GetType(expr), dtype); }
 
 NType NTypeMerge(const NType& a, const NType& b) {
   auto fcombine = [&](const ffi::String& a_str, const ffi::String& b_str) -> ffi::String {
@@ -44,21 +46,21 @@ NType NTypeMerge(const NType& a, const NType& b) {
       return a_str;
     }
 
-    DataType a = DataType(ffi::StringToDLDataType(a_str));
-    DataType b = DataType(ffi::StringToDLDataType(b_str));
-    TVM_FFI_ICHECK_EQ(a.code(), b.code());
-    TVM_FFI_ICHECK_EQ(a.lanes(), b.lanes());
-    return a.bits() > b.bits() ? a_str : b_str;
+    DLDataType a = ffi::StringToDLDataType(a_str);
+    DLDataType b = ffi::StringToDLDataType(b_str);
+    TVM_FFI_ICHECK_EQ(a.code, b.code);
+    TVM_FFI_ICHECK_EQ(a.lanes, b.lanes);
+    return a.bits > b.bits ? a_str : b_str;
   };
   return CombineNestedMsg<ffi::String>(a, b, fcombine);
 }
 
-ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype) {
-  return {IntImm(DataType::Int(32), MixedPrecisionPolicyKind::kFollow), call};
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionFollow(const Call& call, DLDataType out_dtype) {
+  return {IntImm::Int32(MixedPrecisionPolicyKind::kFollow), call};
 }
 
-ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, const DataType& out_dtype) {
-  return {IntImm(DataType::Int(32), MixedPrecisionPolicyKind::kNever), call};
+ffi::Array<ffi::ObjectRef> InferMixedPrecisionNever(const Call& call, DLDataType out_dtype) {
+  return {IntImm::Int32(MixedPrecisionPolicyKind::kNever), call};
 }
 
 }  // namespace relax

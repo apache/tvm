@@ -18,13 +18,13 @@
  */
 
 #include <cuda_runtime.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include "../../../../../3rdparty/tensorrt_llm/custom_allreduce_kernels.h"
-#include "../../../cuda/cuda_common.h"
 #include "../../../memory/pooled_allocator.h"
 #include "../nccl/nccl_context.h"
 
@@ -45,20 +45,22 @@ using tvm::runtime::memory::Buffer;
 std::vector<cudaIpcMemHandle_t> AllGatherIPCHandles(nccl::CCLThreadLocalContext* ctx,
                                                     cudaIpcMemHandle_t local_handle) {
   void *d_src, *d_dst;
-  CUDA_CALL(cudaMalloc(&d_src, CUDA_IPC_HANDLE_SIZE));
-  CUDA_CALL(cudaMalloc(&d_dst, CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers));
-  CUDA_CALL(cudaMemcpy(d_src, &local_handle, CUDA_IPC_HANDLE_SIZE, cudaMemcpyHostToDevice));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&d_src, CUDA_IPC_HANDLE_SIZE));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&d_dst, CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers));
+  TVM_FFI_CHECK_CUDA_ERROR(
+      cudaMemcpy(d_src, &local_handle, CUDA_IPC_HANDLE_SIZE, cudaMemcpyHostToDevice));
   NCCL_CALL(ncclAllGather(d_src, d_dst, CUDA_IPC_HANDLE_SIZE, ncclChar, ctx->global_comm,
                           /*stream=*/nullptr));
   std::vector<char> serial_handles(CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers, 0);
-  CUDA_CALL(cudaMemcpy(serial_handles.data(), d_dst,
-                       CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers, cudaMemcpyDefault));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaMemcpy(serial_handles.data(), d_dst,
+                                      CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers,
+                                      cudaMemcpyDefault));
   std::vector<cudaIpcMemHandle_t> handles(ctx->worker->num_workers);
   for (int i = 0; i < ctx->worker->num_workers; ++i) {
     memcpy(handles[i].reserved, &serial_handles[i * CUDA_IPC_HANDLE_SIZE], CUDA_IPC_HANDLE_SIZE);
   }
-  CUDA_CALL(cudaFree(d_src));
-  CUDA_CALL(cudaFree(d_dst));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaFree(d_src));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaFree(d_dst));
   return handles;
 }
 
@@ -95,10 +97,12 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
     auto [data_ptr, data_comm_ptrs] =
         AllocIPCMemory(dev, size, alignment, type_hint, /*reset_memory_to_zero=*/false);
     int barrier_ptr_size = sizeof(uint32_t) * (MAX_ALL_REDUCE_BLOCKS + 2) * MAX_RANKS_PER_NODE;
-    auto [barrier_in_ptr, barrier_in_comm_ptrs] = AllocIPCMemory(
-        dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
-    auto [barrier_out_ptr, barrier_out_comm_ptrs] = AllocIPCMemory(
-        dev, barrier_ptr_size, alignment, DataType::UInt(32), /*reset_memory_to_zero=*/true);
+    auto [barrier_in_ptr, barrier_in_comm_ptrs] =
+        AllocIPCMemory(dev, barrier_ptr_size, alignment, DLDataType{kDLUInt, 32, 1},
+                       /*reset_memory_to_zero=*/true);
+    auto [barrier_out_ptr, barrier_out_comm_ptrs] =
+        AllocIPCMemory(dev, barrier_ptr_size, alignment, DLDataType{kDLUInt, 32, 1},
+                       /*reset_memory_to_zero=*/true);
 
     // Create the CUDAIPCMemory object.
     ffi::ObjectPtr<CUDAIPCMemoryObj> ipc_memory = ffi::make_object<CUDAIPCMemoryObj>();
@@ -115,7 +119,7 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
 
   void DeviceFreeDataSpace(Device dev, void* ptr) final {
     TVM_FFI_ICHECK(dev.device_type == kDLCUDA);
-    CUDA_CALL(cudaSetDevice(dev.device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
     nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
     auto it = ipc_memory_map_.find(ptr);
     TVM_FFI_ICHECK(it != ipc_memory_map_.end());
@@ -146,20 +150,20 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
     // Alloc local buffer
     TVM_FFI_ICHECK(dev.device_type == kDLCUDA);
     void* ptr;
-    CUDA_CALL(cudaSetDevice(dev.device_id));
-    CUDA_CALL(cudaMalloc(&ptr, size));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaSetDevice(dev.device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaMalloc(&ptr, size));
     // Reset allocated memory to zero when required.
     // We explicitly synchronize after memset, to make sure memset finishes
     // before using all-gather to exchange IPC handles.
     // This is important to ensure the memory reset get ordered
     // before any other peers read the memory.
     if (reset_memory_to_zero) {
-      CUDA_CALL(cudaMemset(ptr, 0, size));
-      CUDA_CALL(cudaDeviceSynchronize());
+      TVM_FFI_CHECK_CUDA_ERROR(cudaMemset(ptr, 0, size));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     }
     // Create ipc handle
     cudaIpcMemHandle_t local_handle;
-    CUDA_CALL(cudaIpcGetMemHandle(&local_handle, ptr));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaIpcGetMemHandle(&local_handle, ptr));
     // All-gather IPC handles.
     nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
     std::vector<cudaIpcMemHandle_t> handles = AllGatherIPCHandles(ctx, local_handle);
@@ -170,8 +174,9 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
         comm_ptrs[node_id] = ptr;
       } else {
         uint8_t* foreign_buffer;
-        CUDA_CALL(cudaIpcOpenMemHandle(reinterpret_cast<void**>(&foreign_buffer), handles[node_id],
-                                       cudaIpcMemLazyEnablePeerAccess));
+        TVM_FFI_CHECK_CUDA_ERROR(cudaIpcOpenMemHandle(reinterpret_cast<void**>(&foreign_buffer),
+                                                      handles[node_id],
+                                                      cudaIpcMemLazyEnablePeerAccess));
         comm_ptrs[node_id] = foreign_buffer;
       }
     }
@@ -183,10 +188,10 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
     for (int i = 0; i < static_cast<int>(comm_ptrs.size()); ++i) {
       if (i != worker_id) {
         // Free ipc handle.
-        CUDA_CALL(cudaIpcCloseMemHandle(comm_ptrs[i]));
+        TVM_FFI_CHECK_CUDA_ERROR(cudaIpcCloseMemHandle(comm_ptrs[i]));
       } else {
         // Free local buffer.
-        CUDA_CALL(cudaFree(comm_ptrs[i]));
+        TVM_FFI_CHECK_CUDA_ERROR(cudaFree(comm_ptrs[i]));
       }
     }
   }

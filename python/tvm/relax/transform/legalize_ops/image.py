@@ -18,9 +18,10 @@
 """Default legalization function for image operators."""
 
 from tvm import tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import register_legalize
 
 
@@ -66,6 +67,7 @@ def _image_affine_grid(bb: BlockBuilder, call: Call) -> Expr:
         topi.image.affine_grid,
         call.args[0],
         target_shape=target_shape,
+        align_corners=call.attrs.align_corners,
     )
 
 

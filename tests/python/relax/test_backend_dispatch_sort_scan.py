@@ -410,9 +410,17 @@ def test_dispatch_topk_gpu():
     assert_structural_equal(mod, expected_mod)
 
 
-@tvm.testing.parametrize_targets("cuda", {"kind": "vulkan", "supports_int64": True})
-def test_dispatch_cumsum_gpu(target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param({"kind": "vulkan", "supports_int64": True}, marks=pytest.mark.gpu),
+    ],
+)
+def test_dispatch_cumsum_gpu(target):
     """Test cumsum kernel dispatch and numerical correctness"""
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
 
     @I.ir_module
     class Module:
@@ -429,10 +437,15 @@ def test_dispatch_cumsum_gpu(target, dev):
     with tvm.target.Target(target):
         mod = DispatchSortScan()(Module)
         ex = tvm.compile(mod, target)
+
+    def run_and_check():
+        dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
         vm = tvm.relax.VirtualMachine(ex, dev)
         tvm_data = tvm.runtime.tensor(np_data, dev)
         cumsum = vm["main"](tvm_data)
         tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

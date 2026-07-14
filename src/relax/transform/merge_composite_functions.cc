@@ -57,8 +57,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/function.h>
 
 #include "../../support/arena.h"
@@ -90,7 +90,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       // Groups for CallNode are created in its visitor.
       if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
           e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
-          e->IsInstance<PrimValueNode>()) {
+          (!e->IsInstance<CallNode>() && !e->IsInstance<VarNode>() && e.as<PrimExpr>())) {
         memo_[e] = arena_->make<Group>();
       }
     });
@@ -184,7 +184,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
   ffi::Optional<ffi::String> GetCodegenName(Group* group) {
     if (auto opt_str = group->attrs.Get(attr::kCodegen)) {
-      return Downcast<ffi::String>(opt_str.value());
+      return opt_str.value().as_or_throw<ffi::String>();
     }
     return std::nullopt;
   }
@@ -311,22 +311,22 @@ class CompositeInliner : public ExprMutator {
   Function Run(Function func) {
     inlined_functions_ = ffi::Map<Function, Function>();
     auto new_body = VisitExpr(ToNonDataflow(func->body));
-    auto new_func = Function(func->params, new_body, func->ret_struct_info, func->is_pure,
-                             func->attrs, func->span);
+    auto new_func =
+        Function(func->params, new_body, func->ret_ty, func->is_pure, func->attrs, func->span);
     return new_func;
   }
 
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
-      auto gvar = Downcast<GlobalVar>(call->op);
-      auto func = Downcast<Function>(mod_->Lookup(gvar));
+      auto gvar = call->op.as_or_throw<GlobalVar>();
+      auto func = mod_->Lookup(gvar).as_or_throw<Function>();
       if (func->GetAttr<ffi::String>(attr::kComposite)) {
         if (!inlined_functions_.count(func)) {
           auto new_func = CopyWithNewVars(func);
           new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
           inlined_functions_.Set(func, new_func);
         }
-        return Call(inlined_functions_[func], call->args);
+        return Call(Type::Missing(), inlined_functions_[func], call->args);
       }
     }
 
@@ -353,15 +353,15 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
   IRModule update() {
     auto gvar = mod_->GetGlobalVar("main");
-    auto func = Downcast<Function>(mod_->Lookup(gvar));
-    builder_->UpdateFunction(gvar, Downcast<Function>(VisitExpr(func)));
+    auto func = mod_->Lookup(gvar).as_or_throw<Function>();
+    builder_->UpdateFunction(gvar, VisitExpr(func).as_or_throw<Function>());
     return builder_->GetContextIRModule();
   }
 
   Expr VisitExpr_(const CallNode* call) {
     if (call->op->IsInstance<GlobalVarNode>()) {
-      GlobalVar cur_var = Downcast<GlobalVar>(call->op);
-      auto func = Downcast<Function>(mod_->Lookup(cur_var));
+      GlobalVar cur_var = call->op.as_or_throw<GlobalVar>();
+      auto func = mod_->Lookup(cur_var).as_or_throw<Function>();
       if (auto codegen_name = func->GetAttr<ffi::String>(attr::kCodegen)) {
         GlobalVar new_var;
         if (var_map_.count(cur_var) > 0) {
@@ -376,7 +376,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
           // rename the function.
           ffi::String new_func_name = cur_var->name_hint + "_" + codegen_name.value();
-          Function new_func = inliner.Run(Downcast<Function>(func));
+          Function new_func = inliner.Run(func.as_or_throw<Function>());
           new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, new_func_name);
           new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
           // add a function with a new name.
@@ -386,7 +386,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         // we call new var instead of the old one.
         // we don't have to update args since we are just updating the function to call,
         // without any change in the arguments.
-        return Call(new_var, call->args);
+        return Call(Type::Missing(), new_var, call->args);
       }
     }
     return ffi::GetRef<Call>(call);
@@ -402,7 +402,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
 IRModule MergeCompositeFunctions(IRModule mod) {
   auto gvar = mod->GetGlobalVar("main");
-  auto func = Downcast<Function>(mod->Lookup(gvar));
+  auto func = mod->Lookup(gvar).as_or_throw<Function>();
   support::Arena arena;
   auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
   auto new_mod = MakeGroupedFunctions(mod, group_map);

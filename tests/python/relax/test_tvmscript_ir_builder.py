@@ -34,33 +34,29 @@ def test_function_simple():
         with R.function():
             R.func_name("foo")
             R.func_attr({"Primitive": True})
-            x = R.arg("x", relax.TensorStructInfo((128, 128), "float32"))
-            R.func_ret_struct_info(relax.TensorStructInfo(dtype="float32", ndim=2))
+            x = R.arg("x", relax.TensorType((128, 128), "float32"))
+            R.func_ret_ty(relax.TensorType(dtype="float32", ndim=2))
             y = R.emit(
-                R.call_dps_packed(
-                    "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
-                )
+                R.call_dps_packed("extern_func", x, relax.TensorType((128, 128), dtype="float32"))
             )
             out = R.emit(
                 R.call_dps_packed(
-                    "extern_dps_func", y, relax.TensorStructInfo((128, 128), dtype="float32")
+                    "extern_dps_func", y, relax.TensorType((128, 128), dtype="float32")
                 )
             )
             IRBuilder.name("out", out)
             R.func_ret_value(out)
     func = ir_builder.get()
     # create with BlockBuilder
-    x = relax.Var("x", relax.TensorStructInfo((128, 128), "float32"))
+    x = relax.Var("x", relax.TensorType((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,), attrs={"Primitive": True}):
         y = bb.emit(
-            relax.call_dps_packed(
-                "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
-            )
+            relax.call_dps_packed("extern_func", x, relax.TensorType((128, 128), dtype="float32"))
         )
         out = bb.emit(
             relax.call_dps_packed(
-                "extern_dps_func", y, relax.TensorStructInfo((128, 128), dtype="float32")
+                "extern_dps_func", y, relax.TensorType((128, 128), dtype="float32")
             )
         )
         bb.emit_func_output(out)
@@ -88,13 +84,13 @@ def test_emits():
     with IRBuilder() as ir_builder:
         with R.function():
             R.func_name("foo")
-            x = R.arg("x", relax.TensorStructInfo(ndim=-1, dtype="float32"))
-            y = R.arg("y", relax.TensorStructInfo(ndim=-1, dtype="float32"))
+            x = R.arg("x", relax.TensorType(ndim=-1, dtype="float32"))
+            y = R.arg("y", relax.TensorType(ndim=-1, dtype="float32"))
             m = tirx.Var("m", dtype="int64")
             n = tirx.Var("n", dtype="int64")
-            _ = R.emit_match_cast(x, relax.TensorStructInfo((m,), "float32"))
-            y1 = R.emit_match_cast(y, relax.TensorStructInfo((n,), "float32"))
-            v = relax.Var("v", relax.TensorStructInfo((n,), "float32"))
+            _ = R.emit_match_cast(x, relax.TensorType((m,), "float32"))
+            y1 = R.emit_match_cast(y, relax.TensorType((n,), "float32"))
+            v = relax.Var("v", relax.TensorType((n,), "float32"))
             vb = relax.VarBinding(v, y1)
             v = R.emit_var_binding(vb)
             R.emit(v)
@@ -106,13 +102,13 @@ def test_emits():
     # create with BlockBuilder
     m = tirx.Var("m", dtype="int64")
     n = tirx.Var("n", dtype="int64")
-    x = relax.Var("x", relax.TensorStructInfo(dtype="float32", ndim=-1))
-    y = relax.Var("y", relax.TensorStructInfo(dtype="float32", ndim=-1))
-    v = relax.Var("v", relax.TensorStructInfo((n,), "float32"))
+    x = relax.Var("x", relax.TensorType(dtype="float32", ndim=-1))
+    y = relax.Var("y", relax.TensorType(dtype="float32", ndim=-1))
+    v = relax.Var("v", relax.TensorType((n,), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
-        _ = bb.match_cast(x, relax.TensorStructInfo((m,), "float32"))
-        y1 = bb.match_cast(y, relax.TensorStructInfo((n,), "float32"))
+        _ = bb.match_cast(x, relax.TensorType((m,), "float32"))
+        y1 = bb.match_cast(y, relax.TensorType((n,), "float32"))
         bb.emit_normalized(relax.VarBinding(v, y1))
         bb.emit(v)
         bb.emit_func_output(relax.ShapeExpr([m, n * 2]))
@@ -136,11 +132,11 @@ def test_dataflow_block():
     with IRBuilder() as ir_builder:
         with R.function():
             R.func_name("foo")
-            x = R.arg("x", relax.TensorStructInfo((128, 128), "float32"))
+            x = R.arg("x", relax.TensorType((128, 128), "float32"))
             with R.dataflow() as df:
                 lv0 = R.emit(
                     R.call_dps_packed(
-                        "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
+                        "extern_func", x, relax.TensorType((128, 128), dtype="float32")
                     )
                 )
                 IRBuilder.name("lv0", lv0)
@@ -152,13 +148,13 @@ def test_dataflow_block():
     func = ir_builder.get()
 
     # create with BlockBuilder
-    x = relax.Var("x", relax.TensorStructInfo((128, 128), "float32"))
+    x = relax.Var("x", relax.TensorType((128, 128), "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x,)):
         with bb.dataflow():
             lv0 = bb.emit(
                 relax.call_dps_packed(
-                    "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")
+                    "extern_func", x, relax.TensorType((128, 128), dtype="float32")
                 )
             )
             gv = bb.emit_output(lv0)
@@ -200,14 +196,14 @@ def test_function_subroutine_before_main():
     # create with BlockBuilder
     bb = relax.BlockBuilder()
 
-    A_sub = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
-    B_sub = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+    A_sub = relax.Var("A", relax.TensorType((128, 128), "float32"))
+    B_sub = relax.Var("B", relax.TensorType((128, 128), "float32"))
     with bb.function("subroutine", (A_sub, B_sub)):
         out = bb.emit(R.add(A_sub, B_sub))
         subroutine = bb.emit_func_output(out)
 
-    A = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
-    B = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+    A = relax.Var("A", relax.TensorType((128, 128), "float32"))
+    B = relax.Var("B", relax.TensorType((128, 128), "float32"))
     with bb.function("main", (A, B)):
         out = bb.emit(subroutine(A, B))
         bb.emit_func_output(out)
@@ -242,11 +238,11 @@ def test_function_subroutine_during_main():
     # create with BlockBuilder
     bb = relax.BlockBuilder()
 
-    A = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
-    B = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+    A = relax.Var("A", relax.TensorType((128, 128), "float32"))
+    B = relax.Var("B", relax.TensorType((128, 128), "float32"))
     with bb.function("main", (A, B)):
-        A_sub = relax.Var("A", relax.TensorStructInfo((128, 128), "float32"))
-        B_sub = relax.Var("B", relax.TensorStructInfo((128, 128), "float32"))
+        A_sub = relax.Var("A", relax.TensorType((128, 128), "float32"))
+        B_sub = relax.Var("B", relax.TensorType((128, 128), "float32"))
         with bb.function("subroutine", (A_sub, B_sub)):
             out = bb.emit(R.add(A_sub, B_sub))
             subroutine = bb.emit_func_output(out)

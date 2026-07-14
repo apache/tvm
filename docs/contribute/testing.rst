@@ -57,111 +57,133 @@ Unit-Test File Contents
 
 .. _pytest-marks: https://docs.pytest.org/en/stable/how-to/mark.html
 
-The recommended method to run a test on multiple targets is by
-parametrizing the test.  This can be done explicitly for a fixed list
-of targets by decorating with
-``@tvm.testing.parametrize_targets('target_1', 'target_2', ...)``, and
-accepting ``target`` or ``dev`` as function arguments.  The function
-will be run once for each target listed, and the success/failure of
-each target is reported separately.  If a target cannot be run because
-it is disabled in the `config.cmake`, or because no appropriate
-hardware is present, then that target will be reported as skipped.
+The recommended way to run a test on multiple targets is to parametrize
+over ``target`` with ``@pytest.mark.parametrize``.  Tag each GPU target
+with ``pytest.mark.gpu`` so the CI routes it to a GPU node, skip a target
+that cannot run on the current machine with
+:py:func:`tvm.testing.device_enabled`, and obtain its device with
+``tvm.device(target)``.  The function is run once per target, the
+success/failure of each is reported separately, and a target whose device
+is disabled in ``config.cmake`` or absent from the machine is reported as
+skipped.
 
 .. code-block:: python
 
-    # Explicit listing of targets to use.
-    @tvm.testing.parametrize_targets('llvm', 'cuda')
-    def test_function(target, dev):
+    @pytest.mark.parametrize(
+        "target",
+        ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)],
+    )
+    def test_function(target):
+        if not tvm.testing.device_enabled(target):
+            pytest.skip(f"{target} not enabled")
+        dev = tvm.device(target)
         # Test code goes here
 
-For tests that should run correctly on all targets, the decorator can
-be omitted.  Any test that accepts a ``target`` or ``dev`` argument
-will automatically be parametrized over all targets specified in
-``TVM_TEST_TARGETS``.  The parametrization provides the same
-pass/fail/skipped report for each target, while allowing the test
-suite to be easily extended to cover additional targets.
+For a test that only applies to a single target, omit the parametrization
+and gate the test with ``@pytest.mark.skipif`` (plus ``@pytest.mark.gpu``
+for a GPU target):
 
 .. code-block:: python
 
-    # Implicitly parametrized to run on all targets
-    # in environment variable TVM_TEST_TARGETS
-    def test_function(target, dev):
+    @pytest.mark.gpu
+    @pytest.mark.skipif(
+        not tvm.testing.device_enabled("cuda"), reason="cuda not enabled"
+    )
+    def test_function():
+        target = "cuda"
+        dev = tvm.device(target)
         # Test code goes here
 
-The ``@tvm.testing.parametrize_targets`` can also be used as a bare
-decorator to explicitly draw attention to the parametrization, but has
-no additional effect.
+To exclude a target, leave it out of the parametrize list.  To mark a
+target as expected to fail, wrap it with
+``pytest.param("target", marks=pytest.mark.xfail(reason=...))``.
+
+Additional parameters can be combined with the target parametrization by
+stacking ``@pytest.mark.parametrize`` decorators, or by listing tuples of
+arguments.  Tag the GPU rows with ``pytest.mark.gpu`` and skip in the body
+as above:
 
 .. code-block:: python
 
-    # Explicitly parametrized to run on all targets
-    # in environment variable TVM_TEST_TARGETS
-    @tvm.testing.parametrize_targets
-    def test_function(target, dev):
-        # Test code goes here
-
-
-Specific targets can be excluded or marked as expected to fail using
-the ``@tvm.testing.exclude_targets`` or
-``@tvm.testing.known_failing_targets`` decorators.  For more
-information on their intended use cases, please see their docstrings.
-
-In some cases it may be necessary to parametrize across multiple
-parameters.  For instance, there may be target-specific
-implementations that should be tested, where some targets have more
-than one implementation.  These can be done by explicitly
-parametrizing over tuples of arguments, such as shown below.  In these
-cases, only the explicitly listed targets will run, but they will
-still have the appropriate ``@tvm.testing.requires_RUNTIME`` mark
-applied to them.
-
-.. code-block:: python
-
-   @pytest.mark.parametrize('target,impl', [
-        ('llvm', cpu_implementation),
-        ('cuda', gpu_implementation_small_batch),
-        ('cuda', gpu_implementation_large_batch),
+   @pytest.mark.parametrize("target,impl", [
+        ("llvm", cpu_implementation),
+        pytest.param("cuda", gpu_implementation_small_batch, marks=pytest.mark.gpu),
+        pytest.param("cuda", gpu_implementation_large_batch, marks=pytest.mark.gpu),
     ])
-    def test_function(target, dev, impl):
+    def test_function(target, impl):
+        if not tvm.testing.device_enabled(target):
+            pytest.skip(f"{target} not enabled")
+        dev = tvm.device(target)
         # Test code goes here
 
 
-The parametrization functionality is implemented
-on top of pytest marks.  Each test function can
-be decorated with `pytest marks <pytest-marks>`_
-to include metadata.  The most frequently applied
+Tests gate on hardware and carry metadata using
+`pytest marks <pytest-marks>`_.  The most frequently applied
 marks are as follows.
 
 - ``@pytest.mark.gpu`` - Tags a function as using GPU
   capabilities. This has no effect on its own, but can be paired with
-  command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
-  which tests pytest will execute.  This should not be called on its
-  own, but is part of other marks used in unit-tests.
+  the command-line arguments ``-m gpu`` or ``-m 'not gpu'`` to restrict
+  which tests pytest will execute.  Apply it to any test that needs a
+  GPU so that the CI runs it only on GPU nodes.
 
-- ``@tvm.testing.uses_gpu`` - Applies ``@pytest.mark.gpu``.  This
-  should be used to mark unit tests that may use the GPU, if one is
-  present.  This decorator is only needed for tests that explicitly
-  loop over ``tvm.testing.enabled_targets()``, but that is no longer
-  the preferred style of writing unit tests (see below).  When using
-  ``tvm.testing.parametrize_targets()``, this decorator is implicit
-  for GPU targets, and does not need to be explicitly applied.
+- ``@pytest.mark.skipif(not tvm.testing.env.has_X(), reason=...)`` -
+  Skips a test when a required runtime or hardware feature is not
+  available.  The :py:mod:`tvm.testing.env` module exposes one memoized
+  probe per capability (e.g. ``has_cuda()``, ``has_rocm()``,
+  ``has_vulkan()``, ``has_gpu()``, ``has_llvm()``), each of which
+  returns ``False`` when the runtime is disabled in ``config.cmake`` or
+  no compatible device is present.  Pair it with ``@pytest.mark.gpu``
+  for tests that use the GPU::
 
-- ``@tvm.testing.requires_gpu`` - Applies ``@tvm.testing.uses_gpu``,
-  and additionally marks that the test should be skipped
-  (``@pytest.mark.skipif``) entirely if no GPU is present.
+      @pytest.mark.gpu
+      @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+      def test_cuda_vectorize_add():
+          # Test code goes here
 
-- ``@tvm.testing.requires_RUNTIME`` - Several decorators
-  (e.g. ``@tvm.testing.requires_cuda``), each of which skips a test if
-  the specified runtime cannot be used. A runtime cannot be used if it
-  is disabled in the ``config.cmake``, or if a compatible device is
-  not present. For runtimes that use the GPU, this includes
-  ``@tvm.testing.requires_gpu``.
+- ``pytest.importorskip("package_name")`` - Skips a test (or the whole
+  module, when called at import time) if an optional Python package is
+  not installed.  Use this instead of a ``skipif`` for package
+  dependencies.
 
-When using parametrized targets, each test run is decorated with the
-``@tvm.testing.requires_RUNTIME`` that corresponds to the target
-being used.  As a result, if a target is disabled in ``config.cmake``
-or does not have appropriate hardware to run, it will be explicitly
-listed as skipped.
+Tests that execute on a local GPU must put the complete live-device
+lifetime in a small callback passed to
+:py:func:`tvm.testing.run_with_gpu_lock`.  Target construction and
+compilation remain outside so that pytest-xdist workers can compile in
+parallel.  Device creation, allocation, execution, synchronization,
+host conversion, result checks, and child-process teardown remain inside
+the callback so no device-backed object outlives the lock.
+
+.. code-block:: python
+
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+    def test_cuda_add_one():
+        target = tvm.target.Target("cuda -arch=sm_90")
+        executable = tvm.compile(make_add_one_module(), target)
+        host_input = np.arange(16, dtype="float32")
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            device_input = tvm.runtime.tensor(host_input, dev)
+            device_output = tvm.runtime.empty(host_input.shape, "float32", dev)
+            executable(device_input, device_output)
+            dev.sync()
+            tvm.testing.assert_allclose(device_output.numpy(), host_input + 1)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+The wrapper uses the existing :py:class:`tvm_ffi.utils.FileLock` with a
+persistent machine-local path.  A process exit releases the kernel lock;
+the remaining file is not stale ownership.  Test startup must never
+delete or rotate it, because another process could then lock a different
+inode.  Set ``TVM_TEST_LOCK_DIR`` only when all cooperating processes need
+an explicitly configured shared machine-local directory.  The default
+temporary path coordinates processes running as the same user.  Multi-user
+runners sharing a GPU must use one administrator-provisioned directory and
+persistent lock file that every contender can write, or enforce exclusivity
+through the runner.  A per-user lock path cannot protect a GPU shared across
+users because each user would lock a different file.
 
 There also exists a ``tvm.testing.enabled_targets()`` that returns
 all targets that are enabled and runnable on the current machine,
@@ -277,8 +299,8 @@ in which stages.
 
 - Which tests run
 
-  The ``Unit Test`` and ``Integration Test`` stages of the Jenkinsfile
-  determine how ``pytest`` is called.  Each task starts by unpacking a
+  The ``Unit Test`` stage of the Jenkinsfile determines how ``pytest``
+  is called.  Each task starts by unpacking a
   compiled library that was previous compiled in the ``BUILD`` stage,
   then runs a test script
   (e.g. ``tests/scripts/task_python_unittest.sh``).  These scripts set

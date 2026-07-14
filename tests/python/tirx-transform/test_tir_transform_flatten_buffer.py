@@ -318,7 +318,7 @@ def test_strided():
 
 
 def test_boolean():
-    """Boolean buffers should be replaced by a backing int8 array"""
+    """Boolean buffers are flattened but kept as bool (no int8 backing array)"""
 
     @I.ir_module(s_tir=True)
     class Before:
@@ -331,11 +331,11 @@ def test_boolean():
     class Expected:
         @T.prim_func(s_tir=True)
         def main(input_A: T.Buffer(10, "bool"), input_B: T.Buffer(10, "bool")) -> None:
-            A = T.decl_buffer(10, dtype="int8", data=input_A.data)
-            B = T.decl_buffer(10, dtype="int8", data=input_B.data)
+            A = T.decl_buffer(10, dtype="bool", data=input_A.data)
+            B = T.decl_buffer(10, dtype="bool", data=input_B.data)
             # body
             for i0 in T.serial(10):
-                B[i0] = T.cast(T.cast(A[i0], "bool"), "int8")
+                B[i0] = A[i0]
 
     After = _transform()(Before)
     tvm.ir.assert_structural_equal(After, Expected)

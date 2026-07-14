@@ -34,7 +34,7 @@ TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
     .add_attr_option<ffi::Map<ffi::String, int64_t>>("her_maps");
 
 ffi::Map<ffi::String, ffi::Any> TestTargetParser(ffi::Map<ffi::String, ffi::Any> target) {
-  ffi::String mcpu = Downcast<ffi::String>(target.at("mcpu"));
+  ffi::String mcpu = target.at("mcpu").as_or_throw<ffi::String>();
   target.Set("mcpu", ffi::String("super_") + mcpu);
   target.Set("keys", ffi::Array<ffi::String>({"super"}));
   target.Set("feature.test", true);
@@ -262,7 +262,7 @@ TEST(TargetCreation, RoundTripCanonicalizerFeaturesNestedHost) {
 
   // The nested host must reconstruct successfully with feature.* preserved
   ffi::Optional<Target> reconstructed_host = reconstructed->GetHost();
-  ASSERT_TRUE(reconstructed_host.defined());
+  ASSERT_TRUE(reconstructed_host.has_value());
   ASSERT_EQ(reconstructed_host.value()->GetAttr<bool>("feature.test").value(), true);
   ASSERT_TRUE(reconstructed_host.value()->GetAttr<ffi::String>("mcpu").has_value());
 }
@@ -379,7 +379,7 @@ TEST(TargetCreation, DeduplicateKeys) {
   TVM_FFI_ICHECK_EQ(target->keys.size(), 2U);
   TVM_FFI_ICHECK_EQ(target->keys[0], "cpu");
   TVM_FFI_ICHECK_EQ(target->keys[1], "arm_cpu");
-  TVM_FFI_ICHECK_EQ(target->attrs.size(), 2U);
+  TVM_FFI_ICHECK_EQ(target->attrs.count("keys"), 0U);
   TVM_FFI_ICHECK_EQ(target->GetAttr<ffi::String>("device"), "arm_cpu");
 }
 

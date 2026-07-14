@@ -24,6 +24,7 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/type.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -45,7 +46,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
  public:
   static PrimFunc Flatten(PrimFunc func) {
     arith::Analyzer ana;
-    auto pass = BufferFlattener(ana.get());
+    auto pass = BufferFlattener(ana);
     pass.MarkBufferMapShapes(func);
     auto body = pass.VisitStmt(func->body);
 
@@ -78,7 +79,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt;
   using IRMutatorWithAnalyzer::VisitStmt_;
 
-  explicit BufferFlattener(arith::AnalyzerObj* ana) : IRMutatorWithAnalyzer(ana) {}
+  explicit BufferFlattener(const arith::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     TVM_FFI_ICHECK_EQ(op->match_buffers.size(), 0)
@@ -109,14 +110,9 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    auto node = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
 
     auto new_buf = GetFlattenedBuffer(node->buffer);
-    // TODO(Lunderberg): Move the handling of boolean into a dedicated pass.
-    if (new_buf->dtype == DataType::Bool()) {
-      auto writer = new_buf.CopyOnWrite();
-      writer->dtype = DataType::Int(8);
-    }
     if (!node->buffer.same_as(new_buf)) {
       node.CopyOnWrite()->buffer = new_buf;
     }
@@ -125,7 +121,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
 
     auto new_buf = GetFlattenedBuffer(node->buffer);
     if (!node->buffer.same_as(new_buf)) {
@@ -143,11 +139,6 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     auto flattened = buf.GetFlattenedBuffer();
     auto writer = flattened.CopyOnWrite();
 
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (flattened->dtype == DataType::Bool()) {
-      writer->dtype = DataType::Int(8);
-    }
     // canonicalize shape
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
       writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
@@ -159,39 +150,15 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
-    bool store_returns_bool = (op->value.dtype() == DataType::Bool());
+    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     store = VisitBufferAccess(store);
-
-    // Handle casts from the value's dtype to the dtype of the
-    // backing array.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (store_returns_bool) {
-      TVM_FFI_ICHECK_EQ(store->buffer->dtype, DataType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
-      auto writer = store.CopyOnWrite();
-      writer->value = tvm::cast(DataType::Int(8), store->value);
-      return store;
-    }
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    bool load_returns_bool = (op->dtype == DataType::Bool());
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
-    // Handle casts from dtype of the backing array to value's dtype.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (load_returns_bool) {
-      TVM_FFI_ICHECK_EQ(load->buffer->dtype, DataType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
-      load.CopyOnWrite()->dtype = DataType::Int(8);
-      return tvm::cast(DataType::Bool(), load);
-    } else {
-      return load;
-    }
+    return load;
   }
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,

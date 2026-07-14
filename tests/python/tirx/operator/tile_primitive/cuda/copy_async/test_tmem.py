@@ -24,10 +24,13 @@ import tvm
 import tvm.testing
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.testing import env
 from tvm.tirx.layout import S, TCol, TileLayout, TLane
 from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("dtype", ["float16", "float32"])
 @pytest.mark.parametrize("width_32b", [4, 8, 16, 32])
 def test_copy_tmem2reg_async(dtype, width_32b):
@@ -118,11 +121,15 @@ def test_copy_tmem2reg_async(dtype, width_32b):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        np.testing.assert_allclose(B.numpy(), A_np)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B.numpy(), A_np)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -132,6 +139,8 @@ def test_copy_tmem2reg_async(dtype, width_32b):
 # ----------------------------------------------------------------------------
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("dtype", ["uint8", "float16", "float32"])
 @pytest.mark.parametrize("width_32b", [2, 4, 8, 16, 32, 64, 128])
 @pytest.mark.parametrize("offset_32b", [0, 3, 10])
@@ -217,13 +226,19 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        np.testing.assert_allclose(B.numpy(), A_np)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B.numpy(), A_np)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 @pytest.mark.parametrize("dtype", ["float16", "float32"])
 @pytest.mark.parametrize("width_32b", [4, 8, 16, 32])
 @pytest.mark.parametrize("local_offset_32b", [0, 2, 4])
@@ -314,11 +329,15 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         A_np = tvm.testing.generate_random_array(dtype, (128, WIDTH))
         B_np = np.zeros((128, WIDTH), dtype=dtype)
-        DEV = tvm.cuda(0)
-        A = tvm.runtime.tensor(A_np, DEV)
-        B = tvm.runtime.tensor(B_np, DEV)
-        mod(A, B)
-        np.testing.assert_allclose(B.numpy(), A_np)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B.numpy(), A_np)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

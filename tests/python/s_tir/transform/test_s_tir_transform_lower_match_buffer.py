@@ -32,7 +32,7 @@ def _check(original, transformed):
 
 def _check_fail(original):
     mod = tvm.IRModule.from_expr(original)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         mod = tvm.s_tir.transform.LowerMatchBuffer()(mod)
 
 
@@ -64,7 +64,10 @@ def transformed_buffer_load_store(a: T.handle, c: T.handle) -> None:
                 A[i * 4 + ii, j, k * 2 + kk] += C[i * 4 + ii, k * 2 + kk]
 
 
-@tvm.ir.register_op_attr("tirx.intrin_test", "")
+# Dummy intrinsic whose arguments exercise match_buffer fields.  TVMScript
+# evaluates the call eagerly (to 0), so it must NOT be registered as an op:
+# registering "tirx.intrin_test" only leaves a category-less op in the tirx
+# registry, breaking the exactly-one-category invariant for later tests.
 def intrin_test(data, elem_offset, stride_0, stride_1, shape_0, shape_1):
     return 0
 
@@ -483,7 +486,7 @@ def fail_buffer_bind(a: T.handle) -> None:
 
 # well-formed checker complains about redefinition of a stride variable
 @T.prim_func(check_well_formed=False, s_tir=True)
-def fail_match_func_param(a: T.handle, m: T.handle, n: T.handle) -> None:
+def fail_match_func_param(a: T.handle, m: T.int32, n: T.int32) -> None:
     A = T.match_buffer(a, (8, 8))
     for i, j in T.grid(8, 2):
         with T.sblock():

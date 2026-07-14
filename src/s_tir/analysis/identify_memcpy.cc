@@ -107,7 +107,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   //     B[i] = A[T.abs(i-8)]
 
   arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
-  auto src_iter_map = arith::DetectIterMap({src_index}, loop_ranges, const_true(),
+  auto src_iter_map = arith::DetectIterMap({src_index}, loop_ranges, IntImm::Bool(true),
                                            arith::IterMapLevel::Bijective, analyzer_ref);
   if (src_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()
@@ -117,7 +117,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
                                                  << " for src_index = " << src_index)
         .str();
   }
-  auto dst_iter_map = arith::DetectIterMap({dst_index}, loop_ranges, const_true(),
+  auto dst_iter_map = arith::DetectIterMap({dst_index}, loop_ranges, IntImm::Bool(true),
                                            arith::IterMapLevel::Bijective, analyzer_ref);
   if (dst_iter_map->errors.size()) {
     return static_cast<const std::stringstream&>(std::stringstream()

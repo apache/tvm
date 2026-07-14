@@ -19,9 +19,11 @@
 import pytest
 import torch
 
+import tvm.testing
+
 pytest.importorskip("triton")  # tvm.tirx.bench imports triton.profiler
 
-import tvm.testing
+from tvm.testing import env
 from tvm.tirx.bench import _compute_group_count, _parse_proton_tree, bench, tensor_bytes
 
 # ── _parse_proton_tree ──────────────────────────────────────────────────────
@@ -91,7 +93,8 @@ def test_parse_proton_tree_empty():
 # ── bench ───────────────────────────────────────────────────────────────────
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_bench_basic():
     """bench returns positive times for each impl."""
     M, N = 256, 256
@@ -103,12 +106,16 @@ def test_bench_basic():
         B = torch.randn(M, N, device="cuda", dtype=torch.float16)
         return (A, B), tensor_bytes(A, B)
 
-    results = bench(funcs, make_input, warmup=5, repeat=10, cooldown_s=0.0, timer="event")
-    assert "matmul" in results["impls"]
-    assert results["impls"]["matmul"] > 0
+    def run_and_check():
+        results = bench(funcs, make_input, warmup=5, repeat=10, cooldown_s=0.0, timer="event")
+        assert "matmul" in results["impls"]
+        assert results["impls"]["matmul"] > 0
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_bench_multiple_impls():
     """Multiple impls each get their own timing."""
     M, N = 128, 128
@@ -124,12 +131,16 @@ def test_bench_multiple_impls():
         B = torch.randn(M, N, device="cuda", dtype=torch.float16)
         return (A, B), tensor_bytes(A, B)
 
-    results = bench(funcs, make_input, warmup=5, repeat=10, cooldown_s=0.0, timer="event")
-    assert set(results["impls"].keys()) == {"mm", "addmm"}
-    assert all(v > 0 for v in results["impls"].values())
+    def run_and_check():
+        results = bench(funcs, make_input, warmup=5, repeat=10, cooldown_s=0.0, timer="event")
+        assert set(results["impls"].keys()) == {"mm", "addmm"}
+        assert all(v > 0 for v in results["impls"].values())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_bench_multiple_input_groups():
     """Multiple input groups cycle correctly (L2 eviction)."""
     M, N = 128, 128
@@ -142,11 +153,21 @@ def test_bench_multiple_input_groups():
         return (A, B), tensor_bytes(A, B)
 
     funcs = {"mm": lambda case: torch.mm(case[0], case[1])}
-    results = bench(
-        funcs, make_input, warmup=5, repeat=20, cooldown_s=0.0, timer="event", l2_bytes=64 * 1024
-    )
-    assert results["impls"]["mm"] > 0
-    assert call_count[0] > 1
+
+    def run_and_check():
+        results = bench(
+            funcs,
+            make_input,
+            warmup=5,
+            repeat=20,
+            cooldown_s=0.0,
+            timer="event",
+            l2_bytes=64 * 1024,
+        )
+        assert results["impls"]["mm"] > 0
+        assert call_count[0] > 1
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ── _compute_group_count ───────────────────────────────────────────────────
@@ -176,20 +197,25 @@ def test_compute_groups_moderate_tensors():
     assert n == 4
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_bench_legacy_callable_api():
     """bench still accepts the existing single-callable API used by TIRx tests."""
     M, N = 128, 128
-    A = torch.randn(M, N, device="cuda", dtype=torch.float16)
-    B = torch.randn(M, N, device="cuda", dtype=torch.float16)
 
-    result = bench(
-        lambda: torch.mm(A, B), warmup=1, repeat=2, proton_name="legacy", flush_l2_size=1
-    )
-    assert result > 0
+    def run_and_check():
+        A = torch.randn(M, N, device="cuda", dtype=torch.float16)
+        B = torch.randn(M, N, device="cuda", dtype=torch.float16)
+        result = bench(
+            lambda: torch.mm(A, B), warmup=1, repeat=2, proton_name="legacy", flush_l2_size=1
+        )
+        assert result > 0
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_bench_callable_inputs():
     """bench accepts a factory callable and auto-computes groups."""
     M, N = 256, 256
@@ -205,10 +231,14 @@ def test_bench_callable_inputs():
         return case, tensor_bytes(*case)
 
     funcs = {"mm": lambda case: torch.mm(case[0], case[1])}
-    results = bench(funcs, make_input, warmup=5, repeat=10, cooldown_s=0.0, timer="event")
-    assert "mm" in results["impls"]
-    assert results["impls"]["mm"] > 0
-    assert call_count[0] >= 2  # at least 2 groups created
+
+    def run_and_check():
+        results = bench(funcs, make_input, warmup=5, repeat=10, cooldown_s=0.0, timer="event")
+        assert "mm" in results["impls"]
+        assert results["impls"]["mm"] > 0
+        assert call_count[0] >= 2  # at least 2 groups created
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

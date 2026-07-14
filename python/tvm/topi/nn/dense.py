@@ -59,7 +59,7 @@ def matmul(
     auto_scheduler_rewritten_layout: Optional[str] = ""
         The layout after auto-scheduler's layout rewrite pass.
 
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns
@@ -194,7 +194,7 @@ def dense(
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns

@@ -25,6 +25,7 @@
 #include "data_type_rewriter.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
@@ -45,24 +46,25 @@ Stmt DataTypeLegalizer::VisitStmt_(const ForNode* op) {
   Stmt s = StmtExprMutator::VisitStmt_(op);
   op = s.as<ForNode>();
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be ForNode, but get " << s->GetTypeKey();
-  PrimExpr e = VisitExpr(op->loop_var);
-  Var var = Downcast<Var>(e);
+  PrimExpr e = VisitExpr(op->loop_var).as_or_throw<PrimExpr>();
+  Var var = e.as_or_throw<Var>();
   auto n = CopyOnWrite(op);
-  n->min = cast(var.dtype(), op->min);
-  n->extent = cast(var.dtype(), op->extent);
+  PrimType var_ty = var->ty.as_or_throw<PrimType>();
+  n->min = cast(var_ty, op->min);
+  n->extent = cast(var_ty, op->extent);
   if (op->step.has_value()) {
-    n->step = cast(var.dtype(), *op->step);
+    n->step = cast(var_ty, *op->step);
   }
   return For(n);
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const SBlockRealizeNode* op) {
-  SBlockRealize realize = Downcast<SBlockRealize>(StmtExprMutator::VisitStmt_(op));
+  SBlockRealize realize = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlockRealize>();
   ffi::Array<PrimExpr> new_iter_values;
   bool changed = false;
   for (int i = 0; i < static_cast<int>(op->iter_values.size()); ++i) {
-    auto dtype = realize->block->iter_vars[i]->var->dtype;
-    if (op->iter_values[i]->dtype != dtype) {
+    PrimType dtype = realize->block->iter_vars[i]->var.ty();
+    if (op->iter_values[i].ty() != dtype) {
       new_iter_values.push_back(cast(dtype, realize->iter_values[i]));
       changed = true;
     } else {
@@ -76,11 +78,11 @@ Stmt DataTypeLegalizer::VisitStmt_(const SBlockRealizeNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const SBlockNode* op) {
-  SBlock new_block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+  SBlock new_block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
   ffi::Array<IterVar> new_iter_vars =
       MutateArray(new_block->iter_vars, [/*this*/](const IterVar& iter) {
-        auto dtype = iter->var.dtype();
-        if (iter->dom->min->dtype != dtype || iter->dom->extent->dtype != dtype) {
+        PrimType dtype = iter->var.ty();
+        if (iter->dom->min.ty() != dtype || iter->dom->extent.ty() != dtype) {
           IterVar new_iter = iter;
           new_iter.CopyOnWrite()->dom =
               Range(cast(dtype, iter->dom->min), cast(dtype, iter->dom->extent));
@@ -104,35 +106,37 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
     const IterVarNode* iv = op->node.as<IterVarNode>();
     TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
                                   << ", but get " << op->node.GetTypeKey();
-    PrimExpr e = VisitExpr(iv->var);
-    Var var = Downcast<Var>(e);
+    PrimExpr e = VisitExpr(iv->var).as_or_throw<PrimExpr>();
+    PrimVar var = e.as_or_throw<PrimVar>();
     if (ivmap_.find(iv) == ivmap_.end()) {
       Range dom = iv->dom;
       if (dom.defined()) {
         PrimExpr extend = dom->extent;
-        TVM_FFI_ICHECK(extend.dtype().is_int() && var.dtype().is_int());
-        if (var.dtype().bits() != extend.dtype().bits()) {
-          DataType dtype = var.dtype();
-          dom = Range(cast(dtype, dom->min), cast(dtype, extend), dom->span);
+        PrimType extend_ty = extend.ty();
+        PrimType var_ty = var.ty();
+        TVM_FFI_ICHECK(extend_ty.MatchesCode(DLDataTypeCode::kDLInt) &&
+                       var_ty.MatchesCode(DLDataTypeCode::kDLInt));
+        if (var_ty.bits() != extend_ty.bits()) {
+          dom = Range(cast(var_ty, dom->min), cast(var_ty, extend), dom->span);
         }
       }
       ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
     }
-    return AttrStmt(ivmap_[iv], op->attr_key, cast(var.dtype(), op->value), op->body);
+    return AttrStmt(ivmap_[iv], op->attr_key, cast(var.ty(), op->value), op->body);
   }
   return StmtExprMutator::VisitStmt_(op);
 }
 
-PrimExpr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
+Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
+  PrimExpr value = this->VisitPrimExpr(op->value);
   Var var = op->var;
 
-  if (value.dtype() != op->var->dtype) {
-    var = op->var.copy_with_dtype(value.dtype());
+  if (value.ty() != op->var->ty.as_or_throw<PrimType>()) {
+    var = op->var.copy_with_dtype(value.ty());
     var_remap_[op->var.get()] = var;
   }
 
-  PrimExpr new_body = this->VisitExpr(op->body);
+  PrimExpr new_body = this->VisitPrimExpr(op->body);
 
   if (value.same_as(op->value) && new_body.same_as(op->body)) {
     return ffi::GetRef<PrimExpr>(op);
@@ -142,12 +146,14 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   Var var = op->var;
 
-  if (value.dtype() != op->var->dtype) {
-    var = op->var.copy_with_dtype(value.dtype());
-    var_remap_[op->var.get()] = var;
+  if (auto prim_value = value.as<PrimExpr>()) {
+    if (prim_value.value().ty() != op->var->ty.as_or_throw<PrimType>()) {
+      var = op->var.copy_with_dtype(prim_value.value().ty());
+      var_remap_[op->var.get()] = var;
+    }
   }
 
   if (value.same_as(op->value) && var.same_as(op->var)) {
@@ -157,57 +163,60 @@ Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
   }
 }
 
-PrimExpr DataTypeLegalizer::VisitExpr_(const VarNode* op) {
+Expr DataTypeLegalizer::VisitExpr_(const VarNode* op) {
   if (auto it = var_remap_.find(op); it != var_remap_.end()) {
     return it->second;
   }
   return ffi::GetRef<Var>(op);
 }
 
-PrimExpr DataTypeLegalizer::VisitExpr_(const SelectNode* op) {
-  PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr true_value = this->VisitExpr(op->true_value);
-  PrimExpr false_value = this->VisitExpr(op->false_value);
+Expr DataTypeLegalizer::VisitExpr_(const SelectNode* op) {
+  PrimExpr condition = this->VisitPrimExpr(op->condition);
+  PrimExpr true_value = this->VisitPrimExpr(op->true_value);
+  PrimExpr false_value = this->VisitPrimExpr(op->false_value);
   if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
-      false_value.same_as(op->false_value) && true_value.dtype() == false_value.dtype()) {
+      false_value.same_as(op->false_value) && true_value.ty() == false_value.ty()) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    int bits = std::max(true_value.dtype().bits(), false_value.dtype().bits());
-    DataType dtype = true_value.dtype().with_bits(bits);
-    if (true_value.dtype() != dtype) true_value = cast(dtype, true_value);
-    if (false_value.dtype() != dtype) false_value = cast(dtype, false_value);
+    PrimType true_dtype = true_value.ty();
+    PrimType false_dtype = false_value.ty();
+    int bits = std::max(true_dtype.bits(), false_dtype.bits());
+    PrimType dtype = true_dtype.WithBits(bits);
+    if (true_dtype != dtype) true_value = cast(dtype, true_value);
+    if (false_dtype != dtype) false_value = cast(dtype, false_value);
     return Select(condition, true_value, false_value);
   }
 }
 
-PrimExpr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
-  PrimExpr base = VisitExpr(op->base);
-  PrimExpr stride = VisitExpr(op->stride);
-  if (base.same_as(op->base) && stride.same_as(op->stride) && base.dtype() == stride.dtype()) {
+Expr DataTypeLegalizer::VisitExpr_(const RampNode* op) {
+  PrimExpr base = VisitPrimExpr(op->base);
+  PrimExpr stride = VisitPrimExpr(op->stride);
+  if (base.same_as(op->base) && stride.same_as(op->stride) && base.ty() == stride.ty()) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    TVM_FFI_ICHECK(base.dtype().is_int() && stride.dtype().is_int());
-    int bits = std::max(base.dtype().bits(), stride.dtype().bits());
-    DataType dtype = base.dtype().with_bits(bits);
-    if (base.dtype() != dtype) base = cast(dtype, base);
-    if (stride.dtype() != dtype) stride = cast(dtype, stride);
+    PrimType base_dtype = base.ty();
+    PrimType stride_dtype = stride.ty();
+    TVM_FFI_ICHECK(base_dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
+                   stride_dtype.MatchesCode(DLDataTypeCode::kDLInt));
+    int bits = std::max(base_dtype.bits(), stride_dtype.bits());
+    PrimType dtype = base_dtype.WithBits(bits);
+    if (base_dtype->dtype != dtype->dtype) base = cast(dtype, base);
+    if (stride_dtype->dtype != dtype->dtype) stride = cast(dtype, stride);
     return Ramp(base, stride, op->lanes);
   }
 }
 
-PrimExpr DataTypeLegalizer::VisitExpr_(const CastNode* op) {
-  return StmtExprMutator::VisitExpr_(op);
-}
+Expr DataTypeLegalizer::VisitExpr_(const CastNode* op) { return StmtExprMutator::VisitExpr_(op); }
 
-#define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)             \
-  PrimExpr DataTypeLegalizer::VisitExpr_(const OP* op) {                  \
-    PrimExpr a = this->VisitExpr(op->a);                                  \
-    PrimExpr b = this->VisitExpr(op->b);                                  \
-    if (op->a.same_as(a) && op->b.same_as(b) && a.dtype() == b.dtype()) { \
-      return ffi::GetRef<PrimExpr>(op);                                   \
-    } else {                                                              \
-      return FUNC(a, b);                                                  \
-    }                                                                     \
+#define TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)       \
+  Expr DataTypeLegalizer::VisitExpr_(const OP* op) {                \
+    PrimExpr a = this->VisitPrimExpr(op->a);                        \
+    PrimExpr b = this->VisitPrimExpr(op->b);                        \
+    if (op->a.same_as(a) && op->b.same_as(b) && a.ty() == b.ty()) { \
+      return ffi::GetRef<PrimExpr>(op);                             \
+    } else {                                                        \
+      return FUNC(a, b);                                            \
+    }                                                               \
   }
 
 TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+);
@@ -228,41 +237,53 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
-PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
+Expr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   Call before = ffi::GetRef<Call>(op);
-  PrimExpr e = StmtExprMutator::VisitExpr_(op);
+  Expr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
-  static const Op& builtin_pow_ = Op::Get("tirx.pow");
   TVM_FFI_ICHECK(op != nullptr) << "Expected type to be CallNode"
                                 << ", but get " << e->GetTypeKey();
+  if (!op->ty.as<PrimTypeNode>()) {
+    return e;
+  }
+  PrimExpr prim_e = e.as_or_throw<PrimExpr>();
   if (op->op.same_as(builtin::shift_right())) {
-    return op->args[0] >> op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() >> op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::shift_left())) {
-    return op->args[0] << op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() << op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_and())) {
-    return op->args[0] & op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() & op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_or())) {
-    return op->args[0] | op->args[1];
+    return op->args[0].as_or_throw<PrimExpr>() | op->args[1].as_or_throw<PrimExpr>();
   } else if (op->op.same_as(builtin::bitwise_xor())) {
-    return op->args[0] ^ op->args[1];
-  } else if (op->op.same_as(builtin_pow_)) {
-    return pow(op->args[0], op->args[1]);
+    return op->args[0].as_or_throw<PrimExpr>() ^ op->args[1].as_or_throw<PrimExpr>();
+  }
+  static const Op& pow_op = Op::Get("tirx.pow");
+  static const Op& clz_op = Op::Get("tirx.clz");
+  if (op->op.same_as(pow_op)) {
+    return pow(op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>());
   } else if (op->op.same_as(builtin::if_then_else())) {
-    return Call(op->dtype, op->op, {op->args[0], op->args[1], op->args[2]}, op->attrs, op->span);
-  } else if (op->op.same_as(Op::Get("tirx.clz"))) {
-    DataType before_dtype = before->args[0]->dtype;
-    DataType after_dtype = op->args[0]->dtype;
-    TVM_FFI_ICHECK((before_dtype.is_int() || before_dtype.is_uint()) &&
+    return Call(op->ty.as_or_throw<PrimType>(), op->op,
+                {op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>(),
+                 op->args[2].as_or_throw<PrimExpr>()},
+                op->attrs, {}, op->span)
+        .as_or_throw<PrimExpr>();
+  } else if (op->op.same_as(clz_op)) {
+    PrimType before_dtype = before->args[0].as_or_throw<PrimExpr>().ty();
+    PrimType after_dtype = op->args[0].as_or_throw<PrimExpr>().ty();
+    TVM_FFI_ICHECK((before_dtype.code() == DLDataTypeCode::kDLInt ||
+                    before_dtype.code() == DLDataTypeCode::kDLUInt) &&
                    (before_dtype.bits() == 32 || before_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type before legalizing: "
         << before_dtype;
-    TVM_FFI_ICHECK((after_dtype.is_int() || after_dtype.is_uint()) &&
+    TVM_FFI_ICHECK((after_dtype.code() == DLDataTypeCode::kDLInt ||
+                    after_dtype.code() == DLDataTypeCode::kDLUInt) &&
                    (after_dtype.bits() == 32 || after_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
         << after_dtype;
-    return e - after_dtype.bits() + before_dtype.bits();
+    return prim_e - after_dtype.bits() + before_dtype.bits();
   }
-  return e;
+  return prim_e;
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
@@ -291,15 +312,15 @@ Buffer IndexDataTypeRewriter::VisitBufferUse(const Buffer& buffer) {
 Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
   bool is_condition = is_condition_;
   is_condition_ = true;
-  auto new_predicate = VisitExpr(op->predicate);
+  auto new_predicate = VisitPrimExpr(op->predicate);
   is_condition_ = is_condition;
 
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
   auto new_iter_values =
-      op->iter_values.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
+      op->iter_values.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
   is_enabled_ = is_enabled;
-  SBlock new_body = Downcast<SBlock>(this->VisitStmt(op->block));
+  SBlock new_body = this->VisitStmt(op->block).as_or_throw<SBlock>();
   if (!new_predicate.same_as(op->predicate) || !new_iter_values.same_as(op->iter_values) ||
       !new_body.same_as(op->block)) {
     SBlockRealize new_block_realize = ffi::GetRef<SBlockRealize>(op);
@@ -335,7 +356,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockNode* op) {
   ffi::Array<IterVar> new_iter_vars =
       op->iter_vars.Map([this](const IterVar& iter_var) { return this->VisitIterVar(iter_var); });
   ffi::Optional<Stmt> new_init = std::nullopt;
-  if (op->init.defined()) {
+  if (op->init.has_value()) {
     new_init = this->VisitStmt(op->init.value());
   }
   ffi::Map<ffi::String, ffi::Any> new_annotations = VisitBlockAnnotations(op->annotations);
@@ -370,12 +391,12 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
       return obj;
     }
     if (obj.as<BufferNode>()) {
-      Buffer buffer = Downcast<Buffer>(obj);
+      Buffer buffer = obj.as_or_throw<Buffer>();
       if (Buffer new_buffer = VisitBufferUse(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }
     } else if (obj.as<ffi::ArrayObj>()) {
-      return Downcast<ffi::Array<Any>>(obj).Map(f_mutate_obj);
+      return obj.as_or_throw<ffi::Array<Any>>().Map(f_mutate_obj);
     }
     return obj;
   };
@@ -393,9 +414,9 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
 IterVar IndexDataTypeRewriter::VisitIterVar(const IterVar& iter_var) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_var = Downcast<Var>(VisitExpr(iter_var->var));
-  PrimExpr min = VisitExpr(iter_var->dom->min);
-  PrimExpr extent = VisitExpr(iter_var->dom->extent);
+  PrimVar new_var = VisitPrimExpr(iter_var->var).as_or_throw<PrimVar>();
+  PrimExpr min = VisitPrimExpr(iter_var->dom->min);
+  PrimExpr extent = VisitPrimExpr(iter_var->dom->extent);
   is_enabled_ = is_enabled;
   if (!new_var.same_as(iter_var->var) || !min.same_as(iter_var->dom->min) ||
       !extent.same_as(iter_var->dom->extent)) {
@@ -414,7 +435,8 @@ BufferRegion IndexDataTypeRewriter::VisitBufferRegion(const BufferRegion& buffer
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
   auto new_region = buffer_region->region.Map([&](const Range& range) {
-    return Range::FromMinExtent(this->VisitExpr(range->min), this->VisitExpr(range->extent));
+    return Range::FromMinExtent(this->VisitPrimExpr(range->min),
+                                this->VisitPrimExpr(range->extent));
   });
   is_enabled_ = is_enabled;
 
@@ -430,8 +452,9 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
   BufferStore store = ffi::GetRef<BufferStore>(op);
 
   Buffer new_buffer = VisitBufferUse(op->buffer);
-  auto value = this->VisitExpr(op->value);
-  if (new_buffer->dtype != value->dtype && value->dtype.is_scalar()) {
+  auto value = this->VisitPrimExpr(op->value);
+  PrimType value_dtype = value.ty();
+  if (new_buffer->dtype != value_dtype && value_dtype.IsScalar()) {
     value = cast(new_buffer->dtype, value);
   }
   auto indices = VisitIndices(op->indices);
@@ -447,7 +470,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
   return store;
 }
 
-PrimExpr IndexDataTypeRewriter::VisitExpr_(const BufferLoadNode* op) {
+Expr IndexDataTypeRewriter::VisitExpr_(const BufferLoadNode* op) {
   BufferLoad load = ffi::GetRef<BufferLoad>(op);
 
   Buffer new_buffer = VisitBufferUse(op->buffer);
@@ -466,7 +489,7 @@ ffi::Array<PrimExpr> IndexDataTypeRewriter::VisitIndices(ffi::Array<PrimExpr> in
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
 
-  auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
+  auto fmutate = [this](const PrimExpr& index) { return this->VisitPrimExpr(index); };
   indices.MutateByApply(fmutate);
 
   is_enabled_ = is_enabled;
@@ -477,11 +500,11 @@ ffi::Array<PrimExpr> IndexDataTypeRewriter::VisitIndices(ffi::Array<PrimExpr> in
 Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
   bool is_condition = is_condition_;
   is_condition_ = true;
-  PrimExpr cond = VisitExpr(op->condition);
+  PrimExpr cond = VisitPrimExpr(op->condition);
   is_condition_ = is_condition;
 
   Stmt then_case = VisitStmt(op->then_case);
-  ffi::Optional<Stmt> else_case = op->else_case.defined()
+  ffi::Optional<Stmt> else_case = op->else_case.has_value()
                                       ? ffi::Optional<Stmt>{VisitStmt(op->else_case.value())}
                                       : std::nullopt;
   if (!cond.same_as(op->condition) || !then_case.same_as(op->then_case) ||
@@ -499,9 +522,9 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
 Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  Var new_loop_var = Downcast<Var>(VisitExpr(op->loop_var));
-  PrimExpr min = VisitExpr(op->min);
-  PrimExpr extent = VisitExpr(op->extent);
+  PrimVar new_loop_var = VisitPrimExpr(op->loop_var).as_or_throw<PrimVar>();
+  PrimExpr min = VisitPrimExpr(op->min);
+  PrimExpr extent = VisitPrimExpr(op->extent);
   is_enabled_ = is_enabled;
 
   Stmt new_body = VisitStmt(op->body);
@@ -511,12 +534,12 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     For new_for = ffi::GetRef<For>(op);
     auto* n = new_for.CopyOnWrite();
     n->loop_var = new_loop_var;
-    n->min = cast(new_loop_var.dtype(), min);
-    n->extent = cast(new_loop_var.dtype(), extent);
-    if (op->thread_binding.defined()) {
+    n->min = cast(new_loop_var.ty(), min);
+    n->extent = cast(new_loop_var.ty(), extent);
+    if (op->thread_binding.has_value()) {
       auto old_thread_binding = op->thread_binding.value();
       auto* ptr = old_thread_binding.CopyOnWrite();
-      ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.dtype());
+      ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.ty());
       n->thread_binding = ffi::Optional<IterVar>(std::move(old_thread_binding));
     }
     n->body = new_body;
@@ -528,26 +551,27 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const BindNode* op) {
-  Bind bind_stmt = Downcast<Bind>(DataTypeLegalizer::VisitStmt_(op));
+  Bind bind_stmt = DataTypeLegalizer::VisitStmt_(op).as_or_throw<Bind>();
   if (var_remap_.find(bind_stmt->var.get()) == var_remap_.end()) {
     return bind_stmt;
   }
   bool is_enabled = is_enabled_;
   is_enabled_ = true;
-  PrimExpr value = VisitExpr(op->value);
+  PrimExpr value = VisitExpr(op->value).as_or_throw<PrimExpr>();
   Var var = var_remap_[bind_stmt->var.get()];
   is_enabled_ = is_enabled;
-  TVM_FFI_ICHECK(value.dtype() == var.dtype());
+  TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
   return Bind(var, value, bind_stmt->span);
 }
 
-#define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                     \
-  PrimExpr IndexDataTypeRewriter::VisitExpr_(const OP* op) {                       \
-    bool is_enabled = is_enabled_;                                                 \
-    is_enabled_ = is_condition_ && op->a->dtype.is_int() && op->b->dtype.is_int(); \
-    auto result = Parent::VisitExpr_(op);                                          \
-    is_enabled_ = is_enabled;                                                      \
-    return result;                                                                 \
+#define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                       \
+  Expr IndexDataTypeRewriter::VisitExpr_(const OP* op) {                             \
+    bool is_enabled = is_enabled_;                                                   \
+    is_enabled_ = is_condition_ && op->a.ty().MatchesCode(DLDataTypeCode::kDLInt) && \
+                  op->b.ty().MatchesCode(DLDataTypeCode::kDLInt);                    \
+    auto result = Parent::VisitExpr_(op);                                            \
+    is_enabled_ = is_enabled;                                                        \
+    return result;                                                                   \
   }
 
 TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);
@@ -557,42 +581,47 @@ TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<);  // NOLINT(*)
 TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>);  // NOLINT(*)
 TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 
-PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
+Expr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   // handle if_then_else condition
   if (op->op.same_as(builtin::if_then_else())) {
     bool is_condition = is_condition_;
     is_condition_ = true;
-    PrimExpr cond = VisitExpr(op->args[0]);
+    PrimExpr cond = VisitPrimExpr(op->args[0].as_or_throw<PrimExpr>());
     is_condition_ = is_condition;
-    return Call(op->dtype, op->op, {cond, VisitExpr(op->args[1]), VisitExpr(op->args[2])},
-                op->attrs, op->span);
+    return Call(op->ty.as_or_throw<PrimType>(), op->op,
+                {cond, VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>()),
+                 VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>())},
+                op->attrs, {}, op->span)
+        .as_or_throw<PrimExpr>();
   }
   return Parent::VisitExpr_(op);
 }
 
-PrimExpr IndexDataTypeRewriter::VisitExpr_(const SelectNode* op) {
+Expr IndexDataTypeRewriter::VisitExpr_(const SelectNode* op) {
   bool is_condition = true;
   std::swap(is_condition_, is_condition);
-  PrimExpr condition = this->VisitExpr(op->condition);
+  PrimExpr condition = this->VisitPrimExpr(op->condition);
   std::swap(is_condition_, is_condition);
-  PrimExpr true_value = this->VisitExpr(op->true_value);
-  PrimExpr false_value = this->VisitExpr(op->false_value);
+  PrimExpr true_value = this->VisitPrimExpr(op->true_value);
+  PrimExpr false_value = this->VisitPrimExpr(op->false_value);
 
   if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
-      false_value.same_as(op->false_value) && true_value.dtype() == false_value.dtype()) {
+      false_value.same_as(op->false_value) && true_value.ty() == false_value.ty()) {
     return ffi::GetRef<PrimExpr>(op);
   } else {
-    int bits = std::max(true_value.dtype().bits(), false_value.dtype().bits());
-    DataType dtype = true_value.dtype().with_bits(bits);
-    if (true_value.dtype() != dtype) true_value = cast(dtype, true_value);
-    if (false_value.dtype() != dtype) false_value = cast(dtype, false_value);
+    PrimType true_dtype = true_value.ty();
+    PrimType false_dtype = false_value.ty();
+    int bits = std::max(true_dtype.bits(), false_dtype.bits());
+    PrimType dtype = true_dtype.WithBits(bits);
+    if (true_dtype->dtype != dtype->dtype) true_value = cast(dtype, true_value);
+    if (false_dtype->dtype != dtype->dtype) false_value = cast(dtype, false_value);
     return Select(condition, true_value, false_value);
   }
 }
 
 #undef TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
-IndexDataTypeNormalizer::IndexDataTypeNormalizer(DataType target_data_type)
+IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
 
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
@@ -609,8 +638,9 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   bool is_enabled = true;
   std::swap(is_enabled_, is_enabled);
   ffi::Array<Var> params = func->params.Map([this](Var param) {
-    if (param.dtype().is_int()) {
-      return Downcast<Var>(this->VisitExpr(param));
+    if (auto param_ty = param->ty.as<PrimType>();
+        param_ty && param_ty.value().MatchesCode(DLDataTypeCode::kDLInt)) {
+      return this->VisitPrimExpr(param.as_or_throw<PrimExpr>()).as_or_throw<Var>();
     } else {
       return param;
     }
@@ -624,33 +654,39 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   return func;
 }
 
-bool IndexDataTypeNormalizer::CanRewriteDType(DataType dtype) const {
-  return dtype.is_int() && dtype.bits() >= 32;
+bool IndexDataTypeNormalizer::CanRewriteDType(PrimType dtype) const {
+  return dtype.code() == DLDataTypeCode::kDLInt && dtype.bits() >= 32;
 }
 
-PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
-  if (is_enabled_ && CanRewriteDType(op->dtype)) {
-    TVM_FFI_ICHECK_LE(op->value, Downcast<IntImm>(max_value(target_data_type_))->value);
+Expr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
+  if (is_enabled_ && CanRewriteDType(op->ty.as_or_throw<PrimType>())) {
+    TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
     return cast(target_data_type_, ffi::GetRef<IntImm>(op));
   }
   return ffi::GetRef<IntImm>(op);
 }
 
-PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  if (is_enabled_ && CanRewriteDType(op->dtype) && op->dtype != target_data_type_ &&
+Expr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
+  auto dtype_opt = op->ty.as<PrimType>();
+  if (!dtype_opt) {
+    return DataTypeLegalizer::VisitExpr_(op);
+  }
+  PrimType dtype = dtype_opt.value();
+  if (is_enabled_ && CanRewriteDType(dtype) && dtype->dtype != target_data_type_->dtype &&
       !var_remap_.count(op)) {
     var_remap_[op] = ffi::GetRef<Var>(op).copy_with_dtype(target_data_type_);
   }
   return DataTypeLegalizer::VisitExpr_(op);
 }
 
-PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
+Expr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
   // Unwrap the cast only when the dtype of this cast is integer dtype.
   // When the dtype of this cast is not integer dtype, it means that this cast
   // has some other purpose, and we should not unwrap the cast.
-  if (is_enabled_ && CanRewriteDType(op->dtype)) {
-    PrimExpr value = IndexDataTypeNormalizer::VisitExpr(op->value);
-    return value->dtype == target_data_type_ ? value : Cast(target_data_type_, value);
+  PrimType dtype = op->ty.as_or_throw<PrimType>();
+  if (is_enabled_ && CanRewriteDType(dtype)) {
+    PrimExpr value = IndexDataTypeNormalizer::VisitPrimExpr(op->value);
+    return value.ty() == target_data_type_ ? value : Cast(target_data_type_, value);
   }
   return IndexDataTypeRewriter::VisitExpr_(op);
 }

@@ -126,7 +126,7 @@ def get_relax_stacked_attention_module(
                         qkv,
                         [split_axis],
                         [split_sections[1]],
-                        [int(qkv.struct_info.shape[split_axis])],
+                        [int(qkv.ty.shape[split_axis])],
                         [1],
                     )
                 else:

@@ -58,14 +58,14 @@ struct IndexInfo {
  * \param range The range of the integer.
  * \returns A data type that covers the input range.
  */
-DataType DetermineDatatype(const arith::IntSet& range) {
+PrimType DeterminePrimType(const arith::IntSet& range) {
   arith::Analyzer ana;
   if (ana->CanProve(range.min() >= INT32_MIN && range.max() <= INT32_MAX)) {
-    return DataType::Int(32);
+    return PrimType::Int(32);
   } else {
-    TVM_FFI_ICHECK(ana->CanProve(range.min() >= make_const(DataType::Int(64), INT64_MIN) &&
-                                 range.max() <= make_const(DataType::Int(64), INT64_MAX)));
-    return DataType::Int(64);
+    TVM_FFI_ICHECK(ana->CanProve(range.min() >= IntImm::Int64(INT64_MIN) &&
+                                 range.max() <= IntImm::Int64(INT64_MAX)));
+    return PrimType::Int(64);
   }
 }
 
@@ -172,8 +172,8 @@ class IndexInfoCollector : public StmtExprVisitor {
       // Record the final sub expr with repeat time greater than cse_thresh_
       // In order to make the result stable, sort it by post order and then by complexity
       PostOrderVisit(store->value, [&semantic_comp_done_by_stmt, this](const ffi::ObjectRef& node) {
-        if (node->IsInstance<PrimExprNode>()) {
-          PrimExpr this_expr = Downcast<PrimExpr>(node);
+        if (auto prim = node.as<PrimExpr>()) {
+          PrimExpr this_expr = prim.value();
           for (auto& it : semantic_comp_done_by_stmt) {
             if (it.second >= this->cse_thresh_ && EquivalentTerms(this_expr, it.first, true)) {
               auto find_result =
@@ -236,7 +236,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     info->origin_block_vars.push_back({});
     PostOrderVisit(index_expr, [&info, &expr_index](const ffi::ObjectRef& node) {
       if (node->IsInstance<VarNode>()) {
-        Var iter_var = Downcast<Var>(node);
+        Var iter_var = node.as_or_throw<Var>();
         const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
         auto find_result = std::find_if(origin_block_var.begin(), origin_block_var.end(),
                                         [&](Var it) { return it.get() == iter_var.get(); });
@@ -252,7 +252,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     for (const Var& it : info->origin_block_vars[expr_index]) {
       PostOrderVisit(info->var_binding.at(it), [/*&info,*/ &iter_vars](const ffi::ObjectRef& node) {
         if (node->IsInstance<VarNode>()) {
-          Var iter_var = Downcast<Var>(node);
+          Var iter_var = node.as_or_throw<Var>();
           if (std::find_if(iter_vars.begin(), iter_vars.end(),
                            [&](Var it) { return it.get() == iter_var.get(); }) == iter_vars.end()) {
             iter_vars.push_back(iter_var);
@@ -261,23 +261,23 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       });
     }
 
-    DataType data_type = index_expr.dtype();
+    PrimType data_ty = index_expr.ty();
     Var index_buffer_var("index_var_" + std::to_string(expr_index),
-                         PointerType(PrimType(data_type), storage_scope));
+                         PointerType(data_ty, storage_scope));
     ffi::Array<PrimExpr> buffer_shape;
     for (const Var& it : info->origin_block_vars[expr_index]) {
       buffer_shape.push_back(
           arith::EvalSet(info->var_binding.at(it), arith::AsIntSet(info->range_map)).max() + 1);
     }
-    info->cache_buffer.push_back(Buffer(index_buffer_var, data_type, buffer_shape, {1}, {0},
+    info->cache_buffer.push_back(Buffer(index_buffer_var, data_ty, buffer_shape, {1}, {0},
                                         index_buffer_var->name_hint, 0, 0, kDefault));
 
     // Create loop vars and block vars' binding_value
-    std::vector<Var> loop_vars;
+    std::vector<PrimVar> loop_vars;
     ffi::Map<Var, Var> replace_table;
     for (const Var& it : iter_vars) {
-      DataType data_type = DetermineDatatype(arith::IntSet::FromRange(info->range_map.at(it)));
-      Var loop_var("ax" + std::to_string(replace_table.size()), data_type);
+      PrimType data_ty = DeterminePrimType(arith::IntSet::FromRange(info->range_map.at(it)));
+      PrimVar loop_var("ax" + std::to_string(replace_table.size()), data_ty);
       loop_vars.push_back(loop_var);
       replace_table.Set(it, loop_var);
     }
@@ -296,15 +296,16 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // Create block vars, block's accessed region and accessing indices
     for (size_t i = 0; i < info->origin_block_vars[expr_index].size(); i++) {
       const Var& block_var = info->origin_block_vars[expr_index][i];
-      Var var("v" + std::to_string(access_indices.size()), block_var.dtype());
-      Range range = Range::FromMinExtent(make_zero(block_var.dtype()),
-                                         info->range_map.at(iter_vars[i])->extent);
+      PrimType block_var_ty = block_var->ty.as_or_throw<PrimType>();
+      PrimVar var("v" + std::to_string(access_indices.size()), block_var_ty);
+      Range range =
+          Range::FromMinExtent(IntImm(block_var_ty, 0), info->range_map.at(iter_vars[i])->extent);
       block_vars.push_back(IterVar(/*dom=*/range,
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
 
       access_indices.push_back(var);
-      access_region.push_back(Range::FromMinExtent(var, make_const(var.dtype(), 1)));
+      access_region.push_back(Range::FromMinExtent(var, IntImm(var.ty(), 1)));
       block_var_map.Set(block_var, var);
     }
 
@@ -324,7 +325,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     blocks.push_back(block);
     // Create the block realize node
     Stmt body = SBlockRealize(/*values=*/iter_values,
-                              /*predicate=*/const_true(),
+                              /*predicate=*/IntImm::Bool(true),
                               /*block=*/block);
     // Create surrounding loops
     for (size_t i = loop_vars.size(); i >= 1; --i) {
@@ -382,7 +383,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     for (const ffi::Array<Var>& group_it : info_->origin_block_vars) {
       cache_indices_.push_back({});
       for (const Var& it : group_it) {
-        cache_indices_.back().push_back(it);
+        cache_indices_.back().push_back(it.as_or_throw<PrimExpr>());
       }
     }
   }
@@ -391,7 +392,7 @@ class CacheIndexRewriter : public StmtExprMutator {
     SBlock old_stmt = ffi::GetRef<SBlock>(block);
     // Mutate the body
     visiting_target_sblock = static_cast<bool>(block == info_->target_sblock->stmt);
-    SBlock stmt = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+    SBlock stmt = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
     visiting_target_sblock = false;
 
     // Check if it is the block corresponding to the parent scope

@@ -91,7 +91,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("topi.nn.dense", [](ffi::PackedArgs args, ffi::Any* rv) {
     *rv = nn::dense(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
-                    args[2].cast<te::Tensor>(), args[3].cast<DataType>());
+                    args[2].cast<te::Tensor>(), args[3].cast<PrimType>());
   });
 }
 

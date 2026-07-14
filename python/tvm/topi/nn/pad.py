@@ -93,9 +93,7 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=
         dshape.append(dim)
     out_shape = tuple(ana.simplify(dshape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     pad_value = (
-        pad_value
-        if isinstance(pad_value, tvm.tirx.PrimExpr)
-        else tvm.tirx.const(pad_value, data.dtype)
+        pad_value if tvm.ir.is_prim_expr(pad_value) else tvm.tirx.const(pad_value, data.dtype)
     )
 
     def _pad(*indices):

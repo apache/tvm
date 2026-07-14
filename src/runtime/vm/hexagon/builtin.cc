@@ -27,7 +27,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/vm/vm.h>
 
-#include "../../hexagon/hexagon_device_api.h"
+#include "../../../backend/hexagon/runtime/hexagon_device_api.h"
 namespace tvm {
 namespace runtime {
 namespace vm {

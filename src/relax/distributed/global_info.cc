@@ -64,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "relax.distributed.DeviceMesh",
       [](ffi::Shape shape, ffi::Array<int64_t> device_ids, ffi::Optional<Range> device_range) {
-        if (device_range.defined())
+        if (device_range.has_value())
           return DeviceMesh(shape, device_range.value());
         else
           return DeviceMesh(shape, device_ids);

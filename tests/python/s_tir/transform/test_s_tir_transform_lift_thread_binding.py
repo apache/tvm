@@ -64,7 +64,7 @@ def test_lift_tx_beyond_local():
                             with T.sblock("NT_matmul_cross_thread"):
                                 T.reads(in_thread_D_local[0])
                                 T.writes(cross_thread_D_local[0])
-                                T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]), "reduce_scope", T.reinterpret("handle", T.uint64(0)))
+                                T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]), "reduce_scope", T.int32(0))
                                 T.tvm_thread_allreduce(T.uint32(1), in_thread_D_local[0], T.bool(True), cross_thread_D_local[0], ax0_fused)
                             with T.sblock("NT_matmul_write_back"):
                                 T.where(ax0_fused == 0)
@@ -118,7 +118,7 @@ def test_lift_tx_beyond_local():
                             with T.sblock("NT_matmul_cross_thread"):
                                 T.reads(in_thread_D_local[0])
                                 T.writes(cross_thread_D_local[0])
-                                T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]), "reduce_scope", T.reinterpret("handle", T.uint64(0)))
+                                T.attr(T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]), "reduce_scope", T.int32(0))
                                 T.tvm_thread_allreduce(T.uint32(1), in_thread_D_local[0], T.bool(True), cross_thread_D_local[0], threadIdx_x)
                             with T.sblock("NT_matmul_write_back"):
                                 T.where(threadIdx_x == 0)

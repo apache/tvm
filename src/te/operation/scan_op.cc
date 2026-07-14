@@ -36,7 +36,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ScanOpNode::RegisterReflection(); }
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
 
-DataType ScanOpNode::output_dtype(size_t i) const { return update[i]->dtype; }
+PrimType ScanOpNode::output_dtype(size_t i) const { return update[i]->GetDataType(); }
 
 ffi::Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   TVM_FFI_ICHECK_LT(i, state_placeholder.size());
@@ -47,7 +47,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
                ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs, IterVar axis,
                ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                ffi::Array<Tensor> state_placeholder, ffi::Array<Tensor> inputs) {
-  if (!attrs.defined()) {
+  if (!attrs.has_value()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
   auto n = ffi::make_object<ScanOpNode>();
@@ -77,7 +77,7 @@ ScanOp::ScanOp(std::string name, std::string tag,
         std::ostringstream spatial_name;
         spatial_name << name << ".out" << i << ".i" << k;
         n->spatial_axis_.push_back(IterVar(Range::FromMinExtent(0, update[i]->shape[k]),
-                                           Var(spatial_name.str()), kOpaque));
+                                           PrimVar(spatial_name.str()), kOpaque));
       }
     }
 
@@ -113,7 +113,7 @@ ffi::Array<Tensor> scan(ffi::Array<Tensor> init, ffi::Array<Tensor> update,
                         ffi::Optional<ffi::Map<ffi::String, ffi::Any>> attrs) {
   IterVar scan_axis =
       IterVar(Range::FromMinExtent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
-              Var(name + ".idx"), kOrdered);
+              PrimVar(name + ".idx"), kOrdered);
   Operation op = ScanOp(name, tag, attrs, scan_axis, init, update, state_placeholder, inputs);
   ffi::Array<Tensor> res;
   for (int i = 0; i < op->num_outputs(); ++i) {

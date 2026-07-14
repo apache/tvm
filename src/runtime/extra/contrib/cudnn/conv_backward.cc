@@ -20,9 +20,10 @@
 /*!
  * \file cuDNN kernel calls for backward algorithms.
  */
+#include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
@@ -30,8 +31,6 @@
 
 namespace tvm {
 namespace contrib {
-
-using namespace runtime;
 
 void ConvolutionBackwardData(int mode, int format, int algo, int dims, int groups, const int pad[],
                              const int stride[], const int dilation[], DLTensor* dy, DLTensor* w,
@@ -67,7 +66,7 @@ void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], con
                           const int dx_dim[], const std::string& data_dtype,
                           const std::string& conv_dtype, bool verbose, ffi::Any* ret) {
   int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> dy_dim_int64(full_dims);
@@ -146,7 +145,7 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
                             const int dw_dim[], const std::string& data_dtype,
                             const std::string& conv_dtype, bool verbose, ffi::Any* ret) {
   int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);

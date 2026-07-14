@@ -41,15 +41,15 @@ void TensorNode::RegisterReflection() {
 TVM_FFI_STATIC_INIT_BLOCK() { TensorNode::RegisterReflection(); }
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVar(dom, Var(tag, dom.defined() ? dom->extent.dtype() : DataType::Int(32)),
+  return IterVar(dom, PrimVar(tag, dom.defined() ? dom->extent.ty() : PrimType::Int(32)),
                  kThreadIndex, tag);
 }
 
 IterVar reduce_axis(Range dom, std::string name) {
-  return IterVar(dom, Var(name, dom->extent.dtype()), kCommReduce);
+  return IterVar(dom, PrimVar(name, dom->extent.ty()), kCommReduce);
 }
 
-Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
+PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 
 // Tensor
 inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
@@ -65,14 +65,14 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
   if (support_negative_indices) {
     for (size_t i = 0; i < shape.size(); i++) {
       PrimExpr new_index =
-          Select(indices[i] < make_const(indices[i]->dtype, 0), indices[i] + shape[i], indices[i]);
+          Select(indices[i] < IntImm(indices[i].ty(), 0), indices[i] + shape[i], indices[i]);
       indices.Set(i, new_index);
     }
   }
   return ProducerLoad((*this), indices);
 }
 
-PrimExpr Tensor::operator()(ffi::Array<Var> indices) const {
+PrimExpr Tensor::operator()(ffi::Array<PrimVar> indices) const {
   ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
   return operator()(arr);
 }
@@ -81,7 +81,7 @@ PrimExpr Tensor::operator()(ffi::Array<PrimExpr> indices) const {
   return IndexTensor(indices, false);
 }
 
-PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<Var> indices) const {
+PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<PrimVar> indices) const {
   ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
   return IndexWithNegativeIndices(arr);
 }
@@ -105,7 +105,7 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
-Tensor::Tensor(ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
+Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
   auto n = ffi::make_object<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
@@ -117,7 +117,7 @@ Tensor::Tensor(ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int val
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "te.Tensor", [](ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
+      "te.Tensor", [](ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
         return Tensor(shape, dtype, op, value_index);
       });
 }
@@ -129,6 +129,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("te.TensorEqual", &Tensor::operator==)
+      .def("te.TensorDType", [](Tensor tensor) -> PrimType { return tensor->dtype; })
       .def("te.TensorHash",
            [](Tensor tensor) -> int64_t {
              return static_cast<int64_t>(std::hash<Tensor>()(tensor));

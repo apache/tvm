@@ -64,7 +64,7 @@ def _apply_rewrite_layout(mod):
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     sch.enter_postproc()
     if not ctx.space_generator.postprocs[0].apply(sch):
-        raise tvm.TVMError("RewriteLayout postproc failed")
+        raise RuntimeError("RewriteLayout postproc failed")
     return sch.mod
 
 
@@ -130,7 +130,7 @@ def test_rewritten_buffers_must_occur_within_block():
             T.evaluate(A[i, j])
 
     mod = tvm.IRModule.from_expr(before)
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         _apply_rewrite_layout(mod)
 
 

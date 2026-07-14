@@ -32,15 +32,13 @@ from tvm.ir import IRModule
 def _bad_matmul_module():
     """Build (programmatically, no TVMScript parse) a module whose `main` binds a
     matmul of incompatible shapes [3, 4] x [5, 6]. The function carries a
-    placeholder return struct info so it constructs; Normalize re-infers and the
+    placeholder return type so it constructs; Normalize re-infers and the
     matmul validator fires during the pass."""
-    x = relax.Var("x", relax.TensorStructInfo([3, 4], "float32"))
-    y = relax.Var("y", relax.TensorStructInfo([5, 6], "float32"))
+    x = relax.Var("x", relax.TensorType([3, 4], "float32"))
+    y = relax.Var("y", relax.TensorType([5, 6], "float32"))
     lv = relax.Var("lv")
     body = relax.SeqExpr([relax.BindingBlock([relax.VarBinding(lv, relax.op.matmul(x, y))])], lv)
-    func = relax.Function(
-        [x, y], body, ret_struct_info=relax.TensorStructInfo([3, 6], "float32"), is_pure=True
-    )
+    func = relax.Function([x, y], body, ret_ty=relax.TensorType([3, 6], "float32"), is_pure=True)
     func = func.with_attr("global_symbol", "main")
     return IRModule({relax.GlobalVar("main"): func})
 
@@ -53,15 +51,21 @@ def test_pass_error_renders_underlined_tvmscript():
     mod = _bad_matmul_module()
     with pytest.raises(ValueError) as excinfo:
         relax.transform.Normalize()(mod)
-    msg = str(excinfo.value)
-    # The original validator message is preserved.
-    assert "Matmul requires the reduction length" in msg
-    # The failing pass is named.
-    assert "Error in pass: Normalize" in msg
-    # The location is rendered as TVMScript with the offending expr underlined.
-    assert "Location (TVMScript):" in msg
-    assert "R.matmul(x, y" in msg
-    assert "^^^" in msg
+    assert str(excinfo.value) == (
+        "Matmul requires the reduction length of the operands to be equal.  However, the LHS x "
+        "has shape R.shape([3, 4]), while the RHS y has shape R.shape([5, 6]).  The reduction "
+        "dimensions of T.int64(4) and T.int64(5) are not equal.\n\n"
+        "Error in pass: Normalize\n"
+        "Location (TVMScript):\n"
+        "Access path: <root>.body.blocks[0].bindings[0].value\n\n"
+        "# from tvm.script import relax as R\n\n"
+        "@R.function\n"
+        'def main(x: R.Tensor((3, 4), dtype="float32"), '
+        'y: R.Tensor((5, 6), dtype="float32")) -> R.Tensor((3, 6), dtype="float32"):\n'
+        "    lv = R.matmul(x, y, out_dtype=None)\n"
+        "         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "    return lv"
+    )
 
 
 @pytest.mark.skip_well_formed_check_before_transform

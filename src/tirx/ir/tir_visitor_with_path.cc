@@ -54,7 +54,7 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
               bool a_exposed = externally_exposed.count(a);
               bool b_exposed = externally_exposed.count(b);
               if (a_exposed != b_exposed) {
-                return a < b;
+                return a_exposed > b_exposed;
               } else {
                 return a->name_hint < b->name_hint;
               }
@@ -340,15 +340,12 @@ void TIRVisitorWithPath::VisitStmt_(const ScopeIdDefStmtNode* op, AccessPath pat
   }
   auto def_ids_path = def_path->Attr("def_ids");
   for (size_t i = 0; i < op->def->def_ids.size(); ++i) {
-    bind_scope_.Current().push_back(WithDef(op->def->def_ids[i], def_ids_path->ArrayItem(i)));
+    bind_scope_.Current().push_back(
+        WithDef(static_cast<Var>(op->def->def_ids[i]), def_ids_path->ArrayItem(i)));
   }
 }
 
 void TIRVisitorWithPath::VisitExpr_(const VarNode* op, AccessPath path) {}
-
-void TIRVisitorWithPath::VisitExpr_(const SizeVarNode* op, AccessPath path) {
-  VisitExpr_(static_cast<const VarNode*>(op), path);
-}
 
 void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, AccessPath path) {
   VisitBufferUse(op->buffer, path->Attr("buffer"));

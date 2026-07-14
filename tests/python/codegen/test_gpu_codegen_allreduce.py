@@ -23,6 +23,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def _reduce_sum_module(d1, d2, d3):
@@ -76,8 +77,16 @@ def generate_param_sets():
 dims = tvm.testing.parameter(*generate_param_sets())
 
 
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_allreduce_sum(dims, target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+    ],
+)
+def test_allreduce_sum(dims, target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_sum_module(d1, d2, d3)
     f = tvm.compile(mod, target=target)
@@ -85,12 +94,15 @@ def test_allreduce_sum(dims, target, dev):
     # prepare input and output array
     a_np = np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.sum(axis=-1).astype("float32")
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
 
-    # launch kernel
-    f(a, b)
-    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+    def run_and_check():
+        dev = tvm.device(target)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
+        f(a, b)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 define_metal_compile_callback = tvm.testing.parameter(True, False)
@@ -118,7 +130,8 @@ def optional_metal_compile_callback(define_metal_compile_callback):
             tvm.register_global_func(name, cached, override=True)
 
 
-@tvm.testing.requires_metal(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_allreduce_sum_compile(optional_metal_compile_callback):
     # Disable the parametrization over dims, at least for now
     dims = (1, 1, 2)
@@ -129,8 +142,16 @@ def test_allreduce_sum_compile(optional_metal_compile_callback):
     tvm.compile(mod, target=target)
 
 
-@tvm.testing.parametrize_targets("cuda", "metal")
-def test_allreduce_max(dims, target, dev):
+@pytest.mark.parametrize(
+    "target",
+    [
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+    ],
+)
+def test_allreduce_max(dims, target):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
     d1, d2, d3 = dims
     mod = _reduce_max_module(d1, d2, d3)
     f = tvm.compile(mod, target=target)
@@ -138,12 +159,15 @@ def test_allreduce_max(dims, target, dev):
     # prepare input and output array
     a_np = -np.random.rand(1, d1, d2, d3).astype("float32")
     b_np = a_np.max(axis=-1).astype("float32")
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
 
-    # launch kernel
-    f(a, b)
-    tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+    def run_and_check():
+        dev = tvm.device(target)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(np.zeros_like(b_np), dev)
+        f(a, b)
+        tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-6, atol=1e-6)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

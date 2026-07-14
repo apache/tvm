@@ -161,8 +161,8 @@ class RandomEngine {
       std::generate_n(static_cast<double*>(data) + st, ed - st,
                       [&]() { return dist(rnd_engine_); });
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError) << "Doesn't support dtype code " << static_cast<int>(dtype.code)
+                                   << " dtype bits " << static_cast<int>(dtype.bits);
     }
   }
 
@@ -175,8 +175,8 @@ class RandomEngine {
     if (dtype.bits == 8 || dtype.bits == 16 || dtype.bits == 32 || dtype.bits == 64) {
       FillDataImpl(tensor->data, 0, size, dtype);
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError) << "Doesn't support dtype code " << static_cast<int>(dtype.code)
+                                   << " dtype bits " << static_cast<int>(dtype.bits);
     }
   }
 
@@ -213,8 +213,8 @@ class RandomEngine {
       int res = TVMBackendParallelLaunch(ParallelTask::RunTask, &task, 0);
       TVM_FFI_ICHECK_EQ(res, 0) << "RandomFillForMeasure: TVMBackendParallelLaunch failed";
     } else {
-      TVM_FFI_THROW(InternalError)
-          << "Doesn't support dtype code " << dtype.code << " dtype bits " << dtype.bits;
+      TVM_FFI_THROW(InternalError) << "Doesn't support dtype code " << static_cast<int>(dtype.code)
+                                   << " dtype bits " << static_cast<int>(dtype.bits);
     }
   }
 

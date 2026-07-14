@@ -102,7 +102,7 @@ MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
 ffi::ObjectRef TuningRecordNode::AsJSON() const {
   ffi::Optional<ffi::Array<ffi::ObjectRef>> json_args_info;
   ffi::Optional<ffi::ObjectRef> json_target;
-  if (args_info.defined()) {
+  if (args_info.has_value()) {
     ffi::Array<ffi::ObjectRef> info;
     info.reserve(args_info.value().size());
     for (const ArgInfo& arg_info : args_info.value()) {
@@ -110,20 +110,20 @@ ffi::ObjectRef TuningRecordNode::AsJSON() const {
     }
     json_args_info = info;
   }
-  if (target.defined()) {
+  if (target.has_value()) {
     json_target = target.value()->ToConfig();
   }
-  return ffi::Array<ffi::ObjectRef>{trace->AsJSON(false),  //
-                                    run_secs,              //
-                                    json_target,           //
-                                    json_args_info};
+  return ffi::Array<ffi::Any>{trace->AsJSON(false),  //
+                              run_secs,              //
+                              json_target,           //
+                              json_args_info};
 }
 
 bool TuningRecordNode::IsValid() const {
   if (!GetNumValidInstructions(trace->insts, /*remove_postproc*/ true)) {
     return false;
   }
-  if (run_secs.defined()) {
+  if (run_secs.has_value()) {
     for (const auto& run_sec : run_secs.value()) {
       // kMaxMeanTime(1e10) is used as a stub for undefined measurement times.
       if (run_sec.defined() && run_sec->value != SortTuningRecordByMeanRunSecs::kMaxMeanTime) {

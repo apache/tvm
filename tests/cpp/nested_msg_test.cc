@@ -18,10 +18,11 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/relax/block_builder.h>
 #include <tvm/relax/nested_msg.h>
-#include <tvm/relax/struct_info.h>
-#include <tvm/runtime/data_type.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr.h>
 
@@ -38,6 +39,17 @@
 
 using namespace tvm;
 using namespace tvm::relax;
+
+namespace {
+
+TensorType ScalarTensorType(PrimType dtype) {
+  auto n = tvm::ffi::make_object<TensorTypeNode>();
+  n->dtype = std::move(dtype);
+  n->ndim = 0;
+  return TensorType(n);
+}
+
+}  // namespace
 
 TEST(NestedMsg, Basic) {
   // start with no annotation
@@ -144,17 +156,17 @@ TEST(NestedMsg, Equal) {
 }
 
 TEST(NestedMsg, MapAndDecompose) {
-  relax::Var x("x", PrimStructInfo(runtime::DataType::Int(16)));
-  relax::Var y("y", PrimStructInfo(runtime::DataType::Int(32)));
-  relax::Var z("z", PrimStructInfo(runtime::DataType::Int(64)));
+  relax::Var x("x", PrimType::Int(16));
+  relax::Var y("y", PrimType::Int(32));
+  relax::Var z("z", PrimType::Int(64));
 
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   relax::Expr t0 = bb->Normalize(Tuple({x, y}));
   relax::Expr t1 = bb->Normalize(Tuple({t0, x, z, t0}));
 
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
 
   auto output = MapToNestedMsg<IntImm>(t1, [&](Expr value) {
     if (value.same_as(x)) return c0;
@@ -167,16 +179,15 @@ TEST(NestedMsg, MapAndDecompose) {
   EXPECT_TRUE(Equal(output, expected,
                     [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
 
-  auto output2 =
-      MapToNestedMsg<IntImm>(GetStructInfo(t1), [&](StructInfo sinfo) -> NestedMsg<IntImm> {
-        const auto* prim_sinfo = sinfo.as<PrimStructInfoNode>();
-        if (prim_sinfo == nullptr) return std::nullopt;
-        int bits = prim_sinfo->dtype.bits();
-        if (bits == 16) return c0;
-        if (bits == 32) return c1;
-        if (bits == 64) return c2;
-        return std::nullopt;
-      });
+  auto output2 = MapToNestedMsg<IntImm>(GetType(t1), [&](Type ty) -> NestedMsg<IntImm> {
+    const auto* prim_ty = ty.as<PrimTypeNode>();
+    if (prim_ty == nullptr) return std::nullopt;
+    int bits = prim_ty->dtype.bits;
+    if (bits == 16) return c0;
+    if (bits == 32) return c1;
+    if (bits == 64) return c2;
+    return std::nullopt;
+  });
 
   EXPECT_TRUE(Equal(output2, expected,
                     [](IntImm lhs, IntImm rhs) -> bool { return lhs->value == rhs->value; }));
@@ -200,13 +211,13 @@ TEST(NestedMsg, MapAndDecompose) {
   EXPECT_EQ(z_count, 1);
 }
 
-TEST(NestedMsg, MapToNestedMsgBySInfo) {
-  auto sf0 = TensorStructInfo(DataType::Float(32), /*ndim=*/0);
-  auto sf1 = TupleStructInfo({sf0, sf0});
-  auto sf2 = TupleStructInfo({sf0, sf0});
-  auto x = relax::Var("x", TupleStructInfo({sf1, sf2, sf0}));
+TEST(NestedMsg, MapToNestedMsgByType) {
+  auto sf0 = ScalarTensorType(PrimType::Float(32));
+  auto sf1 = TupleType({sf0, sf0});
+  auto sf2 = TupleType({sf0, sf0});
+  auto x = relax::Var("x", TupleType({sf1, sf2, sf0}));
 
-  auto msg = MapToNestedMsgBySInfo<Expr>(x, [](Expr value) { return value; });
+  auto msg = MapToNestedMsgByType<Expr>(x, [](Expr value) { return value; });
 
   EXPECT_TRUE(msg.IsNested());
   auto arr = msg.NestedArray();
@@ -223,18 +234,18 @@ TEST(NestedMsg, MapToNestedMsgBySInfo) {
 }
 
 TEST(NestedMsg, NestedMsgToExpr) {
-  auto sf0 = TensorStructInfo(DataType::Float(32), /*ndim=*/0);
-  auto sf1 = TupleStructInfo({sf0, sf0});
+  auto sf0 = ScalarTensorType(PrimType::Float(32));
+  auto sf1 = TupleType({sf0, sf0});
 
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
 
   relax::Var x("x", sf0), y("y", sf0), z("z", sf0);
 
   NestedMsg<IntImm> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
   auto expr = NestedMsgToExpr<IntImm>(msg, [&](ffi::Optional<IntImm> leaf) {
-    TVM_FFI_ICHECK(leaf.defined());
+    TVM_FFI_ICHECK(leaf.has_value());
     int value = leaf.value()->value;
     switch (value) {
       case 0:
@@ -257,9 +268,9 @@ TEST(NestedMsg, NestedMsgToExpr) {
 }
 
 TEST(NestedMsg, CombineNestedMsg) {
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
 
   NestedMsg<IntImm> lhs = {c0, {c0, c1}, std::nullopt, {c0, {c1, c2}}};
   NestedMsg<IntImm> rhs = {c1, {c2, std::nullopt}, std::nullopt, {c1, {c2, c2}}};
@@ -275,17 +286,17 @@ TEST(NestedMsg, CombineNestedMsg) {
 }
 
 TEST(NestedMsg, MapNestedMsg) {
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
-  auto c3 = IntImm(DataType::Int(32), 3);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
+  auto c3 = IntImm::Int32(3);
 
   NestedMsg<IntImm> msg = {c0, {c0, c1}, std::nullopt, {c0, {c2, c1}}};
   NestedMsg<IntImm> expected = {c3, {c3, std::nullopt}, std::nullopt, {c3, {c2, std::nullopt}}};
 
   auto output = MapNestedMsg(msg, [](IntImm x) {
     if (x->value == 0) {
-      return NestedMsg<IntImm>(IntImm(DataType::Int(32), 3));
+      return NestedMsg<IntImm>(IntImm::Int32(3));
     } else if (x->value == 1) {
       return NestedMsg<IntImm>();
     } else {
@@ -298,22 +309,22 @@ TEST(NestedMsg, MapNestedMsg) {
 }
 
 TEST(NestedMsg, TransformTupleLeaf) {
-  auto c0 = IntImm(DataType::Int(32), 0);
-  auto c1 = IntImm(DataType::Int(32), 1);
-  auto c2 = IntImm(DataType::Int(32), 2);
+  auto c0 = IntImm::Int32(0);
+  auto c1 = IntImm::Int32(1);
+  auto c2 = IntImm::Int32(2);
   using NInt = NestedMsg<IntImm>;
 
   NInt msg1 = {c0, {c0, c1}, c2, {c0, {c1, c2}}};
   NInt msg2 = {c1, {c2, c0}, c2, {c1, {c2, c0}}};
 
-  PrimStructInfo s = PrimStructInfo(runtime::DataType::Int(32));
+  PrimType s = PrimType::Int(32);
   relax::Var x("x", s), y("y", s), z("z", s);
   BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 
   auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {
-    int lhs = Downcast<IntImm>(msgs[0].LeafValue())->value;
-    int rhs = Downcast<IntImm>(msgs[1].LeafValue())->value;
+    int lhs = msgs[0].LeafValue().as_or_throw<IntImm>()->value;
+    int rhs = msgs[1].LeafValue().as_or_throw<IntImm>()->value;
     if (lhs > rhs)
       return z;
     else if (lhs == rhs)

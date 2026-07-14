@@ -24,30 +24,139 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/type.h>
+
+#include <cstdint>
+#include <unordered_map>
+
 namespace tvm {
 
+namespace {
+
+DLDataType ScalableVectorDType(DLDataTypeCode code, int bits, int lanes) {
+  TVM_FFI_ICHECK_GT(lanes, 1) << "Invalid value for vscale factor " << lanes;
+  TVM_FFI_ICHECK_LT(lanes, 32768);
+  return DLDataType{static_cast<uint8_t>(code), static_cast<uint8_t>(bits),
+                    static_cast<uint16_t>(-lanes)};
+}
+
+uint32_t PackDataTypeKey(DLDataType dtype) {
+  return (static_cast<uint32_t>(dtype.code) << 24) | (static_cast<uint32_t>(dtype.bits) << 16) |
+         static_cast<uint32_t>(dtype.lanes);
+}
+
+int64_t PrimTypeAnyHash(const ffi::Any& src) {
+  return static_cast<int64_t>(PackDataTypeKey(src.cast<PrimType>()->dtype));
+}
+
+bool PrimTypeAnyEqual(const ffi::Any& lhs, const ffi::Any& rhs) {
+  return lhs.cast<PrimType>()->dtype == rhs.cast<PrimType>()->dtype;
+}
+
+ffi::ObjectPtr<PrimTypeNode> GetCachedPrimTypeNode(DLDataType dtype) {
+  thread_local std::unordered_map<uint32_t, ffi::ObjectPtr<PrimTypeNode>> cache;
+  uint32_t key = PackDataTypeKey(dtype);
+  auto it = cache.find(key);
+  if (it != cache.end()) {
+    return it->second;
+  }
+
+  ffi::ObjectPtr<PrimTypeNode> node = ffi::make_object<PrimTypeNode>();
+  node->dtype = dtype;
+  return cache.emplace(key, std::move(node)).first->second;
+}
+
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   TypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
+  refl::TypeAttrDef<PrimTypeNode>()
+      .attr(refl::type_attr::kAnyHash, reinterpret_cast<void*>(&PrimTypeAnyHash))
+      .attr(refl::type_attr::kAnyEqual, reinterpret_cast<void*>(&PrimTypeAnyEqual));
   PointerTypeNode::RegisterReflection();
   TupleTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
   TensorMapTypeNode::RegisterReflection();
 }
 
-PrimType::PrimType(runtime::DataType dtype, Span span) {
-  ffi::ObjectPtr<PrimTypeNode> n = ffi::make_object<PrimTypeNode>();
-  n->dtype = dtype;
-  n->span = std::move(span);
-  data_ = std::move(n);
+Type Type::Missing() {
+  static Type missing = []() {
+    Type type(ffi::UnsafeInit{});
+    type.data_ = ffi::make_object<TypeNode>();
+    return type;
+  }();
+  return missing;
+}
+
+bool Type::IsMissing() const { return this->same_as(Type::Missing()); }
+
+PrimType::PrimType(DLDataType dtype) : Type(ffi::UnsafeInit{}) {
+  bool is_opaque_handle = dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLOpaqueHandle);
+  bool is_void = is_opaque_handle && dtype.bits == 0 && dtype.lanes == 0;
+  TVM_FFI_CHECK(!is_opaque_handle || is_void, TypeError)
+      << "PrimType cannot represent an opaque pointer; use PointerType::VoidPointerTy()";
+  data_ = GetCachedPrimTypeNode(dtype);
+}
+
+PrimType::PrimType(DLDataTypeCode code, int bits, int lanes)
+    : PrimType(DLDataType{static_cast<uint8_t>(code), static_cast<uint8_t>(bits),
+                          static_cast<uint16_t>(lanes)}) {}
+
+PrimType PrimType::Int(int bits, int lanes) {
+  if (lanes == 1) {
+    if (bits == 32) {
+      thread_local PrimType i32_ty(DLDataType{kDLInt, 32, 1});
+      return i32_ty;
+    }
+    if (bits == 64) {
+      thread_local PrimType i64_ty(DLDataType{kDLInt, 64, 1});
+      return i64_ty;
+    }
+  }
+  return PrimType(DLDataType{kDLInt, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::UInt(int bits, int lanes) {
+  return PrimType(DLDataType{kDLUInt, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::Float(int bits, int lanes) {
+  if (bits == 32 && lanes == 1) {
+    thread_local PrimType f32_ty(DLDataType{kDLFloat, 32, 1});
+    return f32_ty;
+  }
+  return PrimType(DLDataType{kDLFloat, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::BFloat(int bits, int lanes) {
+  return PrimType(DLDataType{kDLBfloat, static_cast<uint8_t>(bits), static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::Bool(int lanes) {
+  if (lanes == 1) {
+    thread_local PrimType bool_ty(DLDataType{kDLBool, 8, 1});
+    return bool_ty;
+  }
+  return PrimType(DLDataType{kDLBool, 8, static_cast<uint16_t>(lanes)});
+}
+
+PrimType PrimType::Void() { return PrimType(DLDataType{kDLOpaqueHandle, 0, 0}); }
+
+PrimType PrimType::ScalableVector(DLDataTypeCode code, int bits, int lanes) {
+  return PrimType(ScalableVectorDType(code, bits, lanes));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.PrimType", [](runtime::DataType dtype) { return PrimType(dtype); });
+  refl::GlobalDef()
+      .def("ir.TypeMissing", []() { return Type::Missing(); })
+      .def("ir.TypeIsMissing", [](Type type) { return type.IsMissing(); })
+      .def("ir.PrimType", [](DLDataType dtype) { return PrimType(dtype); });
 }
 
-PointerType::PointerType(Type element_type, ffi::String storage_scope) {
+PointerType::PointerType(Type element_type, ffi::String storage_scope) : Type(ffi::UnsafeInit{}) {
+  TVM_FFI_ICHECK(!element_type.IsMissing()) << "PointerType element_type cannot be Type::Missing()";
   ffi::ObjectPtr<PointerTypeNode> n = ffi::make_object<PointerTypeNode>();
   if (storage_scope.empty()) {
     n->storage_scope = "global";
@@ -58,6 +167,10 @@ PointerType::PointerType(Type element_type, ffi::String storage_scope) {
   data_ = std::move(n);
 }
 
+PointerType PointerType::VoidPointerTy(ffi::String storage_scope) {
+  return PointerType(PrimType::Void(), std::move(storage_scope));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.PointerType", [](Type element_type, ffi::String storage_scope = "") {
@@ -65,7 +178,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span) {
+FuncType::FuncType(tvm::ffi::Array<Type> arg_types, Type ret_type, Span span)
+    : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
@@ -80,7 +194,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-TupleType::TupleType(ffi::Array<Type> fields, Span span) {
+TupleType::TupleType(ffi::Array<Type> fields, Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TupleTypeNode> n = ffi::make_object<TupleTypeNode>();
   n->fields = std::move(fields);
   n->span = std::move(span);
@@ -92,11 +206,12 @@ TupleType TupleType::Empty() { return TupleType(ffi::Array<Type>()); }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.TupleType", [](ffi::Array<Type> fields) { return TupleType(fields); })
+      .def("ir.TupleType",
+           [](ffi::Array<Type> fields, Span span) { return TupleType(fields, span); })
       .def("ir.TensorMapType", [](Span span) { return TensorMapType(span); });
 }
 
-TensorMapType::TensorMapType(Span span) {
+TensorMapType::TensorMapType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TensorMapTypeNode> n = ffi::make_object<TensorMapTypeNode>();
   n->span = std::move(span);
   data_ = std::move(n);

@@ -39,9 +39,11 @@ ffi::Optional<ffi::String> DetectSystemTriple() {
 }
 
 ffi::Map<ffi::String, ffi::Any> Canonicalize(ffi::Map<ffi::String, ffi::Any> target) {
-  ffi::String kind = Downcast<ffi::String>(target.Get("kind").value());
-  ffi::Optional<ffi::String> mtriple = Downcast<ffi::Optional<ffi::String>>(target.Get("mtriple"));
-  ffi::Optional<ffi::String> mcpu = Downcast<ffi::Optional<ffi::String>>(target.Get("mcpu"));
+  ffi::String kind = target.Get("kind").value().as_or_throw<ffi::String>();
+  ffi::Optional<ffi::String> mtriple =
+      target.Get("mtriple").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
+  ffi::Optional<ffi::String> mcpu =
+      target.Get("mcpu").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>();
 
   // Try to fill in the blanks by detecting target information from the system
   if (kind == "llvm" && !mtriple.has_value() && !mcpu.has_value()) {

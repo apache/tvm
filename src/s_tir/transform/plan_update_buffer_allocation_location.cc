@@ -123,7 +123,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const auto& buffer : buffer_alloc_recorder) {
       auto it = buffer_lca.find(buffer);
       if (it != buffer_lca.end()) {
-        const StmtNode* stmt = (*it).second.get();
+        const StmtNode* stmt = (*it).second.has_value() ? (*it).second.value().get() : nullptr;
         if (arg_buffer_vars.count(buffer->data.get())) {
           continue;
         }
@@ -144,7 +144,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const Buffer& buf : it->second) {
       buffer_data_to_buffer_.Set(buf->data, buf);
     }
-    auto node = Downcast<For>(StmtMutator::VisitStmt_(op));
+    auto node = StmtMutator::VisitStmt_(op).as_or_throw<For>();
 
     ffi::Array<Buffer> new_block_alloc_bufs;
     for (const Buffer& buf : it->second) {
@@ -162,7 +162,7 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    TVM_FFI_ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.has_value());
     ffi::Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
@@ -216,7 +216,7 @@ class BufferAllocationLocator : public StmtExprMutator {
         GetSBlockReadWriteRegion(opaque_block, buffer_data_to_buffer_);
     n->reads = access[0];
     n->writes = access[1];
-    SBlockRealize realize({}, const_true(), SBlock(n));
+    SBlockRealize realize({}, IntImm::Bool(true), SBlock(n));
     return realize;
   }
 

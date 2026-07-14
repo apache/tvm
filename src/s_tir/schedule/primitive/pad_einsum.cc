@@ -147,8 +147,8 @@ struct BufferPadding {
       PrimExpr pos = buffer_region->region[i]->min;
       TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
       if (pos->IsInstance<IntImmNode>()) {
-        shape.push_back(IntImm(pos->dtype, 1));
-      } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(Downcast<Var>(pos))) {
+        shape.push_back(IntImm(pos.ty(), 1));
+      } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(pos.as_or_throw<Var>())) {
         shape.push_back(extent.value());
       } else {
         shape.push_back(buffer_region->buffer->shape[i]);
@@ -173,17 +173,17 @@ struct BufferPadding {
       } else {
         dim = buffer->shape[i];
       }
-      Range dom = Range::FromMinExtent(IntImm(dim->dtype, 0), dim);
-      loop_vars.push_back(Var("i" + std::to_string(i), dim->dtype));
+      Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
+      loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
-      IterVar iter_var(dom, Var("v" + std::to_string(i), dim->dtype), kDataPar);
-      instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim->dtype, 1)));
+      IterVar iter_var(dom, PrimVar("v" + std::to_string(i), dim.ty()), kDataPar);
+      instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim.ty(), 1)));
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);
     }
     Stmt body{nullptr};
     if (is_read) {
-      PrimExpr predicate = const_true();
+      PrimExpr predicate = IntImm::Bool(true);
       for (int i = 0; i < ndim; ++i) {
         if (!analyzer->CanProveEqual(buffer->shape[i], padded_buffer->shape[i])) {
           predicate = predicate && (indices[i] < buffer->shape[i]);
@@ -191,7 +191,7 @@ struct BufferPadding {
       }
       PrimExpr rhs = BufferLoad(buffer, indices);
       body =
-          BufferStore(padded_buffer, if_then_else(predicate, rhs, make_zero(rhs->dtype)), indices);
+          BufferStore(padded_buffer, if_then_else(predicate, rhs, MakeConst(rhs.ty(), 0)), indices);
     } else {
       body = BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
     }
@@ -203,11 +203,13 @@ struct BufferPadding {
     SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name,
                      std::move(body));
     blocks->push_back(new_block);
-    body = SBlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()}, const_true(),
-                         new_block);
+    ffi::Array<PrimExpr> prim_loop_vars;
+    prim_loop_vars.reserve(loop_vars.size());
+    for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
+    body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
-                 std::move(body));
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
+                 ForKind::kSerial, std::move(body));
     }
     return body;
   }
@@ -302,7 +304,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const SBlockNode* old_block_ptr) final {
     SBlock old_block = ffi::GetRef<SBlock>(old_block_ptr);
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(old_block_ptr));
+    SBlock block = StmtMutator::VisitStmt_(old_block_ptr).as_or_throw<SBlock>();
     ffi::Array<IterVar> iter_vars;
     iter_vars.reserve(block->iter_vars.size());
     for (const IterVar& iter_var : block->iter_vars) {
@@ -341,7 +343,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* old_for_ptr) final {
     For old_for = ffi::GetRef<For>(old_for_ptr);
-    For new_for = Downcast<For>(StmtMutator::VisitStmt_(old_for_ptr));
+    For new_for = StmtMutator::VisitStmt_(old_for_ptr).as_or_throw<For>();
     if (ffi::Optional<PrimExpr> new_extent = loop_var2padded_extent.Get(new_for->loop_var)) {
       ffi::ObjectPtr<ForNode> new_for_ptr = ffi::make_object<ForNode>(*new_for.get());
       new_for_ptr->extent = new_extent.value();
@@ -351,7 +353,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
-    BufferStore store = Downcast<BufferStore>(StmtMutator::VisitStmt_(old_store_ptr));
+    BufferStore store = StmtMutator::VisitStmt_(old_store_ptr).as_or_throw<BufferStore>();
     if (ffi::Optional<Buffer> buffer = buffer_map_.Get(store->buffer)) {
       return BufferStore(buffer.value(), store->value, store->indices);
     } else {
@@ -359,8 +361,8 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
-    BufferLoad load = Downcast<BufferLoad>(ExprMutator::VisitExpr_(old_load_ptr));
+  Expr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
+    BufferLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<BufferLoad>();
     if (ffi::Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
       return BufferLoad(buffer.value(), load->indices);
     } else {
@@ -389,7 +391,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   for (int i = 0, n = padding.size(); i < n; ++i) {
     const IterVar& iter = block->iter_vars[i];
     PrimExpr dom = iter->dom->extent;
-    PrimExpr pad_imm = IntImm(dom->dtype, padding[i]);
+    PrimExpr pad_imm = IntImm(dom.ty(), padding[i]);
     PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer->CanProveEqual(new_dom, dom)) {
       replacer.iter2padded_extents.Set(iter->var, new_dom);

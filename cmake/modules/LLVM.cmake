@@ -34,6 +34,19 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   endif()
   include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
   add_definitions(${LLVM_DEFINITIONS})
+  add_library(tvm_llvm_header INTERFACE)
+  if(MSVC)
+    # MSVC treats GCC-style -isystem operands as source files.
+    target_include_directories(tvm_llvm_header SYSTEM INTERFACE ${LLVM_INCLUDE_DIRS})
+    target_compile_options(tvm_llvm_header INTERFACE ${LLVM_DEFINITIONS})
+  else()
+    set(TVM_LLVM_INCLUDE_FLAGS "")
+    foreach(__llvm_include_dir IN LISTS LLVM_INCLUDE_DIRS)
+      string(STRIP "${__llvm_include_dir}" __llvm_include_dir)
+      list(APPEND TVM_LLVM_INCLUDE_FLAGS "-isystem" "${__llvm_include_dir}")
+    endforeach()
+    target_compile_options(tvm_llvm_header INTERFACE ${TVM_LLVM_INCLUDE_FLAGS} ${LLVM_DEFINITIONS})
+  endif()
   message(STATUS "Build with LLVM " ${LLVM_PACKAGE_VERSION})
   message(STATUS "Set TVM_LLVM_VERSION=" ${TVM_LLVM_VERSION})
   # Set flags that are only needed for LLVM target
@@ -44,9 +57,9 @@ if(NOT ${USE_LLVM} MATCHES ${IS_FALSE_PATTERN})
   add_definitions(-DTVM_LLVM_HAS_AARCH64_TARGET=${TVM_LLVM_HAS_AARCH64_TARGET})
   tvm_file_glob(GLOB COMPILER_LLVM_SRCS
     src/target/llvm/*.cc
-    src/target/cuda/llvm/*.cc
-    src/target/rocm/llvm/*.cc
-    src/target/hexagon/llvm/*.cc
+    src/backend/cuda/codegen/llvm/*.cc
+    src/backend/rocm/codegen/llvm/*.cc
+    src/backend/hexagon/codegen/llvm/*.cc
   )
   list(APPEND TVM_LINKER_LIBS ${LLVM_LIBS})
   list(APPEND COMPILER_SRCS ${COMPILER_LLVM_SRCS})

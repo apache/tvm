@@ -107,12 +107,6 @@ inside the container with the same user as the user invoking the
 docker command.  Here are some common use examples to perform CI
 tasks.
 
-- lint the python codes
-
-  ```bash
-  ./docker/build.sh ci_lint pre-commit run --all-files
-  ```
-
 - build codes with CUDA support
 
   ```bash

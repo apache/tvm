@@ -23,7 +23,6 @@ import os
 import subprocess
 import sys
 
-from ..base import py_str
 from . import utils
 
 
@@ -100,7 +99,7 @@ def create_dylib(output, objects, arch, sdk="macosx", min_os_version=None):
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += py_str(out)
+        msg += out.decode("utf-8", errors="replace")
         raise RuntimeError(msg)
 
 
@@ -161,7 +160,7 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     (out, _) = proc.communicate()
     if proc.returncode != 0:
         sys.stderr.write("Compilation error:\n")
-        sys.stderr.write(py_str(out))
+        sys.stderr.write(out.decode("utf-8", errors="replace"))
         sys.stderr.flush()
         libbin = None
     else:

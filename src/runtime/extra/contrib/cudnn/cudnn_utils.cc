@@ -23,10 +23,10 @@
 
 #include "cudnn_utils.h"
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/data_type.h>
 
 #include <string>
 #include <vector>
@@ -270,7 +270,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tvm.contrib.cudnn.exists", []() -> bool {
     int device_id;
-    CUDA_CALL(cudaGetDevice(&device_id));
+    TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
     return CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id}, false)->exists();
   });
 }

@@ -26,10 +26,10 @@
 
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/container/tensor.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/support/io.h>
 #include <tvm/support/serializer.h>
@@ -59,7 +59,7 @@ class Tensor : public tvm::ffi::Tensor {
   Tensor(const ffi::Tensor& other) : tvm::ffi::Tensor(other) {}        // NOLINT(*)
 
   ffi::ShapeView Shape() const { return this->shape(); }
-  runtime::DataType DataType() const { return runtime::DataType(this->dtype()); }
+  DLDataType DataType() const { return this->dtype(); }
 
   // DLPack handling
   static Tensor FromDLPack(DLManagedTensor* tensor) {

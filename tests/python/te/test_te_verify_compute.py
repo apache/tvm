@@ -15,13 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E731, F841
-import tvm
 from tvm import te
 
 
 def test_verify_compute():
-    n = te.size_var("n")
-    m = te.size_var("m")
+    n = te.var("n")
+    m = te.var("m")
     A = te.placeholder((n, m), name="A")
     k = te.reduce_axis((0, m), "k")
     k_ = te.reduce_axis((0, m - 1), "k_")
@@ -36,14 +35,14 @@ def test_verify_compute():
     # Valid compute
     try:
         B = te.compute((n,), f1, name="B")
-    except tvm.base.TVMError as ex:
+    except RuntimeError as ex:
         assert False
 
     #
     # Valid compute
     try:
         B = te.compute((n,), f2, name="B")
-    except tvm.base.TVMError as ex:
+    except RuntimeError as ex:
         assert False
 
     #
@@ -51,7 +50,7 @@ def test_verify_compute():
     try:
         B = te.compute((n,), f3, name="B")
         assert False
-    except tvm.base.TVMError as ex:
+    except RuntimeError as ex:
         pass
 
     #
@@ -59,7 +58,7 @@ def test_verify_compute():
     try:
         B = te.compute((n,), f4, name="B")
         assert False
-    except tvm.base.TVMError as ex:
+    except RuntimeError as ex:
         pass
 
     #
@@ -67,7 +66,7 @@ def test_verify_compute():
     try:
         B0, B1 = te.compute((n,), f5, name="B")
         assert False
-    except tvm.base.TVMError as ex:
+    except RuntimeError as ex:
         pass
 
     #
@@ -75,7 +74,7 @@ def test_verify_compute():
     try:
         B0, B1 = te.compute((n,), f6, name="B")
         assert False
-    except tvm.base.TVMError as ex:
+    except RuntimeError as ex:
         pass
 
 

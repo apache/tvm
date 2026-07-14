@@ -25,8 +25,8 @@ namespace tvm {
 namespace topi {
 TEST(Tensor, Basic) {
   using namespace tvm;
-  Var m("m"), l("l");
-  Tensor A = placeholder({m, l}, DataType::Float(32), "A");
+  PrimVar m("m"), l("l");
+  Tensor A = placeholder({m, l}, PrimType::Float(32), "A");
   auto C = topi::exp(A);
 }
 }  // namespace topi

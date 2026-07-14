@@ -487,8 +487,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   TVM_TIR_SCHEDULE_BEGIN();
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
-    if (!factor_rvs[i].defined()) {
-      factors.push_back(IntImm(DataType::Int(32), -1));
+    if (!factor_rvs[i].has_value()) {
+      factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
       }
@@ -498,8 +498,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
       if (is_const_int(factor) && !is_positive_const(factor)) {
         throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
       }
-      if (factor.dtype().bits() > loop->extent.dtype().bits()) {
-        factor = cast(loop->extent.dtype(), factor);
+      if (factor.ty().bits() > loop->extent.ty().bits()) {
+        factor = cast(loop->extent.ty(), factor);
       }
       factors.push_back(factor);
       tot_length *= factor;
@@ -554,8 +554,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
   }
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
-    if (!factor_rvs[i].defined()) {
-      factors.push_back(IntImm(DataType::Int(32), -1));
+    if (!factor_rvs[i].has_value()) {
+      factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
       }
@@ -565,8 +565,8 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
       if (is_const_int(factor) && !is_positive_const(factor)) {
         throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
       }
-      if (factor.dtype().bits() > loop->extent.dtype().bits()) {
-        factor = cast(loop->extent.dtype(), factor);
+      if (factor.ty().bits() > loop->extent.ty().bits()) {
+        factor = cast(loop->extent.ty(), factor);
       }
       factors.push_back(factor);
       tot_length += factor;
@@ -946,10 +946,10 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     return (*std::move(opt_floatimm))->value;
   }
 
-  if (const auto* expr = ann_val.as<PrimExprNode>()) {
-    TVM_FFI_CHECK(!expr->IsInstance<StringImmNode>(), TypeError)
+  if (auto expr = ann_val.as<PrimExpr>()) {
+    TVM_FFI_CHECK(!expr.value().as<StringImmNode>(), TypeError)
         << "ffi::String is expected, but gets StringImm";
-    auto res_expr = this->Get(ffi::GetRef<PrimExpr>(expr));
+    auto res_expr = this->Get(expr.value());
     // prefer to return int/float literals for annotations
     if (auto opt_intimm = res_expr.as<IntImm>()) {
       return (*std::move(opt_intimm))->value;
@@ -1029,7 +1029,7 @@ void ConcreteScheduleNode::TransformLayout(const SBlockRV& block_rv, int buffer_
   TVM_TIR_SCHEDULE_BEGIN();
   auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
     if (auto opt_expr = symbol_table_.Get(var)) {
-      return Downcast<PrimExpr>(opt_expr.value());
+      return opt_expr.value().as_or_throw<PrimExpr>();
     } else {
       return std::nullopt;
     }

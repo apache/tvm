@@ -45,9 +45,9 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   const auto& beta_type = beta.defined() ? beta->dtype : data_type;
   TVM_FFI_ICHECK(data_type == gamma_type && data_type == beta_type)
       << "group_norm: data, gamma and beta must have the same type";
-  TVM_FFI_ICHECK(data_type == DataType::Float(32) || data_type == DataType::Float(16))
+  TVM_FFI_ICHECK(data_type == PrimType::Float(32) || data_type == PrimType::Float(16))
       << "group_norm: only support float32 and float16 for now";
-  bool is_float16 = data_type == DataType::Float(16);
+  bool is_float16 = data_type == PrimType::Float(16);
   // reshape data C -> G, C/G
   int ndim = data->shape.size();
   channel_axis = GetRealAxis(static_cast<int>(ndim), ffi::Array<int64_t>({channel_axis}))[0];
@@ -65,7 +65,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   }
   Tensor data_reshaped;
   if (is_float16) {
-    data_reshaped = cast(reshape(data, new_shape), DataType::Float(32));
+    data_reshaped = cast(reshape(data, new_shape), PrimType::Float(32));
   } else {
     data_reshaped = reshape(data, new_shape);
   }
@@ -101,7 +101,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   auto func = MakeTupleSumReducer();
 
   auto compute = [ndim, &new_axes, &reduce_axes, &func,
-                  &data_reshaped](const ffi::Array<Var>& indices) {
+                  &data_reshaped](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
@@ -126,12 +126,12 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
 
   auto temp_x = temp_x_x2[0];
   auto temp_x2 = temp_x_x2[1];
-  auto reduce_extent = make_const(DataType::Float(32), 1);
+  PrimExpr reduce_extent = FloatImm(PrimType::Float(32), 1);
   for (auto axis : new_axes) {
     reduce_extent *= data_reshaped->shape[axis];
   }
-  auto group_norm_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> reduce_indices, non_reduce_indices, gamma_indices;
+  auto group_norm_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> reduce_indices, non_reduce_indices, gamma_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(new_axes.begin(), new_axes.end(), i) != new_axes.end()) {
         reduce_indices.push_back(indices[i]);
@@ -142,10 +142,10 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
     gamma_indices = {indices[channel_axis], indices[channel_axis + 1]};
     auto mean = temp_x(non_reduce_indices) / reduce_extent;
     auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;
-    PrimExpr group_norm =
-        (data_reshaped(indices) - mean) * tvm::rsqrt(var + make_const(data->dtype, epsilon));
+    PrimExpr group_norm = (data_reshaped(indices) - mean) *
+                          tvm::rsqrt(var + MakeConst(PrimType(data->dtype), epsilon));
     if (is_float16) {
-      group_norm = Cast(DataType::Float(16), group_norm);
+      group_norm = Cast(PrimType::Float(16), group_norm);
     }
     if (gamma.defined()) {
       group_norm = topi::multiply(group_norm, gamma_reshaped(gamma_indices));

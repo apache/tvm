@@ -34,6 +34,17 @@ namespace tirx {
  */
 class TilePrimitiveCallNode : public StmtNode {
  public:
+  TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
+                        ffi::Map<ffi::String, Buffer> workspace,
+                        ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
+                        ExecScope scope)
+      : op(std::move(op)),
+        args(std::move(args)),
+        workspace(std::move(workspace)),
+        config(std::move(config)),
+        dispatch(std::move(dispatch)),
+        scope(std::move(scope)) {}
+
   // tvm::Op which corresponds to the TIRX operator.
   tvm::Op op;
 

@@ -51,8 +51,8 @@ class OpaqueBlockLower : public StmtExprMutator {
         << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Step 1. Visit the body
-    SBlock new_block = Downcast<SBlock>(this->VisitStmt(op->block));
-    PrimExpr predicate = this->VisitExpr(op->predicate);
+    SBlock new_block = this->VisitStmt(op->block).as_or_throw<SBlock>();
+    PrimExpr predicate = this->VisitPrimExpr(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
     if (!is_one(predicate)) {
@@ -72,7 +72,7 @@ class OpaqueBlockLower : public StmtExprMutator {
         allocate_annotations.Set(s_tir::attr::buffer_dim_align, allocate_aligns);
       }
       allocate_annotations.Set(tirx::attr::buffer_data_alignment,
-                               IntImm(DataType::Int(32), buffer->data_alignment));
+                               IntImm::Int32(buffer->data_alignment));
       allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
       body = SeqStmt::Flatten(AllocBuffer(buffer, allocate_annotations), std::move(body));
     }
@@ -80,15 +80,15 @@ class OpaqueBlockLower : public StmtExprMutator {
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
     HandleAnnotations(new_block->annotations, &pragma_attrs, /*is_block=*/true);
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      body = AttrStmt(IntImm(DataType::Int(32), 0), it->first, it->second, std::move(body));
+      body = AttrStmt(IntImm::Int32(0), it->first, it->second, std::move(body));
     }
     return body;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
+    PrimExpr min = this->VisitPrimExpr(op->min);
+    PrimExpr extent = this->VisitPrimExpr(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
       unit_loop_vars_[op->loop_var] = min;
@@ -104,7 +104,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding
-      TVM_FFI_ICHECK(op->thread_binding.defined());
+      TVM_FFI_ICHECK(op->thread_binding.has_value());
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
@@ -123,7 +123,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
@@ -131,8 +131,9 @@ class OpaqueBlockLower : public StmtExprMutator {
 
     } else {
       PrimExpr expr = it->second;
-      if (expr.dtype() != var.dtype()) {
-        expr = tvm::cast(var.dtype(), std::move(expr));
+      PrimType var_ty = var->ty.as_or_throw<PrimType>();
+      if (expr.ty() != var_ty) {
+        expr = tvm::cast(var_ty, std::move(expr));
       }
       return expr;
     }
@@ -141,7 +142,7 @@ class OpaqueBlockLower : public StmtExprMutator {
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
                                Stmt body) {
     IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var),
+                     /*var=*/std::move(var).as_or_throw<PrimVar>(),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||

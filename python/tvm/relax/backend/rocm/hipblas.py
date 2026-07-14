@@ -47,14 +47,14 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     rhs = context.annotated_expr["rhs"]
     matmul_call = context.annotated_expr["root"]
 
-    lhs_dtype = lhs.struct_info.dtype
-    rhs_dtype = rhs.struct_info.dtype
-    out_dtype = matmul_call.struct_info.dtype
+    lhs_dtype = lhs.ty.dtype
+    rhs_dtype = rhs.ty.dtype
+    out_dtype = matmul_call.ty.dtype
     if not _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):
         return False
 
-    lhs_shape = lhs.struct_info.shape.values
-    rhs_shape = rhs.struct_info.shape.values
+    lhs_shape = lhs.ty.shape.values
+    rhs_shape = rhs.ty.shape.values
 
     if not isinstance(lhs_shape[-1], tvm.tirx.expr.IntImm | int):
         # Reduction axis must be constant
@@ -73,7 +73,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
             # Non-default epilogue not supported for IGEMM
             return False
         bias = context.annotated_expr["bias"]
-        bias_shape = bias.struct_info.shape.values
+        bias_shape = bias.ty.shape.values
         bias_batches = reduce(operator.mul, bias_shape[:-1], 1)
         if not isinstance(bias_batches, tvm.tirx.expr.IntImm | int) or int(bias_batches) > 1:
             # hipblas only supports bias vector

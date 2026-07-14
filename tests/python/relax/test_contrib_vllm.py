@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: RUF005
 import numpy as np
 import pytest
 import tvm_ffi
@@ -25,6 +24,7 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 has_vllm = tvm.get_global_func("tvm.contrib.vllm.single_query_cached_kv_attention", True)
 
@@ -33,7 +33,11 @@ vllm_enabled = pytest.mark.skipif(
     reason="VLLM not enabled.",
 )
 
-pytestmark = [vllm_enabled] + tvm.testing.requires_cuda.marks()
+pytestmark = [
+    vllm_enabled,
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_cuda(), reason="need cuda"),
+]
 
 
 def build_and_run(mod, inputs_np, target, legalize=True):
@@ -91,7 +95,7 @@ def test_attention():
                         16,
                         max_len,
                     ],
-                    out_sinfo=query.struct_info,
+                    out_ty=query.ty,
                 )
                 R.output(out)
             return out
@@ -136,7 +140,7 @@ def test_attention():
                         max_logits,
                         tmp_out,
                     ],
-                    out_sinfo=query.struct_info,
+                    out_ty=query.ty,
                 )
                 R.output(out)
             return out
@@ -363,7 +367,7 @@ def test_cache():
                     key_cache,
                     value_cache,
                     slot_mapping,
-                    sinfo_args=[key_cache.struct_info, value_cache.struct_info],
+                    ty_args=[key_cache.ty, value_cache.ty],
                 )
                 out = (kv[0], kv[1])
                 R.output(out)
@@ -751,34 +755,36 @@ def test_reconstruct_from_cache():
     num_tokens = 8
     num_blocks = 1
 
-    dev = tvm.device("cuda", 0)
-
-    key = tvm.runtime.tensor(
-        np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
-    )
-    value = tvm.runtime.tensor(
-        np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
-    )
-    slot_mapping = tvm.runtime.tensor(np.arange(num_tokens).astype("int32"), dev)
-
-    k_cache = tvm.runtime.tensor(
-        np.random.randn(num_blocks, num_heads, head_dim // vec_size, block_size, vec_size).astype(
-            "float16"
-        ),
-        dev,
-    )
-    v_cache = tvm.runtime.tensor(
-        np.random.randn(num_blocks, num_heads, head_dim, block_size).astype("float16"), dev
-    )
-
     reshape_and_cache_func = tvm.get_global_func("tvm.contrib.vllm.reshape_and_cache")
     reconstruct_from_cache_func = tvm.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
 
-    reshape_and_cache_func(key, value, k_cache, v_cache, slot_mapping)
-    out = reconstruct_from_cache_func(k_cache, v_cache, slot_mapping)
+    def run_and_check():
+        dev = tvm.device("cuda", 0)
+        key = tvm.runtime.tensor(
+            np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
+        )
+        value = tvm.runtime.tensor(
+            np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
+        )
+        slot_mapping = tvm.runtime.tensor(np.arange(num_tokens).astype("int32"), dev)
 
-    np.testing.assert_equal(key.numpy(), out[0].numpy())
-    np.testing.assert_equal(value.numpy(), out[1].numpy())
+        k_cache = tvm.runtime.tensor(
+            np.random.randn(
+                num_blocks, num_heads, head_dim // vec_size, block_size, vec_size
+            ).astype("float16"),
+            dev,
+        )
+        v_cache = tvm.runtime.tensor(
+            np.random.randn(num_blocks, num_heads, head_dim, block_size).astype("float16"), dev
+        )
+
+        reshape_and_cache_func(key, value, k_cache, v_cache, slot_mapping)
+        out = reconstruct_from_cache_func(k_cache, v_cache, slot_mapping)
+
+        np.testing.assert_equal(key.numpy(), out[0].numpy())
+        np.testing.assert_equal(value.numpy(), out[1].numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

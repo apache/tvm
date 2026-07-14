@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../utils.h"
@@ -40,11 +41,11 @@ ffi::Optional<int64_t> ParseThreadBinding(const Schedule& sch, const Instruction
   }
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 1);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String thread_axis = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String thread_axis = inst->attrs[0].as_or_throw<ffi::String>();
   if (thread_axis != axis) {
     return std::nullopt;
   }
-  return Downcast<IntImm>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent)->value;
+  return sch->Get(inst->inputs[0].as_or_throw<LoopRV>())->extent.as_or_throw<IntImm>()->value;
 }
 
 /*!
@@ -62,12 +63,12 @@ ffi::Optional<SBlockRV> ParseAnnotate(const Schedule& sch, const Instruction& in
   }
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String ann_key = inst->attrs[0].as_or_throw<ffi::String>();
   if (ann_key != s_tir::attr::meta_schedule_cooperative_fetch) {
     return std::nullopt;
   }
-  *vector_lane = Downcast<IntImm>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
-  return Downcast<SBlockRV>(inst->inputs[0]);
+  *vector_lane = sch->Get(inst->inputs[1].as_or_throw<ExprRV>()).as_or_throw<IntImm>()->value;
+  return inst->inputs[0].as_or_throw<SBlockRV>();
 }
 
 /*!
@@ -83,27 +84,27 @@ bool ParseWarpExecutionAnn(const Schedule& sch, const Instruction& inst) {
   }
   TVM_FFI_ICHECK_EQ(inst->inputs.size(), 2);
   TVM_FFI_ICHECK_EQ(inst->attrs.size(), 1);
-  ffi::String ann_key = Downcast<ffi::String>(inst->attrs[0]);
+  ffi::String ann_key = inst->attrs[0].as_or_throw<ffi::String>();
   return ann_key == s_tir::attr::warp_execution;
 }
 
 size_t GetMaxUsedDtypeBytes(SBlock block) {
   size_t max_bytes = 1;
-  static auto q_multiply_shift_per_axis = Op::Get("tirx.q_multiply_shift_per_axis");
-  static auto q_multiply_shift = Op::Get("tirx.q_multiply_shift");
 
   tirx::PostOrderVisit(block->body, [&](const ffi::ObjectRef& obj) {
     if (const auto* store = obj.as<tirx::BufferStoreNode>()) {
-      max_bytes = std::max(max_bytes, static_cast<size_t>(store->value->dtype.bytes()));
+      max_bytes = std::max(max_bytes, store->value.ty().StorageBytes());
     } else if (const auto* load = obj.as<tirx::BufferLoadNode>()) {
-      max_bytes = std::max(max_bytes, static_cast<size_t>(load->dtype.bytes()));
-    } else if (const auto* call = obj.as<tirx::CallNode>()) {
-      if (call->op.same_as(q_multiply_shift_per_axis) || call->op.same_as(q_multiply_shift)) {
+      max_bytes = std::max(max_bytes, load->ty.as_or_throw<PrimType>().StorageBytes());
+    } else if (const auto* call = obj.as<CallNode>()) {
+      static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
+      static const Op& q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
+      if (call->op.same_as(q_multiply_shift_per_axis_op) || call->op.same_as(q_multiply_shift_op)) {
         // q_multiply_shift uses 64 bit multiply
         max_bytes = std::max<size_t>(max_bytes, 8);
       }
     } else if (const auto* cast = obj.as<tirx::CastNode>()) {
-      max_bytes = std::max<size_t>(max_bytes, cast->dtype.bytes());
+      max_bytes = std::max(max_bytes, cast->ty.as_or_throw<PrimType>().StorageBytes());
     }
   });
 
@@ -173,7 +174,7 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       continue;
     }
     ffi::Optional<s_tir::SBlockRV> opt_block_rv = s_tir::ParseAnnotate(sch, inst, &vector_lane);
-    if (!opt_block_rv.defined()) {
+    if (!opt_block_rv.has_value()) {
       continue;
     }
     auto task = [thread_extent_x, thread_extent_y, vector_lane, sch,
@@ -198,33 +199,30 @@ bool RewriteCooperativeFetchNode::Apply(const s_tir::Schedule& sch) {
       }
       if (thread_extent_y != -1) {
         if (vector_lane > 1) {
-          ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt,                                //
-                                 IntImm(DataType::Int(32), thread_extent_y),  //
-                                 IntImm(DataType::Int(32), thread_extent_x),  //
-                                 IntImm(DataType::Int(32), vector_lane)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
+                                                               IntImm::Int32(thread_extent_y),  //
+                                                               IntImm::Int32(thread_extent_x),  //
+                                                               IntImm::Int32(vector_lane)});
           sch->Vectorize(split[3]);
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         } else {
-          ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt,                                //
-                                 IntImm(DataType::Int(32), thread_extent_y),  //
-                                 IntImm(DataType::Int(32), thread_extent_x)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
+                                                               IntImm::Int32(thread_extent_y),  //
+                                                               IntImm::Int32(thread_extent_x)});
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         }
       } else {
         if (vector_lane > 1) {
-          ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt,                                //
-                                 IntImm(DataType::Int(32), thread_extent_x),  //
-                                 IntImm(DataType::Int(32), vector_lane)});
+          ffi::Array<s_tir::LoopRV> split = sch->Split(fused, {std::nullopt,                    //
+                                                               IntImm::Int32(thread_extent_x),  //
+                                                               IntImm::Int32(vector_lane)});
           sch->Vectorize(split[2]);
           sch->Bind(split[1], "threadIdx.x");
         } else {
           ffi::Array<s_tir::LoopRV> split =
-              sch->Split(fused, {std::nullopt, IntImm(DataType::Int(32), thread_extent_x)});
+              sch->Split(fused, {std::nullopt, IntImm::Int32(thread_extent_x)});
           sch->Bind(split[1], "threadIdx.x");
         }
       }

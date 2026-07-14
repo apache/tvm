@@ -67,8 +67,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(), {IntImm(DataType::Int(32), dim0->value / 16),
-                                           IntImm(DataType::Int(32), dim1->value / 8), 2, 2});
+        new_shape.insert(new_shape.end(),
+                         {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
         Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local",
                                         buffer->axis_separators);
@@ -89,8 +89,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(), {IntImm(DataType::Int(32), dim0->value / 32),
-                                           IntImm(DataType::Int(32), dim1->value / 8), 4, 2});
+        new_shape.insert(new_shape.end(),
+                         {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
         Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local",
                                         buffer->axis_separators);
@@ -111,8 +111,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         for (size_t i = 0; i < size - 2; ++i) {
           new_shape.push_back(buffer->shape[i]);
         }
-        new_shape.insert(new_shape.end(), {IntImm(DataType::Int(32), dim0->value / 8),
-                                           IntImm(DataType::Int(32), dim1->value / 32), 1, 8});
+        new_shape.insert(new_shape.end(),
+                         {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
         Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local",
                                         buffer->axis_separators);
@@ -128,7 +128,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     if (buffer_map_.count(store->buffer)) {
       auto* n = store.CopyOnWrite();
       if (store->buffer.scope() == "m16n8k8.matrixC") {
@@ -146,8 +146,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+  Expr VisitExpr_(const BufferLoadNode* op) {
+    BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     if (buffer_map_.count(load->buffer)) {
       auto* n = load.CopyOnWrite();
       if (load->buffer.scope() == "m16n8k8.matrixC") {
@@ -165,7 +165,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return load;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) {
+  Expr VisitExpr_(const VarNode* op) {
     if (buffer_var_map_.count(ffi::GetRef<Var>(op))) {
       return buffer_var_map_[ffi::GetRef<Var>(op)];
     }

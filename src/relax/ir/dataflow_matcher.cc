@@ -32,7 +32,7 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/op.h>
 
@@ -428,15 +428,15 @@ bool DFPatternMatcher::VisitDFPattern_(const UnorderedTuplePatternNode* op, cons
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const StructInfoPatternNode* op, const Expr& expr0) {
+bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr0) {
   if (!VisitDFPattern(op->pattern, expr0)) {
     return false;
   }
 
   auto expr = UnwrapBindings(expr0, var2val_);
-  auto expr_struct_info = GetStructInfo(expr);
+  auto expr_ty = GetType(expr);
 
-  PrimExpr new_constraint = StructInfoBaseCheckPrecondition(op->struct_info, expr_struct_info);
+  PrimExpr new_constraint = TypeBaseCheckPrecondition(op->ty, expr_ty);
   if (auto* as_int = new_constraint.as<IntImmNode>()) {
     return as_int->value;
   }
@@ -472,7 +472,7 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
       constraints.begin(), constraints.end(),
       [&sort_key](const PrimExpr& a, const PrimExpr& b) { return sort_key(a) < sort_key(b); });
 
-  PrimExpr sorted_condition = tirx::const_true();
+  PrimExpr sorted_condition = IntImm::Bool(true);
   for (const PrimExpr& constraint : constraints) {
     sorted_condition = sorted_condition && constraint;
   }
@@ -490,7 +490,7 @@ static bool ShapeEqual(AnalyzerObj* analyzer, const ffi::Array<PrimExpr>& lhs,
 
 bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& expr) {
   // no need to jump, as var.shape == value.shape
-  if (const auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr)) {
+  if (const auto* tinfo = GetTypeAs<TensorTypeNode>(expr)) {
     if (const ShapeExprNode* shape_expr = tinfo->shape.as<ShapeExprNode>()) {
       return ShapeEqual(analyzer_.get(), op->shape, shape_expr->values) &&
              VisitDFPattern(op->pattern, expr);
@@ -499,36 +499,36 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   return false;
 }
 
-std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
+std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsCondition(
     std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const {
   ffi::Optional<ffi::Array<PrimExpr>> expected_shape;
   bool all_shapes_defined = true;
 
   // The expression that must be true in order
-  PrimExpr all_dimensions_equal = IntImm(DataType::Bool(), 1);
+  PrimExpr all_dimensions_equal = IntImm::Bool(true);
 
   for (const auto& arg : args) {
     if (auto opt_var = match_state(arg.get())) {
       auto var = opt_var.value();
       auto opt_var_shape = [&]() -> ffi::Optional<ffi::Array<PrimExpr>> {
-        auto sinfo = GetStructInfo(var);
-        if (auto tensor = sinfo.as<TensorStructInfoNode>()) {
+        auto ty = GetType(var);
+        if (auto tensor = ty.as<TensorTypeNode>()) {
           return tensor->GetShape();
-        } else if (auto shape_expr = sinfo.as<ShapeStructInfoNode>()) {
+        } else if (auto shape_expr = ty.as<ShapeTypeNode>()) {
           return shape_expr->values;
         } else {
           return std::nullopt;
         }
       }();
 
-      if (!opt_var_shape.defined()) {
+      if (!opt_var_shape.has_value()) {
         // The pattern has matched to something without a shape.
         // Therefore, it cannot have the same shape as something else.
-        return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
+        return {PrimExpr(IntImm::Bool(false)), true};
       }
       auto var_shape = opt_var_shape.value();
 
-      if (expected_shape.defined()) {
+      if (expected_shape.has_value()) {
         auto prev_shape = expected_shape.value();
         if (prev_shape.size() == var_shape.size()) {
           // The dimensionalities match, so build up the expression
@@ -541,7 +541,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
           // The shapes have different dimensionality.  No need to
           // perform potentially-expensive simplifications, because
           // the dimensions do not match.
-          return {PrimExpr(IntImm(DataType::Bool(), 0)), true};
+          return {PrimExpr(IntImm::Bool(false)), true};
         }
 
       } else {
@@ -571,10 +571,9 @@ bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr&
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
   // no need to jump, as var.dtype == value.dtype
-  auto expr_sinfo = expr.as<ExprNode>()->struct_info_;
-  if (const TensorStructInfoNode* tensor_sinfo = expr_sinfo.as<TensorStructInfoNode>()) {
-    return (ffi::StructuralEqual()(op->dtype, tensor_sinfo->dtype)) &&
-           VisitDFPattern(op->pattern, expr);
+  auto expr_ty = expr.as<ExprNode>()->ty;
+  if (const TensorTypeNode* tensor_ty = expr_ty.as<TensorTypeNode>()) {
+    return op->dtype == tensor_ty->dtype.value()->dtype && VisitDFPattern(op->pattern, expr);
   }
   return false;
 }
@@ -583,7 +582,7 @@ bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& exp
   // We don't jump for var pattern, as there's no need to access its value to judge it.
   if (const auto* var_node = expr.as<VarNode>()) {
     // "" means any name.
-    return "" == op->name_hint() || op->name_hint() == var_node->name_hint();
+    return "" == op->name_hint() || op->name_hint() == var_node->name_hint;
   }
   return false;
 }

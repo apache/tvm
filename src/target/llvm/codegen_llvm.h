@@ -91,7 +91,7 @@ using namespace tirx;
 /*!
  * \brief A base class to generate a LLVM.
  */
-class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
+class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
   CodeGenLLVM();           // Do not make it default here.
@@ -182,6 +182,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return created value.
    */
   llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const Expr& e) {
+    if (auto prim = e.as<PrimExpr>()) return MakeValue(prim.value());
+    if (const auto* var = e.as<VarNode>()) return GetVarValue(var);
+    if (const auto* call = e.as<CallNode>()) return VisitExpr_(call);
+    TVM_FFI_THROW(TypeError) << "Cannot lower non-primitive expression " << e->GetTypeKey();
+    TVM_FFI_UNREACHABLE();
+  }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -285,7 +292,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // create extern function call
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                        const ffi::Array<PrimExpr>& args, bool skip_first_arg);
+                                        const ffi::Array<Expr>& args, bool skip_first_arg);
 
   /*! \brief Insert a printf() call to the generated LLVM
    *
@@ -351,7 +358,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   void BufferAccessHelper(
       Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
-      DataType value_dtype,
+      PrimType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
@@ -400,7 +407,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \return LLVM type of dtype
    */
-  llvm::Type* DTypeToLLVMType(const DataType& dtype) const;
+  llvm::Type* DTypeToLLVMType(const PrimType& dtype) const;
   /*!
    * \brief Get the LLVM Type for a given type.
    * \param dtype The runtime dtype.
@@ -450,28 +457,28 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.
-  void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
+  void GetAlignment(PrimType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
   // Returns whether the LLVM type has padding for alignment
-  bool HasAlignmentPadding(DataType dtype);
+  bool HasAlignmentPadding(PrimType dtype);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
   // handle module import
   void HandleImport(const std::string& code);
   // cast operatpr
-  llvm::Value* CreateCast(DataType from, DataType to, llvm::Value* value);
+  llvm::Value* CreateCast(PrimType from, PrimType to, llvm::Value* value);
   // comparison op
   llvm::Value* GetVarValue(const VarNode* v) const;
-  llvm::Value* CreateLT(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateLE(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGT(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateGE(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateAdd(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
-  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
-                                       llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
+  llvm::Value* CreateLT(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateLE(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGT(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateGE(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateAdd(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateSub(PrimType t, llvm::Value* a, llvm::Value* b);
+  llvm::Value* CreateMul(PrimType t, llvm::Value* a, llvm::Value* b);
+  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, Type buffer_element_type,
+                                       llvm::ArrayRef<llvm::Value*> indices, Type value_type);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -479,12 +486,12 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
   // Create serial for
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
-                       const Var& loop_var, const Stmt& body);
+                       const PrimVar& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
-                    DataType access_dtype);
+                    PrimType access_dtype);
 
-  llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
+  llvm::GlobalVariable* AllocateSharedMemory(PrimType dtype, size_t size,
                                              unsigned int shared_address_space, int alignment,
                                              llvm::GlobalValue::LinkageTypes linkage);
 
@@ -546,6 +553,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // Map from TVM's GlobalVar to the llvm::Function that represents
   // that function.
   std::unordered_map<const GlobalVarNode*, llvm::Function*> functions_;
+
+  // Map from the generated LLVM function symbol to the GlobalVar that owns it.
+  std::unordered_map<std::string, std::string> function_symbol_owners_;
 
   // Whether current function is restricted
   bool is_restricted_{true};
@@ -621,7 +631,7 @@ void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfu
   for (auto it = begin; it != end; ++it) {
     auto [gvar, func] = *it;
     auto converted = pfunc(func);
-    funcs.push_back({gvar, Downcast<PrimFunc>(converted)});
+    funcs.push_back({gvar, converted.template as_or_throw<PrimFunc>()});
   }
   std::sort(funcs.begin(), funcs.end(), [this](const auto& pair_a, const auto& pair_b) {
     const auto& [gvar_a, func_a] = pair_a;

@@ -96,7 +96,8 @@ class ForMatcher : public TensorizeComparator {
     return std::nullopt;
   }
 
-  bool VisitExpr(const PrimExpr& lhs, const PrimExpr& rhs) final {
+  bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
+    PrimExpr lhs = expr.as_or_throw<PrimExpr>();
     if (const auto* op = rhs.as<VarNode>()) {
       if (pattern_vars_.count(ffi::GetRef<Var>(op))) {
         // special case for pattern vars
@@ -104,7 +105,7 @@ class ForMatcher : public TensorizeComparator {
         if (lhs_ptr == nullptr) {
           if (lhs->IsInstance<tirx::IntImmNode>() || lhs->IsInstance<tirx::FloatImmNode>()) {
             ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(ffi::GetRef<Var>(op));
-            if (value.defined()) {
+            if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
             } else {
               evaluated_symbols.back()[ffi::GetRef<Var>(op)] = lhs;
@@ -129,7 +130,7 @@ class ForMatcher : public TensorizeComparator {
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
           evaluated_symbols.back()[ffi::GetRef<Var>(operand_a)] =
-              MakeConstScalar(rhs_ptr->b.dtype(), 1);
+              MakeConstScalar(rhs_ptr->b.ty(), 1);
           return true;
         }
       }
@@ -142,7 +143,7 @@ class ForMatcher : public TensorizeComparator {
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
           evaluated_symbols.back()[ffi::GetRef<Var>(operand_b)] =
-              MakeConstScalar(rhs_ptr->a.dtype(), 1);
+              MakeConstScalar(rhs_ptr->a.ty(), 1);
           return true;
         }
       }
@@ -160,7 +161,7 @@ class ForMatcher : public TensorizeComparator {
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
           evaluated_symbols.back()[ffi::GetRef<Var>(operand_a)] =
-              MakeConstScalar(rhs_ptr->b.dtype(), 0);
+              MakeConstScalar(rhs_ptr->b.ty(), 0);
           return true;
         }
       }
@@ -173,7 +174,7 @@ class ForMatcher : public TensorizeComparator {
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
           evaluated_symbols.back()[ffi::GetRef<Var>(operand_b)] =
-              MakeConstScalar(rhs_ptr->a.dtype(), 0);
+              MakeConstScalar(rhs_ptr->a.ty(), 0);
           return true;
         }
       }
@@ -233,7 +234,7 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const tirx::CallNode* call, const PrimExpr& other) final {
+  bool VisitExpr_(const CallNode* call, const PrimExpr& other) final {
     const auto* rhs = other.as<CallNode>();
     if (rhs == nullptr) return false;
     const auto* lhs_op = call->op.as<OpNode>();
@@ -242,7 +243,7 @@ class ForMatcher : public TensorizeComparator {
     if (lhs_op->name != rhs_op->name) return false;
     if (call->args.size() != rhs->args.size()) return false;
     for (size_t i = 0; i < call->args.size(); ++i) {
-      if (!VisitExpr(call->args[i], rhs->args[i])) return false;
+      if (!CompareExpr(call->args[i], rhs->args[i])) return false;
     }
     return true;
   }
@@ -262,7 +263,7 @@ class ForMatcher : public TensorizeComparator {
     if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
     // Only handle the case where the loop start from 0
     if (!is_zero(op->min) || !is_zero(rhs->min)) return false;
-    if (op->thread_binding.defined() || rhs->thread_binding.defined()) return false;
+    if (op->thread_binding.has_value() || rhs->thread_binding.has_value()) return false;
     if (op->kind != ForKind::kSerial || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
@@ -291,9 +292,9 @@ class ForMatcher : public TensorizeComparator {
       return false;
     }
     // Handle init block
-    if (op->init.defined() && !rhs->init.defined()) return false;
-    if (!op->init.defined() && rhs->init.defined()) return false;
-    if (op->init.defined() && rhs->init.defined()) {
+    if (op->init.has_value() && !rhs->init.has_value()) return false;
+    if (!op->init.has_value() && rhs->init.has_value()) return false;
+    if (op->init.has_value() && rhs->init.has_value()) {
       if (!VisitStmt(op->init.value(), rhs->init.value())) return false;
     }
     return VisitStmt(op->body, rhs->body);
@@ -518,7 +519,7 @@ class BlockRemover : public StmtExprMutator {
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*block.operator->());
     if (op->name_hint != "root") {
       TVM_FFI_ICHECK(block_partition.count(ffi::GetRef<SBlock>(op)));
@@ -580,9 +581,9 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   }
   ffi::Array<ffi::Any> codegen_result = f_codegen(match_results);
   TVM_FFI_ICHECK(codegen_result.size() == 3);
-  ffi::String library_code = Downcast<ffi::String>(codegen_result[0]);
-  int num_matched_ops = Downcast<IntImm>(codegen_result[1])->value;
-  ffi::Array<Buffer> func1_args = Downcast<ffi::Array<Buffer>>(codegen_result[2]);
+  ffi::String library_code = codegen_result[0].as_or_throw<ffi::String>();
+  int num_matched_ops = codegen_result[1].as_or_throw<IntImm>()->value;
+  ffi::Array<Buffer> func1_args = codegen_result[2].as_or_throw<ffi::Array<Buffer>>();
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
@@ -622,7 +623,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(Var("output", DataType::Handle()));
+  new_params1.push_back(Var("output", PointerType::VoidPointerTy()));
   ffi::Map<Var, Buffer> new_buffer_map1;
   for (const auto& kv : func->buffer_map) {
     if (partitioner.input1.count(kv.second)) {
@@ -635,7 +636,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(Var("input", DataType::Handle()));
+  new_params2.push_back(Var("input", PointerType::VoidPointerTy()));
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
     if (partitioner.input2.count(func->buffer_map[param])) {
@@ -692,7 +693,7 @@ class SplitMutator : public ExprMutator {
     SplitMutator mutator(mod, patterns, fcodegen);
     for (auto& kv : mod->functions) {
       if (auto* func = kv.second.as<FunctionNode>()) {
-        Function new_func = Downcast<Function>(mutator(ffi::GetRef<Function>(func)));
+        Function new_func = mutator(ffi::GetRef<Function>(func)).as_or_throw<Function>();
         mutator.builder_->UpdateFunction(kv.first, new_func);
       }
     }
@@ -711,7 +712,7 @@ class SplitMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_ = Op::Get("relax.call_dps_packed");
     if (!call->op.same_as(call_tir_op_)) return call;
@@ -720,12 +721,12 @@ class SplitMutator : public ExprMutator {
     if (gv_ptr == nullptr) return call;
     GlobalVar gv = ffi::GetRef<GlobalVar>(gv_ptr);
     // retrieve the function from the module and split it
-    tirx::PrimFunc func = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
+    tirx::PrimFunc func = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
     std::vector<std::vector<int>> arg_partition;
     // split the function into two functions, one for the library kernel and one for the rest.
     std::pair<tirx::PrimFunc, ffi::Optional<tirx::PrimFunc>> split_funcs =
         tirx::SplitFunctions(func, &arg_partition, patterns_, fcodegen_);
-    if (!split_funcs.second.defined()) {
+    if (!split_funcs.second.has_value()) {
       // no need to split, the function itself a library kernel
       tvm::BaseFunc lib_func = CodegenWithLibrary(split_funcs.first.get(), gv->name_hint);
       if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
@@ -752,9 +753,9 @@ class SplitMutator : public ExprMutator {
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
     tirx::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
-    DataType dtype = intermediate_buffer->dtype;
-    Call call1(call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
-               {TensorStructInfo(ShapeExpr(intermediate_buffer->shape), dtype)});
+    PrimType dtype = intermediate_buffer->dtype;
+    Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
+               {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});
     Var call_var1 = builder_->Emit(call1);
     // emit the second call to the rest of the function
     ffi::Array<Expr> args2;
@@ -763,7 +764,7 @@ class SplitMutator : public ExprMutator {
       args2.push_back(GetCallTIRArgs(call->args[1])[p]);
     }
     GlobalVar gv2 = builder_->AddFunction(func2, "unfused_epilogue");
-    Call call2(call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->sinfo_args);
+    Call call2(Type::Missing(), call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
     builder_->UpdateFunction(gv, WithoutAttr(func, "global_symbol"));
     return call2;
   }

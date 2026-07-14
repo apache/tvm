@@ -1526,7 +1526,7 @@ def test_reduction_rfactor_predicate():  # pylint: disable=invalid-name
     B = s.get_sblock("B")
     _, ko, _ = s.get_loops(B)
     # TODO: should be a tvm.s_tir.ScheduleError
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
         rf_block = s.rfactor(ko, 1)
 
 

@@ -18,9 +18,14 @@
 """Statistical operators."""
 
 from tvm import DataType
+from tvm.ir import PrimType
 
 from ..expr import Expr
 from . import _ffi_api
+
+
+def _raw_dtype(dtype):
+    return dtype.dtype if isinstance(dtype, PrimType) else dtype
 
 
 def max(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:
@@ -250,7 +255,7 @@ def cumprod(
     if exclusive is None:
         exclusive = False
 
-    return _ffi_api.cumprod(data, axis, dtype, exclusive)  # type: ignore
+    return _ffi_api.cumprod(data, axis, _raw_dtype(dtype), exclusive)  # type: ignore
 
 
 def cumsum(
@@ -312,7 +317,7 @@ def cumsum(
     if exclusive is None:
         exclusive = False
 
-    return _ffi_api.cumsum(data, axis, dtype, exclusive)  # type: ignore
+    return _ffi_api.cumsum(data, axis, _raw_dtype(dtype), exclusive)  # type: ignore
 
 
 def variance(x: Expr, axis: int | list[int] | None = None, keepdims: bool = False) -> Expr:

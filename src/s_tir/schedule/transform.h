@@ -61,7 +61,7 @@ Buffer WithScope(const Buffer& buffer, const ffi::String& scope);
  * \param scope The target data type.
  * \return The new buffer with target data type.
  */
-Buffer WithDType(const Buffer& buffer, const DataType& dtype);
+Buffer WithDType(const Buffer& buffer, PrimType dtype);
 
 /*!
  * \brief Replaces the buffer within the specific sequence of regions
@@ -141,7 +141,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;
 
-  PrimExpr VisitExpr_(const VarNode* var) final;
+  Expr VisitExpr_(const VarNode* var) final;
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
@@ -154,7 +154,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) override;
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const BufferLoadNode* op) override;
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
@@ -236,13 +236,13 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
    * \param analyzer The arithmetic analyzer
    * \return The simplified statement
    */
-  static Stmt Simplify(const Stmt& stmt, arith::AnalyzerObj* analyzer) {
+  static Stmt Simplify(const Stmt& stmt, const arith::Analyzer& analyzer) {
     BlockBufferAccessSimplifier simplifier(analyzer);
     return simplifier(stmt);
   }
 
  private:
-  explicit BlockBufferAccessSimplifier(arith::AnalyzerObj* analyzer)
+  explicit BlockBufferAccessSimplifier(const arith::Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {}
 
   using IRMutatorWithAnalyzer::VisitExpr_;
@@ -253,7 +253,7 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const SBlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+  Expr VisitExpr_(const BufferLoadNode* op) final;
 };
 
 }  // namespace s_tir

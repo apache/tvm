@@ -114,8 +114,10 @@ inline ExprDoc Relax(const IRDocsifier& d, const ffi::String& attr) {
   return IdDoc(d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R"))->Attr(attr);
 }
 
-inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : ffi::DLDataTypeToString(dtype);
+inline std::string DType2Str(DLDataType dtype) {
+  return (((dtype).code == kDLOpaqueHandle) && ((dtype).bits == 0) && ((dtype).lanes == 0))
+             ? "void"
+             : ffi::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */
@@ -138,7 +140,7 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
                                  d->cfg->GetExtraConfig<ffi::String>("relax.prefix", "R")));
     }
     stmts.push_back(CommentDoc(""));
-    stmts.push_back(Downcast<StmtDoc>(doc));
+    stmts.push_back(doc.as_or_throw<StmtDoc>());
     return StmtBlockDoc(stmts);
   }
   return doc;

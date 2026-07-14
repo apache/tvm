@@ -36,7 +36,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/global_var_supply.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -171,8 +171,8 @@ class CallSubstitutor : public StmtExprMutator {
  private:
   using StmtExprMutator::VisitStmt_;
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+  Expr VisitExpr_(const CallNode* op) final {
+    auto call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     // Only substitute calls when not under GPU scope
     if (!is_under_gpu_scope_) {
@@ -237,7 +237,7 @@ class CallSubstitutor : public StmtExprMutator {
  */
 IRModule BindTarget(IRModule mod, const Target& target) {
   // Extract host and device targets
-  auto target_host = Downcast<Target>(target->host.value_or(Target("llvm")));
+  auto target_host = target->host.value_or(Target("llvm")).as_or_throw<Target>();
   auto target_without_host = target.WithoutHost();
 
   auto mod_copy_on_write = mod.CopyOnWrite();
@@ -261,7 +261,8 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
   // Track duplicated functions for call replacement
   ffi::Map<GlobalVar, GlobalVar> host_function_replacements;
-  GlobalVarSupply gvar_supply(new_mod);
+  UniqueNameSupply global_names(new_mod->functions.begin(), new_mod->functions.end(),
+                                [](const auto& kv) { return kv.first->name_hint; });
 
   for (auto [gvar, func] : mod->functions) {
     const auto* prim_func_node = func.as<PrimFuncNode>();
@@ -313,7 +314,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
         // Create duplicate with host target for host callers
         host_func = WithAttr(std::move(host_func), tvm::attr::kTarget, target_host);
         ffi::String host_func_name = gvar->name_hint + "_host";
-        GlobalVar host_gvar = gvar_supply->FreshGlobal(host_func_name, false);
+        GlobalVar host_gvar = GlobalVar(global_names->FreshName(host_func_name, false));
 
         new_mod->Add(host_gvar, host_func);
         host_function_replacements.Set(gvar, host_gvar);
@@ -349,7 +350,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
           prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
-        PrimFunc new_func = substitutor.Substitute(Downcast<PrimFunc>(func));
+        PrimFunc new_func = substitutor.Substitute(func.as_or_throw<PrimFunc>());
         new_mod->Update(gvar, new_func);
       }
     }

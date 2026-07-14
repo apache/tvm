@@ -38,6 +38,12 @@
 namespace tvm {
 namespace relax {
 
+struct VarIdentityLess {
+  bool operator()(const Var& lhs, const Var& rhs) const { return lhs.get() < rhs.get(); }
+};
+
+using VarIdentitySet = std::set<Var, VarIdentityLess>;
+
 TVM_FFI_STATIC_INIT_BLOCK() { DataflowBlockRewriteNode::RegisterReflection(); }
 
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
@@ -48,8 +54,8 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   auto p = FunctionUseDef(root_fn);
   n->to_users_ = std::move(p.first);
   n->fn_outputs_ = std::move(p.second);
-  n->name_supply_ = NameSupply(n->to_users_.begin(), n->to_users_.end(),
-                               [](const auto& p) { return p.first->name_hint(); });
+  n->name_supply_ = UniqueNameSupply(n->to_users_.begin(), n->to_users_.end(),
+                                     [](const auto& p) { return p.first->name_hint; });
 
   data_ = std::move(n);
 }
@@ -80,36 +86,42 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
 
     BindingBlock VisitBindingBlock_(const DataflowBlockNode* op) override {
       BindingBlock res = ExprMutator::VisitBindingBlock_(op);
-      if (op == to_catch) caught = Downcast<DataflowBlock>(res);
+      if (op == to_catch) caught = res.as_or_throw<DataflowBlock>();
       return res;
     }
   };
 
   TVM_FFI_ICHECK(to_users_.find(old_var) != to_users_.end()) << "Cannot find " << old_var;
   TVM_FFI_ICHECK(to_users_.find(new_var) != to_users_.end()) << "Cannot find " << new_var;
+  if (old_var.same_as(new_var)) return;
 
   // replace uses inside the DataflowBlock.
   ReplaceAllUsePass replacer(old_var, new_var, dfb_.get());
   if (root_fn_) {
-    root_fn_ = Downcast<Function>(replacer.VisitExpr(root_fn_.value()));
+    root_fn_ = replacer.VisitExpr(root_fn_.value()).as_or_throw<Function>();
     dfb_ = replacer.caught;
   } else {
-    dfb_ = Downcast<DataflowBlock>(replacer.VisitBindingBlock(dfb_));
+    dfb_ = replacer.VisitBindingBlock(dfb_).as_or_throw<DataflowBlock>();
   }
 
   // update udchain
   // old_var -> old_var users | changed to {}
   // new_var -> {?}           | changed to old_var users
+  auto new_var_uses = to_users_[new_var];
   for (Var user : to_users_[old_var]) {
-    auto new_var_uses = to_users_[new_var];
-    if (new_var_uses.end() == std::find(new_var_uses.begin(), new_var_uses.end(), user)) {
+    if (new_var_uses.end() ==
+        std::find_if(new_var_uses.begin(), new_var_uses.end(),
+                     [&](const Var& candidate) { return candidate.same_as(user); })) {
       new_var_uses.push_back(user);
     }
   }
 
+  to_users_.Set(new_var, new_var_uses);
   to_users_.Set(old_var, {});
 
-  auto it_old_output = std::find(fn_outputs_.begin(), fn_outputs_.end(), old_var);
+  auto it_old_output =
+      std::find_if(fn_outputs_.begin(), fn_outputs_.end(),
+                   [&](const Var& candidate) { return candidate.same_as(old_var); });
   if (it_old_output != fn_outputs_.end()) {
     fn_outputs_.Set(std::distance(fn_outputs_.begin(), it_old_output), new_var);
   }
@@ -164,7 +176,7 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
 
   if (root_fn_) {
     auto updater = UpdateDFB(old_dfb, dfb_);
-    root_fn_ = Downcast<Function>(updater.VisitExpr(root_fn_.value()));
+    root_fn_ = updater.VisitExpr(root_fn_.value()).as_or_throw<Function>();
   }
 
   for (const VarNode* v : used_vars) {
@@ -190,7 +202,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            });
 }
 
-std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array<Var> fn_outputs) {
+VarIdentitySet GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array<Var> fn_outputs) {
   std::vector<Var> unused;
 
   // iterative dataflow algorithm.
@@ -206,7 +218,9 @@ std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array
       //   user -> empty
       //   var is not output var
       if (users.empty() &&  // def is not used by fn outputs.
-          std::find(fn_outputs.begin(), fn_outputs.end(), def) == fn_outputs.end()) {
+          std::find_if(fn_outputs.begin(), fn_outputs.end(), [&](const Var& output) {
+            return output.same_as(def);
+          }) == fn_outputs.end()) {
         unused.push_back(def);
       } else {
         used.push_back(def);
@@ -220,7 +234,8 @@ std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array
         TVM_FFI_ICHECK(users_map.count(used_var));
         ffi::Array<Var> var_users = users_map[used_var];
         // remove the unused var from the use site.
-        if (auto it = std::find(var_users.begin(), var_users.end(), unused[i]);
+        if (auto it = std::find_if(var_users.begin(), var_users.end(),
+                                   [&](const Var& user) { return user.same_as(unused[i]); });
             it != var_users.end()) {
           var_users.erase(it);
           users_map.Set(used_var, std::move(var_users));
@@ -229,15 +244,15 @@ std::set<Var> GetUnusedVars(ffi::Map<Var, ffi::Array<Var>> users_map, ffi::Array
     }
   } while (prev_size != unused.size());  // changed? => continue.
 
-  return std::set<Var>(unused.begin(), unused.end());
+  return VarIdentitySet(unused.begin(), unused.end());
 }
 
 class RemoveUnusedVars : public ExprMutator {
  public:
-  std::set<Var> unused_vars;
+  VarIdentitySet unused_vars;
   ffi::Optional<DataflowBlock> caught_rewrite = std::nullopt;
 
-  explicit RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
+  explicit RemoveUnusedVars(VarIdentitySet unused_vars) : unused_vars(std::move(unused_vars)) {}
 
   RemoveUnusedVars(ffi::Map<Var, ffi::Array<Var>> users, ffi::Array<Var> fn_outputs)
       : RemoveUnusedVars(GetUnusedVars(users, fn_outputs)) {}
@@ -251,7 +266,7 @@ class RemoveUnusedVars : public ExprMutator {
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) override {
-    bool capture_output = (block == caught_rewrite.get());
+    bool capture_output = caught_rewrite && block == caught_rewrite.value().get();
 
     bool cache = in_dataflow_block_;
     in_dataflow_block_ = true;
@@ -259,7 +274,7 @@ class RemoveUnusedVars : public ExprMutator {
     in_dataflow_block_ = cache;
 
     if (capture_output) {
-      caught_rewrite = Downcast<DataflowBlock>(output);
+      caught_rewrite = output.as_or_throw<DataflowBlock>();
     }
 
     return output;
@@ -283,11 +298,11 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   auto old_dfb = dfb_;
 
   RemoveUnusedVars remover({unused});
-  dfb_ = Downcast<DataflowBlock>(remover.VisitBindingBlock(old_dfb));
+  dfb_ = remover.VisitBindingBlock(old_dfb).as_or_throw<DataflowBlock>();
 
   if (root_fn_) {
     auto updater = UpdateDFB(old_dfb, dfb_);
-    root_fn_ = Downcast<Function>(updater.VisitExpr(root_fn_.value()));
+    root_fn_ = updater.VisitExpr(root_fn_.value()).as_or_throw<Function>();
   }
 
   to_users_.erase(unused);  // update use-def chain.
@@ -307,11 +322,11 @@ void DataflowBlockRewriteNode::RemoveAllUnused() {
 
   if (root_fn_) {
     // this could also clean unused variables in other DataflowBlock.
-    root_fn_ = Downcast<Function>(remover.VisitExpr(root_fn_.value()));
+    root_fn_ = remover.VisitExpr(root_fn_.value()).as_or_throw<Function>();
     // DataflowBlock could be None.
     dfb_ = remover.caught_rewrite.value();
   } else {
-    dfb_ = Downcast<DataflowBlock>(remover.VisitBindingBlock(dfb_));
+    dfb_ = remover.VisitBindingBlock(dfb_).as_or_throw<DataflowBlock>();
   }
 
   // clean up use-def chain.

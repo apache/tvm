@@ -139,8 +139,8 @@ def test_trivial():
 def test_fuse():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    c = tvm.tirx.SizeVar("c", "int32")
-    c0 = tvm.tirx.SizeVar("c0", "int32")
+    c = tvm.tirx.Var("c", "int32")
+    c0 = tvm.tirx.Var("c0", "int32")
 
     assert_iter_sum_pattern({y * 3 + 1 + c + x: (12, 1 + c)}, var_dom([(x, 3), (y, 4)]))
 
@@ -168,8 +168,8 @@ def test_fuse():
 def test_split():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    c0 = tvm.tirx.SizeVar("c0", "int32")
-    c1 = tvm.tirx.SizeVar("c1", "int32")
+    c0 = tvm.tirx.Var("c0", "int32")
+    c1 = tvm.tirx.Var("c1", "int32")
     fld = tvm.tirx.floordiv
     flm = tvm.tirx.floormod
 
@@ -199,6 +199,21 @@ def test_split():
     assert_iter_sum_pattern(
         {fld(flm(x, 49) + y, 49): (1, fld(flm(x, 49) + y, 49))}, var_dom([(y, 1)])
     )
+
+
+def test_split_simplified_modulo():
+    # regression for #19825: simplifying the modulo must not break the fused split
+    i = tvm.tirx.Var("i", "int32")
+    j = tvm.tirx.Var("j", "int32")
+    dom = var_dom([(i, 64), (j, 192)])
+    analyzer = tvm.arith.Analyzer()
+
+    for flat in [i * 192 + j, j + i * 192]:
+        lane = analyzer.simplify(floormod(flat, 128))
+        quotient = floordiv(flat, 128)
+        res = tvm.arith.detect_iter_map([lane, quotient], dom, check_level="bijective")
+        assert len(res.errors) == 0, res.errors
+        assert len(res.indices) == 2
 
 
 def test_compound():
@@ -538,7 +553,7 @@ def test_subspace_division():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
     z = tvm.tirx.Var("z", "int32")
-    c = tvm.tirx.SizeVar("c", "int32")
+    c = tvm.tirx.Var("c", "int32")
 
     # simple 1.1
     res = tvm.arith.subspace_divide(
@@ -1164,7 +1179,7 @@ def test_iter_map_simplify_symbolic_case():
     y = tvm.tirx.Var("y", "int64")
     z = x * 32 + y
 
-    n = tvm.tirx.SizeVar("n", "int64")
+    n = tvm.tirx.Var("n", "int64")
 
     def simple_fuse0(x):
         return (x // n) * n + x % n
@@ -1198,7 +1213,7 @@ def test_iter_map_simplify_symbolic_predicate():
     x = tvm.tirx.Var("x", "int64")
     y = tvm.tirx.Var("y", "int64")
 
-    n = tvm.tirx.SizeVar("n", "int64")
+    n = tvm.tirx.Var("n", "int64")
 
     def simple_fuse0(x):
         return (x // n) * n + x % n
@@ -1271,15 +1286,15 @@ def assert_normalize_to_iter_sum(index, input_iters, args, base):
 
     Parameters
     ----------
-    index : tvm.tirx.PrimExpr
+    index : tvm.tirx.Expr
         The index to be normalized
     input_iters : Mapping[Var, Range]
         The input iterators
-    args : List[Union[tvm.arith.IterSplitExpr, Tuple[PrimExpr, PrimExpr]]]
+    args : List[Union[tvm.arith.IterSplitExpr, Tuple[Expr, Expr]]]
         The expected result. Ordered list of args of the expected IterSumExpr. Each arg can be
-        either IterSplitExpr or a tuple of (PrimExpr, PrimExpr) where the first element is the
-        iterator normalized to PrimExpr and the second element is the scale.
-    base : tvm.tirx.PrimExpr
+        either IterSplitExpr or a tuple of (Expr, Expr) where the first element is the
+        iterator normalized to Expr and the second element is the scale.
+    base : tvm.tirx.Expr
         The expected base
     """
     res = tvm.arith.normalize_to_iter_sum(index, input_iters)

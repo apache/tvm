@@ -78,8 +78,8 @@ class OptimizeLayoutTransform:
                 arg2 = matches[self.gv_]
                 if "remove_pad" == self.mod[arg2].attrs["operator_name"]:
                     arg2 = matches[self.input]
-            if hasattr(arg1.struct_info, "shape") and hasattr(arg2.struct_info, "shape"):
-                if tvm_ffi.structural_equal(arg1.struct_info.shape, arg2.struct_info.shape):
+            if hasattr(arg1.ty, "shape") and hasattr(arg2.ty, "shape"):
+                if tvm_ffi.structural_equal(arg1.ty.shape, arg2.ty.shape):
                     return arg2
             return expr
 

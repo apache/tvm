@@ -32,6 +32,7 @@ from tvm.s_tir import meta_schedule as ms
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
+from tvm.testing import env
 
 torch_version = torch.__version__
 
@@ -176,7 +177,27 @@ def test_relax_dynamo_dynamic():
         x = torch.randn(s, 100)
         y = torch.randn(s, 100)
         with torch.no_grad():
-            tvm.testing.assert_allclose(opt_func(x, y), opt_func(x, y))
+            tvm.testing.assert_allclose(Func1(x, y), opt_func(x, y))
+
+
+def test_relax_dynamo_dynamic_sym_input_reference():
+    class ViewModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv2d(3, 4, kernel_size=3, padding=1)
+
+        def forward(self, x):
+            return self.conv(x).view(x.size(0), -1)
+
+    model = ViewModel()
+    opt_model = torch.compile(model, backend=relax_dynamo(), dynamic=True)
+
+    with torch.no_grad():
+        for s in (1, 2, 4):
+            inp = torch.randn(s, 3, 8, 8)
+            tvm.testing.assert_allclose(
+                opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
+            )
 
 
 def test_subgraph_capture():
@@ -343,7 +364,8 @@ def _convert_data_type(input_type):
         raise NotImplementedError(f"input_type {input_type} is not handled yet")
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_ones():
     import torch
     from torch.nn import Module
@@ -374,7 +396,8 @@ def test_ones():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_full():
     import torch
     from torch.nn import Module
@@ -405,7 +428,8 @@ def test_full():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_gelu():
     import torch
     from torch.nn import Module
@@ -457,7 +481,8 @@ def test_gelu():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_masked_fill():
     import torch
     from torch.nn import Module
@@ -479,7 +504,7 @@ def test_masked_fill():
         ) -> R.Tensor((256, 256), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((256, 256), dtype="float32") = R.full_like(
-                    inp_1, R.const(0, "int32"), dtype="void"
+                    inp_1, R.const(0, "int32"), dtype=None
                 )
                 lv1: R.Tensor((256, 256), dtype="float32") = R.where(inp_0, lv, inp_1)
                 gv: R.Tensor((256, 256), dtype="float32") = lv1
@@ -494,7 +519,8 @@ def test_masked_fill():
     )
 
 
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_getitem():
     import torch
     from torch.nn import Module
@@ -568,7 +594,8 @@ def test_getitem():
     version.parse(torch_version) >= version.parse("2.6.0"),
     reason="Need to support dynamic arange in Relax",
 )
-@tvm.testing.requires_gpu
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_arange():
     import torch
     from torch.nn import Module

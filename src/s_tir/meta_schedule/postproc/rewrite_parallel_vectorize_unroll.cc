@@ -93,7 +93,7 @@ class StrideExtractor : public ExprVisitor {
   }
 
   const Var& var_;
-  std::unordered_map<const PrimExprNode*, int64_t> strides_;
+  std::unordered_map<const ExprNode*, int64_t> strides_;
 };
 
 struct ParsedAnnotation {
@@ -380,7 +380,7 @@ void RewriteFuseSplitParallelVectorize(const Schedule& sch, ffi::Array<LoopRV>* 
                                        int vec_len) {
   size_t n_loops = loop_rvs->size();
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
-  ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, IntImm(DataType::Int(32), vec_len)});
+  ffi::Array<LoopRV> split = sch->Split(fused, {std::nullopt, IntImm::Int32(vec_len)});
   TVM_FFI_ICHECK_EQ(split.size(), 2);
   const LoopRV& outer = split[0];
   const LoopRV& inner = split[1];
@@ -418,9 +418,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tirx::attr::pragma_auto_unroll_max_step, IntImm(DataType::Int(32), max_step));
-  sch->Annotate(loop, tirx::attr::pragma_unroll_explicit,
-                IntImm(DataType::Int(32), unroll_explicit));
+  sch->Annotate(loop, tirx::attr::pragma_auto_unroll_max_step, IntImm::Int32(max_step));
+  sch->Annotate(loop, tirx::attr::pragma_unroll_explicit, IntImm::Int32(unroll_explicit));
 }
 
 }  // namespace s_tir

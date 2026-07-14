@@ -580,7 +580,7 @@ def get_mma_fill_intrin(dtype, local_size):
 
             for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                 T.evaluate(
-                    T.mma_fill_legacy(local_size, C_warp.data, C_warp.elem_offset, dtype=dtype)
+                    T.cuda.mma_fill_legacy(local_size, C_warp.data, C_warp.elem_offset, dtype=dtype)
                 )
 
     return mma_fill_desc, mma_fill_impl
@@ -637,7 +637,7 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
                 for tx in T.thread_binding(0, WARP_SIZE, "threadIdx.x"):
                     T.evaluate(
-                        T.mma_store_legacy(
+                        T.cuda.mma_store_legacy(
                             M_DIM,
                             N_DIM,
                             C.access_ptr("w"),
@@ -889,10 +889,10 @@ def get_wmma_load_intrin(
                     n_dim,
                     k_dim,
                     get_wmma_fragment_index(C, d1, frag_m, frag_n),
-                    A.access_ptr("r"),
+                    A.access_ptr("r", ptr_type=dtype),
                     s1,
                     layout,
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -948,7 +948,7 @@ def get_wmma_fill_intrin(
                     k_dim,
                     get_wmma_fragment_index(C, d1, m_dim, n_dim),
                     T.float32(0),
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -1016,10 +1016,10 @@ def get_wmma_store_intrin(
                     n_dim,
                     k_dim,
                     get_wmma_fragment_index(A, d1, m_dim, n_dim),
-                    C.access_ptr("w"),
+                    C.access_ptr("w", ptr_type=dtype),
                     s1,
                     "row_major",
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -1135,7 +1135,7 @@ def get_wmma_sync_intrin(
                     get_wmma_fragment_index(B, b1, b_shape_0, b_shape_1),
                     C.data,
                     get_wmma_fragment_index(C, c1, m_dim, n_dim),
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 

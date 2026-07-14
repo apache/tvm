@@ -90,7 +90,7 @@ class NonAllocatedBufferError : public ScheduleError {
   static StmtSRef CheckAndGetBufferAllocationSite(const IRModule& mod, const StmtSRef& block_sref,
                                                   const Buffer& buffer) {
     auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, buffer);
-    if (!defining_site_sref.defined() || !is_alloc) {
+    if (!defining_site_sref.has_value() || !is_alloc) {
       throw NonAllocatedBufferError(mod, buffer);
     }
 
@@ -163,7 +163,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
       if (!IsValidAnnotation(block, (*it).second)) {
         throw StorageAlignInvalidAnnotationError(mod, block);
       }
-      return Downcast<StorageAlignAnnotation>((*it).second);
+      return (*it).second.as_or_throw<StorageAlignAnnotation>();
     }
 
     // Create new annotation value
@@ -202,7 +202,7 @@ class StorageScopeMutator : private ReplaceBufferMutator {
     Buffer new_buffer = WithScope(old_buffer, storage_scope);
     StorageScopeMutator mutator(old_buffer, new_buffer, storage_scope, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return Downcast<SBlock>(new_block);
+    return new_block.as_or_throw<SBlock>();
   }
 
  private:
@@ -298,16 +298,16 @@ class DTypeMutator : private ReplaceBufferMutator {
    * \param block_sref_reuse The block sref reuse map to be updated
    * \return The new block after the mutation
    */
-  static SBlock Mutate(const SBlock& allocate_site, const Buffer& old_buffer, const DataType& dtype,
+  static SBlock Mutate(const SBlock& allocate_site, const Buffer& old_buffer, PrimType dtype,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
     Buffer new_buffer = WithDType(old_buffer, dtype);
     DTypeMutator mutator(old_buffer, new_buffer, dtype, block_sref_reuse);
     Stmt new_block = mutator.VisitStmt(allocate_site);
-    return Downcast<SBlock>(new_block);
+    return new_block.as_or_throw<SBlock>();
   }
 
  private:
-  DTypeMutator(const Buffer& old_buffer, Buffer new_buffer, const DataType& dtype,
+  DTypeMutator(const Buffer& old_buffer, Buffer new_buffer, PrimType dtype,
                ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse),
         src_dtype_(old_buffer->dtype),
@@ -326,7 +326,7 @@ class DTypeMutator : private ReplaceBufferMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    BufferStore node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    BufferStore node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     auto it = buffer_var_map_.find(node->buffer->data.get());
     if (it != buffer_var_map_.end()) {
       node.CopyOnWrite()->buffer = it->second;
@@ -335,8 +335,8 @@ class DTypeMutator : private ReplaceBufferMutator {
     return node;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    BufferLoad node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    BufferLoad node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_var_map_.find(node->buffer->data.get());
     if (it != buffer_var_map_.end()) {
       return Cast(src_dtype_, BufferLoad(it->second, node->indices));
@@ -344,7 +344,7 @@ class DTypeMutator : private ReplaceBufferMutator {
     return node;
   }
 
-  DataType src_dtype_, tgt_dtype_;
+  PrimType src_dtype_, tgt_dtype_;
 };
 
 void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
@@ -352,7 +352,7 @@ void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_i
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   Buffer buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, BufferIndexType::kWrite);
-  DataType target_dtype(ffi::StringToDLDataType(dtype));
+  PrimType target_dtype(ffi::StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
   if (buffer->dtype == target_dtype) {

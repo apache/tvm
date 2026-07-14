@@ -46,7 +46,7 @@ using namespace tvm::te;
  * \return Tensor with shape [batch, out_dim]
  */
 inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor& weight,
-                             const tvm::te::Tensor& bias, const DataType& out_dtype) {
+                             const tvm::te::Tensor& bias, const PrimType& out_dtype) {
   TVM_FFI_ICHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   TVM_FFI_ICHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -60,7 +60,7 @@ inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor&
   auto k = tvm::te::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::te::compute(
       {batch, out_dim},
-      [&](Var i, Var j) {
+      [&](PrimVar i, PrimVar j) {
         return tvm::sum(tvm::cast(out_dtype, data(i, k)) * tvm::cast(out_dtype, weight(j, k)), {k});
       },
       "tensor", "dense");
@@ -68,8 +68,8 @@ inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor&
   if (bias.defined()) {
     matmul = tvm::te::compute(
         {batch, out_dim},
-        [&](Var i, Var j) { return matmul(i, j) + tvm::cast(out_dtype, bias(j)); }, "tensor",
-        kBroadcast);
+        [&](PrimVar i, PrimVar j) { return matmul(i, j) + tvm::cast(out_dtype, bias(j)); },
+        "tensor", kBroadcast);
   }
 
   return matmul;

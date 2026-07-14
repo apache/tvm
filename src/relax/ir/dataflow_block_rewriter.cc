@@ -31,7 +31,7 @@
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
+#include <tvm/relax/type.h>
 
 #include <optional>
 #include <unordered_map>
@@ -209,7 +209,7 @@ static std::optional<MatchState> TryValidate(
 
   for (const auto& constraint : validation_constraints) {
     if (!current_match.is_validated(constraint.get())) {
-      auto [necessary_condition, is_sufficient] = constraint->AsPrimExpr(query_match_state);
+      auto [necessary_condition, is_sufficient] = constraint->AsCondition(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
       const auto* known = tirx::as_const_int(necessary_condition);
@@ -453,7 +453,7 @@ Function RewriteBindings(
     ffi::TypedFunction<ffi::Map<Var, Expr>(ffi::Map<DFPattern, Var>, ffi::Map<Var, Expr>)> rewriter,
     Function func) {
   // return BlockPatternRewriter::Run(ctx, rewriter, func);
-  return Downcast<Function>(PatternContextRewriter(ctx, rewriter)(func));
+  return PatternContextRewriter(ctx, rewriter)(func).as_or_throw<Function>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

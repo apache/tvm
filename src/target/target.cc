@@ -92,7 +92,7 @@ static std::vector<ffi::String> DeduplicateKeys(const std::vector<ffi::String>& 
 
 static TargetKind GetTargetKind(const ffi::String& name) {
   ffi::Optional<TargetKind> kind = TargetKind::Get(name);
-  if (!kind.defined()) {
+  if (!kind.has_value()) {
     TVM_FFI_THROW(TypeError) << "Target kind \"" + name + "\" is not defined";
   }
   return kind.value();
@@ -154,7 +154,7 @@ ffi::Map<ffi::String, ffi::Any> TargetNode::ToConfig() const {
       {"tag", this->tag},
       {"keys", this->keys},
   };
-  if (this->host.defined()) {
+  if (this->host.has_value()) {
     result.Set("host", this->GetHost().value_or(Target())->ToConfig());
   }
   for (const auto& kv : attrs) {
@@ -177,7 +177,7 @@ Target Target::WithoutHost() const {
 
 int TargetNode::GetTargetDeviceType() const {
   if (ffi::Optional<int64_t> device_type = GetAttr<int64_t>("target_device_type")) {
-    return Downcast<IntImm>(device_type)->value;
+    return static_cast<int>(device_type.value());
   }
   return kind->default_device_type;
 }
@@ -376,7 +376,7 @@ ffi::ObjectPtr<TargetNode> TargetInternal::FromConfig(ffi::Map<ffi::String, ffi:
     std::vector<ffi::String> keys;
     bool has_keys = resolved.count(kKeys);
     if (has_keys) {
-      ffi::Array<ffi::String> cfg_keys = Downcast<ffi::Array<ffi::String>>(resolved.at(kKeys));
+      ffi::Array<ffi::String> cfg_keys = resolved.at(kKeys).as_or_throw<ffi::Array<ffi::String>>();
       for (const ffi::String& key : cfg_keys) {
         keys.push_back(key);
       }

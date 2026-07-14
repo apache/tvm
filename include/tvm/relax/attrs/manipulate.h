@@ -61,9 +61,9 @@ struct ExpandDimsAttrs : public AttrsNode {
 /*! \brief Attributes used in layout_transform operator */
 struct LayoutTransformAttrs : public AttrsNode {
   tirx::IndexMap index_map;
-  // pad_value is chosen to be of PrimValue type, as it represents constant TIR POD expression. This
-  // needs to be revisited in case PrimValue is evolved to represent symbolic expression in future.
-  ffi::Optional<PrimValue> pad_value;
+  // pad_value is chosen to be of PrimExpr type, as it represents constant TIR POD expression. This
+  // needs to be revisited in case PrimExpr is evolved to represent symbolic expression in future.
+  ffi::Optional<PrimExpr> pad_value;
   /*!
    * axis_separators between input axes when generating flattened output axes. For buffers
    * representing flat 1-d memory (e.g. any buffer in RAM), this should be an empty array.
@@ -194,6 +194,23 @@ struct FlipAttrs : public AttrsNode {
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.FlipAttrs", FlipAttrs, AttrsNode);
 };  // struct FlipAttrs
+
+/*! \brief Attributes used in reverse_sequence operators */
+struct ReverseSequenceAttrs : public AttrsNode {
+  int64_t seq_axis;
+  int64_t batch_axis;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReverseSequenceAttrs>()
+        .def_ro("seq_axis", &ReverseSequenceAttrs::seq_axis,
+                "The axis along which to reverse variable length slices.")
+        .def_ro("batch_axis", &ReverseSequenceAttrs::batch_axis,
+                "The axis that indexes the batch.");
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.ReverseSequenceAttrs", ReverseSequenceAttrs,
+                                    AttrsNode);
+};  // struct ReverseSequenceAttrs
 
 /*! \brief Attributes used in gather_elements operators */
 struct GatherElementsAttrs : public AttrsNode {

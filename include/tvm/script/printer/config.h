@@ -30,11 +30,11 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/ir/cast.h>
-#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/base.h>
 
 #include <string>
 
@@ -54,15 +54,15 @@ class PrinterConfigNode : public ffi::Object {
    */
   ffi::String module_alias = "cls";
   /*! \brief Default buffer dtype */
-  DataType buffer_dtype = DataType::Float(32);
+  DLDataType buffer_dtype = DLDataType{kDLFloat, 32, 1};
   /*! \brief Default data type of integer literals */
-  DataType int_dtype = DataType::Int(32);
+  DLDataType int_dtype = DLDataType{kDLInt, 32, 1};
   /*!
    * \brief Default data type of float literals. Right now we always print out the explicit type
    * of floating point values, so setting it to Void means we do not print without the
    * T.float32/T.float64 wrapper.
    */
-  DataType float_dtype = DataType::Void();
+  DLDataType float_dtype = DLDataType{kDLOpaqueHandle, 0, 0};
   /*! \brief Whether or not to verbose print expressions. */
   bool verbose_expr = false;
   /*! \brief Number of spaces used for indentation*/
@@ -75,6 +75,9 @@ class PrinterConfigNode : public ffi::Object {
   bool syntax_sugar = true;
   /*! \brief Whether variable names should include the object's address */
   bool show_object_address = false;
+
+  /*! \brief Whether to render access-path context for invisible underlined paths. Defaults true. */
+  bool render_invisible_path_info = true;
 
   /* \brief ffi::Object path to be underlined */
   ffi::Array<ffi::reflection::AccessPath> path_to_underline;
@@ -91,7 +94,7 @@ class PrinterConfigNode : public ffi::Object {
    * Keys are conventionally namespaced as "<dialect>.<knob>", e.g.:
    *   "tirx.prefix"              — the TIR prefix (default "T")
    *   "relax.prefix"             — the Relax prefix (default "R")
-   *   "relax.show_all_struct_info" — whether to show all struct info (default true)
+   *   "relax.show_all_ty" — whether to show all Relax type annotations (default true)
    *
    * Use GetExtraConfig<T>(key, fallback) to read values with a typed fallback.
    */
@@ -101,13 +104,13 @@ class PrinterConfigNode : public ffi::Object {
    * \brief Look up a value in extra_config with type cast and fallback.
    *
    * Keys are conventionally namespaced as "<dialect>.<knob>"
-   * (e.g. "tirx.prefix", "relax.show_all_struct_info").
+   * (e.g. "tirx.prefix", "relax.show_all_ty").
    */
   template <typename T>
   T GetExtraConfig(const ffi::String& key, T fallback) const {
     auto it = extra_config.find(key);
     if (it == extra_config.end()) return fallback;
-    return Downcast<T>((*it).second);
+    return (*it).second.as_or_throw<T>();
   }
 
   static void RegisterReflection() {
@@ -126,6 +129,7 @@ class PrinterConfigNode : public ffi::Object {
         .def_ro("num_context_lines", &PrinterConfigNode::num_context_lines)
         .def_ro("syntax_sugar", &PrinterConfigNode::syntax_sugar)
         .def_ro("show_object_address", &PrinterConfigNode::show_object_address)
+        .def_ro("render_invisible_path_info", &PrinterConfigNode::render_invisible_path_info)
         .def_ro("path_to_underline", &PrinterConfigNode::path_to_underline)
         .def_ro("path_to_annotate", &PrinterConfigNode::path_to_annotate)
         .def_ro("obj_to_underline", &PrinterConfigNode::obj_to_underline)

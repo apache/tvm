@@ -206,16 +206,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         DLDevice dev = key_cache->device;
 
         Tensor key_cache_ptrs_gpu =
-            Tensor::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
+            Tensor::Empty({static_cast<int>(num_layers)}, DLDataType{kDLInt, 64, 1}, dev);
         Tensor value_cache_ptrs_gpu =
-            Tensor::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
+            Tensor::Empty({static_cast<int>(num_layers)}, DLDataType{kDLInt, 64, 1}, dev);
         key_cache_ptrs_gpu.CopyFromBytes(key_cache_ptrs.data(),
                                          sizeof(int64_t) * key_cache_ptrs.size());
         value_cache_ptrs_gpu.CopyFromBytes(value_cache_ptrs.data(),
                                            sizeof(int64_t) * value_cache_ptrs.size());
 
         Tensor block_mapping_gpu =
-            Tensor::Empty(block_mapping.Shape(), runtime::DataType::Int(64), dev);
+            Tensor::Empty(block_mapping.Shape(), DLDataType{kDLInt, 64, 1}, dev);
         block_mapping_gpu.CopyFromBytes(block_mapping->data,
                                         sizeof(int64_t) * block_mapping->shape[0]);
 

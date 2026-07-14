@@ -22,12 +22,11 @@ import operator
 
 from tvm import relax
 from tvm.arith import Analyzer
-from tvm.base import TVMError
-from tvm.relax.struct_info import ShapeStructInfo
+from tvm.ir import Call, PrimType
+from tvm.relax.type import ShapeType
 
-from ...tirx import PrimExpr
 from ..block_builder import BlockBuilder
-from ..expr import Call, Expr, ShapeExpr, Var
+from ..expr import Expr, ShapeExpr, Var
 from .base import register_gradient
 from .binary import greater_equal, less
 from .create import triu
@@ -66,9 +65,9 @@ from .unary import cos, exp, log, sigmoid, sin
 def _get_shape(expr: Expr) -> ShapeExpr:
     """Get the shape from a Tensor expr."""
     try:
-        shape = expr.struct_info.shape
+        shape = expr.ty.shape
     except Exception as error:
-        raise TVMError(
+        raise RuntimeError(
             f"Get the shape of {expr} failed. Please normalize it first and ensure it is a Tensor."
         ) from error
     return shape
@@ -77,27 +76,29 @@ def _get_shape(expr: Expr) -> ShapeExpr:
 def _get_dtype(expr: Expr) -> str:
     """Get the dtype from a Tensor expr."""
     try:
-        dtype = expr.struct_info.dtype
+        dtype = expr.ty.dtype
     except Exception as error:
-        raise TVMError(
+        raise RuntimeError(
             f"Get the dtype of {expr} failed. Please normalize it first and ensure it is a Tensor."
         ) from error
+    if isinstance(dtype, PrimType):
+        dtype = dtype.dtype
     return dtype
 
 
 def _fit_shape(bb: BlockBuilder, input_grad: Expr, input: Expr) -> Expr:
     """When expr and target has the same shape, return expr;
-    otherwise return `collapse_sum_to(expr, target.struct_info.shape)`.
+    otherwise return `collapse_sum_to(expr, target.ty.shape)`.
 
     Will use BlockBuilder to normalize expr first.
     """
     target_shape = _get_shape(input)
-    expr_sinfo = _get_shape(bb.normalize(input_grad)).struct_info
-    target_sinfo = target_shape.struct_info
-    assert isinstance(expr_sinfo, ShapeStructInfo)
-    assert isinstance(target_sinfo, ShapeStructInfo)
+    expr_ty = _get_shape(bb.normalize(input_grad)).ty
+    target_ty = target_shape.ty
+    assert isinstance(expr_ty, ShapeType)
+    assert isinstance(target_ty, ShapeType)
 
-    def _check_shape_equal(lhs: ShapeStructInfo, rhs: ShapeStructInfo):
+    def _check_shape_equal(lhs: ShapeType, rhs: ShapeType):
         if len(lhs.values) != len(rhs.values):
             return False
         analyzer = Analyzer()
@@ -108,7 +109,7 @@ def _fit_shape(bb: BlockBuilder, input_grad: Expr, input: Expr) -> Expr:
 
     return (
         input_grad
-        if _check_shape_equal(expr_sinfo, target_sinfo)
+        if _check_shape_equal(expr_ty, target_ty)
         else collapse_sum_to(input_grad, target_shape)
     )
 
@@ -736,14 +737,14 @@ def concat_grad(
     axis = orig_call.attrs.axis
     assert axis is not None
     axis = int(axis)
-    split_indices: list[PrimExpr] = []
-    sinfo = orig_call.args[0].struct_info
-    assert isinstance(sinfo, relax.TupleStructInfo)
-    for i in range(len(sinfo.fields) - 1):
-        tensor_sinfo = sinfo.fields[i]
-        assert isinstance(tensor_sinfo, relax.TensorStructInfo)
-        assert tensor_sinfo.shape is not None
-        index = tensor_sinfo.shape[axis]
+    split_indices: list[Expr] = []
+    ty = orig_call.args[0].ty
+    assert isinstance(ty, relax.TupleType)
+    for i in range(len(ty.fields) - 1):
+        tensor_ty = ty.fields[i]
+        assert isinstance(tensor_ty, relax.TensorType)
+        assert tensor_ty.shape is not None
+        index = tensor_ty.shape[axis]
         if i > 0:
             index += split_indices[i - 1]
         split_indices.append(index)
@@ -1109,7 +1110,7 @@ def cross_entropy_with_logits_grad(
     """
     x, y = orig_call.args
 
-    if x.struct_info.ndim > 1:
+    if x.ty.ndim > 1:
         batch_size = int(_get_shape(x)[0])
         output_grad = output_grad / relax.const(batch_size, _get_dtype(output_grad))
 

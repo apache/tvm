@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E501, E731, F841
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax
@@ -541,7 +543,7 @@ def test_reshape():
         @R.function
         def main(x: R.Tensor((1, 2, 3, 4), dtype="float32")) -> R.Tensor((8, 3), dtype="float32"):
             lv: R.Shape((8, 3)) = R.shape((8, 3))
-            gv = R.call_tir(Expected2.reshape, (x,), out_sinfo=R.Tensor((8, 3), dtype="float32"))
+            gv = R.call_tir(Expected2.reshape, (x,), out_ty=R.Tensor((8, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -677,9 +679,7 @@ def test_reshape_symbolic():
         ) -> R.Tensor((5, "b * 2"), dtype="float32"):
             b = T.int64()
             lv: R.Shape([5, b * 2]) = R.shape([5, b * 2])
-            gv = R.call_tir(
-                Expected3.reshape, (x,), out_sinfo=R.Tensor((5, b * 2), dtype="float32")
-            )
+            gv = R.call_tir(Expected3.reshape, (x,), out_ty=R.Tensor((5, b * 2), dtype="float32"))
             return gv
 
     mod3 = LegalizeOps()(Reshape3)
@@ -714,10 +714,10 @@ def test_data_dependent_reshape():
         ) -> R.Tensor(ndim=2, dtype="float32"):
             M = T.int64()
             N = T.int64()
-            gv = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape(ndim=2),))
+            gv = R.call_pure_packed("vm.builtin.tensor_to_shape", x, ty_args=(R.Shape(ndim=2),))
             _ = R.match_cast(gv, R.Shape([M,N]))
             _ = R.shape([M,N])
-            gv_1 = R.call_tir(Expected.reshape, (y,), out_sinfo=R.Tensor([M,N], dtype="float32"))
+            gv_1 = R.call_tir(Expected.reshape, (y,), out_ty=R.Tensor([M,N], dtype="float32"))
             return gv_1
 
         @T.prim_func(private=True, s_tir=True)
@@ -1099,7 +1099,7 @@ def test_repeat():
     class Expected:
         @R.function
         def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((6, 2, 3), dtype="float32"):
-            gv = R.call_tir(Expected.repeat, (x,), out_sinfo=R.Tensor((6, 2, 3), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((6, 2, 3), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1133,7 +1133,7 @@ def test_repeat_no_axis():
         def main(
             x: R.Tensor((3, 2, 3), dtype="float32")
         ) -> R.Tensor((36,), dtype="float32"):
-            gv = R.call_tir(Expected.repeat, (x,), out_sinfo=R.Tensor((36,), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((36,), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1204,7 +1204,7 @@ def test_repeat_symbolic():
             a = T.Var("a", "int64")
             b = T.Var("b", "int64")
             c = T.Var("c", "int64")
-            gv = R.call_tir(Expected.repeat, (x,), out_sinfo=R.Tensor((2 * a, b, c), dtype="float32"))
+            gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((2 * a, b, c), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1236,7 +1236,7 @@ def test_tile():
 
         @R.function
         def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((2, 3, 4, 9), dtype="float32"):
-            gv = R.call_tir(Expected.tile, (x,), out_sinfo=R.Tensor((2, 3, 4, 9), dtype="float32"))
+            gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, 3, 4, 9), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1276,7 +1276,7 @@ def test_tile_symbolic():
             a = T.Var("a", "int64")
             b = T.Var("b", "int64")
             c = T.Var("c", "int64")
-            gv = R.call_tir(Expected.tile, (x,), out_sinfo=R.Tensor((2, a, b * 2, c * 3), dtype="float32"))
+            gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, a, b * 2, c * 3), dtype="float32"))
             return gv
     # fmt: on
     mod = LegalizeOps()(Tile)
@@ -1297,7 +1297,7 @@ def test_flip():
         @R.function
         def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.flip, (x,), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            gv = R.call_tir(cls.flip, (x,), out_ty=R.Tensor((2, 3), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1339,7 +1339,7 @@ def test_flip_symbolic():
             a = T.int64()
             b = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.flip, (x,), out_sinfo=R.Tensor((a, b), dtype="float32"))
+            gv = R.call_tir(cls.flip, (x,), out_ty=R.Tensor((a, b), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -1360,6 +1360,62 @@ def test_flip_symbolic():
     # fmt: on
 
     mod = LegalizeOps()(Flip)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_reverse_sequence():
+    # fmt: off
+    @I.ir_module(s_tir=True)
+    class ReverseSequence:
+        @R.function
+        def main(x: R.Tensor((4, 2, 3), "float32"), seq_lengths: R.Tensor((2,), "int64")):
+            gv = R.reverse_sequence(x, seq_lengths, seq_axis=0, batch_axis=1)
+            return gv
+
+    @I.ir_module(s_tir=True)
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 2, 3), dtype="float32"),
+            seq_lengths: R.Tensor((2,), dtype="int64"),
+        ) -> R.Tensor((4, 2, 3), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(
+                cls.reverse_sequence,
+                (x, seq_lengths),
+                out_ty=R.Tensor((4, 2, 3), dtype="float32"),
+            )
+            return gv
+
+        @T.prim_func(private=True, s_tir=True)
+        def reverse_sequence(
+            rxplaceholder: T.Buffer((T.int64(4), T.int64(2), T.int64(3)), "float32"),
+            seq_lengths: T.Buffer((T.int64(2),), "int64"),
+            T_reverse_sequence: T.Buffer((T.int64(4), T.int64(2), T.int64(3)), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            for ax0, ax1, ax2 in T.grid(T.int64(4), T.int64(2), T.int64(3)):
+                with T.sblock("T_reverse_sequence"):
+                    v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
+                    T.reads(rxplaceholder[T.int64(0):T.int64(4), v_ax1, v_ax2], seq_lengths[v_ax1])
+                    T.writes(T_reverse_sequence[v_ax0, v_ax1, v_ax2])
+                    T_reverse_sequence[v_ax0, v_ax1, v_ax2] = rxplaceholder[
+                        T.if_then_else(
+                            seq_lengths[v_ax1] <= T.int64(1) or seq_lengths[v_ax1] <= v_ax0,
+                            v_ax0,
+                            T.if_then_else(
+                                T.int64(4) < seq_lengths[v_ax1],
+                                T.int64(3) - v_ax0,
+                                seq_lengths[v_ax1] - v_ax0 - T.int64(1),
+                            ),
+                        ),
+                        v_ax1,
+                        v_ax2,
+                    ]
+
+    # fmt: on
+
+    mod = LegalizeOps()(ReverseSequence)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
@@ -1451,7 +1507,7 @@ def test_scatter_elements():
             gv = R.call_tir(
                 Expected.scatter_elements,
                 (x, indices, updates),
-                out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                out_ty=R.Tensor((4, 4), dtype="float32"),
             )
             return gv
 
@@ -1542,7 +1598,7 @@ def test_scatter_elements_symbolic():
             gv = R.call_tir(
                 Expected.scatter_elements,
                 (x, indices, updates),
-                out_sinfo=R.Tensor((a, b), dtype="float32"),
+                out_ty=R.Tensor((a, b), dtype="float32"),
             )
             return gv
     # fmt: on
@@ -1551,9 +1607,11 @@ def test_scatter_elements_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_scatter_elements_gpu(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_scatter_elements_gpu():
     """scatter_elements lowered for GPU must build"""
+    target = "cuda"
 
     @I.ir_module(s_tir=True)
     class Mod:
@@ -1604,7 +1662,7 @@ def test_layout_transform():
         @R.function
         def main(x: R.Tensor((10, 21, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1642,7 +1700,7 @@ def test_layout_transform_with_pad():
         @R.function
         def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1686,7 +1744,7 @@ def test_layout_transform_symbolic():
             c = T.int64()
             b = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_sinfo=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad, (x,), out_ty=R.Tensor((a, c, (b - b % -3) // 3, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1726,7 +1784,7 @@ def test_layout_transform_with_pad_axis_sep():
         @R.function
         def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad_axis_separator, (x,), out_sinfo=R.Tensor((10, 30, 7, 3), dtype="float32"))
+            gv = R.call_tir(cls.te_layout_transform_with_pad_axis_separator, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1734,13 +1792,13 @@ def test_layout_transform_with_pad_axis_sep():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_func_struct_info_of_legalized_layout_transform():
+def test_func_ty_of_legalized_layout_transform():
     """PrimFunc shape information must be correct
 
     This is a regression test.  Previously, the legalization of
-    `R.layout_transform` produced a PrimFunc with `FuncStructInfo`
+    `R.layout_transform` produced a PrimFunc with `FuncType`
     different than its actual signature.  This resulted in errors
-    when later passes attempted to infer the StructInfo.
+    when later passes attempted to infer the Type.
     """
 
     @I.ir_module(s_tir=True)
@@ -1776,7 +1834,7 @@ def test_func_struct_info_of_legalized_layout_transform():
         ):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            alloc: R.Tensor((4, 4), dtype="float32") = R.emit_with_sinfo(
+            alloc: R.Tensor((4, 4), dtype="float32") = R.emit_with_ty(
                 "relax.builtin.alloc_tensor",
                 (R.shape([4, 4]), R.dtype("float32"), R.prim_value(0), R.str("global")),
                 (R.Tensor((4, 4), dtype="float32"),),
@@ -1861,9 +1919,11 @@ def test_scatter_nd():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@tvm.testing.parametrize_targets("cuda")
-def test_scatter_nd_gpu(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(not tvm.testing.device_enabled("cuda"), reason="cuda not enabled")
+def test_scatter_nd_gpu():
     """scatter_nd lowered for GPU must build"""
+    target = "cuda"
 
     @I.ir_module(s_tir=True)
     class Mod:

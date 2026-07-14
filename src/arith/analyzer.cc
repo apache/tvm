@@ -39,7 +39,8 @@ AnalyzerObj::AnalyzerObj()
       modular_set(this),
       rewrite_simplify(this),
       canonical_simplify(this),
-      int_set(this) {}
+      int_set(this),
+      z3_prover(this) {}
 
 void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override) {
   PrimExpr new_expr = expr;
@@ -52,6 +53,7 @@ void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override
   this->canonical_simplify.Update(var, new_expr, allow_override);
   this->int_set.Update(var, this->int_set(new_expr), allow_override);
   this->transitive_comparisons.Bind(var, expr, allow_override);
+  this->z3_prover.Bind(var, expr, allow_override);
 }
 
 void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) {
@@ -62,6 +64,7 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
     this->const_int_bound.Bind(var, range, allow_override);
     this->int_set.Bind(var, range, allow_override);
     this->transitive_comparisons.Bind(var, range, allow_override);
+    this->z3_prover.Bind(var, range, allow_override);
   }
   // skip modular_set
   // skip rewrite simplify
@@ -70,7 +73,8 @@ void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) 
 void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
   // decompose value as symbol * scale + offset
   int64_t offset = 0;
-  PrimExpr symbol_scale = tirx::make_const(value.dtype(), 0);
+  PrimType value_ty = value.ty();
+  PrimExpr symbol_scale = tirx::MakeConst(value_ty, 0);
 
   auto fcollect_sum = [&](PrimExpr val, int sign) {
     if (const auto* intimm = val.as<IntImmNode>()) {
@@ -87,7 +91,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
 
   // split out the symbol and non-symbolic part
   int64_t cscale = 1;
-  PrimExpr symbol = tirx::make_const(value.dtype(), 1);
+  PrimExpr symbol = tirx::MakeConst(value_ty, 1);
   auto fcollect_prod = [&](PrimExpr val) {
     if (const auto* intimm = val.as<IntImmNode>()) {
       cscale *= intimm->value;
@@ -107,7 +111,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
     Var var = ffi::GetRef<Var>(var_ptr);
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value
-    if (!IsIndexType(var.dtype())) return;
+    if (!IsIndexTypedExpr(var.as_or_throw<PrimExpr>())) return;
     bool allow_override = true;
     // mark the constant bound is sufficient
     // we cannot mark interval set as that will cause relaxation of the var
@@ -131,6 +135,7 @@ void ConstraintContext::EnterWithScope() {
   recovery_functions_.push_back(analyzer_->rewrite_simplify.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->int_set.EnterConstraint(constraint_));
   recovery_functions_.push_back(analyzer_->transitive_comparisons.EnterConstraint(constraint_));
+  recovery_functions_.push_back(analyzer_->z3_prover.EnterConstraint(constraint_));
 }
 
 void ConstraintContext::ExitWithScope() {
@@ -165,7 +170,7 @@ bool AnalyzerObj::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   const auto* clhs = lhs.as<IntImmNode>();
   const auto* crhs = rhs.as<IntImmNode>();
   if (clhs && crhs) return clhs->value == crhs->value;
-  if (lhs->dtype.is_handle() || rhs->dtype.is_handle()) {
+  if (is_pos_inf(lhs) || is_neg_inf(lhs) || is_pos_inf(rhs) || is_neg_inf(rhs)) {
     return lhs.same_as(rhs);
   }
   return CanProve(lhs - rhs == 0);
@@ -185,7 +190,7 @@ bool AnalyzerObj::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs,
     }
   };
   UnpackReduction<tirx::MulNode>(shape, fcollect);
-  PrimExpr const_shape_bound = IntImm(shape.dtype(), std::abs(cscale));
+  PrimExpr const_shape_bound = IntImm(shape.ty(), std::abs(cscale));
   if (this->CanProve(lhs <= const_shape_bound, ProofStrength::kSymbolicBound)) return true;
   return false;
 }
@@ -231,6 +236,12 @@ bool AnalyzerObj::CanProve(const PrimExpr& expr, ProofStrength strength) {
     }
   }
 
+  // Z3 is an expensive best-effort fallback. Gate it behind the higher
+  // kSymbolicBound strength so the common kDefault path (including deeply
+  // recursive internal CanProve calls) never pays the prover cost.
+  if (strength >= ProofStrength::kSymbolicBound && z3_prover.CanProve(simplified)) {
+    return true;
+  }
   return false;
 }
 
@@ -255,11 +266,23 @@ PrimExpr AnalyzerObj::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
+Analyzer AnalyzerObj::Clone() const {
+  Analyzer cloned;
+  cloned->const_int_bound.CopyFrom(this->const_int_bound);
+  cloned->modular_set.CopyFrom(this->modular_set);
+  cloned->rewrite_simplify.CopyFrom(this->rewrite_simplify);
+  cloned->canonical_simplify.CopyFrom(this->canonical_simplify);
+  cloned->int_set.CopyFrom(this->int_set);
+  cloned->transitive_comparisons.CopyFrom(this->transitive_comparisons);
+  return cloned;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::ObjectDef<AnalyzerObj>();
   refl::GlobalDef()
       .def("arith.Analyzer", []() { return Analyzer(); })
+      .def("arith.AnalyzerClone", [](Analyzer analyzer) { return analyzer->Clone(); })
       .def("arith.AnalyzerConstIntBound",
            [](Analyzer analyzer, const PrimExpr& expr) { return analyzer->const_int_bound(expr); })
       .def("arith.AnalyzerConstIntBoundUpdate",
@@ -334,6 +357,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              return static_cast<int64_t>(
                  analyzer->transitive_comparisons.TryCompare(lhs, rhs, propagate_inequalities));
            })
+      .def("arith.AnalyzerIsZ3Enabled",
+           [](Analyzer analyzer) { return analyzer->z3_prover.IsEnabled(); })
+      .def("arith.AnalyzerGetSMTLIB2",
+           [](Analyzer analyzer, ffi::Optional<PrimExpr> expr) {
+             return analyzer->z3_prover.GetSMTLIB2(expr);
+           })
+      .def("arith.AnalyzerSetZ3TimeoutMs",
+           [](Analyzer analyzer, int64_t timeout_ms) {
+             analyzer->z3_prover.SetTimeoutMs(static_cast<unsigned>(timeout_ms));
+           })
+      .def("arith.AnalyzerSetZ3RLimit",
+           [](Analyzer analyzer, int64_t rlimit) {
+             analyzer->z3_prover.SetRLimit(static_cast<unsigned>(rlimit));
+           })
+      .def("arith.AnalyzerGetZ3Stats",
+           [](Analyzer analyzer) { return analyzer->z3_prover.GetStats(); })
       .def("arith.AnalyzerGetEnabledExtensions",
            [](Analyzer analyzer) {
              return static_cast<std::int64_t>(analyzer->rewrite_simplify.GetEnabledExtensions());

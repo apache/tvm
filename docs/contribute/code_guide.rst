@@ -127,19 +127,32 @@ Python Code Styles
 
 Writing Python Tests
 --------------------
-We use `pytest <https://docs.pytest.org/en/stable/>`_ for all python testing. ``tests/python`` contains all the tests.
+We use `pytest <https://docs.pytest.org/en/stable/>`_ for all Python testing. Regular tests live
+under ``tests/python``, while environment-specific nightly tests live under ``tests/nightly/python``.
 See :doc:`testing` for details on running tests, target parametrization,
 and the target-specific marks used by CI.
 
-If you want your test to run over a variety of targets, use the :py:func:`tvm.testing.parametrize_targets` decorator. For example:
+If you want your test to run over a variety of targets, parametrize over ``target`` with ``@pytest.mark.parametrize``, tag GPU targets with ``@pytest.mark.gpu`` so the CI routes them to GPU nodes, and skip a target that is unavailable on the current machine with :py:func:`tvm.testing.device_enabled`. For example:
 
 .. code:: python
 
-  @tvm.testing.parametrize_targets
-  def test_mytest(target, dev):
+  @pytest.mark.parametrize("target", ["llvm", pytest.param("cuda", marks=pytest.mark.gpu)])
+  def test_mytest(target):
+      if not tvm.testing.device_enabled(target):
+          pytest.skip(f"{target} not enabled")
+      dev = tvm.device(target)
+      ...
+
+will run ``test_mytest`` with ``target="llvm"`` and ``target="cuda"``, skipping any target whose device is not present. If you only want to test against a single target, drop the parametrization and hardcode the target. Mark GPU tests with ``@pytest.mark.gpu`` so the CI can select them, and skip when the required feature is unavailable with ``@pytest.mark.skipif``. For example, CUDA tests use:
+
+.. code:: python
+
+  @pytest.mark.gpu
+  @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+  def test_mycudatest():
     ...
 
-will run ``test_mytest`` with ``target="llvm"``, ``target="cuda"``, and few others. This also ensures that your test is run on the correct hardware by the CI. If you only want to test against a couple targets use ``@tvm.testing.parametrize_targets("target_1", "target_2")``. If you want to test on a single target, use the associated decorator from :py:func:`tvm.testing`. For example, CUDA tests use the ``@tvm.testing.requires_cuda`` decorator.
+The ``tvm.testing.env`` module exposes a ``has_*()`` probe for each runtime and hardware feature (e.g. ``has_cuda()``, ``has_rocm()``, ``has_vulkan()``, ``has_llvm()``). To skip a test when an optional Python package is missing, use ``pytest.importorskip("package_name")``.
 
 
 Network Resources
@@ -149,15 +162,10 @@ In CI, downloading files from the Internet is a big source of flaky test failure
 server can go down or be slow), so try to avoid using the network at all during tests. In some cases
 this isn't a reasonable proposition (e.g. the docs tutorials which need to download models).
 
-In these cases you can re-host files in S3 for fast access in CI. A committer can upload a file,
-specified by a name, hash, and path in S3, using the ``workflow_dispatch`` event on `the
-upload_ci_resource.yml GitHub Actions workflow
-<https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml>`_.  The sha256 must match
-the file or it will not be uploaded. The upload path is user-defined so it can be any path (no
-trailing or leading slashes allowed) but be careful not to collide with existing resources on
-accident. Once uploaded you should send a PR to update the ``URL_MAP`` in
-`request_hook.py <https://github.com/apache/tvm/blob/main/tests/scripts/request_hook/request_hook.py>`_
-with the new URL.
+New network downloads are rejected by the CI `request hook
+<https://github.com/apache/tvm/blob/main/tests/python/request_hook.py>`_. Prefer
+checked-in fixtures or generated data. If a download is unavoidable, arrange a stable
+project-managed mirror with the maintainers and add an explicit ``URL_MAP`` entry.
 
 
 Handle Integer Constant Expression

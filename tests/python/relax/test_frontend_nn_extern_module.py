@@ -95,7 +95,7 @@ def _check_ir_equality(mod):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 ext_scalar_add = R.call_dps_packed(
-                    "ext_scalar_add", (a, b), out_sinfo=R.Tensor((), dtype="float32")
+                    "ext_scalar_add", (a, b), out_ty=R.Tensor((), dtype="float32")
                 )
                 gv: R.Tensor((), dtype="float32") = ext_scalar_add
                 R.output(gv)
@@ -111,7 +111,7 @@ def _check_ir_equality(mod):
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 ext_test_sym = R.call_dps_packed(
-                    "ext_test_sym", (a, b), out_sinfo=R.Tensor((x, y, z, 9), dtype="float32")
+                    "ext_test_sym", (a, b), out_ty=R.Tensor((x, y, z, 9), dtype="float32")
                 )
                 gv1: R.Tensor((x, y, z, 9), dtype="float32") = ext_test_sym
                 R.output(gv1)
@@ -121,11 +121,6 @@ def _check_ir_equality(mod):
 
 
 def _compile_cc(src: Path, dst: Path):
-    # pylint: disable=import-outside-toplevel
-    from tvm.base import py_str
-
-    # pylint: enable=import-outside-toplevel
-
     cmd = ["g++", str(src)]
     default_include_paths = [
         tvm.libinfo.find_include_path(),
@@ -145,7 +140,7 @@ def _compile_cc(src: Path, dst: Path):
         (out, _) = proc.communicate()
         if proc.returncode != 0:
             msg = "Compilation error:\n"
-            msg += py_str(out)
+            msg += out.decode("utf-8", errors="replace")
             msg += "\nCommand line: " + " ".join(cmd)
             raise RuntimeError(msg)
 

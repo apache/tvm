@@ -28,13 +28,15 @@ namespace tvm {
 namespace codegen {
 
 void CodeGenSourceBase::ClearFuncState() {
-  name_supply_ = NameSupply();
+  name_supply_ = UniqueNameSupply();
   ssa_assign_map_.clear();
   var_idmap_.clear();
   scope_mark_.clear();
 }
 
-std::string CodeGenSourceBase::SSAGetID(std::string src, DataType t) {
+std::string CodeGenSourceBase::SSAGetID(std::string src, const Type& t) {
+  TVM_FFI_ICHECK(t.as<PrimTypeNode>() || t.as<PointerTypeNode>())
+      << "Cannot assign an SSA value of type " << t;
   if (name_supply_->ContainsName(src)) return src;
   auto it = ssa_assign_map_.find(src);
   if (it != ssa_assign_map_.end()) {
@@ -99,22 +101,19 @@ void CodeGenSourceBase::EndScope(int scope_id) {
   indent_ -= 2;
 }
 
-void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(*)
-  TVM_FFI_ICHECK_EQ(type.lanes(), 1) << "do not yet support vector types";
-  if (type.is_handle()) {
-    os << "void*";
-    return;
-  }
-  if (type.is_void()) {
+void CodeGenSourceBase::PrintType(const PrimType& type, std::ostream& os) {  // NOLINT(*)
+  int lanes = type.lanes();
+  TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
+  if (type.IsVoid()) {
     os << "void";
     return;
   }
   // default c may be have bool type, can be handled in subclass
-  if (type.is_bool()) {
+  if (type.MatchesCode(kDLBool)) {
     os << "int";
     return;
   }
-  if (type.is_float()) {
+  if (type.MatchesCode(kDLFloat)) {
     if (type.bits() == 32) {
       os << "float";
       return;
@@ -123,7 +122,7 @@ void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(
       os << "double";
       return;
     }
-  } else if (type.is_uint()) {
+  } else if (type.MatchesCode(kDLUInt)) {
     switch (type.bits()) {
       case 8:
       case 16:
@@ -136,7 +135,7 @@ void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(
         os << "int";
         return;
     }
-  } else if (type.is_int()) {
+  } else if (type.MatchesCode(kDLInt)) {
     switch (type.bits()) {
       case 8:
       case 16:
@@ -152,7 +151,7 @@ void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(
 
 void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
   if (auto* ptr = type.as<PrimTypeNode>()) {
-    return PrintType(ptr->dtype, os);
+    return PrintType(ffi::GetRef<PrimType>(ptr), os);
   } else if (auto* ptr = type.as<PointerTypeNode>()) {
     PrintType(ptr->element_type, os);
     os << '*';

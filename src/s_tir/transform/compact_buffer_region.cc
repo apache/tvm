@@ -58,7 +58,7 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
   ffi::Optional<ffi::Array<arith::IntSet>> eval_res =
       arith::EstimateRegionUpperBound(region, var_dom, predicate, analyzer_ref);
 
-  if (eval_res.defined()) {
+  if (eval_res.has_value()) {
     return NDIntSet(eval_res.value().begin(), eval_res.value().end());
   }
   return support::NDIntSetEval(support::NDIntSetFromRegion(region), dom_map);
@@ -129,6 +129,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
  private:
+  using StmtExprVisitor::VisitBufferDef;
+
   struct BufferAccessInfo {
     /*! \brief The buffer. */
     Buffer buffer;
@@ -179,20 +181,20 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const BindNode* op) final {
     StmtExprVisitor::VisitExpr(op->value);
-    if (arith::IsIndexType(op->value->dtype)) {
-      dom_analyzer_->Bind(op->var, op->value);
-      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
+    if (auto value = op->value.as<PrimExpr>(); value && arith::IsIndexTypedExpr(value.value())) {
+      dom_analyzer_->Bind(op->var, value.value());
+      dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(value.value()));
     }
   }
 
   void VisitExpr_(const LetNode* op) final {
     StmtExprVisitor::VisitExpr(op->value);
-    if (arith::IsIndexType(op->value->dtype)) {
+    if (arith::IsIndexTypedExpr(op->value)) {
       dom_analyzer_->Bind(op->var, op->value);
       dom_map_.emplace(op->var.get(), arith::IntSet::SinglePoint(op->value));
     }
     StmtExprVisitor::VisitExpr(op->body);
-    if (arith::IsIndexType(op->value->dtype)) {
+    if (arith::IsIndexTypedExpr(op->value)) {
       dom_map_.erase(op->var.get());
     }
   }
@@ -216,19 +218,20 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::if_then_else())) {
+      PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
+      PrimExpr then_value = op->args[1].as_or_throw<PrimExpr>();
+      PrimExpr else_value = op->args[2].as_or_throw<PrimExpr>();
       // Visit condition
-      StmtExprVisitor::VisitExpr(op->args[0]);
+      StmtExprVisitor::VisitExpr(condition);
       {
         // Visit then branch
-        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_,
-                                           &pending_conditions_);
-        StmtExprVisitor::VisitExpr(op->args[1]);
+        With<ConditionalBoundsContext> ctx(condition, &dom_map_, &hint_map_, &pending_conditions_);
+        StmtExprVisitor::VisitExpr(then_value);
       }
       {
         // Visit else branch
-        With<ConditionalBoundsContext> ctx(!op->args[0], &dom_map_, &hint_map_,
-                                           &pending_conditions_);
-        StmtExprVisitor::VisitExpr(op->args[2]);
+        With<ConditionalBoundsContext> ctx(!condition, &dom_map_, &hint_map_, &pending_conditions_);
+        StmtExprVisitor::VisitExpr(else_value);
       }
       return;
     }
@@ -237,7 +240,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no init part and block is opaque
-    TVM_FFI_ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.has_value());
     TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
     std::unordered_map<Buffer, std::vector<BufferRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
@@ -257,7 +260,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     auto record_explicit_region = [&](const ffi::String& attr_key, BufferIndexType index_type) {
       auto it = op->annotations.find(attr_key);
       if (it != op->annotations.end()) {
-        ffi::Array<int64_t> buffer_indices = Downcast<ffi::Array<int64_t>>((*it).second);
+        ffi::Array<int64_t> buffer_indices = (*it).second.as_or_throw<ffi::Array<int64_t>>();
         for (int64_t index : buffer_indices) {
           int buffer_index = static_cast<int>(index);
           if (buffer_index >= 0 && buffer_index < static_cast<int>(op->reads.size())) {
@@ -316,11 +319,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iter = Downcast<IterVar>(op->node);
+      IterVar iter = op->node.as_or_throw<IterVar>();
       ancestor_iters_.push_back(iter);
       Range dom = iter->dom;
       if (!dom.defined()) {  // dom is empty for legacy te schedule
-        dom = Range::FromMinExtent(make_zero(op->value->dtype), op->value);
+        dom = Range::FromMinExtent(IntImm(op->value.ty(), 0), op->value);
       }
       dom_analyzer_->Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), arith::IntSet::FromRange(dom));
@@ -365,14 +368,15 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       }
       // Step 2. Relax the access region
       auto normalize_pred = [](const PrimExpr& pred) {
-        if (pred->dtype.is_bool()) return pred;
-        return pred != make_zero(pred->dtype);
+        PrimType pred_ty = pred.ty();
+        if (pred_ty.MatchesCode(DLDataTypeCode::kDLBool)) return pred;
+        return pred != IntImm(pred.ty(), 0);
       };
-      PrimExpr predicate = dom_analyzer_->Simplify(
-          std::accumulate(pending_conditions_.begin(), pending_conditions_.end(), const_true(),
-                          [normalize_pred](const PrimExpr& x, const PrimExpr& y) {
-                            return normalize_pred(x) && normalize_pred(y);
-                          }));
+      PrimExpr predicate = dom_analyzer_->Simplify(std::accumulate(
+          pending_conditions_.begin(), pending_conditions_.end(), PrimExpr(IntImm::Bool(true)),
+          [normalize_pred](const PrimExpr& x, const PrimExpr& y) {
+            return normalize_pred(x) && normalize_pred(y);
+          }));
       NDIntSet nd_int_set =
           NDIntSetEval(buffer_region->region, predicate, dom_map_, dom_analyzer_.get());
 
@@ -437,7 +441,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     for (size_t i = 0; i < nd_int_set.size(); ++i) {
       const arith::IntSet& int_set = nd_int_set[i];
       Range original =
-          Range(/*begin=*/make_zero(original_shape[i]->dtype), /*end=*/original_shape[i]);
+          Range(/*begin=*/IntImm(original_shape[i].ty(), 0), /*end=*/original_shape[i]);
       Range range = int_set.CoverRange(original);
       PrimExpr min, extent;
       if (collect_inbound_) {
@@ -468,7 +472,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         // try estimate a constant upperbound on region's extent
         int64_t upperbound = dom_analyzer_->const_int_bound(extent)->max_value;
         if (upperbound != arith::ConstIntBound::kPosInf) {
-          extent = make_const(extent->dtype, upperbound);
+          extent = IntImm(extent.ty(), upperbound);
         } else {
           result_region.Set(i, original);
           continue;
@@ -566,14 +570,14 @@ class BufferCompactor : public StmtExprMutator {
       : buffer_info_(std::move(buffer_info)) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
-    BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
+    BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
     BufferStoreNode* op = store.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
-    BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
+  Expr VisitExpr_(const BufferLoadNode* _op) final {
+    BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
     BufferLoadNode* op = load.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
     return load;
@@ -581,12 +585,12 @@ class BufferCompactor : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no Init part.
-    TVM_FFI_ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.has_value());
     // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
     ffi::Array<Buffer> alloc_buffers =
         op->alloc_buffers.Map([this](const Buffer& buf) { return RewriteAllocBuffer(buf); });
     // Step 2. Recursively rewrite BufferLoad/BufferStore.
-    SBlock block = Downcast<SBlock>(StmtExprMutator::VisitStmt_(op));
+    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
     // Step 3. Update block signature.
     SBlockNode* n = block.CopyOnWrite();
     RewriteBufferRegions(&n->reads);
@@ -607,7 +611,7 @@ class BufferCompactor : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    AllocBuffer alloc_buf = Downcast<AllocBuffer>(StmtExprMutator::VisitStmt_(op));
+    AllocBuffer alloc_buf = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
     auto it = buffer_info_.find(alloc_buf->buffer->data);
     if (it == buffer_info_.end()) {
       return alloc_buf;
@@ -697,15 +701,15 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
   if (alloc_info.dim_aligns.size()) {
     TVM_FFI_ICHECK(alloc_info.dim_aligns.size() == shape.size());
     strides.resize(shape.size());
-    PrimExpr stride = make_const(shape[0].dtype(), 1);
+    PrimExpr stride = IntImm(shape[0].ty(), 1);
     for (size_t i = shape.size(); i != 0; --i) {
       size_t dim = i - 1;
       DimAlignInfo info = alloc_info.dim_aligns[dim];
       int align_factor = info.align_factor;
       int align_offset = info.align_offset;
       if (align_factor != 0) {
-        PrimExpr factor = make_const(stride.dtype(), align_factor);
-        PrimExpr offset = make_const(stride.dtype(), align_offset);
+        PrimExpr factor = IntImm(stride.ty(), align_factor);
+        PrimExpr offset = IntImm(stride.ty(), align_offset);
         stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
       }
       strides[dim] = stride;

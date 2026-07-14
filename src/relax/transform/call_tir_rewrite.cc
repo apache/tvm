@@ -25,7 +25,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
@@ -51,8 +50,8 @@ class CallTIRMutator : public ExprMutator {
   IRModule Run() {
     for (const auto& [gv, func] : mod_->functions) {
       if (func->IsInstance<FunctionNode>()) {
-        auto updated_func = Downcast<Function>(this->VisitExpr(func));
-        builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
+        auto updated_func = this->VisitExpr(func).as_or_throw<Function>();
+        builder_->UpdateFunction(gv, updated_func);
       }
     }
     return builder_->GetContextIRModule();
@@ -71,81 +70,83 @@ class CallTIRMutator : public ExprMutator {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
-    if (call->op == call_tir_op || call->op == call_tir_inplace_op ||
-        call->op == call_dps_packed_op) {
-      bool is_inplace = (call->op == call_tir_inplace_op);
+    if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
+        call->op.same_as(call_dps_packed_op)) {
+      bool is_inplace = call->op.same_as(call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       ffi::Array<Expr> outs;
-      if (const auto& _tensor_sinfo = MatchStructInfo<TensorStructInfo>(expr)) {
+      if (const auto& tensor_ty = MatchType<TensorType>(expr)) {
         // single output case
-        const TensorStructInfo& tensor_sinfo = _tensor_sinfo.value();
-        TVM_FFI_ICHECK(tensor_sinfo->shape.defined())
-            << "the TensorStructInfo shape of call_tir has not populated";
+        const TensorType& output_ty = tensor_ty.value();
+        TVM_FFI_ICHECK(output_ty->shape.has_value())
+            << "the TensorType shape of call_tir has not populated";
         int dev_index = 0;
         ffi::String scope = "global";
-        if (tensor_sinfo->vdevice.defined()) {
-          dev_index = GetDeviceIndex(mod_, tensor_sinfo->vdevice.value());
-          scope = tensor_sinfo->vdevice.value()->memory_scope;
+        if (output_ty->vdevice.has_value()) {
+          dev_index = GetDeviceIndex(mod_, output_ty->vdevice.value());
+          scope = output_ty->vdevice.value()->memory_scope;
         } else {
           dev_index = GetDeviceIndexByScope(mod_, scope);
         }
 
         if (!is_inplace) {
-          outs.push_back(builder_->Emit(Call(alloc_tensor_op,
-                                             {Downcast<ShapeExpr>(tensor_sinfo->shape.value()),
-                                              DataTypeImm(tensor_sinfo->dtype),
-                                              PrimValue::Int64(dev_index), StringImm(scope)},
-                                             Attrs(), {tensor_sinfo}),
+          outs.push_back(builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
+                                             {output_ty->shape.value().as_or_throw<ShapeExpr>(),
+                                              DataTypeImm(output_ty->dtype.value()->dtype),
+                                              IntImm::Int64(dev_index), StringImm(scope)},
+                                             Attrs(), {output_ty}),
                                         "alloc"));
         } else {
           // if there is only one output, it must be an in-place argument, but check anyway
           TVM_FFI_ICHECK(inplace_attrs->inplace_indices[0] != -1)
               << "If calling call_tir_inplace and there is one output, its in-place index must not"
                  " be -1.";
-          outs.push_back(Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[0]]);
+          outs.push_back(
+              call->args[1].as_or_throw<Tuple>()->fields[inplace_attrs->inplace_indices[0]]);
         }
-      } else if (const auto& _tuple_sinfo = MatchStructInfo<TupleStructInfo>(expr)) {
+      } else if (const auto& tuple_ty = MatchType<TupleType>(expr)) {
         // multiple output case
-        const TupleStructInfo& tuple_sinfo = _tuple_sinfo.value();
-        for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
-          const auto& field = tuple_sinfo->fields[i];
+        const TupleType& output_ty = tuple_ty.value();
+        for (size_t i = 0; i < output_ty->fields.size(); ++i) {
+          const auto& field = output_ty->fields[i];
 
-          TVM_FFI_ICHECK(field->IsInstance<TensorStructInfoNode>())
-              << "call_tir expects Tuple of TensorStructInfo, but got " << field
-              << " as an element of TupleStructInfo";
-          const auto& field_tensor = Downcast<TensorStructInfo>(field);
-          TVM_FFI_ICHECK(field_tensor->shape.defined())
-              << "call_tir expects all TensorStructInfo has shape, but got " << field_tensor
-              << " as an element of TupleStructInfo";
+          TVM_FFI_ICHECK(field->IsInstance<TensorTypeNode>())
+              << "call_tir expects Tuple of TensorType, but got " << field
+              << " as an element of TupleType";
+          const auto& field_tensor = field.as_or_throw<TensorType>();
+          TVM_FFI_ICHECK(field_tensor->shape.has_value())
+              << "call_tir expects all TensorType has shape, but got " << field_tensor
+              << " as an element of TupleType";
 
           int dev_index = 0;
           ffi::String scope = "global";
-          if (field_tensor->vdevice.defined()) {
+          if (field_tensor->vdevice.has_value()) {
             dev_index = GetDeviceIndex(mod_, field_tensor->vdevice.value());
             scope = field_tensor->vdevice.value()->memory_scope;
           }
 
           if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
-            outs.push_back(builder_->Emit(Call(alloc_tensor_op,
-                                               {Downcast<ShapeExpr>(field_tensor->shape.value()),
-                                                DataTypeImm(field_tensor->dtype),
-                                                PrimValue::Int64(dev_index), StringImm(scope)},
-                                               Attrs(), {field_tensor}),
-                                          "alloc"));
+            outs.push_back(
+                builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
+                                    {field_tensor->shape.value().as_or_throw<ShapeExpr>(),
+                                     DataTypeImm(field_tensor->dtype.value()->dtype),
+                                     IntImm::Int64(dev_index), StringImm(scope)},
+                                    Attrs(), {field_tensor}),
+                               "alloc"));
           } else {
             outs.push_back(
-                Downcast<Tuple>(call->args[1])->fields[inplace_attrs->inplace_indices[i]]);
+                call->args[1].as_or_throw<Tuple>()->fields[inplace_attrs->inplace_indices[i]]);
           }
         }
       } else {
-        TVM_FFI_THROW(TypeError) << "The struct info of call_tir expects to be TensorStructInfo or "
-                                    "TupleStructInfo, but got"
-                                 << expr->struct_info_;
+        TVM_FFI_THROW(TypeError) << "The type of call_tir expects to be TensorType or "
+                                    "TupleType, but got"
+                                 << expr->ty;
       }
 
       ffi::Array<Expr> args;
       if (call->args[1].as<TupleNode>()) {
-        args = Downcast<Tuple>(call->args[1])->fields;
+        args = call->args[1].as_or_throw<Tuple>()->fields;
         // for call_tir_inplace, don't reinsert in-place args, only the newly allocated ones
         if (!is_inplace) {
           args.insert(args.end(), outs.begin(), outs.end());
@@ -158,11 +159,11 @@ class CallTIRMutator : public ExprMutator {
         }
 
         if (call->args.size() == 2) {
-          builder_->Emit(Call(call->args[0], args), "_");
+          builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
         } else {
           // unpack semantics
           args.push_back(call->args[2]);
-          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
+          builder_->Emit(Call(Type::Missing(), call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {
         if (!is_inplace) {
@@ -171,7 +172,7 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        builder_->Emit(Call(call->args[0], args), "_");
+        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
       }
 
       if (outs.size() == 1) {

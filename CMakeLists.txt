@@ -87,9 +87,9 @@ tvm_option(USE_CCACHE "Use ccache if found when invoking compiler" AUTO)
 # 3rdparty libraries
 tvm_option(COMPILER_RT_PATH "Path to COMPILER-RT" "3rdparty/compiler-rt")
 # Contrib library options
-tvm_option(USE_BYODT_POSIT "Build with BYODT software emulated posit custom datatype" OFF)
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_AMX "Enable Intel AMX" OFF)
+tvm_option(USE_Z3 "Build with Z3 SMT solver support" OFF)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_DNNL "Enable DNNL codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
@@ -121,7 +121,6 @@ tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
-include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 
 # initial variables
@@ -339,20 +338,22 @@ tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/source/*.cc
   src/target/canonicalizer/*.cc
   src/target/canonicalizer/llvm/*.cc
-  src/target/cuda/*.cc
-  src/target/rocm/*.cc
-  src/target/hexagon/*.cc
-  src/target/metal/*.cc
-  src/target/opencl/*.cc
-  src/target/vulkan/vulkan_fallback_module.cc
-  src/target/webgpu/*.cc
+  src/backend/cuda/codegen/*.cc
+  src/backend/cuda/op/*.cc
+  src/backend/hexagon/codegen/*.cc
+  src/backend/metal/codegen/*.cc
+  src/backend/metal/op/*.cc
+  src/backend/opencl/codegen/*.cc
+  src/backend/rocm/codegen/*.cc
+  src/backend/trn/codegen/*.cc
+  src/backend/trn/op/*.cc
+  src/backend/trn/transform/*.cc
+  src/backend/vulkan/codegen/target_kind.cc
+  src/backend/vulkan/codegen/vulkan_fallback_module.cc
+  src/backend/webgpu/codegen/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
-
-tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
-list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
-list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
@@ -361,7 +362,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/rpc/minrpc/*.cc
 )
 # Note: src/runtime/extra/disco/** moves to libtvm_runtime_extra.
-# Note: src/runtime/{cuda,vulkan,opencl,metal,rocm,hexagon}/* move to per-backend DSOs.
+# Note: src/backend/*/runtime sources move to per-backend DSOs.
 set(TVM_RUNTIME_EXT_OBJS "")
 
 if(BUILD_FOR_HEXAGON)
@@ -439,9 +440,9 @@ include(cmake/utils/CCache.cmake)
 
 include(CheckCXXCompilerFlag)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD 20)
 
 # Module rules
 include(cmake/modules/CUDA.cmake)
@@ -458,8 +459,8 @@ include(cmake/modules/contrib/DNNL.cmake)
 include(cmake/modules/contrib/AMX.cmake)
 include(cmake/modules/contrib/CUTLASS.cmake)
 include(cmake/modules/contrib/Random.cmake)
-include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/Sort.cmake)
+include(cmake/modules/contrib/Z3.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/NNAPI.cmake)
@@ -546,6 +547,9 @@ add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
+if(TARGET tvm_llvm_header)
+  target_link_libraries(tvm_objs PUBLIC tvm_llvm_header)
+endif()
 
 include(GNUInstallDirs)
 
@@ -685,14 +689,6 @@ target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
 set(TVM_TEST_LIBRARY_NAME tvm_compiler)
-if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(HIDE_SYMBOLS_LINKER_FLAGS "-Wl,--exclude-libs,ALL")
-  # Note: 'target_link_options' with 'PRIVATE' keyword would be cleaner
-  # but it's not available until CMake 3.13. Switch to 'target_link_options'
-  # once minimum CMake version is bumped up to 3.13 or above.
-  target_link_libraries(tvm_compiler PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-  target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
-endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.

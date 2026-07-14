@@ -61,8 +61,8 @@ namespace relax {
  *  The result of visit is memoized.
  */
 template <typename OutputType>
-class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const Expr&)> {
-  using BaseFunctor = ::tvm::relax::ExprFunctor<OutputType(const Expr&)>;
+class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
+  using BaseFunctor = ExprFunctor<OutputType(const Expr&)>;
 
  public:
   /*! \brief virtual destructor */
@@ -146,12 +146,12 @@ IRModule MakeGroupedFunctions(
     bool lift_constants = true, const ffi::Array<ffi::String>& entry_function_names = {});
 
 /*!
- * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of
- * TensorStructInfo; its shape must be ShapeExpr.
- * \param sinfo The StructInfo to be checked.
- * \return true if the given StructInfo is a scalar tensor.
+ * \brief Check if the given Type is a scalar tensor. The ty should be an instance of
+ * TensorType; its shape must be ShapeExpr.
+ * \param ty The Type to be checked.
+ * \return true if the given Type is a scalar tensor.
  */
-bool IsScalarTensor(const StructInfo& sinfo);
+bool IsScalarTensor(const Type& ty);
 
 /*!
  * \brief Check if the given expr is a scalar tensor. Now the shape of the tensor expr must be
@@ -162,32 +162,32 @@ bool IsScalarTensor(const StructInfo& sinfo);
 bool IsScalarTensor(const Expr& expr);
 
 /*!
- * \brief Check if the given StructInfo is a nested tensor StructInfo satisfying the given
+ * \brief Check if the given Type is a nested tensor Type satisfying the given
  * condition f_condition.
- * \param sinfo The StructInfo to be checked.
- * \param f_condition The condition function for each leaf StructInfo with signature
- * `bool f_condition(TensorStructInfo)`.
+ * \param ty The Type to be checked.
+ * \param f_condition The condition function for each leaf Type with signature
+ * `bool f_condition(TensorType)`.
  * \tparam FType The condition function type.
- * \return true if the given StructInfo is a nested tensor satisfying the given f_condition.
+ * \return true if the given Type is a nested tensor satisfying the given f_condition.
  */
 template <typename FType>
-bool IsNestedTensorConditioned(const StructInfo& sinfo, FType f_condition) {
-  if (const auto* tensor_sinfo = sinfo.as<TensorStructInfoNode>()) {
-    return f_condition(ffi::GetRef<TensorStructInfo>(tensor_sinfo));
-  } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
-    return !std::any_of(
-        tuple_sinfo->fields.begin(), tuple_sinfo->fields.end(),
-        [&](const StructInfo& field) { return !IsNestedTensorConditioned(field, f_condition); });
+bool IsNestedTensorConditioned(const Type& ty, FType f_condition) {
+  if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
+    return f_condition(ffi::GetRef<TensorType>(tensor_ty));
+  } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
+    return !std::any_of(tuple_ty->fields.begin(), tuple_ty->fields.end(), [&](const Type& field) {
+      return !IsNestedTensorConditioned(field, f_condition);
+    });
   }
   return false;
 }
 
 /*!
- * \brief Check if the given StructInfo is a nested tensor.
- * \param sinfo The StructInfo to be checked.
- * \return true if the given StructInfo is a nested tensor.
+ * \brief Check if the given Type is a nested tensor.
+ * \param ty The Type to be checked.
+ * \return true if the given Type is a nested tensor.
  */
-bool IsNestedTensor(const StructInfo& sinfo);
+bool IsNestedTensor(const Type& ty);
 
 /*!
  * \brief Check if the given expr is a nested tensor.
@@ -199,7 +199,7 @@ bool IsNestedTensor(const Expr& expr);
 // TODO(@bohan): implements some postorder function accepts a visitor closure
 class VarReplacer : public ExprMutator {
  public:
-  using VarMap = std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
+  using VarMap = std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
   explicit VarReplacer(const VarMap& var_remap) : var_remap_(var_remap) {}
 
@@ -211,7 +211,7 @@ class VarReplacer : public ExprMutator {
  private:
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
-    auto it = var_remap_.find(var->vid);
+    auto it = var_remap_.find(var);
     return it == var_remap_.end() ? var : it->second;
   }
 
@@ -227,7 +227,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
  public:
   static Function Renew(const Function& function) {
     SymbolicVarRenewMutator mutator;
-    return Downcast<Function>(mutator.VisitExpr(function));
+    return mutator.VisitExpr(function).as_or_throw<Function>();
   }
   SymbolicVarRenewMutator() = default;
 
@@ -236,12 +236,21 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
   using relax::ExprMutator::VisitExpr_;
   using tirx::ExprMutator::VisitExpr_;
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tirx::ExprMutator::VisitExpr(expr); }
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
+    return tirx::ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
+  }
+
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return relax::ExprMutator::VisitExprFallback_(op);
+  }
 
   // TODO(Siyuan): enhance the method to the following steps:
   // 1. Visit and replace all tirx::Vars at the definition point
   // 2. Revisit the function again and update the use side.
-  PrimExpr VisitExpr_(const tirx::VarNode* op) final {
+  Expr VisitExpr_(const tirx::VarNode* op) final {
     auto it = var_map_.find(ffi::GetRef<tirx::Var>(op));
     if (it != var_map_.end()) {
       return (*it).second;
@@ -260,7 +269,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
       Var new_param = this->VisitVarDef(param);
       params.push_back(new_param);
       if (!param.same_as(new_param)) {
-        var_remap_[param->vid] = new_param;
+        var_remap_[param] = new_param;
         all_params_unchanged = false;
       }
     }
@@ -270,8 +279,8 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
     if (all_params_unchanged && body.same_as(op->body)) {
       return ffi::GetRef<Expr>(op);
     } else {
-      auto new_ret_sinfo = this->VisitExprDepStructInfoField(op->ret_struct_info);
-      return Function(params, body, new_ret_sinfo, op->is_pure, op->attrs);
+      auto new_ret_ty = this->VisitExprDepTypeField(op->ret_ty);
+      return Function(params, body, new_ret_ty, op->is_pure, op->attrs);
     }
   }
 
@@ -286,7 +295,7 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
 class FunctionCopier : public SymbolicVarRenewMutator {
  public:
   FunctionCopier() = default;
-  Function Copy(Function func) { return Downcast<Function>(VisitExpr(func)); }
+  Function Copy(Function func) { return VisitExpr(func).as_or_throw<Function>(); }
   ffi::Map<Var, Var> GetVarMap() { return relax_var_map_; }
 
  private:
@@ -294,16 +303,16 @@ class FunctionCopier : public SymbolicVarRenewMutator {
 
   Var VisitVarDef_(const DataflowVarNode* var) override {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = DataflowVar(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
+    Var copied_var = DataflowVar(new_var->name_hint, GetType(new_var), new_var->span);
+    var_remap_[ffi::GetRef<Var>(var)] = copied_var;
     relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;
   }
 
   Var VisitVarDef_(const VarNode* var) override {
     Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = Var(new_var->name_hint(), GetStructInfo(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
+    Var copied_var = Var(new_var->name_hint, GetType(new_var), new_var->span);
+    var_remap_[ffi::GetRef<Var>(var)] = copied_var;
     relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
     return copied_var;
   }
@@ -319,39 +328,39 @@ class FunctionCopier : public SymbolicVarRenewMutator {
  * \return A Constant.
  */
 template <typename T>
-inline Constant MakeConstantScalar(T value, DataType dtype) {
+inline Constant MakeConstantScalar(T value, DLDataType dtype) {
   runtime::Tensor arr = runtime::Tensor::Empty({}, dtype, {kDLCPU, 0});
-  if (dtype == DataType::Float(32)) {
+  if (dtype == DLDataType{kDLFloat, 32, 1}) {
     *static_cast<float*>(arr->data) = static_cast<float>(value);
-  } else if (dtype == DataType::Float(64)) {
+  } else if (dtype == DLDataType{kDLFloat, 64, 1}) {
     *static_cast<double*>(arr->data) = static_cast<double>(value);
-  } else if (dtype == DataType::Int(32)) {
+  } else if (dtype == DLDataType{kDLInt, 32, 1}) {
     *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
-  } else if (dtype == DataType::Int(64)) {
+  } else if (dtype == DLDataType{kDLInt, 64, 1}) {
     *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
-  } else if (dtype == DataType::Bool()) {
+  } else if (dtype == DLDataType{kDLBool, 8, 1}) {
     *static_cast<bool*>(arr->data) = static_cast<bool>(value);
-  } else if (dtype == DataType::UInt(8)) {
+  } else if (dtype == DLDataType{kDLUInt, 8, 1}) {
     *static_cast<uint8_t*>(arr->data) = static_cast<uint8_t>(value);
-  } else if (dtype == DataType::UInt(16)) {
+  } else if (dtype == DLDataType{kDLUInt, 16, 1}) {
     *static_cast<uint16_t*>(arr->data) = static_cast<uint16_t>(value);
-  } else if (dtype == DataType::UInt(32)) {
+  } else if (dtype == DLDataType{kDLUInt, 32, 1}) {
     *static_cast<uint32_t*>(arr->data) = static_cast<uint32_t>(value);
-  } else if (dtype == DataType::UInt(64)) {
+  } else if (dtype == DLDataType{kDLUInt, 64, 1}) {
     *static_cast<uint64_t*>(arr->data) = static_cast<uint64_t>(value);
-  } else if (dtype == DataType::Int(8)) {
+  } else if (dtype == DLDataType{kDLInt, 8, 1}) {
     *static_cast<int8_t*>(arr->data) = static_cast<int8_t>(value);
-  } else if (dtype == DataType::Int(16)) {
+  } else if (dtype == DLDataType{kDLInt, 16, 1}) {
     *static_cast<int16_t*>(arr->data) = static_cast<int16_t>(value);
-  } else if (dtype == DataType::Int(32)) {
+  } else if (dtype == DLDataType{kDLInt, 32, 1}) {
     *static_cast<int32_t*>(arr->data) = static_cast<int32_t>(value);
-  } else if (dtype == DataType::Int(64)) {
+  } else if (dtype == DLDataType{kDLInt, 64, 1}) {
     *static_cast<int64_t*>(arr->data) = static_cast<int64_t>(value);
-  } else if (dtype == DataType::Float(16)) {
+  } else if (dtype == DLDataType{kDLFloat, 16, 1}) {
     // convert to float16 storage is uint16_t
     *static_cast<uint16_t*>(arr->data) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(static_cast<float>(value));
-  } else if (dtype == DataType::BFloat(16)) {
+  } else if (dtype == DLDataType{kDLBfloat, 16, 1}) {
     // convert to bfloat16 storage is uint16_t
     *static_cast<uint16_t*>(arr->data) =
         __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 7>(static_cast<float>(value));

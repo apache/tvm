@@ -575,14 +575,14 @@ def test_scalar_block_no_loops():
     # fmt: off
     @tvm.script.ir_module
     class Before:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
             with T.sblock("scalar_add"):
                 c[()] = a[()] + b[()]
 
     @tvm.script.ir_module
     class Expected:
-        @T.prim_func
+        @T.prim_func(s_tir=True)
         def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with T.sblock("root"):

@@ -25,8 +25,6 @@ import socket
 import struct
 import time
 
-from ..base import py_str
-
 # Magic header for RPC data plane
 RPC_MAGIC = 0xFF271
 # magic header for RPC tracker(control plane)
@@ -117,7 +115,7 @@ def recvjson(sock):
         The value received.
     """
     size = struct.unpack("<i", recvall(sock, 4))[0]
-    data = json.loads(py_str(recvall(sock, size)))
+    data = json.loads((recvall(sock, size)).decode("utf-8"))
     return data
 
 

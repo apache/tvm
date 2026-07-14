@@ -111,8 +111,8 @@ class VarVisitor : protected ExprVisitor {
     VisitSpan(call_node->span);
     VisitExpr(call_node->op);
 
-    for (StructInfo sinfo_arg : call_node->sinfo_args) {
-      VisitExprDepStructInfoField(sinfo_arg);
+    for (Type ty_arg : call_node->ty_args) {
+      VisitExprDepTypeField(ty_arg);
     }
 
     for (Expr arg : call_node->args) {
@@ -200,7 +200,7 @@ ffi::Optional<Expr> FindImpureCall(const Expr& expr, const ffi::Optional<Expr>& 
 }
 
 bool ContainsImpureCall(const Expr& expr, const ffi::Optional<Expr>& own_name) {
-  return FindImpureCall(expr, own_name).defined();
+  return FindImpureCall(expr, own_name).has_value();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

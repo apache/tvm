@@ -41,7 +41,7 @@ PrimExpr PredicateNode::Apply(const ffi::Array<PrimExpr>& indices) const {
                                             [&](const Var& var) { return vmap.Get(var); });
 }
 
-Predicate::Predicate(ffi::Array<Var> vars, PrimExpr pred) {
+Predicate::Predicate(ffi::Array<PrimVar> vars, PrimExpr pred) {
   auto n = ffi::make_object<PredicateNode>();
   n->vars = std::move(vars);
   n->pred = std::move(pred);
@@ -50,8 +50,9 @@ Predicate::Predicate(ffi::Array<Var> vars, PrimExpr pred) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Predicate",
-                        [](ffi::Array<Var> vars, PrimExpr pred) { return Predicate(vars, pred); });
+  refl::GlobalDef().def("tirx.Predicate", [](ffi::Array<PrimVar> vars, PrimExpr pred) {
+    return Predicate(vars, pred);
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

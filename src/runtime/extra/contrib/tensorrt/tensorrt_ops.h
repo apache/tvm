@@ -35,11 +35,10 @@
 #include "NvInfer.h"
 #include "tensorrt_utils.h"
 
-#if TRT_VERSION_GE(6, 0, 1)
-#define TRT_HAS_IMPLICIT_BATCH(params) (params->network->hasImplicitBatchDimension())
-#else
-#define TRT_HAS_IMPLICIT_BATCH(params) (true)
-#endif
+// TensorRT 10 removed implicit-batch mode; every network is explicit-batch. Keep the macro so the
+// converters' batch-aware branches read clearly, but it is unconditionally false (and no longer
+// calls the deprecated INetworkDefinition::hasImplicitBatchDimension()).
+#define TRT_HAS_IMPLICIT_BATCH(params) (false)
 
 namespace tvm {
 namespace runtime {

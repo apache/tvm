@@ -17,9 +17,11 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501
 
+from unittest import mock
 
 import tvm.testing
 from tvm.s_tir import dlight as dl
+from tvm.s_tir.dlight.gpu import low_batch_gemv
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -554,6 +556,53 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     mod = tvm.IRModule({"main": before})
     with target:
         mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
+def test_low_batch_gemv_broadcast_epilogue():
+    # fmt: off
+    @T.prim_func(private=True, s_tir=True)
+    def before(
+        var_A: T.handle,
+        B: T.Buffer((T.int64(128), T.int64(128)), "float16"),
+        var_C: T.handle,
+    ):
+        T.func_attr({"tirx.noalias": True})
+        batch_size = T.int64()
+        A = T.match_buffer(var_A, (T.int64(1), batch_size, T.int64(1), T.int64(128)), "float16")
+        C = T.match_buffer(var_C, (T.int64(1), batch_size, T.int64(2), T.int64(3), T.int64(128)), "float32")
+        C_temp = T.sblock_alloc_buffer((T.int64(1), batch_size, T.int64(1), T.int64(128)), "float16")
+        for i0, i1, i2, i3, k in T.grid(
+            T.int64(1), batch_size, T.int64(1), T.int64(128), T.int64(128)
+        ):
+            with T.sblock("NT_matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i3, v_k])
+                T.writes(C_temp[v_i0, v_i1, v_i2, v_i3])
+                with T.init():
+                    C_temp[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
+                C_temp[v_i0, v_i1, v_i2, v_i3] = (
+                    C_temp[v_i0, v_i1, v_i2, v_i3]
+                    + A[v_i0, v_i1, v_i2, v_k] * B[v_i3, v_k]
+                )
+        for i0, i1, i2, i3, i4 in T.grid(
+            T.int64(1), batch_size, T.int64(2), T.int64(3), T.int64(128)
+        ):
+            with T.sblock("broadcast_epilogue"):
+                v_i0, v_i1, v_i2, v_i3, v_i4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                T.reads(C_temp[v_i0, v_i1, T.int64(0), v_i4])
+                T.writes(C[v_i0, v_i1, v_i2, v_i3, v_i4])
+                C[v_i0, v_i1, v_i2, v_i3, v_i4] = T.Cast(
+                    "float32", C_temp[v_i0, v_i1, T.int64(0), v_i4]
+                )
+    # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with mock.patch.object(low_batch_gemv, "is_broadcast_epilogue", return_value=True) as check:
+        with Target("nvidia/geforce-rtx-3090-ti"):
+            mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)
+
+    check.assert_called_once()
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 

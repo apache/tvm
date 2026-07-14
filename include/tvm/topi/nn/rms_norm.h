@@ -54,8 +54,8 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
   const auto& weight_type = weight.defined() ? weight->dtype : data_type;
   TVM_FFI_ICHECK(data_type == weight_type) << "rms_norm: data and weight must have the same type";
 
-  const auto& data_fp32 = cast(data, DataType::Float(32));
-  const auto& weight_fp32 = cast(weight, DataType::Float(32));
+  const auto& data_fp32 = cast(data, PrimType::Float(32));
+  const auto& weight_fp32 = cast(weight, PrimType::Float(32));
 
   auto square = multiply(data_fp32, data_fp32);
   auto square_sum = sum(square, axis, /*keepdims=*/false, /*atleast1d=*/true);
@@ -63,19 +63,19 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
   auto ndim = data_fp32->shape.size();
   TVM_FFI_ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
-  auto reduce_extent = make_const(data_fp32->dtype, 1);
+  auto reduce_extent = MakeConst(PrimType(data_fp32->dtype), 1);
   for (int i : real_axis) {
     reduce_extent *= data_fp32->shape[i];
   }
-  auto rsqrt_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> non_reduce_indices;
+  auto rsqrt_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
         non_reduce_indices.push_back(indices[i]);
       }
     }
-    auto output =
-        tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent + make_const(data_type, epsilon));
+    auto output = tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent +
+                             MakeConst(PrimType(data_type), epsilon));
     return output;
   };
   auto rsqrt_shape = ffi::Array<PrimExpr>();
@@ -86,8 +86,8 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const ffi::Arra
   }
   auto rsqrt = tvm::te::compute(rsqrt_shape, rsqrt_func, "rsqrt", tag);
 
-  auto rms_norm_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> reduce_indices, non_reduce_indices;
+  auto rms_norm_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> reduce_indices, non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         reduce_indices.push_back(indices[i]);

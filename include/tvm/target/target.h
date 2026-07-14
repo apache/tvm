@@ -25,7 +25,6 @@
 #define TVM_TARGET_TARGET_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/with_context.h>
@@ -101,7 +100,7 @@ class TargetNode : public ffi::Object {
       ffi::Optional<TObjectRef> default_value = ffi::Optional<TObjectRef>(std::nullopt)) const {
     auto it = attrs.find(attr_key);
     if (it != attrs.end()) {
-      return Downcast<ffi::Optional<TObjectRef>>((*it).second);
+      return (*it).second.as_or_throw<ffi::Optional<TObjectRef>>();
     } else {
       return default_value;
     }

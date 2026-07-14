@@ -31,7 +31,6 @@ from typing import NamedTuple
 import numpy as np  # type: ignore
 import torch  # type: ignore
 
-import tvm
 from tvm.ir.utils import derived_object
 from tvm.support.tar import tar, untar
 
@@ -545,7 +544,7 @@ class State:
                                 "_workload.json", "_candidates.json"
                             ),
                         )
-                    except tvm.base.TVMError:
+                    except (ValueError, RuntimeError):
                         continue
                     candidates, results = [], []
                     tuning_records = database.get_all_tuning_records()

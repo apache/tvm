@@ -186,7 +186,7 @@ SKIP_LIST: list[str] = [
     "ffi/3rdparty/*",
     ".github/*",
     ".txdev/*",
-    ".claude/*",
+    ".agents/*",
     "*.json",
     "*.txt",
     "*.svg",

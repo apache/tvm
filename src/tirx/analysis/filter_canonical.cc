@@ -27,9 +27,9 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ir/op.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
-#include <tvm/tirx/target_builtin/cuda.h>
 
 namespace tvm {
 namespace tirx {
@@ -45,11 +45,8 @@ bool IsBitwiseAndCall(const CallNode* call) {
 }
 
 bool IsPtxElectSyncCall(const CallNode* call) {
-  if (call->op.same_as(tirx::builtin::ptx_elect_sync())) return true;
-  if (auto op = call->op.as<Op>()) {
-    return op.value()->name == "tirx.ptx.elect_sync";
-  }
-  return false;
+  static const Op& ptx_elect_sync_op = Op::Get("tirx.ptx.elect_sync");
+  return call->op.same_as(ptx_elect_sync_op);
 }
 
 // Strip implicit Cast wrappers from a predicate. Bool-vs-int mixing in the
@@ -74,8 +71,8 @@ void FlattenConjuncts(const PrimExpr& pred, std::vector<PrimExpr>* out) {
   }
   if (const auto* call = stripped.as<CallNode>()) {
     if (IsBitwiseAndCall(call)) {
-      FlattenConjuncts(call->args[0], out);
-      FlattenConjuncts(call->args[1], out);
+      FlattenConjuncts(call->args[0].as_or_throw<PrimExpr>(), out);
+      FlattenConjuncts(call->args[1].as_or_throw<PrimExpr>(), out);
       return;
     }
   }
@@ -193,7 +190,7 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
   return true;
 }
 
-// Try to read `expr` as a direct `Call("tirx.ptx_elect_sync")` atom.
+// Try to read `expr` as a direct `Call("tirx.ptx.elect_sync")` atom.
 // Composed forms like `elect_sync() != 0` or `not elect_sync()` are NOT
 // accepted -- the canonical grammar requires a bare elect_sync call.
 bool TryParseElectSyncAtom(const PrimExpr& expr, FilterAtom* out) {

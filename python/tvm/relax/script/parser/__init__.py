@@ -24,7 +24,7 @@ from tvm.relax.script.builder import *  # pylint: disable=redefined-builtin
 from tvm.relax.script.builder import ir as _relax
 
 from . import parser as _parser
-from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
+from .entry import Any, Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
 
 from . import dist
 from .dist import *  # pylint: disable=wildcard-import,redefined-builtin
@@ -39,6 +39,7 @@ else:
 
 __all__ = _relax.__all__ + [
     "dist",
+    "Any",
     "Callable",
     "Object",
     "Prim",

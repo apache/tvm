@@ -24,7 +24,6 @@
 #include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ir/cast.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/meta_schedule/arg_info.h>
 #include <tvm/s_tir/meta_schedule/builder.h>
@@ -464,7 +463,7 @@ inline ffi::Array<FloatImm> AsFloatArray(const ffi::ObjectRef& obj) {
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
       if (auto opt_int_imm = val.try_cast<IntImm>()) {
-        return FloatImm(DataType::Float(32), (*opt_int_imm)->value);
+        return FloatImm(PrimType::Float(32), (*opt_int_imm)->value);
       } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
@@ -531,7 +530,7 @@ struct SortTuningRecordByMeanRunSecs {
  * \param dst The destination space generator.
  */
 inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
-  if (src->sch_rules.defined()) {
+  if (src->sch_rules.has_value()) {
     ffi::Array<ScheduleRule> original = src->sch_rules.value();
     ffi::Array<ScheduleRule> sch_rules;
     sch_rules.reserve(original.size());
@@ -540,7 +539,7 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
     }
     dst->sch_rules = std::move(sch_rules);
   }
-  if (src->postprocs.defined()) {
+  if (src->postprocs.has_value()) {
     ffi::Array<Postproc> original = src->postprocs.value();
     ffi::Array<Postproc> postprocs;
     postprocs.reserve(original.size());
@@ -549,7 +548,7 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
     }
     dst->postprocs = std::move(postprocs);
   }
-  if (src->mutator_probs.defined()) {
+  if (src->mutator_probs.has_value()) {
     ffi::Map<Mutator, FloatImm> original = src->mutator_probs.value();
     ffi::Map<Mutator, FloatImm> mutator_probs;
     for (const auto& kv : original) {
@@ -627,9 +626,9 @@ class SBlockCollector : public tirx::StmtVisitor {
       }
     };
 
-    if (sch_->func_working_on().defined()) {
+    if (sch_->func_working_on().has_value()) {
       GlobalVar gv = sch_->func_working_on().value();
-      tirx::PrimFunc func = Downcast<tirx::PrimFunc>(sch_->mod()->functions[gv]);
+      tirx::PrimFunc func = sch_->mod()->functions[gv].as_or_throw<tirx::PrimFunc>();
       f_collect(func, gv->name_hint);
     } else {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {

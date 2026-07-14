@@ -25,28 +25,6 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::ShapeType>(  //
-        "", [](relax::ShapeType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          return Relax(d, "Shape")
-              ->Call({}, {"ndim"}, {LiteralDoc::Int(n->ndim, n_p->Attr("ndim"))});
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::ObjectType>(  //
-        "", [](relax::ObjectType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          return Relax(d, "Object");
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::TensorType>(  //
-        "", [](relax::TensorType n, AccessPath n_p, IRDocsifier d) -> Doc {
-          return Relax(d, "Tensor")
-              ->Call({}, {"ndim", "dtype"},
-                     {LiteralDoc::Int(n->ndim, n_p->Attr("ndim")),
-                      LiteralDoc::DataType(n->dtype, n_p->Attr("dtype"))});
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::PackedFuncType>(  //
         "", [](relax::PackedFuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "PackedFunc");  // TODO(@junrushao): verify if this is correct
@@ -80,9 +58,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                       d->AsDoc<ExprDoc>(n->ret_type, n_p->Attr("ret_type"))});
         });
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeTypeNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ObjectTypeNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorTypeNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::PackedFuncTypeNode, ReprPrintRelax);
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

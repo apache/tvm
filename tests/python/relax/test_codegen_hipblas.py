@@ -19,6 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
+from tvm.testing import env
 
 pytest.importorskip("scipy")  # tvm.topi.testing imports scipy
 
@@ -39,17 +40,24 @@ def reset_seed():
     np.random.seed(0)
 
 
-pytestmark = tvm.testing.requires_hipblas.marks()
+pytestmark = [
+    pytest.mark.gpu,
+    pytest.mark.skipif(not env.has_hipblas(), reason="need hipblas"),
+]
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):
-    dev = tvm.device(target, 0)
     with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
         ex = tvm.compile(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
-    return f(*inputs).numpy()
+
+    def run_and_check():
+        dev = tvm.device(target, 0)
+        vm = relax.VirtualMachine(ex, dev)
+        f = vm["main"]
+        inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
+        return f(*inputs).numpy()
+
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def get_result_with_relax_cublas_offload(mod, np_inputs):

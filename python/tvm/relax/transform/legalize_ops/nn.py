@@ -21,9 +21,10 @@ import logging
 import math
 
 from tvm import s_tir, te, tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import _call_topi_without_attr, register_legalize
 
 
@@ -44,8 +45,8 @@ def _nn_conv1d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.groups != 1:
         data_layout = s_tir.slayout(call.attrs.data_layout)
         kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv1D where number of groups is more than one and input or output "
@@ -85,8 +86,8 @@ def _nn_conv2d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.groups != 1:
         data_layout = s_tir.slayout(call.attrs.data_layout)
         kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv2D where number of groups is more than one and input or output "
@@ -126,8 +127,8 @@ def _nn_conv3d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.groups != 1:
         data_layout = s_tir.slayout(call.attrs.data_layout)
         kernel_layout = s_tir.slayout(call.attrs.kernel_layout)
-        ic = call.args[0].struct_info.shape.values[data_layout.index_of("C")]
-        oc = call.args[1].struct_info.shape.values[kernel_layout.index_of("O")]
+        ic = call.args[0].ty.shape.values[data_layout.index_of("C")]
+        oc = call.args[1].ty.shape.values[kernel_layout.index_of("O")]
         if not isinstance(ic, tirx.IntImm) or not isinstance(oc, tirx.IntImm):
             logging.info(
                 "Conv3D where number of groups is more than one and input or output "
@@ -164,24 +165,23 @@ def _nn_conv1d_transpose(bb: BlockBuilder, call: Call) -> Expr:
             "and kernel layout other than IOW, so cannot be legalized by TOPI"
         )
         return call
-    dilation = call.attrs.dilation
-    if len(dilation) != 1 or dilation[0] != 1:
-        logging.info(
-            "TOPI conv1d_transpose does not support dilations other than 1, "
-            "and thus cannot be legalized by TOPI"
+    strides = [int(s) for s in call.attrs.strides]
+    padding = [int(p) for p in call.attrs.padding]
+    output_padding = [int(o) for o in call.attrs.output_padding]
+    groups = int(call.attrs.groups)
+    out_dtype = call.ty.dtype
+    dilation = [int(d) for d in call.attrs.dilation]
+
+    def te_conv1d_transpose(data, kernel):
+        # Dilated transposed conv == transposed conv with a spatially dilated (zero-filled) kernel.
+        if any(d != 1 for d in dilation):
+            kernel = topi.nn.dilate(kernel, [1, 1, dilation[0]], name="kernel_dilate")
+        return topi.nn.group_conv1d_transpose_ncw(
+            data, kernel, strides, padding, out_dtype, output_padding, groups
         )
-        return call
 
     return bb.call_te(
-        topi.nn.group_conv1d_transpose_ncw,
-        call.args[0],
-        call.args[1],
-        stride=call.attrs.strides,
-        padding=call.attrs.padding,
-        out_dtype=call.struct_info.dtype,
-        output_padding=call.attrs.output_padding,
-        groups=call.attrs.groups,
-        primfunc_name_hint="conv1d_transpose",
+        te_conv1d_transpose, call.args[0], call.args[1], primfunc_name_hint="conv1d_transpose"
     )
 
 
@@ -199,24 +199,23 @@ def _nn_conv2d_transpose(bb: BlockBuilder, call: Call) -> Expr:
             "and kernel layout other than IOHW, so cannot be legalized by TOPI"
         )
         return call
-    dilation = call.attrs.dilation
-    if len(dilation) != 2 or any(d != 1 for d in dilation):
-        logging.info(
-            "TOPI conv2d_transpose does not support dilations other than 1, "
-            "and thus cannot be legalized by TOPI"
+    strides = [int(s) for s in call.attrs.strides]
+    padding = [int(p) for p in call.attrs.padding]
+    output_padding = [int(o) for o in call.attrs.output_padding]
+    groups = int(call.attrs.groups)
+    out_dtype = call.ty.dtype
+    dilation = [int(d) for d in call.attrs.dilation]
+
+    def te_conv2d_transpose(data, kernel):
+        # Dilated transposed conv == transposed conv with a spatially dilated (zero-filled) kernel.
+        if any(d != 1 for d in dilation):
+            kernel = topi.nn.dilate(kernel, [1, 1, dilation[0], dilation[1]], name="kernel_dilate")
+        return topi.nn.group_conv2d_transpose_nchw(
+            data, kernel, strides, padding, out_dtype, output_padding, groups
         )
-        return call
 
     return bb.call_te(
-        topi.nn.group_conv2d_transpose_nchw,
-        call.args[0],
-        call.args[1],
-        stride=call.attrs.strides,
-        padding=call.attrs.padding,
-        out_dtype=call.struct_info.dtype,
-        output_padding=call.attrs.output_padding,
-        groups=call.attrs.groups,
-        primfunc_name_hint="conv2d_transpose",
+        te_conv2d_transpose, call.args[0], call.args[1], primfunc_name_hint="conv2d_transpose"
     )
 
 
@@ -236,24 +235,25 @@ def _nn_conv3d_transpose(bb: BlockBuilder, call: Call) -> Expr:
             "and kernel layout other than IODHW, so cannot be legalized by TOPI"
         )
         return call
-    dilation = call.attrs.dilation
-    if len(dilation) != 3 or any(d != 1 for d in dilation):
-        logging.info(
-            "TOPI conv3d_transpose does not support dilations other than 1, "
-            "and thus cannot be legalized by TOPI"
+    strides = [int(s) for s in call.attrs.strides]
+    padding = [int(p) for p in call.attrs.padding]
+    output_padding = [int(o) for o in call.attrs.output_padding]
+    groups = int(call.attrs.groups)
+    out_dtype = call.ty.dtype
+    dilation = [int(d) for d in call.attrs.dilation]
+
+    def te_conv3d_transpose(data, kernel):
+        # Dilated transposed conv == transposed conv with a spatially dilated (zero-filled) kernel.
+        if any(d != 1 for d in dilation):
+            kernel = topi.nn.dilate(
+                kernel, [1, 1, dilation[0], dilation[1], dilation[2]], name="kernel_dilate"
+            )
+        return topi.nn.group_conv3d_transpose_ncdhw(
+            data, kernel, strides, padding, out_dtype, output_padding, groups
         )
-        return call
 
     return bb.call_te(
-        topi.nn.group_conv3d_transpose_ncdhw,
-        call.args[0],
-        call.args[1],
-        strides=call.attrs.strides,
-        padding=call.attrs.padding,
-        out_dtype=call.struct_info.dtype,
-        output_padding=call.attrs.output_padding,
-        groups=call.attrs.groups,
-        primfunc_name_hint="conv3d_transpose",
+        te_conv3d_transpose, call.args[0], call.args[1], primfunc_name_hint="conv3d_transpose"
     )
 
 
@@ -697,8 +697,12 @@ def _nn_rms_norm(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.dropout")
 def _nn_dropout(bb: BlockBuilder, call: Call) -> Expr:
-    logging.info("Dropout is handled by frontend translator at this moment and is not legalized.")
-    return call
+    # Dropout is a no-op at inference: pass the input through and return an all-ones mask.
+    return bb.call_te(
+        lambda x: [topi.identity(x), topi.full_like(x, 1.0)],
+        call.args[0],
+        primfunc_name_hint="dropout",
+    )
 
 
 def _te_attention(
@@ -714,10 +718,11 @@ def _te_attention(
     q = topi.transpose(q, [0, 2, 1, 3])
     k = topi.transpose(k, [0, 2, 1, 3])
     v = topi.transpose(v, [0, 2, 1, 3])
-    q = topi.reshape(q, [batch_size * num_head, seq_len, head_dim])
-    k = topi.reshape(k, [batch_size * num_head, seq_len_kv, head_dim])
-    v = topi.reshape(v, [batch_size * num_head, seq_len_kv, head_dim_v])
-    p = topi.nn.batch_matmul(q, k)
+    bs = batch_size * num_head
+    q = topi.reshape(q, [bs, seq_len, head_dim])
+    k = topi.reshape(k, [bs, seq_len_kv, head_dim])
+    v = topi.reshape(v, [bs, seq_len_kv, head_dim_v])
+    p = topi.nn.batch_matmul(q, k, oshape=[bs, seq_len, seq_len_kv])
     if scale is not None:
         p = topi.multiply(p, scale)
     else:
@@ -725,7 +730,7 @@ def _te_attention(
     if bias is not None:
         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)
-        p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
+        p = topi.reshape(p, [bs, seq_len, seq_len_kv])
     if causal_mask is None:
         s = topi.nn.softmax(p)
     else:
@@ -741,7 +746,7 @@ def _te_attention(
         )
         p_masked_sum = topi.sum(p_masked_exp, axis=-1, keepdims=True)
         s = topi.divide(p_masked_exp, p_masked_sum)
-    o = topi.nn.batch_matmul(s, v, transpose_b=False)
+    o = topi.nn.batch_matmul(s, v, transpose_b=False, oshape=[bs, seq_len, head_dim_v])
     o = topi.reshape(o, [batch_size, num_head, seq_len, head_dim_v])
     return topi.transpose(o, [0, 2, 1, 3])
 
@@ -816,6 +821,6 @@ def _nn_nll_loss(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.batch_flatten")
 def _nn_batch_flatten(bb: BlockBuilder, call: Call) -> Expr:
-    if call.struct_info.shape is None:
+    if call.ty.shape is None:
         return call
-    return bb.call_te(topi.reshape, call.args[0], call.struct_info.shape.values)
+    return bb.call_te(topi.reshape, call.args[0], call.ty.shape.values)

@@ -30,7 +30,7 @@ import tvm_ffi
 from tvm_ffi import Array
 
 import tvm.ir
-from tvm.relax import Expr, StructInfo, Var
+from tvm.relax import Expr, Type, Var
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Object, Tensor
 from tvm.tirx import IndexMap, PrimFunc
@@ -334,7 +334,7 @@ def LazyGetInput() -> tvm.ir.transform.Pass:
             ...
 
         @R.function
-        def after(fget_param: R.Callable([R.Prim('int64'), R.Object], R.Object)):
+        def after(fget_param: R.Callable([R.Prim('int64'), R.Any], R.Any)):
             A_untyped = fget_param(0, R.str('A'))
             A = R.match_cast(A_untyped, R.Tensor([16,32], "float32")
             ...
@@ -372,7 +372,7 @@ def LazySetOutput() -> tvm.ir.transform.Pass:
             return (A, B)
 
         @R.function
-        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Object])):
+        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Any])):
             ...
             fset_param(0, A)
             ...
@@ -421,8 +421,7 @@ def CallTIRRewrite() -> tvm.ir.transform.Pass:
 
 def Normalize() -> tvm.ir.transform.Pass:
     """Transforming Relax IR to normal form, i.e., the expressions are normalized(no nesting
-    and hence the AST is in ANF), and all `struct_info_` of expressions are
-    available.
+    and hence the AST is in ANF), and all `ty` fields of expressions are available.
 
     Returns
     -------
@@ -672,14 +671,14 @@ def BindParams(
 
 
 def BindSymbolicVars(
-    binding_map: Mapping[str | tvm.tirx.Var, tvm.tirx.PrimExpr],
+    binding_map: Mapping[str | tvm.tirx.Var, tvm.tirx.Expr],
     func_name: str | None = None,
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
     Parameters
     ----------
-    binding_map : Mapping[Union[str, tvm.tirx.Var], tvm.tirx.PrimExpr]
+    binding_map : Mapping[Union[str, tvm.tirx.Var], tvm.tirx.Expr]
         The map from symbolic varname to integer.
 
     func_name : Optional[str]
@@ -1449,20 +1448,19 @@ def SplitCallTIRByPattern(patterns: list[PrimFunc], fcodegen: Callable) -> tvm.i
     return _ffi_api.SplitCallTIRByPattern(patterns, fcodegen)  # type: ignore
 
 
-def UpdateParamStructInfo(sinfo_func: Callable[[Var], StructInfo | None]):
-    """Update struct info of parameters
+def UpdateParamType(ty_func: Callable[[Var], Type | None]):
+    """Update parameter types.
 
-    Update struct info of parameters.  Internal bindings and function
-    return type will be updated using relax's struct inference rules.
-    Errors resulting from struct inference will be propagated to the
-    user.
+    Internal bindings and the function return type are updated using Relax's
+    type inference rules.  Errors resulting from type inference are propagated
+    to the user.
 
     Parameters
     ----------
-    sinfo_func: Callable[[Var], Optional[StructInfo]]
+    ty_func: Callable[[Var], Optional[Type]]
 
         A function that is called once for each function parameter,
-        and returns the updated struct info to be used for it.  If the
+        and returns the updated type to be used for it.  If the
         function returns `None`, the parameter is not modified.
 
     Returns
@@ -1471,7 +1469,7 @@ def UpdateParamStructInfo(sinfo_func: Callable[[Var], StructInfo | None]):
         The corresponding pass.
 
     """
-    return _ffi_api.UpdateParamStructInfo(sinfo_func)  # type: ignore
+    return _ffi_api.UpdateParamType(ty_func)  # type: ignore
 
 
 def AdjustMatmulOrder():
@@ -1840,7 +1838,7 @@ def dataflowblock_pass(
             def __init__(self):
                 # create a new VarBinding
                 m, n = tirx.Var("m", "int64"), tirx.Var("n", "int64")
-                lv0 = relax.Var("lv1", relax.TensorStructInfo([m, n], "float32"))
+                lv0 = relax.Var("lv1", relax.TensorType([m, n], "float32"))
                 val = relax.const(np.random.rand(24, 56))
                 self.new_binding = relax.VarBinding(lv0, val)
 

@@ -115,7 +115,7 @@ def test_argmax():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((2, 4, 5), dtype="int64"):
-            gv = R.call_tir(Expected.argmax, (x,), out_sinfo=R.Tensor((2, 4, 5), dtype="int64"))
+            gv = R.call_tir(Expected.argmax, (x,), out_ty=R.Tensor((2, 4, 5), dtype="int64"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -166,7 +166,7 @@ def test_argmax_symbolic():
             a = T.int64()
             c = T.int64()
             d = T.int64()
-            gv = R.call_tir(Expected.argmax, (x,), out_sinfo=R.Tensor((a, 1, c, d), dtype="int64"))
+            gv = R.call_tir(Expected.argmax, (x,), out_ty=R.Tensor((a, 1, c, d), dtype="int64"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -241,7 +241,7 @@ def test_argmin():
 
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((), dtype="int64"):
-            gv = R.call_tir(Expected.argmin, (x,), out_sinfo=R.Tensor((), dtype="int64"))
+            gv = R.call_tir(Expected.argmin, (x,), out_ty=R.Tensor((), dtype="int64"))
             return gv
     # fmt: on
 
@@ -291,7 +291,7 @@ def test_argmin_symbolic():
 
         @R.function
         def main(x: R.Tensor(("a", "b", "c", "d"), dtype="float32")) -> R.Tensor((1, 1, 1, 1), dtype="int64"):
-            gv = R.call_tir(Expected.argmin, (x,), out_sinfo=R.Tensor((1, 1, 1, 1), dtype="int64"))
+            gv = R.call_tir(Expected.argmin, (x,), out_ty=R.Tensor((1, 1, 1, 1), dtype="int64"))
             return gv
     # fmt: on
 
@@ -629,6 +629,70 @@ def test_prod_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_sum_zero_dim_axis_identity():
+    # fmt: off
+    @tvm.script.ir_module
+    class Sum:
+        @R.function
+        def main(x: R.Tensor((2, 0, 4), "float32")) -> R.Tensor((2, 4), "float32"):
+            gv: R.Tensor((2, 4), "float32") = R.sum(x, axis=[1], keepdims=False)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Sum)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.float32(0)" in script or "T.float32(0.0)" in script
+
+
+def test_sum_zero_dim_negative_axis_identity():
+    # fmt: off
+    @tvm.script.ir_module
+    class Sum:
+        @R.function
+        def main(x: R.Tensor((2, 3, 0), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), "float32") = R.sum(x, axis=[-1], keepdims=False)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Sum)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.float32(0)" in script or "T.float32(0.0)" in script
+
+
+def test_prod_zero_dim_axis_identity():
+    # fmt: off
+    @tvm.script.ir_module
+    class Prod:
+        @R.function
+        def main(x: R.Tensor((2, 0, 4), "float32")) -> R.Tensor((2, 4), "float32"):
+            gv: R.Tensor((2, 4), "float32") = R.prod(x, axis=[1], keepdims=False)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Prod)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.float32(1)" in script or "T.float32(1.0)" in script
+
+
+def test_prod_bool_zero_dim_axis_identity():
+    # fmt: off
+    @tvm.script.ir_module
+    class Prod:
+        @R.function
+        def main(x: R.Tensor((2, 0, 4), "bool")) -> R.Tensor((2, 4), "bool"):
+            gv: R.Tensor((2, 4), "bool") = R.prod(x, axis=[1], keepdims=False)
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Prod)
+    script = mod.script()
+    assert "T.axis.reduce" not in script
+    assert "T.bool(1)" in script or "T.bool(True)" in script
+
+
 def test_mean():
     # fmt: off
     @tvm.script.ir_module
@@ -732,7 +796,7 @@ def test_median():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tuple(R.Tensor((3, 4, 5), dtype="float32"), R.Tensor((3, 4, 5), dtype="int64")):
-            gv = R.call_tir(Expected.median, (x,), out_sinfo=[R.Tensor((3, 4, 5), dtype="float32"), R.Tensor((3, 4, 5), dtype="int64")])
+            gv = R.call_tir(Expected.median, (x,), out_ty=[R.Tensor((3, 4, 5), dtype="float32"), R.Tensor((3, 4, 5), dtype="int64")])
             return gv
 
         @T.prim_func(private=True, s_tir=True)
@@ -866,7 +930,7 @@ def test_std():
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.std, (x,), out_sinfo=R.Tensor((), dtype="float32"))
+            gv = R.call_tir(cls.std, (x,), out_ty=R.Tensor((), dtype="float32"))
             return gv
     # fmt: on
 
@@ -949,7 +1013,7 @@ def test_std_symbolic():
             c = T.int64()
             d = T.int64()
             cls = Expected
-            gv = R.call_tir(cls.std, (x,), out_sinfo=R.Tensor((), dtype="float32"))
+            gv = R.call_tir(cls.std, (x,), out_ty=R.Tensor((), dtype="float32"))
             return gv
     # fmt: on
 
@@ -1171,7 +1235,7 @@ def test_variance_no_keepdims():
         @R.function
         def main(x: R.Tensor((2, 3, 4, 5), dtype="float32")) -> R.Tensor((3, 4), dtype="float32"):
             cls = Expected
-            gv = R.call_tir(cls.variance, (x,), out_sinfo=R.Tensor((3, 4), dtype="float32"))
+            gv = R.call_tir(cls.variance, (x,), out_ty=R.Tensor((3, 4), dtype="float32"))
             return gv
     # fmt: on
 

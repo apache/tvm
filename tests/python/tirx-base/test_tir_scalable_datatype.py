@@ -32,15 +32,18 @@ def test_create_scalable_data_type_python_api():
     assert str(dtype) == "float32xvscalex4"
 
 
+# LLVM 20 renamed llvm.experimental.stepvector to llvm.stepvector and dropped
+# the old name from the intrinsic table:
+# https://releases.llvm.org/20.1.0/docs/ReleaseNotes.html
 _STEPVECTOR_NAME = (
-    "llvm.stepvector" if llvm_version_major() >= 18 else "llvm.experimental.stepvector"
+    "llvm.stepvector" if llvm_version_major() >= 20 else "llvm.experimental.stepvector"
 )
 
 
 @pytest.mark.skipif(llvm_version_major() < 13, reason="Stepvector intrinsic was added in LLVM 13.")
 def test_create_scalable_tir_intrin():
     intrin = tirx.call_llvm_intrin("int32xvscalex4", _STEPVECTOR_NAME)
-    assert intrin.dtype == "int32xvscalex4"
+    assert intrin.ty.dtype == "int32xvscalex4"
     assert str(intrin) == f'T.call_llvm_intrin("int32xvscalex4", "{_STEPVECTOR_NAME}")'
 
 

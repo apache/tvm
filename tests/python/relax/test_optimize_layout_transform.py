@@ -73,7 +73,7 @@ def test_optimize_transform_layout_pass_one_arg():
                 lv2 = R.call_tir(
                     Before.relax_add_replacement,
                     (lv, lv1),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv0: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv2, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
@@ -87,7 +87,7 @@ def test_optimize_transform_layout_pass_one_arg():
                 lv5 = R.call_tir(
                     Before.relax_add_replacement,
                     (lv4, lv3),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv2_1: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv5, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
@@ -127,12 +127,12 @@ def test_optimize_transform_layout_pass_one_arg():
                 lv2 = R.call_tir(
                     Expected.relax_add_replacement,
                     (lv, lv1),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv5 = R.call_tir(
                     Expected.relax_add_replacement,
                     (lv1, lv2),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 gv: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv5, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
@@ -180,12 +180,12 @@ def test_optimize_transform_layout_pass_two_args():
                 lv3 = R.call_tir(
                     Before.relax_add_replacement,
                     (lv, lv1),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv4 = R.call_tir(
                     Before.relax_add_replacement,
                     (lv, lv2),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv5: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv3, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
@@ -202,7 +202,7 @@ def test_optimize_transform_layout_pass_two_args():
                 lv9 = R.call_tir(
                     Before.relax_add_replacement,
                     (lv7, lv8),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv10: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv9, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
@@ -247,17 +247,17 @@ def test_optimize_transform_layout_pass_two_args():
                 lv3 = R.call_tir(
                     Expected.relax_add_replacement,
                     (lv, lv1),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv4 = R.call_tir(
                     Expected.relax_add_replacement,
                     (lv, lv2),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 lv5 = R.call_tir(
                     Expected.relax_add_replacement,
                     (lv3, lv4),
-                    out_sinfo=R.Tensor((4, 4), dtype="float32"),
+                    out_ty=R.Tensor((4, 4), dtype="float32"),
                 )
                 gv: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv5, index_map=lambda axis0, axis1: (axis0 * 4 + axis1,), pad_value=None
@@ -311,7 +311,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                 lv1 = R.call_tir(
                     Before.relax_relu_replacement,
                     (lv,),
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                 )
                 lv2: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv1,
@@ -320,7 +320,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     axis_separators=[],
                 )
                 lv_1 = R.call_tir(
-                    Before.remove_pad, (lv2,), out_sinfo=R.Tensor((14,), dtype="float32")
+                    Before.remove_pad, (lv2,), out_ty=R.Tensor((14,), dtype="float32")
                 )
                 lv3: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv_1,
@@ -331,7 +331,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                 lv4 = R.call_tir(
                     Before.relax_relu_replacement,
                     (lv3,),
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                 )
                 lv5: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv4,
@@ -340,7 +340,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     axis_separators=[],
                 )
                 lv_2 = R.call_tir(
-                    Before.remove_pad, (lv5,), out_sinfo=R.Tensor((14,), dtype="float32")
+                    Before.remove_pad, (lv5,), out_ty=R.Tensor((14,), dtype="float32")
                 )
                 gv: R.Tensor((14,), dtype="float32") = lv_2
                 R.output(gv)
@@ -388,12 +388,12 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                 lv1 = R.call_tir(
                     Expected.relax_relu_replacement,
                     (lv,),
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                 )
                 lv4 = R.call_tir(
                     Expected.relax_relu_replacement,
                     (lv1,),
-                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    out_ty=R.Tensor((16,), dtype="float32"),
                 )
                 lv5: R.Tensor((16,), dtype="float32") = R.layout_transform(
                     lv4,
@@ -402,7 +402,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     axis_separators=[],
                 )
                 gv = R.call_tir(
-                    Expected.remove_pad, (lv5,), out_sinfo=R.Tensor((14,), dtype="float32")
+                    Expected.remove_pad, (lv5,), out_ty=R.Tensor((14,), dtype="float32")
                 )
                 R.output(gv)
             return gv

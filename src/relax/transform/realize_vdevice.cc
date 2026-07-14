@@ -59,7 +59,7 @@ class VDeviceLookup {
     int32_t device_id = attrs->index;
     ffi::String memory_scope = attrs->memory_scope;
 
-    TVM_FFI_CHECK(opt_vdevices_.defined(), ValueError)
+    TVM_FFI_CHECK(opt_vdevices_.has_value(), ValueError)
         << "The target VDevice in the GlobalInfos was not found.";
 
     auto vdevices = opt_vdevices_.value();
@@ -103,13 +103,12 @@ class DeviceHintCollector : ExprVisitor {
   void VisitExpr_(const FunctionNode* func) override {
     ExprVisitor::VisitExpr_(func);
 
-    std::function<void(Expr, StructInfo)> check_ret_sinfo = [this, &check_ret_sinfo](
-                                                                Expr expr, StructInfo sinfo) {
+    std::function<void(Expr, Type)> check_ret_ty = [this, &check_ret_ty](Expr expr, Type ty) {
       // If the function is annotated as returning a tensor on a
       // specific device, then that annotation may be propagated into
       // the returned variable.
-      if (auto tensor_info = sinfo.as<TensorStructInfoNode>();
-          tensor_info && tensor_info->vdevice.defined()) {
+      if (auto tensor_info = ty.as<TensorTypeNode>();
+          tensor_info && tensor_info->vdevice.has_value()) {
         if (auto opt_var = expr.as<Var>()) {
           auto var = opt_var.value();
           if (!known_vdevice_.count(var)) {
@@ -122,7 +121,7 @@ class DeviceHintCollector : ExprVisitor {
       // where some elements of the tuple are tensors that exist on a
       // specific device, then those annotations may be propagated
       // into the corresponding tensor annotations.
-      if (auto tuple_info = sinfo.as<TupleStructInfoNode>()) {
+      if (auto tuple_info = ty.as<TupleTypeNode>()) {
         // The returned tuple is not necessarily an in-line tuple.  In
         // order to find the variables that are bound to the
         // individual tuple elements, we may need to unwrap the
@@ -145,18 +144,17 @@ class DeviceHintCollector : ExprVisitor {
               << "but is annotated as returning a tuple with " << tuple_info->fields.size()
               << " elements";
           for (size_t i = 0; i < tuple->fields.size(); i++) {
-            check_ret_sinfo(tuple->fields[i], tuple_info->fields[i]);
+            check_ret_ty(tuple->fields[i], tuple_info->fields[i]);
           }
         }
       }
     };
 
-    check_ret_sinfo(func->body->body, func->ret_struct_info);
+    check_ret_ty(func->body->body, func->ret_ty);
   }
 
   void VisitVarDef(const Var& var) override {
-    if (auto tinfo = var->struct_info_.as<TensorStructInfoNode>();
-        tinfo && tinfo->vdevice.defined()) {
+    if (auto tinfo = var->ty.as<TensorTypeNode>(); tinfo && tinfo->vdevice.has_value()) {
       known_vdevice_.Set(var, tinfo->vdevice.value());
     }
     ExprVisitor::VisitVarDef(var);
@@ -169,7 +167,7 @@ class DeviceHintCollector : ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) override {
     ExprVisitor::VisitBinding_(binding, call);
-    if (call->op == hint_on_device_op_) {
+    if (call->op.same_as(hint_on_device_op_)) {
       auto vdevice = vdevice_lookup_(call->attrs);
       known_vdevice_.Set(binding->var, vdevice);
 
@@ -201,7 +199,7 @@ class DeviceHintCollector : ExprVisitor {
   // A map from Var to the VDevice they are known to occur on.  This
   // only contains variables whose location is explicitly known
   // (e.g. output of `R.hint_on_device`, variables with explicit
-  // `VDevice` in their struct info), and does not include variables
+  // `VDevice` in their type), and does not include variables
   // whose location is (e.g. input of `R.hint_on_device`).
   ffi::Map<Var, VDevice> known_vdevice_;
 
@@ -244,7 +242,7 @@ class VDeviceSetCollector : ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) override {
-    if (call->op != to_vdevice_op_ && call->op != hint_on_device_op_) {
+    if (!call->op.same_as(to_vdevice_op_) && !call->op.same_as(hint_on_device_op_)) {
       ExprVisitor::VisitExpr_(call);
     }
   }
@@ -324,16 +322,16 @@ ffi::Map<Var, VDevice> InferVDevice(IRModule mod) {
 }
 
 // Update the module to include the inferred VDevice annotations.
-class VDeviceStructInfoUpdater : ExprMutator {
+class VDeviceTypeUpdater : ExprMutator {
  public:
   static IRModule Apply(IRModule mod, ffi::Map<Var, VDevice> vdevice_map) {
-    VDeviceStructInfoUpdater mutator(VDeviceLookup(mod), vdevice_map);
+    VDeviceTypeUpdater mutator(VDeviceLookup(mod), vdevice_map);
 
     IRModule updates;
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {
-        auto updated = Downcast<Function>(mutator(func.value()));
+        auto updated = mutator(func.value()).as_or_throw<Function>();
         if (!updated.same_as(base_func)) {
           updates->Add(gvar, updated);
         }
@@ -348,26 +346,26 @@ class VDeviceStructInfoUpdater : ExprMutator {
   }
 
  private:
-  VDeviceStructInfoUpdater(VDeviceLookup vdevice_lookup, ffi::Map<Var, VDevice> vdevice_map)
+  VDeviceTypeUpdater(VDeviceLookup vdevice_lookup, ffi::Map<Var, VDevice> vdevice_map)
       : vdevice_lookup_(vdevice_lookup), vdevice_map_(vdevice_map) {}
 
   Var VisitVarDef(const Var& old_var) override {
     auto var = ExprMutator::VisitVarDef(old_var);
-    if (auto tinfo = var->struct_info_.as<TensorStructInfoNode>()) {
+    if (auto tinfo = var->ty.as<TensorTypeNode>()) {
       if (auto opt = vdevice_map_.Get(old_var)) {
         auto vdevice = opt.value();
-        TensorStructInfo new_sinfo = [&]() {
-          if (tinfo->shape.defined()) {
-            return TensorStructInfo(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span);
+        TensorType new_ty = [&]() {
+          if (tinfo->shape.has_value()) {
+            return TensorType(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span);
           } else {
-            return TensorStructInfo(tinfo->dtype, tinfo->ndim, vdevice, tinfo->span);
+            return TensorType(tinfo->dtype, tinfo->ndim, vdevice, tinfo->span);
           }
         }();
 
         if (var->IsInstance<DataflowVarNode>()) {
-          var = DataflowVar(var->vid, new_sinfo, var->span);
+          var = DataflowVar(var->name_hint, new_ty, var->span);
         } else {
-          var = Var(var->vid, new_sinfo, var->span);
+          var = Var(var->name_hint, new_ty, var->span);
         }
       }
     }
@@ -378,23 +376,23 @@ class VDeviceStructInfoUpdater : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* op) override {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    auto call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
-    if (call->op != hint_on_device_op_) {
+    if (!call->op.same_as(hint_on_device_op_)) {
       return call;
     }
 
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     auto arg = call->args[0];
-    auto input_vdevice = Downcast<TensorStructInfo>(arg->struct_info_)->vdevice;
+    auto input_vdevice = arg->ty.as_or_throw<TensorType>()->vdevice;
     auto output_vdevice = vdevice_lookup_(call->attrs);
 
-    if (input_vdevice.defined() && input_vdevice.value() == output_vdevice) {
+    if (input_vdevice.has_value() && input_vdevice.value() == output_vdevice) {
       return arg;
     } else {
       ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
       attrs->dst_vdevice = output_vdevice;
-      return Call(to_vdevice_op_, {arg}, Attrs(attrs), {});
+      return Call(Type::Missing(), to_vdevice_op_, {arg}, Attrs(attrs), {});
     }
   }
 
@@ -410,7 +408,7 @@ namespace transform {
 Pass RealizeVDevice() {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     auto known_vdevices = InferVDevice(mod);
-    return VDeviceStructInfoUpdater::Apply(mod, known_vdevices);
+    return VDeviceTypeUpdater::Apply(mod, known_vdevices);
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,

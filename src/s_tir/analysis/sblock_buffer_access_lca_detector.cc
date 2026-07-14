@@ -65,7 +65,7 @@ class LCADetector : public StmtExprVisitor {
     for (const auto& kv : detector.buffer_lca_) {
       const Buffer& buffer = ffi::GetRef<Buffer>(kv.first);
       const ffi::Optional<Stmt> stmt =
-          kv.second ? ffi::GetRef<ffi::Optional<Stmt>>(kv.second->stmt) : std::nullopt;
+          kv.second ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(kv.second->stmt)) : std::nullopt;
       buffer_lca.Set(buffer, stmt);
     }
     return buffer_lca;
@@ -93,7 +93,7 @@ class LCADetector : public StmtExprVisitor {
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
 
-    if (op->thread_binding.defined()) {
+    if (op->thread_binding.has_value()) {
       const runtime::ThreadScope& scope =
           runtime::ThreadScope::Create(op->thread_binding.value()->thread_tag);
       if (scope.rank == 0) {

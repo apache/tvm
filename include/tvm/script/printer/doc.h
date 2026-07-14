@@ -19,10 +19,11 @@
 #ifndef TVM_SCRIPT_PRINTER_DOC_H_
 #define TVM_SCRIPT_PRINTER_DOC_H_
 
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/data_type.h>
+#include <tvm/ir/type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/script/printer/config.h>
 
@@ -277,7 +278,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Int(int64_t v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(IntImm(DataType::Int(64), v), p);
+    return LiteralDoc(IntImm::Int64(v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent boolean.
@@ -285,7 +286,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Boolean(bool v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(IntImm(DataType::Bool(), v), p);
+    return LiteralDoc(IntImm::Bool(v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent float.
@@ -293,7 +294,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc Float(double v, const ffi::Optional<AccessPath>& p) {
-    return LiteralDoc(FloatImm(DataType::Float(64), v), p);
+    return LiteralDoc(FloatImm(PrimType::Float(64), v), p);
   }
   /*!
    * \brief Create a LiteralDoc to represent string.
@@ -308,8 +309,9 @@ class LiteralDoc : public ExprDoc {
    * \param v The string value.
    * \param p The object path
    */
-  static LiteralDoc DataType(const runtime::DataType& v, const ffi::Optional<AccessPath>& p) {
-    std::string dtype = v.is_void() ? "void" : ffi::DLDataTypeToString(v);
+  static LiteralDoc DataType(DLDataType v, const ffi::Optional<AccessPath>& p) {
+    std::string dtype =
+        v == DLDataType{kDLOpaqueHandle, 0, 0} ? "void" : ffi::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
   }
   /*!
@@ -324,6 +326,40 @@ class LiteralDoc : public ExprDoc {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LiteralDoc, ExprDoc, LiteralDocNode);
+};
+
+/*!
+ * \brief Doc that renders an expression as a Python string literal.
+ *
+ * \sa ExprStringDoc
+ */
+class ExprStringDocNode : public ExprDocNode {
+ public:
+  /*! \brief The expression to render as a string. */
+  ExprDoc value{ffi::UnsafeInit()};
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExprStringDocNode>().def_ro("value", &ExprStringDocNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ExprStringDoc", ExprStringDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of ExprStringDocNode.
+ *
+ * \sa ExprStringDocNode
+ */
+class ExprStringDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of ExprStringDoc.
+   * \param value The expression to render as a string.
+   * \param object_path The object path.
+   */
+  explicit ExprStringDoc(ExprDoc value, const ffi::Optional<AccessPath>& object_path);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprStringDoc, ExprDoc, ExprStringDocNode);
 };
 
 /*!

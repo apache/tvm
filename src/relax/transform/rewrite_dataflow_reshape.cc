@@ -78,7 +78,7 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op != call_tir_op) {
+    if (!call->op.same_as(call_tir_op)) {
       return ffi::GetRef<Call>(call);
     }
 
@@ -86,8 +86,9 @@ class DataflowReshapeRewriter : public ExprMutator {
     // relax.reshape op, which will be lowered to calls of the ExternFunc
     // vm.builtin.reshape in the VMBuiltinLower pass.
 
-    auto prim_fn = Downcast<tirx::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
-    auto arg_tuple = Downcast<Tuple>(call->args[1])->fields;
+    auto prim_fn =
+        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::PrimFunc>();
+    auto arg_tuple = call->args[1].as_or_throw<Tuple>()->fields;
     auto used_tensor_arg_indices = GetUsedTensorArgIndices(prim_fn, arg_tuple.size());
 
     // The number of inputs to call_tir(reshape, (...)) might not be one, since FuseOps
@@ -104,12 +105,12 @@ class DataflowReshapeRewriter : public ExprMutator {
       return ffi::GetRef<Call>(call);
     }
 
-    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
-    return reshape(arg, res_sinfo->shape.value());
+    TensorType res_ty = call->ty.as_or_throw<TensorType>();
+    return reshape(arg, res_ty->shape.value());
   }
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
-    const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
+    const GlobalVar& global_var = call->args[0].as_or_throw<GlobalVar>();
     const auto* func = mod_->functions.Get(global_var).value().as<tirx::PrimFuncNode>();
     TVM_FFI_ICHECK_NOTNULL(func);
     if (!HasReshapePattern(ffi::GetRef<tirx::PrimFunc>(func))) {
@@ -120,15 +121,15 @@ class DataflowReshapeRewriter : public ExprMutator {
     // as the number of elements in the result. There are operators that could have a reshape
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
-    TVM_FFI_ICHECK(inp->struct_info_.defined() && call->struct_info_.defined());
-    TensorStructInfo inp_sinfo = Downcast<TensorStructInfo>(inp->struct_info_.value());
-    TensorStructInfo res_sinfo = Downcast<TensorStructInfo>(call->struct_info_.value());
+    TVM_FFI_ICHECK(!inp->ty.IsMissing() && !call->ty.IsMissing());
+    TensorType inp_ty = inp->ty.as_or_throw<TensorType>();
+    TensorType res_ty = call->ty.as_or_throw<TensorType>();
 
-    if (inp_sinfo->IsUnknownDtype() || inp_sinfo->dtype != res_sinfo->dtype) {
+    if (inp_ty->IsUnknownDtype() || inp_ty->dtype != res_ty->dtype) {
       return false;
     }
-    TVM_FFI_ICHECK(inp_sinfo->shape.defined() && res_sinfo->shape.defined());
-    if (inp_sinfo->IsUnknownNdim() || res_sinfo->IsUnknownNdim()) {
+    TVM_FFI_ICHECK(inp_ty->shape.has_value() && res_ty->shape.has_value());
+    if (inp_ty->IsUnknownNdim() || res_ty->IsUnknownNdim()) {
       return false;
     }
     auto product = [](ffi::Array<PrimExpr> args) -> PrimExpr {
@@ -142,8 +143,8 @@ class DataflowReshapeRewriter : public ExprMutator {
       for (int i = 1, e = args.size(); i < e; ++i) p *= args[i];
       return p;
     };
-    auto inp_count = product(inp_sinfo->GetShape().value());
-    auto res_count = product(res_sinfo->GetShape().value());
+    auto inp_count = product(inp_ty->GetShape().value());
+    auto res_count = product(res_ty->GetShape().value());
     if (!arith::Analyzer()->CanProveEqual(inp_count, res_count)) {
       return false;
     }
@@ -162,7 +163,7 @@ namespace transform {
 
 Pass RewriteDataflowReshape() {
   auto pass_func = [=](Function f, IRModule m, PassContext pc) {
-    return Downcast<Function>(RewriteDataflowReshape(f, m));
+    return RewriteDataflowReshape(f, m).as_or_throw<Function>();
   };
   return CreateFunctionPass(pass_func, 0, "RewriteDataflowReshape", {});
 }

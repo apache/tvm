@@ -66,8 +66,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterSplitExpr::IterSplitExpr(IterMark source) {
   auto n = ffi::make_object<IterSplitExprNode>();
-  auto one = make_const(source->source->dtype, 1);
-  n->dtype = source->source->dtype;
+  auto one = MakeConst(source->source.ty(), 1);
+  n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->extent = n->source->extent;
   n->lower_factor = one;
@@ -77,8 +77,8 @@ IterSplitExpr::IterSplitExpr(IterMark source) {
 
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) {
   auto n = ffi::make_object<IterSplitExprNode>();
-  auto one = make_const(source->source->dtype, 1);
-  n->dtype = source->source->dtype;
+  auto one = MakeConst(source->source.ty(), 1);
+  n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->extent = n->source->extent;
   n->lower_factor = one;
@@ -89,7 +89,7 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) {
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
                              PrimExpr scale) {
   auto n = ffi::make_object<IterSplitExprNode>();
-  n->dtype = source->source->dtype;
+  n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
   n->lower_factor = std::move(lower_factor);
   n->extent = std::move(extent);
@@ -109,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterSumExpr::IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base) {
   auto n = ffi::make_object<IterSumExprNode>();
-  n->dtype = base->dtype;
+  n->ExprNode::ty = base.ty();
   n->args = std::move(args);
   n->base = std::move(base);
   data_ = std::move(n);
@@ -180,18 +180,18 @@ class IterMapRewriter : public ExprMutator {
       : analyzer_(analyzer),
         check_level_(check_level),
         errors_(*errors),
-        padding_predicate_(const_false()) {
+        padding_predicate_(IntImm::Bool(false)) {
     for (auto kv : input_iters) {
       const Var& var = kv.first;
       const Range& vrng = kv.second;
       if (simplify_trivial_iterators && is_one(vrng->extent)) {
         var_map_[var] = IterSumExpr({}, vrng->min);
       } else if (is_zero(vrng->min)) {
-        IterMark mark(var, vrng->extent);
+        IterMark mark(var.as_or_throw<PrimExpr>(), vrng->extent);
         var_map_[var] = IterSplitExpr(mark);
         input_marks_.push_back(mark);
       } else {
-        IterMark mark(var - vrng->min, vrng->extent);
+        IterMark mark(var.as_or_throw<PrimExpr>() - vrng->min, vrng->extent);
         IterSumExpr sum_expr = ToIterSumExpr(IterSplitExpr(mark));
         sum_expr.CopyOnWrite()->base = vrng->min;
         var_map_[var] = sum_expr;
@@ -313,8 +313,8 @@ class IterMapRewriter : public ExprMutator {
   }
 
   // override the original mutate function.
-  PrimExpr VisitExpr(const PrimExpr& input_expr) final {
-    auto expr = ExprMutator::VisitExpr(input_expr);
+  Expr VisitExpr(const Expr& input_expr) final {
+    Expr expr = ExprMutator::VisitExpr(input_expr);
     if (expr->IsInstance<IterMapExprNode>()) {
       ErrorLogger(this) << "IterMapExpr or subclasses should only result from calls in "
                         << "IterMapRewriter using DirectMutate.  "
@@ -325,14 +325,16 @@ class IterMapRewriter : public ExprMutator {
   }
 
   // Normal mutation without normalization.
-  PrimExpr DirectMutate(const PrimExpr& expr) { return ExprMutator::VisitExpr(expr); }
+  PrimExpr DirectMutate(const PrimExpr& expr) {
+    return ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
+  }
 
-  PrimExpr VisitExpr_(const VarNode* op) final;
-  PrimExpr VisitExpr_(const AddNode* op) final;
-  PrimExpr VisitExpr_(const SubNode* op) final;
-  PrimExpr VisitExpr_(const MulNode* op) final;
-  PrimExpr VisitExpr_(const FloorDivNode* op) final;
-  PrimExpr VisitExpr_(const FloorModNode* op) final;
+  Expr VisitExpr_(const VarNode* op) final;
+  Expr VisitExpr_(const AddNode* op) final;
+  Expr VisitExpr_(const SubNode* op) final;
+  Expr VisitExpr_(const MulNode* op) final;
+  Expr VisitExpr_(const FloorDivNode* op) final;
+  Expr VisitExpr_(const FloorModNode* op) final;
 
  private:
   /* \brief Preprocessing common to both FloorDiv and FloorMod
@@ -563,7 +565,7 @@ class IterMapRewriter : public ExprMutator {
                                                IterMapLevel check_level) {
     std::vector<bool> used(splits.size(), false);
     std::vector<IterSplitExpr> iters;
-    PrimExpr expected_lower_factor = make_const(mark->source->dtype, 1);
+    PrimExpr expected_lower_factor = IntImm(mark->source.ty(), 1);
 
     for (size_t i = 0; i < splits.size(); ++i) {
       size_t j = 0;
@@ -671,17 +673,17 @@ class IterMapRewriter : public ExprMutator {
     PrimExpr base = expr->base;
     if (!is_zero(base)) {
       expr.CopyOnWrite()->base = 0;
-      if (predicate_induced_min.defined())
+      if (predicate_induced_min.has_value())
         predicate_induced_min = predicate_induced_min.value() - base;
-      if (predicate_induced_max.defined())
+      if (predicate_induced_max.has_value())
         predicate_induced_max = predicate_induced_max.value() - base;
     }
     ffi::Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, false);
-    TVM_FFI_ICHECK(!opt.defined() || opt.value()->args.size() == 1);
+    TVM_FFI_ICHECK(!opt.has_value() || opt.value()->args.size() == 1);
     // scale should be 1
-    if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
+    if (opt.has_value() && is_one(opt.value()->args[0]->scale)) {
       const IterSplitExpr split = opt.value()->args[0];
-      IterSumExpr structured_form = Downcast<IterSumExpr>(split->source->source);
+      IterSumExpr structured_form = split->source->source.as_or_throw<IterSumExpr>();
       // get the flattened form
       auto it = flattened_map_.find(structured_form);
       TVM_FFI_ICHECK(it != flattened_map_.end());
@@ -694,12 +696,12 @@ class IterMapRewriter : public ExprMutator {
       PrimExpr iter_min = mark_offset;
       PrimExpr iter_max = iter_min + mark->extent;
       // the delta of iter_min when it is updated when the lower bound predicate is present
-      PrimExpr iter_min_delta = make_const(iter_min.dtype(), 0);
-      if (predicate_induced_min.defined()) {
+      PrimExpr iter_min_delta = IntImm(iter_min.ty(), 0);
+      if (predicate_induced_min.has_value()) {
         iter_min_delta = max(predicate_induced_min.value(), iter_min) - iter_min;
         iter_min = max(predicate_induced_min.value(), iter_min);
       }
-      if (predicate_induced_max.defined()) {
+      if (predicate_induced_max.has_value()) {
         // NOTE: important to do explicit prove here
         // because we have a domain knowledge that most predicates
         // tries to constraint the expression and we favor predicate_induced_max
@@ -747,7 +749,7 @@ class IterMapRewriter : public ExprMutator {
     // We are normalizing a regular iter
     if (expr->args.size() < 1) return expr;
     ffi::Optional<IterSumExpr> opt = TryFuseIters(expr, check_level_, true);
-    if (opt.defined()) {
+    if (opt.has_value()) {
       return opt.value();
     } else {
       ErrorLogger(this) << "Could not normalize iterators";
@@ -788,7 +790,7 @@ class IterMapRewriter : public ExprMutator {
     for (IterSplitExpr split : expr->args) {
       int64_t symbol_prod_count = 0;
       int64_t cscale = 1;
-      PrimExpr res = tirx::make_const(split.dtype(), 1);
+      PrimExpr res = IntImm(split.ty(), 1);
       auto fcollect = [&](PrimExpr val) {
         if (const auto* intimm = val.as<IntImmNode>()) {
           cscale *= intimm->value;
@@ -799,7 +801,7 @@ class IterMapRewriter : public ExprMutator {
       };
       UnpackReduction<tirx::MulNode>(split->scale, fcollect);
       if (cscale != 1) {
-        res = res * tirx::make_const(res.dtype(), cscale);
+        res = res * IntImm(res.ty(), cscale);
       }
       split.CopyOnWrite()->scale = res;
       items.emplace_back(Item{cscale, symbol_prod_count, split});
@@ -830,7 +832,7 @@ class IterMapRewriter : public ExprMutator {
     if (auto op = expr.as<IterSumExpr>()) {
       return op.value();
     } else if (auto op = expr.as<IterSplitExpr>()) {
-      return IterSumExpr({op.value()}, make_zero(expr->dtype));
+      return IterSumExpr({op.value()}, IntImm(expr.ty(), 0));
     } else {
       TVM_FFI_ICHECK(!expr->IsInstance<IterMapExprNode>());
       return IterSumExpr({}, expr);
@@ -859,7 +861,7 @@ class IterMapRewriter : public ExprMutator {
 
     for (int i = rbegin; i >= 0; --i) {
       if (skip_flag[i]) continue;
-      if (match_source.defined() && !match_source.same_as(expr->args[i]->source)) continue;
+      if (match_source.has_value() && !match_source.same_as(expr->args[i]->source)) continue;
       if (const auto* op = expr->args[i]->scale.as<IntImmNode>()) {
         if (base_index == -1 || op->value < min_const_scale) {
           min_const_scale = op->value;
@@ -879,7 +881,7 @@ class IterMapRewriter : public ExprMutator {
     int min_reduce_size = 0;
     for (int i = rbegin; i >= 0; --i) {
       if (skip_flag[i]) continue;
-      if (match_source.defined() && !match_source.same_as(expr->args[i]->source)) continue;
+      if (match_source.has_value() && !match_source.same_as(expr->args[i]->source)) continue;
       int reduce_size = 0;
       auto fcollect = [&](const PrimExpr&) { ++reduce_size; };
       UnpackReduction<tirx::MulNode>(expr->args[i]->scale, fcollect);
@@ -927,7 +929,7 @@ class IterMapRewriter : public ExprMutator {
     // use reverse search, as smallest scale usually are near the end.
     for (int j = rbegin; j >= 0; --j) {
       if (skip_flag[j]) continue;
-      if (match_source.defined() && !match_source.same_as(expr->args[j]->source)) continue;
+      if (match_source.has_value() && !match_source.same_as(expr->args[j]->source)) continue;
       const PrimExpr& cur_scale = expr->args[j]->scale;
       // for bijective mapping, the matched scale must equal to expected scale
       if (analyzer_->CanProveEqual(cur_scale, expected_scale)) {
@@ -1103,8 +1105,8 @@ class IterMapRewriter : public ExprMutator {
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
 
     // check if it can be remapped into a fused pattern.
-    PrimExpr expected_extra_base = make_const(expr.dtype(), 0);
-    PrimExpr tail_extent = make_const(expr.dtype(), 0);
+    PrimExpr expected_extra_base = IntImm(expr.ty(), 0);
+    PrimExpr tail_extent = IntImm(expr.ty(), 0);
     PrimExpr expected_scale = base_scale;
     int first_possible_unit_extent_pos = FindFirstPossibleUnitExtentIndex(expr);
 
@@ -1200,10 +1202,10 @@ class IterMapRewriter : public ExprMutator {
     IterSumExpr structured_form = expr, flattened_form = expr;
     flattened_form.CopyOnWrite()->args =
         ffi::Array<IterSplitExpr>(flattened_iters.rbegin(), flattened_iters.rend());
-    flattened_form.CopyOnWrite()->base = make_const(expr.dtype(), 0);
+    flattened_form.CopyOnWrite()->base = IntImm(expr.ty(), 0);
     structured_form.CopyOnWrite()->args =
         ffi::Array<IterSplitExpr>(grouped_iters.rbegin(), grouped_iters.rend());
-    structured_form.CopyOnWrite()->base = make_const(expr.dtype(), 0);
+    structured_form.CopyOnWrite()->base = IntImm(expr.ty(), 0);
     auto it = sum_fuse_map_.find(flattened_form);
     if (it != sum_fuse_map_.end()) {
       // old iter
@@ -1245,7 +1247,7 @@ class IterMapRewriter : public ExprMutator {
     if (sign > 0) {
       lhs->args.push_back(rhs);
     } else {
-      rhs.CopyOnWrite()->scale = make_zero(rhs->scale.dtype()) - rhs->scale;
+      rhs.CopyOnWrite()->scale = IntImm(rhs->scale.ty(), 0) - rhs->scale;
       lhs->args.push_back(rhs);
     }
   }
@@ -1332,8 +1334,10 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
     PrimExpr lhs_expr = lhs.Eval();
     PrimExpr rhs_expr = rhs.Eval();
     // we only accept predicate of integers
-    if (!((lhs_expr->dtype.is_int() || lhs_expr->dtype.is_uint()) &&
-          (rhs_expr->dtype.is_int() || rhs_expr->dtype.is_uint()))) {
+    PrimType lhs_ty = lhs_expr.ty();
+    PrimType rhs_ty = rhs_expr.ty();
+    if (!(lhs_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+          rhs_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))) {
       return false;
     }
     // determine iter and bound, if we can not distinguish them simply,
@@ -1402,8 +1406,8 @@ bool MatchBoundConstraints(PrimExpr pred, ffi::Map<Var, Range>* input_iters,
         if (it != input_iters->end()) {
           PrimExpr iter_min = (*it).second->min;
           PrimExpr iter_max = (*it).second->min + (*it).second->extent;
-          if (lower_bound.defined()) iter_min = max(iter_min, lower_bound.value());
-          if (upper_bound.defined()) iter_max = min(iter_max, upper_bound.value());
+          if (lower_bound.has_value()) iter_min = max(iter_min, lower_bound.value());
+          if (upper_bound.has_value()) iter_max = min(iter_max, upper_bound.value());
           input_iters->Set(var, Range(iter_min, iter_max));
         }
       } else {
@@ -1555,15 +1559,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
+Expr IterMapRewriter::VisitExpr_(const VarNode* op) {
   auto var = ffi::GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) return it->second;
   return var;
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
-  if (!IsIndexType(op->dtype)) {
+Expr IterMapRewriter::VisitExpr_(const AddNode* op) {
+  if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
   PrimExpr a = this->DirectMutate(op->a);
@@ -1595,8 +1599,8 @@ PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
   return ret;
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
-  if (!IsIndexType(op->dtype)) {
+Expr IterMapRewriter::VisitExpr_(const SubNode* op) {
+  if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
 
@@ -1630,8 +1634,8 @@ PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
   return ret;
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
-  if (!IsIndexType(op->dtype)) {
+Expr IterMapRewriter::VisitExpr_(const MulNode* op) {
+  if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
   // normalize
@@ -1662,13 +1666,13 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
   }
 
   if (a->IsInstance<IterSumExprNode>()) {
-    IterSumExpr ret = Downcast<IterSumExpr>(std::move(a));
+    IterSumExpr ret = std::move(a).as_or_throw<IterSumExpr>();
     MulToLhs(ret.CopyOnWrite(), b);
     return ret;
 
   } else {
     TVM_FFI_ICHECK(a->IsInstance<IterSplitExprNode>());
-    IterSplitExpr ret = Downcast<IterSplitExpr>(std::move(a));
+    IterSplitExpr ret = std::move(a).as_or_throw<IterSplitExpr>();
     ret.CopyOnWrite()->scale *= b;
     return ret;
   }
@@ -1676,10 +1680,10 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
 
 IterSumExpr IterMapRewriter::PreprocessDividend(IterMapExpr dividend, PrimExpr original_dividend) {
   if (dividend->IsInstance<IterSplitExprNode>()) {
-    auto split = Downcast<IterSplitExpr>(dividend);
-    return IterSumExpr({split}, make_zero(split.dtype()));
+    auto split = dividend.as_or_throw<IterSplitExpr>();
+    return IterSumExpr({split}, IntImm(split.ty(), 0));
   } else if (dividend->IsInstance<IterSumExprNode>()) {
-    auto sum = Downcast<IterSumExpr>(dividend);
+    auto sum = dividend.as_or_throw<IterSumExpr>();
     if (sum->args.empty()) {
       return IterSumExpr();
     } else if (sum->args.size() == 1) {
@@ -1715,7 +1719,7 @@ PrimExpr ApproxLeastCommonMultiple(const PrimExpr& a, const PrimExpr& b, Analyze
   };
   auto p1 = fsplit(a);
   auto p2 = fsplit(b);
-  auto const_lcm = IntImm(DataType::Int(32), LeastCommonMultiple(p1.second, p2.second));
+  auto const_lcm = IntImm::Int32(LeastCommonMultiple(p1.second, p2.second));
   if (analyzer->CanProveEqual(p1.first, p2.first)) {
     return p1.first * const_lcm;
   } else if (analyzer->CanProveEqual(floormod(p1.first, p2.first), 0)) {
@@ -1880,12 +1884,12 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
     } else if (CanProveDivisible(rhs, lhs->scale) && is_zero(base)) {
       // floordiv(x*c1, c1*c2) = floordiv(x, c2), c2=rhs/scale
       rhs = floordiv(rhs, lhs->scale);
-      lhs.CopyOnWrite()->scale = make_const(rhs->dtype, 1);
+      lhs.CopyOnWrite()->scale = IntImm(rhs.ty(), 1);
     } else if (CanProveDivisible(rhs, lhs->scale) && CanProveDivisible(base, lhs->scale)) {
       // floordiv(x*c1 + y*c1, c1*c2) = floordiv(x+y, c2), c2=rhs/scale
       base = floordiv(base, lhs->scale);
       rhs = floordiv(rhs, lhs->scale);
-      lhs.CopyOnWrite()->scale = make_const(rhs->dtype, 1);
+      lhs.CopyOnWrite()->scale = IntImm(rhs.ty(), 1);
     } else {
       // mark as unresolved.
       ErrorLogger(this) << "Cannot represent as IterMap: the numerator's scaling factor, "
@@ -1931,7 +1935,7 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
     new_split = IterSplitExpr(IterMark(padded, padded->extent),
                               /* lower_factor = */ rhs,
                               /* extent = */ analyzer_->Simplify(ceildiv(padded->extent, rhs)),
-                              /* scale = */ make_const(rhs->dtype, 1));
+                              /* scale = */ IntImm(rhs.ty(), 1));
   }
 
   auto new_base = analyzer_->Simplify(floordiv(base - left_pad, rhs), 6);
@@ -1943,8 +1947,8 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   }
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
-  if (!IsIndexType(op->dtype)) {
+Expr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
+  if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
 
@@ -1970,7 +1974,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  IterSumExpr preprocessed = PreprocessDividend(Downcast<IterMapExpr>(a), op->a);
+  IterSumExpr preprocessed = PreprocessDividend(a.as_or_throw<IterMapExpr>(), op->a);
   if (!preprocessed.defined()) {
     return ffi::GetRef<PrimExpr>(op);
   }
@@ -1987,13 +1991,13 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
 
   if (is_one(rhs)) {
     // floormod(x, 1) = 0
-    return make_zero(lhs->dtype);
+    return IntImm(lhs.ty(), 0);
   }
 
   if (!is_one(lhs->scale)) {
     if (CanProveDivisible(lhs->scale, rhs) && CanProveDivisible(base, rhs)) {
       // floormod(x*c1*c2, c1) = 0
-      return make_zero(lhs->dtype);
+      return IntImm(lhs.ty(), 0);
     } else if (CanProveDivisible(rhs, lhs->scale) && is_zero(base)) {
       // floormod(x*c1, c1*c2) = (floormod(x, c2)) * c1, where c2 = rhs/scale
       rhs = floordiv(rhs, lhs->scale);
@@ -2027,8 +2031,8 @@ PrimExpr IterMapRewriter::SplitFloorModConst(IterSplitExpr lhs, PrimExpr base, P
                        /* scale = */ padded->scale);
 }
 
-PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
-  if (!IsIndexType(op->dtype)) {
+Expr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
+  if (!IsIndexTypedExpr(op)) {
     return Parent::VisitExpr_(op);
   }
 
@@ -2054,7 +2058,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
     return ffi::GetRef<PrimExpr>(op);
   }
 
-  IterSumExpr preprocessed = PreprocessDividend(Downcast<IterMapExpr>(a), op->a);
+  IterSumExpr preprocessed = PreprocessDividend(a.as_or_throw<IterMapExpr>(), op->a);
   if (!preprocessed.defined()) {
     return ffi::GetRef<PrimExpr>(op);
   }
@@ -2073,11 +2077,11 @@ class IterMapToExprNormalizer : public ExprMutator {
  public:
   explicit IterMapToExprNormalizer(AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
-  PrimExpr Convert(const PrimExpr& expr) { return VisitExpr(expr); }
+  PrimExpr Convert(const PrimExpr& expr) { return VisitExpr(expr).as_or_throw<PrimExpr>(); }
 
  private:
   /*! \brief Override VisitExpr for iter expr type processing */
-  PrimExpr VisitExpr(const PrimExpr& expr) override {
+  Expr VisitExpr(const Expr& expr) override {
     if (auto op = expr.as<IterSplitExpr>()) {
       return ConvertIterSplitExpr(op.value());
     } else if (auto op = expr.as<IterSumExpr>()) {
@@ -2099,11 +2103,11 @@ class IterMapToExprNormalizer : public ExprMutator {
   PrimExpr ConvertIterSplitExpr(const IterSplitExpr& expr) {
     PrimExpr source;
     if (auto opt = expr->source->source.as<Var>()) {
-      source = opt.value();
+      source = opt.value().as_or_throw<PrimExpr>();
     } else if (auto opt = expr->source->source.as<IterSumExpr>()) {
       source = ConvertIterSumExpr(opt.value());
     } else {
-      source = VisitExpr(expr->source->source);
+      source = VisitPrimExpr(expr->source->source);
     }
     if (analyzer_->CanProve(expr->extent == expr->source->extent) && is_one(expr->lower_factor)) {
       return source * expr->scale;
@@ -2113,7 +2117,7 @@ class IterMapToExprNormalizer : public ExprMutator {
       // simplify trivial iters like `vi \in [0, 1)`, which can be useful for subsequent analysis
       // like tensorization.
       if (is_one(expr->extent) && !is_one(expr->source->extent)) {
-        return make_const(expr->extent->dtype, 0);
+        return IntImm(expr->extent.ty(), 0);
       }
       return floordiv(source, expr->lower_factor) * expr->scale;
     } else {
@@ -2168,7 +2172,7 @@ ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
     // The input predicate may cause detect iter map to fail
     // but we can still detect the iter map without the input predicate
     // in which case the resulting iter map is valid and can be used for simplification.
-    rewrite = DetectIterMap(indices, input_iters, const_true(), check_level, ana,
+    rewrite = DetectIterMap(indices, input_iters, IntImm::Bool(true), check_level, ana,
                             /*simplify_trivial_iterators=*/simplify_trivial_iterators)
                   ->indices;
   }
@@ -2255,15 +2259,15 @@ class SubspaceDivider {
     IterSplitExpr GetInnerAsSplit() const { return GetAsSplit(inner, inner_extent); }
 
     static DivisionResult Inner(const IterMapExpr& iter, const PrimExpr& extent) {
-      auto dtype = iter.dtype();
-      return DivisionResult(IterSumExpr({}, make_const(dtype, 0)), make_const(dtype, 1), iter,
-                            extent, Kind::kInner);
+      PrimType dtype = iter.ty();
+      return DivisionResult(IterSumExpr({}, IntImm(dtype, 0)), IntImm(dtype, 1), iter, extent,
+                            Kind::kInner);
     }
 
     static DivisionResult Outer(const IterMapExpr& iter, const PrimExpr& extent) {
-      auto dtype = iter.dtype();
-      return DivisionResult(iter, extent, IterSumExpr({}, make_const(dtype, 0)),
-                            make_const(dtype, 1), Kind::kOuter);
+      PrimType dtype = iter.ty();
+      return DivisionResult(iter, extent, IterSumExpr({}, IntImm(dtype, 0)), IntImm(dtype, 1),
+                            Kind::kOuter);
     }
 
     // Special value to indicate the division is not possible
@@ -2285,11 +2289,11 @@ class SubspaceDivider {
 
   // Divide an IterSumExpr
   DivisionResult DivideIterSumExpr(const IterSumExpr& expr, const PrimExpr& mark_extent) {
-    auto dtype = expr.dtype();
+    PrimType dtype = expr.ty();
     if (expr->args.empty()) {
       // base
-      return DivisionResult(IterSumExpr({}, make_const(dtype, 0)), make_const(dtype, 1),
-                            IterSumExpr({}, expr->base), make_const(dtype, 1));
+      return DivisionResult(IterSumExpr({}, IntImm(dtype, 0)), IntImm(dtype, 1),
+                            IterSumExpr({}, expr->base), IntImm(dtype, 1));
     } else if (expr->args.size() == 1) {
       // arg + base, if arg=Y*E(X)+X, then arg+base = Y*E(X)+(X+base)
       if (!is_one(expr->args[0]->scale)) {
@@ -2303,7 +2307,7 @@ class SubspaceDivider {
     // arg1 + arg2 + ... + argn + base
     // then we can write it as Y*E(X)+X
     // if it starts with contiguous outer splits, followed by contiguous inner splits
-    PrimExpr extent = make_const(dtype, 1);
+    PrimExpr extent = IntImm(dtype, 1);
     std::vector<IterSplitExpr> outer_args, inner_args;
     bool inner = true, scale_is_one = false;
     // we check in inverse order so we can visit from inner to outer
@@ -2335,10 +2339,10 @@ class SubspaceDivider {
       return DivisionResult::Failure();
     }
     bool need_predicate = !analyzer_->CanProveEqual(extent, mark_extent);
-    const IterMark& outer_mark = MarkFromArgsAndBase(outer_args, make_const(dtype, 0));
+    const IterMark& outer_mark = MarkFromArgsAndBase(outer_args, IntImm(dtype, 0));
     const IterMark& inner_mark = MarkFromArgsAndBase(inner_args, expr->base);
-    IterSumExpr outer_source = Downcast<IterSumExpr>(outer_mark->source);
-    IterSumExpr inner_source = Downcast<IterSumExpr>(inner_mark->source);
+    IterSumExpr outer_source = outer_mark->source.as_or_throw<IterSumExpr>();
+    IterSumExpr inner_source = inner_mark->source.as_or_throw<IterSumExpr>();
     if (need_predicate) {
       // if we have a predicate on this sum expr, then we cannot divide it into Y*E+X
       // it should either be Y*1+0 or 0*E(X)+X
@@ -2377,7 +2381,7 @@ class SubspaceDivider {
   // args are sorted from inner to outer
   static IterMark MarkFromArgsAndBase(const std::vector<IterSplitExpr>& args, PrimExpr base) {
     std::vector<IterSplitExpr> res;
-    PrimExpr extent = make_const(base.dtype(), 1);
+    PrimExpr extent = IntImm(base.ty(), 1);
     for (const IterSplitExpr& it : args) {
       IterSplitExpr arg = it;
       arg.CopyOnWrite()->scale = extent;
@@ -2424,12 +2428,14 @@ class SubspaceDivider {
       if (splits.size() == 1) {
         return mark_division;
       }
-      IterMark outer_mark(Downcast<IterSumExpr>(mark_division.outer), mark_division.outer_extent);
-      IterMark inner_mark(Downcast<IterSumExpr>(mark_division.inner), mark_division.inner_extent);
+      IterMark outer_mark(mark_division.outer.as_or_throw<IterSumExpr>(),
+                          mark_division.outer_extent);
+      IterMark inner_mark(mark_division.inner.as_or_throw<IterSumExpr>(),
+                          mark_division.inner_extent);
       bool encountered_boundary = mark_division.IsOuter();
       std::vector<bool> used(splits.size(), false);
       std::vector<IterSplitExpr> inner_iters, outer_iters;
-      PrimExpr expected_lower_factor = make_const(expr->source->source->dtype, 1);
+      PrimExpr expected_lower_factor = IntImm(expr->source->source.ty(), 1);
       // find the boundary of outer and inner, like case 1 above
       for (size_t i = 0; i < splits.size(); ++i) {
         size_t j = 0;
@@ -2485,7 +2491,7 @@ class SubspaceDivider {
   std::unordered_map<IterSplitExpr, DivisionResult, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       split_map_;
   // predicate of outer space and inner space;
-  PrimExpr outer_preds_{const_true()}, inner_preds_{const_true()};
+  PrimExpr outer_preds_{IntImm::Bool(true)}, inner_preds_{IntImm::Bool(true)};
 };
 
 ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bindings,
@@ -2547,7 +2553,7 @@ class InverseAffineIterMapTransformer {
 
     // initialize back propagation accumulator
     for (const IterMapExprNode* node : post_dfs_order) {
-      backprop_.Set(ffi::GetRef<IterMapExpr>(node), IntImm(DataType::Int(32), 0));
+      backprop_.Set(ffi::GetRef<IterMapExpr>(node), IntImm::Int32(0));
     }
     for (size_t i = 0; i < iter_map.size(); i++) {
       backprop_.Set(iter_map[i], outputs[i]);
@@ -2556,10 +2562,10 @@ class InverseAffineIterMapTransformer {
     // run back propagation
     for (const IterMapExprNode* node : post_dfs_order) {
       if (node->IsInstance<IterSumExprNode>()) {
-        Visit_(Downcast<IterSumExpr>(ffi::GetRef<IterMapExpr>(node)));
+        Visit_(ffi::GetRef<IterMapExpr>(node).as_or_throw<IterSumExpr>());
       } else {
         TVM_FFI_ICHECK(node->IsInstance<IterSplitExprNode>());
-        Visit_(Downcast<IterSplitExpr>(ffi::GetRef<IterMapExpr>(node)));
+        Visit_(ffi::GetRef<IterMapExpr>(node).as_or_throw<IterSplitExpr>());
       }
     }
     return std::move(inverse_);
@@ -2629,10 +2635,10 @@ class InverseAffineIterMapTransformer {
     PrimExpr input = backprop_.at(iter_map_expr) * iter_map_expr->lower_factor;
     const IterMark& source = iter_map_expr->source;
     if (source->source.as<IterSumExprNode>()) {
-      IterSumExpr source_expr = Downcast<IterSumExpr>(source->source);
+      IterSumExpr source_expr = source->source.as_or_throw<IterSumExpr>();
       backprop_.Set(source_expr, backprop_.at(source_expr) + input);
     } else {
-      Var source_var = Downcast<Var>(source->source);
+      Var source_var = source->source.as_or_throw<Var>();
       if (inverse_.count(source_var)) {
         inverse_.Set(source_var, inverse_.at(source_var) + input);
       } else {

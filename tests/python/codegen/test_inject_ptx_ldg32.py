@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 @T.prim_func(s_tir=True)
@@ -38,7 +40,8 @@ def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> No
             B[tx] = A_local[tx] + 1.0
 
 
-@tvm.testing.requires_cuda
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_inject_ptx_intrin():
     f = vector_add
     arch = tvm.support.nvcc.get_target_compute_version()
@@ -50,11 +53,6 @@ def test_inject_ptx_intrin():
         mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(16).astype("float32")
     B_np = np.zeros(32).astype("float32")
-    dev = tvm.cuda(0)
-    A_nd = tvm.runtime.tensor(A_np, device=dev)
-    B_nd = tvm.runtime.tensor(B_np, device=dev)
-    mod(A_nd, B_nd)
-
     C_np = np.zeros(32).astype("float32")
 
     for i in range(32):
@@ -62,7 +60,14 @@ def test_inject_ptx_intrin():
             C_np[i] = A_np[i // 2]
         C_np[i] += 1.0
 
-    tvm.testing.assert_allclose(B_nd.numpy(), C_np)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_nd = tvm.runtime.tensor(A_np, device=dev)
+        B_nd = tvm.runtime.tensor(B_np, device=dev)
+        mod(A_nd, B_nd)
+        tvm.testing.assert_allclose(B_nd.numpy(), C_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

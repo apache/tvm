@@ -51,11 +51,11 @@ ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr>
   return array;
 }
 
-Buffer decl_buffer(ffi::Array<PrimExpr> shape, DataType dtype, ffi::String name,
+Buffer decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
                    ffi::String storage_scope, ffi::Optional<ffi::Array<IntImm>> axis_separators,
                    Span span) {
-  DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
-  return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
+  PrimType storage_type = (dtype == PrimType::Bool() ? PrimType::Int(8) : dtype);
+  return Buffer(Var(name, PointerType(storage_type, storage_scope), span), dtype, shape,
                 ffi::Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault,
                 axis_separators.value_or(ffi::Array<IntImm>()), span, std::nullopt,
                 ffi::Array<PrimExpr>());
@@ -322,20 +322,20 @@ ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices, 
 }
 
 inline ffi::Array<PrimExpr> BufferOffset(const BufferNode* n, ffi::Array<PrimExpr> index,
-                                         DataType dtype) {
+                                         PrimType dtype) {
   ffi::Array<PrimExpr> offsets = n->ElemOffset(index);
   // If the Buffer has element type with more than one lane, scale to
   // get the offset in number of scalars.
-  if (n->dtype.lanes() != 1) {
+  if (PrimType(n->dtype).lanes() != 1) {
     PrimExpr last_offset = offsets[offsets.size() - 1];
-    offsets.Set(offsets.size() - 1, last_offset * make_const(last_offset.dtype(), dtype.lanes()));
+    offsets.Set(offsets.size() - 1, last_offset * MakeConst(last_offset.ty(), dtype.lanes()));
   }
 
   // If the requested type has more than one lane, make a RampNode at
   // that offset.
   if (dtype.lanes() != 1) {
     PrimExpr last_offset = offsets[offsets.size() - 1];
-    PrimExpr stride = make_const(last_offset.dtype(), 1);
+    PrimExpr stride = MakeConst(last_offset.ty(), 1);
     offsets.Set(offsets.size() - 1, tirx::Ramp(last_offset, stride, dtype.lanes()));
   }
 
@@ -404,8 +404,7 @@ Buffer Buffer::GetFlattenedBuffer() const {
   // The axis_separators for the output buffer.
   ffi::Array<IntImm> output_axis_separators;
   for (size_t i = 0; i < self->axis_separators.size(); i++) {
-    auto dtype = self->axis_separators[i]->dtype;
-    output_axis_separators.push_back(IntImm(dtype, i + 1));
+    output_axis_separators.push_back(IntImm(self->axis_separators[i].ty(), i + 1));
   }
 
   if (output_shape.size() == self->shape.size() && self->strides.empty()) {
@@ -427,20 +426,25 @@ Buffer Buffer::GetFlattenedBuffer() const {
   }
 }
 
-PrimExpr Buffer::vload(ffi::Array<PrimExpr> begin, DataType value_dtype,
+PrimExpr Buffer::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype,
                        ffi::Optional<PrimExpr> predicate) const {
-  // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
-  TVM_FFI_ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-                 value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
+  PrimType buffer_dtype(n->dtype);
+  int value_lanes =
+      value_dtype.IsScalableVector() ? value_dtype.VScaleFactor() : value_dtype.lanes();
+  int buffer_lanes =
+      buffer_dtype.IsScalableVector() ? buffer_dtype.VScaleFactor() : buffer_dtype.lanes();
+  TVM_FFI_ICHECK(value_dtype.WithLanes(1)->dtype == buffer_dtype.WithLanes(1)->dtype &&
+                 value_lanes % buffer_lanes == 0)
       << "Cannot load " << value_dtype << " from buffer of " << n->dtype;
 
   ffi::Array<PrimExpr> indices = begin;
   PrimExpr base = indices[indices.size() - 1];
-  if (value_dtype.is_fixed_length_vector()) {
-    int factor = value_dtype.lanes() / n->dtype.lanes();
-    if (factor > 1 && base.dtype().is_scalar()) {
+  if (value_dtype.IsFixedLengthVector()) {
+    int factor = value_dtype.lanes() / buffer_dtype.lanes();
+    PrimType base_ty = base.ty();
+    if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
       indices.Set(indices.size() - 1, Ramp(base, 1, factor));
     }
   }
@@ -449,19 +453,24 @@ PrimExpr Buffer::vload(ffi::Array<PrimExpr> begin, DataType value_dtype,
 
 Stmt Buffer::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
                     ffi::Optional<PrimExpr> predicate) const {
-  // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
-  DataType value_dtype = value.dtype();
-  TVM_FFI_ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-                 value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
+  PrimType value_dtype = value.ty();
+  PrimType buffer_dtype(n->dtype);
+  int value_lanes =
+      value_dtype.IsScalableVector() ? value_dtype.VScaleFactor() : value_dtype.lanes();
+  int buffer_lanes =
+      buffer_dtype.IsScalableVector() ? buffer_dtype.VScaleFactor() : buffer_dtype.lanes();
+  TVM_FFI_ICHECK(value_dtype.WithLanes(1)->dtype == buffer_dtype.WithLanes(1)->dtype &&
+                 value_lanes % buffer_lanes == 0)
       << "Cannot store " << value_dtype << " to buffer of " << n->dtype;
 
   ffi::Array<PrimExpr> indices = begin;
   PrimExpr base = indices[indices.size() - 1];
-  if (value_dtype.is_fixed_length_vector()) {
-    int factor = value_dtype.lanes() / n->dtype.lanes();
-    if (factor > 1 && base.dtype().is_scalar()) {
+  if (value_dtype.IsFixedLengthVector()) {
+    int factor = value_dtype.lanes() / buffer_dtype.lanes();
+    PrimType base_ty = base.ty();
+    if (factor > 1 && !base_ty.IsFixedLengthVector() && !base_ty.IsScalableVector()) {
       indices.Set(indices.size() - 1, Ramp(base, 1, factor));
     }
   }
@@ -469,7 +478,7 @@ Stmt Buffer::vstore(ffi::Array<PrimExpr> begin, PrimExpr value,
 }
 
 ffi::String Buffer::scope() const {
-  const auto* ptr_type = (*this)->data->type_annotation.as<PointerTypeNode>();
+  const auto* ptr_type = (*this)->data->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "Buffer variable is not of pointer type";
   if (ptr_type->storage_scope.empty()) {
     return "global";
@@ -484,7 +493,7 @@ Buffer Buffer::MakeStrideView() const {
   const BufferNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
   auto n = ffi::make_object<BufferNode>(*self);
-  PrimExpr acc = make_const(n->DefaultIndexType(), 1);
+  PrimExpr acc = IntImm(PrimType(n->DefaultIndexType()), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
     temp.push_back(acc);
     acc = acc * n->shape[i - 1];
@@ -537,47 +546,53 @@ Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> exten
   return slice;
 }
 
-PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes, PrimExpr offset,
-                            ffi::Optional<PrimExpr> input_extent) const {
+Expr Buffer::access_ptr(int access_mask, PointerType ptr_type, int content_lanes, PrimExpr offset,
+                        ffi::Optional<PrimExpr> input_extent) const {
   const BufferNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
+  const auto* data_pointer_type = self->data->ty.as<PointerTypeNode>();
+  TVM_FFI_ICHECK(data_pointer_type)
+      << "Buffer data must have PointerType, but got " << self->data->ty;
+  // An access pointer addresses the same allocation as the buffer data.  The
+  // requested type controls its pointee, while the buffer controls its address
+  // space (for example, shared or local memory).
+  ptr_type = PointerType(ptr_type->element_type, data_pointer_type->storage_scope);
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {
-    extent = make_const(self->DefaultIndexType(), 1);
+    extent = IntImm(PrimType(self->DefaultIndexType()), 1);
   } else if (self->strides.size() == self->shape.size()) {
     int highest_dim = 0;
     extent = self->strides[highest_dim] * self->shape[highest_dim] - offset;
   } else {
     extent = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                   make_const(DataType::Int(32), 1), self->shape) -
+                   IntImm::Int32(1), self->shape) -
              offset;
   }
   PrimExpr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
-    e_dtype = tirx::TypeAnnotation(self->dtype.with_lanes(content_lanes));
-    extent = extent / make_const(self->elem_offset.dtype(), content_lanes);
-    elem_offset = self->elem_offset / make_const(self->elem_offset.dtype(), content_lanes);
+    e_dtype = tirx::TypeAnnotation(PrimType(self->dtype).WithLanes(content_lanes));
+    extent = extent / MakeConst(self->elem_offset.ty(), content_lanes);
+    elem_offset = self->elem_offset / MakeConst(self->elem_offset.ty(), content_lanes);
   } else {
     e_dtype = tirx::TypeAnnotation(self->dtype);
   }
 
-  if (input_extent.defined()) {
+  if (input_extent.has_value()) {
     extent = input_extent.value();
   }
-  ffi::Array<PrimExpr> acc_args{e_dtype, self->data, elem_offset, extent,
-                                make_const(DataType::Int(32), access_mask)};
-  return tirx::Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
+  ffi::Array<Expr> acc_args{e_dtype, self->data, elem_offset, extent, IntImm::Int32(access_mask)};
+  return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
 }
 
-Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
+Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
                PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
                BufferType buffer_type, ffi::Array<IntImm> axis_separators, Span span,
                ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
-  DataType storage_dtype = dtype;
+  DLDataType storage_dtype = dtype->dtype;
   // specially handle bool
-  if (storage_dtype == DataType::Bool()) {
-    storage_dtype = DataType::Int(8);
+  if (storage_dtype == DLDataType{kDLBool, 8, 1}) {
+    storage_dtype = DLDataType{kDLInt, 8, 1};
   }
   // The buffer dtype may differ from the dtype of the underlying
   // allocation, such as a single allocation that backs multiple
@@ -588,11 +603,11 @@ Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   // TODO(Lunderberg): Use an explicit pointer cast for the data
   // pointer.  Should be done alongside extensions to StmtExprMutator
   // to more easily handle buffer/buffer_var updates.
-  TVM_FFI_ICHECK(data->type_annotation.defined())
+  TVM_FFI_ICHECK(!data->ty.IsMissing())
       << "Variable " << data->name_hint << " is missing a type annotation.";
-  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>())
+  TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>())
       << "Variable " << data->name_hint << " is not a pointer.";
-  TVM_FFI_ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
+  TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
       << "Variable " << data->name_hint << " does not point to a primitive.";
 
   ValidateAxisSeparators(axis_separators, shape.size());
@@ -606,7 +621,7 @@ Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   n->axis_separators = std::move(axis_separators);
   n->name = std::move(name);
   if (!elem_offset.defined()) {
-    elem_offset = make_const(n->DefaultIndexType(), 0);
+    elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
   }
   if (data_alignment <= 0) {
     data_alignment = runtime::kAllocAlignment;
@@ -620,7 +635,7 @@ Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   n->buffer_type = buffer_type;
   if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
     for (size_t i = 0; i < n->shape.size(); ++i) {
-      n->strides.push_back(Var("stride", n->shape[i].dtype()));
+      n->strides.push_back(PrimVar("stride", n->shape[i].ty()));
     }
   }
   n->span = std::move(span);
@@ -633,11 +648,11 @@ Buffer::Buffer(Var data, DataType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   data_ = std::move(n);
 }
 
-tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtype, std::string name,
+tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype, std::string name,
                                        int data_alignment, int offset_factor, bool compact,
                                        std::string memory_scope) {
-  DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
-  auto data = tirx::Var(name, PointerType(PrimType(storage_dtype), memory_scope));
+  PrimType storage_type = (dtype == PrimType::Bool() ? PrimType::Int(8) : dtype);
+  auto data = tirx::Var(name, PointerType(storage_type, memory_scope));
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
@@ -651,7 +666,7 @@ tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, DataType dtyp
 
   PrimExpr elem_offset;
   if (offset_factor != 0) {
-    elem_offset = tirx::Var(name + "_elem_offset", shape[0].dtype());
+    elem_offset = tirx::PrimVar(name + "_elem_offset", shape[0].ty());
   } else {
     elem_offset = PrimExpr();
   }
@@ -667,7 +682,7 @@ Buffer Buffer::with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const {
   return output;
 }
 
-Buffer Buffer::with_dtype(DataType dtype) const {
+Buffer Buffer::with_dtype(PrimType dtype) const {
   Buffer output = *this;
   auto writer = output.CopyOnWrite();
   writer->dtype = dtype;
@@ -682,8 +697,8 @@ Buffer Buffer::with_data(Var data) const {
 }
 
 PrimExpr Buffer::OffsetOf_p(const Array<PrimExpr>& indices) const {
-  return tirx::Call(DataType::Int(32), tirx::builtin::buffer_offset(),
-                    {BufferLoad(*this, indices)});
+  return Call(PrimType::Int(32), tirx::builtin::buffer_offset(), {BufferLoad(*this, indices)})
+      .as_or_throw<PrimExpr>();
 }
 
 bool Buffer::IsScalar(bool alloc_or_decl) const {
@@ -705,7 +720,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     auto buffer_type = args[8].cast<ffi::String>();
                     BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
                     auto data = args[0].cast<Var>();
-                    auto dtype = args[1].cast<DataType>();
+                    auto dtype = args[1].cast<PrimType>();
                     auto shape = args[2].cast<ffi::Array<PrimExpr>>();
                     auto strides = args[3].cast<ffi::Array<PrimExpr>>();
                     auto elem_offset = args[4].cast<PrimExpr>();
@@ -718,11 +733,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment,
                                   offset_factor, type, axis_separators, span, layout);
                   })
-      .def_method("tirx.BufferAccessPtr", &Buffer::access_ptr)
+      .def_method("tirx.BufferAccessPtr",
+                  static_cast<Expr (Buffer::*)(int, PointerType, int, PrimExpr,
+                                               ffi::Optional<PrimExpr>) const>(&Buffer::access_ptr))
       .def_method("tirx.BufferGetFlattenedBuffer", &Buffer::GetFlattenedBuffer)
       .def_method("tirx.BufferOffsetOf", &Buffer::OffsetOf)
       .def_method("tirx.BufferOffsetOfp", &Buffer::OffsetOf_p)
-      .def_method("tirx.BufferVLoad", &Buffer::vload)
+      .def_method("tirx.BufferVLoad",
+                  static_cast<PrimExpr (Buffer::*)(ffi::Array<PrimExpr>, PrimType,
+                                                   ffi::Optional<PrimExpr>) const>(&Buffer::vload))
       .def_method("tirx.BufferVStore", &Buffer::vstore)
       .def_method("tirx.BufferStorageScope", &Buffer::scope)
       .def_method("tirx.BufferWithAllocatedAddr", &Buffer::with_allocated_addr)

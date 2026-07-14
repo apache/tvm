@@ -96,7 +96,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
     if (inst->kind.same_as(inst_sample_compute_location)) {
       // Step 1. Extract the instruction input and the old decision.
       TVM_FFI_ICHECK_EQ(inputs.size(), 1);
-      tirx::StmtSRef block_sref = sch->GetSRef(Downcast<s_tir::SBlockRV>(inputs[0]));
+      tirx::StmtSRef block_sref = sch->GetSRef(inputs[0].as_or_throw<s_tir::SBlockRV>());
       // SampleComputeLocation decision is Optional<int64_t> after the
       // Integer phase-out.
       int old_decision = decision.cast<int64_t>();

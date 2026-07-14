@@ -64,10 +64,10 @@ namespace arith {
  *  the result of IterMapDetection.
  *  It should not appear in a legal TIR PrimFunc.
  */
-class IterMapExprNode : public PrimExprNode {
+class IterMapExprNode : public ExprNode {
  public:
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_FFI_DECLARE_OBJECT_INFO("arith.IterMapExpr", IterMapExprNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("arith.IterMapExpr", IterMapExprNode, ExprNode);
 };
 
 /*!
@@ -77,6 +77,7 @@ class IterMapExprNode : public PrimExprNode {
 class IterMapExpr : public PrimExpr {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMapExpr, PrimExpr, IterMapExprNode);
+  static constexpr bool _type_container_is_exact = true;
 };
 
 /*!
@@ -224,6 +225,17 @@ class IterSumExpr : public IterMapExpr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterSumExpr, IterMapExpr, IterSumExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSumExprNode);
 };
+
+}  // namespace arith
+
+namespace ffi {
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, arith::IterSplitExprNode> = true;
+template <>
+inline constexpr bool object_ref_contains_v<PrimExpr, arith::IterSumExprNode> = true;
+}  // namespace ffi
+
+namespace arith {
 
 /*! \brief Mapping level for iterators. */
 enum IterMapLevel {

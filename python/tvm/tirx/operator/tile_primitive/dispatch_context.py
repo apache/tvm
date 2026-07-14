@@ -37,7 +37,7 @@ class DispatchContext(Object, Scriptable):
     exec_scope : ExecScope
         The execution scope of the dispatch context.
 
-    launch_params : Dict[str, PrimExpr]
+    launch_params : Dict[str, Expr]
         The launch parameters of the dispatch context.
 
     var_range_map : Dict[Var, Range]
@@ -168,6 +168,10 @@ class DispatchContext(Object, Scriptable):
     def is_trn(self) -> bool:
         """Check if the target is Trainium."""
         return self.target.kind.name == "trn"
+
+    def is_target(self, name: str) -> bool:
+        """Check if the target kind matches ``name``."""
+        return self.target.kind.name == name
 
     # -- scope predicates ----------------------------------------------------
     #

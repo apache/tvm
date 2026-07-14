@@ -172,19 +172,22 @@ def verify_func_4(module):
     tvm.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
 
 
-class TestPrimFuncs:
-    func, params, verify = tvm.testing.parameters(
-        [func_1, ("A"), verify_func_1],
-        [func_2, ("C", "D"), verify_func_2],
-        [func_3, ("C", "A", "D", "E"), verify_func_3],
-        [func_4, ("C", "A", "D", "E"), verify_func_4],
-    )
+_primfunc_cases = [
+    [func_1, ("A"), verify_func_1],
+    [func_2, ("C", "D"), verify_func_2],
+    [func_3, ("C", "A", "D", "E"), verify_func_3],
+    [func_4, ("C", "A", "D", "E"), verify_func_4],
+]
 
+
+class TestPrimFuncs:
+    @pytest.mark.parametrize("func,verify", [(case[0], case[2]) for case in _primfunc_cases])
     def test_primfunc_call(self, func, verify):
         target = tvm.target.Target("llvm")
         func = tvm.compile(func, target=target)
         verify(func)
 
+    @pytest.mark.parametrize("func,params,verify", _primfunc_cases)
     def test_te_extern_call(self, func, params, verify):
         ir_mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
         prim_func = ir_mod["main"]

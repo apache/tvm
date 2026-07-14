@@ -33,7 +33,7 @@
 #include <unordered_map>
 
 #include "../../../arith/ir_visitor_with_analyzer.h"
-#include "../../../runtime/opencl/texture.h"
+#include "../../../backend/opencl/runtime/texture.h"
 #include "../../../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -58,7 +58,7 @@ class TextureLoweringBase : public StmtExprMutator {
 
   inline PrimExpr SimplifyOffset(const ffi::Array<PrimExpr>& shape,
                                  const ffi::Array<PrimExpr>& index) const {
-    PrimExpr base = make_const(DataType::Int(32), 0);
+    PrimExpr base = IntImm::Int32(0);
     TVM_FFI_ICHECK_EQ(shape.size(), index.size());
     if (index.size() > 0) {
       PrimExpr offset = index[0];
@@ -72,7 +72,7 @@ class TextureLoweringBase : public StmtExprMutator {
 
  protected:
   std::string GetStorageScope(const Buffer& buffer) {
-    auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+    auto* ptr = buffer->data->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
@@ -98,23 +98,23 @@ class TextureFlattener : public TextureLoweringBase {
     std::string storage_scope = GetStorageScope(op->buffer);
     // Lower to two dimensional access
     if (IsTextureStorage(storage_scope)) {
-      ffi::Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
+      ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
-      stmt = Evaluate(Call(args[0]->dtype, builtin::texture2d_store(), args));
+      stmt = Evaluate(Call(args[0]->ty, builtin::texture2d_store(), args));
     }
 
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<BufferLoadNode>();
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(op->buffer);
     if (IsTextureStorage(storage_scope)) {
-      ffi::Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
+      ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->indices.back());
-      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args);
+      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args).as_or_throw<PrimExpr>();
     }
 
     return expr;
@@ -122,8 +122,8 @@ class TextureFlattener : public TextureLoweringBase {
 
  protected:
   template <typename T>
-  ffi::Array<PrimExpr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
-    ffi::Array<PrimExpr> args;
+  ffi::Array<Expr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
+    ffi::Array<Expr> args;
     if (let_binding_.count(op->buffer->data)) {
       args.push_back(let_binding_[op->buffer->data]);
     } else {
@@ -147,7 +147,7 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
     PrimExpr channel_size = IntImm(
-        DataType::Int(32, 1), *tirx::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
+        PrimType::Int(32, 1), *tirx::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);

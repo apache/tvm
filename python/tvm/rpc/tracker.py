@@ -62,7 +62,6 @@ except ImportError as error_msg:
         f"RPCTracker module requires tornado package {error_msg}. Try 'pip install tornado'."
     )
 
-from ..base import py_str
 from . import base
 from .base import RPC_TRACKER_MAGIC, TrackerCode
 
@@ -242,7 +241,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
                 else:
                     return
             if self._msg_size != 0 and len(self._data) >= self._msg_size:
-                msg = py_str(bytes(self._data[: self._msg_size]))
+                msg = (bytes(self._data[: self._msg_size])).decode("utf-8")
                 del self._data[: self._msg_size]
                 self._msg_size = 0
                 try:

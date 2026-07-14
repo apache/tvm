@@ -80,7 +80,7 @@ class PurityChecker : TIRVisitorWithPath {
       if (assert_on_error_) {
         TVM_FFI_THROW(AssertionError)
             << "Pure functions must not contain calls to impure operators, "
-            << "but " << ffi::GetRef<PrimExpr>(call) << " calls operator " << call->op
+            << "but " << ffi::GetRef<Call>(call) << " calls operator " << call->op
             << ", which has side effect " << effect;
       }
     }

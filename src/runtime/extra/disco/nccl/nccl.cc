@@ -122,8 +122,8 @@ void AllReduce(Tensor send, ReduceKind reduce_kind, bool in_group, Tensor recv) 
   ffi::Shape shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
-  DataType dtype = DataType(send->dtype);
-  if (dtype == DataType::Float8E4M3FN() || dtype == DataType::Float8E5M2()) {
+  DLDataType dtype = send->dtype;
+  if (dtype == DLDataType{kDLFloat8_e4m3fn, 8, 1} || dtype == DLDataType{kDLFloat8_e5m2, 8, 1}) {
     TVM_FFI_THROW(InternalError)
         << "Float8 data type cannot be allreduced, as nccl does not support this data type.";
   }
@@ -139,7 +139,7 @@ void AllGather(Tensor send, bool in_group, Tensor recv) {
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
+                          /*datatype=*/AsNCCLDataType(send->dtype),
                           in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
@@ -151,7 +151,7 @@ void BroadcastFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv
 
   const void* send_data = [&]() -> const void* {
     if (is_sender) {
-      TVM_FFI_ICHECK(send.defined());
+      TVM_FFI_ICHECK(send.has_value());
       TVM_FFI_ICHECK(send.value().Shape().Product() == recv.Shape().Product());
       return send.value()->data;
     } else {
@@ -162,7 +162,7 @@ void BroadcastFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv
 
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclBroadcast(send_data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(recv->dtype)),
+                          /*datatype=*/AsNCCLDataType(recv->dtype),
                           /*root=*/0, in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
@@ -176,7 +176,7 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) 
   int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
   if (is_sender) {
-    TVM_FFI_CHECK(send.defined(), ValueError)
+    TVM_FFI_CHECK(send.has_value(), ValueError)
         << "buffer `send` must be provided when worker_id == 0.";
     Tensor buffer = send.value();
     int64_t numel = buffer.Shape().Product();
@@ -185,9 +185,9 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) 
            "of elements in the buffer to be "
            "divisible by the number of workers, but got numel = "
         << numel << " and " << num_receiver << " workers.";
-    DataType dtype(buffer->dtype);
+    DLDataType dtype = buffer->dtype;
     int64_t numel_per_shard = numel / num_receiver;
-    int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
+    int64_t bytes_per_shard = numel_per_shard * ((dtype.bits * dtype.lanes + 7) / 8);
     TVM_FFI_CHECK_EQ(numel_per_shard, recv.Shape().Product(), ValueError)
         << "The number of elements in buffer `recv` must be the same as each shard "
            "of "
@@ -201,15 +201,15 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) 
       data += bytes_per_shard;
     }
   } else {
-    if (send.defined()) {
+    if (send.has_value()) {
       LOG(WARNING) << "ValueError: buffer `send` must be None when (worker_id != 0 && !in_group) "
                       "or (worker_id % group_size != 0 && in_group). However, got send = "
-                   << send.get() << ". This will be ignored.";
+                   << send.value().GetDLTensorPtr() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = recv.Shape().Product();
-  DataType dtype(recv->dtype);
+  DLDataType dtype = recv->dtype;
   NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0,
                      in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
@@ -225,7 +225,7 @@ void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
   int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
   if (is_sender) {
-    TVM_FFI_CHECK(recv.defined(), ValueError)
+    TVM_FFI_CHECK(recv.has_value(), ValueError)
         << "buffer `recv` must be provided when worker_id == 0.";
     Tensor buffer = recv.value();
     int64_t numel = buffer.Shape().Product();
@@ -234,9 +234,9 @@ void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
            "of elements in the buffer to be "
            "divisible by the number of workers, but got numel = "
         << numel << " and " << num_receiver << " workers.";
-    DataType dtype(buffer->dtype);
+    DLDataType dtype = buffer->dtype;
     int64_t numel_per_shard = numel / num_receiver;
-    int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
+    int64_t bytes_per_shard = numel_per_shard * ((dtype.bits * dtype.lanes + 7) / 8);
     TVM_FFI_CHECK_EQ(numel_per_shard, send.Shape().Product(), ValueError)
         << "The number of elements in buffer `send` must be the same as each shard "
            "of "
@@ -250,15 +250,15 @@ void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
       data += bytes_per_shard;
     }
   } else {
-    if (recv.defined()) {
+    if (recv.has_value()) {
       LOG(WARNING) << "ValueError: buffer `recv` must be None when (worker_id != 0 && !in_group) "
                       "or (worker_id % group_size != 0 && in_group). However, got recv = "
-                   << recv.get() << ". This will be ignored.";
+                   << recv.value().GetDLTensorPtr() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = send.Shape().Product();
-  DataType dtype(send->dtype);
+  DLDataType dtype = send->dtype;
   NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0,
                      in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());

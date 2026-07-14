@@ -196,7 +196,13 @@ ComputationsDoneBy::ComputationsDoneBy(
 /*!
  * \brief The method which overrides the generic dispatcher of StmtExprVisitor for expressions
  */
-void ComputationsDoneBy::VisitExpr(const PrimExpr& expr) {
+void ComputationsDoneBy::VisitExpr(const Expr& expr_value) {
+  auto opt_expr = expr_value.as<PrimExpr>();
+  if (!opt_expr) {
+    StmtExprVisitor::VisitExpr(expr_value);
+    return;
+  }
+  PrimExpr expr = opt_expr.value();
   if (expr.as<IntImmNode>() != nullptr || expr.as<FloatImmNode>() != nullptr ||
       expr.as<StringImmNode>() != nullptr || expr.as<VarNode>() != nullptr) {
     return;
@@ -357,7 +363,8 @@ DirectSubexpr::DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_co
 /*!
  * \brief The method which overrides the generic dispatcher of ExprVisitor
  */
-void DirectSubexpr::VisitExpr(const PrimExpr& expr) {
+void DirectSubexpr::VisitExpr(const Expr& expr_value) {
+  PrimExpr expr = expr_value.as_or_throw<PrimExpr>();
   if (entered_) {
     if (is_eligible_computation_(expr)) {
       direct_subexpr_.push_back(expr);

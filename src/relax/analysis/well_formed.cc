@@ -26,8 +26,8 @@
  * with the offending node so the caller can resolve a precise access path.
  * Use `check_well_formed` for a boolean answer.
  * This pass will check:
- *    1. Each Expr should have `struct_info_` field already populated, when
- *      `check_struct_info` is true.
+ *    1. Each Expr should have `ty` field already populated, when
+ *      `check_ty` is true.
  *    2. GlobalVars are defined before use. And all GlobalVars have different names.
  *    3. When a Function has a corresponding GlobalVar and a `global_symbol`
  *       attribute, the name of the GlobalVar must equal the value of the
@@ -57,12 +57,12 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    13. Expr always has struct_info_ (with the exception of Op).
+ *    13. Expr always has ty (with the exception of Op).
  *    14. DataflowBlocks may not contain If nodes.
  *    15. DataflowBlocks may not contain calls to impure functions or operators
- *        (only checked if check_struct_info is true).
+ *        (only checked if check_ty is true).
  *    16. If a function has is_pure set to true and the kForcePure attribute is not set,
- *        the body may not contain any impure call (only checked if check_struct_info is true).
+ *        the body may not contain any impure call (only checked if check_ty is true).
  *    17. If the kForcePure attribute is set for a function,
  *        that function's is_pure field must be true.
  */
@@ -73,7 +73,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relax/struct_info_functor.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
@@ -91,15 +91,14 @@ namespace relax {
 //
 /*! \brief Helper to implement well formed check.*/
 class WellFormedChecker : public relax::ExprVisitor,
-                          public relax::StructInfoVisitor,
+                          public relax::TypeVisitor,
                           public tirx::ExprVisitor {
  public:
   // Throws ffi::Error on the first well-formedness violation, seeded with the
   // offending node so the caller can resolve an access path. Returns normally
   // when the object is well-formed.
-  static void Check(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
-    WellFormedChecker well_formed_checker =
-        WellFormedChecker(obj.as<IRModule>(), check_struct_info);
+  static void Check(ffi::Variant<IRModule, Function> obj, bool check_ty) {
+    WellFormedChecker well_formed_checker = WellFormedChecker(obj.as<IRModule>(), check_ty);
 
     if (const auto* mod = obj.as<IRModuleNode>()) {
       for (const auto& it : mod->functions) {
@@ -120,8 +119,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
  private:
-  WellFormedChecker(ffi::Optional<IRModule> mod, bool check_struct_info)
-      : mod_(std::move(mod)), check_struct_info_(check_struct_info), cur_visited_func_(nullptr) {}
+  WellFormedChecker(ffi::Optional<IRModule> mod, bool check_ty)
+      : mod_(std::move(mod)), check_ty(check_ty), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
   using tirx::ExprVisitor::VisitExpr;
@@ -163,15 +162,15 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && !expr->struct_info_.defined()) {
-      TVM_FFI_VISIT_THROW(TypeError, expr) << "The struct_info_ of Expr " << expr << " is nullptr.";
+    if (!expr.as<OpNode>() && expr->ty.IsMissing()) {
+      TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is nullptr.";
     }
     relax::ExprVisitor::VisitExpr(expr);
   }
 
   void VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = ffi::GetRef<GlobalVar>(op);
-    if (mod_.defined()) {
+    if (mod_.has_value()) {
       if (!(mod_.value()->ContainGlobalVar(var->name_hint) &&
             mod_.value()->GetGlobalVar(var->name_hint).same_as(var))) {
         TVM_FFI_VISIT_THROW(ValueError, var)
@@ -179,15 +178,14 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (op->struct_info_.defined()) {
-      if (!op->struct_info_->IsInstance<FuncStructInfoNode>()) {
+    if (!op->ty.IsMissing()) {
+      if (!op->ty->IsInstance<FuncTypeNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
-            << "The struct_info_ of GlobalVar " << ffi::GetRef<Expr>(op)
-            << " must be either FuncStructInfo.";
+            << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncType.";
       }
     }
 
-    CheckStructInfo(op);
+    CheckType(op);
   }
 
   void VisitExpr_(const TupleNode* op) final {
@@ -202,7 +200,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    CheckStructInfo(op);
+    CheckType(op);
     TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
   }
 
@@ -213,7 +211,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
           << "The tuple value in a TupleGetItem node must be a leaf expression.";
     }
-    CheckStructInfo(op);
+    CheckType(op);
   }
 
   void VisitExpr_(const VarNode* op) final {
@@ -221,7 +219,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (var_set_.count(var) == 0 && recur_vars_.count(var) == 0) {
       TVM_FFI_VISIT_THROW(ValueError, var) << "Var " << ffi::GetRef<Expr>(op) << " is not defined.";
     }
-    CheckStructInfo(op);
+    CheckType(op);
   }
 
   void VisitExpr_(const DataflowVarNode* op) final {
@@ -234,7 +232,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       TVM_FFI_VISIT_THROW(ValueError, var)
           << "DataflowVar " << ffi::GetRef<Expr>(op) << " is not defined.";
     }
-    CheckStructInfo(op);
+    CheckType(op);
   }
 
   void VisitExpr_(const FunctionNode* op) final {
@@ -258,7 +256,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     WithMode(VisitMode::kMatchVarDef, [&]() {
       TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
       for (Var param : op->params) {
-        relax::StructInfoVisitor::VisitStructInfo(GetStructInfo(param));
+        relax::TypeVisitor::VisitType(GetType(param));
       }
     });
 
@@ -282,18 +280,16 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
       param_var_func_map_.insert({param, cur_visited_func_});
     }
-    // check function ret_struct_info
-    if (op->ret_struct_info.defined()) {
-      this->VisitStructInfo(op->ret_struct_info);
+    // check function ret_ty
+    if (!op->ret_ty.IsMissing()) {
+      this->VisitType(op->ret_ty);
     } else {
-      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
-          << "Function must have defined ret_struct_info";
+      TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op)) << "Function must have defined ret_ty";
     }
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
-    if (check_struct_info_ && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) &&
-        op->is_pure) {
+    if (check_ty && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && op->is_pure) {
       if (auto impure = FindImpureCall(op->body)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Expr>(op))
             << "Function " << op << " is annotated as pure but contains an impure call: " << impure
@@ -337,12 +333,12 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    for (const StructInfo& sinfo_arg : call->sinfo_args) {
-      this->VisitStructInfo(sinfo_arg);
+    for (const Type& ty_arg : call->ty_args) {
+      this->VisitType(ty_arg);
     }
 
-    CheckStructInfo(call);
-    if (is_dataflow_ && check_struct_info_) {
+    CheckType(call);
+    if (is_dataflow_ && check_ty) {
       if (auto impure = FindImpureCall(ffi::GetRef<Call>(call))) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "Impure function call " << impure << " occurs within a dataflow block.";
@@ -367,7 +363,7 @@ class WellFormedChecker : public relax::ExprVisitor,
             << "However, normalization of " << before_normalize << " resulted in the error: \n"
             << err.what();
       }
-      if (after_normalize && !before_normalize.same_as(after_normalize)) {
+      if (after_normalize && !after_normalize.same_as(before_normalize)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "If an operator defines an operator-specific normalization function (FNormalize), "
             << "calls to that operator must be normalized with it.  "
@@ -387,45 +383,48 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (check_struct_info_ && call->struct_info_.defined()) {
-      // The `InferStructInfo` method isn't currently exposed by the
+    bool has_infer_type = true;
+    if (auto op = call->op.as<Op>()) {
+      has_infer_type = op_map_infer_type_.count(op.value());
+    }
+    if (check_ty && !call->ty.IsMissing() && (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
+      // The `InferType` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
-      // an expression that does not yet have `StructInfo`.
+      // an expression that does not yet have `Type`.
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
-      Call copied(call->op, call->args, call->attrs, call->sinfo_args);
+      Call copied(Type::Missing(), call->op, call->args, call->attrs, call->ty_args);
       ffi::Optional<Expr> normalized = std::nullopt;
       try {
         normalized = dummy_builder->Normalize(copied);
       } catch (std::exception& err) {
         TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Call>(call))
-            << "Each Relax expression must be able to have its StructInfo inferred.  "
-            << "However, inferring the struct info of expression " << ffi::GetRef<Call>(call)
+            << "Each Relax expression must be able to have its Type inferred.  "
+            << "However, inferring the type of expression " << ffi::GetRef<Call>(call)
             << " resulted in the error: \n"
             << err.what();
       }
-      if (normalized.defined()) {
-        auto inferred_struct_info = GetStructInfo(normalized.value());
-        auto current_struct_info = Downcast<StructInfo>(call->struct_info_);
+      if (normalized.has_value()) {
+        auto inferred_ty = GetType(normalized.value());
+        auto current_ty = call->ty.as_or_throw<Type>();
 
-        // An error should be raised if the annotated StructInfo is
+        // An error should be raised if the annotated Type is
         // provably incorrect.  This check is done using
-        // `StructInfoBaseCheck(...) < kFailL1`, because `kFailL1`
+        // `TypeBaseCheck(...) < kFailL1`, because `kFailL1`
         // represents cases that are neither provably correct nor
         // provably incorrect.  If this check were replaced with
         // `!IsBaseOf(...)`, cases that are correct but not provably
         // so would raise an exception.
         //
-        // For example, if a dynamic size in the inferred StructInfo
+        // For example, if a dynamic size in the inferred Type
         // is equivalent to the expression used in the annotated
-        // StructInfo, but the TIR simplifications are not sufficient
+        // Type, but the TIR simplifications are not sufficient
         // to prove that the two expressions are equivalent, we should
         // not raise an error.
-        if (StructInfoBaseCheck(current_struct_info, inferred_struct_info) <
-            BaseCheckResult::kFailL1) {
+        if (TypeBaseCheck(current_ty, inferred_ty) < BaseCheckResult::kFailL1) {
           TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(call))
-              << "All information in StructInfo annotations must be correct.  "
+              << "All information in Type annotations must be correct.  "
               << "However, while the expression " << ffi::GetRef<Call>(call) << " is annotated as "
-              << current_struct_info << ", the expression outputs " << inferred_struct_info;
+              << current_ty << ", the expression outputs " << inferred_ty;
         }
       }
     }
@@ -454,7 +453,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     var_set_ = previous_var_set;
     symbolic_var_set_ = previous_symbolic_var_set;
 
-    CheckStructInfo(op);
+    CheckType(op);
     TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
   }
 
@@ -462,12 +461,12 @@ class WellFormedChecker : public relax::ExprVisitor,
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
       tirx::ExprVisitor::VisitExpr(expr);
-      if (!expr.dtype().is_int()) {
+      if (expr.ty().code() != DLDataTypeCode::kDLInt) {
         TVM_FFI_VISIT_THROW(TypeError, expr)
-            << "Shape expressions must be of integer type, but got " << expr.dtype();
+            << "Shape expressions must be of integer type, but got " << expr.ty()->dtype;
       }
     }
-    CheckStructInfo(op);
+    CheckType(op);
   }
 
   void VisitExpr_(const SeqExprNode* op) final {
@@ -488,7 +487,7 @@ class WellFormedChecker : public relax::ExprVisitor,
           << "SeqExpr bodies must be leaf expressions.";
     }
     this->VisitExpr(op->body);
-    CheckStructInfo(op);
+    CheckType(op);
     TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
   }
 
@@ -507,14 +506,13 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     this->VisitVarDef(binding->var);
 
-    if (check_struct_info_ && binding->var->struct_info_.defined() &&
-        binding->value->struct_info_.defined()) {
-      auto expr_sinfo = GetStructInfo(binding->value);
-      auto var_sinfo = GetStructInfo(binding->var);
-      if (!IsBaseOf(var_sinfo, expr_sinfo)) {
+    if (check_ty && !binding->var->ty.IsMissing() && !binding->value->ty.IsMissing()) {
+      auto expr_ty = GetType(binding->value);
+      auto var_ty = GetType(binding->var);
+      if (!IsBaseOf(var_ty, expr_ty)) {
         TVM_FFI_VISIT_THROW(TypeError, binding->var)
-            << "Expression of type " << expr_sinfo << " cannot be assigned to a variable of type "
-            << var_sinfo;
+            << "Expression of type " << expr_ty << " cannot be assigned to a variable of type "
+            << var_ty;
       }
     }
 
@@ -526,9 +524,9 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitBinding_(const MatchCastNode* binding) final {
     this->VisitExpr(binding->value);
     // define the vars
-    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitStructInfo(binding->struct_info); });
+    WithMode(VisitMode::kMatchVarDef, [&]() { this->VisitType(binding->ty); });
 
-    this->VisitStructInfo(binding->struct_info);
+    this->VisitType(binding->ty);
     this->VisitVarDef(binding->var);
   }
 
@@ -553,7 +551,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
     // register DataflowVar
     dataflow_var_set_.insert(lv);
-    CheckStructInfo(var);
+    CheckType(var);
   }
 
   void VisitVarDef_(const VarNode* var) final {
@@ -563,7 +561,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
     // register Var
     var_set_.insert(gv);
-    CheckStructInfo(var);
+    CheckType(var);
   }
 
   void VisitExpr_(const tirx::VarNode* op) final {
@@ -588,19 +586,19 @@ class WellFormedChecker : public relax::ExprVisitor,
     symbolic_var_func_map_.insert({var, cur_visited_func_});
   }
 
-  void VisitStructInfo_(const FuncStructInfoNode* op) final {
-    if (op->params.defined()) {
+  void VisitType_(const FuncTypeNode* op) final {
+    if (op->params.has_value()) {
       WithMode(VisitMode::kMatchVarDef, [&]() {
         TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
-        for (StructInfo param : op->params.value()) {
-          this->VisitStructInfo(param);
+        for (Type param : op->params.value()) {
+          this->VisitType(param);
         }
       });
     }
-    this->VisitStructInfo(op->ret);
+    this->VisitType(op->ret);
   }
 
-  void VisitStructInfoExprField(const Expr& expr) final {
+  void VisitTypeExprField(const Expr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
       // populate symbolic var in first occurrence
       if (auto* op = expr.as<relax::VarNode>()) {
@@ -611,7 +609,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
       if (auto* shape = expr.as<relax::ShapeExprNode>()) {
         for (auto val : shape->values) {
-          this->VisitStructInfoExprField(val);
+          this->VisitTypeExprField(val);
         }
       }
     } else {
@@ -619,7 +617,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
   }
 
-  void VisitStructInfoExprField(const PrimExpr& expr) final {
+  void VisitTypeExprField(const PrimExpr& expr) final {
     if (mode_ == VisitMode::kMatchVarDef) {
       // populate symbolic var in first occurrence
       if (auto* op = expr.as<tirx::VarNode>()) {
@@ -633,17 +631,16 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
   }
 
-  void CheckStructInfo(const ExprNode* op) {
-    if (!check_struct_info_) {
+  void CheckType(const ExprNode* op) {
+    if (!check_ty) {
       return;
     }
 
-    auto* sinfo = op->struct_info_.as<StructInfoNode>();
-    if (sinfo != nullptr) {
-      this->VisitStructInfo(ffi::GetRef<StructInfo>(sinfo));
+    if (auto* ty = op->ty.as<TypeNode>()) {
+      this->VisitType(ffi::GetRef<Type>(ty));
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op))
-          << "Expr must have struct_info populated. "
+          << "Expr must have ty populated. "
           << " Expr.type_key=" << op->GetTypeKey();
     }
   }
@@ -657,7 +654,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   ffi::Optional<IRModule> mod_;
-  const bool check_struct_info_;
+  const bool check_ty;
   bool is_dataflow_;
   // Current visited function.
   const FunctionNode* cur_visited_func_;
@@ -675,15 +672,16 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
   tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
+  tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
 };
 
-void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
-  WellFormedChecker::Check(obj, check_struct_info);
+void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {
+  WellFormedChecker::Check(obj, check_ty);
 }
 
-bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
+bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {
   try {
-    WellFormed(obj, check_struct_info);
+    WellFormed(obj, check_ty);
     return true;
   } catch (const ffi::Error&) {
     return false;
@@ -694,9 +692,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("relax.analysis.well_formed",
-           [](ffi::Variant<IRModule, Function> obj, bool check_struct_info) {
-             WellFormed(obj, check_struct_info);
-           })
+           [](ffi::Variant<IRModule, Function> obj, bool check_ty) { WellFormed(obj, check_ty); })
       .def("relax.analysis.check_well_formed", CheckWellFormed);
 }
 

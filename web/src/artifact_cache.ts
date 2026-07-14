@@ -111,6 +111,7 @@ interface CrossOriginStorageHandle {
 
 interface CrossOriginStorageRequestFileHandleOptions {
   create?: boolean;
+  origins?: string[] | string | undefined;
 }
 
 interface CrossOriginStorageWritable {
@@ -119,10 +120,10 @@ interface CrossOriginStorageWritable {
 }
 
 interface CrossOriginStorageAPI {
-  requestFileHandles(
-    descriptors: CrossOriginHashDescriptor[],
+  requestFileHandle(
+    descriptor: CrossOriginHashDescriptor,
     options?: CrossOriginStorageRequestFileHandleOptions,
-  ): Promise<CrossOriginStorageHandle[]>;
+  ): Promise<CrossOriginStorageHandle>;
 }
 
 declare global {
@@ -169,8 +170,7 @@ class CrossOriginStorage {
       if (!api) {
         return undefined;
       }
-      const handles = await api.requestFileHandles([hash]);
-      const handle = handles[0];
+      const handle = await api.requestFileHandle(hash);
       if (!handle) {
         return undefined;
       }
@@ -189,10 +189,9 @@ class CrossOriginStorage {
     if (!api) {
       throw new Error("Cross-origin storage API unavailable.");
     }
-    const handles = await api.requestFileHandles([hash], { create: true });
-    const handle = handles[0];
+    const handle = await api.requestFileHandle(hash, { create: true, origins: "*" /* All origins */ });
     if (!handle) {
-      throw new Error("Cross-origin storage API returned no handles.");
+      throw new Error("Cross-origin storage API returned no handle.");
     }
     const writableStream = await handle.createWritable();
     await writableStream.write(blob);
@@ -619,22 +618,29 @@ export class ArtifactOPFSCache implements ArtifactCacheTemplate {
     storetype?: string,
     signal?: AbortSignal,
   ): Promise<any> {
-    // TODO: Avoid duplicate OPFS record validation by trying cache reads first
+    // Try the cache first to avoid a redundant OPFS lookup on a hit.
+    const cached = await this.readFromCache(url, storetype);
+    if (cached !== undefined) {
+      return cached;
+    }
     await this.addToCache(url, storetype, signal);
-    return this.readFromCache(url, storetype);
+    const fetched = await this.readFromCache(url, storetype);
+    if (fetched === undefined) {
+      throw new Error("ArtifactOPFSCache failed to fetch: " + url);
+    }
+    return fetched;
   }
 
-  private async readFromCache(url: string, storetype?: string): Promise<any> {
+  private async readFromCache(
+    url: string,
+    storetype?: string,
+  ): Promise<any> {
     if (storetype?.toLowerCase() === "arraybuffer") {
-      const cachedData = await this.store.readArrayBuffer(url);
-      if (cachedData === undefined) {
-        throw new Error("ArtifactOPFSCache failed to fetch: " + url);
-      }
-      return cachedData;
+      return this.store.readArrayBuffer(url);
     }
     const cachedResponse = await this.store.read(url);
     if (cachedResponse === undefined) {
-      throw new Error("ArtifactOPFSCache failed to fetch: " + url);
+      return undefined;
     }
     return this.responseToStoreType(cachedResponse, storetype);
   }

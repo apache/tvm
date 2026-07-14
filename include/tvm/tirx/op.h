@@ -35,12 +35,11 @@
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/target_builtin/cuda.h>
-#include <tvm/tirx/target_builtin/trn.h>
 
 #include <algorithm>
 #include <limits>
 #include <type_traits>
+#include <utility>
 
 namespace tvm {
 
@@ -54,40 +53,30 @@ namespace tvm {
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
 //
-// We put more developer oriented APIs -- make_const and is_const under tirx
+// We put more developer oriented APIs -- MakeConst and is_const under tirx
 // as they are more specific to the tirx namespace.
 
 /*!
  * \brief Get the type of the expression under the unified type system.
  *
- * This function could return a more refined type than
- * the runtime type provided by expr->dtype
+ * This function could return a more refined type than the runtime dtype
+ * implied by PrimExpr::ty().
  *
  * \param expr The input parameter.
  * \return The result type.
  *
- * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ * \sa tvm/ir/type.h for discussion about the relation between Type and DLPack dtype.
  */
 TVM_DLL Type GetType(const PrimExpr& expr);
 
 /*!
- * \brief Get the type corresponding to DataType
- * \param dtype The data type
+ * \brief Get the type corresponding to a runtime DLPack dtype.
+ * \param dtype The runtime dtype.
  * \return The result type
  *
- * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ * \sa tvm/ir/type.h for discussion about the relation between Type and DLPack dtype.
  */
-TVM_DLL Type GetTypeFromRuntimeDataType(const DataType& dtype);
-
-/*!
- * \brief Get the implied DataType for storing values with type during runtime.
- *
- * \param type The input type.
- * \return The result runtime::DataType.
- *
- * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
- */
-TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
+TVM_DLL Type GetTypeFromRuntimeDataType(DLDataType dtype);
 
 /*!
  * \brief Return the value.
@@ -97,6 +86,7 @@ TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
  * \return The return expression.
  */
 TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
+TVM_DLL Expr ret(Expr value, Span span = Span());
 
 /*!
  * \brief Return from a thread.
@@ -122,27 +112,27 @@ TVM_DLL PrimExpr break_loop(Span span = Span());
 
 /*!
  * Query the maximum possible value of dtype.
- * \param dtype The data type.
+ * \param dtype The primitive type.
  * \param span The location of this operation in the source.
  * \return the maximum possible value in this format.
  */
-TVM_DLL PrimExpr max_value(const DataType& dtype, Span span = Span());
+TVM_DLL PrimExpr max_value(PrimType dtype, Span span = Span());
 
 /*!
  * Query the minimum possible value of dtype.
- * \param dtype The data type.
+ * \param dtype The primitive type.
  * \param span The location of this operation in the source.
  * \return the minimum possible value in this format.
  */
-TVM_DLL PrimExpr min_value(const DataType& dtype, Span span = Span());
+TVM_DLL PrimExpr min_value(PrimType dtype, Span span = Span());
 
 /*!
  * Get the value of infinity.
- * \param dtype The data type.
+ * \param dtype The primitive type.
  * \param span The location of this operation in the source.
  * \return the infinity value in this format.
  */
-TVM_DLL PrimExpr infinity(const DataType& dtype, Span span = Span());
+TVM_DLL PrimExpr infinity(PrimType dtype, Span span = Span());
 
 /*!
  * \brief cast value to type.
@@ -153,7 +143,7 @@ TVM_DLL PrimExpr infinity(const DataType& dtype, Span span = Span());
  * \return The result expression.
  * \note This function may return value if the type is the same.
  */
-TVM_DLL PrimExpr cast(const DataType& t, PrimExpr value, Span span = Span());
+TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Span span = Span());
 /*!
  * \brief perform reinterpret cast value to type.
  *
@@ -163,7 +153,9 @@ TVM_DLL PrimExpr cast(const DataType& t, PrimExpr value, Span span = Span());
  * \return The result expression.
  * \note This function may return value if the type is the same.
  */
-TVM_DLL PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span = Span());
+TVM_DLL PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span());
+/*! \brief Perform a reinterpret cast involving an exact primitive or pointer type. */
+TVM_DLL Expr reinterpret(Type target_ty, Expr value, Span span = Span());
 /*!
  * \brief add operator
  *
@@ -693,13 +685,13 @@ TVM_DLL PrimExpr trunc(PrimExpr x, Span span = Span());
 
 /*!
  * \brief Construct a large uint constant by its low 32 bits and high 32bits.
- * \param dtype The final data type.
+ * \param value_ty The final primitive type.
  * \param low The lower 32 bits.
  * \param high The higher 32 bits.
  * \param span The location of this operation in the source.
  * \return The constructed expression.
  */
-TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high, Span span = Span());
+TVM_DLL PrimExpr LargeUIntImm(PrimType value_ty, int64_t low, int64_t high, Span span = Span());
 
 /*!
  * \brief Execute a multiplication between two Q-numbers x and y
@@ -733,29 +725,35 @@ TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s
  */
 TVM_DLL PrimExpr fast_erf_float_expr(PrimExpr arg, int bits);
 
-inline void CheckMathUnaryOpInputDType(const char* op_name, DataType dtype) {
-  TVM_FFI_CHECK(dtype.is_float() || dtype.is_bfloat16(), TypeError)
+inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtype) {
+  TVM_FFI_CHECK(dtype.code() == DLDataTypeCode::kDLFloat ||
+                    dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16),
+                TypeError)
       << "tirx." << op_name << " only supports floating-point inputs, but got " << dtype;
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)         \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                   \
-    static const Op& op = Op::Get("tirx." #OpName);                          \
-    CheckInputDType(#OpName, x.dtype());                                     \
-    if (x.dtype().is_bfloat16()) {                                           \
-      DataType bf16_dtype = x.dtype();                                       \
-      DataType fp32_dtype(kDLFloat, 32, bf16_dtype.lanes());                 \
-      PrimExpr x_fp32 = tirx::Cast(fp32_dtype, {x}, span);                   \
-      PrimExpr result_fp32 = tirx::Call(fp32_dtype, op, {x_fp32}, {}, span); \
-      return tirx::Cast(bf16_dtype, {result_fp32}, span);                    \
-    } else {                                                                 \
-      return tirx::Call(x.dtype(), op, {x}, {}, span);                       \
-    }                                                                        \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                           \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                     \
+    static const Op op = Op::Get("tirx." #OpName);                                             \
+    PrimType x_ty = x.ty();                                                                    \
+    CheckInputDType(#OpName, x_ty);                                                            \
+    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                              \
+      PrimType bf16_ty = x_ty;                                                                 \
+      PrimType f32_ty =                                                                        \
+          x_ty.IsScalableVector()                                                              \
+              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())    \
+              : PrimType::Float(32, x_ty.lanes());                                             \
+      PrimExpr x_fp32 = tirx::Cast(f32_ty, x, span);                                           \
+      PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>(); \
+      return tirx::Cast(bf16_ty, result_fp32, span);                                           \
+    } else {                                                                                   \
+      return Call(x_ty, op, {x}, {}, {}, span).as_or_throw<PrimExpr>();                        \
+    }                                                                                          \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
-  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, [](const char*, DataType) {})
+  TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, [](const char*, const PrimType&) {})
 
 #define TVM_DECLARE_FLOAT_INTRIN_UNARY(OpName) \
   TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckMathUnaryOpInputDType)
@@ -786,10 +784,10 @@ TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
 TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
 TVM_DECLARE_INTRIN_UNARY(clz);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
-    static const Op& op = Op::Get("tirx." #OpName);                    \
-    return tirx::Call(x.dtype(), op, {x, y}, {}, span);                \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) {     \
+    static const Op op = Op::Get("tirx." #OpName);                         \
+    return Call(x.ty(), op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>(); \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -806,8 +804,8 @@ namespace tirx {
  * \param element_type The corresponding element type.
  * \return The check results
  */
-inline bool IsPointerType(const Type& type, const DataType& element_type) {
-  if (!type.defined()) return false;
+inline bool IsPointerType(const Type& type, DLDataType element_type) {
+  if (type.IsMissing()) return false;
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
       return prim_type->dtype == element_type;
@@ -818,40 +816,30 @@ inline bool IsPointerType(const Type& type, const DataType& element_type) {
 
 /*!
  * \brief Make a const value with certain data type.
- * \param t The target type.
+ *
+ * Prefer direct IntImm or FloatImm construction when dtype is known to be
+ * scalar integer or floating point. This makes the compiled code more compact
+ * and efficient. Keep MakeConst for generic overload cases where dtype can be
+ * integer, floating point, or vector-valued and the caller needs its
+ * scalar/vector dispatch.
+ *
+ * \param dtype The target type.
  * \param value The input value
  * \return the result expression.
  * \tparam ValueType The constant value type
  * \param span The location of this operation in the source.
  */
 template <typename ValueType,
-          typename = typename std::enable_if<std::is_pod<ValueType>::value>::type>
-inline PrimExpr make_const(DataType t, ValueType value, Span span = Span());
+          typename = typename std::enable_if<std::is_standard_layout<ValueType>::value &&
+                                             std::is_trivial<ValueType>::value>::type>
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span = Span());
 /*!
- * \brief Make a const zero expr.
- * \param t The target type.
- * \param span The location of this operation in the source.
- * \return the result expression.
- */
-inline PrimExpr make_zero(DataType t, Span span = Span());
-/*!
- * \brief Make a constant true expression.
- * \param lanes The number of lanes in the bool
+ * \brief Make a constant opaque-pointer value.
+ * \param value The integer payload to reinterpret as a handle.
  * \param span The location of this operation in the source.
  * \return The result expression.
  */
-inline PrimExpr const_true(int lanes = 1, Span span = Span()) {
-  return make_const(DataType::Bool(lanes), 1);
-}
-/*!
- * \brief Make a constant false expression.
- * \param lanes The number of lanes in the bool
- * \param span The location of this operation in the source.
- * \return The result expression.
- */
-inline PrimExpr const_false(int lanes = 1, Span span = Span()) {
-  return make_const(DataType::Bool(lanes), 0);
-}
+inline Expr ConstHandle(int64_t value, Span span = Span());
 /*!
  * \brief Get x as constant int expression.
  * \param x The expression
@@ -973,7 +961,8 @@ inline bool is_const_int(const PrimExpr& x, int64_t value) {
 inline bool is_no_op(const tirx::Stmt& stmt) {
   if (!stmt.defined()) return true;
   if (const auto* op = stmt.as<tirx::EvaluateNode>()) {
-    return is_const_int(op->value);
+    auto value = op->value.as<PrimExpr>();
+    return value && is_const_int(value.value());
   }
   if (const auto* op = stmt.as<tirx::SeqStmtNode>()) {
     return op->seq.size() == 0;
@@ -982,60 +971,60 @@ inline bool is_no_op(const tirx::Stmt& stmt) {
 }
 
 template <typename ValueType>
-inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span()) {
-  if (t.is_int() || t.is_bool()) return IntImm(t, static_cast<int64_t>(value), span);
-  if (t.is_uint()) {
+inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Span()) {
+  DLDataTypeCode code = dtype.code();
+  if (code == DLDataTypeCode::kDLInt || code == DLDataTypeCode::kDLBool) {
+    return IntImm(dtype, static_cast<int64_t>(value), span);
+  }
+  if (code == DLDataTypeCode::kDLUInt) {
     // Use IntImm if it is a small integer
     uint64_t uval = static_cast<uint64_t>(value);
     if (value < static_cast<ValueType>(0)) {
       TVM_FFI_THROW(InternalError) << "cannot make uint from negative value " << value;
     } else if (uval <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-      return IntImm(t, static_cast<int64_t>(value), span);
+      return IntImm(dtype, static_cast<int64_t>(value), span);
     } else {
       uint64_t mask = (static_cast<uint64_t>(1) << 32U) - 1U;
       uint64_t low = uval & mask;
       uint64_t high = uval >> 32U;
-      return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high), span);
+      return LargeUIntImm(dtype, static_cast<int64_t>(low), static_cast<int64_t>(high), span);
     }
   }
-  if (t.is_float() || t.is_bfloat16() || t.is_float8() || t.is_float6() || t.is_float4())
-    return FloatImm(t, static_cast<double>(value), span);
-  // For now, we store const scalar values of custom datatypes within doubles; later, during the
-  // datatypes lowering pass, we will lower the value to its true representation in the format
-  // specified by the datatype.
-  // TODO(gus) when do we need to start worrying about doubles not being precise enough?
-  if (static_cast<uint8_t>(t.code()) >= static_cast<uint8_t>(DataType::kCustomBegin)) {
-    return FloatImm(t, static_cast<double>(value), span);
+  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLFloat8_e3m4,
+                        DLDataTypeCode::kDLFloat8_e4m3, DLDataTypeCode::kDLFloat8_e4m3b11fnuz,
+                        DLDataTypeCode::kDLFloat8_e4m3fn, DLDataTypeCode::kDLFloat8_e4m3fnuz,
+                        DLDataTypeCode::kDLFloat8_e5m2, DLDataTypeCode::kDLFloat8_e5m2fnuz,
+                        DLDataTypeCode::kDLFloat8_e8m0fnu, DLDataTypeCode::kDLFloat6_e2m3fn,
+                        DLDataTypeCode::kDLFloat6_e3m2fn, DLDataTypeCode::kDLFloat4_e2m1fn) ||
+      dtype.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
+    return FloatImm(dtype, static_cast<double>(value), span);
   }
-  TVM_FFI_THROW(InternalError) << "cannot make const for type " << t;
+  TVM_FFI_THROW(InternalError) << "cannot make const for type " << dtype;
   throw;
 }
 
 template <>
-inline PrimExpr MakeConstScalar(DataType t, bool value, Span span) {
-  return MakeConstScalar(t, static_cast<int>(value), span);
+inline PrimExpr MakeConstScalar(PrimType dtype, bool value, Span span) {
+  return MakeConstScalar(dtype, static_cast<int>(value), span);
 }
 
 template <typename ValueType, typename>
-inline PrimExpr make_const(DataType t, ValueType value, Span span) {
-  if (t.is_scalar()) {
-    return MakeConstScalar(t, value, span);
-  } else {
-    if (t.is_fixed_length_vector()) {
-      return tirx::Broadcast(MakeConstScalar(t.element_of(), value, span), t.lanes(), span);
-    } else {
-      PrimExpr lanes =
-          tirx::Mul(tirx::Call(DataType::Int(32), tirx::builtin::vscale(), {}), t.vscale_factor());
-      return tirx::Broadcast(MakeConstScalar(t.element_of(), value, span), lanes, span);
-    }
+inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
+  if (!dtype.IsScalableVector() && !dtype.IsFixedLengthVector()) {
+    return MakeConstScalar(dtype, value, span);
   }
+  PrimType elem_ty = dtype.WithLanes(1);
+  if (dtype.IsFixedLengthVector()) {
+    return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
+  }
+  PrimExpr lanes =
+      tirx::Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+                dtype.VScaleFactor());
+  return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
 }
 
-inline PrimExpr make_zero(DataType t, Span span) {
-  if (t.is_handle()) {
-    return reinterpret(t, make_const(DataType::UInt(64), 0, span));
-  }
-  return make_const(t, 0, span);
+inline Expr ConstHandle(int64_t value, Span span) {
+  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, span), span);
 }
 
 }  // namespace tirx
@@ -1047,17 +1036,13 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return a;                                       \
   }
 
-#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(Name)                                   \
-  inline PrimExpr Name(const PrimExpr& a, float b) { return Name(a, PrimExpr(b)); } \
-  inline PrimExpr Name(float a, const PrimExpr& b) { return Name(PrimExpr(a), b); } \
-  inline PrimExpr Name(int a, const PrimExpr& b) {                                  \
-    return Name(tirx::make_const(b.dtype(), a), b);                                 \
-  }                                                                                 \
-  inline PrimExpr Name(const PrimExpr& a, int b) {                                  \
-    return Name(a, tirx::make_const(a.dtype(), b));                                 \
-  }                                                                                 \
-  inline PrimExpr Name(const PrimExpr& a, double b) {                               \
-    return Name(a, tirx::make_const(DataType::Float(64), b));                       \
+#define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD(Name)                                                \
+  inline PrimExpr Name(const PrimExpr& a, float b) { return Name(a, PrimExpr(b)); }              \
+  inline PrimExpr Name(float a, const PrimExpr& b) { return Name(PrimExpr(a), b); }              \
+  inline PrimExpr Name(int a, const PrimExpr& b) { return Name(tirx::MakeConst(b.ty(), a), b); } \
+  inline PrimExpr Name(const PrimExpr& a, int b) { return Name(a, tirx::MakeConst(a.ty(), b)); } \
+  inline PrimExpr Name(const PrimExpr& a, double b) {                                            \
+    return Name(a, FloatImm(PrimType::Float(64), b));                                            \
   }
 
 #define TVM_DEFINE_BINOP_CONST_VAL_OVERLOAD_SPANNED(Name)                 \
@@ -1068,13 +1053,13 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return Name(PrimExpr(a), b, span);                                    \
   }                                                                       \
   inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) {    \
-    return Name(tirx::make_const(b.dtype(), a), b, span);                 \
+    return Name(tirx::MakeConst(b.ty(), a), b, span);                     \
   }                                                                       \
   inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) {    \
-    return Name(a, tirx::make_const(a.dtype(), b), span);                 \
+    return Name(a, tirx::MakeConst(a.ty(), b), span);                     \
   }                                                                       \
   inline PrimExpr Name(const PrimExpr& a, double b, Span span = Span()) { \
-    return Name(a, tirx::make_const(DataType::Float(64), b), span);       \
+    return Name(a, FloatImm(PrimType::Float(64), b), span);               \
   }
 
 #define TVM_DEFINE_LOGICAL_OP_CONST_VAL_OVERLOAD(Name)                             \
@@ -1089,18 +1074,16 @@ inline PrimExpr make_zero(DataType t, Span span) {
     return Name(PrimExpr(a), b, span);                                  \
   }
 
-#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)  \
-  inline PrimExpr Name(const PrimExpr& a, int b) {  \
-    return Name(a, tirx::make_const(a.dtype(), b)); \
-  }                                                 \
-  inline PrimExpr Name(int a, const PrimExpr& b) { return Name(tirx::make_const(b.dtype(), a), b); }
+#define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD(Name)                                               \
+  inline PrimExpr Name(const PrimExpr& a, int b) { return Name(a, tirx::MakeConst(a.ty(), b)); } \
+  inline PrimExpr Name(int a, const PrimExpr& b) { return Name(tirx::MakeConst(b.ty(), a), b); }
 
 #define TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(Name)             \
   inline PrimExpr Name(const PrimExpr& a, int b, Span span = Span()) { \
-    return Name(a, tirx::make_const(a.dtype(), b), span);              \
+    return Name(a, tirx::MakeConst(a.ty(), b), span);                  \
   }                                                                    \
   inline PrimExpr Name(int a, const PrimExpr& b, Span span = Span()) { \
-    return Name(tirx::make_const(b.dtype(), a), b, span);              \
+    return Name(tirx::MakeConst(b.ty(), a), b, span);                  \
   }
 
 TVM_DEFINE_ASSIGN_OP_OVERLOAD(operator+=, operator+);

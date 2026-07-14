@@ -42,7 +42,6 @@ from pathlib import Path
 
 import tvm_ffi
 
-from tvm.base import py_str
 from tvm.runtime.module import load_module as _load_module
 from tvm.support import utils
 from tvm.support.popen_pool import PopenWorker
@@ -243,7 +242,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 conn.close()
                 continue
             keylen = struct.unpack("<i", base.recvall(conn, 4))[0]
-            key = py_str(base.recvall(conn, keylen))
+            key = (base.recvall(conn, keylen)).decode("utf-8")
             arr = key.split()
             expect_header = "client:" + matchkey
             server_key = "server:" + rpc_key
@@ -309,7 +308,7 @@ def _connect_proxy_loop(addr, key, load_library):
             elif magic != base.RPC_CODE_SUCCESS:
                 raise RuntimeError(f"{addr!s} is not RPC Proxy")
             keylen = struct.unpack("<i", base.recvall(sock, 4))[0]
-            remote_key = py_str(base.recvall(sock, keylen))
+            remote_key = (base.recvall(sock, keylen)).decode("utf-8")
 
             _serving(sock, addr, _parse_server_opt(remote_key.split()[1:]), load_library)
             retry_count = 0

@@ -507,13 +507,13 @@ def test_track_forward_declarations_in_attr_stmt():
 def test_shared_shape_var_in_buffer_map_and_alloc_buffer():
     """Shape var shared across buffer_map entries and AllocBuffer should not be renamed.
 
-    When the same SizeVar (e.g., `n`) appears in multiple buffer_map
+    When the same Var (e.g., `n`) appears in multiple buffer_map
     entries (A and B both have shape [n]), ConvertSSA should not treat
     the second occurrence as a redefinition.  All uses of `n` in the
     function body (including AllocBuffer shapes) must remain the same
     Var object so that MakePackedAPI can bind it from the DLTensor shape.
     """
-    n = tirx.SizeVar("n", "int32")
+    n = tirx.Var("n", "int32")
     A_handle = tirx.Var("A_handle", "handle")
     B_handle = tirx.Var("B_handle", "handle")
     A = tirx.decl_buffer((n,), "float32", "A")

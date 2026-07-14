@@ -212,7 +212,7 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
   n->require_injective = require_injective;
   n->require_ordered = require_ordered;
   n->disallow_op.clear();
-  if (disallow_op.defined()) {
+  if (disallow_op.has_value()) {
     ffi::Array<ffi::String> op_names = disallow_op.value();
     n->disallow_op.reserve(op_names.size());
     for (const ffi::String& op_name : op_names) {

@@ -20,7 +20,7 @@ set -u
 set -o pipefail
 
 VULKAN_VERSION=1.4.309
-UBUNTU_VERSION=jammy
+UBUNTU_VERSION=noble
 
 wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc \
 	| gpg --dearmor -o /usr/share/keyrings/lunarg-vulkan.gpg

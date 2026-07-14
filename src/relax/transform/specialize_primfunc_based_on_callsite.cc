@@ -39,9 +39,9 @@ namespace relax {
 
 using tvm::tirx::Buffer;
 
-static ffi::Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
-  auto shape = tensor_sinfo->GetShape();
-  TVM_FFI_ICHECK(shape.defined());
+static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
+  auto shape = tensor_ty->GetShape();
+  TVM_FFI_ICHECK(shape.has_value());
   return shape.value();
 }
 
@@ -56,7 +56,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         if (base_func->HasNonzeroAttr(attr::kPrimitive)) {
           continue;
         }
-        relax::Function update_func = Downcast<Function>(VisitExpr(func));
+        relax::Function update_func = VisitExpr(func).as_or_throw<Function>();
         updates_->Add(gv, update_func);
       }
     }
@@ -67,9 +67,9 @@ class SpecializeTIRCallArgs : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) override {
-    auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
+    auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       return SpecializeTirPrimFunc(call);
     }
     return call;
@@ -77,62 +77,62 @@ class SpecializeTIRCallArgs : ExprMutator {
 
  private:
   Expr SpecializeTirPrimFunc(Call call) {
-    auto gv = Downcast<GlobalVar>(call->args[0]);
-    auto pfunc = Downcast<tirx::PrimFunc>(mod_->Lookup(gv));
-    auto args = Downcast<Tuple>(call->args[1])->fields;
-    ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
+    auto gv = call->args[0].as_or_throw<GlobalVar>();
+    auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
+    auto args = call->args[1].as_or_throw<Tuple>()->fields;
+    ffi::Map<tirx::Var, ffi::Variant<Buffer, Expr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
-      auto sinfo = GetStructInfo(args[i]);
-      TVM_FFI_ICHECK(sinfo->IsInstance<TensorStructInfoNode>())
+      auto ty = GetType(args[i]);
+      TVM_FFI_ICHECK(ty->IsInstance<TensorTypeNode>())
           << "Expected Tensor struct Info for call :" << call->op;
-      auto tensor_sinfo = Downcast<TensorStructInfo>(sinfo);
-      TVM_FFI_ICHECK(tensor_sinfo->shape.defined()) << "Shape undefined for call:" << call->args[0];
+      auto tensor_ty = ty.as_or_throw<TensorType>();
+      TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Shape undefined for call:" << call->args[0];
       ffi::String scope = "global";
-      if (tensor_sinfo->vdevice.defined()) {
-        scope = tensor_sinfo->vdevice.value()->memory_scope;
+      if (tensor_ty->vdevice.has_value()) {
+        scope = tensor_ty->vdevice.value()->memory_scope;
       }
       ffi::String name;
       if (args[i]->IsInstance<relax::VarNode>()) {
-        name = Downcast<Var>(args[i])->name_hint();
+        name = args[i].as_or_throw<Var>()->name_hint;
       } else {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(tensor_sinfo),
-                                               tensor_sinfo->dtype, name, scope);
+      const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(tensor_ty),
+                                               tensor_ty->dtype.value(), name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
     ffi::String scope = "global";
-    auto out_sinfo = call->sinfo_args[0];
-    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
-      auto sinfo = Downcast<TensorStructInfo>(out_sinfo);
-      if (sinfo->vdevice.defined()) {
-        scope = sinfo->vdevice.value()->memory_scope;
+    auto out_ty = call->ty_args[0];
+    if (out_ty->IsInstance<TensorTypeNode>()) {
+      auto ty = out_ty.as_or_throw<TensorType>();
+      if (ty->vdevice.has_value()) {
+        scope = ty->vdevice.value()->memory_scope;
       }
       const Buffer& buffer =
-          tirx::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype, "ret_val", scope);
+          tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(), "ret_val", scope);
       param_map.Set(pfunc->params[pfunc->params.size() - 1], buffer);
     } else {
-      TVM_FFI_ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
-          << "Expect output struct info of call_tir to be either TupleStructInfo or "
-             "TensorStructInfo, but got "
-          << out_sinfo;
+      TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
+          << "Expect output type of call_tir to be either TupleType or "
+             "TensorType, but got "
+          << out_ty;
 
-      const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
-      ffi::Array<StructInfo> sinfo_fields;
+      const auto& tuple_ty = out_ty.as_or_throw<TupleType>();
+      ffi::Array<Type> ty_fields;
       int index = 0;
-      for (const auto& si : tuple_sinfo->fields) {
-        TVM_FFI_ICHECK(si->IsInstance<TensorStructInfoNode>())
-            << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
+      for (const auto& si : tuple_ty->fields) {
+        TVM_FFI_ICHECK(si->IsInstance<TensorTypeNode>())
+            << "Fields of TupleType must be TensorType for call_tir "
                "output structinfo, but got "
             << si;
-        auto sinfo = Downcast<TensorStructInfo>(si);
-        if (sinfo->vdevice.defined()) {
-          scope = sinfo->vdevice.value()->memory_scope;
+        auto ty = si.as_or_throw<TensorType>();
+        if (ty->vdevice.has_value()) {
+          scope = ty->vdevice.value()->memory_scope;
         }
 
-        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorStructInfo(sinfo), sinfo->dtype,
+        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(),
                                                  "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;
@@ -141,7 +141,7 @@ class SpecializeTIRCallArgs : ExprMutator {
 
     auto new_pfunc = Specialize(pfunc, param_map);
     for (const auto& [var, buffer] : new_pfunc->buffer_map) {
-      auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+      auto* ptr = buffer->data->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     }
     auto new_prim_func = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));

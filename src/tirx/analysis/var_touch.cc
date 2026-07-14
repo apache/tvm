@@ -37,7 +37,7 @@ class VarTouchVisitor : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt(stmt);
   }
 
-  void VisitExpr(const PrimExpr& e) final {
+  void VisitExpr(const Expr& e) final {
     if (use_var_) return;
     StmtExprVisitor::VisitExpr(e);
   }

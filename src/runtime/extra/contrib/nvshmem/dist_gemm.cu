@@ -19,11 +19,10 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
-
-#include "../../../cuda/cuda_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -37,7 +36,7 @@ void* get_pointer(Tensor data, ffi::Shape index) {
     offset *= data->shape[i];
     offset += index[i];
   }
-  return static_cast<void*>(ptr + offset * GetDataSize(1, data->dtype));
+  return static_cast<void*>(ptr + offset * ffi::GetDataSize(1, data->dtype));
 }
 
 void cuStreamWaitValue64Wrapper(TVMStreamHandle strm, void* addr, uint64_t expected) {
@@ -60,19 +59,15 @@ void copy_to_peer(void* dst, int dst_device, void* src, size_t size, TVMStreamHa
 
 TVMStreamHandle stream_create() {
   DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  if (worker == nullptr) {
-    LOG(FATAL) << "NVSHMEM stream creation failed: worker is not initialized";
-  }
+  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM stream creation failed: worker is not initialized";
   cudaStream_t retval;
-  CUDA_CALL(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
   return static_cast<TVMStreamHandle>(retval);
 }
 
 void stream_sync(TVMStreamHandle from_stream, TVMStreamHandle to_stream) {
   DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  if (worker == nullptr) {
-    LOG(FATAL) << "NVSHMEM stream sync failed: worker is not initialized";
-  }
+  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM stream sync failed: worker is not initialized";
   auto f_sync_stream = tvm::ffi::Function::GetGlobalRequired("runtime.Device_StreamSyncFromTo");
   f_sync_stream(worker->default_device, reinterpret_cast<int64_t>(from_stream),
                 reinterpret_cast<int64_t>(to_stream));
@@ -91,9 +86,7 @@ void transfer_to_peers_reduce_scatter(Tensor semaphore, Tensor gemm_out, Tensor 
                                       TVMStreamHandle stream, int32_t M, int32_t N, int32_t BLK_M,
                                       int32_t BLK_N, int32_t WORLD_SIZE) {
   DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  if (worker == nullptr) {
-    LOG(FATAL) << "NVSHMEM transfer to peer failed: worker is not initialized";
-  }
+  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM transfer to peer failed: worker is not initialized";
   int my_rank = worker->worker_id;
   int LOCAL_M = M / WORLD_SIZE;
   for (int i = 0; i < WORLD_SIZE; i++) {
@@ -106,7 +99,7 @@ void transfer_to_peers_reduce_scatter(Tensor semaphore, Tensor gemm_out, Tensor 
                    stream);
     } else {
       int device_id;
-      CUDA_CALL(cudaGetDevice(&device_id));
+      TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
       TVMStreamHandle main_stream = TVMFFIEnvGetStream(kDLCUDA, device_id);
       copy_to_peer(get_pointer(staging_buffer, ffi::Shape{my_rank, 0, 0}), to_rank,
                    get_pointer(gemm_out, ffi::Shape{to_rank * LOCAL_M, 0}), LOCAL_M * N * 2,
@@ -118,9 +111,7 @@ void transfer_to_peers_reduce_scatter(Tensor semaphore, Tensor gemm_out, Tensor 
 void transfer_to_peers_all_gather(Tensor semaphore, Tensor A, Tensor ag_out, TVMStreamHandle stream,
                                   int32_t M, int32_t K, int32_t WORLD_SIZE) {
   DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
-  if (worker == nullptr) {
-    LOG(FATAL) << "NVSHMEM transfer to peer failed: worker is not initialized";
-  }
+  TVM_FFI_ICHECK(worker != nullptr) << "NVSHMEM transfer to peer failed: worker is not initialized";
   int my_rank = worker->worker_id;
   int LOCAL_M = M / WORLD_SIZE;
   for (int i = 0; i < WORLD_SIZE; i++) {

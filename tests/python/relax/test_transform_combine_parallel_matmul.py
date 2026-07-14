@@ -382,9 +382,9 @@ def test_rhs_batched():
             lv1 = R.matmul(x, lv, out_dtype="float32")
             lv2 = R.split(lv1, indices_or_sections=[640], axis=2)
             lv0 = lv2[0]
-            lv1_1 = R.matmul(x, w1, out_dtype="void")
+            lv1_1 = R.matmul(x, w1, out_dtype=None)
             lv2_1 = lv2[1]
-            lv3 = R.matmul(x, w3, out_dtype="void")
+            lv3 = R.matmul(x, w3, out_dtype=None)
             out = lv0, lv1_1, lv2_1, lv3
             R.output(out)
         return out
@@ -517,8 +517,8 @@ def test_check():
             lv0 = lv2[0]
             lv1_1 = lv2[1]
             lv2_1 = lv2[2]
-            lv3 = R.matmul(x2, w3, out_dtype="void")
-            lv4 = R.matmul(x2, w4, out_dtype="void")
+            lv3 = R.matmul(x2, w3, out_dtype=None)
+            lv4 = R.matmul(x2, w4, out_dtype=None)
             out = (lv0, lv1_1, lv2_1, lv3, lv4)
             R.output(out)
         return out

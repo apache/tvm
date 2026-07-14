@@ -386,7 +386,9 @@ def test_let_buffer_rewrite():
     class Before:
         @T.prim_func(s_tir=True)
         def main() -> None:
-            A_data: T.let[T.handle("int32")] = T.call_extern("dummy_func", dtype="handle")
+            A_data: T.let[T.handle("int32")] = T.call_extern(
+                "dummy_func", dtype=T.handle("int32").ty
+            )
             A = T.decl_buffer([8], "int32", data=A_data)
             A[0:8] = T.broadcast(42, 8)
 
@@ -394,7 +396,9 @@ def test_let_buffer_rewrite():
     class Expected:
         @T.prim_func(s_tir=True)
         def main() -> None:
-            A_data: T.let[T.handle("int32x8")] = T.call_extern("dummy_func", dtype="handle")
+            A_data: T.let[T.handle("int32x8")] = T.call_extern(
+                "dummy_func", dtype=T.handle("int32x8").ty
+            )
             A = T.decl_buffer([8], "int32", data=A_data)
             A_1 = T.Buffer([1], "int32x8", data=A_data)
             A_1[0] = T.broadcast(42, 8)

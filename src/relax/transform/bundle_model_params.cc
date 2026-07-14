@@ -57,12 +57,12 @@ class ModelParamBundler : public ExprMutator {
       params.push_back(func->params[i]);
     }
 
-    ffi::Array<StructInfo> param_tuple;
+    ffi::Array<Type> param_tuple;
     for (size_t i = num_input; i < func->params.size(); i++) {
-      param_tuple.push_back(GetStructInfo(func->params[i]));
+      param_tuple.push_back(GetType(func->params[i]));
     }
 
-    Var var_param_tuple(param_tuple_name_.value_or("model_params"), TupleStructInfo(param_tuple));
+    Var var_param_tuple(param_tuple_name_.value_or("model_params"), TupleType(param_tuple));
     params.push_back(var_param_tuple);
 
     for (size_t i = num_input; i < func->params.size(); i++) {
@@ -77,7 +77,7 @@ class ModelParamBundler : public ExprMutator {
   Expr VisitExpr_(const VarNode* op) override {
     auto var = ffi::GetRef<Var>(op);
     if (auto it = var_to_expr_.find(var); it != var_to_expr_.end()) {
-      return builder_->Emit((*it).second, op->name_hint());
+      return builder_->Emit((*it).second, op->name_hint);
     } else {
       return ExprMutator::VisitExpr_(op);
     }
@@ -90,7 +90,7 @@ class ModelParamBundler : public ExprMutator {
 
 Function BundleModelParams(const Function& func, ffi::Optional<ffi::String> param_tuple_name) {
   ModelParamBundler mutator(param_tuple_name);
-  return Downcast<Function>(mutator(func));
+  return mutator(func).as_or_throw<Function>();
 }
 
 namespace transform {
@@ -102,7 +102,7 @@ Pass BundleModelParams(ffi::Optional<ffi::String> param_tuple_name) {
 
     for (const auto& [gvar, func] : mod->functions) {
       if (auto opt = func.as<relax::Function>()) {
-        auto new_func = Downcast<relax::Function>(mutator(opt.value()));
+        auto new_func = mutator(opt.value()).as_or_throw<relax::Function>();
         if (!new_func.same_as(func)) {
           updates->Add(gvar, new_func);
         }

@@ -205,7 +205,7 @@ def test_vthread_vectorized():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.type_annotation):
+        if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.ty):
             allocate_node = op
 
     tvm.tirx.stmt_functor.post_order_visit(after_func.body, visitor)

@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import TVMError, relax
+from tvm import relax
 from tvm.relax.training import SetupTrainer, Trainer
 from tvm.relax.training.loss import MSELoss
 from tvm.relax.training.optimizer import SGD, Adam
@@ -53,15 +53,17 @@ def _make_dataset():
     return [[np.ones((1, 10)).astype(np.float32), np.array([[0, 0, 1, 0, 0]], np.float32)]] * N
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_execute(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_execute():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         Adam(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)
@@ -77,15 +79,17 @@ def test_execute(target, dev):
     trainer.update(dataset[0][0], dataset[0][1])
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_execute_numeric(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_execute_numeric():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         SGD(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)
@@ -106,15 +110,17 @@ def test_execute_numeric(target, dev):
     tvm.testing.assert_allclose(result.numpy(), result_expected)
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_load_export_params(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_load_export_params():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         SGD(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)
@@ -141,15 +147,17 @@ def test_load_export_params(target, dev):
     )
 
 
-@tvm.testing.parametrize_targets("llvm")
-def test_setting_error(target, dev):
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_setting_error():
+    target = "llvm"
+    dev = tvm.device(target)
     backbone = _get_backbone()
-    pred_sinfo = relax.TensorStructInfo((1, 5), "float32")
+    pred_ty = relax.TensorType((1, 5), "float32")
 
     setup_trainer = SetupTrainer(
         MSELoss(reduction="sum"),
         SGD(0.01),
-        [pred_sinfo, pred_sinfo],
+        [pred_ty, pred_ty],
     )
 
     train_mod = setup_trainer(backbone)
@@ -160,9 +168,9 @@ def test_setting_error(target, dev):
 
     dataset = _make_dataset()
     # parameters are not inited
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         trainer.predict(dataset[0][0])
-    with pytest.raises(TVMError):
+    with pytest.raises(RuntimeError):
         trainer.update(dataset[0][0], dataset[0][1])
 
 

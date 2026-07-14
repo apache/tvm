@@ -16,6 +16,10 @@
 # under the License.
 """Tests for TIRx op namespace split between T, T.tile, and device namespaces."""
 
+import importlib
+import sys
+import types
+
 import pytest
 
 import tvm
@@ -40,7 +44,7 @@ def _expr_calls(func):
     calls = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.Call):
+        if isinstance(node, tvm.ir.Call):
             calls.append(node)
 
     tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
@@ -91,7 +95,7 @@ def test_builtin_expression_ops_are_not_tile_primitives():
 
     cast = T.cast(x, "float32")
     assert isinstance(cast, tvm.tirx.Cast)
-    assert cast.dtype == "float32"
+    assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
     assert sqrt.op.name == "tirx.sqrt"
@@ -144,6 +148,30 @@ def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
 
 
 def test_device_intrinsic_namespaces_are_canonical_and_classified():
+    from tvm.backend.cuda.script import (
+        CUDANamespace as BackendCUDANamespace,
+    )
+    from tvm.backend.cuda.script import (
+        NVSHMEMNamespace as BackendNVSHMEMNamespace,
+    )
+    from tvm.backend.cuda.script import (
+        PTXNamespace as BackendPTXNamespace,
+    )
+    from tvm.backend.metal.script import MetalNamespace as BackendMetalNamespace
+    from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
+    from tvm.tirx.script.builder import ir as builder_ir
+
+    assert isinstance(builder_ir.cuda, BackendCUDANamespace)
+    assert isinstance(builder_ir.ptx, BackendPTXNamespace)
+    assert isinstance(builder_ir.nvshmem, BackendNVSHMEMNamespace)
+    assert isinstance(builder_ir.metal, BackendMetalNamespace)
+    assert isinstance(builder_ir.nki, BackendNKINamespace)
+    assert T.cuda is builder_ir.cuda
+    assert T.ptx is builder_ir.ptx
+    assert T.nvshmem is builder_ir.nvshmem
+    assert T.metal is builder_ir.metal
+    assert T.nki is builder_ir.nki
+
     buffer = tvm.tirx.decl_buffer((1,), "float32")
     calls = [
         T.ptx.elect_sync(),
@@ -166,34 +194,135 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
         assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
 
 
+def test_backend_specific_wrappers_are_not_root_exports():
+    from tvm.tirx.cuda import op as cuda_op
+    from tvm.tirx.metal import op as metal_op
+    from tvm.tirx.trn import op as trn_op
+
+    backend_only_names = [
+        "ptx_mma",
+        "mma_store",
+        "cuda_thread_fence",
+        "nvshmem_fence",
+        "make_filled_simdgroup_matrix",
+        "simdgroup_load",
+        "nki_load",
+    ]
+    for name in backend_only_names:
+        assert not hasattr(tvm.tirx.op, name)
+        assert not hasattr(tvm.tirx, name)
+        assert not hasattr(T, name)
+
+    assert cuda_op.ptx_mma
+    assert cuda_op.mma_store
+    assert cuda_op.cuda_thread_fence
+    assert cuda_op.nvshmem_fence
+    assert metal_op.make_filled_simdgroup_matrix
+    assert metal_op.simdgroup_load
+    assert trn_op.nki_load
+    assert hasattr(T, "cuda")
+    assert hasattr(T, "ptx")
+    assert hasattr(T, "nvshmem")
+    assert hasattr(T, "metal")
+    assert hasattr(T, "nki")
+
+
+def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
+    from tvm.tirx.script import builder, parser
+    from tvm.tirx.script.builder import ir as builder_ir
+
+    backend_name = "unit_test_backend"
+    backend_module_name = f"tvm.backend.{backend_name}"
+    public_module_name = f"tvm.tirx.{backend_name}"
+    public_op_module_name = f"{public_module_name}.op"
+    namespace_name = "unit_test_backend_ns"
+    register_calls = []
+
+    class UnitTestNamespace:
+        pass
+
+    module = types.ModuleType(backend_module_name)
+    module.__path__ = []
+    module.__package__ = backend_module_name
+    op_module = types.ModuleType(f"{backend_module_name}.op")
+    op_module.marker = object()
+
+    def register_backend():
+        register_calls.append(True)
+        builder_ir.register_script_namespace(namespace_name, UnitTestNamespace())
+
+    module.register_backend = register_backend
+    monkeypatch.setitem(sys.modules, backend_module_name, module)
+    monkeypatch.setitem(sys.modules, op_module.__name__, op_module)
+    sys.modules.pop(public_module_name, None)
+    sys.modules.pop(public_op_module_name, None)
+    tvm.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
+    if hasattr(tvm.tirx, backend_name):
+        delattr(tvm.tirx, backend_name)
+
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module(public_op_module_name)
+
+    try:
+        assert tvm.backend.load(backend_name) is None
+        assert tvm.backend.load(backend_name) is None
+        assert register_calls == [True]
+        assert tvm.backend.is_loaded(backend_name)
+        assert getattr(tvm.tirx, backend_name) is module
+        assert sys.modules[public_module_name] is module
+        public_op_module = importlib.import_module(public_op_module_name)
+        assert public_op_module.__tvm_backend_module__ is op_module
+        assert public_op_module.marker is op_module.marker
+
+        namespace = getattr(builder_ir, namespace_name)
+        assert isinstance(namespace, UnitTestNamespace)
+        assert getattr(builder, namespace_name) is namespace
+        assert getattr(parser, namespace_name) is namespace
+        assert getattr(T, namespace_name) is namespace
+    finally:
+        tvm.backend.loader._LOADED_BACKENDS.pop(backend_name, None)
+        if hasattr(tvm.tirx, backend_name):
+            delattr(tvm.tirx, backend_name)
+        sys.modules.pop(public_module_name, None)
+        sys.modules.pop(public_op_module_name, None)
+
+
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     @T.prim_func
     def device_namespaces(dst: T.handle, src: T.handle):
         A = T.match_buffer(src, (1,), "float32")
         R = T.alloc_buffer((1,), "float32", scope="local")
-        T.cuda.copy_bytes(dst, src, 16)
+        T.cuda.cta_sync()
         T.ptx.ldg32(R[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
+        T.metal.simd_shuffle_up(A[0], 1)
+        T.metal.simd_shuffle_down(A[0], 1)
 
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
-        "tirx.cuda.copy_bytes",
+        "tirx.cuda.cta_sync",
         "tirx.ptx.ldg32",
         "tirx.metal.simd_shuffle",
+        "tirx.metal.simd_shuffle_up",
+        "tirx.metal.simd_shuffle_down",
     ]
     for op_name, namespace in [
-        ("tirx.cuda.copy_bytes", "cuda"),
+        ("tirx.cuda.cta_sync", "cuda"),
         ("tirx.ptx.ldg32", "ptx"),
         ("tirx.metal.simd_shuffle", "metal"),
+        ("tirx.metal.simd_shuffle_up", "metal"),
+        ("tirx.metal.simd_shuffle_down", "metal"),
     ]:
         assert _op_attr(op_name, "TIRxOpCategory") == "device_intrin"
         assert _op_attr(op_name, "TDeviceIntrinsicNamespace") == namespace
         assert _op_attr(op_name, "TCallEffectKind") in (1, 3)
 
     code = device_namespaces.script()
-    assert "T.cuda.copy_bytes(" in code
+    assert "T.cuda.cta_sync(" in code
     assert "T.ptx.ldg32(" in code
     assert "T.metal.simd_shuffle(" in code
+    assert "T.metal.simd_shuffle_up(" in code
+    assert "T.metal.simd_shuffle_down(" in code
     assert "T.tirx." not in code
     reparsed = tvm.script.from_source(code)
     assert reparsed.script() == code

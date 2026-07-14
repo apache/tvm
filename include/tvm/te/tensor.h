@@ -71,8 +71,8 @@ class TensorNode : public DataProducerNode {
  public:
   /*! \brief The shape of the tensor */
   ffi::Array<PrimExpr> shape;
-  /*! \brief data type in the content of the tensor */
-  DataType dtype;
+  /*! \brief dtype in the content of the tensor */
+  PrimType dtype = PrimType::Void();
   /*! \brief the source operation, can be None */
   Operation op;
   /*! \brief the output index from source operation */
@@ -82,7 +82,7 @@ class TensorNode : public DataProducerNode {
 
   ffi::Array<PrimExpr> GetShape() const final { return shape; }
 
-  DataType GetDataType() const final { return dtype; }
+  PrimType GetDataType() const final { return dtype; }
 
   TVM_DLL PrimExpr ToPrimExpr() const final;
 
@@ -108,7 +108,7 @@ class Tensor : public DataProducer {
   inline PrimExpr IndexTensor(ffi::Array<PrimExpr> indices, bool support_negative_indices) const;
 
  public:
-  TVM_DLL Tensor(ffi::Array<PrimExpr> shape, DataType dtype, Operation op, int value_index);
+  TVM_DLL Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index);
   /*!
    * \brief check if two tensors equals each other.
    * \param other tensor to be checked.
@@ -144,7 +144,7 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr operator()(ffi::Array<Var> indices) const;
+  TVM_DLL PrimExpr operator()(ffi::Array<PrimVar> indices) const;
   /*!
    * \brief Take elements from the tensor with support for negative indices.
    * \param args The indices
@@ -166,7 +166,7 @@ class Tensor : public DataProducer {
    * \param indices the indices.
    * \return the result expression representing tensor read.
    */
-  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<Var> indices) const;
+  TVM_DLL PrimExpr IndexWithNegativeIndices(ffi::Array<PrimVar> indices) const;
 
   /*!
    * \brief data structure to represent a slice that fixes first k coordinates.

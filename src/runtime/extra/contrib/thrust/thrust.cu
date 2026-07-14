@@ -31,8 +31,10 @@
 #include <thrust/scan.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/c_env_api.h>
+#include <tvm/ffi/extra/cuda/base.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
@@ -41,8 +43,6 @@
 #include <functional>
 #include <memory>
 #include <vector>
-
-#include "../../../cuda/cuda_common.h"
 namespace tvm {
 namespace contrib {
 
@@ -95,7 +95,7 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
 
 auto get_thrust_exec_policy(WorkspaceMemoryResource* memory_resouce) {
   int device_id;
-  CUDA_CALL(cudaGetDevice(&device_id));
+  TVM_FFI_CHECK_CUDA_ERROR(cudaGetDevice(&device_id));
   cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetStream(kDLCUDA, device_id));
   return thrust::cuda::par_nosync(memory_resouce).on(stream);
 }

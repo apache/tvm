@@ -18,10 +18,12 @@
 import re
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
+from tvm.testing import env
 
 
 def generate_random_data(shape, dtype):
@@ -33,10 +35,13 @@ def create_tvm_arrays(data_np, device):
     return [tvm.runtime.tensor(data, device=device) for data in data_np]
 
 
-def build_and_run_tvm_func(sch, target, *args):
-    func = tvm.compile(sch.mod, target=target)
-    func(*args)
-    return func, args[-1]
+def make_tvm_runner(func, input_data, initial_output, expected_output):
+    def run(device):
+        args = create_tvm_arrays([*input_data, initial_output], device)
+        func(*args)
+        verify_result(args[-1], expected_output)
+
+    return run
 
 
 def from_source(code):
@@ -181,8 +186,9 @@ def verify_cuda_code_string(func, expected_var_name, expected_string_literal):
     )
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_print():
-    DEV = tvm.cuda()
     target = tvm.target.Target("cuda")
 
     def test_vector_add_1D(dtype, dtype_str):
@@ -191,7 +197,6 @@ def test_print():
         dim_num = 1
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
-        A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
         @T.prim_func(s_tir=True)
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
@@ -215,11 +220,10 @@ def test_print():
         sch.bind(i1, "threadIdx.x")
 
         C_np_tmp = np.zeros((M,), dtype=dtype)
-        C_tvm = tvm.runtime.tensor(C_np_tmp, device=DEV)
-        func, C_tvm = build_and_run_tvm_func(sch, target, A_tvm, B_tvm, C_tvm)
-        verify_result(C_tvm, C_np)
+        func = tvm.compile(sch.mod, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_array(func, dim_num, dtype_str, M)
+        return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_vector_add_2D(dtype, dtype_str):
         M, N = 6, 6
@@ -227,7 +231,6 @@ def test_print():
         dim_num = 2
         A_np, B_np = generate_random_data((M, N), dtype), generate_random_data((M, N), dtype)
         C_np = A_np + B_np
-        A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
         @T.prim_func(s_tir=True)
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
@@ -255,11 +258,10 @@ def test_print():
         sch.bind(j1, "threadIdx.y")
 
         C_np_tmp = np.zeros((M, N), dtype=dtype)
-        C_tvm = tvm.runtime.tensor(C_np_tmp, device=DEV)
-        func, C_tvm = build_and_run_tvm_func(sch, target, A_tvm, B_tvm, C_tvm)
-        verify_result(C_tvm, C_np)
+        func = tvm.compile(sch.mod, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_array(func, dim_num, dtype_str, M, N)
+        return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_vector_add_3D(dtype, dtype_str):
         M, N, K = 6, 6, 6
@@ -267,8 +269,6 @@ def test_print():
         dim_num = 3
         A_np, B_np = generate_random_data((M, N, K), dtype), generate_random_data((M, N, K), dtype)
         C_np = A_np + B_np
-
-        A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
         @T.prim_func(s_tir=True)
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
@@ -300,11 +300,10 @@ def test_print():
         sch.bind(k1, "threadIdx.z")
 
         C_np_tmp = np.zeros((M, N, K), dtype=dtype)
-        C_tvm = tvm.runtime.tensor(C_np_tmp, device=DEV)
-        func, C_tvm = build_and_run_tvm_func(sch, target, A_tvm, B_tvm, C_tvm)
-        verify_result(C_tvm, C_np)
+        func = tvm.compile(sch.mod, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_array(func, dim_num, dtype_str, M, N, K)
+        return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_const_scalar(dtype, dtype_str):
         M = 6
@@ -312,7 +311,6 @@ def test_print():
         dim_num = 1
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
-        A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
         @T.prim_func(s_tir=True)
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
@@ -337,11 +335,10 @@ def test_print():
         sch.bind(i1, "threadIdx.x")
 
         C_np_tmp = np.zeros((M,), dtype=dtype)
-        C_tvm = tvm.runtime.tensor(C_np_tmp, device=DEV)
-        func, C_tvm = build_and_run_tvm_func(sch, target, A_tvm, B_tvm, C_tvm)
-        verify_result(C_tvm, C_np)
+        func = tvm.compile(sch.mod, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_scalar(func, dtype_str, 10)
+        return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
     def test_string(dtype, dtype_str, test_string):
         M = 6
@@ -349,7 +346,6 @@ def test_print():
         dim_num = 1
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
-        A_tvm, B_tvm = create_tvm_arrays([A_np, B_np], DEV)
 
         @T.prim_func(s_tir=True)
         def add_func(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
@@ -374,19 +370,27 @@ def test_print():
         sch.bind(i1, "threadIdx.x")
 
         C_np_tmp = np.zeros((M,), dtype=dtype)
-        C_tvm = tvm.runtime.tensor(C_np_tmp, device=DEV)
-        func, C_tvm = build_and_run_tvm_func(sch, target, A_tvm, B_tvm, C_tvm)
-        verify_result(C_tvm, C_np)
+        func = tvm.compile(sch.mod, target=target)
         verify_tir_code(add_func.script())
         verify_cuda_code_string(func, "string_var", test_string)
+        return make_tvm_runner(func, [A_np, B_np], C_np_tmp, C_np)
 
-    test_vector_add_1D(np.float32, "float32")
-    test_vector_add_2D(np.int32, "int32")
-    test_vector_add_2D(np.float16, "float16")
-    test_vector_add_3D(np.uint32, "uint32")
-    test_string(np.float32, "float32", "hello tirx!")
-    test_const_scalar(np.int32, "int32")
+    runners = [
+        test_vector_add_1D(np.float32, "float32"),
+        test_vector_add_2D(np.int32, "int32"),
+        test_vector_add_2D(np.float16, "float16"),
+        test_vector_add_3D(np.uint32, "uint32"),
+        test_string(np.float32, "float32", "hello tirx!"),
+        test_const_scalar(np.int32, "int32"),
+    ]
+
+    def run_and_check():
+        device = tvm.cuda()
+        for runner in runners:
+            runner(device)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":
-    test_print()
+    tvm.testing.main()

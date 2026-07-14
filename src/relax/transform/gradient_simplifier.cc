@@ -76,23 +76,23 @@ class GradientSimplifier : private ExprMutator {
    * VarIdSet containing all checkpointed vars.
    */
   static Function Transform(const Function& func) {
-    return Downcast<Function>(RemoveAllUnused(GradientSimplifier().VisitExpr(func)));
+    return RemoveAllUnused(GradientSimplifier().VisitExpr(func)).as_or_throw<Function>();
   }
 
  private:
   static bool IsTransposeOp(const CallNode* call_node) {
-    if (call_node->op != Op::Get("relax.permute_dims")) {
+    if (!call_node->op.same_as(Op::Get("relax.permute_dims"))) {
       return false;
     }
-    auto sinfo = MatchStructInfo<TensorStructInfo>(call_node->args[0]);
-    if (!sinfo) {
+    auto ty = MatchType<TensorType>(call_node->args[0]);
+    if (!ty) {
       return false;
     }
-    auto ndim = sinfo.value()->ndim;
+    auto ndim = ty.value()->ndim;
     if (ndim == kUnknownNDim || ndim == 1) {
       return false;
     }
-    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.defined()) {
+    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.has_value()) {
       return ndim == 2;
     }
     auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
@@ -107,9 +107,9 @@ class GradientSimplifier : private ExprMutator {
 
   // Return permute_dims(expr). Generate the axes needed.
   static Expr GetTransposeOf(const Expr& expr) {
-    auto sinfo = MatchStructInfo<TensorStructInfo>(expr);
-    TVM_FFI_ICHECK(sinfo);
-    auto ndim = sinfo.value()->ndim;
+    auto ty = MatchType<TensorType>(expr);
+    TVM_FFI_ICHECK(ty);
+    auto ndim = ty.value()->ndim;
     if (ndim == 1) {
       return expr;
     }
@@ -129,8 +129,8 @@ class GradientSimplifier : private ExprMutator {
     if (!expr->IsInstance<VarNode>()) {
       return GetTransposeOf(expr);
     }
-    auto prev_expr = builder_->LookupBinding(Downcast<Var>(expr));
-    if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
+    auto prev_expr = builder_->LookupBinding(expr.as_or_throw<Var>());
+    if (!prev_expr || !prev_expr.value()->IsInstance<CallNode>()) {
       return GetTransposeOf(expr);
     }
     auto prev_call_node = prev_expr.as<CallNode>();
@@ -157,8 +157,8 @@ class GradientSimplifier : private ExprMutator {
       return reemit_and_return();
     }
 
-    auto prev_expr = builder_->LookupBinding(Downcast<Var>(arg));
-    if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
+    auto prev_expr = builder_->LookupBinding(arg.as_or_throw<Var>());
+    if (!prev_expr || !prev_expr.value()->IsInstance<CallNode>()) {
       return reemit_and_return();
     }
 
@@ -166,19 +166,19 @@ class GradientSimplifier : private ExprMutator {
     if (IsTransposeOp(prev_call_node)) {
       // rewrite rule #1: permute_dims(permute_dims(a)) -> a
       if (prev_call_node->args[0]->IsInstance<VarNode>()) {
-        var_remap_[binding->var->vid] = Downcast<Var>(prev_call_node->args[0]);
+        var_remap_[binding->var] = prev_call_node->args[0].as_or_throw<Var>();
         return;
       } else {
         return reemit_and_return();
       }
-    } else if (prev_call_node->op == Op::Get("relax.matmul")) {
+    } else if (prev_call_node->op.same_as(Op::Get("relax.matmul"))) {
       // rewrite rule #2: permute_dims(matmul(a, b)) -> matmul(permute_dims(b), permute_dims(a))
       // Should "a" or "b" already be in the form of "permute_dims", the redundant permute_dims
       // operation should be eliminated
 
       // Skip matmuls with 1-dim input because in these cases we cannot simply transpose the input
-      auto a_dim = MatchStructInfo<TensorStructInfo>(prev_call_node->args[0]).value()->ndim;
-      auto b_dim = MatchStructInfo<TensorStructInfo>(prev_call_node->args[1]).value()->ndim;
+      auto a_dim = MatchType<TensorType>(prev_call_node->args[0]).value()->ndim;
+      auto b_dim = MatchType<TensorType>(prev_call_node->args[1]).value()->ndim;
       if (a_dim == 1 || b_dim == 1) {
         return reemit_and_return();
       }

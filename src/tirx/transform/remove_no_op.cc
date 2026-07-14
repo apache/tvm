@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/op.h>
@@ -74,7 +75,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.RemoveNoOp", RemoveNoOpConfig);
 // Mark the statement of each stage.
 class NoOpRemover : public arith::IRMutatorWithAnalyzer {
  public:
-  static Stmt Apply(Stmt stmt, arith::AnalyzerObj* analyzer, bool ignore_profiler_call = false) {
+  static Stmt Apply(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call = false) {
     NoOpRemover visitor(analyzer, ignore_profiler_call);
     return visitor(std::move(stmt));
   }
@@ -84,7 +85,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   using Parent::VisitStmt;
   using Parent::VisitStmt_;
 
-  NoOpRemover(arith::AnalyzerObj* analyzer, bool ignore_profiler_call = false)
+  NoOpRemover(const arith::Analyzer& analyzer, bool ignore_profiler_call = false)
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
   Stmt VisitStmt_(const BindNode* op) final {
@@ -167,6 +168,14 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
   }
 
+  bool HasSideEffect(const Expr& value) {
+    if (auto prim = value.as<PrimExpr>()) return HasSideEffect(prim.value());
+    // Variables and string literals are pure.  Preserve non-primitive calls
+    // conservatively because their effect metadata is independent of the
+    // call's semantic return type.
+    return value.as<CallNode>() != nullptr;
+  }
+
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = ffi::GetRef<BufferStore>(op);
 
@@ -224,10 +233,12 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   bool HasSideEffect(const PrimExpr& value) {
     if (ignore_profiler_call_) {
       if (const CallNode* call = value.as<CallNode>()) {
-        if (call->op.same_as(builtin::timer_init_cuda()) ||
-            call->op.same_as(builtin::timer_start_cuda()) ||
-            call->op.same_as(builtin::timer_end_cuda()) ||
-            call->op.same_as(builtin::timer_finalize_cuda())) {
+        static const Op& timer_init_cuda_op = Op::Get("tirx.timer_init_cuda");
+        static const Op& timer_start_cuda_op = Op::Get("tirx.timer_start_cuda");
+        static const Op& timer_end_cuda_op = Op::Get("tirx.timer_end_cuda");
+        static const Op& timer_finalize_cuda_op = Op::Get("tirx.timer_finalize_cuda");
+        if (call->op.same_as(timer_init_cuda_op) || call->op.same_as(timer_start_cuda_op) ||
+            call->op.same_as(timer_end_cuda_op) || call->op.same_as(timer_finalize_cuda_op)) {
           return false;
         }
       }
@@ -263,7 +274,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
   bool ignore_profiler_call_{false};
 };
 
-Stmt RemoveNoOp(Stmt stmt, arith::AnalyzerObj* analyzer, bool ignore_profiler_call) {
+Stmt RemoveNoOp(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call) {
   return NoOpRemover::Apply(std::move(stmt), analyzer, ignore_profiler_call);
 }
 
@@ -283,7 +294,7 @@ Pass RemoveNoOp() {
     {
       auto* write_ptr = f.CopyOnWrite();
       write_ptr->body =
-          NoOpRemover::Apply(std::move(write_ptr->body), analyzer.get(), ignore_profiler_call);
+          NoOpRemover::Apply(std::move(write_ptr->body), analyzer, ignore_profiler_call);
     }
     return f;
   };

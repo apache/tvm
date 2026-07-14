@@ -32,7 +32,7 @@
 // passes the setuptools_scm-resolved version through CMake). The literal below is the
 // fallback for a bare build with no override.
 #ifndef TVM_VERSION
-#define TVM_VERSION "0.25.dev0"
+#define TVM_VERSION "0.26.dev0"
 #endif
 
 // TVM ships two shared libraries: libtvm_compiler and libtvm_runtime.

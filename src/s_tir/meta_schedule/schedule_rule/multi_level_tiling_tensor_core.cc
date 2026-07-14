@@ -227,7 +227,7 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
         s_tir::GetAutoTensorizeMappingInfo(
             sch->state(), sch->GetSRef(block_rv),
             tirx::TensorIntrin::Get(intrin_groups[i].compute_intrin).value()->desc);
-    if (mapping_info.defined()) {
+    if (mapping_info.has_value()) {
       intrin_group_to_mapping_info.emplace(i, mapping_info.value());
     }
   }
@@ -264,28 +264,28 @@ ffi::Array<Schedule> MultiLevelTilingTensorCoreNode::Apply(const Schedule& sch,
 
 std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<State> states) {
   states = SubRule(std::move(states), [&](State state) {
-    return TransformForTensorization(Downcast<TensorCoreState>(state));
+    return TransformForTensorization(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    TensorCoreState tc_state = Downcast<TensorCoreState>(state);
+    TensorCoreState tc_state = state.as_or_throw<TensorCoreState>();
     return tc_state->is_mma ? MMATileLoopNest(tc_state) : TileLoopNest(state, 2);
   });
   states = SubRule(std::move(states), [&](State state) {
-    return TransformIntermediateOutputLayout(Downcast<TensorCoreState>(state));
+    return TransformIntermediateOutputLayout(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) { return AddWriteReuse(state); });
   states = SubRule(std::move(states), [&](State state) {
-    return AddWriteReuseTensorCore(Downcast<TensorCoreState>(state));
+    return AddWriteReuseTensorCore(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    TensorCoreState tc_state = Downcast<TensorCoreState>(state);
+    TensorCoreState tc_state = state.as_or_throw<TensorCoreState>();
     return tc_state->is_mma ? MMAAddReadReuse(tc_state) : AddReadReuse(state);
   });
   states = SubRule(std::move(states), [&](State state) {
-    return AddReadReuseTensorCore(Downcast<TensorCoreState>(state));
+    return AddReadReuseTensorCore(state.as_or_throw<TensorCoreState>());
   });
   states = SubRule(std::move(states), [&](State state) {
-    return AddSoftwarePipeline(Downcast<TensorCoreState>(state));
+    return AddSoftwarePipeline(state.as_or_throw<TensorCoreState>());
   });
   return states;
 }
@@ -294,7 +294,7 @@ void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(
     Schedule* sch, const SBlockRV& block_rv, const ffi::String& intrin_name,
     const ffi::String& permuted_layout_annotate_value) const {
   ffi::Optional<LoopRV> loop = s_tir::TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
-  TVM_FFI_ICHECK(loop.defined());
+  TVM_FFI_ICHECK(loop.has_value());
   SBlockRV blockized_outer = (*sch)->Blockize(loop.value());
   (*sch)->Annotate(blockized_outer, s_tir::attr::meta_schedule_auto_tensorize, intrin_name);
   if (!permuted_layout_annotate_value.empty()) {
@@ -425,9 +425,9 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
       low_inclusive = this->thread_warp_size_;
     }
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_low_inclusive,
-                  IntImm(DataType::Int(32), low_inclusive));
+                  IntImm::Int32(low_inclusive));
     sch->Annotate(block_rv, s_tir::attr::meta_schedule_thread_extent_high_inclusive,
-                  IntImm(DataType::Int(32), high_inclusive));
+                  IntImm::Int32(high_inclusive));
   }
   return {state};
 }
@@ -445,12 +445,12 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
 
   // Get the shape of the wmma accumulator
   auto [frag_shape_m, frag_shape_n] = [&]() {
-    tirx::SBlock intrin_block =
-        Downcast<tirx::SBlockRealize>(
-            tirx::TensorIntrin::Get(state->intrin_group.init_intrin).value()->desc->body)
-            ->block;
-    tirx::For loop_m = Downcast<tirx::For>(intrin_block->body);
-    tirx::For loop_n = Downcast<tirx::For>(loop_m->body);
+    tirx::SBlock intrin_block = tirx::TensorIntrin::Get(state->intrin_group.init_intrin)
+                                    .value()
+                                    ->desc->body.as_or_throw<tirx::SBlockRealize>()
+                                    ->block;
+    tirx::For loop_m = intrin_block->body.as_or_throw<tirx::For>();
+    tirx::For loop_n = loop_m->body.as_or_throw<tirx::For>();
     return std::make_tuple(loop_m->extent, loop_n->extent);
   }();
 
@@ -503,14 +503,14 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
                                  ffi::Array<PrimExpr> result;
                                  result.reserve(indices.size() + 4);
                                  for (int i = 0; i < num_higher_dims; ++i) {
-                                   result.push_back(indices[i]);
+                                   result.push_back(indices[i].as_or_throw<PrimExpr>());
                                  }
                                  const auto& m = indices[num_higher_dims];
                                  const auto& n = indices[num_higher_dims + 1];
-                                 auto accum_m = floormod(m, frag_shape_m);
-                                 auto accum_n = floormod(n, frag_shape_n);
-                                 auto outer_m = floordiv(m, frag_shape_m);
-                                 auto outer_n = floordiv(n, frag_shape_n);
+                                 auto accum_m = floormod(m.as_or_throw<PrimExpr>(), frag_shape_m);
+                                 auto accum_n = floormod(n.as_or_throw<PrimExpr>(), frag_shape_n);
+                                 auto outer_m = floordiv(m.as_or_throw<PrimExpr>(), frag_shape_m);
+                                 auto outer_n = floordiv(n.as_or_throw<PrimExpr>(), frag_shape_n);
 
                                  result.push_back(floordiv(outer_m, warp_num_frag_m));
                                  result.push_back(floordiv(outer_n, warp_num_frag_n));
@@ -626,10 +626,12 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddReadReuseTensorCore(
     tirx::Buffer cache_read_buffer =
         s_tir::GetNthAccessBuffer(sch->state(), ffi::GetRef<tirx::SBlock>(cache_read_block), 0,
                                   s_tir::BufferIndexType::kWrite);
-    const DataType& dtype = cache_read_buffer->dtype;
-    if (dtype.is_float16()) {
+    const DLDataType dtype = cache_read_buffer->dtype->dtype;
+    // Storage alignment is chosen from element storage width; this schedule rule uses scalar
+    // cache-read buffers, so the old element-type-only test is preserved.
+    if ((((dtype).code == kDLFloat) && ((dtype).bits == 16))) {
       sch->StorageAlign(cache_read, 0, -2, 32, 8);
-    } else if (dtype.is_int() && dtype.bits() == 8) {
+    } else if (((dtype).code == kDLInt) && dtype.bits == 8) {
       sch->StorageAlign(cache_read, 0, -2, 32, 16);
     } else {
       TVM_PY_LOG(WARNING, logger) << "StorageAlign is not applied for data type " << dtype
@@ -668,16 +670,15 @@ std::vector<State> MultiLevelTilingTensorCoreNode::AddSoftwarePipeline(
     const s_tir::SBlockRV cache_read = state->read_reuse.at(i);
     if (state->is_mma) {
       // Add vector bytes for memhammer
-      sch->Annotate(cache_read, s_tir::attr::vector_bytes, IntImm(DataType::Int(32), 16));
+      sch->Annotate(cache_read, s_tir::attr::vector_bytes, IntImm::Int32(16));
       if (!state->use_async) {
-        sch->Annotate(cache_read, s_tir::attr::local_stage, IntImm(DataType::Int(32), 1));
-        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm(DataType::Int(32), 0));
+        sch->Annotate(cache_read, s_tir::attr::local_stage, IntImm::Int32(1));
+        sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm::Int32(0));
       }
     } else {
       // Add local stage and double buffering
-      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage,
-                    IntImm(DataType::Int(32), 1));
-      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm(DataType::Int(32), 0));
+      sch->Annotate(cache_read, s_tir::attr::manifest_shared_memory_local_stage, IntImm::Int32(1));
+      sch->Annotate(cache_read, s_tir::attr::double_buffer_scope, IntImm::Int32(0));
     }
   }
 
@@ -833,7 +834,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
       const tirx::Var& lhs_representer = lhs_to_index_map_src[ffi::GetRef<tirx::Var>(var_ptr)];
       sub_index_map_src.push_back(lhs_representer);
       if (unmapped_index_map_src.count(lhs_representer)) {
-        sub_index_map_tgt.push_back(lhs_representer);
+        sub_index_map_tgt.push_back(lhs_representer.as_or_throw<PrimExpr>());
       }
     }
     for (size_t i = 0; i < mapping_info->rhs_buffer_indices[rhs_buffer].size(); ++i) {
@@ -842,7 +843,12 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
       TVM_FFI_ICHECK(var != nullptr);
       sub_index_map_tgt.push_back(rhs_to_index_map_tgt[ffi::GetRef<tirx::Var>(var)]);
     }
-    return tirx::IndexMap(sub_index_map_src, sub_index_map_tgt);
+    ffi::Array<tirx::PrimVar> prim_sub_index_map_src;
+    prim_sub_index_map_src.reserve(sub_index_map_src.size());
+    for (const tirx::Var& var : sub_index_map_src) {
+      prim_sub_index_map_src.push_back(var.as_or_throw<tirx::PrimVar>());
+    }
+    return tirx::IndexMap(prim_sub_index_map_src, sub_index_map_tgt);
   };
 
   std::unordered_set<tirx::Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_buffers;
@@ -896,7 +902,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
   // Do reindex and layout transformations.
   ffi::Optional<LoopRV> transformed_loop_rv =
       TransformWithTensorIntrin(state.operator->(), state->intrin_group.compute_intrin);
-  if (!transformed_loop_rv.defined()) {
+  if (!transformed_loop_rv.has_value()) {
     // The workload can't be tensorized.
     return {};
   }
@@ -909,7 +915,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
                        state->intrin_group.compute_intrin);
   state->sch->Annotate(state->block_rv, s_tir::attr::meta_schedule_auto_tensorize_init,
                        state->intrin_group.init_intrin);
-  state->sch->Annotate(state->block_rv, s_tir::attr::warp_execution, IntImm(DataType::Int(32), 1));
+  state->sch->Annotate(state->block_rv, s_tir::attr::warp_execution, IntImm::Int32(1));
   return {std::move(state)};
 }
 
@@ -919,7 +925,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     ffi::Optional<ffi::Array<int64_t>> vector_load_lens,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_read,
     ffi::Optional<ffi::Map<ffi::String, ffi::Any>> reuse_write, bool use_software_pipeline) {
-  if (tile_binds.defined()) {
+  if (tile_binds.has_value()) {
     for (const ffi::String& tile_bind : tile_binds.value()) {
       TVM_FFI_ICHECK_NE(tile_bind, "threadIdx.x")
           << "Cannot bind to threadIdx.x when using tensor core.";

@@ -31,9 +31,9 @@
 namespace tvm {
 namespace relax {
 
-StructInfo InferStructInfoUnaryCheck(const Call& call, const BlockBuilder& ctx) {
-  return InferStructInfoUnary<false>(
-      call, ctx, [](const TensorStructInfo& input_sinfo) { return DataType::Bool(); });
+Type InferTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
+  return InferTypeUnary<false>(call, ctx,
+                               [](const TensorType& input_ty) { return PrimType::Bool(); });
 }
 
 /***************** Arithmetic operators *****************/
@@ -71,20 +71,20 @@ RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(erf, /*require_float_dtype=*/true);
 TVM_REGISTER_OP("relax.clip")
     .set_num_inputs(3)
     .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("min", "PrimValue", "The lower-bound of the range to be clipped to")
-    .add_argument("max", "PrimValue", "The upper-bound of the range to be clipped to")
-    .set_attr<FInferStructInfo>("FInferStructInfo", ReturnStructInfoFromArg<0>)
+    .add_argument("min", "PrimExpr", "The lower-bound of the range to be clipped to")
+    .add_argument("max", "PrimExpr", "The upper-bound of the range to be clipped to")
+    .set_attr<FInferType>("FInferType", ReturnTypeFromArg<0>)
     .set_attr<bool>("FPurity", true);
 
 Expr clip(Expr x, Expr min, Expr max) {
-  TVM_FFI_ICHECK(min->IsInstance<PrimValueNode>())
-      << "The argument `min` of relax.clip is expected to be a PrimValue, but got "
+  TVM_FFI_ICHECK(min.as<PrimExpr>())
+      << "The argument `min` of relax.clip is expected to be a PrimExpr, but got "
       << min->GetTypeKey();
-  TVM_FFI_ICHECK(max->IsInstance<PrimValueNode>())
-      << "The argument `max` of relax.clip is expected to be a PrimValue, but got "
+  TVM_FFI_ICHECK(max.as<PrimExpr>())
+      << "The argument `max` of relax.clip is expected to be a PrimExpr, but got "
       << max->GetTypeKey();
   static const Op& op = Op::Get("relax.clip");
-  return Call(op, {std::move(x), std::move(min), std::move(max)});
+  return Call(Type::Missing(), op, {std::move(x), std::move(min), std::move(max)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

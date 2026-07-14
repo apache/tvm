@@ -29,12 +29,8 @@ copy the examples and raise errors with the same message convention.
 from tvm_ffi import register_error
 
 
-class TVMError(RuntimeError):
-    pass
-
-
 @register_error
-class InternalError(TVMError):
+class InternalError(RuntimeError):
     """Internal error in the system.
 
     Examples
@@ -52,7 +48,7 @@ class InternalError(TVMError):
 
 
 @register_error
-class RPCError(TVMError):
+class RPCError(RuntimeError):
     """Error thrown by the remote server handling the RPC call."""
 
 
@@ -62,7 +58,7 @@ class RPCSessionTimeoutError(RPCError, TimeoutError):
 
 
 @register_error
-class OpError(TVMError):
+class OpError(RuntimeError):
     """Base class of all operator errors in frontends."""
 
 
@@ -123,7 +119,7 @@ class OpAttributeUnImplemented(OpError, NotImplementedError):
 
 
 @register_error
-class DiagnosticError(TVMError):
+class DiagnosticError(RuntimeError):
     """Error diagnostics were reported during the execution of a pass.
 
     See the configured diagnostic renderer for detailed error information.

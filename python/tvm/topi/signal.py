@@ -112,7 +112,7 @@ def stft(
 
     output_buf = tirx.decl_buffer(output_shape, data.dtype, "output_buf", layout=None)
     loop_kind = "vectorize"
-    if isinstance(output_shape[2], tirx.expr.SizeVar):  # any_dim
+    if isinstance(output_shape[2], tirx.expr.Var):  # any_dim
         loop_kind = "serial"
 
     return te.extern(

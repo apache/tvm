@@ -163,8 +163,8 @@ void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, 
 void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& os,
                    const std::string& eol) {
   auto arr_type = arr.DataType();
-  TVM_FFI_ICHECK_EQ(arr_type.lanes(), 1)
-      << "CodegenParams: only support generating 1-lane parameters; saw " << arr_type.lanes();
+  TVM_FFI_ICHECK_EQ(arr_type.lanes, 1)
+      << "CodegenParams: only support generating 1-lane parameters; saw " << arr_type.lanes;
 
   auto shape = arr.Shape();
   int num_elements = 1;
@@ -176,72 +176,73 @@ void TensorDataToC(::tvm::runtime::Tensor arr, int indent_chars, std::ostream& o
   os.setf(std::ios::internal | std::ios::hex,
           std::ios::adjustfield | std::ios::basefield | std::ios::showbase);
   os.fill('0');
-  switch (arr_type.code()) {
-    case runtime::DataType::kInt:
-      TVM_FFI_ICHECK(arr_type.bits() == 8 || arr_type.bits() == 16 || arr_type.bits() == 32 ||
-                     arr_type.bits() == 64)
+  switch (static_cast<DLDataTypeCode>(arr_type.code)) {
+    case DLDataTypeCode::kDLInt:
+      TVM_FFI_ICHECK(arr_type.bits == 8 || arr_type.bits == 16 || arr_type.bits == 32 ||
+                     arr_type.bits == 64)
           << "CodegenParams: only support generating 8-, 16-, 32-, or 64-bit integer params; saw "
-          << arr_type.bits() << "-bit array";
-      if (arr_type.bits() == 8) {
+          << arr_type.bits << "-bit array";
+      if (arr_type.bits == 8) {
         PrintIntegralArray<int8_t>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 16) {
+      } else if (arr_type.bits == 16) {
         PrintIntegralArray<int16_t>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 32) {
+      } else if (arr_type.bits == 32) {
         PrintIntegralArray<int32_t>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 64) {
+      } else if (arr_type.bits == 64) {
         PrintIntegralArray<int64_t>(arr->data, num_elements, indent_chars, os, eol);
       } else {
         TVM_FFI_ICHECK(false) << "should not get here";
       }
       break;
 
-    case runtime::DataType::TypeCode::kUInt:
-      TVM_FFI_ICHECK(arr_type.bits() == 8 || arr_type.bits() == 16 || arr_type.bits() == 32 ||
-                     arr_type.bits() == 64)
+    case DLDataTypeCode::kDLUInt:
+      TVM_FFI_ICHECK(arr_type.bits == 8 || arr_type.bits == 16 || arr_type.bits == 32 ||
+                     arr_type.bits == 64)
           << "CodegenParams: only support generating 8-, 16-, 32-, or 64-bit integer params; saw "
-          << arr_type.bits() << "-bit array";
+          << arr_type.bits << "-bit array";
 
-      if (arr_type.bits() == 8) {
+      if (arr_type.bits == 8) {
         PrintIntegralArray<uint8_t>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 16) {
+      } else if (arr_type.bits == 16) {
         PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 32) {
+      } else if (arr_type.bits == 32) {
         PrintIntegralArray<uint32_t>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 64) {
+      } else if (arr_type.bits == 64) {
         PrintIntegralArray<uint64_t>(arr->data, num_elements, indent_chars, os, eol);
       } else {
         TVM_FFI_ICHECK(false) << "should not get here";
       }
       break;
 
-    case runtime::DataType::TypeCode::kFloat: {
+    case DLDataTypeCode::kDLFloat: {
       os.fill(' ');
       os.setf(std::ios::left, std::ios::adjustfield);
-      if (arr_type.bits() == 16) {
+      if (arr_type.bits == 16) {
         // NOTE: print types not widely supported by C as uint16_t.
         PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 32) {
+      } else if (arr_type.bits == 32) {
         PrintFloatingPointArray<float>(arr->data, num_elements, indent_chars, os, eol);
-      } else if (arr_type.bits() == 64) {
+      } else if (arr_type.bits == 64) {
         PrintFloatingPointArray<double>(arr->data, num_elements, indent_chars, os, eol);
       } else {
         TVM_FFI_ICHECK(false) << "CodegenParams: only support 32- or 64-bit floating point; saw "
-                              << arr_type.bits() << "-bit array";
+                              << arr_type.bits << "-bit array";
       }
       break;
     }
 
-    case runtime::DataType::TypeCode::kBFloat: {
+    case DLDataTypeCode::kDLBfloat: {
       // NOTE: print types not widely supported by C as uint16_t.
-      TVM_FFI_ICHECK(arr_type.bits() == 16)
-          << "CodegenParams: only support generating 16-bit bfloat params; saw " << arr_type.bits()
+      TVM_FFI_ICHECK(arr_type.bits == 16)
+          << "CodegenParams: only support generating 16-bit bfloat params; saw " << arr_type.bits
           << "-bit array";
       PrintIntegralArray<uint16_t>(arr->data, num_elements, indent_chars, os, eol);
       break;
     }
 
     default:
-      TVM_FFI_ICHECK(false) << "Data type '" << arr_type << "' not supported";
+      TVM_FFI_ICHECK(false) << "Data type '" << ffi::DLDataTypeToString(arr_type)
+                            << "' not supported";
   }
 
   os.flags(old_fmtflags);

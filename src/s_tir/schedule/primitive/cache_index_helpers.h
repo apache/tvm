@@ -91,7 +91,7 @@ class ComputationsDoneBy : public StmtExprVisitor {
   ComputationsDoneBy(std::function<bool(const PrimExpr&)> is_eligible_computation,
                      std::function<bool(const PrimExpr&)> can_contain_computations);
 
-  void VisitExpr(const PrimExpr& expr) override;
+  void VisitExpr(const Expr& expr) override;
   void VisitStmt(const Stmt& stmt) override;
 
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -134,7 +134,7 @@ class DirectSubexpr : public ExprVisitor {
   DirectSubexpr(std::function<bool(const PrimExpr&)> is_eligible_computation,
                 std::function<bool(const PrimExpr&)> can_contain_computations);
 
-  void VisitExpr(const PrimExpr& expr) override;
+  void VisitExpr(const Expr& expr) override;
 
  private:
   // The predicate used for knowing which computations are eligible

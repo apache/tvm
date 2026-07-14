@@ -489,12 +489,12 @@ def make_attention_rewrite_pattern(
                 transposed = is_op("relax.permute_dims")(reshaped)
 
             def rewriter(matchings, x):
-                if matchings[tensor].struct_info.ndim != 4:
+                if matchings[tensor].ty.ndim != 4:
                     return None
                 if list(matchings[permuted].attrs.axes) != [0, 2, 1, 3]:
                     return None
-                before_reshape = matchings[permuted].struct_info.shape.values
-                after_reshape = matchings[shape].struct_info.values
+                before_reshape = matchings[permuted].ty.shape.values
+                after_reshape = matchings[shape].ty.values
                 if not (
                     len(before_reshape) == 4
                     and len(after_reshape) == 3
@@ -503,7 +503,7 @@ def make_attention_rewrite_pattern(
                     return None
                 if transpose and list(matchings[transposed].attrs.axes) != [0, 2, 1]:
                     return None
-                return x, x.struct_info.shape
+                return x, x.ty.shape
 
             if transpose:
                 return transposed, rewriter
@@ -514,11 +514,11 @@ def make_attention_rewrite_pattern(
                 transposed = is_op("relax.permute_dims")(tensor)
 
             def rewriter(matchings, x):
-                if matchings[tensor].struct_info.ndim != 3:
+                if matchings[tensor].ty.ndim != 3:
                     return None
                 if transpose and list(matchings[transposed].attrs.axes) != [0, 2, 1]:
                     return None
-                before_reshape = x.struct_info.shape.values
+                before_reshape = x.ty.shape.values
                 after_reshape = [before_reshape[0], before_reshape[1], 1, before_reshape[2]]
                 return R.reshape(x, after_reshape), after_reshape
 
@@ -536,10 +536,10 @@ def make_attention_rewrite_pattern(
             permuted = is_op("relax.permute_dims")(reshaped)
 
             def rewriter(matchings, x):
-                if matchings[tensor].struct_info.ndim != 3:
+                if matchings[tensor].ty.ndim != 3:
                     return None
-                before_reshape = matchings[tensor].struct_info.shape.values
-                after_reshape = matchings[shape].struct_info.values
+                before_reshape = matchings[tensor].ty.shape.values
+                after_reshape = matchings[shape].ty.values
                 if not (
                     len(before_reshape) == 3
                     and len(after_reshape) == 4
@@ -554,9 +554,9 @@ def make_attention_rewrite_pattern(
         elif layout == "BSH":
 
             def rewriter(matchings, x):
-                if matchings[tensor].struct_info.ndim != 3:
+                if matchings[tensor].ty.ndim != 3:
                     return None
-                return R.reshape(x, matchings[tensor].struct_info.shape.values)
+                return R.reshape(x, matchings[tensor].ty.shape.values)
 
             return tensor, rewriter
         else:
@@ -602,7 +602,7 @@ def make_attention_rewrite_pattern(
         if query is None or key is None or value is None:
             return original
         softmax_axis = matchings[softmax].attrs.axis
-        softmax_input_rank = len(matchings[softmax].struct_info.shape)
+        softmax_input_rank = len(matchings[softmax].ty.shape)
         if softmax_axis == -1:
             softmax_axis += softmax_input_rank
         if softmax_axis != softmax_input_rank - 1:
@@ -611,7 +611,7 @@ def make_attention_rewrite_pattern(
         _, s_kv, _, _ = key_shape
         if with_bias:
             bias = matchings[bias_raw]
-            bias_shape = list(bias.struct_info.shape)
+            bias_shape = list(bias.ty.shape)
             if bias_shape == [b * n, s, s_kv]:
                 bias = R.reshape(bias, [b, n, s, s_kv])
             elif bias_shape == [b * n, 1, s_kv]:

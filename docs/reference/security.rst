@@ -62,7 +62,7 @@ Subroutine Cache Hash Collision
 
 ``SubroutineMixin._get_subroutine()`` in ``python/tvm/relax/frontend/nn/subroutine.py``
 used ``tvm_ffi.structural_hash`` as the sole cache lookup key without a subsequent
-``structural_equal`` verification. If two different ``arg_sinfo`` values produced the
+``structural_equal`` verification. If two different ``arg_ty`` values produced the
 same 64-bit hash, the cache would return a previously compiled function with
 mismatched parameter shapes, leading to silently incorrect compiled output.
 
@@ -73,11 +73,11 @@ The issue is primarily a correctness defect rather than a practically exploitabl
 security vulnerability.
 
 **Root Cause**: The subroutine cache (``cls._gvar``) was keyed by
-``(structural_hash(arg_sinfo, map_free_vars=True), is_dataflow)``.
+``(structural_hash(arg_ty, map_free_vars=True), is_dataflow)``.
 A hash match was treated as proof of structural equality, skipping the necessary
 ``structural_equal`` check.
 
-**Fix**: The cache now stores a list of ``(arg_sinfo, result)`` pairs per hash bucket.
+**Fix**: The cache now stores a list of ``(arg_ty, result)`` pairs per hash bucket.
 On lookup, each candidate is verified with ``structural_equal`` before returning.
 This follows the standard hash-table pattern: hash for bucket selection, equality
 for final verification.

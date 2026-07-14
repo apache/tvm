@@ -245,19 +245,6 @@ def ConvertSSA():
     return _ffi_api.ConvertSSA()  # type: ignore
 
 
-def LowerCustomDatatypes():
-    """Lower custom datatypes.
-
-    See tvm::datatypes::Registry for more information on adding custom datatypes.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerCustomDatatypes()  # type: ignore
-
-
 def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
@@ -349,7 +336,7 @@ def LowerIntrin():
 
 
 def NarrowDataType(target_bits: int):
-    """Narrow down PrimExpr datatype in stmt to target_bits.
+    """Narrow down Expr datatype in stmt to target_bits.
 
     Parameters
     ----------
@@ -501,6 +488,17 @@ def Filter(fcond: Callable):
         The result pass
     """
     return _ffi_api.Filter(fcond)  # type: ignore
+
+
+def TilePrimitiveDispatch():
+    """Lower TIRx tile primitive calls through the active backend dispatch table.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.TilePrimitiveDispatch()  # type: ignore
 
 
 def LowerTIRx():

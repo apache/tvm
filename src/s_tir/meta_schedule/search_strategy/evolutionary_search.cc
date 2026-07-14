@@ -406,11 +406,11 @@ class EvolutionarySearchNode : public SearchStrategyNode {
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
     TVM_FFI_CHECK(ctx->num_threads > 0, ValueError) << "`TuneContext.num_threads` must be > 0";
-    TVM_FFI_CHECK(ctx->space_generator.defined(), ValueError)
+    TVM_FFI_CHECK(ctx->space_generator.has_value(), ValueError)
         << "`TuneContext.space_generator` must be defined";
-    TVM_FFI_CHECK(ctx->space_generator.value()->postprocs.defined(), ValueError)
+    TVM_FFI_CHECK(ctx->space_generator.value()->postprocs.has_value(), ValueError)
         << "`TuneContext.space_generator.postprocs` must be defined";
-    TVM_FFI_CHECK(ctx->space_generator.value()->mutator_probs.defined(), ValueError)
+    TVM_FFI_CHECK(ctx->space_generator.value()->mutator_probs.has_value(), ValueError)
         << "`TuneContext.space_generator.mutator_probs` must be defined";
     this->ctx_ = ctx.get();
     this->postprocs_ = ctx->space_generator.value()->postprocs.value();
@@ -425,13 +425,13 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     TVM_FFI_ICHECK(!design_spaces.empty());
     TVM_FFI_CHECK(this->ctx_ != nullptr, ValueError)
         << "Did you forget to initialize the TuneContext?";
-    TVM_FFI_CHECK(database.defined(), ValueError)
+    TVM_FFI_CHECK(database.has_value(), ValueError)
         << "Database is not supplied in PreTuning. Evolutionary"
            "search algorithm requires a database to be present, so that it "
            "could sample from previously-explored population. If you do not "
            "intent to store data on disk, please use "
            "`tvm.s_tir.meta_schedule.database.MemoryDatabase`";
-    TVM_FFI_CHECK(cost_model.defined(), ValueError)
+    TVM_FFI_CHECK(cost_model.has_value(), ValueError)
         << "CostModel is not supplied in PreTuning. Evolutionary search "
            "algorithm expects a cost model to filter out potentially less efficient kernels. If "
            "you do not expect a cost model to help, please use "

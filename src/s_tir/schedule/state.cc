@@ -782,7 +782,7 @@ class ChildReplacer : private StmtMutator {
         }
       }
       // Move new_stmt to position i
-      if (new_stmt.defined()) {
+      if (new_stmt.has_value()) {
         ffi::ObjectPtr<SeqStmtNode> new_seq_stmt = CopyOnWrite(op);
         new_seq_stmt->seq.Set(i, new_stmt.value());
         return SeqStmt(std::move(new_seq_stmt));
@@ -960,7 +960,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
     IRModuleNode* new_mod = this->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
     // Move out the PrimFunc where the sref belong while ensuring uniqueness
-    PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
+    PrimFunc ref_new_func = std::move(new_map->at(g_var)).as_or_throw<PrimFunc>();
     TVM_FFI_ICHECK(ref_new_func.get() == g_func);
     PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
     // If `g_func` was not unique, after the 3 lines above:
@@ -1017,9 +1017,9 @@ void ScheduleStateNode::UpdateScopeSBlockInfo(const Stmt& stmt) {
 
 TVM_DLL ffi::Array<IntImm> GetCachedFlags(const ScheduleState& self, const StmtSRef& block_sref) {
   const SBlockInfo& info = self->GetSBlockInfo(block_sref);
-  return {IntImm(DataType::Bool(), info.affine_binding),  //
-          IntImm(DataType::Bool(), info.region_cover),    //
-          IntImm(DataType::Bool(), info.stage_pipeline)};
+  return {IntImm::Bool(info.affine_binding),  //
+          IntImm::Bool(info.region_cover),    //
+          IntImm::Bool(info.stage_pipeline)};
 }
 
 /**************** FFI ****************/

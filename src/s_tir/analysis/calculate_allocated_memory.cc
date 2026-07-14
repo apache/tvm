@@ -40,7 +40,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 std::string GetStorageScope(const Var& var) {
-  auto* ptr = var->type_annotation.as<PointerTypeNode>();
+  auto* ptr = var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
   return ptr->storage_scope;
 }
@@ -76,7 +76,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
         break;
       }
     }
-    size *= op->buffer->dtype.bytes() * op->buffer->dtype.lanes();
+    size *= static_cast<int64_t>(op->buffer->dtype.StorageBytes());
     _current_size[storage_scope] += size;
     _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
     StmtExprVisitor::VisitStmt_(op);

@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes used in astype operator */
 struct AstypeAttrs : public AttrsNode {
-  DataType dtype;
+  DLDataType dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -42,7 +42,7 @@ struct AstypeAttrs : public AttrsNode {
 
 /*! \brief Attributes used in wrap_param operator */
 struct WrapParamAttrs : public AttrsNode {
-  DataType dtype;
+  DLDataType dtype;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

@@ -19,13 +19,33 @@
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/cast.h>
 #include <tvm/ir/expr.h>
 #include <tvm/script/printer/printer.h>
 
 #include <algorithm>
+#include <sstream>
 
 namespace tvm {
+
+namespace {
+
+std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
+                                                const PrinterConfig& config) {
+  if (!config->render_invisible_path_info || config->path_to_underline.empty()) {
+    return std::string(script);
+  }
+
+  std::ostringstream os;
+  for (size_t i = 0; i < config->path_to_underline.size(); ++i) {
+    if (i != 0) os << "\n";
+    os << "Access path: " << config->path_to_underline[i]
+       << "\nNote: No visible object for this path is rendered in TVMScript.";
+  }
+  os << "\n\n" << script;
+  return os.str();
+}
+
+}  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() { PrinterConfigNode::RegisterReflection(); }
 
@@ -35,11 +55,12 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
 }
 
 std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
+  PrinterConfig config = cfg.value_or(PrinterConfig());
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
     // Fall back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
-    return std::string(ffi::ReprPrint(ffi::Any(node)));
+    return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
   }
-  return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
+  return TVMScriptPrinter::vtable()(node, config);
 }
 
 bool IsIdentifier(const std::string& name) {
@@ -59,25 +80,25 @@ bool IsIdentifier(const std::string& name) {
 PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   ffi::ObjectPtr<PrinterConfigNode> n = ffi::make_object<PrinterConfigNode>();
   if (auto v = config_dict.Get("name")) {
-    n->binding_names.push_back(Downcast<ffi::String>(v.value()));
+    n->binding_names.push_back(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("show_meta")) {
     n->show_meta = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("ir_prefix")) {
-    n->ir_prefix = Downcast<ffi::String>(v.value());
+    n->ir_prefix = v.value().as_or_throw<ffi::String>();
   }
   if (auto v = config_dict.Get("module_alias")) {
-    n->module_alias = Downcast<ffi::String>(v.value());
+    n->module_alias = v.value().as_or_throw<ffi::String>();
   }
   if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+    n->buffer_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+    n->int_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = DataType(ffi::StringToDLDataType(Downcast<ffi::String>(v.value())));
+    n->float_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = config_dict.Get("verbose_expr")) {
     n->verbose_expr = v.value().cast<bool>();
@@ -93,27 +114,33 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   }
   if (auto v = config_dict.Get("path_to_underline")) {
     n->path_to_underline =
-        Downcast<ffi::Optional<ffi::Array<ffi::reflection::AccessPath>>>(v).value_or(
+        v.value().as_or_throw<ffi::Optional<ffi::Array<ffi::reflection::AccessPath>>>().value_or(
             ffi::Array<ffi::reflection::AccessPath>());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
     n->path_to_annotate =
-        Downcast<ffi::Optional<ffi::Map<ffi::reflection::AccessPath, ffi::String>>>(v).value_or(
-            ffi::Map<ffi::reflection::AccessPath, ffi::String>());
+        v.value()
+            .as_or_throw<ffi::Optional<ffi::Map<ffi::reflection::AccessPath, ffi::String>>>()
+            .value_or(ffi::Map<ffi::reflection::AccessPath, ffi::String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
-    n->obj_to_underline = Downcast<ffi::Optional<ffi::Array<ffi::ObjectRef>>>(v).value_or(
-        ffi::Array<ffi::ObjectRef>());
+    n->obj_to_underline =
+        v.value().as_or_throw<ffi::Optional<ffi::Array<ffi::ObjectRef>>>().value_or(
+            ffi::Array<ffi::ObjectRef>());
   }
   if (auto v = config_dict.Get("obj_to_annotate")) {
-    n->obj_to_annotate = Downcast<ffi::Optional<ffi::Map<ffi::ObjectRef, ffi::String>>>(v).value_or(
-        ffi::Map<ffi::ObjectRef, ffi::String>());
+    n->obj_to_annotate =
+        v.value().as_or_throw<ffi::Optional<ffi::Map<ffi::ObjectRef, ffi::String>>>().value_or(
+            ffi::Map<ffi::ObjectRef, ffi::String>());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
     n->syntax_sugar = v.value().cast<bool>();
   }
   if (auto v = config_dict.Get("show_object_address")) {
     n->show_object_address = v.value().cast<bool>();
+  }
+  if (auto v = config_dict.Get("render_invisible_path_info")) {
+    n->render_invisible_path_info = v.value().cast<bool>();
   }
   // Dialect-specific keys are stored in extra_config with dotted-name keys.
   // String-typed dialect keys passed through directly.
@@ -123,13 +150,16 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     }
   }
   // Boolean dialect keys.
-  if (auto v = config_dict.Get("relax.show_all_struct_info")) {
-    n->extra_config.Set(ffi::String("relax.show_all_struct_info"), v.value());
+  if (auto v = config_dict.Get("relax.show_all_ty")) {
+    n->extra_config.Set(ffi::String("relax.show_all_ty"), v.value());
   }
   if (auto v = config_dict.Get("extra_config")) {
-    auto extra = Downcast<ffi::Map<ffi::String, ffi::Any>>(v.value());
+    auto extra = v.value().as_or_throw<ffi::Map<ffi::String, ffi::Any>>();
     for (auto kv : extra) {
       n->extra_config.Set(kv.first, kv.second);
+    }
+    if (auto render = extra.Get("render_invisible_path_info")) {
+      n->render_invisible_path_info = render.value().cast<bool>();
     }
   }
 

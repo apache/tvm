@@ -1,10 +1,3 @@
-def ci_setup(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_clear_pytest.sh",
-    label: 'Clean up old workspace',
-  )
-}
-
 def python_unittest(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",

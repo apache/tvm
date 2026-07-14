@@ -28,9 +28,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
-#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
-#include <tvm/ir/type_functor.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
@@ -158,7 +157,7 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
 
   auto it = global_var_map_.find(var->name_hint);
   if (it != global_var_map_.end()) {
-    TVM_FFI_ICHECK_EQ((*it).second, var);
+    TVM_FFI_ICHECK((*it).second.same_as(var));
   } else {
     TVM_FFI_ICHECK(global_var_map_.count(var->name_hint) == 0)
         << "Duplicate global function name " << var;
@@ -204,7 +203,7 @@ IRModule IRModuleNode::ShallowCopy() {
   return IRModule(this->functions, this->source_map, this->attrs, this->global_infos);
 }
 
-IRModule IRModule::FromExpr(const RelaxExpr& expr,
+IRModule IRModule::FromExpr(const Expr& expr,
                             const tvm::ffi::Map<GlobalVar, BaseFunc>& global_funcs) {
   auto mod = IRModule(global_funcs);
   ffi::String gv_name;
@@ -219,13 +218,17 @@ IRModule IRModule::FromExpr(const RelaxExpr& expr,
     }
   }
 
+  UniqueNameSupply global_names(mod->functions.begin(), mod->functions.end(),
+                                [](const auto& kv) { return kv.first->name_hint; });
   GlobalVar main_gv;
-  auto global_var_supply = GlobalVarSupply(mod);
   if (gv_name.empty()) {
     // Bind function to 'main' (though rename if would clash with existing 'main').
-    main_gv = global_var_supply->FreshGlobal("main", false);
+    main_gv = GlobalVar(global_names->FreshName("main", false));
+  } else if (mod->ContainGlobalVar(gv_name)) {
+    main_gv = mod->GetGlobalVar(gv_name);
   } else {
-    main_gv = global_var_supply->UniqueGlobalFor(gv_name, false);
+    global_names->ReserveName(gv_name, false);
+    main_gv = GlobalVar(gv_name);
   }
   mod->Add(main_gv, func);
   return mod;
@@ -255,7 +258,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
                  return ffi::GetRef<tvm::DictAttrs>(as_dict_attrs);
                } else if (attrs.as<ffi::MapObj>()) {
-                 return tvm::DictAttrs(Downcast<ffi::Map<ffi::String, Any>>(attrs));
+                 return tvm::DictAttrs(attrs.as_or_throw<ffi::Map<ffi::String, Any>>());
                } else {
                  TVM_FFI_THROW(InternalError)
                      << "Expected attrs argument to be either DictAttrs or "
@@ -273,8 +276,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            })
       .def("ir.Module_Add",
            [](IRModule mod, GlobalVar var, ffi::ObjectRef val, bool update) -> IRModule {
-             TVM_FFI_ICHECK(val->IsInstance<RelaxExprNode>());
-             mod->Add(var, Downcast<BaseFunc>(val), update);
+             TVM_FFI_ICHECK(val->IsInstance<BaseFuncNode>());
+             mod->Add(var, val.as_or_throw<BaseFunc>(), update);
              return mod;
            })
       .def("ir.Module_Remove",
@@ -327,7 +330,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::RValueRef<IRModule> mod, ffi::Map<ffi::String, ffi::Any> attr_map) -> IRModule {
              return WithAttrs(*std::move(mod), attr_map);
            })
-      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::ObjectRef {
+      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::Optional<ffi::ObjectRef> {
         return mod->GetAttr<ffi::ObjectRef>(key);
       });
 }

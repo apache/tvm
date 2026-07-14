@@ -26,15 +26,13 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-int32_t DataType2Int(const tvm::DataType& dtype) {
+int32_t DataType2Int(DLDataType dtype) {
   static_assert(sizeof(DLDataType) == sizeof(int32_t), "Incorrect size of DLDataType");
   union {
     DLDataType src;
     int32_t dst;
   } converter;
-  converter.src.code = dtype.code();
-  converter.src.bits = dtype.bits();
-  converter.src.lanes = dtype.lanes();
+  converter.src = dtype;
   return converter.dst;
 }
 
@@ -57,7 +55,7 @@ ffi::String Int2DataTypeStr(int32_t dtype) {
 struct TResult {
   TResult() = default;
 
-  void Add(const tvm::DataType& dtype) { data_[DataType2Int(dtype)] += 1; }
+  void Add(DLDataType dtype) { data_[DataType2Int(dtype)] += 1; }
 
   TResult operator+=(const TResult& rhs) {
     for (const auto& kv : rhs.data_) {
@@ -86,20 +84,20 @@ struct TResult {
   std::unordered_map<int32_t, double> data_;
 };
 
-class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
+class FlopEstimator : private ExprFunctor<TResult(const Expr& n)>,
                       private StmtFunctor<TResult(const Stmt& n)> {
   arith::Analyzer ana;
 
  public:
-  TResult VisitExpr(const PrimExpr& expr) override { return ExprFunctor::VisitExpr(expr); }
+  TResult VisitExpr(const Expr& expr) override { return ExprFunctor::VisitExpr(expr); }
   TResult VisitStmt(const Stmt& stmt) override { return StmtFunctor::VisitStmt(stmt); }
 
-#define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node) \
-  TResult VisitExpr_(const Node* op) final {     \
-    TResult result = VisitExpr(op->a);           \
-    result += VisitExpr(op->b);                  \
-    result.Add(op->dtype);                       \
-    return result;                               \
+#define TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(Node)       \
+  TResult VisitExpr_(const Node* op) final {           \
+    TResult result = VisitExpr(op->a);                 \
+    result += VisitExpr(op->b);                        \
+    result.Add(op->ty.as_or_throw<PrimType>()->dtype); \
+    return result;                                     \
   }
   TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(AddNode);
   TVM_TIR_ESTIMATE_FLOP_VISIT_BINARY(SubNode);
@@ -151,7 +149,7 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   }
   TResult VisitStmt_(const SBlockNode* block) override {
     TResult result;
-    if (block->init.defined()) {
+    if (block->init.has_value()) {
       result += VisitStmt(block->init.value());
     }
     result += VisitStmt(block->body);
@@ -183,8 +181,8 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   }
 
   TResult VisitStmt_(const BindNode* let) override {
-    TResult value = VisitExpr(let->value);
-    return value;
+    if (auto value = let->value.as<PrimExpr>()) return VisitExpr(value.value());
+    return TResult();
   }
 
   TResult VisitExpr_(const SelectNode* op) override {
@@ -199,7 +197,6 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   }
 
   TResult VisitExpr_(const VarNode* op) override { return TResult(); }
-  TResult VisitExpr_(const SizeVarNode* op) override { return TResult(); }
   TResult VisitExpr_(const IntImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const FloatImmNode* op) override { return TResult(); }
   TResult VisitExpr_(const StringImmNode* op) override { return TResult(); }
@@ -218,8 +215,8 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
 
   TResult VisitExpr_(const CallNode* op) override {
     TResult ret;
-    for (const auto& x : op->args) {
-      ret += VisitExpr(x);
+    for (const Expr& arg : op->args) {
+      ret += VisitExpr(arg);
     }
     return ret;
   }

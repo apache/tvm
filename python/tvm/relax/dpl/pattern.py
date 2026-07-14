@@ -26,7 +26,6 @@ import tvm_ffi
 from tvm_ffi import Array
 
 import tvm
-from tvm.ir.expr import PrimExpr
 from tvm.ir.op import Op
 
 from ...ir import make_node
@@ -123,8 +122,8 @@ class DFPattern(Node):
         attrs = make_node("ir.DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
-    def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":
-        return StructInfoPattern(self, struct_info)
+    def has_ty(self, ty: "Type") -> "TypePattern":
+        return TypePattern(self, ty)
 
     def has_dtype(self, dtype: str) -> "DataTypePattern":
         """
@@ -142,13 +141,13 @@ class DFPattern(Node):
         """
         return has_dtype(dtype, self)
 
-    def has_shape(self, shape: list[PrimExpr]) -> "ShapePattern":
+    def has_shape(self, shape: list[Expr]) -> "ShapePattern":
         """
         Add a shape constraint to this pattern
 
         Parameters
         ----------
-        shape: List[PrimExpr]
+        shape: List[Expr]
             Expected shape list
 
         Returns
@@ -161,7 +160,7 @@ class DFPattern(Node):
         has_shape assumes that the matched relax.Expr only has one
         output tensor. Use is_tuple for those with multiple outputs.
         """
-        if not isinstance(shape, list | tuple | tvm.ir.PrimExpr):
+        if not isinstance(shape, list | tuple) and not tvm.ir.is_prim_expr(shape):
             raise ValueError("has_shape takes a list or tuple as input.")
         return ShapePattern(pattern=self, shape=shape)
 
@@ -568,23 +567,23 @@ class WildcardPattern(DFPattern):
 
 
 @register_df_node
-class StructInfoPattern(DFPattern):
-    """A pattern that matches another pattern with a certain StructInfo
+class TypePattern(DFPattern):
+    """A pattern that matches another pattern with a certain Type
 
     Parameters
     ----------
     pattern: tvm.relax.dpl.DFPattern
         The input pattern that needs type annotation.
 
-    struct_info: tvm.relax.StructInfo
-        The struct info to match against
+    ty: tvm.relax.Type
+        The type to match against
     """
 
-    def __init__(self, pattern: "DFPattern", struct_info: "StructInfo"):
+    def __init__(self, pattern: "DFPattern", ty: "Type"):
         self.__init_handle_by_constructor__(
-            ffi.StructInfoPattern,
+            ffi.TypePattern,
             pattern,
-            struct_info,
+            ty,
         )  # type: ignore
 
 
@@ -614,11 +613,11 @@ class ShapePattern(DFPattern):
     pattern: tvm.relax.dpl.DFPattern
         The input pattern that needs type annotation.
 
-    shape: List[tvm.ir.PrimExpr]
+    shape: List[tvm.ir.Expr]
         The shape to match.
     """
 
-    def __init__(self, pattern: "DFPattern", shape: list[tvm.ir.PrimExpr]):
+    def __init__(self, pattern: "DFPattern", shape: list[tvm.ir.Expr]):
         self.__init_handle_by_constructor__(ffi.ShapePattern, pattern, shape)  # type: ignore
 
 
@@ -639,15 +638,15 @@ class SameShapeConstraint(DFConstraint):
 @register_df_node
 class PrimArrPattern(DFPattern):
     """
-    A pattern to match an array of PrimExpr
+    A pattern to match an array of Expr
 
     Parameters
     ----------
-    shape : List[tvm.ir.PrimExpr]
+    shape : List[tvm.ir.Expr]
         The shape to match.
     """
 
-    def __init__(self, shape: list[tvm.ir.PrimExpr]):
+    def __init__(self, shape: list[tvm.ir.Expr]):
         self.__init_handle_by_constructor__(ffi.PrimArrPattern, shape)  # type: ignore
 
     def __getitem__(self, index: int):
@@ -831,13 +830,13 @@ def has_dtype(dtype: str, pattern: DFPattern = None) -> DataTypePattern:
     return DataTypePattern(pattern, dtype)
 
 
-def is_shape(shape: list[tvm.ir.PrimExpr]) -> "PrimArrPattern":
+def is_shape(shape: list[tvm.ir.Expr]) -> "PrimArrPattern":
     """
-    Directly matches a shape which is an array of PrimExpr
+    Directly matches a shape which is an array of Expr
 
     Parameters
     ----------
-    shape : List[tvm.ir.PrimExpr]
+    shape : List[tvm.ir.Expr]
         The expected shape
 
     Returns
@@ -854,14 +853,14 @@ def is_shape(shape: list[tvm.ir.PrimExpr]) -> "PrimArrPattern":
     ----
     The difference between p.has_shape(s) and is_shape(s) is that: has_shape
     puts assumptions on the shape of the tensor matched by pattern p. While
-    is_shape directly matches the shape (an array of PrimExpr).
+    is_shape directly matches the shape (an array of Expr).
     """
     if not isinstance(shape, list | tuple | Array):
         raise ValueError("is_shape takes a list or tuple as input.")
     return PrimArrPattern(shape)
 
 
-# Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
+# Todo(relax-team): Dataflow pattern for Type, and match out_ty
 def _is_call_tir(
     func_pattern: DFPattern,
     args: list | tuple | TuplePattern = None,
@@ -877,7 +876,7 @@ def _is_call_tir(
     return is_op("relax.call_tir")(func_pattern, args, tir_vars, add_constraint=False)
 
 
-# Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
+# Todo(relax-team): Dataflow pattern for Type, and match out_ty
 def is_call_tir(
     func_name: str,
     args: list | tuple | TuplePattern = None,

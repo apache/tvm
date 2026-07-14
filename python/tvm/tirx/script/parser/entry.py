@@ -489,7 +489,7 @@ class PtrProxy:
     @deprecated("T.Ptr(...)", "T.handle(...)")
     def __call__(self, dtype, storage_scope="global"):
         if callable(dtype):
-            dtype = dtype().dtype
+            dtype = dtype().ty.dtype
         return ptr(dtype, storage_scope)  # type: ignore[attr-defined] # pylint: disable=no-member
 
     @deprecated("T.Ptr[...]", "T.handle(...)")

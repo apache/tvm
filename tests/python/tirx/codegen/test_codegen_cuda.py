@@ -21,8 +21,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm.script import tirx as T
-
-DEV = tvm.device("cuda")
+from tvm.testing import env
 
 
 def _get_source(func: tvm.tirx.PrimFunc) -> str:
@@ -118,6 +117,8 @@ def test_cuda_handle_uint64_reinterpret_codegen():
     assert "*(void* *)" not in src
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_atomic_add():
     @T.prim_func
     def main(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "float32")):
@@ -132,11 +133,16 @@ def test_cuda_atomic_add():
     assert "tvm_builtin_cuda_atomic_add" in src
     A_np = np.zeros(1, dtype="int32")
     B_np = np.zeros(1, dtype="float32")
-    A_tvm = tvm.runtime.tensor(A_np, device=DEV)
-    B_tvm = tvm.runtime.tensor(B_np, device=DEV)
-    mod["main"](A_tvm, B_tvm)
-    np.testing.assert_allclose(A_tvm.numpy(), 1)
-    np.testing.assert_allclose(B_tvm.numpy(), 1.0)
+
+    def run_and_check():
+        dev = tvm.device("cuda")
+        A_tvm = tvm.runtime.tensor(A_np, device=dev)
+        B_tvm = tvm.runtime.tensor(B_np, device=dev)
+        mod["main"](A_tvm, B_tvm)
+        np.testing.assert_allclose(A_tvm.numpy(), 1)
+        np.testing.assert_allclose(B_tvm.numpy(), 1.0)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_ptx_ld_acquire_and_volatile_codegen():
@@ -442,6 +448,8 @@ def test_cuda_atomic_cas():
     assert "tvm_builtin_cuda_atomic_cas" in src
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_func_call():
     def test_add_one():
         add_one = """
@@ -464,10 +472,15 @@ __device__ int32_t add_one(int32_t a) {
         src, mod = _get_source(main)
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
         B = np.zeros((16, 16), dtype="int32")
-        A_tvm = tvm.runtime.tensor(A, device=DEV)
-        B_tvm = tvm.runtime.tensor(B, device=DEV)
-        mod["main"](A_tvm, B_tvm)
-        np.testing.assert_allclose(B_tvm.numpy(), A + 1)
+
+        def run_and_check():
+            dev = tvm.device("cuda")
+            A_tvm = tvm.runtime.tensor(A, device=dev)
+            B_tvm = tvm.runtime.tensor(B, device=dev)
+            mod["main"](A_tvm, B_tvm)
+            np.testing.assert_allclose(B_tvm.numpy(), A + 1)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
         print(src)
 
     test_add_one()
@@ -490,13 +503,21 @@ __device__ void print(int32_t a) {
 
         src, mod = _get_source(main)
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
-        A_tvm = tvm.runtime.tensor(A, device=DEV)
-        mod["main"](A_tvm)
+
+        def run_and_check():
+            dev = tvm.device("cuda")
+            A_tvm = tvm.runtime.tensor(A, device=dev)
+            mod["main"](A_tvm)
+            dev.sync()
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
         print(src)
 
     test_print()
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_warp_shuffle_xor_sync():
     # fmt: off
     @T.prim_func
@@ -520,18 +541,24 @@ def test_warp_shuffle_xor_sync():
         A[lane_id] = A_local[0]
         # fmt: on
 
-    DEV = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
     A_np = np.zeros(32, dtype="float32")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    mod(A)
     assert "__shfl_xor_sync" in mod.mod.imports[0].inspect_source()
     A_ref = np.ones(32, dtype="float32") * 496
-    np.testing.assert_allclose(A.numpy(), A_ref)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        mod(A)
+        np.testing.assert_allclose(A.numpy(), A_ref)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("cp_size", [4, 8, 16])
 @pytest.mark.parametrize("cache_hint", ["", "evict_last"])
 @pytest.mark.parametrize("prefetch_size", [-1, 64, 128, 256])
@@ -562,8 +589,6 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
 
     src, mod = _get_source(main)
     A_np = np.ones(N, dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    mod(A)
     A_ref = np.ones(N, dtype="float16") * 2
     if int(predicate) == 0:
         if fill_mode == "zero":
@@ -571,10 +596,18 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
         else:
             A_ref = np.ones(N, dtype="float16") * 6
 
-    np.testing.assert_allclose(A.numpy(), A_ref)
+    def run_and_check():
+        dev = tvm.device("cuda")
+        A = tvm.runtime.tensor(A_np, device=dev)
+        mod(A)
+        np.testing.assert_allclose(A.numpy(), A_ref)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
     print(src)
 
 
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 @pytest.mark.parametrize("trans", [False, True])
 @pytest.mark.parametrize("num", [1, 2, 4])
 def test_ptx_ldmatrix(trans, num):
@@ -626,12 +659,8 @@ def test_ptx_ldmatrix(trans, num):
 
     src, mod = _get_source(main)
     A_np = np.arange(16 * 16, dtype="float16").reshape((16, 16))
-    A = tvm.runtime.tensor(A_np, device=DEV)
     B_np = np.zeros((16, 16), dtype="float16")
     B_ref = np.zeros((16, 16), dtype="float16")
-    B = tvm.runtime.tensor(B_np, device=DEV)
-
-    mod(A, B)
     if num == 1:
         B_ref[0:8, 0:8] = A_np[0:8, 0:8] if not trans else A_np[0:8, 0:8].T
     elif num == 2:
@@ -643,7 +672,14 @@ def test_ptx_ldmatrix(trans, num):
         B_ref[8:16, 0:8] = A_np[8:16, 0:8] if not trans else A_np[8:16, 0:8].T
         B_ref[8:16, 8:16] = A_np[8:16, 8:16] if not trans else A_np[8:16, 8:16].T
 
-    np.testing.assert_allclose(B.numpy(), B_ref)
+    def run_and_check():
+        dev = tvm.device("cuda")
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        mod(A, B)
+        np.testing.assert_allclose(B.numpy(), B_ref)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

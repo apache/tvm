@@ -24,8 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/transform.h>
+#include <tvm/ir/unique_name_supply.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
@@ -140,8 +140,9 @@ class HostDeviceSplitter : public StmtMutator {
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
+            bool is_handle = var->ty.as<PointerTypeNode>() != nullptr;
             return std::tuple{
-                !var->dtype.is_handle(),
+                !is_handle,
                 var->name_hint,
             };
           };
@@ -167,10 +168,10 @@ class HostDeviceSplitter : public StmtMutator {
       auto kind = device_target->GetTargetDeviceType();
       return kind == kDLCPU || kind == kDLExtDev || kind == kDLHexagon;
     }();
-    IntImm success(DataType::Int(32), 0);
-    Type kernel_ret_type;
+    IntImm success(PrimType::Int(32), 0);
+    Type kernel_ret_type = Type::Missing();
     if (can_propagate_errors) {
-      kernel_ret_type = PrimType(DataType::Int(32));
+      kernel_ret_type = PrimType::Int(32);
       body = SeqStmt::Flatten(body, Evaluate(ret(success)));
     } else {
       kernel_ret_type = VoidType();
@@ -199,17 +200,19 @@ class HostDeviceSplitter : public StmtMutator {
     }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
-    ffi::Array<PrimExpr> args = params.Map([](const Var& var) -> PrimExpr { return var; });
+    ffi::Array<Expr> args = params.Map([](const Var& var) -> Expr { return var; });
 
     if (can_propagate_errors) {
-      Var kernel_error_code("kernel_error_code", success->dtype);
-      Call kernel_call(success->dtype, kernel_symbol_global, args);
-      AssertStmt assert_success(kernel_error_code == success, StringImm("RuntimeError"),
+      Var kernel_error_code("kernel_error_code", success.ty());
+      Call kernel_call(success.ty(), kernel_symbol_global, args);
+      AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
+                                StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
-      return SeqStmt({Bind(kernel_error_code, kernel_call), assert_success});
+      return SeqStmt(ffi::Array<Stmt>{Bind(kernel_error_code, kernel_call.as_or_throw<PrimExpr>()),
+                                      assert_success});
 
     } else {
-      return Evaluate(Call(DataType::Void(), kernel_symbol_global, args));
+      return Evaluate(Call(PrimType::Void(), kernel_symbol_global, args).as_or_throw<PrimExpr>());
     }
   }
 
@@ -290,7 +293,7 @@ class DeviceInfoCollector : public StmtVisitor {
  private:
   PrimExpr GetArgument(const ffi::String& launch_param) const {
     if (launch_param == tvm::runtime::launch_param::kUseDynamicSharedMemoryTag) {
-      TVM_FFI_ICHECK(dyn_shmem_size.defined())
+      TVM_FFI_ICHECK(dyn_shmem_size.has_value())
           << "Compute kernel requires launch parameter \"" << launch_param
           << "\", but PrimFunc did not contain AllocBuffer node with shared dynamic scope.";
       return dyn_shmem_size.value();
@@ -309,7 +312,13 @@ class DeviceInfoCollector : public StmtVisitor {
     // variables (e.g. CSE variables) can be inlined back to
     // expressions over function parameters.  Substitute earlier
     // bindings into the value to handle chains (cse_v2 = f(cse_v1)).
-    PrimExpr value = bind_map_.size() ? Substitute(op->value, bind_map_) : op->value;
+    auto prim_value = op->value.as<PrimExpr>();
+    if (!prim_value) {
+      StmtVisitor::VisitStmt_(op);
+      return;
+    }
+    PrimExpr value =
+        bind_map_.size() ? Substitute(prim_value.value(), bind_map_) : prim_value.value();
     bind_map_.Set(op->var, value);
     StmtVisitor::VisitStmt_(op);
   }
@@ -345,15 +354,15 @@ class DeviceInfoCollector : public StmtVisitor {
   void VisitStmt_(const AllocBufferNode* op) final {
     auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
-      TVM_FFI_ICHECK(!dyn_shmem_size.defined())
+      TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
           << "Only one dynamic shared memory allocation is allowed.";
       TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
 
-      PrimExpr dyn_size = IntImm(DataType::Int(32), 1);
+      PrimExpr dyn_size = IntImm::Int32(1);
       for (const auto& extent : op->buffer->shape) {
         dyn_size *= extent;
       }
-      dyn_size *= op->buffer->dtype.bytes();
+      dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
 
       // Inline any locally-bound variables (e.g. from CSE).
       if (bind_map_.size()) {
@@ -398,7 +407,7 @@ class ReturnRemover : public StmtExprMutator {
     return Parent::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::ret())) {
       TVM_FFI_THROW(InternalError)
           << "Call to builtin::ret() should only appear within an Evaluate node";
@@ -442,7 +451,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       : device_info_map_(std::move(device_info_map)) {}
 
   PrimFunc RewriteKernelLaunchSite(const GlobalVar& gvar, PrimFunc func) {
-    TVM_FFI_ICHECK(!current_target_.defined());
+    TVM_FFI_ICHECK(!current_target_.has_value());
     // Track whether the caller is a host function (i.e. its target
     // still has a host attached) and capture its host target.  The
     // same-target shortcut at the call site is only safe when caller
@@ -454,7 +463,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     // target, not the device target stripped by WithoutHost().
     auto full_target = func->GetAttr<Target>(tvm::attr::kTarget).value();
     current_target_ = full_target.WithoutHost();
-    if (full_target->GetHost().defined()) {
+    if (full_target->GetHost().has_value()) {
       current_caller_host_target_ = full_target->GetHost().value();
     } else {
       current_caller_host_target_ = std::nullopt;
@@ -494,10 +503,10 @@ class DeviceKernelMutator : public StmtExprMutator {
         write_ptr->body = ReturnRemover::Apply(write_ptr->body);
       }
 
-      func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv,
-                                          static_cast<int>(tvm::CallingConv::kDeviceKernelLaunch)},
-                                         {tvm::tirx::attr::kKernelLaunchParams, info.launch_params},
-                                         {tvm::attr::kGlobalSymbol, info.global_symbol}});
+      func = WithAttrs(std::move(func),
+                       {{tvm::attr::kCallingConv, tvm::CallingConv::kDeviceKernelLaunch},
+                        {tvm::tirx::attr::kKernelLaunchParams, info.launch_params},
+                        {tvm::attr::kGlobalSymbol, info.global_symbol}});
 
     } else if (is_call_extern && !func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
@@ -507,8 +516,8 @@ class DeviceKernelMutator : public StmtExprMutator {
   }
 
  private:
-  PrimExpr VisitExpr_(const CallNode* op) override {
-    auto node = Downcast<Call>(Parent::VisitExpr_(op));
+  Expr VisitExpr_(const CallNode* op) override {
+    auto node = Parent::VisitExpr_(op).as_or_throw<Call>();
 
     auto* gvar = op->op.as<GlobalVarNode>();
     if (!gvar) return node;
@@ -565,12 +574,12 @@ class DeviceKernelMutator : public StmtExprMutator {
         // calling a custom TIRToRuntime target) do not require a kernel
         // launch, but need to be replaced with call_extern.
         extern_function_call_.insert(gvar);
-        ffi::Array<PrimExpr> args;
+        ffi::Array<Expr> args;
         args.push_back(StringImm(gvar->name_hint));
-        for (const auto& arg : node->args) {
+        for (const Expr& arg : node->args) {
           args.push_back(arg);
         }
-        return Call(node->dtype, builtin::call_extern(), args);
+        return Call(node->ty, builtin::call_extern(), args);
       }
     }
 
@@ -585,31 +594,35 @@ class DeviceKernelMutator : public StmtExprMutator {
     // caller's parameters.  The param_map allows substitution of
     // parameter values into the thread extents, to generate
     // expressions that are valid within the caller.
+    const ffi::Array<Expr>& args = node->args;
     ffi::Map<Var, PrimExpr> param_map = [&]() {
       ffi::Map<Var, PrimExpr> param_map;
-      TVM_FFI_ICHECK_EQ(node->args.size(), dev_info.params.size())
+      TVM_FFI_ICHECK_EQ(args.size(), dev_info.params.size())
           << "Function " << gvar->name_hint << " accepts " << dev_info.params.size()
-          << " arguments as input, but is called using " << node->args.size() << " arguments";
-      for (size_t i = 0; i < node->args.size(); i++) {
-        param_map.Set(dev_info.params[i], node->args[i]);
+          << " arguments as input, but is called using " << args.size() << " arguments";
+      for (size_t i = 0; i < args.size(); i++) {
+        if (auto prim_arg = args[i].as<PrimExpr>()) {
+          param_map.Set(dev_info.params[i], prim_arg.value());
+        }
       }
       return param_map;
     }();
 
     device_kernel_launch_.insert(gvar);
 
-    ffi::Array<PrimExpr> call_args;
+    ffi::Array<Expr> call_args;
     call_args.push_back(StringImm(dev_info.global_symbol));
-    for (PrimExpr arg : node->args) {
+    for (const Expr& arg : args) {
       call_args.push_back(arg);
     }
     for (const auto& launch_arg : dev_info.launch_args) {
       call_args.push_back(Substitute(launch_arg, param_map));
     }
 
-    auto dtype = node->dtype.is_void() ? DataType::Int(32) : node->dtype;
+    PrimType node_ty = node->ty.as_or_throw<PrimType>();
+    PrimType ret_ty = node_ty.IsVoid() ? PrimType::Int(32) : node_ty;
 
-    return Call(dtype, builtin::tvm_call_packed(), call_args);
+    return Call(ret_ty, builtin::tvm_call_packed(), call_args).as_or_throw<PrimExpr>();
   }
 
   ffi::Optional<Target> current_target_;
@@ -678,7 +691,8 @@ namespace transform {
 
 Pass SplitHostDevice() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
-    GlobalVarSupply global_var_supply(mod);
+    UniqueNameSupply global_names(mod->functions.begin(), mod->functions.end(),
+                                  [](const auto& kv) { return kv.first->name_hint; });
 
     IRModule device_mod = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
     IRModule updates = IRModule(ffi::Map<GlobalVar, BaseFunc>({}));
@@ -691,8 +705,8 @@ Pass SplitHostDevice() {
         auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
         auto name_prefix = global_symbol.value_or(gvar->name_hint);
         auto kernel_name = name_prefix + "_kernel";
-        auto var_supply = [&global_var_supply, &kernel_name]() -> GlobalVar {
-          return global_var_supply->FreshGlobal(kernel_name, false);
+        auto var_supply = [&global_names, &kernel_name]() -> GlobalVar {
+          return GlobalVar(global_names->FreshName(kernel_name, false));
         };
 
         func = SplitHostDevice(std::move(func), &device_mod, var_supply);

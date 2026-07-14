@@ -145,10 +145,10 @@ class StableHLOImporter:
         if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
             return lhs, rhs
         if isinstance(lhs, relax.Expr):
-            assert isinstance(lhs.struct_info, relax.TensorStructInfo)
-            return lhs, relax.const(rhs, lhs.struct_info.dtype)
-        assert isinstance(rhs.struct_info, relax.TensorStructInfo)
-        return relax.const(lhs, rhs.struct_info.dtype), rhs
+            assert isinstance(lhs.ty, relax.TensorType)
+            return lhs, relax.const(rhs, lhs.ty.dtype)
+        assert isinstance(rhs.ty, relax.TensorType)
+        return relax.const(lhs, rhs.ty.dtype), rhs
 
     def _call_binary_op(self, op, lhs, rhs):
         lhs, rhs = StableHLOImporter._promote_binary_op_args(lhs, rhs)
@@ -381,7 +381,7 @@ class StableHLOImporter:
             ipt_shape = self.get_shape(arg_shape)
             ipt_dtype = self._convert_data_type(arg_shape.element_type)
             ipt_name = "arg" + str(idx)
-            ipt_var = relax.Var(f"arg{idx}", relax.TensorStructInfo(ipt_shape, ipt_dtype))
+            ipt_var = relax.Var(f"arg{idx}", relax.TensorType(ipt_shape, ipt_dtype))
             self._nodes[ipt_name] = ipt_var
             inputs.append(ipt_var)
 

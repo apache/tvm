@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tirx/builtin.h>
@@ -149,7 +150,8 @@ void PrimFuncFrameNode::ExitWithScope() {
   func = tvm::tirx::ScriptComplete(func, effective_root_alloc_buffers, s_tir);
   IRBuilder builder = IRBuilder::Current();
   if (builder->frames.empty()) {
-    TVM_FFI_CHECK(!builder->result.defined(), ValueError) << "Builder.result has already been set";
+    TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
+        << "Builder.result has already been set";
     builder->result = func;
   } else if (ffi::Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
     TVM_FFI_CHECK(name.has_value(), ValueError)
@@ -180,8 +182,8 @@ void SBlockFrameNode::ExitWithScope() {
     tir_alloc_buffers.push_back(buffer);
   }
   ffi::Map<ffi::String, Any> attrs = annotations.value_or({});
-  if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
-    attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
+  if (int detect_access = (!reads.has_value()) | (!writes.has_value() << 1)) {
+    attrs.Set("tirx.script_parsing_detect_access", tvm::IntImm::Int64(detect_access));
   }
   tvm::tirx::SBlock block(iter_vars, reads.value_or(ffi::Array<tvm::tirx::BufferRegion>()),
                           writes.value_or(ffi::Array<tvm::tirx::BufferRegion>()), name,
@@ -190,18 +192,18 @@ void SBlockFrameNode::ExitWithScope() {
   if (no_realize) {
     TVM_FFI_CHECK(iter_values.empty(), ValueError)
         << "Block bindings are not allowed when `no_realize=True`";
-    TVM_FFI_CHECK(!predicate.defined(), ValueError)
+    TVM_FFI_CHECK(!predicate.has_value(), ValueError)
         << "`T.where` is not allowed when `no_realize=True`";
     AddToParent(block);
   } else {
-    AddToParent(tvm::tirx::SBlockRealize(iter_values,
-                                         predicate.value_or(IntImm(DataType::Bool(), 1)), block));
+    AddToParent(
+        tvm::tirx::SBlockRealize(iter_values, predicate.value_or(IntImm::Bool(true)), block));
   }
 }
 
 void BlockInitFrameNode::EnterWithScope() {
   SBlockFrame frame = FindSBlockFrame("T.init");
-  if (frame->init.defined()) {
+  if (frame->init.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate block init declaration";
   }
   TIRFrameNode::EnterWithScope();
@@ -253,17 +255,17 @@ void IfFrameNode::ExitWithScope() {
     TVM_FFI_THROW(InternalError)
         << "stmt within IfThenElse frame should be either in ThenFrame or ElseFrame";
   }
-  if (!then_stmts.defined()) {
+  if (!then_stmts.has_value()) {
     TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
   }
   AddToParent(tvm::tirx::IfThenElse(
       condition, AsStmt(then_stmts.value()),
-      else_stmts.defined() ? AsStmt(else_stmts.value()) : tvm::tirx::Stmt(nullptr)));
+      else_stmts.has_value() ? AsStmt(else_stmts.value()) : tvm::tirx::Stmt(nullptr)));
 }
 
 void ThenFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.then_");
-  if (frame->then_stmts.defined()) {
+  if (frame->then_stmts.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate then branch declaration, previous one is "
                               << frame->then_stmts.value();
   }
@@ -277,10 +279,10 @@ void ThenFrameNode::ExitWithScope() {
 
 void ElseFrameNode::EnterWithScope() {
   IfFrame frame = FindIfFrame("T.else_");
-  if (!frame->then_stmts.defined()) {
+  if (!frame->then_stmts.has_value()) {
     TVM_FFI_THROW(InternalError) << "The else branch should follow then branch";
   }
-  if (frame->else_stmts.defined()) {
+  if (frame->else_stmts.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate else branch declaration, previous one is "
                               << frame->else_stmts.value();
   }
@@ -311,7 +313,7 @@ void ComposeOpFrameNode::ExitWithScope() {
                             << stmt;
     ops.push_back(ffi::GetRef<tvm::tirx::TilePrimitiveCall>(op_call));
   }
-  auto compose_op_op = tvm::Op::Get("tirx.tile.compose_op");
+  static const Op& compose_op_op = Op::Get("tirx.tile.compose_op");
   AddToParent(tvm::tirx::TilePrimitiveCall(compose_op_op, ops, workspace, config, dispatch));
 }
 
@@ -330,8 +332,7 @@ void HintFrameNode::ExitWithScope() {
   for (const auto& [k, v] : attrs) {
     full_attrs.Set(k, v);
   }
-  AddToParent(
-      tvm::tirx::AttrStmt(full_attrs, "tirx_hint", IntImm(DataType::Int(32), 1), AsStmt(stmts)));
+  AddToParent(tvm::tirx::AttrStmt(full_attrs, "tirx_hint", IntImm::Int32(1), AsStmt(stmts)));
 }
 
 }  // namespace tirx

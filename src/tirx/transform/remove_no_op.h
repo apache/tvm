@@ -41,7 +41,7 @@ namespace tirx {
  *
  * \return The modified statement with no-ops removed
  */
-Stmt RemoveNoOp(Stmt stmt, arith::AnalyzerObj* analyzer, bool ignore_profiler_call = false);
+Stmt RemoveNoOp(Stmt stmt, const arith::Analyzer& analyzer, bool ignore_profiler_call = false);
 
 }  // namespace tirx
 }  // namespace tvm

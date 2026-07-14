@@ -28,8 +28,8 @@
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/runtime/logging.h>
 
 namespace tvm {
@@ -224,13 +224,13 @@ class DataflowBlockMutator : public ExprMutator {
     for (const Binding& binding : n->bindings) {
       Var var = binding->var;
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
+        auto collected_vars = SymbolicVarCollector::Collect(match_cast->ty);
         for (const tirx::VarNode* var : collected_vars) {
           symbolic_vars.Set(var->name_hint, ffi::GetRef<tirx::Var>(var));
         }
       }
       if (!var.as<DataflowVarNode>()) {
-        global_scope_vars.Set(var->name_hint(), var);
+        global_scope_vars.Set(var->name_hint, var);
       }
     }
 
@@ -242,7 +242,7 @@ class DataflowBlockMutator : public ExprMutator {
     for (const Binding& binding : updated_block->bindings) {
       Var var = binding->var;
       if (const auto* match_cast = binding.as<MatchCastNode>()) {
-        auto collected_vars = SymbolicVarCollector::Collect(match_cast->struct_info);
+        auto collected_vars = SymbolicVarCollector::Collect(match_cast->ty);
         for (const tirx::VarNode* var : collected_vars) {
           if (symbolic_vars.count(var->name_hint) > 0) {
             tirx::Var old_var = symbolic_vars[var->name_hint];
@@ -252,10 +252,10 @@ class DataflowBlockMutator : public ExprMutator {
           }
         }
       }
-      if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint()) > 0) {
-        TVM_FFI_ICHECK(var.same_as(global_scope_vars[var->name_hint()]))
+      if (!var.as<DataflowVarNode>() && global_scope_vars.count(var->name_hint) > 0) {
+        TVM_FFI_ICHECK(var.same_as(global_scope_vars[var->name_hint]))
             << "Error: DataflowBlock Pass should not rewrite any GlobalScope Var.";
-        global_scope_vars.erase(var->name_hint());
+        global_scope_vars.erase(var->name_hint);
       }
     }
     TVM_FFI_ICHECK(global_scope_vars.empty() && symbolic_vars.empty())
@@ -265,16 +265,16 @@ class DataflowBlockMutator : public ExprMutator {
   }
 
  private:
-  class SymbolicVarCollector : public StructInfoVisitor {
+  class SymbolicVarCollector : public TypeVisitor {
    public:
-    static std::unordered_set<const tirx::VarNode*> Collect(const StructInfo& info) {
+    static std::unordered_set<const tirx::VarNode*> Collect(const Type& info) {
       SymbolicVarCollector collector;
-      collector.VisitStructInfo(info);
+      collector.VisitType(info);
       return std::move(collector.symbolic_vars_);
     }
 
    private:
-    void VisitStructInfoExprField(const PrimExpr& expr) final {
+    void VisitTypeExprField(const PrimExpr& expr) final {
       if (const tirx::VarNode* sym_var = expr.as<tirx::VarNode>()) {
         symbolic_vars_.insert(sym_var);
       }
@@ -334,7 +334,7 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
       // currently-processed function.
       Function updated_func;
       try {
-        updated_func = Downcast<Function>(dataflow_block_mutator.VisitExpr(func));
+        updated_func = dataflow_block_mutator.VisitExpr(func).as_or_throw<Function>();
       } catch (ffi::Error& err) {
         throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
                                                          it.first);

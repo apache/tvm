@@ -95,11 +95,14 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
+inline Expr TVMStructGet(Type type, Var handle, int index, builtin::TVMStructFieldKind kind) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
+  return Call(std::move(type), builtin::tvm_struct_get(), args);
+}
+
+inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
                              builtin::TVMStructFieldKind kind) {
-  ffi::Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
-                               make_const(DataType::Int(32), static_cast<int>(kind))};
-  return Call(dtype, builtin::tvm_struct_get(), args);
+  return TVMStructGet(Type(type), std::move(handle), index, kind).as_or_throw<PrimExpr>();
 }
 
 /*!
@@ -108,14 +111,14 @@ inline PrimExpr TVMStructGet(DataType dtype, Var handle, int index,
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
-  PrimExpr offset_expr = make_const(DataType::Int(32), offset * dtype.lanes());
+inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
+  PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
   Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name_hint, 0, 0, kDefault, {}, Span(),
                    std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset_expr});
 
-  return Call(DataType::Handle(), builtin::address_of(), {buf_load});
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -124,18 +127,19 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, int offset) {
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
+inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
-    offset = offset * make_const(offset.dtype(), dtype.lanes());
-    offset = Ramp(offset, make_const(offset.dtype(), 1), dtype.lanes());
+    PrimType offset_ty = offset.ty();
+    offset = offset * IntImm(offset_ty, dtype.lanes());
+    offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
-  Buffer dummy_buf(handle, dtype.element_of(), shape, {}, 0, handle->name_hint, 0, 0, kDefault, {},
+  Buffer dummy_buf(handle, dtype.WithLanes(1), shape, {}, 0, handle->name_hint, 0, 0, kDefault, {},
                    Span(), std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset});
 
-  return Call(DataType::Handle(), builtin::address_of(), {buf_load});
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -146,10 +150,10 @@ inline PrimExpr AddressOffset(Var handle, DataType dtype, PrimExpr offset) {
  * \param value The value to be set.
  * \return the set stmt.
  */
-inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, PrimExpr value) {
-  ffi::Array<PrimExpr> args = {handle, make_const(DataType::Int(32), index),
-                               make_const(DataType::Int(32), static_cast<int>(kind)), value};
-  return Evaluate(Call(DataType::Int(32), builtin::tvm_struct_set(), args));
+inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, Expr value) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
+                           value};
+  return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args).as_or_throw<PrimExpr>());
 }
 
 /*!
@@ -157,13 +161,14 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  * \param t The original type.
  * \return The corresponding API type.
  */
-inline DataType APIType(DataType t) {
-  TVM_FFI_ICHECK(!t.is_void()) << "Cannot pass void type through packed API.";
-  if (t.is_handle()) return t;
+inline PrimType APIType(const PrimType& t) {
+  TVM_FFI_ICHECK(!t.IsVoid()) << "Cannot pass void type through packed API.";
   TVM_FFI_ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
-  if (t.is_bool() || t.is_uint() || t.is_int()) return DataType::Int(64);
-  TVM_FFI_ICHECK(t.is_float());
-  return DataType::Float(64);
+  if (t.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
+    return PrimType::Int(64);
+  }
+  TVM_FFI_ICHECK_EQ(t.code(), DLDataTypeCode::kDLFloat);
+  return PrimType::Float(64);
 }
 
 /*!
@@ -172,10 +177,10 @@ inline DataType APIType(DataType t) {
  * \param const_size The constant size of the array.
  * \return the alignment
  */
-inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
+inline int GetTempAllocaAlignment(const PrimType& type, int32_t const_size) {
   int align = runtime::kTempAllocaAlignment;
   if (const_size > 0) {
-    int64_t const_s = static_cast<int64_t>(const_size) * type.bits() * type.lanes() / 8;
+    int64_t const_s = static_cast<int64_t>(const_size) * type.StorageBytes();
     while (align > const_s) {
       align = align / 2;
     }
@@ -190,18 +195,19 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
  */
 inline PrimExpr ConstInt32(size_t index) {
   TVM_FFI_ICHECK_LE(index, std::numeric_limits<int>::max());
-  return make_const(DataType::Int(32), static_cast<int>(index));
+  return IntImm::Int32(static_cast<int>(index));
 }
 
 /*!
  * \brief Allocate TVMValues on the stack
+ * \param ret_type exact pointer type returned by the allocation
  * \param type type of allocation
  * \param num number of TVMValues to allocate
- * \return PrimExpr representing the TVMValue
+ * \return Call representing the allocated pointer
  */
-inline PrimExpr StackAlloca(std::string type, size_t num) {
+inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
   ffi::Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
-  return Call(DataType::Handle(), builtin::tvm_stack_alloca(), args);
+  return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
 }
 
 /*!

@@ -28,6 +28,7 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import ir as I_builder
 from tvm.script.ir_builder import tirx as T_builder
+from tvm.testing import env
 
 dtype = tvm.testing.parameter("float32", "int32", "float16", "int8")
 fuzz_seed = tvm.testing.parameter(range(25))
@@ -35,8 +36,22 @@ fuzz_seed = tvm.testing.parameter(range(25))
 
 # Explicitly specify a target, as this test is looking at the
 # generated shader code, and is not running on an actual device.
-@tvm.testing.parametrize_targets(
-    {
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled(
+        {
+            "kind": "vulkan",
+            "supports_int8": 1,
+            "supports_8bit_buffer": 1,
+            "supports_storage_buffer_storage_class": 1,
+            "supports_float16": 1,
+            "supports_16bit_buffer": 1,
+        }
+    ),
+    reason="vulkan not enabled",
+)
+def test_vector_comparison(dtype):
+    target = {
         "kind": "vulkan",
         "supports_int8": 1,
         "supports_8bit_buffer": 1,
@@ -44,8 +59,6 @@ fuzz_seed = tvm.testing.parameter(range(25))
         "supports_float16": 1,
         "supports_16bit_buffer": 1,
     }
-)
-def test_vector_comparison(target, dev, dtype):
     target = tvm.target.Target(target)
     zero = tvm.tirx.const(0, dtype)
     one = tvm.tirx.const(1, dtype)
@@ -73,20 +86,45 @@ def test_vector_comparison(target, dev, dtype):
     assert len(matches) == 1
 
 
-def test_array_copy(dev, dtype, fuzz_seed):
+@pytest.mark.parametrize(
+    "target",
+    [
+        "llvm",
+        pytest.param("cuda", marks=pytest.mark.gpu),
+        pytest.param("rocm", marks=pytest.mark.gpu),
+        pytest.param("vulkan", marks=pytest.mark.gpu),
+        pytest.param("metal", marks=pytest.mark.gpu),
+        pytest.param("opencl", marks=pytest.mark.gpu),
+        pytest.param("nvptx", marks=pytest.mark.gpu),
+    ],
+)
+def test_array_copy(target, dtype, fuzz_seed):
+    if not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
     np.random.seed(fuzz_seed)
 
     log_arr_size = np.random.uniform(low=np.log(1), high=np.log(32768))
     arr_size = np.exp(log_arr_size).astype(int)
     a_np = np.random.uniform(size=(arr_size,)).astype(dtype)
-    a = tvm.runtime.empty((arr_size,), dtype, dev).copyfrom(a_np)
-    b_np = a.numpy()
-    tvm.testing.assert_allclose(a_np, b_np)
-    tvm.testing.assert_allclose(a_np, a.numpy())
+
+    def run_and_check():
+        dev = tvm.device(target)
+        a = tvm.runtime.empty((arr_size,), dtype, dev).copyfrom(a_np)
+        tvm.testing.assert_allclose(a_np, a.numpy())
+
+    if target == "llvm":
+        run_and_check()
+    else:
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_array_vectorize_add(target, dev, dtype):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_array_vectorize_add(dtype):
+    target = {"kind": "vulkan", "from_device": 0}
     target = tvm.target.Target(target)
     arr_size = 64
     lanes = 2
@@ -106,16 +144,25 @@ def test_array_vectorize_add(target, dev, dtype):
 
     f = tvm.compile(Module, target=target)
 
-    a = tvm.runtime.empty((arr_size,), vec_dtype, dev).copyfrom(
-        np.random.uniform(size=(arr_size, lanes))
-    )
-    c = tvm.runtime.empty((arr_size,), vec_dtype, dev)
-    f(a, c)
-    tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+    def run_and_check():
+        dev = tvm.device(target.kind.name)
+        a = tvm.runtime.empty((arr_size,), vec_dtype, dev).copyfrom(
+            np.random.uniform(size=(arr_size, lanes))
+        )
+        c = tvm.runtime.empty((arr_size,), vec_dtype, dev)
+        f(a, c)
+        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_vulkan_bool_load(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_vulkan_bool_load():
+    target = {"kind": "vulkan", "from_device": 0}
     target = tvm.target.Target(target)
     arr_size = 1024
 
@@ -133,11 +180,16 @@ def test_vulkan_bool_load(target, dev):
 
     a_np = np.random.uniform(size=arr_size) > 0.5
     b_np = np.zeros((arr_size,), dtype="int32")
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    f(a, b)
     ref = a_np.astype(np.int32)
-    tvm.testing.assert_allclose(b.numpy(), ref)
+
+    def run_and_check():
+        dev = tvm.device(target.kind.name)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        f(a, b)
+        tvm.testing.assert_allclose(b.numpy(), ref)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 vulkan_parameter_impl = tvm.testing.parameter("push_constants", "ubo")
@@ -146,8 +198,13 @@ vulkan_parameter_dtype = tvm.testing.parameter("int32", "float32", "int64")
 
 # Only run on vulkan because extremely large numbers of input
 # parameters can crash cuda/llvm compiler.
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_parameter_dtype):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
+    target = {"kind": "vulkan", "from_device": 0}
     target = tvm.target.Target(target)
     dtype = vulkan_parameter_dtype
 
@@ -180,7 +237,7 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
                 var_A = T_builder.arg("var_A", T_builder.handle())
                 var_B = T_builder.arg("var_B", T_builder.handle())
                 T_builder.func_attr({"tirx.noalias": True})
-                n_var = T_builder.int32(is_size_var=True)
+                n_var = T_builder.int32()
                 A = T_builder.match_buffer(var_A, (n_var,), dtype)
                 B = T_builder.match_buffer(var_B, (n_var,), dtype)
                 scalar_sum = scalar_vars[0]
@@ -201,15 +258,24 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
 
     n = 1024
     scalars = np.array([1 for _ in range(num_int_params)]).astype(dtype)
-    a = tvm.runtime.tensor(np.random.uniform(size=n).astype(dtype), dev)
-    b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
-    f_add(*scalars, a, b)
 
-    tvm.testing.assert_allclose(a.numpy() + sum(scalars), b.numpy())
+    def run_and_check():
+        dev = tvm.device(target.kind.name)
+        a = tvm.runtime.tensor(np.random.uniform(size=n).astype(dtype), dev)
+        b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
+        f_add(*scalars, a, b)
+        tvm.testing.assert_allclose(a.numpy() + sum(scalars), b.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_vulkan_while_if(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_vulkan_while_if():
+    target = {"kind": "vulkan", "from_device": 0}
     target = tvm.target.Target(target)
     n = 1
     dtype = "int32"
@@ -227,19 +293,24 @@ def test_vulkan_while_if(target, dev):
     mod = tvm.IRModule.from_expr(while_if_gpu.with_attr("target", target))
     compiled_func = tvm.compile(mod, target=target)
 
-    a = tvm.runtime.tensor(np.array([5], dtype=dtype), dev)
-    b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
-    compiled_func(a, b)
-    tvm.testing.assert_allclose(b.numpy(), [55])
+    def run_and_check():
+        dev = tvm.device(target.kind.name)
+        for input_value, expected in [(5, [55]), (-5, [210])]:
+            a = tvm.runtime.tensor(np.array([input_value], dtype=dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
+            compiled_func(a, b)
+            tvm.testing.assert_allclose(b.numpy(), expected)
 
-    a = tvm.runtime.tensor(np.array([-5], dtype=dtype), dev)
-    b = tvm.runtime.tensor(np.zeros(n, dtype=dtype), dev)
-    compiled_func(a, b)
-    tvm.testing.assert_allclose(b.numpy(), [210])
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_vulkan_local_threadidx(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_vulkan_local_threadidx():
+    target = {"kind": "vulkan", "from_device": 0}
     target = tvm.target.Target(target)
     n = 32
 
@@ -259,15 +330,25 @@ def test_vulkan_local_threadidx(target, dev):
 
     a_np = np.arange(n).astype(dtype="int32")
     b_np = np.zeros((n,), dtype="int32")
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    func(a, b)
-    tvm.testing.assert_allclose(b.numpy(), a_np)
+
+    def run_and_check():
+        dev = tvm.device(target.kind.name)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        func(a, b)
+        tvm.testing.assert_allclose(b.numpy(), a_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_vectorized_index_ramp(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_vectorized_index_ramp():
     """Test vectorized copy with ramp indices (load N values, write to N locations)"""
+    target = {"kind": "vulkan", "from_device": 0}
     n = 4
     ramp_index = tvm.tirx.Ramp(0, 1, 4)
 
@@ -289,15 +370,24 @@ def test_vectorized_index_ramp(target, dev):
     a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
     b_np = np.zeros(n, dtype="int32")
 
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    f(a, b)
-    tvm.testing.assert_allclose(b.numpy(), a_np)
+    def run_and_check():
+        dev = tvm.device(target["kind"])
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        f(a, b)
+        tvm.testing.assert_allclose(b.numpy(), a_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_vectorized_index_broadcast(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_vectorized_index_broadcast():
     """Test broadcast index (load 1 value, write to N locations)"""
+    target = {"kind": "vulkan", "from_device": 0}
     n = 4
     broadcast_index = tvm.tirx.Broadcast(0, 4)
     ramp_index = tvm.tirx.Ramp(0, 1, 4)
@@ -321,15 +411,23 @@ def test_vectorized_index_broadcast(target, dev):
     a_np = np.random.randint(np.iinfo("int32").max, size=n).astype("int32")
     b_np = np.zeros(n, dtype="int32")
 
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    f(a, b)
-    # All elements of b should be a[0] (broadcast load)
-    tvm.testing.assert_allclose(b.numpy(), np.full(n, a_np[0]))
+    def run_and_check():
+        dev = tvm.device(target["kind"])
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        f(a, b)
+        # All elements of b should be a[0] (broadcast load)
+        tvm.testing.assert_allclose(b.numpy(), np.full(n, a_np[0]))
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.parametrize_targets({"kind": "vulkan", "from_device": 0})
-def test_negative_operand_divmod(target, dev):
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled({"kind": "vulkan", "from_device": 0}),
+    reason="vulkan not enabled",
+)
+def test_negative_operand_divmod():
     """Test handling of negative offsets to floormod/floordiv
 
     Even though the SPIR-V spec states that OpSRem and OpSMod can give
@@ -342,6 +440,7 @@ def test_negative_operand_divmod(target, dev):
     SPIR-V: https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#OpSRem
     Vulkan: https://registry.khronos.org/vulkan/specs/1.3/html/chap37.html#spirvenv-op-prec
     """
+    target = {"kind": "vulkan", "from_device": 0}
 
     N = 32
     offset = 16
@@ -357,12 +456,15 @@ def test_negative_operand_divmod(target, dev):
 
     built = tvm.compile(func, target=target)
 
-    a_dev = tvm.runtime.empty([N, 2], "int32", dev)
-    built(a_dev)
-    a = a_dev.numpy()
+    def run_and_check():
+        dev = tvm.device(target["kind"])
+        a_dev = tvm.runtime.empty([N, 2], "int32", dev)
+        built(a_dev)
+        a = a_dev.numpy()
+        np.testing.assert_array_equal(a[:, 0], (np.arange(N) - offset) // divisor)
+        np.testing.assert_array_equal(a[:, 1], (np.arange(N) - offset) % divisor)
 
-    np.testing.assert_array_equal(a[:, 0], (np.arange(N) - offset) // divisor)
-    np.testing.assert_array_equal(a[:, 1], (np.arange(N) - offset) % divisor)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("out_dtype", ["float32", "float16"])
@@ -453,22 +555,22 @@ def test_cooperative_matrix(out_dtype):
     if tgt_attrs.get("supports_cooperative_matrix"):
         f = tvm.compile(Module, target=target)
 
-        dev = tvm.device("vulkan", 0)
+        def run_and_check():
+            dev = tvm.device("vulkan", 0)
+            A = tvm.runtime.tensor(np.random.randn(M, K).astype("float16"), dev)
+            B = tvm.runtime.tensor(np.random.randn(K, N).astype("float16"), dev)
+            C = tvm.runtime.tensor(np.random.randn(M, N).astype(out_dtype), dev)
+            f(A, B, C)
+            A_np = A.numpy()
+            B_np = B.numpy()
+            ref = np.dot(A_np.astype("float32"), B_np.astype("float32"))
+            tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
 
-        A = tvm.runtime.tensor(np.random.randn(M, K).astype("float16"), dev)
-        B = tvm.runtime.tensor(np.random.randn(K, N).astype("float16"), dev)
-        C = tvm.runtime.tensor(np.random.randn(M, N).astype(out_dtype), dev)
-
-        f(A, B, C)
-
-        A_np = A.numpy()
-        B_np = B.numpy()
-        ref = np.dot(A_np.astype("float32"), B_np.astype("float32"))
-
-        tvm.testing.assert_allclose(C.numpy(), ref, rtol=1e-2, atol=1e-2)
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_decl_buffer():
     """The codegen should accept DeclBuffer nodes in its input"""
 
@@ -485,7 +587,8 @@ def test_codegen_decl_buffer():
     vulkan_codegen(Module, target)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_static_shared_memory():
     """The codegen should accept static shared/workgroup allocations."""
 
@@ -503,8 +606,8 @@ def test_codegen_static_shared_memory():
     tvm.compile(Module, target="vulkan")
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_vulkan
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_unary():
     test_funcs = [
         (tvm.tirx.sin, lambda x: np.sin(x)),
@@ -528,7 +631,7 @@ def test_unary():
         class Module:
             @T.prim_func(s_tir=True)
             def main(var_A: T.handle, var_B: T.handle):
-                m = T.int32(is_size_var=True)
+                m = T.int32()
                 A = T.match_buffer(var_A, (m,), "float32")
                 B = T.match_buffer(var_B, (m,), "float32")
                 for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):
@@ -541,7 +644,6 @@ def test_unary():
                             B[v_i] = tvm_intrin(A[v_i])
 
         target = tvm.target.Target("vulkan")
-        dev = tvm.device(target.kind.name, 0)
         func = tvm.compile(Module, target=target)
 
         if tvm_intrin in [tvm.tirx.asin, tvm.tirx.acos]:
@@ -553,16 +655,21 @@ def test_unary():
         else:
             data = np.random.uniform(0.1, 0.9, size=n)
 
-        a = tvm.runtime.tensor(data.astype("float32"), dev)
-        b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
-        func(a, b)
-        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
+        def run_and_check():
+            dev = tvm.device(target.kind.name, 0)
+            a = tvm.runtime.tensor(data.astype("float32"), dev)
+            b = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+            func(a, b)
+            tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     for func in test_funcs:
         run_test(*func)
 
 
-@tvm.testing.requires_vulkan(support_required="compile-only")
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024

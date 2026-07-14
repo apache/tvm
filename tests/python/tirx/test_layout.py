@@ -29,6 +29,11 @@ from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as Tx_builder
 from tvm.tirx import Var
+from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
+    SwizzleMode,
+    mma_shared_layout,
+    tma_shared_layout,
+)
 from tvm.tirx.layout import (
     Axis,
     ComposeLayout,
@@ -47,11 +52,6 @@ from tvm.tirx.layout import (
     wg_local_layout,
     wgid,
     wid_in_wg,
-)
-from tvm.tirx.operator.tile_primitive.cuda.tma_utils import (
-    SwizzleMode,
-    mma_shared_layout,
-    tma_shared_layout,
 )
 
 
@@ -1731,6 +1731,41 @@ def test_slice_single_shard_skips_defensive_floormod():
     assert multi_sliced is not None
     # Constants — analyzer simplifies floormod(96, 128) to 96 internally;
     # we just assert offset is non-empty and structurally sane (not None).
+
+
+def test_slice_tcgen05_frag_layout_scope_consistent():
+    """Slicing a wid_in_wg+laneid frag layout (tcgen05 16x256b) must stay
+    scope-consistent: the sliced result canonicalizes to a single tid_in_wg
+    chain over the full 128 threads (regression for the per-group-fusion bug).
+    """
+    frag = TileLayout(
+        S[(4, 2, 2, 8, 4, 4, 2) : (1 @ wid_in_wg, 16, 2, 4 @ laneid, 4, 1 @ laneid, 1)]
+    )
+
+    def thread_chain(layout):
+        canon = layout.canonicalize()
+        names = {it.axis.name for it in canon.shard if it.axis.is_thread()}
+        titers = sorted(
+            ((int(it.stride), int(it.extent)) for it in canon.shard if it.axis.is_thread()),
+        )
+        running = 1
+        for stride, extent in titers:
+            assert stride == running, f"non-contiguous thread chain: {titers}"
+            running *= extent
+        return names, running
+
+    with tvm.target.Target("cuda"):
+        # Full-region slice and a column sub-slice must both canonicalize to a
+        # single tid_in_wg chain covering all 128 warpgroup threads.
+        full = frag.slice([128, 32], [(0, 128), (0, 32)])
+        names, total = thread_chain(full)
+        assert names == {"tid_in_wg"}, names
+        assert total == 128, total
+
+        col = frag.slice([128, 32], [(0, 128), (16, 32)])
+        names_c, total_c = thread_chain(col)
+        assert names_c == {"tid_in_wg"}, names_c
+        assert total_c == 128, total_c
 
 
 if __name__ == "__main__":

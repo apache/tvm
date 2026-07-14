@@ -36,6 +36,10 @@ from tvm.relax.transform import PatternCheckContext
 from ..pattern_registry import register_patterns
 
 
+def _dtype_str(dtype):
+    return str(dtype.dtype) if isinstance(dtype, tvm.ir.PrimType) else str(dtype)
+
+
 @mutator
 class AppendReshapeToBNRewriter(PyExprMutator):
     """
@@ -64,7 +68,7 @@ class AppendReshapeToBNRewriter(PyExprMutator):
             bn_call = self.bn_vars[tuple_value]
             if op.index == 0:
                 bn_out = relax.TupleGetItem(bn_call, 0)
-                input_shape = bn_call.args[0].struct_info.shape
+                input_shape = bn_call.args[0].ty.shape
                 return relax.Call(reshape_op, [bn_out, input_shape])
 
         return super().visit_tuple_getitem_(op)
@@ -137,13 +141,13 @@ def clml_pattern_table():
 
         if "data" in context.annotated_expr:
             input_expr = context.annotated_expr["data"]
-            input_dtype = input_expr.struct_info.dtype
+            input_dtype = _dtype_str(input_expr.ty.dtype)
             if input_dtype not in ["float32", "float16"]:
                 return False
 
         if "weight" in context.annotated_expr:
             weight_expr = context.annotated_expr["weight"]
-            weight_dtype = weight_expr.struct_info.dtype
+            weight_dtype = _dtype_str(weight_expr.ty.dtype)
             if weight_dtype not in ["float32", "float16"]:
                 return False
 
@@ -234,7 +238,7 @@ def clml_pattern_table():
 
     def _check_maxpool2d(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.nn.max_pool2d":
@@ -244,7 +248,7 @@ def clml_pattern_table():
             return False
 
         data = context.annotated_expr["data"]
-        input_shape = data.struct_info.shape
+        input_shape = data.ty.shape
 
         if len(input_shape) != 4:
             return False
@@ -301,7 +305,7 @@ def clml_pattern_table():
 
     def _check_avgpool2d(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.nn.avg_pool2d":
@@ -311,7 +315,7 @@ def clml_pattern_table():
             return False
 
         data = context.annotated_expr["data"]
-        input_shape = data.struct_info.shape
+        input_shape = data.ty.shape
 
         if len(input_shape) != 4:
             return False
@@ -361,7 +365,7 @@ def clml_pattern_table():
 
     def _check_global_avgpool(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.mean":
@@ -371,7 +375,7 @@ def clml_pattern_table():
             return False
 
         data = context.annotated_expr["data"]
-        input_shape = data.struct_info.shape
+        input_shape = data.ty.shape
 
         if len(input_shape) != 4:
             return False
@@ -404,7 +408,7 @@ def clml_pattern_table():
 
     def _check_reshape(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.reshape":
@@ -427,7 +431,7 @@ def clml_pattern_table():
 
     def _check_batchnorm(context: PatternCheckContext) -> bool:
         root = context.annotated_expr.get("root")
-        if not root or not isinstance(root, relax.Call):
+        if root is None or not isinstance(root, relax.Call):
             return False
 
         if root.op.name != "relax.reshape":
@@ -451,8 +455,8 @@ def clml_pattern_table():
 
         base_shape = None
         for param in params.values():
-            shape = param.struct_info.shape
-            dtype = param.struct_info.dtype
+            shape = param.ty.shape
+            dtype = _dtype_str(param.ty.dtype)
 
             if dtype not in {"float32"}:
                 return False
@@ -496,8 +500,8 @@ def clml_pattern_table():
 
     def _check_binary_op(context: PatternCheckContext) -> bool:
         def _check_arg(input_expr):
-            input_dtype = input_expr.struct_info.dtype
-            input_shape = input_expr.struct_info.shape
+            input_dtype = _dtype_str(input_expr.ty.dtype)
+            input_shape = input_expr.ty.shape
             if len(input_shape) == 0:
                 return False
 
@@ -523,13 +527,13 @@ def clml_pattern_table():
         rhs_shape = None
         if "lhs" in context.annotated_expr:
             lhs = context.annotated_expr["lhs"]
-            lhs_shape = lhs.struct_info.shape
+            lhs_shape = lhs.ty.shape
             if not _check_arg(lhs):
                 return False
 
         if "rhs" in context.annotated_expr:
             rhs = context.annotated_expr["rhs"]
-            rhs_shape = rhs.struct_info.shape
+            rhs_shape = rhs.ty.shape
             if not _check_arg(rhs):
                 return False
 
@@ -630,7 +634,7 @@ def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
     wdq = ctx.annotated_expr["w_decoded"]
     w_pack = ctx.annotated_expr["w_encoded"]
 
-    if ctx.annotated_expr["lhs"].struct_info.dtype != "float16":
+    if _dtype_str(ctx.annotated_expr["lhs"].ty.dtype) != "float16":
         return False
     if not isinstance(wdq, relax.Call):
         return False
@@ -639,17 +643,17 @@ def _check_dequantize_matmul(ctx: relax.transform.PatternCheckContext) -> bool:
         return False
 
     if not (
-        (len(root.struct_info.shape) == 3)
-        and isinstance(root.struct_info.shape[0], tirx.IntImm)
-        and (root.struct_info.dtype == "float16")
-        and (root.struct_info.shape[0] == 1)
+        (len(root.ty.shape) == 3)
+        and isinstance(root.ty.shape[0], tirx.IntImm)
+        and (_dtype_str(root.ty.dtype) == "float16")
+        and (root.ty.shape[0] == 1)
     ):
         return False
 
     if not (
-        (len(wdq.struct_info.shape) == 2)
-        and (w_pack.struct_info.shape[-1] == root.struct_info.shape[-1])
-        and (wdq.struct_info.shape[-2] == _input.struct_info.shape[-1])
+        (len(wdq.ty.shape) == 2)
+        and (w_pack.ty.shape[-1] == root.ty.shape[-1])
+        and (wdq.ty.shape[-2] == _input.ty.shape[-1])
     ):
         return False
 

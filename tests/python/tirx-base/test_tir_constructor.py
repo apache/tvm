@@ -49,12 +49,12 @@ def test_expr_constructor():
     x = tvm.tirx.FloatImm("float32", 1.0)
     assert isinstance(x, tvm.tirx.FloatImm)
     assert x.value == 1.0
-    assert x.dtype == "float32"
+    assert x.ty == tvm.ir.PrimType("float32")
 
     x = tvm.tirx.IntImm("int64", 2)
     assert isinstance(x, tvm.tirx.IntImm)
     assert x.value == 2
-    assert x.dtype == "int64"
+    assert x.ty == tvm.ir.PrimType("int64")
 
     x = tvm.tirx.StringImm("xyza")
     assert isinstance(x, tvm.tirx.StringImm)
@@ -62,7 +62,7 @@ def test_expr_constructor():
 
     x = tvm.tirx.Cast("float32", tvm.tirx.IntImm("uint32", 1))
     assert isinstance(x, tvm.tirx.Cast)
-    assert x.dtype == "float32"
+    assert x.ty == tvm.ir.PrimType("float32")
     assert x.value.value == 1
 
     a = tvm.tirx.const(1.0, dtype="float32")
@@ -109,7 +109,7 @@ def test_expr_constructor():
     buffer = tvm.tirx.decl_buffer([16], "float32", data=buffer_var)
     x = tvm.tirx.BufferLoad(buffer, [1])
     assert isinstance(x, tvm.tirx.BufferLoad)
-    assert x.dtype == "float32"
+    assert x.ty == tvm.ir.PrimType("float32")
     assert x.buffer == buffer
     assert x.buffer.data == buffer_var
     assert list(x.indices) == [1]
@@ -130,19 +130,20 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.tirx.Call("float32", "tirx.call_extern", [tvm.tirx.StringImm("xyz"), a])
-    assert isinstance(x, tvm.tirx.Call)
-    assert x.dtype == "float32"
+    x = tvm.ir.Call("tirx.call_extern", [tvm.tirx.StringImm("xyz"), a], ret_ty="float32")
+    assert isinstance(x, tvm.ir.Call)
+    assert tvm.ir.is_prim_expr(x)
+    assert x.ty == tvm.ir.PrimType("float32")
     assert x.op.name == "tirx.call_extern"
     assert x.args[1] == a
     assert x.attrs is None
 
     attr_arg = tvm.tirx.Var("attr_arg", "float32")
-    x_with_attrs = tvm.tirx.Call(
-        "float32",
+    x_with_attrs = tvm.ir.Call(
         "tirx.call_extern",
         [tvm.tirx.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": True},
+        ret_ty="float32",
     )
     assert x_with_attrs.attrs["disable_tma"] is True
     assert not tvm_ffi.structural_equal(x, x_with_attrs)
@@ -161,26 +162,26 @@ def test_expr_constructor():
         "float32", "tirx.call_extern", tvm.tirx.StringImm("xyz"), attrs={"disable_tma": True}
     )
     assert x_from_intrin.attrs["disable_tma"] is True
-    x_with_other_attrs = tvm.tirx.Call(
-        "float32",
+    x_with_other_attrs = tvm.ir.Call(
         "tirx.call_extern",
         [tvm.tirx.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": False},
+        ret_ty="float32",
     )
     assert not expr_deep_equal(x_with_attrs, x_with_other_attrs)
 
     cond0 = tvm.tirx.Var("cond0", "bool")
     cond1 = tvm.tirx.Var("cond1", "bool")
-    inner_if = tvm.tirx.Call(
-        "int32",
+    inner_if = tvm.ir.Call(
         "tirx.if_then_else",
         [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
+        ret_ty="int32",
     )
-    outer_if = tvm.tirx.Call(
-        "int32",
+    outer_if = tvm.ir.Call(
         "tirx.if_then_else",
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
         attrs={"keep": True},
+        ret_ty="int32",
     )
     simplified = tvm.tirx.transform.StmtSimplify()(
         tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
@@ -249,7 +250,8 @@ def test_stmt_constructor():
 
 
 def test_float_constructor_requires_float_dtype():
-    with pytest.raises(tvm.TVMError):
+    # FloatImm dtype validation raises a builtin ValueError.
+    with pytest.raises(ValueError):
         tvm.tirx.FloatImm("int32", 1.0)
 
 
@@ -263,7 +265,7 @@ def test_math_unary_constructor_requires_float_dtype():
         tvm.tirx.sin(x)
 
     y = tvm.tirx.Var("y", "float32")
-    assert tvm.tirx.tan(y).dtype == "float32"
+    assert tvm.tirx.tan(y).ty == tvm.ir.PrimType("float32")
 
 
 def test_topi_tan_requires_float_dtype():
@@ -276,7 +278,7 @@ def test_topi_tan_requires_float_dtype():
 def test_math_unary_constructor_preserves_bfloat16():
     x = tvm.tirx.Var("x", "bfloat16")
     y = tvm.tirx.exp(x)
-    assert y.dtype == "bfloat16"
+    assert y.ty == tvm.ir.PrimType("bfloat16")
 
 
 if __name__ == "__main__":

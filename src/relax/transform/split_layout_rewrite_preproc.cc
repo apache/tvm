@@ -65,11 +65,11 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<Var, Buffer> buffer_map;
 
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.pre_rewrite_buffer->name, DataType::Handle()));
+      params.push_back(Var(info.pre_rewrite_buffer->name, PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.pre_rewrite_buffer);
     }
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.post_rewrite_buffer->name, DataType::Handle()));
+      params.push_back(Var(info.post_rewrite_buffer->name, PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.post_rewrite_buffer);
     }
 
@@ -80,7 +80,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
                                                           : SeqStmt(layout_rewrite_preproc_stmts_);
     body = SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
-        /*predicate=*/const_true(),
+        /*predicate=*/IntImm::Bool(true),
         /*block=*/
         SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
                /*name_hint=*/"root", body));
@@ -88,7 +88,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
-        dict.Set(key, Downcast<ffi::String>(original_value) + "_weight_prepack");
+        dict.Set(key, original_value.as_or_throw<ffi::String>() + "_weight_prepack");
       } else if (key != "layout_free_buffers") {
         dict.Set(key, original_value);
       }
@@ -124,7 +124,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
 
     body = SBlockRealize(
         /*iter_values=*/ffi::Array<PrimExpr>(),
-        /*predicate=*/const_true(),
+        /*predicate=*/IntImm::Bool(true),
         /*block=*/
         SBlock(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
                /*name_hint=*/"root", body,
@@ -134,7 +134,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<ffi::String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
-        dict.Set(key, Downcast<ffi::String>(original_value) + "_prepacked");
+        dict.Set(key, original_value.as_or_throw<ffi::String>() + "_prepacked");
       } else if (key != "layout_free_buffers") {
         dict.Set(key, original_value);
       }
@@ -166,10 +166,10 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     }
   }
   Stmt VisitStmt_(const SBlockNode* op) final {
-    SBlock block = Downcast<SBlock>(StmtMutator::VisitStmt_(op));
+    SBlock block = StmtMutator::VisitStmt_(op).as_or_throw<SBlock>();
     auto it = op->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     bool is_layout_rewrite_preproc =
-        it != op->annotations.end() && is_one(Downcast<PrimExpr>((*it).second));
+        it != op->annotations.end() && is_one((*it).second.cast<PrimExpr>());
 
     if (current_subtree_ == 0) {
       current_subtree_ = is_layout_rewrite_preproc ? 1 : -1;
@@ -247,9 +247,10 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     // Step 1: Split the primfunc into preproc and compute
     for (auto [gv, func] : mod->functions) {
       if (func->IsInstance<tirx::PrimFuncNode>()) {
-        tirx::SplitPrimFuncLayoutRewrite tir_rewriter(Downcast<tirx::PrimFunc>(func));
-        auto [preproc_func, compute_func] = tir_rewriter.Transform(Downcast<tirx::PrimFunc>(func));
-        if (preproc_func.defined()) {
+        tirx::SplitPrimFuncLayoutRewrite tir_rewriter(func.as_or_throw<tirx::PrimFunc>());
+        auto [preproc_func, compute_func] =
+            tir_rewriter.Transform(func.as_or_throw<tirx::PrimFunc>());
+        if (preproc_func.has_value()) {
           mutator.split_funcs_.emplace(gv.get(),
                                        std::make_tuple(preproc_func.value(), compute_func));
           mutator.rewrite_infos_.emplace(gv.get(), tir_rewriter.rewrite_infos_);
@@ -259,8 +260,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
 
     for (auto [gv, func] : mod->functions) {
       if (func->IsInstance<relax::FunctionNode>()) {
-        auto relax_func = Downcast<relax::Function>(func);
-        mutator.builder_->UpdateFunction(gv, Downcast<relax::Function>(mutator(relax_func)));
+        auto relax_func = func.as_or_throw<relax::Function>();
+        mutator.builder_->UpdateFunction(gv, mutator(relax_func).as_or_throw<relax::Function>());
       }
     }
     return mutator.builder_->GetContextIRModule();
@@ -272,7 +273,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    Call call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+    Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     // Step 1: Skip call to other than `tirx.call_tir`
     if (!call->op.same_as(call_tir_op)) {
@@ -280,7 +281,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     }
 
     // Step 2: Skip if there is no preproc stage
-    const GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
+    const GlobalVar gv = call->args[0].as_or_throw<GlobalVar>();
     auto it = split_funcs_.find(gv.get());
     if (it == split_funcs_.end()) {
       return call;
@@ -297,9 +298,9 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     const auto& rewrite_infos = rewrite_infos_it->second;
 
     // Step 5: Emit the preproc call
-    ffi::Array<Expr> call_tir_args = Downcast<Tuple>(call->args[1])->fields;
+    ffi::Array<Expr> call_tir_args = call->args[1].as_or_throw<Tuple>()->fields;
     ffi::Array<Expr> preproc_args;
-    ffi::Array<StructInfo> preproc_sinfo_list;
+    ffi::Array<Type> preproc_ty_list;
     for (const auto& info : rewrite_infos) {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
       tirx::Buffer rewritten_buffer = info.post_rewrite_buffer;
@@ -308,16 +309,16 @@ class SplitLayoutRewritePreproc : public ExprMutator {
             << "Currently does not support rewrite buffer with "
                "dynamic shape.";
       }
-      preproc_sinfo_list.push_back(
-          TensorStructInfo(ShapeExpr(rewritten_buffer->shape), rewritten_buffer->dtype));
+      preproc_ty_list.push_back(
+          TensorType(ShapeExpr(rewritten_buffer->shape), rewritten_buffer->dtype));
     }
-    StructInfo preproc_sinfo = preproc_sinfo_list.size() > 1              //
-                                   ? TupleStructInfo(preproc_sinfo_list)  //
-                                   : preproc_sinfo_list[0];
+    Type preproc_ty = preproc_ty_list.size() > 1        //
+                          ? TupleType(preproc_ty_list)  //
+                          : preproc_ty_list[0];
 
     // Step 6: Call the preproc function
-    Expr preproc_call =
-        builder_->Emit(Call(call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_sinfo}));
+    Expr preproc_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
     if (rewrite_infos.size() == 1) {
       call_tir_args.Set(rewrite_infos[0].buffer_index, preproc_call);
     } else {
@@ -325,8 +326,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
         call_tir_args.Set(rewrite_infos[i].buffer_index, TupleGetItem(preproc_call, i));
       }
     }
-    Expr main_call =
-        builder_->Emit(Call(call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->sinfo_args));
+    Expr main_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
 
     return main_call;
   }

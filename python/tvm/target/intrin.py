@@ -27,12 +27,12 @@ def _rule_float_suffix(op):
 
     Parameters
     ----------
-    op : PrimExpr
+    op : Expr
         The call expression of original intrinsic.
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The translated intrinsic rule.
         Return same op if no translation is possible.
 
@@ -44,10 +44,10 @@ def _rule_float_suffix(op):
     assert name.startswith("tirx.")
     prefix = name[4:]
 
-    if op.dtype == "float32":
-        return call_pure_extern(op.dtype, f"{prefix}f", *op.args)
-    if op.dtype == "float64":
-        return call_pure_extern(op.dtype, prefix, *op.args)
+    if op.ty.dtype == "float32":
+        return call_pure_extern(op.ty, f"{prefix}f", *op.args)
+    if op.ty.dtype == "float64":
+        return call_pure_extern(op.ty, prefix, *op.args)
     return op
 
 
@@ -58,12 +58,12 @@ def _rule_float_direct(op):
 
     Parameters
     ----------
-    op : PrimExpr
+    op : Expr
         The call expression of original intrinsic.
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The translated intrinsic rule.
         Return same op if no translation is possible.
 
@@ -71,8 +71,8 @@ def _rule_float_direct(op):
     --------
     register_intrin_lowering : The registration function for intrinsic lowering rule.
     """
-    if str(op.dtype).startswith("float"):
-        return call_pure_extern(op.dtype, op.op.name[4:], *op.args)
+    if str(op.ty.dtype).startswith("float"):
+        return call_pure_extern(op.ty, op.op.name[4:], *op.args)
     return None
 
 

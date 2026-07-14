@@ -45,8 +45,8 @@ TEST(Simplify, Mul) {
 
 TEST(Simplify, Mod) {
   tvm::arith::Analyzer ana;
-  auto x = tvm::IntImm(tvm::DataType::Int(32), 10);
-  auto y = tvm::IntImm(tvm::DataType::Int(32), 12);
+  auto x = tvm::IntImm::Int32(10);
+  auto y = tvm::IntImm::Int32(12);
   // Mod::make is used instead of % to avoid constant folding during
   // calling operator%(x,y). Mod::make doesn't try constant folding,
   // and therefore, the constant folding will be attempted in CanonicalSimplify
@@ -75,24 +75,43 @@ TEST(AnalyzerObjectRef, ConstHandleRefCanMutateAnalyzerState) {
   TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
 }
 
+TEST(AnalyzerObjectRef, CloneIsIndependent) {
+  tvm::arith::Analyzer analyzer;
+  auto x = tvm::te::var("x");
+  auto y = tvm::te::var("y");
+
+  analyzer->Bind(x, tvm::Range::FromMinExtent(0, 8));
+  analyzer->modular_set.Update(x, tvm::arith::ModularSet(4, 0));
+
+  tvm::arith::Analyzer clone = analyzer->Clone();
+  TVM_FFI_ICHECK(clone->CanProve(x < 8));
+  TVM_FFI_ICHECK(clone->modular_set(x)->coeff == 4);
+
+  clone->Bind(y, tvm::Range::FromMinExtent(0, 4));
+  clone->modular_set.Update(x, tvm::arith::ModularSet(8, 0), true);
+  TVM_FFI_ICHECK(clone->CanProve(y < 4));
+  TVM_FFI_ICHECK(!analyzer->CanProve(y < 4));
+  TVM_FFI_ICHECK(analyzer->CanProve(x < 8));
+  TVM_FFI_ICHECK(analyzer->modular_set(x)->coeff == 4);
+  TVM_FFI_ICHECK(clone->modular_set(x)->coeff == 8);
+}
+
 TEST(ConstantFold, Broadcast) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(32), 10), 4);
-  auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tirx::Broadcast(tvm::IntImm(tvm::DataType::Int(64), 10), 4);
+  auto i32x4 = tvm::tirx::Broadcast(tvm::IntImm::Int32(10), 4);
+  auto i64x4 = tvm::cast(i32x4.ty().WithBits(64), i32x4);
+  auto i64x4_expected = tvm::tirx::Broadcast(tvm::IntImm::Int64(10), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 }
 
 TEST(ConstantFold, Ramp) {
   tvm::ffi::StructuralEqual checker;
-  auto i32x4 = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(32), 10),
-                               tvm::IntImm(tvm::DataType::Int(32), 1), 4);
-  auto i64x4 = tvm::cast(i32x4->dtype.with_bits(64), i32x4);
-  auto i64x4_expected = tvm::tirx::Ramp(tvm::IntImm(tvm::DataType::Int(64), 10),
-                                        tvm::IntImm(tvm::DataType::Int(64), 1), 4);
+  auto i32x4 = tvm::tirx::Ramp(tvm::IntImm::Int32(10), tvm::IntImm::Int32(1), 4);
+  auto i64x4 = tvm::cast(i32x4.ty().WithBits(64), i32x4);
+  auto i64x4_expected = tvm::tirx::Ramp(tvm::IntImm::Int64(10), tvm::IntImm::Int64(1), 4);
   ASSERT_TRUE(checker(i64x4, i64x4_expected));
 
-  auto f32x4 = tvm::cast(tvm::DataType::Float(32, 4), i32x4);
-  auto f32x4_expected = tvm::tirx::Cast(tvm::DataType::Float(32, 4), i32x4);
+  auto f32x4 = tvm::cast(tvm::PrimType::Float(32, 4), i32x4);
+  auto f32x4_expected = tvm::tirx::Cast(tvm::PrimType::Float(32, 4), i32x4);
   ASSERT_TRUE(checker(f32x4, f32x4_expected));
 }

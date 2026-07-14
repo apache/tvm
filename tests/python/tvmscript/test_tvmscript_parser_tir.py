@@ -29,14 +29,14 @@ def test_tir_buffer_proxy():
     assert (
         isinstance(buffer_0, tirx.Buffer)
         and list(buffer_0.shape) == [128, 128]
-        and buffer_0.dtype == "float32"
+        and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
         isinstance(buffer_1, tirx.Buffer)
         and list(buffer_1.shape) == [64, 64, 64]
-        and buffer_1.dtype == "int32"
+        and buffer_1.dtype == ir.PrimType("int32")
     )
 
 
@@ -44,19 +44,17 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and ptr_0.dtype == "handle"
-        and isinstance(ptr_0.type_annotation, ir.PointerType)
-        and ptr_0.type_annotation.element_type == ir.PrimType("int32")
-        and ptr_0.type_annotation.storage_scope == "global"
+        and isinstance(ptr_0.ty, ir.PointerType)
+        and ptr_0.ty.element_type == ir.PrimType("int32")
+        and ptr_0.ty.storage_scope == "global"
     )
 
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and ptr_1.dtype == "handle"
-        and isinstance(ptr_1.type_annotation, ir.PointerType)
-        and ptr_1.type_annotation.element_type == ir.PrimType("float32")
-        and ptr_1.type_annotation.storage_scope == "shared"
+        and isinstance(ptr_1.ty, ir.PointerType)
+        and ptr_1.ty.element_type == ir.PrimType("float32")
+        and ptr_1.ty.storage_scope == "shared"
     )
 
 
@@ -398,49 +396,49 @@ def test_thread_binding_dtype():
 
     loop_i = func.body
     loop_j = loop_i.body
-    assert loop_i.loop_var.dtype == "int64"
-    assert loop_i.thread_binding.var.dtype == "int64"
-    assert loop_j.loop_var.dtype == "int32"
-    assert loop_j.thread_binding.var.dtype == "int32"
+    assert loop_i.loop_var.ty.dtype == "int64"
+    assert loop_i.thread_binding.var.ty.dtype == "int64"
+    assert loop_j.loop_var.ty.dtype == "int32"
+    assert loop_j.thread_binding.var.ty.dtype == "int32"
 
 
-def test_inferred_sinfo_with_prim_args():
-    """A PrimFunc may have inferred StructInfo"""
+def test_inferred_ty_with_prim_args():
+    """A PrimFunc may have inferred Type"""
 
     @T.prim_func(s_tir=True)
     def func(M: T.int32, N: T.int32) -> T.int32:
         T.ret(M * N)
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.PrimStructInfo("int32"),
-            tvm.relax.PrimStructInfo("int32"),
+            tvm.ir.PrimType("int32"),
+            tvm.ir.PrimType("int32"),
         ],
-        tvm.relax.PrimStructInfo("int32"),
+        tvm.ir.PrimType("int32"),
         purity=True,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_buffer_args():
+def test_inferred_ty_with_buffer_args():
     """PrimFunc buffer arguments are inferred as R.Tensor"""
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
         T.ret(T.float32(42.0))
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([16, 16], "float32"),
-            tvm.relax.TensorStructInfo([256], "int32"),
+            tvm.relax.TensorType([16, 16], "float32"),
+            tvm.relax.TensorType([256], "int32"),
         ],
-        tvm.relax.PrimStructInfo("float32"),
+        tvm.ir.PrimType("float32"),
         purity=True,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_internal_allocation():
+def test_inferred_ty_with_internal_allocation():
     """A pure function may still write to internal allocations.
 
     Whether a function writes to internal allocations is not a visible
@@ -456,17 +454,17 @@ def test_inferred_sinfo_with_internal_allocation():
 
         T.ret(Sum[()])
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([16, 16], "float32"),
+            tvm.relax.TensorType([16, 16], "float32"),
         ],
-        tvm.relax.PrimStructInfo("float32"),
+        tvm.ir.PrimType("float32"),
         purity=True,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_output_buffer():
+def test_inferred_ty_with_output_buffer():
     """A pure function may not write to an argument buffer
 
     If an argument buffer is written to, the function must be impure.
@@ -477,19 +475,19 @@ def test_inferred_sinfo_with_output_buffer():
         for i in range(16):
             B[i] = A[i]
 
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([16], "float32"),
-            tvm.relax.TensorStructInfo([16], "float32"),
+            tvm.relax.TensorType([16], "float32"),
+            tvm.relax.TensorType([16], "float32"),
         ],
-        tvm.relax.TupleStructInfo([]),
+        tvm.relax.TupleType([]),
         purity=False,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
-def test_inferred_sinfo_with_dynamic_buffer():
-    """The inferred StructInfo may contain dynamic shapes"""
+def test_inferred_ty_with_dynamic_buffer():
+    """The inferred Type may contain dynamic shapes"""
 
     @T.prim_func(s_tir=True)
     def func(a_handle: T.handle, b_handle: T.handle):
@@ -502,15 +500,15 @@ def test_inferred_sinfo_with_dynamic_buffer():
 
     M = tvm.tirx.Var("M", "int64")
     N = tvm.tirx.Var("N", "int64")
-    expected = tvm.relax.FuncStructInfo(
+    expected = tvm.relax.FuncType(
         [
-            tvm.relax.TensorStructInfo([M, N], "float32"),
-            tvm.relax.TensorStructInfo([M * N], "float32"),
+            tvm.relax.TensorType([M, N], "float32"),
+            tvm.relax.TensorType([M * N], "float32"),
         ],
-        tvm.relax.TupleStructInfo([]),
+        tvm.relax.TupleType([]),
         purity=False,
     )
-    tvm.ir.assert_structural_equal(func.struct_info, expected)
+    tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_reinterpret_nop():
@@ -546,8 +544,8 @@ def test_launch_thread_i64():
         else:
             T.evaluate(T.int64(1))
 
-    assert func.body.node.dom.min.dtype == "int64"
-    assert func.body.node.dom.extent.dtype == "int64"
+    assert func.body.node.dom.min.ty.dtype == "int64"
+    assert func.body.node.dom.extent.ty.dtype == "int64"
 
 
 def test_deterministic_branch():
@@ -608,7 +606,7 @@ def test_block_annotation_merge():
 
     assert _to_dict(func2.body.block.annotations) == {"key1": "block1"}
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(RuntimeError):
 
         @T.prim_func(s_tir=True)
         def func3():

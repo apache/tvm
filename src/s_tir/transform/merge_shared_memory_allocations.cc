@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
@@ -192,9 +193,12 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::address_of())) {
-      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      for (const auto& index : load->indices) {
-        this->VisitExpr(index);
+      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+        for (const auto& index : load->indices) {
+          this->VisitExpr(index);
+        }
+      } else {
+        this->VisitExpr(op->args[0]);
       }
     } else {
       StmtExprVisitor::VisitExpr_(op);
@@ -337,9 +341,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
    */
   Var MakeMergedBufferVar() {
     if (is_dynamic_) {
-      return Var("buf_dyn_shmem", PointerType(PrimType(DataType::UInt(8)), "shared.dyn"));
+      return Var("buf_dyn_shmem", PointerType(PrimType::UInt(8), "shared.dyn"));
     } else {
-      return Var("buf_shmem", PointerType(PrimType(DataType::UInt(8)), "shared"));
+      return Var("buf_shmem", PointerType(PrimType::UInt(8), "shared"));
     }
   }
 
@@ -389,7 +393,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       }
 
       // 7. Wrap with the merged-buffer AllocBuffer.
-      Buffer merged_buf(scope.merged_buf_var, DataType::UInt(8), {scope.merged_alloc_size}, {},
+      Buffer merged_buf(scope.merged_buf_var, PrimType::UInt(8), {scope.merged_alloc_size}, {},
                         PrimExpr(), scope.merged_buf_var->name_hint, 0, 0, BufferType::kDefault);
       ffi::Map<ffi::String, ffi::Any> annotations;
       if (scope.has_volatile_alloc) {
@@ -424,20 +428,20 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
     if (auto new_buf = GetUpdatedBuffer(node->buffer); !new_buf.same_as(node->buffer)) {
       node.CopyOnWrite()->buffer = new_buf;
     }
     return node;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     return VisitBufferAccess(std::move(node));
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
     return VisitBufferAccess(std::move(node));
   }
 
@@ -450,7 +454,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
           << "and is to be run after "
           << "FlattenBuffer";
       ffi::Array<PrimExpr> indices = {
-          node->indices[0] + this->GetBufferOffset(node->buffer->data, node->buffer->dtype)};
+          node->indices[0] + this->GetBufferOffset(node->buffer->data, node->buffer->dtype->dtype)};
 
       auto writer = node.CopyOnWrite();
       writer->buffer = GetUpdatedBuffer(node->buffer);
@@ -485,61 +489,70 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return buffer;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
+    static const Op& ptx_cp_async_op = Op::Get("tirx.ptx.cp_async_raw");
     if (op->op.same_as(builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-      DataType dtype = op->args[0].dtype();
-      Var buffer = Downcast<Var>(op->args[1]);
+      DLDataType dtype = op->args[0].as_or_throw<PrimExpr>().ty()->dtype;
+      auto buffer_opt = op->args[1].as<Var>();
+      if (!buffer_opt.has_value()) {
+        return StmtExprMutator::VisitExpr_(op);
+      }
+      Var buffer = buffer_opt.value();
       if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
           !scope_stack_.back().shmem_allocs.count(buffer.get())) {
         return StmtExprMutator::VisitExpr_(op);
       }
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
 
-      PrimExpr offset = this->VisitExpr(op->args[2]);
-      PrimExpr extent = this->VisitExpr(op->args[3]);
-      return Call(op->dtype, op->op,
+      PrimExpr offset = this->VisitPrimExpr(op->args[2].as_or_throw<PrimExpr>());
+      PrimExpr extent = this->VisitPrimExpr(op->args[3].as_or_throw<PrimExpr>());
+      return Call(op->ty, op->op,
                   {op->args[0], scope_stack_.back().merged_buf_var, extra_offset + offset, extent,
                    op->args[4]});
-    } else if (op->op.same_as(builtin::ptx_cp_async())) {
+    } else if (op->op.same_as(ptx_cp_async_op)) {
       TVM_FFI_ICHECK((op->args.size() == 5U) || (op->args.size() == 6U));
-      Var buffer = Downcast<Var>(op->args[0]);
-      const auto* ptr_type = buffer->type_annotation.as<PointerTypeNode>();
+      Var buffer = op->args[0].as_or_throw<Var>();
+      const auto* ptr_type = buffer->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr_type) << "The buffer should be a pointer type.";
       const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim_type) << "The buffer should be a pointer to a primitive type.";
-      DataType dtype = DataType(prim_type->dtype);
+      DLDataType dtype = prim_type->dtype;
       if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
           !scope_stack_.back().shmem_allocs.count(buffer.get())) {
         return StmtExprMutator::VisitExpr_(op);
       }
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
-      PrimExpr offset = this->VisitExpr(op->args[1]);
+      PrimExpr offset = this->VisitPrimExpr(op->args[1].as_or_throw<PrimExpr>());
       // the dst shared memory is a byte buffer generated by merging shared memory.
       // we need to multiply the offset index by the byte size of the original value dtype, to get
       // the correct offset of merged shared buffer.
-      int index_factor = dtype.bytes();
+      int index_factor = (static_cast<int>(dtype.bits) * static_cast<int>(dtype.lanes) + 7) / 8;
       if (op->args.size() == 5)
-        return Call(
-            dtype, op->op,
-            {scope_stack_.back().merged_buf_var, mul(extra_offset + offset, PrimExpr(index_factor)),
-             op->args[2], op->args[3], op->args[4]});
+        return Call(op->ty.as_or_throw<PrimType>(), op->op,
+                    {scope_stack_.back().merged_buf_var,
+                     mul(extra_offset + offset, PrimExpr(index_factor)), op->args[2],
+                     op->args[3].as_or_throw<PrimExpr>(), op->args[4].as_or_throw<PrimExpr>()})
+            .as_or_throw<PrimExpr>();
       else
-        return Call(
-            dtype, op->op,
-            {scope_stack_.back().merged_buf_var, mul(extra_offset + offset, PrimExpr(index_factor)),
-             op->args[2], op->args[3], op->args[4], op->args[5]});
+        return Call(op->ty.as_or_throw<PrimType>(), op->op,
+                    {scope_stack_.back().merged_buf_var,
+                     mul(extra_offset + offset, PrimExpr(index_factor)), op->args[2],
+                     op->args[3].as_or_throw<PrimExpr>(), op->args[4].as_or_throw<PrimExpr>(),
+                     op->args[5].as_or_throw<PrimExpr>()})
+            .as_or_throw<PrimExpr>();
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
 
-  PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
+  PrimExpr GetBufferOffset(Var buffer_var, DLDataType dtype) {
     TVM_FFI_ICHECK(!scope_stack_.empty());
     KernelScope& scope = scope_stack_.back();
     auto it = scope.buffer_byte_offsets.find(buffer_var.get());
     TVM_FFI_ICHECK(it != scope.buffer_byte_offsets.end());
-    return indexdiv(it->second, dtype.bytes());
+    int elem_bytes = (static_cast<int>(dtype.bits) * static_cast<int>(dtype.lanes) + 7) / 8;
+    return indexdiv(it->second, elem_bytes);
   }
 
   // Wrapper function to determine if the shared memory allocation for a variable is appropriate.
@@ -644,7 +657,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
       for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
         for (const VarNode* buffer : e->allocs[i]) {
           const Buffer& buf = scope.shmem_allocs.at(buffer);
-          align[i] = std::max(align[i], buf->dtype.bytes());
+          int elem_bytes = static_cast<int>(buf->dtype.StorageBytes());
+          align[i] = std::max(align[i], elem_bytes);
         }
       }
     }
@@ -656,13 +670,14 @@ class SharedMemoryRewriter : public StmtExprMutator {
         for (const VarNode* buffer : e->allocs[i]) {
           const Buffer& buf = scope.shmem_allocs.at(buffer);
           ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(buf);
-          int align_bytes = std::max(align[i], buf->dtype.bytes());
+          int elem_bytes = static_cast<int>(buf->dtype.StorageBytes());
+          int align_bytes = std::max(align[i], elem_bytes);
           if (buf->data_alignment > 0) {
             TVM_FFI_ICHECK(buf->data_alignment % align_bytes == 0)
                 << "The alignment of the buffer is not a multiple of the data type size.";
             align_bytes = buf->data_alignment;
           }
-          PrimExpr buffer_bytes = alloc_shape[0] * buf->dtype.bytes();
+          PrimExpr buffer_bytes = alloc_shape[0] * elem_bytes;
           inner_offset +=
               indexmod(align_bytes - indexmod(scope.merged_alloc_size + inner_offset, align_bytes),
                        align_bytes);
@@ -700,7 +715,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
     ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(buf);
-    uint64_t op_elem_bits = buf->dtype.bits() * buf->dtype.lanes();
+    DLDataType dtype = buf->dtype->dtype;
+    uint64_t op_elem_bits = static_cast<uint64_t>(dtype.bits) * dtype.lanes;
     uint64_t const_nbits =
         static_cast<uint64_t>(ConstantAllocationSize(alloc_shape) * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM

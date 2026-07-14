@@ -91,12 +91,10 @@ class ArgumentInfo : public ffi::ObjectRef {
  *
  * \sa Op
  */
-class OpNode : public RelaxExprNode {
+class OpNode : public ExprNode {
  public:
   /*! \brief name of the operator */
   ffi::String name;
-  /*! \brief the type of the operator */
-  mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
@@ -130,7 +128,6 @@ class OpNode : public RelaxExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OpNode>()
         .def_ro("name", &OpNode::name)
-        .def_ro("op_type", &OpNode::op_type, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("description", &OpNode::description, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
@@ -139,7 +136,7 @@ class OpNode : public RelaxExprNode {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, RelaxExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, ExprNode);
 
  private:
   /*! \return the internal attr registry index. */
@@ -163,8 +160,12 @@ class OpNode : public RelaxExprNode {
  * \brief Managed reference class to OpNode.
  * \sa OpNode
  */
-class Op : public RelaxExpr {
+class Op : public Expr {
  public:
+  explicit Op(ffi::ObjectPtr<OpNode> n) : Expr(std::move(n)) {
+    TVM_FFI_CHECK(defined(), ValueError) << "Op expects a defined OpNode";
+  }
+
   /*!
    * \brief Get additional registered attribute about operators.
    *  If nothing has been registered, an empty OpAttrMap will be returned.
@@ -188,7 +189,7 @@ class Op : public RelaxExpr {
    */
   TVM_DLL static const Op& Get(const ffi::String& op_name);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Op, RelaxExpr, OpNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, Expr, OpNode);
 
  private:
   /*!
@@ -292,6 +293,8 @@ class OpRegEntry {
   std::string name;
   /*! \brief The operator */
   Op op_;
+  /*! \brief Construct the non-null Op for this registry entry. */
+  static Op MakeOp(uint32_t reg_index);
   // private constructor
   TVM_DLL OpRegEntry(uint32_t reg_index);
   // return internal pointer to op.
@@ -314,7 +317,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
    *         or if expr is not an Op.
    * \return the const reference to the content value.
    */
-  inline ValueType get(const RelaxExpr& expr, ValueType def_value) const;
+  inline ValueType get(const Expr& expr, ValueType def_value) const;
 
   using TParent = AttrRegistryMap<Op, ValueType>;
   using TParent::count;
@@ -407,7 +410,7 @@ inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
 // member functions of OpAttrMap
 
 template <typename ValueType>
-inline ValueType OpAttrMap<ValueType>::get(const RelaxExpr& expr, ValueType def_value) const {
+inline ValueType OpAttrMap<ValueType>::get(const Expr& expr, ValueType def_value) const {
   TVM_FFI_ICHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
     return this->map_.get(ffi::GetRef<Op>(op), def_value);

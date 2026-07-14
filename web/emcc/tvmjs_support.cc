@@ -261,7 +261,7 @@ class AsyncLocalSession : public LocalSession {
     dev.device_type = static_cast<DLDeviceType>(device_type);
     dev.device_id = device_id;
 
-    if (opt_mod.defined()) {
+    if (opt_mod.has_value()) {
       ffi::Module m = opt_mod.value();
       std::string tkey = m->kind();
       return WrapWasmTimeEvaluator(m->GetFunction(name, false).value(), dev, number, repeat,

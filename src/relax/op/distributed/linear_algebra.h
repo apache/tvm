@@ -19,7 +19,7 @@
 
 /*!
  * \file linear_algebra.h
- * \brief The functions to infer struct info for distributed linear algebra operator
+ * \brief The functions to infer type for distributed linear algebra operator
  */
 
 #ifndef TVM_RELAX_OP_DISTRIBUTED_LINEAR_ALGEBRA_H_
@@ -30,7 +30,7 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
-StructInfo InferDistStructInfoMatmul(const Call& call, const BlockBuilder& ctx);
+Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx);
 
 }  // namespace distributed
 }  // namespace relax

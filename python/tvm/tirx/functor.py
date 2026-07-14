@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.ir import PrimExpr
+from tvm.ir import Call, Expr
 from tvm.ir.utils import derived_object
 
 from . import _ffi_api
@@ -37,7 +37,6 @@ from .expr import (
     And,
     Broadcast,
     BufferLoad,
-    Call,
     Cast,
     Div,
     FloatImm,
@@ -56,7 +55,6 @@ from .expr import (
     Reduce,
     Select,
     Shuffle,
-    SizeVar,
     StringImm,
     Sub,
     Var,
@@ -102,14 +100,14 @@ Example
     @tirx.functor.stmt_expr_mutator
     class MyStmtExprMutator(PyStmtExprMutator):
         # customize rewrite function
-        def visit_add_(self, op: Add) -> PrimExpr:
+        def visit_add_(self, op: Add) -> Expr:
             # just for demo purposes
             ...
 
     # mymutator is now a special mutator that rewrite every Add with
     # user-customized visit_add_
     mymutator = MyStmtExprMutator()
-    # apply mymutator to PrimExpr and Stmt
+    # apply mymutator to Expr and Stmt
     mymutator.visit_expr(expr)
     mymutator.visit_stmt(stmt)
 """
@@ -144,9 +142,8 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
         f_visit_evaluate: Callable | None = None,
         f_visit_block: Callable | None = None,
         f_visit_sblock_realize: Callable | None = None,
-        # PrimExpr
+        # Expr
         f_visit_var: Callable | None = None,
-        f_visit_size_var: Callable | None = None,
         f_visit_buffer_load: Callable | None = None,
         f_visit_producer_load: Callable | None = None,
         f_visit_let: Callable | None = None,
@@ -198,9 +195,8 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
             f_visit_evaluate,
             f_visit_block,
             f_visit_sblock_realize,
-            # PrimExpr
+            # Expr
             f_visit_var,
-            f_visit_size_var,
             f_visit_buffer_load,
             f_visit_producer_load,
             f_visit_let,
@@ -237,7 +233,7 @@ class _PyStmtExprVisitor(tvm_ffi.core.Object):
 
 class PyStmtExprVisitor:
     """
-    A Python StmtExprVisitor to define custom visitor for both Stmt and PrimExpr.
+    A Python StmtExprVisitor to define custom visitor for both Stmt and Expr.
 
     Users can customize any of the visit function.
     """
@@ -261,9 +257,8 @@ class PyStmtExprVisitor:
             "visit_evaluate_",
             "visit_sblock_",
             "visit_sblock_realize_",
-            # PrimExpr
+            # Expr
             "visit_var_",
-            "visit_size_var_",
             "visit_buffer_load_",
             "visit_producer_load_",
             "visit_let_",
@@ -308,13 +303,13 @@ class PyStmtExprVisitor:
         """
         _ffi_api.PyStmtExprVisitorVisitStmt(self._outer(), stmt)  # type: ignore
 
-    def visit_expr(self, expr: PrimExpr) -> None:
-        """Visit a PrimExpr.
+    def visit_expr(self, expr: Expr) -> None:
+        """Visit a Expr.
 
         Parameters
         ----------
-        expr : PrimExpr
-            The PrimExpr to be visited.
+        expr : Expr
+            The Expr to be visited.
         """
         _ffi_api.PyStmtExprVisitorVisitExpr(self._outer(), expr)  # type: ignore
 
@@ -496,19 +491,6 @@ class PyStmtExprVisitor:
         ----------
         op : Var
             The Var to be visited.
-        """
-        _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_size_var_(self, op: SizeVar) -> None:
-        """Visit SizeVar.
-
-        Users can customize this function to overwrite VisitSizeVar_(const SizeVarNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : SizeVar
-            The SizeVar to be visited.
         """
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
@@ -945,9 +927,8 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
         f_visit_evaluate: Callable | None = None,
         f_visit_block: Callable | None = None,
         f_visit_sblock_realize: Callable | None = None,
-        # PrimExpr
+        # Expr
         f_visit_var: Callable | None = None,
-        f_visit_size_var: Callable | None = None,
         f_visit_buffer_load: Callable | None = None,
         f_visit_producer_load: Callable | None = None,
         f_visit_let: Callable | None = None,
@@ -999,9 +980,8 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
             f_visit_evaluate,
             f_visit_block,
             f_visit_sblock_realize,
-            # PrimExpr
+            # Expr
             f_visit_var,
-            f_visit_size_var,
             f_visit_buffer_load,
             f_visit_producer_load,
             f_visit_let,
@@ -1038,7 +1018,7 @@ class _PyStmtExprMutator(tvm_ffi.core.Object):
 
 class PyStmtExprMutator:
     """
-    A Python StmtExprMutator to define custom mutator for both Stmt and PrimExpr.
+    A Python StmtExprMutator to define custom mutator for both Stmt and Expr.
 
     Users can customize any of the visit function.
     """
@@ -1062,9 +1042,8 @@ class PyStmtExprMutator:
             "visit_evaluate_",
             "visit_sblock_",
             "visit_sblock_realize_",
-            # PrimExpr
+            # Expr
             "visit_var_",
-            "visit_size_var_",
             "visit_buffer_load_",
             "visit_producer_load_",
             "visit_let_",
@@ -1099,20 +1078,20 @@ class PyStmtExprMutator:
         ],
     }
 
-    def visit_expr(self, expr: PrimExpr) -> PrimExpr:
-        """Visit PrimExpr.
-        Users can customize this function to overwrite VisitExpr(const PrimExpr& expr)
+    def visit_expr(self, expr: Expr) -> Expr:
+        """Visit Expr.
+        Users can customize this function to overwrite VisitExpr(const Expr& expr)
         on the C++ side.
 
         Parameters
         ----------
-        expr : PrimExpr
-            The PrimExpr to be visited.
+        expr : Expr
+            The Expr to be visited.
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorVisitExpr(self._outer(), expr)  # type: ignore
 
@@ -1354,7 +1333,7 @@ class PyStmtExprMutator:
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitStmt(self._outer(), op)  # type: ignore
 
-    def visit_var_(self, op: Var) -> PrimExpr:
+    def visit_var_(self, op: Var) -> Expr:
         """Visit Var.
 
         Users can customize this function to overwrite VisitVar_(const VarNode* op)
@@ -1367,30 +1346,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_size_var_(self, op: SizeVar) -> PrimExpr:
-        """Visit SizeVar.
-
-        Users can customize this function to overwrite VisitSizeVar_(const SizeVarNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : SizeVar
-            The SizeVar to be visited.
-
-        Returns
-        -------
-        result : PrimExpr
-            The mutated PrimExpr.
-        """
-        return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_buffer_load_(self, op: BufferLoad) -> PrimExpr:
+    def visit_buffer_load_(self, op: BufferLoad) -> Expr:
         """Visit BufferLoad.
 
         Users can customize this function to overwrite VisitBufferLoad_(const BufferLoadNode* op)
@@ -1403,12 +1364,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_producer_load_(self, op: ProducerLoad) -> PrimExpr:
+    def visit_producer_load_(self, op: ProducerLoad) -> Expr:
         """Visit ProducerLoad.
 
         Users can customize this function to overwrite
@@ -1421,12 +1382,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_let_(self, op: Let) -> PrimExpr:
+    def visit_let_(self, op: Let) -> Expr:
         """Visit Let.
 
         Users can customize this function to overwrite VisitLet_(const LetNode* op)
@@ -1439,12 +1400,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_call_(self, op: Call) -> PrimExpr:
+    def visit_call_(self, op: Call) -> Expr:
         """Visit Call.
 
         Users can customize this function to overwrite VisitCall_(const CallNode* op)
@@ -1457,12 +1418,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_add_(self, op: Add) -> PrimExpr:
+    def visit_add_(self, op: Add) -> Expr:
         """Visit Add.
 
         Users can customize this function to overwrite VisitAdd_(const AddNode* op)
@@ -1475,12 +1436,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_sub_(self, op: Sub) -> PrimExpr:
+    def visit_sub_(self, op: Sub) -> Expr:
         """Visit Sub.
 
         Users can customize this function to overwrite VisitSub_(const SubNode* op)
@@ -1493,12 +1454,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_mul_(self, op: Mul) -> PrimExpr:
+    def visit_mul_(self, op: Mul) -> Expr:
         """Visit Mul.
 
         Users can customize this function to overwrite VisitMul_(const MulNode* op)
@@ -1511,12 +1472,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_div_(self, op: Div) -> PrimExpr:
+    def visit_div_(self, op: Div) -> Expr:
         """Visit Div.
 
         Users can customize this function to overwrite VisitDiv_(const DivNode* op)
@@ -1529,12 +1490,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_mod_(self, op: Mod) -> PrimExpr:
+    def visit_mod_(self, op: Mod) -> Expr:
         """Visit Mod.
 
         Users can customize this function to overwrite VisitMod_(const ModNode* op)
@@ -1547,12 +1508,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_floor_div_(self, op: FloorDiv) -> PrimExpr:
+    def visit_floor_div_(self, op: FloorDiv) -> Expr:
         """Visit FloorDiv.
 
         Users can customize this function to overwrite VisitFloorDiv_(const FloorDivNode* op)
@@ -1565,12 +1526,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_floor_mod_(self, op: FloorMod) -> PrimExpr:
+    def visit_floor_mod_(self, op: FloorMod) -> Expr:
         """Visit FloorMod.
 
         Users can customize this function to overwrite VisitFloorMod_(const FloorModNode* op)
@@ -1583,12 +1544,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_min_(self, op: Min) -> PrimExpr:
+    def visit_min_(self, op: Min) -> Expr:
         """Visit Min.
 
         Users can customize this function to overwrite VisitMin_(const MinNode* op)
@@ -1601,12 +1562,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_max_(self, op: Max) -> PrimExpr:
+    def visit_max_(self, op: Max) -> Expr:
         """Visit Max.
 
         Users can customize this function to overwrite VisitMax_(const MaxNode* op)
@@ -1619,12 +1580,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_eq_(self, op: EQ) -> PrimExpr:
+    def visit_eq_(self, op: EQ) -> Expr:
         """Visit EQ.
 
         Users can customize this function to overwrite VisitEQ_(const EQNode* op)
@@ -1637,12 +1598,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_ne_(self, op: NE) -> PrimExpr:
+    def visit_ne_(self, op: NE) -> Expr:
         """Visit NE.
 
         Users can customize this function to overwrite VisitNE_(const NENode* op)
@@ -1655,12 +1616,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_lt_(self, op: LT) -> PrimExpr:
+    def visit_lt_(self, op: LT) -> Expr:
         """Visit LT.
 
         Users can customize this function to overwrite VisitLT_(const LTNode* op)
@@ -1673,12 +1634,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_le_(self, op: LE) -> PrimExpr:
+    def visit_le_(self, op: LE) -> Expr:
         """Visit LE.
 
         Users can customize this function to overwrite VisitLE_(const LENode* op)
@@ -1691,12 +1652,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_gt_(self, op: GT) -> PrimExpr:
+    def visit_gt_(self, op: GT) -> Expr:
         """Visit GT.
 
         Users can customize this function to overwrite VisitGT_(const GTNode* op)
@@ -1709,12 +1670,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_ge_(self, op: GE) -> PrimExpr:
+    def visit_ge_(self, op: GE) -> Expr:
         """Visit GE.
 
         Users can customize this function to overwrite VisitGE_(const GENode* op)
@@ -1727,12 +1688,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_and_(self, op: And) -> PrimExpr:
+    def visit_and_(self, op: And) -> Expr:
         """Visit And.
 
         Users can customize this function to overwrite VisitAnd_(const AndNode* op)
@@ -1745,12 +1706,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_or_(self, op: Or) -> PrimExpr:
+    def visit_or_(self, op: Or) -> Expr:
         """Visit Or.
 
         Users can customize this function to overwrite VisitOr_(const OrNode* op)
@@ -1763,12 +1724,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_reduce_(self, op: Reduce) -> PrimExpr:
+    def visit_reduce_(self, op: Reduce) -> Expr:
         """Visit Reduce.
 
         Users can customize this function to overwrite VisitReduce_(const ReduceNode* op)
@@ -1781,12 +1742,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_cast_(self, op: Cast) -> PrimExpr:
+    def visit_cast_(self, op: Cast) -> Expr:
         """Visit Cast.
 
         Users can customize this function to overwrite VisitCast_(const CastNode* op)
@@ -1799,12 +1760,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_not_(self, op: Not) -> PrimExpr:
+    def visit_not_(self, op: Not) -> Expr:
         """Visit Not.
 
         Users can customize this function to overwrite VisitNot_(const NotNode* op)
@@ -1817,12 +1778,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_select_(self, op: Select) -> PrimExpr:
+    def visit_select_(self, op: Select) -> Expr:
         """Visit Select.
 
         Users can customize this function to overwrite VisitSelect_(const SelectNode* op)
@@ -1835,12 +1796,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_ramp_(self, op: Ramp) -> PrimExpr:
+    def visit_ramp_(self, op: Ramp) -> Expr:
         """Visit Ramp.
 
         Users can customize this function to overwrite VisitRamp_(const RampNode* op)
@@ -1853,12 +1814,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_broadcast_(self, op: Broadcast) -> PrimExpr:
+    def visit_broadcast_(self, op: Broadcast) -> Expr:
         """Visit Broadcast.
 
         Users can customize this function to overwrite VisitBroadcast_(const BroadcastNode* op)
@@ -1871,12 +1832,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_shuffle_(self, op: Shuffle) -> PrimExpr:
+    def visit_shuffle_(self, op: Shuffle) -> Expr:
         """Visit Shuffle.
 
         Users can customize this function to overwrite VisitShuffle_(const ShuffleNode* op)
@@ -1889,12 +1850,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_int_imm_(self, op: IntImm) -> PrimExpr:
+    def visit_int_imm_(self, op: IntImm) -> Expr:
         """Visit IntImm.
 
         Users can customize this function to overwrite VisitIntImm_(const IntImmNode* op)
@@ -1907,12 +1868,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_float_imm_(self, op: FloatImm) -> PrimExpr:
+    def visit_float_imm_(self, op: FloatImm) -> Expr:
         """Visit FloatImm.
 
         Users can customize this function to overwrite VisitFloatImm_(const FloatImmNode* op)
@@ -1925,12 +1886,12 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_string_imm_(self, op: StringImm) -> PrimExpr:
+    def visit_string_imm_(self, op: StringImm) -> Expr:
         """Visit StringImm.
 
         Users can customize this function to overwrite VisitStringImm_(const StringImmNode* op)
@@ -1943,7 +1904,7 @@ class PyStmtExprMutator:
 
         Returns
         -------
-        result : PrimExpr
-            The mutated PrimExpr.
+        result : Expr
+            The mutated Expr.
         """
         return _ffi_api.PyStmtExprMutatorDefaultVisitExpr(self._outer(), op)  # type: ignore

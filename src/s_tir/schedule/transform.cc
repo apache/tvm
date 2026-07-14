@@ -42,19 +42,18 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
-  new_var->type_annotation = PointerType(ptr_type->element_type, scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
+  new_var->ty = PointerType(ptr_type->element_type, scope);
+  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->ty);
   new_buffer->name = buffer->name + "_" + scope;
   return Buffer(new_buffer);
 }
 
-Buffer WithDType(const Buffer& buffer, const DataType& dtype) {
+Buffer WithDType(const Buffer& buffer, PrimType dtype) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   new_buffer->dtype = dtype;
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
-  new_buffer->data =
-      Var(buffer->data->name_hint, PointerType(PrimType(dtype), ptr_type->storage_scope));
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
+  new_buffer->data = Var(buffer->data->name_hint, PointerType(dtype, ptr_type->storage_scope));
   new_buffer->name = buffer->name;
   return Buffer(new_buffer);
 }
@@ -143,18 +142,18 @@ ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<Buffer, Buffer>& buffe
   }
 }
 
-PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
+Expr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second->data : ffi::GetRef<Var>(var);
 }
 
 Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
-  auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+  auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
   return VisitBufferAccess(std::move(node));
 }
 
-PrimExpr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
-  auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+Expr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
+  auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
   return VisitBufferAccess(std::move(node));
 }
 
@@ -179,8 +178,8 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   };
   auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
     auto region = MutateArray(buffer_region->region, [this](const Range& range) {
-      PrimExpr min = VisitExpr(range->min);
-      PrimExpr extent = VisitExpr(range->extent);
+      PrimExpr min = VisitPrimExpr(range->min);
+      PrimExpr extent = VisitPrimExpr(range->extent);
       if (min.same_as(range->min) && extent.same_as(range->extent)) {
         return range;
       } else {
@@ -216,7 +215,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
   ffi::Array<Buffer> alloc_buffers = block->alloc_buffers.Map(f_mutate_alloc_buffers);
   // Step 4. Recursively mutate the block.
-  SBlock mutated_block = Downcast<SBlock>(StmtMutator::VisitStmt_(block));
+  SBlock mutated_block = StmtMutator::VisitStmt_(block).as_or_throw<SBlock>();
 
   if (mutated_block.get() == block && reads.same_as(mutated_block->reads) &&
       writes.same_as(mutated_block->writes) &&
@@ -316,7 +315,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
                               tirx::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return std::nullopt;
   const TensorizeInfoNode* info = opt_tensorize_info.value().get();
-  if (info->block_iter_paddings.defined()) {
+  if (info->block_iter_paddings.has_value()) {
     // We have to track whether each producer or consumer is padded.
     // To do so, we first record all the Block's.
     std::unordered_set<const StmtSRefNode*> original_producers, original_consumers;
@@ -407,7 +406,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
     // Do the split. Leave the outer extent as std::nullopt (unspecified) so that the split factors
     // can be used for different extents (needed during tuning).
     ffi::Array<LoopRV> split =
-        sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, IntImm(DataType::Int(32), inner)});
+        sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, IntImm::Int32(inner)});
     TVM_FFI_ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
@@ -463,7 +462,7 @@ void BlockBufferAccessSimplifier::SimplifyBufferIndices(ffi::Array<PrimExpr>* in
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
-  SBlock block = Downcast<SBlock>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  SBlock block = arith::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<SBlock>();
   auto* n = block.CopyOnWrite();
   SimplifyAccessRegion(&n->reads);
   SimplifyAccessRegion(&n->writes);
@@ -471,13 +470,13 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const SBlockNode* op) {
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
-  BufferStore node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
+  BufferStore node = arith::IRMutatorWithAnalyzer::VisitStmt_(op).as_or_throw<BufferStore>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }
 
-PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
-  BufferLoad node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
+Expr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
+  BufferLoad node = arith::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }
@@ -527,20 +526,22 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
     ffi::Array<Var> index_map_inputs;
     ffi::Array<PrimExpr> index_map_outputs;
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
-      Var var = iter->var.copy_with_suffix("");
+      Var var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
       if (!is_one(iter->dom->extent)) {
-        index_map_outputs.push_back(var);
+        index_map_outputs.push_back(var.as_or_throw<PrimExpr>());
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;
         }
       }
     }
     if (index_map_outputs.empty() || !has_spatial_iter) {
-      index_map_outputs.insert(index_map_outputs.begin(), tirx::make_const(DataType::Int(64), 0));
+      index_map_outputs.insert(index_map_outputs.begin(), IntImm::Int64(0));
     }
     try {
-      sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
+      sch->TransformBlockLayout(
+          block, IndexMap(index_map_inputs.Map([](Var var) { return var.as_or_throw<PrimVar>(); }),
+                          index_map_outputs));
     } catch (tvm::ffi::Error& e) {
       // Skip layout transformation when not transformable.
     }
@@ -549,7 +550,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
     bool is_reduction = IsReductionBlock(sch->state(),         //
                                          sch->GetSRef(block),  //
                                          sch->GetSRef(root_block));
-    block_is_reduction.push_back(IntImm(DataType::Bool(), is_reduction));
+    block_is_reduction.push_back(IntImm::Bool(is_reduction));
   }
   return ffi::Array<ffi::ObjectRef>{leaf_blocks, block_loops, block_iters, block_is_reduction};
 }
