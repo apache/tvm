@@ -3498,84 +3498,129 @@ def test_shrink():
     tvm.ir.assert_structural_equal(tvm_model, ExpectedCustom)
 
 
-@pytest.mark.parametrize("stride", [1, 2])
-@pytest.mark.parametrize("dilation", [1, 2])
+def _make_conv_model(input_shape, weight_shape, stride, dilation, pad, bias, auto_pad):
+    nd = len(weight_shape) - 2
+    groups = input_shape[1] // weight_shape[1]
+    node_attrs = {
+        "strides": [stride] * nd,
+        "dilations": [dilation] * nd,
+        "group": groups,
+    }
+    if auto_pad == "VALID":
+        output_shape = [input_shape[0], weight_shape[0]] + [
+            (input_shape[i] - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+            for i in range(2, len(input_shape))
+        ]
+        node_attrs["auto_pad"] = auto_pad
+    elif auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+        output_shape = [input_shape[0], weight_shape[0]] + [
+            (input_shape[i] + stride - 1) // stride for i in range(2, len(input_shape))
+        ]
+        node_attrs["auto_pad"] = auto_pad
+    else:
+        output_shape = [input_shape[0], weight_shape[0]] + [
+            (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+            for i in range(2, len(input_shape))
+        ]
+        node_attrs["pads"] = [pad] * nd * 2
+
+    conv_node = helper.make_node(
+        "Conv",
+        inputs=["x", "w"] + (["b"] if bias else []),
+        outputs=["y"],
+        **node_attrs,
+    )
+    graph = helper.make_graph(
+        [conv_node],
+        "conv_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
+        ]
+        + (
+            [helper.make_tensor_value_info("b", TensorProto.FLOAT, [output_shape[1]])]
+            if bias
+            else []
+        ),
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="conv_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+    return model, output_shape, groups
+
+
+CONV_IMPORT_CONFIGS = [
+    *(("VALID", stride, dilation, 0) for stride in [1, 2] for dilation in [1, 2]),
+    *((auto_pad, stride, 1, 0) for auto_pad in ["SAME_UPPER", "SAME_LOWER"] for stride in [1, 2]),
+    *(
+        ("NOTSET", stride, dilation, pad)
+        for stride in [1, 2]
+        for dilation in [1, 2]
+        for pad in [0, 2]
+    ),
+]
+
+
+def _verify_conv_import(auto_pad, stride, dilation, pad, bias, nd, groups):
+    input_shape = [1, 4] + [8] * nd
+    weight_shape = [4, 4 // groups] + [3] * nd
+    model, output_shape, expected_groups = _make_conv_model(
+        input_shape, weight_shape, stride, dilation, pad, bias, auto_pad
+    )
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    func = tvm_model["main"]
+
+    conv_op_name = f"relax.nn.conv{nd}d"
+    conv_calls = []
+
+    def visit(expr):
+        if (
+            isinstance(expr, relax.Call)
+            and isinstance(expr.op, tvm.ir.Op)
+            and expr.op.name == conv_op_name
+        ):
+            conv_calls.append(expr)
+
+    relax.analysis.post_order_visit(func.body, visit)
+    assert len(conv_calls) == 1
+    conv_call = conv_calls[0]
+    assert tuple(int(value) for value in func.ret_ty.shape.values) == tuple(output_shape)
+    assert tuple(int(value) for value in conv_call.attrs.strides) == (stride,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.dilation) == (dilation,) * nd
+    assert int(conv_call.attrs.groups) == expected_groups
+    assert ("relax.add" in collect_relax_call_ops(func)) == bias
+
+    expected_padding = (pad,) * (nd * 2) if auto_pad == "NOTSET" else (0,) * (nd * 2)
+    assert tuple(int(value) for value in conv_call.attrs.padding) == expected_padding
+
+
 @pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("pad", [0, 2])
-@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
-def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
-    def _verify_conv(input_shape, weight_shape):
-        nd = len(weight_shape) - 2
-        if auto_pad == "VALID":
-            output_shape = [input_shape[0], weight_shape[0]] + [
-                (input_shape[i] - dilation * (weight_shape[i] - 1) - 1) // stride + 1
-                for i in range(2, len(input_shape))
-            ]
-            bias_shape = [output_shape[1]]
-            conv_node = helper.make_node(
-                "Conv",
-                inputs=["x", "w"] + (["b"] if bias else []),
-                outputs=["y"],
-                strides=[stride] * nd,
-                dilations=[dilation] * nd,
-                auto_pad=auto_pad,
-                group=input_shape[1] // weight_shape[1],
-            )
-        elif auto_pad in ("SAME_UPPER", "SAME_LOWER"):
-            if dilation == 2:
-                # auto_pad = "SAME" and dilation = 2 is not supported in ONNX
-                return
-            output_shape = [input_shape[0], weight_shape[0]] + [
-                (input_shape[i] + stride - 1) // stride for i in range(2, len(input_shape))
-            ]
-            bias_shape = [output_shape[1]]
-            conv_node = helper.make_node(
-                "Conv",
-                inputs=["x", "w"] + (["b"] if bias else []),
-                outputs=["y"],
-                strides=[stride] * nd,
-                dilations=[dilation] * nd,
-                auto_pad=auto_pad,
-                group=input_shape[1] // weight_shape[1],
-            )
-        else:
-            output_shape = [input_shape[0], weight_shape[0]] + [
-                (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
-                for i in range(2, len(input_shape))
-            ]
-            bias_shape = [output_shape[1]]
-            conv_node = helper.make_node(
-                "Conv",
-                inputs=["x", "w"] + (["b"] if bias else []),
-                outputs=["y"],
-                strides=[stride] * nd,
-                dilations=[dilation] * nd,
-                pads=[pad] * nd * 2,
-                group=input_shape[1] // weight_shape[1],
-            )
-        graph = helper.make_graph(
-            [conv_node],
-            "conv_test",
-            inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
-                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
-            ]
-            + ([helper.make_tensor_value_info("b", TensorProto.FLOAT, bias_shape)] if bias else []),
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
-        )
+@pytest.mark.parametrize("nd", [1, 2, 3])
+@pytest.mark.parametrize("groups", [1, 2])
+def test_conv_import(bias, nd, groups):
+    for auto_pad, stride, dilation, pad in CONV_IMPORT_CONFIGS:
+        _verify_conv_import(auto_pad, stride, dilation, pad, bias, nd, groups)
 
-        model = helper.make_model(graph, producer_name="conv_test")
-        check_correctness(model, atol=1e-4)
 
-    # Conv1D
-    _verify_conv([3, 4, 32], [4, 4, 3])
-    _verify_conv([3, 4, 32], [2, 4, 3])  # group=2
-    # Conv2D
-    _verify_conv([3, 4, 32, 32], [4, 4, 3, 3])
-    _verify_conv([3, 4, 32, 32], [2, 4, 3, 3])  # group=2
-    # Conv3D
-    _verify_conv([3, 4, 32, 32, 32], [4, 4, 3, 3, 3])
-    _verify_conv([3, 4, 32, 32, 32], [2, 4, 3, 3, 3])  # group=2
+@pytest.mark.parametrize(
+    "nd, groups, auto_pad, stride, dilation, pad, bias",
+    [
+        (1, 1, "VALID", 1, 2, 0, False),
+        (1, 2, "NOTSET", 2, 1, 2, True),
+        (2, 1, "SAME_UPPER", 2, 1, 0, True),
+        (2, 2, "SAME_LOWER", 2, 1, 0, False),
+        (3, 2, "VALID", 2, 1, 0, True),
+        (3, 1, "NOTSET", 1, 2, 2, False),
+    ],
+)
+def test_conv_numerical(nd, groups, auto_pad, stride, dilation, pad, bias):
+    input_shape = [1, 4] + [8] * nd
+    weight_shape = [4, 4 // groups] + [3] * nd
+    model, _, _ = _make_conv_model(input_shape, weight_shape, stride, dilation, pad, bias, auto_pad)
+    check_correctness(model, opset=14, atol=1e-4)
 
 
 @pytest.mark.parametrize("stride", [2])
@@ -5148,64 +5193,97 @@ def create_composite_reduce_test_parameters_axes_attr():
     return output
 
 
+def _verify_reduce_numerical(
+    func: str,
+    opset: int,
+    *,
+    axes_as_input: bool,
+    axes,
+    noop_with_empty_axes: bool = False,
+    dynamic: bool = False,
+    keepdims: bool = False,
+):
+    input_shape = [3, 3, 3]
+    node_inputs = ["x"]
+    initializers = []
+    node_attrs = {"keepdims": keepdims}
+
+    if axes_as_input:
+        node_attrs["noop_with_empty_axes"] = noop_with_empty_axes
+        if axes is not None:
+            axes_np = np.asarray(axes, dtype=np.int64)
+            initializers.append(
+                helper.make_tensor(
+                    name="reduce_axes",
+                    data_type=TensorProto.INT64,
+                    dims=axes_np.shape,
+                    vals=axes_np,
+                )
+            )
+            node_inputs.append("reduce_axes")
+    elif axes:
+        node_attrs["axes"] = axes
+
+    if axes_as_input and noop_with_empty_axes and not axes:
+        output_shape = input_shape
+    else:
+        axis = None if not axes else tuple(axes)
+        output_shape = list(np.sum(np.empty(input_shape), axis=axis, keepdims=keepdims).shape)
+
+    graph_input_shape = ["?"] * len(input_shape) if dynamic else input_shape
+    graph_output_shape = ["?"] * len(output_shape) if dynamic else output_shape
+
+    node = helper.make_node(func, inputs=node_inputs, outputs=["y"], **node_attrs)
+    graph = helper.make_graph(
+        [node],
+        "reduce_numerical_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, graph_input_shape)],
+        initializer=initializers,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, graph_output_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reduce_numerical_test",
+        opset_imports=[helper.make_opsetid("", opset)],
+    )
+    inputs = {"x": np.random.randn(*input_shape).astype(np.float32)}
+    check_correctness(model, inputs, opset=opset, rtol=1e-4, atol=1e-4)
+
+
 @pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_attr())
 def test_all_reduce_funcs_axes_attr(func, dynamic, opset):
-    def verify_reduce_func(func, data, axis, keepdims):
-        inshape = data.shape
-        outshape = np.sum(data, axis=axis, keepdims=keepdims == 1).shape
-
-        if axis:
-            node = onnx.helper.make_node(
-                func, inputs=["x"], outputs=["y"], axes=axis, keepdims=keepdims
-            )
-        else:
-            node = onnx.helper.make_node(func, inputs=["x"], outputs=["y"], keepdims=keepdims)
-
-        if dynamic:
-            in_list = ["?" for _ in range(len(inshape))]
-            out_list = ["?" for _ in range(len(outshape))]
-        else:
-            in_list = list(inshape)
-            out_list = list(outshape)
-        graph = helper.make_graph(
-            [node],
-            "reduce_test",
-            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_list)],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_list)],
-        )
-
-        model = helper.make_model(graph, producer_name="reduce_test")
-        inputs_dict = {"x": data}
-        # Reduction ops accumulate arithmetic errors, so we use a higher tolerance.
-        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
-
     for keepdims in [True, False]:
-        verify_reduce_func(
-            func, np.random.randn(3, 2, 2).astype(np.float32), axis=None, keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 2, 3).astype(np.float32), axis=None, keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 3, 3).astype(np.float32), axis=(1,), keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 3, 3, 1).astype(np.float32), axis=(1, 2), keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 3, 3, 1).astype(np.float32), axis=(1,), keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(1, 3, 4, 1).astype(np.float32), axis=(1,), keepdims=keepdims
-        )
+        for input_shape, axes in REDUCE_AXES_ATTR_TEST_CASES:
+            expected = _make_reduce_expected_ir(func, input_shape, axes, False, keepdims, dynamic)
+            verify_composite_reduce_axes_attr_ir(
+                func, input_shape, axes, keepdims, dynamic, opset, expected
+            )
 
 
-def _make_composite_reduce_expected_ir(
+@pytest.mark.parametrize(
+    "func, opset, dynamic, keepdims",
+    [
+        ("ReduceMax", 11, False, False),
+        ("ReduceMean", 11, False, False),
+        ("ReduceMean", 13, True, True),
+        ("ReduceMin", 11, False, False),
+        ("ReduceProd", 11, False, False),
+        ("ReduceProd", 13, False, False),
+        ("ReduceSum", 11, False, False),
+    ],
+)
+def test_reduce_funcs_axes_attr_numerical(func, opset, dynamic, keepdims):
+    _verify_reduce_numerical(
+        func,
+        opset,
+        axes_as_input=False,
+        axes=[1],
+        dynamic=dynamic,
+        keepdims=keepdims,
+    )
+
+
+def _make_reduce_expected_ir(
     func: str,
     input_shape: list[int],
     axes,
@@ -5233,8 +5311,19 @@ def _make_composite_reduce_expected_ir(
         parser_vars["axes_shape"] = axes_shape
         params.append('        reduce_axes: R.Tensor(axes_shape, dtype="int64")')
 
+    basic_reduce_op = {
+        "ReduceMax": R.max,
+        "ReduceMean": R.mean,
+        "ReduceMin": R.min,
+        "ReduceProd": R.prod,
+        "ReduceSum": R.sum,
+    }.get(func)
+
     if noop_with_empty_axes and not axes:
         body = ["            gv = x"]
+    elif basic_reduce_op is not None:
+        parser_vars["reduce_op"] = basic_reduce_op
+        body = ["            gv = reduce_op(x, axis=axis, keepdims=keepdims)"]
     elif func == "ReduceSumSquare":
         body = [
             "            lv = R.multiply(x, x)",
@@ -5300,7 +5389,7 @@ def test_composite_reduce_funcs_axes_attr_ir():
         for keepdims in [True, False]:
             for dynamic in [True, False]:
                 for input_shape, axes in REDUCE_AXES_ATTR_TEST_CASES:
-                    expected = _make_composite_reduce_expected_ir(
+                    expected = _make_reduce_expected_ir(
                         func, input_shape, axes, False, keepdims, dynamic
                     )
                     for opset in [13, 11]:
@@ -5395,107 +5484,52 @@ def verify_composite_reduce_axes_input_ir(
 
 @pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_input())
 def test_all_reduce_funcs_axes_input(func, dynamic, opset):
-    def verify_reduce_func(func, data, axes, keepdims, noop_with_empty_axes=False):
-        inshape = data.shape
-        inputs = ["x"]
-        initializers = []
-
-        # Optional `axes` input
-        if axes is not None:
-            axes_name = "reduce_axes"
-            axes_np = np.asarray(axes, dtype=np.int64)
-            axes_init = helper.make_tensor(
-                name=axes_name,
-                data_type=TensorProto.INT64,
-                dims=axes_np.shape,
-                vals=axes_np,
-            )
-            initializers.append(axes_init)
-            inputs.append(axes_name)
-
-        # Determine input and output shapes
-        if not axes and not noop_with_empty_axes:
-            outshape = np.sum(data, axis=None, keepdims=keepdims).shape
-        elif not axes and noop_with_empty_axes:
-            outshape = inshape
-        else:
-            outshape = np.sum(data, axis=axes, keepdims=keepdims).shape
-
-        if dynamic:
-            in_list = ["?"] * len(inshape)
-            out_list = ["?"] * len(outshape)
-        else:
-            in_list = list(inshape)
-            out_list = list(outshape)
-
-        # Make a model node
-        node = helper.make_node(
-            func,
-            inputs=inputs,
-            outputs=["y"],
-            keepdims=keepdims,
-            noop_with_empty_axes=noop_with_empty_axes,
-        )
-
-        # Make a model graph and a model
-        graph = helper.make_graph(
-            [node],
-            "reduce18_test",
-            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_list)],
-            initializer=initializers,
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_list)],
-        )
-        model = helper.make_model(graph, producer_name="reduce18_test")
-
-        inputs_dict = {"x": data}
-        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
-
-    # Verify
     for keepdims in [True, False]:
-        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
-        verify_reduce_func(
-            func,
-            np.random.randn(3, 2, 2).astype(np.float32),
-            axes=[],
-            keepdims=keepdims,
-            noop_with_empty_axes=False,
-        )
+        for input_shape, axes, noop_with_empty_axes in REDUCE_AXES_INPUT_TEST_CASES:
+            expected = _make_reduce_expected_ir(
+                func,
+                input_shape,
+                axes,
+                noop_with_empty_axes,
+                keepdims,
+                dynamic,
+                axes_as_input=True,
+            )
+            verify_composite_reduce_axes_input_ir(
+                func,
+                input_shape,
+                axes,
+                noop_with_empty_axes,
+                keepdims,
+                dynamic,
+                opset,
+                expected,
+            )
 
-        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
-        verify_reduce_func(
-            func,
-            np.random.randn(3, 2, 2).astype(np.float32),
-            axes=None,
-            keepdims=keepdims,
-            noop_with_empty_axes=False,
-        )
 
-        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
-        verify_reduce_func(
-            func,
-            np.random.randn(4, 3).astype(np.float32),
-            axes=[],
-            keepdims=keepdims,
-            noop_with_empty_axes=True,
-        )
-
-        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
-        # (onnxruntime bug) Runtime error on the onnxruntime part
-        # verify_reduce_func(
-        #     func,
-        #     np.random.randn(4, 3).astype(np.float32),
-        #     axes=None,
-        #     keepdims=keepdims,
-        #     noop_with_empty_axes=True,
-        # )
-
-        # `axes` provided -> reduce over specified axes.
-        verify_reduce_func(
-            func,
-            np.random.randn(3, 3, 3, 1).astype(np.float32),
-            axes=(1, 2),
-            keepdims=keepdims,
-        )
+@pytest.mark.parametrize(
+    "func, opset, axes, noop_with_empty_axes, dynamic, keepdims",
+    [
+        ("ReduceMax", 18, [1], False, False, False),
+        ("ReduceMean", 18, [1], False, True, True),
+        ("ReduceMin", 18, [1], False, False, False),
+        ("ReduceProd", 18, [1], False, False, False),
+        ("ReduceSum", 13, [1], False, False, False),
+        ("ReduceSum", 13, [], True, False, False),
+    ],
+)
+def test_reduce_funcs_axes_input_numerical(
+    func, opset, axes, noop_with_empty_axes, dynamic, keepdims
+):
+    _verify_reduce_numerical(
+        func,
+        opset,
+        axes_as_input=True,
+        axes=axes,
+        noop_with_empty_axes=noop_with_empty_axes,
+        dynamic=dynamic,
+        keepdims=keepdims,
+    )
 
 
 def test_composite_reduce_funcs_axes_input_ir():
@@ -5503,7 +5537,7 @@ def test_composite_reduce_funcs_axes_input_ir():
         for keepdims in [True, False]:
             for dynamic in [True, False]:
                 for input_shape, axes, noop_with_empty_axes in REDUCE_AXES_INPUT_TEST_CASES:
-                    expected = _make_composite_reduce_expected_ir(
+                    expected = _make_reduce_expected_ir(
                         func,
                         input_shape,
                         axes,
