@@ -102,6 +102,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       // Make default groups for dataflow nodes other than CallNode.
       // Groups for CallNode are created in its visitor.
       if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
+          e->IsInstance<StringImmNode>() || e->IsInstance<DataTypeImmNode>() ||
+          e->IsInstance<ExternFuncNode>() ||
           (!e->IsInstance<CallNode>() && !e->IsInstance<VarNode>() && e.as<PrimExpr>())) {
         memo_[e] = arena_->make<Group>();
       }
@@ -274,6 +276,17 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   bool HasOnlyTupleGetItemUsers(const Expr& tuple_expr) {
+    if (auto it = tuple_get_item_only_usage_.find(tuple_expr.get());
+        it != tuple_get_item_only_usage_.end()) {
+      return it->second;
+    }
+
+    bool result = ComputeHasOnlyTupleGetItemUsers(tuple_expr);
+    tuple_get_item_only_usage_[tuple_expr.get()] = result;
+    return result;
+  }
+
+  bool ComputeHasOnlyTupleGetItemUsers(const Expr& tuple_expr) {
     ffi::Optional<Var> tuple_var;
     if (const auto* var = tuple_expr.as<VarNode>()) {
       tuple_var = ffi::GetRef<Var>(var);
@@ -436,6 +449,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   std::unordered_set<ffi::String> transparent_tuple_codegen_names_;
   VarUsageInfo var_usage_;
   std::unordered_map<const ffi::Object*, std::vector<Var>> value_to_bound_vars_;
+  std::unordered_map<const ffi::Object*, bool> tuple_get_item_only_usage_;
   // Map from group to its dependencies. All groups in this map, whether it's
   // the key or in value, should be root node (that is, group->parent == nullptr).
   std::unordered_map<Group*, std::unordered_set<Group*>> group_deps_;
