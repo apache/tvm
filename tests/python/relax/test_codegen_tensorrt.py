@@ -710,6 +710,55 @@ def test_tensorrt_permute_dims():
     _offload_and_compare(PermuteDims, {}, patterns, data)
 
 
+def _make_resize2d_module(
+    input_shape=(1, 3, 8, 8),
+    input_dtype="float32",
+    size=(16, 16),
+    *,
+    dynamic_size=False,
+    layout="NCHW",
+    method="linear",
+    coordinate_transformation_mode="half_pixel",
+    rounding_method="round",
+    out_dtype=None,
+):
+    bb = relax.BlockBuilder()
+    data = relax.Var("data", relax.TensorType(input_shape, input_dtype))
+    params = [data]
+    if dynamic_size:
+        size_expr = relax.Var("size", relax.ShapeType(ndim=2))
+        params.append(size_expr)
+    else:
+        size_expr = relax.ShapeExpr(size)
+
+    with bb.function("main", params):
+        with bb.dataflow():
+            out = bb.emit(
+                relax.op.image.resize2d(
+                    data,
+                    size=size_expr,
+                    layout=layout,
+                    method=method,
+                    coordinate_transformation_mode=coordinate_transformation_mode,
+                    rounding_method=rounding_method,
+                    out_dtype=out_dtype,
+                )
+            )
+            gv = bb.emit_output(out)
+        bb.emit_func_output(gv)
+    return bb.finalize()
+
+
+def _tensorrt_codegen_functions(mod):
+    return [
+        func
+        for func in mod.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Codegen") == "tensorrt"
+    ]
+
+
 @pytest.mark.parametrize(
     "out_hw, method, coordinate_transformation_mode, rounding_method",
     [
@@ -769,6 +818,100 @@ def test_tensorrt_resize2d_cubic():
     _offload_and_compare(Cubic, {}, patterns, data)
 
 
+@pytest.mark.parametrize(
+    "rounding_method, expected_index",
+    [("round_prefer_floor", 2), ("round_prefer_ceil", 3)],
+)
+def test_tensorrt_resize2d_nearest_midpoint(rounding_method, expected_index):
+    """TensorRT's half-down/up modes must preserve Relax's explicit midpoint preference."""
+
+    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
+
+    mod = _make_resize2d_module(
+        input_shape=(1, 1, 1, 5),
+        size=(1, 2),
+        method="nearest_neighbor",
+        coordinate_transformation_mode="asymmetric",
+        rounding_method=rounding_method,
+    )
+    data = np.arange(5, dtype="float32").reshape(1, 1, 1, 5)
+    expected = np.array([[[[0.0, float(expected_index)]]]], dtype="float32")
+    ref = build_and_run(mod, [data], "llvm", legalize=True)
+    np.testing.assert_array_equal(ref, expected)
+
+    partitioned = partition_for_tensorrt(mod)
+    assert len(_tensorrt_codegen_functions(partitioned)) == 1
+    offloaded = relax.transform.RunCodegen()(partitioned)
+    out = build_and_run(offloaded, [data], "cuda")
+    np.testing.assert_array_equal(out, expected)
+
+
+@pytest.mark.parametrize(
+    "out_hw, expected_values",
+    [
+        ((1, 3), [0, 3, 5]),
+        ((3, 1), [0, 14, 21]),
+        ((1, 1), [0]),
+    ],
+)
+def test_tensorrt_resize2d_pytorch_half_pixel_single_dimension(out_hw, expected_values):
+    """pytorch_half_pixel selects source coordinate zero for each singleton output dimension."""
+
+    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
+
+    mod = _make_resize2d_module(
+        input_shape=(1, 1, 5, 7),
+        size=out_hw,
+        method="nearest_neighbor",
+        coordinate_transformation_mode="pytorch_half_pixel",
+        rounding_method="floor",
+    )
+    data = np.arange(35, dtype="float32").reshape(1, 1, 5, 7)
+    expected = np.asarray(expected_values, dtype="float32").reshape(1, 1, *out_hw)
+    ref = build_and_run(mod, [data], "llvm", legalize=True)
+    np.testing.assert_array_equal(ref, expected)
+
+    partitioned = partition_for_tensorrt(mod)
+    assert len(_tensorrt_codegen_functions(partitioned)) == 1
+    offloaded = relax.transform.RunCodegen()(partitioned)
+    out = build_and_run(offloaded, [data], "cuda")
+    np.testing.assert_array_equal(out, expected)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        pytest.param({"input_shape": (1, 8, 8, 3), "layout": "NHWC"}, id="unsupported-layout"),
+        pytest.param({"dynamic_size": True}, id="dynamic-size"),
+        pytest.param({"input_dtype": "float64"}, id="unsupported-input-dtype"),
+        pytest.param({"out_dtype": "float16"}, id="different-output-dtype"),
+        pytest.param(
+            {
+                "method": "nearest_neighbor",
+                "coordinate_transformation_mode": "tf_half_pixel_for_nn",
+                "rounding_method": "floor",
+            },
+            id="unsupported-coordinate-mode",
+        ),
+        pytest.param(
+            {
+                "method": "nearest_neighbor",
+                "coordinate_transformation_mode": "asymmetric",
+                "rounding_method": "round",
+            },
+            id="ties-to-even-rounding",
+        ),
+    ],
+)
+def test_tensorrt_resize2d_partition_fallback(kwargs):
+    """Unsupported legal resize variants must remain in TVM instead of failing in TensorRT."""
+
+    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
+
+    partitioned = partition_for_tensorrt(_make_resize2d_module(**kwargs))
+    assert not _tensorrt_codegen_functions(partitioned)
+
+
 def test_tensorrt_silu():
     """YOLO's SiLU activation is lowered as x * sigmoid(x)."""
 
@@ -798,7 +941,12 @@ def test_tensorrt_resize2d_partition_for_tensorrt():
             with R.dataflow():
                 conv = relax.op.nn.conv2d(data, weight, padding=1)
                 out = relax.op.image.resize2d(
-                    conv, size=(16, 16), layout="NCHW", method="nearest_neighbor"
+                    conv,
+                    size=(16, 16),
+                    layout="NCHW",
+                    method="nearest_neighbor",
+                    coordinate_transformation_mode="asymmetric",
+                    rounding_method="floor",
                 )
                 R.output(out)
             return out
@@ -809,12 +957,14 @@ def test_tensorrt_resize2d_partition_for_tensorrt():
 
     mod = relax.transform.BindParams("main", {"weight": weight})(Model)
     mod = partition_for_tensorrt(mod)
-    codegen_fns = [
-        fn
-        for fn in mod.functions.values()
-        if isinstance(fn, relax.Function) and fn.attrs is not None and "Codegen" in fn.attrs
-    ]
+    codegen_fns = _tensorrt_codegen_functions(mod)
     assert len(codegen_fns) == 1
+    assert any(
+        isinstance(fn, relax.Function)
+        and fn.attrs is not None
+        and fn.attrs.get("Composite") == "tensorrt.image.resize2d"
+        for fn in mod.functions.values()
+    )
 
     mod = relax.transform.RunCodegen()(mod)
     out = build_and_run(mod, [data], "cuda")

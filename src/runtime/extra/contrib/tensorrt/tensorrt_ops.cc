@@ -1285,8 +1285,8 @@ class Resize2DOpConverter : public TensorRTOpConverter {
     TVM_FFI_ICHECK(method_it != method_map.end()) << "Unsupported resize2d method " << method;
     resize_layer->setResizeMode(method_it->second);
 
-    // pytorch_half_pixel matches half_pixel for every output extent > 1; BYOC shapes are static so
-    // the resized height/width are concrete and never 1 for an actual upsample.
+    // pytorch_half_pixel matches half_pixel for output extents greater than one. Singleton output
+    // dimensions are handled by the selector below.
     static const std::unordered_map<std::string, nvinfer1::ResizeCoordinateTransformation>
         coordinate_transformation_map = {
             {"asymmetric", nvinfer1::ResizeCoordinateTransformation::kASYMMETRIC},
@@ -1298,12 +1298,16 @@ class Resize2DOpConverter : public TensorRTOpConverter {
     TVM_FFI_ICHECK(coordinate_transformation_it != coordinate_transformation_map.end())
         << "Unsupported resize2d coordinate_transformation_mode " << coordinate_transformation_mode;
     resize_layer->setCoordinateTransformation(coordinate_transformation_it->second);
+    if (coordinate_transformation_mode == "pytorch_half_pixel") {
+      // PyTorch maps an output dimension of size one to source coordinate zero, whereas the
+      // regular half-pixel formula selects the center of the input dimension.
+      resize_layer->setSelectorForSinglePixel(nvinfer1::ResizeSelector::kUPPER);
+    }
 
     if (method == "nearest_neighbor") {
       static const std::unordered_map<std::string, nvinfer1::ResizeRoundMode> rounding_map = {
           {"floor", nvinfer1::ResizeRoundMode::kFLOOR},
           {"ceil", nvinfer1::ResizeRoundMode::kCEIL},
-          {"round", nvinfer1::ResizeRoundMode::kHALF_UP},
           {"round_prefer_ceil", nvinfer1::ResizeRoundMode::kHALF_UP},
           {"round_prefer_floor", nvinfer1::ResizeRoundMode::kHALF_DOWN}};
       auto rounding_it = rounding_map.find(rounding_method);
