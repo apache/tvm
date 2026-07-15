@@ -607,76 +607,93 @@ def test_cuda_floormod_with_vectorization():
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+_VECTORIZED_CAST_TYPES_4 = [
+    "float16",
+    "float32",
+    "int8",
+    "uint8",
+    "int16",
+    "uint16",
+    "int32",
+    "uint32",
+    "float64",
+    "int64",
+    "uint64",
+]
+_VECTORIZED_CAST_TYPES_8 = [
+    "float16",
+    "float32",
+    "int8",
+    "uint8",
+    "int16",
+    "uint16",
+    "int32",
+    "uint32",
+]
+
+
+def _skip_vectorized_cast(t0, t1):
+    if t0 == t1:
+        return True
+    # CUDA does support cast between {u}int8 and fp16.
+    skip_set = {"float16", "uint8", "int8"}
+    return t0 in skip_set and t1 in skip_set
+
+
+_VECTORIZED_CAST_CASES = [
+    (t0, t1, 4)
+    for t0 in _VECTORIZED_CAST_TYPES_4
+    for t1 in _VECTORIZED_CAST_TYPES_4
+    if not _skip_vectorized_cast(t0, t1)
+] + [
+    (t0, t1, 8)
+    for t0 in _VECTORIZED_CAST_TYPES_8
+    for t1 in _VECTORIZED_CAST_TYPES_8
+    if not _skip_vectorized_cast(t0, t1)
+]
+_VECTORIZED_CAST_CASES += [("int8", "uint8", 16), ("uint8", "int8", 16)]
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_vectorized_casts():
-    def check(t0, t1, factor):
-        if (t0 == "float16" or t1 == "float16") and not have_fp16(tvm.cuda(0).compute_version):
-            print("Skip because gpu does not have fp16 support")
-            return
+@pytest.mark.parametrize("t0,t1,factor", _VECTORIZED_CAST_CASES)
+def test_vectorized_casts(t0, t1, factor):
+    if (t0 == "float16" or t1 == "float16") and not have_fp16(tvm.cuda(0).compute_version):
+        print("Skip because gpu does not have fp16 support")
+        return
 
-        n = 128
-        num_thread = n // factor
+    n = 128
+    num_thread = n // factor
 
-        @I.ir_module(s_tir=True)
-        class Module:
-            @T.prim_func(s_tir=True)
-            def main(A: T.Buffer((n,), t0), B: T.Buffer((n,), t1), C: T.Buffer((n,), t0)):
-                T.func_attr({"tirx.noalias": True})
-                for i_0 in T.thread_binding(num_thread, thread="threadIdx.x"):
-                    for i_1 in T.vectorized(factor):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(n, i_0 * factor + i_1)
-                            T.reads(A[v_i], B[v_i])
-                            T.writes(C[v_i])
-                            C[v_i] = A[v_i] + T.Cast(t0, B[v_i])
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((n,), t0), B: T.Buffer((n,), t1), C: T.Buffer((n,), t0)):
+            T.func_attr({"tirx.noalias": True})
+            for i_0 in T.thread_binding(num_thread, thread="threadIdx.x"):
+                for i_1 in T.vectorized(factor):
+                    with T.sblock("C"):
+                        v_i = T.axis.spatial(n, i_0 * factor + i_1)
+                        T.reads(A[v_i], B[v_i])
+                        T.writes(C[v_i])
+                        C[v_i] = A[v_i] + T.Cast(t0, B[v_i])
 
-        func = tvm.compile(Module, target="cuda")
+    func = tvm.compile(Module, target="cuda")
 
-        # correctness
-        def run_and_check():
-            dev = tvm.cuda(0)
-            low, high = (0, 20) if t0.startswith("u") or t1.startswith("u") else (-10, 10)
-            a_np = np.random.randint(low, high, size=n).astype(t0)
-            b_np = np.random.randint(low, high, size=n).astype(t1)
-            c_np = (a_np + b_np).astype(t0)
-            a_nd = tvm.runtime.tensor(a_np, dev)
-            b_nd = tvm.runtime.tensor(b_np, dev)
-            c_nd = tvm.runtime.tensor(np.zeros(c_np.shape, dtype=c_np.dtype), dev)
-            func(a_nd, b_nd, c_nd)
-            tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-3)
+    # correctness
+    def run_and_check():
+        dev = tvm.cuda(0)
+        low, high = (0, 20) if t0.startswith("u") or t1.startswith("u") else (-10, 10)
+        a_np = np.random.randint(low, high, size=n).astype(t0)
+        b_np = np.random.randint(low, high, size=n).astype(t1)
+        c_np = (a_np + b_np).astype(t0)
+        a_nd = tvm.runtime.tensor(a_np, dev)
+        b_nd = tvm.runtime.tensor(b_np, dev)
+        c_nd = tvm.runtime.tensor(np.zeros(c_np.shape, dtype=c_np.dtype), dev)
+        func(a_nd, b_nd, c_nd)
+        tvm.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-3)
 
-        tvm.testing.run_with_gpu_lock(run_and_check)
-
-    def skip(t0, t1):
-        if t0 == t1:
-            return True
-        # CUDA does support cast between {u}int8 and fp16.
-        skip_set = {"float16", "uint8", "int8"}
-        if t0 in skip_set and t1 in skip_set:
-            return True
-        return False
-
-    types_4 = [
-        "float16",
-        "float32",
-        "int8",
-        "uint8",
-        "int16",
-        "uint16",
-        "int32",
-        "uint32",
-        "float64",
-        "int64",
-        "uint64",
-    ]
-    types_8 = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
-    for t0, t1 in [(x, y) for x in types_4 for y in types_4 if not skip(x, y)]:
-        check(t0, t1, 4)
-    for t0, t1 in [(x, y) for x in types_8 for y in types_8 if not skip(x, y)]:
-        check(t0, t1, 8)
-    check("int8", "uint8", 16)
-    check("uint8", "int8", 16)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def sched(compute_fn, dtype, n=128):
