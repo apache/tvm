@@ -7893,6 +7893,48 @@ def test_range():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_range_with_shape_derived_limit():
+    """A shape-derived Range limit carries its dtype as PrimType."""
+    nodes = [
+        helper.make_node("Shape", ["x"], ["shape"]),
+        helper.make_node("Gather", ["shape", "axis"], ["limit"], axis=0),
+        helper.make_node("Cast", ["limit"], ["float_limit"], to=TensorProto.FLOAT),
+        helper.make_node("Range", ["start", "float_limit", "delta"], ["output"]),
+    ]
+    graph = helper.make_graph(
+        nodes,
+        "range_with_shape_derived_limit",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 3, 4, 5])],
+        initializer=[
+            helper.make_tensor("axis", TensorProto.INT64, [], [3]),
+            helper.make_tensor("start", TensorProto.FLOAT, [], [0.0]),
+            helper.make_tensor("delta", TensorProto.FLOAT, [], [1.0]),
+        ],
+        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [5])],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="range_with_shape_derived_limit",
+        opset_imports=[helper.make_opsetid("", 13)],
+    )
+
+    tvm_model = from_onnx(model)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 3, 4, 5), dtype="float32")) -> R.Tensor((5,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((5,), dtype="float32") = R.arange(
+                    T.float64(0.0), T.float32(5.0), T.float64(1.0), dtype="float32"
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 def test_batch_norm():
     batch_norm_node = helper.make_node(
         "BatchNormalization", ["x", "s", "bias", "mean", "var"], ["y"], epsilon=1e-2
