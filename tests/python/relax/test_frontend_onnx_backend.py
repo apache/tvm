@@ -29,6 +29,8 @@ semantic verification.
 
 """
 
+import re
+
 import numpy as np
 import pytest
 
@@ -119,12 +121,6 @@ class TVMRelaxBackend(Backend):
         return device == "CPU"
 
 
-# ---------------------------------------------------------------------------
-# Test registration
-# ---------------------------------------------------------------------------
-
-backend_test = onnx.backend.test.BackendTest(TVMRelaxBackend, __name__)
-
 # Operators where ALL ONNX node tests pass on the Relax importer.
 # Each prefix covers the base test and all its variants
 # (e.g. test_add, test_add_bcast, test_add_uint8).
@@ -206,7 +202,36 @@ _INCLUDE_OPS = [
     "xor",
 ]
 
-for _op in _INCLUDE_OPS:
-    backend_test.include(rf"^test_{_op}(?:_.*)?(?:_cpu|_cuda)$")
+# ``BackendTest.include`` registers every ONNX backend test and marks the
+# non-matches as skipped.  Filter at the runner's registration hook instead so
+# CI only generates allowlisted cases for devices the backend supports.
+_INCLUDE_PATTERN = re.compile(
+    rf"^test_(?:{'|'.join(map(re.escape, _INCLUDE_OPS))})(?:_.*)?(?:_cpu|_cuda)$"
+)
+
+
+class _AllowlistedBackendTest(onnx.backend.test.BackendTest):
+    """Register only allowlisted, supported variants with the ONNX test runner."""
+
+    def _add_test(
+        self,
+        category,
+        test_name,
+        test_func,
+        report_item,
+        devices=("CPU", "CUDA"),
+        **kwargs,
+    ):
+        devices = [
+            device
+            for device in devices
+            if self.backend.supports_device(device)
+            and _INCLUDE_PATTERN.search(f"{test_name}_{device.lower()}")
+        ]
+        if devices:
+            super()._add_test(category, test_name, test_func, report_item, devices, **kwargs)
+
+
+backend_test = _AllowlistedBackendTest(TVMRelaxBackend, __name__)
 
 globals().update(backend_test.test_cases)
