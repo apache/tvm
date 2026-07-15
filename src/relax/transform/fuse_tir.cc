@@ -868,16 +868,16 @@ class FusedTIRConstructor : public ExprVisitor {
     }
 
     ffi::Array<tirx::Var> output_params = GetPrimFuncOutputParams(func, output_idxs);
-    auto input_buffers = func_info_.expr2buffers.Get(call->args[1]);
     for (size_t i = 0; i < output_size; ++i) {
       const tirx::Var& param = output_params[i];
       const tirx::Buffer& buffer = func->buffer_map.at(param);
 
       // if this is an inplace output, do not do an intermediate allocation
       if (output_idxs[i] < num_inputs) {
-        TVM_FFI_ICHECK(input_buffers.has_value())
-            << "Inplace functions must have some defined input";
-        output_buffers.push_back(input_buffers.value()[output_idxs[i]]);
+        auto it = func_info_.buffer_subst_map.find(buffer);
+        TVM_FFI_ICHECK(it != func_info_.buffer_subst_map.end())
+            << "Inplace output buffer " << buffer << " must be mapped to a defined input";
+        output_buffers.push_back((*it).second);
         continue;
       }
 
