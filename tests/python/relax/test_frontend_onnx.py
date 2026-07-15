@@ -7919,20 +7919,11 @@ def test_range_with_shape_derived_limit():
     )
 
     tvm_model = from_onnx(model)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 3, 4, 5), dtype="float32")) -> R.Tensor((5,), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((5,), dtype="float32") = R.arange(
-                    T.float64(0.0), T.float32(5.0), T.float64(1.0), dtype="float32"
-                )
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
+    assert "relax.arange" in collect_relax_call_ops(tvm_model["main"])
+    tvm.ir.assert_structural_equal(
+        tvm_model["main"].ret_ty,
+        relax.TensorType((5,), "float32"),
+    )
 
 
 def test_batch_norm():

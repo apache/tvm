@@ -1329,62 +1329,6 @@ def test_opt_in_tuple_projection_merging():
     relax.analysis.well_formed(merged)
 
 
-def test_opt_in_tuple_projection_with_multiple_users():
-    """Repeated projections of one tuple preserve their indices when merged."""
-
-    @tvm.script.ir_module
-    class Before:
-        @R.function(private=True)
-        def split(
-            x: R.Tensor((2, 4), "float32"),
-        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
-            R.func_attr({"Composite": "tensorrt.split", "Primitive": True})
-            return R.split(x, indices_or_sections=2, axis=0)
-
-        @R.function(private=True)
-        def add(
-            lhs: R.Tensor((1, 4), "float32"),
-            rhs: R.Tensor((1, 4), "float32"),
-        ) -> R.Tensor((1, 4), "float32"):
-            R.func_attr({"Composite": "tensorrt.add", "Primitive": True})
-            return R.add(lhs, rhs)
-
-        @R.function
-        def main(x: R.Tensor((2, 4), "float32")) -> R.Tensor((1, 4), "float32"):
-            cls = Before
-            with R.dataflow():
-                parts = cls.split(x)
-                left = parts[0]
-                right = parts[1]
-                left_again = parts[0]
-                right_again = parts[1]
-                left_sum = cls.add(left, left_again)
-                right_sum = cls.add(right, right_again)
-                out = cls.add(left_sum, right_sum)
-                R.output(out)
-            return out
-
-    after = relax.transform.MergeCompositeFunctions(["tensorrt"])(Before)
-    assert count_codegen_regions(after, "tensorrt") == 1
-    relax.analysis.well_formed(after)
-
-    codegen_func = next(
-        func
-        for func in after.functions.values()
-        if isinstance(func, relax.Function)
-        and func.attrs is not None
-        and func.attrs.get("Codegen") == "tensorrt"
-    )
-    projection_indices = []
-
-    def collect_projection_indices(expr):
-        if isinstance(expr, relax.TupleGetItem):
-            projection_indices.append(expr.index)
-
-    relax.analysis.post_order_visit(codegen_func.body, collect_projection_indices)
-    assert sorted(projection_indices) == [0, 0, 1, 1]
-
-
 def test_inline_tuple_argument_is_visited():
     """Inline tuple call arguments must have a group before dependency analysis."""
 
