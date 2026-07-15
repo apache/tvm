@@ -810,12 +810,16 @@ class FusedTIRConstructor : public ExprVisitor {
     for (size_t i = 0; i < call_args.size(); ++i) {
       const Expr& arg = call_args[i];
       const tirx::Var& param = func->params[i];
-      if (GetType(arg).as<PrimTypeNode>()) {
-        func_info_.symbolic_var_matcher.Match(param.as_or_throw<PrimExpr>(),
-                                              arg.as_or_throw<PrimExpr>());
-      } else {
+      if (func->buffer_map.count(param)) {
         arg_list.push_back(arg);
         buffer_list.push_back(func->buffer_map.at(param));
+      } else {
+        auto prim_arg = arg.as<PrimExpr>();
+        TVM_FFI_CHECK(prim_arg.has_value(), TypeError)
+            << "Expected scalar parameter " << param
+            << " to receive an individual primitive expression, but " << arg << " has type "
+            << GetType(arg);
+        func_info_.symbolic_var_matcher.Match(param.as_or_throw<PrimExpr>(), prim_arg.value());
       }
     }
 

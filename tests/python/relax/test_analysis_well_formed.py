@@ -797,6 +797,27 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
     assert not rx.analysis.check_well_formed(Module)
 
 
+def test_call_tir_shape_expr_is_not_a_primitive_argument():
+    """ShapeExpr groups must be unpacked into positional primitive values."""
+
+    @I.ir_module(check_well_formed=False, s_tir=True)
+    class Module:
+        @R.function
+        def main():
+            B = R.call_tir(
+                Module.make_tensor,
+                (R.shape([1, 2]),),
+                out_ty=R.Tensor([1], "float32"),
+            )
+            return B
+
+        @T.prim_func(s_tir=True)
+        def make_tensor(m: T.int64, n: T.int64, B: T.Buffer([T.int64(1)], "float32")):
+            B[0] = T.Cast("float32", m + n)
+
+    assert not rx.analysis.check_well_formed(Module)
+
+
 def test_call_tir_input_ndim():
     """Arguments to R.call_tir must have the correct dimensionality
 

@@ -401,15 +401,23 @@ class LowerTIRToLocalView : public ExprMutator {
     }
     std::vector<ShardingSpec> sharding_specs;
     ffi::Array<Expr> args = val->args[1].as_or_throw<Tuple>()->fields;
-    for (const auto& arg : args) {
-      const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
-      if (ty) {
+    GlobalVar gvar = val->args[0].as_or_throw<GlobalVar>();
+    tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
+    TVM_FFI_ICHECK_LE(args.size(), prim_func->params.size());
+    for (size_t i = 0; i < args.size(); ++i) {
+      const Expr& arg = args[i];
+      const tirx::Var& param = prim_func->params[i];
+      if (prim_func->buffer_map.count(param)) {
+        const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
+        TVM_FFI_CHECK(ty, TypeError)
+            << "Expected buffer parameter " << param << " to receive a distributed tensor, but "
+            << arg << " has type " << GetType(arg);
         sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
       } else {
-        TVM_FFI_ICHECK(GetType(arg).as<PrimTypeNode>())
-            << "Expected call_tir arguments to be distributed tensors or primitive arguments, "
-               "but got "
-            << arg << " with type " << GetType(arg);
+        TVM_FFI_CHECK(arg.as<PrimExpr>(), TypeError)
+            << "Expected scalar parameter " << param
+            << " to receive an individual primitive expression, but " << arg << " has type "
+            << GetType(arg);
       }
     }
     Var output_var = binding->var;
@@ -417,8 +425,6 @@ class LowerTIRToLocalView : public ExprMutator {
     for (const auto& ty : output_tys) {
       sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }
-    GlobalVar gvar = val->args[0].as_or_throw<GlobalVar>();
-    tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
     tirx::PrimFunc new_prim_func;
     std::string allreduce_kind;
     std::tie(new_prim_func, allreduce_kind) =
