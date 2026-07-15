@@ -289,13 +289,13 @@ class Var : public Expr {
                        Span span = Span());
 
   /*! \brief Return a fresh ordinary Var with the same type and a new name. */
-  TVM_DLL Var copy_with_name(const ffi::String& name) const;
+  TVM_DLL Var CopyWithName(const ffi::String& name) const;
 
   /*! \brief Return a fresh ordinary Var with a suffix appended to its name. */
   TVM_DLL Var CopyWithSuffix(const ffi::String& suffix) const;
 
   /*! \brief Return a fresh ordinary Var with a new primitive type. */
-  TVM_DLL Var copy_with_dtype(PrimType dtype) const;
+  TVM_DLL Var CopyWithDType(PrimType dtype) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
 };

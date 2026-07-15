@@ -132,7 +132,7 @@ Expr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   Var var = op->var;
 
   if (value.ty() != op->var->ty.as_or_throw<PrimType>()) {
-    var = op->var.copy_with_dtype(value.ty());
+    var = op->var.CopyWithDType(value.ty());
     var_remap_[op->var.get()] = var;
   }
 
@@ -151,7 +151,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
 
   if (auto prim_value = value.as<PrimExpr>()) {
     if (prim_value.value().ty() != op->var->ty.as_or_throw<PrimType>()) {
-      var = op->var.copy_with_dtype(prim_value.value().ty());
+      var = op->var.CopyWithDType(prim_value.value().ty());
       var_remap_[op->var.get()] = var;
     }
   }
@@ -539,7 +539,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     if (op->thread_binding.has_value()) {
       auto old_thread_binding = op->thread_binding.value();
       auto* ptr = old_thread_binding.CopyOnWrite();
-      ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.ty());
+      ptr->var = old_thread_binding->var.CopyWithDType(new_loop_var.ty());
       n->thread_binding = ffi::Optional<IterVar>(std::move(old_thread_binding));
     }
     n->body = new_body;
@@ -674,7 +674,7 @@ Expr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
   PrimType dtype = dtype_opt.value();
   if (is_enabled_ && CanRewriteDType(dtype) && dtype->dtype != target_data_type_->dtype &&
       !var_remap_.count(op)) {
-    var_remap_[op] = ffi::GetRef<Var>(op).copy_with_dtype(target_data_type_);
+    var_remap_[op] = ffi::GetRef<Var>(op).CopyWithDType(target_data_type_);
   }
   return DataTypeLegalizer::VisitExpr_(op);
 }
