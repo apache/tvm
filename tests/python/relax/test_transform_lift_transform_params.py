@@ -1505,14 +1505,12 @@ def test_symbolic_var_from_shape():
             with R.dataflow():
                 B_slice = R.call_tir(
                     cls.slice,
-                    [B],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [B, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 A_slice = R.call_tir(
                     cls.slice,
-                    [A],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [A, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 A_scale = R.multiply(A_slice, B_slice)
@@ -1522,8 +1520,8 @@ def test_symbolic_var_from_shape():
         @T.prim_func(private=True, s_tir=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
+            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):
@@ -1545,8 +1543,7 @@ def test_symbolic_var_from_shape():
             with R.dataflow():
                 A_slice = R.call_tir(
                     cls.slice,
-                    [A],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [A, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 A_scale = R.multiply(A_slice, B_slice)
@@ -1565,8 +1562,7 @@ def test_symbolic_var_from_shape():
                 # extra_symbolic_vars = params[1]
                 B_slice = R.call_tir(
                     cls.slice,
-                    [B],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [B, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 output = (R.ShapeExpr([slice_index]), B_slice)
@@ -1576,8 +1572,8 @@ def test_symbolic_var_from_shape():
         @T.prim_func(private=True, s_tir=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
+            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):

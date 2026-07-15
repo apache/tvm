@@ -110,17 +110,13 @@ Type InferTypeCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_REGISTER_OP("relax.dist.call_tir_local_view")
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferType>("FInferType", InferTypeCallTIRLocalView)
     .set_attr<bool>("FPurity", true);
 
-Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list,
-                          ffi::Optional<Expr> packed_ints) {
+Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list) {
   for (const distributed::DTensorType& ty : out_ty_list) {
     const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -137,14 +133,7 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensor
   }
 
   static const Op& op = Op::Get("relax.dist.call_tir_local_view");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(Type::Missing(), op, {func, args}, {}, {out_ty});
-  } else {
-    call = Call(Type::Missing(), op, {func, args, packed_ints.value()}, {}, {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

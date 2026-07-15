@@ -59,7 +59,7 @@ class Module:
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
     @T.prim_func(s_tir=True)
-    def tir_zeros(x: T.handle, n: T.int64):
+    def tir_zeros(n: T.int64, x: T.handle):
         T.func_attr({"global_symbol": "tir_zeros"})
         A = T.match_buffer(x, [n])
         for i in range(n):
@@ -73,9 +73,7 @@ class Module:
         with R.dataflow():
             lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
             lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
-            lv2 = R.call_tir(
-                cls.tir_zeros, [], R.Tensor((32,), dtype="float32"), tir_vars=R.ShapeExpr([32])
-            )
+            lv2 = R.call_tir(cls.tir_zeros, [32], R.Tensor((32,), dtype="float32"))
             gv = (lv1, lv2)
             R.output(gv)
         return gv
@@ -305,7 +303,7 @@ def test_is_call_tir():
     assert is_call_tir("tir_relu").match(lv1_val)
     assert is_call_tir("tir_relu", [is_call_tir("tir_matmul")]).match(lv1_val, var2val=var2val)
     assert not is_call_tir("tir_relu", [is_call_tir("tir_relu")]).match(lv1_val, var2val=var2val)
-    assert is_call_tir("tir_zeros", wildcard(), wildcard()).match(lv2_val, var2val=var2val)
+    assert is_call_tir("tir_zeros", [wildcard()]).match(lv2_val, var2val=var2val)
 
 
 @R.function(pure=False)

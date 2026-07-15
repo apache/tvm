@@ -28,7 +28,7 @@ import tvm
 from tvm import base as _base
 from tvm.ir import Call
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
-from tvm.relax.expr import Constant, Expr, ExternFunc, ShapeExpr
+from tvm.relax.expr import Constant, Expr, ExternFunc
 from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.op.distributed import (
     annotate_sharding as _annotate_sharding,
@@ -53,7 +53,6 @@ def call_tir(
     func: str | Expr,
     args: Expr,
     out_ty: DTensorType | list[DTensorType],
-    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """Distributed version of call_tir
 
@@ -63,15 +62,13 @@ def call_tir(
         The destination-passing-style function, can be ExternFunc or PrimFunc.
 
     args : Expr
-        The input arguments.
+        The ordered distributed-tensor and primitive input arguments.  These
+        correspond positionally to the leading parameters of the PrimFunc.
 
     out_ty : Union[DTensorType, List[DTensorType]]
         The type information of the call_tir output.
         It should be a single or a list of DTensorType. Each one denotes the
         type information of a returned distributed tensor.
-
-    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
-        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
     -------
@@ -89,10 +86,7 @@ def call_tir(
     if not isinstance(out_ty, list):
         out_ty = [out_ty]
 
-    if isinstance(tir_vars, list | tuple):
-        tir_vars = ShapeExpr(tir_vars)
-
-    return _ffi_api.call_tir_dist(func, args, out_ty, tir_vars)  # type: ignore
+    return _ffi_api.call_tir_dist(func, args, out_ty)  # type: ignore
 
 
 def const(

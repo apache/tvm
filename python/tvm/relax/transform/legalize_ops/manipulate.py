@@ -321,7 +321,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data, name):
         """
         Returns a passthrough TE compute with appropriate name. This is needed to generate
-        TIR function, output shape info, TIR vars from gen_call_tir_inputs function.
+        TIR function and output shape info from gen_call_tir_inputs function.
         """
         return te.compute(
             data.shape,
@@ -353,9 +353,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         primfunc_name += "_with_pad"
     if len(axis_separators) != 0:
         primfunc_name += "_axis_separator"
-    tir_func, call_args, _, tir_vars = gen_call_tir_inputs(
-        te_layout_transform, call.args[0], primfunc_name
-    )
+    tir_func, call_args, _ = gen_call_tir_inputs(te_layout_transform, call.args[0], primfunc_name)
     # Create TIR schedule to apply layout changes with axis separators
     sch = tvm.s_tir.Schedule(tir_func)
     sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
@@ -366,4 +364,4 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     output_shape = index_map.map_shape(list(call_args[0].ty.shape))
     output_dtype = call_args[0].ty.dtype
     output_ty = [TensorType(output_shape, output_dtype)]
-    return call_tir(gvar, call_args, output_ty, tir_vars)
+    return call_tir(gvar, call_args, output_ty)

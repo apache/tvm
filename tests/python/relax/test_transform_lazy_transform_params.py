@@ -422,8 +422,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             param = params[0]
             transformed = R.call_tir(
                 cls.slice_buffer,
-                (param,),
-                tir_vars=[slice_index],
+                (param, slice_index),
                 out_ty=R.Tensor((16,), dtype="float32"),
             )
             output = (transformed,)
@@ -432,8 +431,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True, s_tir=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            Output: T.Buffer(16, "float32"),
             slice_index: T.int64,
+            Output: T.Buffer(16, "float32"),
         ):
             for i in T.grid(16):
                 with T.sblock("slice_buffer"):
@@ -455,8 +454,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             param_m: R.Tensor((16, 16), dtype="float32") = gv
             transformed = R.call_tir(
                 cls.slice_buffer,
-                (param_m,),
-                tir_vars=[slice_index],
+                (param_m, slice_index),
                 out_ty=R.Tensor((16,), dtype="float32"),
             )
             unused_1_ = R.vm.kill_object(param_m)
@@ -468,8 +466,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True, s_tir=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            Output: T.Buffer(16, "float32"),
             slice_index: T.int64,
+            Output: T.Buffer(16, "float32"),
         ):
             for i in T.grid(16):
                 with T.sblock("slice_buffer"):

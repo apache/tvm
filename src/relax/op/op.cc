@@ -274,8 +274,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * \param func_ty The Type of the TIR callee.
  * \param arg_ty The Type of the argument tuple.
- * \param packed_ints_ty The Type of the ffi::Shape argument,
- *     if present.
  * \param opt_inplace_indices For `R.call_tir_inplace`, an array of
  *     indices indicating which outputs are constructed from in-place
  *     mutation of the inputs.  See
@@ -285,8 +283,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *     Otherwise, std::nullopt.
  */
 static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
-    Type func_ty, Type arg_ty, ffi::Optional<Type> packed_ints_ty,
-    ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
+    Type func_ty, Type arg_ty, ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
   auto opt_callee_ty = func_ty.as<FuncType>();
   TVM_FFI_CHECK(opt_callee_ty, TypeError)
       << "The first argument to `R.call_tir` must be a function, "
@@ -303,34 +300,18 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   TVM_FFI_CHECK(args, TypeError) << "The second argument to `R.call_tir` must be a tuple, "
                                  << "but instead received expression of type " << arg_ty;
 
-  // R.call_tir expects the PrimFunc to have three groups of arguments.
+  // R.call_tir expects the PrimFunc to have two groups of arguments.
   //
   // 1. Input arguments that are explicitly provided as Relax arguments.
   // 2. Output tensor arguments.
-  // 3. Shape arguments, represented as `T.int64` in the PrimFunc, and
-  //    as an optional ShapeExpr argument in the `relax::Call` node.
   //
   // In order to determine the return type of `R.call_tir`, we must
   // identify the PrimFunc arguments that will be in group (2).
   size_t num_input_arguments = args->fields.size();
-  size_t num_trailing_int_arguments = 0;
-  const ShapeTypeNode* packed_tuple_ty = nullptr;
-  if (packed_ints_ty) {
-    auto packed_ty = packed_ints_ty.value();
-    packed_tuple_ty = packed_ty.as<ShapeTypeNode>();
-    TVM_FFI_CHECK(packed_tuple_ty && !packed_tuple_ty->IsUnknownNdim(), TypeError)
-        << "The third argument to `R.call_tir`, if present, "
-        << "must be a ffi::Shape with known dimensionality.  "
-        << "However, the argument received was of type " << packed_ty;
-    num_trailing_int_arguments = packed_tuple_ty->ndim;
-  } else {
-    num_trailing_int_arguments = 0;
-  }
 
-  TVM_FFI_CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size(),
-                   ValueError)
-      << "R.call_tir attempted to call a function using " << num_input_arguments
-      << " input arguments and " << num_trailing_int_arguments << " trailing integer arguments.  "
+  TVM_FFI_CHECK_LE(args->fields.size(), callee_params.size(), ValueError)
+      << "R.call_tir attempted to call a function using " << args->fields.size()
+      << " explicit arguments.  "
       << "However, the callee only accepts " << callee_params.size() << " arguments in total.";
 
   // While Relax can specify a distributed tensor, TIR cannot.  The
@@ -366,14 +347,7 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   auto dummy_callee_ty = [&]() -> FuncType {
     ffi::Array<Type> dummy_params(callee_params.begin(),
                                   callee_params.begin() + num_input_arguments);
-
-    for (size_t i = callee_params.size() - num_trailing_int_arguments; i < callee_params.size();
-         i++) {
-      dummy_params.push_back(callee_params[i]);
-    }
-
-    ffi::Array<Type> dummy_ret(callee_params.begin() + num_input_arguments,
-                               callee_params.end() - num_trailing_int_arguments);
+    ffi::Array<Type> dummy_ret(callee_params.begin() + num_input_arguments, callee_params.end());
 
     if (opt_inplace_indices) {
       // For R.call_tir_inplace, the `inplace_indices` are used to
@@ -401,24 +375,8 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
     return FuncType(dummy_params, dummy_out_ty);
   }();
 
-  auto dummy_args = [&]() -> ffi::Array<Expr> {
-    ffi::Array<Expr> dummy_args =
-        args->fields.Map([](const Type& ty) -> Expr { return Var("dummy_leading_arg", ty); });
-
-    for (size_t i = 0; i < num_trailing_int_arguments; i++) {
-      TVM_FFI_ICHECK(packed_tuple_ty);
-      PrimType dummy_arg_ty = [&]() {
-        if (packed_tuple_ty->values) {
-          return PrimType(packed_tuple_ty->values.value()[i].ty());
-        } else {
-          return PrimType::Int(64);
-        }
-      }();
-      dummy_args.push_back(Var("dummy_trailing_arg", dummy_arg_ty));
-    }
-
-    return dummy_args;
-  }();
+  ffi::Array<Expr> dummy_args =
+      args->fields.Map([](const Type& ty) -> Expr { return Var("dummy_arg", ty); });
 
   Type derived_ret_ty = DeriveCallRetType(
       dummy_callee_ty, Call(Type::Missing(), Var("dummy_callee", dummy_callee_ty), dummy_args),
@@ -450,9 +408,8 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
   // `relax.call_tir_inplace`.  Therefore, all error messages should
   // be written in terms of `call->op`, and should not explicitly
   // reference the `relax.call_tir` operator.`
-  TVM_FFI_ICHECK(call->args.size() == 2 || call->args.size() == 3)
-      << "Operation " << call->op << " expects either two arguments [callee, arg_tuple], "
-      << "or three arguments [callee, arg_tuple, tir_args], "
+  TVM_FFI_ICHECK_EQ(call->args.size(), 2)
+      << "Operation " << call->op << " expects two arguments [callee, arg_tuple], "
       << "but " << call << " has " << call->args.size() << " arguments.";
 
   auto callee = call->args[0];
@@ -471,14 +428,6 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
       << "However, " << call << " has arguments " << arg_tuple
       << ", which is neither an in-line tuple, "
       << "nor a variable binding that may be normalized to an in-line tuple.";
-
-  if (call->args.size() > 2) {
-    Expr packed_ints = call->args[2];
-    TVM_FFI_ICHECK(packed_ints->ty.as<ShapeTypeNode>())
-        << "Operation " << call->op << " expects the optional third argument, "
-        << "if present, to be a ffi::Shape.  "
-        << "However, the third argument " << packed_ints << " has type " << packed_ints->ty;
-  }
 
   TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1)
       << "R.call_tir should have exactly one `ty_args` parameter, "
@@ -542,14 +491,6 @@ void ValidateCallTIR(Call call) {
   auto callee = call->args[0];
   Expr arg_tuple = call->args[1];
 
-  auto packed_int_ty = [&]() -> ffi::Optional<Type> {
-    if (call->args.size() <= 2) {
-      return std::nullopt;
-    } else {
-      return GetType(call->args[2]);
-    }
-  }();
-
   auto opt_inplace_indices = [&]() -> ffi::Optional<ffi::Array<int64_t>> {
     if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
       return attrs->inplace_indices;
@@ -559,8 +500,8 @@ void ValidateCallTIR(Call call) {
   }();
 
   Type explicit_ty = call->ty_args[0];
-  auto inferred_ty = InferCallTIROutputTypeFromArguments(GetType(callee), GetType(arg_tuple),
-                                                         packed_int_ty, opt_inplace_indices);
+  auto inferred_ty =
+      InferCallTIROutputTypeFromArguments(GetType(callee), GetType(arg_tuple), opt_inplace_indices);
   if (inferred_ty.has_value()) {
     TVM_FFI_CHECK(IsBaseOf(inferred_ty.value(), explicit_ty), TypeError)
         << "The `out_ty` argument for R.call_tir must be compatible with the PrimFunc.  "
@@ -570,19 +511,15 @@ void ValidateCallTIR(Call call) {
 }
 
 TVM_REGISTER_OP("relax.call_tir")
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferType>("FInferType", InferTypeCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<bool>("FPurity", true);
 
-Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
-                 ffi::Optional<Expr> packed_ints) {
+Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -599,14 +536,7 @@ Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
   }
 
   static const Op& op = Op::Get("relax.call_tir");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(Type::Missing(), op, {func, args}, {}, {out_ty});
-  } else {
-    call = Call(Type::Missing(), op, {func, args, packed_ints.value()}, {}, {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -617,21 +547,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // call_tir_with_grad
 
 TVM_REGISTER_OP("relax.call_tir_with_grad")
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .set_attrs_type<CallTIRWithGradAttrs>()
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferType>("FInferType", InferTypeCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
-                         ffi::String te_grad_name, ffi::Map<ffi::String, ffi::Any> te_grad_kwargs,
-                         ffi::Optional<Expr> packed_ints) {
+                         ffi::String te_grad_name, ffi::Map<ffi::String, ffi::Any> te_grad_kwargs) {
   for (const TensorType& ty : out_ty_list) {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -652,14 +578,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_li
   attrs->te_grad_kwargs = te_grad_kwargs;
 
   static const Op& op = Op::Get("relax.call_tir_with_grad");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(Type::Missing(), op, {func, args}, Attrs(attrs), {out_ty});
-  } else {
-    call = Call(Type::Missing(), op, {func, args, packed_ints.value()}, Attrs(attrs), {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, Attrs(attrs), {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -757,13 +676,10 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 }
 
 TVM_REGISTER_OP("relax.call_tir_inplace")
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .set_attrs_type<CallTIRInplaceAttrs>()
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferType>("FInferType", InferTypeCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIRInPlace)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
@@ -773,7 +689,7 @@ TVM_REGISTER_OP("relax.call_tir_inplace")
     .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indices,
-                        ffi::Array<TensorType> out_ty_list, ffi::Optional<Expr> packed_ints) {
+                        ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -793,14 +709,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indic
   }
 
   static const Op& op = Op::Get("relax.call_tir_inplace");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(Type::Missing(), op, {func, args}, Attrs(attrs), {out_ty});
-  } else {
-    call = Call(Type::Missing(), op, {func, args, packed_ints.value()}, Attrs(attrs), {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, Attrs(attrs), {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
