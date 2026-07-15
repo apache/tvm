@@ -11533,6 +11533,121 @@ def test_if_nested():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_if_subgraph():
+    """Test If subgraph."""
+    input_tensor_info = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 3])
+    cond_tensor_info = helper.make_tensor_value_info("cond", TensorProto.BOOL, [])
+    y_tensor_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 3, 3])
+    b_tensor_info = helper.make_tensor_value_info("B", TensorProto.FLOAT, [1, 1, 3, 3])
+    c_tensor_info = helper.make_tensor_value_info("C", TensorProto.FLOAT, [1, 1, 3, 3])
+    unsqueeze_axes_tensor = helper.make_tensor(
+        name="unsqueeze_axes", data_type=TensorProto.INT64, dims=[1], vals=[0]
+    )
+    unsqueeze_then_node = helper.make_node(
+        "Unsqueeze", inputs=["input", "unsqueeze_axes"], outputs=["input_unsqueezed_then"]
+    )
+    then_out_info = helper.make_tensor_value_info("then_out", TensorProto.FLOAT, [1, 1, 3, 3])
+    then_node = helper.make_node(
+        "Conv",
+        inputs=["input_unsqueezed_then", "B"],
+        outputs=["then_out"],
+        dilations=[1, 1],
+        group=1,
+        kernel_shape=[3, 3],
+        pads=[1, 1, 1, 1],
+        strides=[1, 1],
+    )
+    then_graph = helper.make_graph(
+        nodes=[unsqueeze_then_node, then_node],
+        name="then_branch_graph",
+        inputs=[],
+        outputs=[then_out_info],
+    )
+    unsqueeze_else_node = helper.make_node(
+        "Unsqueeze", inputs=["input", "unsqueeze_axes"], outputs=["input_unsqueezed_else"]
+    )
+    else_out_info = helper.make_tensor_value_info("else_out", TensorProto.FLOAT, [1, 1, 3, 3])
+    else_node = helper.make_node(
+        "Conv",
+        inputs=["input_unsqueezed_else", "C"],
+        outputs=["else_out"],
+        dilations=[1, 1],
+        group=1,
+        kernel_shape=[3, 3],
+        pads=[1, 1, 1, 1],
+        strides=[1, 1],
+    )
+    else_graph = helper.make_graph(
+        nodes=[unsqueeze_else_node, else_node],
+        name="else_branch_graph",
+        inputs=[],
+        outputs=[else_out_info],
+    )
+
+    if_node = helper.make_node(
+        "If", inputs=["cond"], outputs=["Y"], then_branch=then_graph, else_branch=else_graph
+    )
+    outer_graph = helper.make_graph(
+        nodes=[if_node],
+        name="CondSubgraph",
+        inputs=[cond_tensor_info, input_tensor_info, b_tensor_info, c_tensor_info],
+        outputs=[y_tensor_info],
+        initializer=[unsqueeze_axes_tensor],
+    )
+    opset_imports = [helper.make_operatorsetid("", 15)]
+    model = helper.make_model(
+        outer_graph, producer_name="condsubgraph", opset_imports=opset_imports
+    )
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+    tvm_model, _ = tvm.relax.frontend.detach_params(tvm_model)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"),
+            input: R.Tensor((1, 3, 3), dtype="float32"),
+            B: R.Tensor((1, 1, 3, 3), dtype="float32"),
+            C: R.Tensor((1, 1, 3, 3), dtype="float32"),
+            unsqueeze_axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((1, 1, 3, 3), dtype="float32"):
+            R.func_attr({"num_input": 4})
+            gv: R.Tensor((1, 1, 3, 3), dtype="float32") = R.expand_dims(input, axis=[0])
+            gv1: R.Tensor((1, 1, 3, 3), dtype="float32") = R.expand_dims(input, axis=[0])
+            if cond:
+                gv2: R.Tensor((1, 1, 3, 3), dtype="float32") = R.nn.conv2d(
+                    gv,
+                    B,
+                    strides=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype=None,
+                )
+                gv4: R.Tensor((1, 1, 3, 3), dtype="float32") = gv2
+            else:
+                gv3: R.Tensor((1, 1, 3, 3), dtype="float32") = R.nn.conv2d(
+                    gv1,
+                    C,
+                    strides=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype=None,
+                )
+                gv4: R.Tensor((1, 1, 3, 3), dtype="float32") = gv3
+            return gv4
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 # Helper that builds the ONNX graph for MatMulInteger so the tests don't repeat boilerplate code every time
 def _make_matmulinteger_model(A_shape, B_shape, A_dtype, B_dtype, a_zp_array=None, b_zp_array=None):
     """Build a minimal single-node ONNX graph for MatMulInteger."""

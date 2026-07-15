@@ -6015,9 +6015,6 @@ class ONNXGraphImporter:
                     raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
             try:
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
-                # Create type information for the new operator.
-                if isinstance(op, relax.Expr):
-                    op = self.bb.normalize(op)
             except Exception as err:  # pylint: disable=broad-exception-caught
                 print(f"Error converting operator {op_name}, with inputs: {inputs}")
                 raise err
@@ -6117,6 +6114,9 @@ class ONNXGraphImporter:
             sym = op_function(self.bb, inputs, attrs, [self._nodes, self._params])
         else:
             raise NotImplementedError(f"Operator {op_name} not implemented.")
+        # Create type information for the new operator.
+        if isinstance(sym, relax.Expr):
+            sym = self.bb.normalize(sym)
         return sym
 
     def _convert_subgraph(self, bb, graph):
@@ -6164,14 +6164,6 @@ class ONNXGraphImporter:
                     continue
 
                 op = self._convert_operator(op_name, inputs, attr, self.opset)
-                try:
-                    _ = op.ty
-                    has_ty = True
-                except tvm.error.InternalError:
-                    has_ty = False
-
-                if not has_ty:
-                    op = bb.normalize(op)
 
                 if not isinstance(op, relax.Tuple):
                     if isinstance(op.ty, relax.TupleType):
