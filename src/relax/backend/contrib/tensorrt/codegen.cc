@@ -126,8 +126,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     for (size_t i = 0; i < call_node->args.size() && i < arg_infos.size(); ++i) {
       const Expr& arg = call_node->args[i];
       const std::string key = "arg_" + std::string(arg_infos[i]->name);
-      if (const auto* prim_value = arg.as<PrimExprNode>()) {
-        PrimExpr value = ffi::GetRef<PrimExpr>(prim_value);
+      if (auto prim_value = arg.as<PrimExpr>()) {
+        PrimExpr value = prim_value.value();
         if (const auto* imm = value.as<IntImmNode>()) {
           node_->SetAttr(key, static_cast<int64_t>(imm->value));
         } else if (const auto* fimm = value.as<FloatImmNode>()) {
@@ -145,7 +145,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     const auto* attrs = call_node->attrs.as<StatisticalAttrs>();
     if (attrs == nullptr || attrs->axis.has_value()) return;
     const auto* tensor_ty = GetType(call_node->args[0]).as<TensorTypeNode>();
-    if (tensor_ty == nullptr || !tensor_ty->shape.defined()) return;
+    if (tensor_ty == nullptr || !tensor_ty->shape.has_value()) return;
     const auto* shape = tensor_ty->shape.value().as<ShapeExprNode>();
     if (shape == nullptr) return;
     ffi::Array<int64_t> all_axes;
@@ -164,8 +164,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
       if (tuple == nullptr) continue;
       ffi::Array<PrimExpr> values;
       for (const Expr& field : tuple->fields) {
-        if (const auto* prim_value = field.as<PrimExprNode>()) {
-          values.push_back(ffi::GetRef<PrimExpr>(prim_value));
+        if (auto prim_value = field.as<PrimExpr>()) {
+          values.push_back(prim_value.value());
         }
       }
       if (values.size() == tuple->fields.size()) SetIntArrayAttr(kNames[i - 1], values);
@@ -280,7 +280,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
     }
     TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);

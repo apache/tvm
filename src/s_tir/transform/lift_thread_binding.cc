@@ -60,8 +60,11 @@ FindLoopLCA(const Stmt& root) {
       IterVar& iter_var = iters[thread_tag];
       if (!iter_var.defined()) {
         iter_var = IterVar(Range::FromMinExtent(loop->min, loop->extent),  //
-                           loop->loop_var.copy_with_name(thread_tag),      //
-                           loop->thread_binding.value()->iter_type,        //
+                           loop->loop_var
+                               .as_or_throw<Var>()                   //
+                               .copy_with_name(thread_tag)           //
+                               .as_or_throw<PrimVar>(),              //
+                           loop->thread_binding.value()->iter_type,  //
                            thread_tag);
         lca[thread_tag] = stack;
         var_subst.Set(loop->loop_var, iter_var->var);
@@ -133,7 +136,7 @@ class ThreadBindingLifter : public StmtExprMutator {
       for (const auto& [iter_var, annotation] : it->second) {
         body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent,
                    ForKind::kThreadBinding, std::move(body),
-                   IterVar(Range(nullptr), Var(iter_var->thread_tag, iter_var->var.ty()),
+                   IterVar(Range(nullptr), PrimVar(iter_var->thread_tag, iter_var->var.ty()),
                            kThreadIndex, iter_var->thread_tag),
                    annotation, std::nullopt);
       }
@@ -156,12 +159,12 @@ class ThreadBindingLifter : public StmtExprMutator {
     this->var_subst = std::move(result.second);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_subst.find(ffi::GetRef<Var>(op));
     if (it != var_subst.end()) {
       return (*it).second;
     } else {
-      return ffi::GetRef<PrimExpr>(op);
+      return ffi::GetRef<Var>(op);
     }
   }
 

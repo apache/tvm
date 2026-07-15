@@ -65,11 +65,11 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     ffi::Map<Var, Buffer> buffer_map;
 
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.pre_rewrite_buffer->name, PrimType::Handle()));
+      params.push_back(Var(info.pre_rewrite_buffer->name, PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.pre_rewrite_buffer);
     }
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.post_rewrite_buffer->name, PrimType::Handle()));
+      params.push_back(Var(info.post_rewrite_buffer->name, PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.post_rewrite_buffer);
     }
 
@@ -250,7 +250,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
         tirx::SplitPrimFuncLayoutRewrite tir_rewriter(func.as_or_throw<tirx::PrimFunc>());
         auto [preproc_func, compute_func] =
             tir_rewriter.Transform(func.as_or_throw<tirx::PrimFunc>());
-        if (preproc_func.defined()) {
+        if (preproc_func.has_value()) {
           mutator.split_funcs_.emplace(gv.get(),
                                        std::make_tuple(preproc_func.value(), compute_func));
           mutator.rewrite_infos_.emplace(gv.get(), tir_rewriter.rewrite_infos_);
@@ -317,8 +317,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
                           : preproc_ty_list[0];
 
     // Step 6: Call the preproc function
-    Expr preproc_call =
-        builder_->Emit(Call(call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
+    Expr preproc_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {preproc_gv, Tuple(preproc_args)}, {}, {preproc_ty}));
     if (rewrite_infos.size() == 1) {
       call_tir_args.Set(rewrite_infos[0].buffer_index, preproc_call);
     } else {
@@ -326,8 +326,8 @@ class SplitLayoutRewritePreproc : public ExprMutator {
         call_tir_args.Set(rewrite_infos[i].buffer_index, TupleGetItem(preproc_call, i));
       }
     }
-    Expr main_call =
-        builder_->Emit(Call(call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
+    Expr main_call = builder_->Emit(
+        Call(Type::Missing(), call_tir_op, {compute_gv, Tuple(call_tir_args)}, {}, call->ty_args));
 
     return main_call;
   }

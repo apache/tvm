@@ -782,7 +782,7 @@ class ChildReplacer : private StmtMutator {
         }
       }
       // Move new_stmt to position i
-      if (new_stmt.defined()) {
+      if (new_stmt.has_value()) {
         ffi::ObjectPtr<SeqStmtNode> new_seq_stmt = CopyOnWrite(op);
         new_seq_stmt->seq.Set(i, new_stmt.value());
         return SeqStmt(std::move(new_seq_stmt));

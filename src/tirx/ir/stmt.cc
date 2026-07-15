@@ -58,15 +58,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Bind
-Bind::Bind(Var var, PrimExpr value, Span span) {
+Bind::Bind(Var var, Expr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
-  PrimType value_ty = value.ty();
-  // It is still valid to bind a pointer type var to a value that is of type handle.
-  if (var->type_annotation.as<PointerTypeNode>()) {
-    TVM_FFI_ICHECK(value_ty.IsHandle());
-  } else {
-    TVM_FFI_ICHECK(value.ty() == var.ty());
-  }
+  TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
   ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
   node->var = std::move(var);
@@ -78,7 +72,7 @@ Bind::Bind(Var var, PrimExpr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.Bind",
-                        [](Var var, PrimExpr value, Span span) { return Bind(var, value, span); });
+                        [](Var var, Expr value, Span span) { return Bind(var, value, span); });
 }
 
 // AttrStmt
@@ -132,7 +126,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // For
-For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
+For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
          ffi::Optional<PrimExpr> step, Span span) {
   TVM_FFI_ICHECK(loop_var.defined());
@@ -153,7 +147,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
 
   // When extent, min or step is an IntImm but has narrower dtype than loop_var
   // we directly promote them without raising errors.
-  auto try_promote_imm_dtype = [&](const PrimExpr& e) {
+  auto try_promote_imm_dtype = [&](const PrimExpr& e) -> PrimExpr {
     PrimType e_ty = e.ty();
     PrimType loop_var_ty = loop_var.ty();
     TVM_FFI_ICHECK(e_ty.bits() <= loop_var_ty.bits())
@@ -161,7 +155,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
         << ") is narrower than that of `min` or `extent` (" << e_ty << ")";
     const IntImmNode* a = e.as<IntImmNode>();
     if (a && e_ty.bits() < loop_var_ty.bits()) {
-      return MakeConst(loop_var_ty, a->value);
+      return IntImm(loop_var_ty, a->value);
     } else {
       return e;
     }
@@ -197,7 +191,7 @@ bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step)
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.For", [](Var loop_var, PrimExpr min, PrimExpr extent, int kind,
+  refl::GlobalDef().def("tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind,
                                        Stmt body, ffi::Optional<IterVar> thread_binding,
                                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
                                        ffi::Optional<PrimExpr> step, Span span) {
@@ -373,7 +367,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Evaluate
-Evaluate::Evaluate(PrimExpr value, Span span) {
+Evaluate::Evaluate(Expr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
 
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
@@ -385,7 +379,7 @@ Evaluate::Evaluate(PrimExpr value, Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.Evaluate",
-                        [](PrimExpr value, Span span) { return Evaluate(value, span); });
+                        [](Expr value, Span span) { return Evaluate(value, span); });
 }
 
 // BufferStore
@@ -414,7 +408,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
   TVM_FFI_ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
       << "Index dtype and buffer dtype can't both be scalable.";
 
-  if (predicate.defined()) {
+  if (predicate.has_value()) {
     bool is_predicate_dtype_scalable = predicate.value().ty().IsScalableVector();
     TVM_FFI_ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
         << "Predicate mask dtype and value dtype must both be scalable.";
@@ -433,7 +427,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> ind
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
 
-  if (predicate.defined()) {
+  if (predicate.has_value()) {
     PrimType predicate_ty = predicate.value().ty();
     int predicate_dtype_lanes = GetLanesOrVScaleFactor(predicate_ty);
     TVM_FFI_ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)
@@ -490,7 +484,7 @@ PrimExpr BufferRegionNode::ToPrimExpr() const {
     if (tvm::tirx::is_one(r->extent)) {
       indices.push_back(r->min);
     } else if (r->extent.as<IntImmNode>()) {
-      indices.push_back(tirx::Ramp(r->min, tvm::tirx::MakeConst(r->min.ty(), 1), r->extent));
+      indices.push_back(tirx::Ramp(r->min, IntImm(r->min.ty(), 1), r->extent));
     } else {
       TVM_FFI_THROW(ValueError) << "Cannot convert to BufferLoad: "
                                 << ffi::GetRef<BufferRegion>(this);
@@ -685,7 +679,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 PrimExpr TypeAnnotation(PrimType dtype, Span span) {
   static const Op& type_annotation_op = Op::Get("tirx.type_annotation");
-  return tirx::Call(dtype, type_annotation_op, {}, {}, span);
+  return Call(dtype, type_annotation_op, {}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
 TVM_TIRX_REGISTER_OP("type_annotation")

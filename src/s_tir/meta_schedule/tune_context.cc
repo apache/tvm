@@ -48,10 +48,10 @@ TuneContext::TuneContext(ffi::Optional<IRModule> mod, ffi::Optional<Target> targ
 
 TuneContext TuneContextNode::Clone() const {
   ffi::ObjectPtr<TuneContextNode> n = ffi::make_object<TuneContextNode>(*this);
-  if (this->space_generator.defined()) {
+  if (this->space_generator.has_value()) {
     n->space_generator = this->space_generator.value()->Clone();
   }
-  if (this->search_strategy.defined()) {
+  if (this->search_strategy.has_value()) {
     n->search_strategy = this->search_strategy.value()->Clone();
   }
   n->rand_state = ForkSeed(&n->rand_state);
@@ -60,10 +60,10 @@ TuneContext TuneContextNode::Clone() const {
 }
 
 void TuneContextNode::Initialize() {
-  if (this->space_generator.defined()) {
+  if (this->space_generator.has_value()) {
     this->space_generator.value()->InitializeWithTuneContext(ffi::GetRef<TuneContext>(this));
   }
-  if (this->search_strategy.defined()) {
+  if (this->search_strategy.has_value()) {
     this->search_strategy.value()->InitializeWithTuneContext(ffi::GetRef<TuneContext>(this));
   }
 }

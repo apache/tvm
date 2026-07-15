@@ -40,7 +40,7 @@ def _legalize_and_build(mod, target, dev):
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_manual_gradient():
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     # The expression computed is sum((2x - 2y) * (y + z))
     # the gradient of x is broadcast_to(2y + 2z, x.shape)
@@ -89,7 +89,7 @@ def test_manual_gradient():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_mlp_blockbuilder():
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
     layers, in_size, out_size, hidden_size, batch_size = 3, 5, 5, 5, 4
 
     input_list = [relax.Var("x", R.Tensor((batch_size, in_size), "float32"))]
@@ -147,7 +147,7 @@ def test_mlp_blockbuilder():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_complex():
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
     cst = relax.const(np.ones((6,)), dtype="float32")
     cst1 = relax.const(np.array(3), dtype="int64")
 
@@ -205,7 +205,7 @@ def test_complex():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_matmul():
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @tvm.script.ir_module
     class Before:

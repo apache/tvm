@@ -146,7 +146,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) {
+  Expr VisitExpr_(const BufferLoadNode* op) {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     if (buffer_map_.count(load->buffer)) {
       auto* n = load.CopyOnWrite();
@@ -165,7 +165,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return load;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) {
+  Expr VisitExpr_(const VarNode* op) {
     if (buffer_var_map_.count(ffi::GetRef<Var>(op))) {
       return buffer_var_map_[ffi::GetRef<Var>(op)];
     }

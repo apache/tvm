@@ -329,6 +329,40 @@ class LiteralDoc : public ExprDoc {
 };
 
 /*!
+ * \brief Doc that renders an expression as a Python string literal.
+ *
+ * \sa ExprStringDoc
+ */
+class ExprStringDocNode : public ExprDocNode {
+ public:
+  /*! \brief The expression to render as a string. */
+  ExprDoc value{ffi::UnsafeInit()};
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExprStringDocNode>().def_ro("value", &ExprStringDocNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.printer.ExprStringDoc", ExprStringDocNode, ExprDocNode);
+};
+
+/*!
+ * \brief Reference type of ExprStringDocNode.
+ *
+ * \sa ExprStringDocNode
+ */
+class ExprStringDoc : public ExprDoc {
+ public:
+  /*!
+   * \brief Constructor of ExprStringDoc.
+   * \param value The expression to render as a string.
+   * \param object_path The object path.
+   */
+  explicit ExprStringDoc(ExprDoc value, const ffi::Optional<AccessPath>& object_path);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ExprStringDoc, ExprDoc, ExprStringDocNode);
+};
+
+/*!
  * \brief Doc that represents identifier.
  *
  * \sa IdDoc

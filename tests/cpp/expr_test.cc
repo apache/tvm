@@ -26,7 +26,7 @@
 TEST(Expr, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = max(x + 1 + 2, 100);
   ffi::ObjectRef tmp = z;
   PrimExpr zz = tmp.as_or_throw<PrimExpr>();
@@ -39,11 +39,11 @@ TEST(Expr, Basic) {
 TEST(Expr, VarTypeAnnotation) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x", PrimType::Float(32));
-  Var y("y", PrimType::Float(32));
+  PrimVar x("x", PrimType::Float(32));
+  PrimVar y("y", PrimType::Float(32));
   tvm::ffi::StructuralEqual checker;
   TVM_FFI_ICHECK(checker(x.ty(), y.ty()));
-  TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
+  TVM_FFI_ICHECK(checker(x->ty, y->ty));
 }
 
 TEST(Expr, PrimTypeBoolLanes) {
@@ -58,7 +58,7 @@ TEST(Expr, PrimTypeBoolLanes) {
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tirx::MaxNode* op = z.as<tirx::MaxNode>();
   TVM_FFI_ICHECK(ffi::GetRef<ffi::ObjectRef>(op).same_as(z));

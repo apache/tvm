@@ -79,18 +79,6 @@ TVM_DLL Type GetType(const PrimExpr& expr);
 TVM_DLL Type GetTypeFromRuntimeDataType(DLDataType dtype);
 
 /*!
- * \brief Get the implied DLPack dtype for storing values with type during runtime.
- *
- * \param type The input type.
- * \return The result DLPack dtype.
- *
- * \sa tvm/ir/type.h for discussion about the relation between Type and DLPack dtype.
- */
-TVM_DLL DLDataType GetRuntimeDLDataType(const Type& type);
-
-inline DLDataType GetRuntimeDataType(const Type& type) { return GetRuntimeDLDataType(type); }
-
-/*!
  * \brief Return the value.
  *
  * \param value The returned value.
@@ -98,6 +86,7 @@ inline DLDataType GetRuntimeDataType(const Type& type) { return GetRuntimeDLData
  * \return The return expression.
  */
 TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
+TVM_DLL Expr ret(Expr value, Span span = Span());
 
 /*!
  * \brief Return from a thread.
@@ -165,6 +154,8 @@ TVM_DLL PrimExpr cast(PrimType t, PrimExpr value, Span span = Span());
  * \note This function may return value if the type is the same.
  */
 TVM_DLL PrimExpr reinterpret(PrimType t, PrimExpr value, Span span = Span());
+/*! \brief Perform a reinterpret cast involving an exact primitive or pointer type. */
+TVM_DLL Expr reinterpret(Type target_ty, Expr value, Span span = Span());
 /*!
  * \brief add operator
  *
@@ -742,23 +733,23 @@ inline void CheckMathUnaryOpInputDType(const char* op_name, const PrimType& dtyp
 }
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                        \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                  \
-    static const Op op = Op::Get("tirx." #OpName);                                          \
-    PrimType x_ty = x.ty();                                                                 \
-    CheckInputDType(#OpName, x_ty);                                                         \
-    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                           \
-      PrimType bf16_ty = x_ty;                                                              \
-      PrimType f32_ty =                                                                     \
-          x_ty.IsScalableVector()                                                           \
-              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor()) \
-              : PrimType::Float(32, x_ty.lanes());                                          \
-      PrimExpr x_fp32 = tirx::Cast(f32_ty, x, span);                                        \
-      PrimExpr result_fp32 = tirx::Call(f32_ty, op, {x_fp32}, {}, span);                    \
-      return tirx::Cast(bf16_ty, result_fp32, span);                                        \
-    } else {                                                                                \
-      return tirx::Call(x_ty, op, {x}, {}, span);                                           \
-    }                                                                                       \
+#define TVM_DECLARE_INTRIN_UNARY_WITH_CHECK(OpName, CheckInputDType)                           \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {                                     \
+    static const Op op = Op::Get("tirx." #OpName);                                             \
+    PrimType x_ty = x.ty();                                                                    \
+    CheckInputDType(#OpName, x_ty);                                                            \
+    if (x_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {                              \
+      PrimType bf16_ty = x_ty;                                                                 \
+      PrimType f32_ty =                                                                        \
+          x_ty.IsScalableVector()                                                              \
+              ? PrimType::ScalableVector(DLDataTypeCode::kDLFloat, 32, x_ty.VScaleFactor())    \
+              : PrimType::Float(32, x_ty.lanes());                                             \
+      PrimExpr x_fp32 = tirx::Cast(f32_ty, x, span);                                           \
+      PrimExpr result_fp32 = Call(f32_ty, op, {x_fp32}, {}, {}, span).as_or_throw<PrimExpr>(); \
+      return tirx::Cast(bf16_ty, result_fp32, span);                                           \
+    } else {                                                                                   \
+      return Call(x_ty, op, {x}, {}, {}, span).as_or_throw<PrimExpr>();                        \
+    }                                                                                          \
   }
 
 #define TVM_DECLARE_INTRIN_UNARY(OpName) \
@@ -793,10 +784,10 @@ TVM_DECLARE_FLOAT_INTRIN_UNARY(asinh);
 TVM_DECLARE_FLOAT_INTRIN_UNARY(atanh);
 TVM_DECLARE_INTRIN_UNARY(clz);
 
-#define TVM_DECLARE_INTRIN_BINARY(OpName)                              \
-  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) { \
-    static const Op op = Op::Get("tirx." #OpName);                     \
-    return tirx::Call(x.ty(), op, {x, y}, {}, span);                   \
+#define TVM_DECLARE_INTRIN_BINARY(OpName)                                  \
+  inline PrimExpr OpName(PrimExpr x, PrimExpr y, Span span = Span()) {     \
+    static const Op op = Op::Get("tirx." #OpName);                         \
+    return Call(x.ty(), op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>(); \
   }
 
 TVM_DECLARE_INTRIN_BINARY(atan2);
@@ -814,7 +805,7 @@ namespace tirx {
  * \return The check results
  */
 inline bool IsPointerType(const Type& type, DLDataType element_type) {
-  if (!type.defined()) return false;
+  if (type.IsMissing()) return false;
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
       return prim_type->dtype == element_type;
@@ -843,12 +834,12 @@ template <typename ValueType,
                                              std::is_trivial<ValueType>::value>::type>
 inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span = Span());
 /*!
- * \brief Make a constant handle value.
+ * \brief Make a constant opaque-pointer value.
  * \param value The integer payload to reinterpret as a handle.
  * \param span The location of this operation in the source.
  * \return The result expression.
  */
-inline PrimExpr ConstHandle(int64_t value, Span span = Span());
+inline Expr ConstHandle(int64_t value, Span span = Span());
 /*!
  * \brief Get x as constant int expression.
  * \param x The expression
@@ -970,7 +961,8 @@ inline bool is_const_int(const PrimExpr& x, int64_t value) {
 inline bool is_no_op(const tirx::Stmt& stmt) {
   if (!stmt.defined()) return true;
   if (const auto* op = stmt.as<tirx::EvaluateNode>()) {
-    return is_const_int(op->value);
+    auto value = op->value.as<PrimExpr>();
+    return value && is_const_int(value.value());
   }
   if (const auto* op = stmt.as<tirx::SeqStmtNode>()) {
     return op->seq.size() == 0;
@@ -1026,12 +1018,13 @@ inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span) {
     return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), dtype.lanes(), span);
   }
   PrimExpr lanes =
-      tirx::Mul(tirx::Call(PrimType::Int(32), tirx::builtin::vscale(), {}), dtype.VScaleFactor());
+      tirx::Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+                dtype.VScaleFactor());
   return tirx::Broadcast(MakeConstScalar(elem_ty, value, span), lanes, span);
 }
 
-inline PrimExpr ConstHandle(int64_t value, Span span) {
-  return reinterpret(PrimType::Handle(), IntImm(PrimType::UInt(64), value, span));
+inline Expr ConstHandle(int64_t value, Span span) {
+  return reinterpret(PointerType::VoidPointerTy(), IntImm(PrimType::UInt(64), value, span), span);
 }
 
 }  // namespace tirx

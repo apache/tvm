@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
-
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -79,35 +77,6 @@ def test_prim_value_in_branch_condition():
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
             T.ret(N % 16 == 0)
-
-    After = tvm.relax.transform.ComputePrimValue()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
-def test_prim_value_in_pure_function():
-    @I.ir_module
-    class Before:
-        @R.function
-        def main(_N: R.Prim(value="N"), _M: R.Prim(value="M")) -> R.Prim(value="N*M"):
-            N = T.int64()
-            M = T.int64()
-            out = R.prim_value(N * M)
-            return out
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(_N: R.Prim(value="N"), _M: R.Prim(value="M")) -> R.Prim(value="N*M"):
-            N = T.int64()
-            M = T.int64()
-            out = Expected.compute_symbolic_expr(R.prim_value(N), R.prim_value(M))
-            return out
-
-        @T.prim_func(private=True, s_tir=True)
-        def compute_symbolic_expr(N: T.int64, M: T.int64) -> T.int64:
-            T.func_attr({"tirx.is_host_func": True})
-            T.ret(N * M)
 
     After = tvm.relax.transform.ComputePrimValue()(Before)
     tvm.ir.assert_structural_equal(After, Expected)

@@ -103,8 +103,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1. Update unit loop info.
-    PrimExpr min = this->VisitExpr(op->min);
-    PrimExpr extent = this->VisitExpr(op->extent);
+    PrimExpr min = this->VisitPrimExpr(op->min);
+    PrimExpr extent = this->VisitPrimExpr(op->extent);
     if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
       unit_loop_vars_[op->loop_var] = min;
@@ -120,7 +120,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding → AttrStmt(thread_extent)
-      TVM_FFI_ICHECK(op->thread_binding.defined());
+      TVM_FFI_ICHECK(op->thread_binding.has_value());
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
@@ -139,15 +139,16 @@ class TIRxOpaqueLower : public StmtExprMutator {
     return body;
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
       return var;
     } else {
       PrimExpr expr = it->second;
-      if (expr.ty() != var.ty()) {
-        expr = tvm::cast(var.ty(), std::move(expr));
+      PrimType var_ty = var->ty.as_or_throw<PrimType>();
+      if (expr.ty() != var_ty) {
+        expr = tvm::cast(var_ty, std::move(expr));
       }
       return expr;
     }
@@ -156,7 +157,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
   static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
                                Stmt body) {
     IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var),
+                     /*var=*/std::move(var).as_or_throw<PrimVar>(),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
     ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||

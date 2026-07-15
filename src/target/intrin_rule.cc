@@ -123,32 +123,12 @@ TVM_REGISTER_OP("tirx.nearbyint")
 TVM_REGISTER_OP("tirx.pow")
     .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
 
-TVM_REGISTER_OP("tirx.tvm_access_ptr")
-    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      const CallNode* call = e.as<CallNode>();
-      TVM_FFI_ICHECK(call != nullptr);
-      TVM_FFI_ICHECK_EQ(call->args.size(), 5U);
-      PrimType dtype = call->args[0].ty();
-      Var buffer_var = call->args[1].as_or_throw<Var>();
-      PrimExpr offset = call->args[2];
-      TVM_FFI_ICHECK(call->ty().IsHandle());
-      if (dtype.lanes() != 1) {
-        PrimType offset_ty = offset.ty();
-        offset = offset * MakeConst(offset_ty, dtype.lanes());
-        offset = Ramp(offset, MakeConst(offset_ty, 1), dtype.lanes());
-      }
-      Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name_hint,
-                       0, 0, kDefault);
-      BufferLoad buf_load(dummy_buf, {offset});
-      return Call(PrimType::Handle(), builtin::address_of(), {buf_load});
-    });
-
 PrimExpr DispatchFastErf(const PrimExpr& e) {
   DLOG(WARNING) << "fast_erf will be used instead of erf";
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-  PrimExpr arg = call->args[0];
+  PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
   PrimType arg_ty = arg.ty();
   int bits = arg_ty.bits();
   PrimExpr res;
@@ -162,9 +142,9 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
 
 PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {
   using tirx::MakeConst;
-  const tirx::CallNode* call = e.as<tirx::CallNode>();
+  const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
-  const PrimExpr& x = call->args[0];
+  PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
   PrimType x_ty = x.ty();
   PrimExpr one = MakeConst(x_ty, 1);
   PrimExpr two = MakeConst(x_ty, 2);
@@ -189,16 +169,18 @@ TVM_REGISTER_OP("tirx.rsqrt")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      auto one = MakeConst(call->args[0].ty(), 1);
-      return one / sqrt(call->args[0]);
+      PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
+      auto one = MakeConst(arg.ty(), 1);
+      return one / sqrt(arg);
     });
 
 TVM_REGISTER_OP("tirx.sigmoid")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      auto one = MakeConst(call->args[0].ty(), 1);
-      return one / (one + exp(-call->args[0]));
+      PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
+      auto one = MakeConst(arg.ty(), 1);
+      return one / (one + exp(-arg));
     });
 
 TVM_REGISTER_OP("tirx.isfinite")
@@ -206,7 +188,7 @@ TVM_REGISTER_OP("tirx.isfinite")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      return isfinite(call->args[0]);
+      return isfinite(call->args[0].as_or_throw<PrimExpr>());
     });
 
 TVM_REGISTER_OP("tirx.isinf")
@@ -214,7 +196,7 @@ TVM_REGISTER_OP("tirx.isinf")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
-      return isinf(call->args[0]);
+      return isinf(call->args[0].as_or_throw<PrimExpr>());
     });
 
 /*!
@@ -268,13 +250,13 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
       using tirx::MakeConst;
 
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
 
-      PrimExpr x = call->args[0];
-      PrimExpr y = call->args[1];
-      PrimExpr q = call->args[2];
-      PrimExpr s = call->args[3];
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
+      PrimExpr y = call->args[1].as_or_throw<PrimExpr>();
+      PrimExpr q = call->args[2].as_or_throw<PrimExpr>();
+      PrimExpr s = call->args[3].as_or_throw<PrimExpr>();
 
       // Lambda function to extract the int value from PrimExpr
       auto get_int_value = [](const PrimExpr node) {
@@ -326,15 +308,15 @@ TVM_REGISTER_OP("tirx.q_multiply_shift")
 
 TVM_REGISTER_OP("tirx.q_multiply_shift_per_axis")
     .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
 
-      PrimExpr x = call->args[0];
-      PrimExpr y = call->args[1];
-      PrimExpr left_shift = call->args[2];
-      PrimExpr right_shift = call->args[3];
-      PrimExpr q = call->args[4];
-      PrimExpr is_lshift_required = call->args[5];
+      PrimExpr x = call->args[0].as_or_throw<PrimExpr>();
+      PrimExpr y = call->args[1].as_or_throw<PrimExpr>();
+      PrimExpr left_shift = call->args[2].as_or_throw<PrimExpr>();
+      PrimExpr right_shift = call->args[3].as_or_throw<PrimExpr>();
+      PrimExpr q = call->args[4].as_or_throw<PrimExpr>();
+      PrimExpr is_lshift_required = call->args[5].as_or_throw<PrimExpr>();
       // Note, 7th argument is "is_rshift_required" flag, but we don't need that here.
       // PrimExpr is_rshift_required = call->args[6];
 

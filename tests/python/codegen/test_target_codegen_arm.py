@@ -71,7 +71,7 @@ def test_vmlal_s16():
             @T.prim_func(s_tir=True)
             def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
                 T.func_attr({"tirx.noalias": True})
-                K = T.int32(is_size_var=True)
+                K = T.int32()
                 A = T.match_buffer(var_A, (K, N), "int8")
                 B = T.match_buffer(var_B, (K, N), "int8")
                 for n in T.vectorized(N):
@@ -104,7 +104,7 @@ def test_vmlal_s16():
             @T.prim_func(s_tir=True)
             def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
                 T.func_attr({"tirx.noalias": True})
-                K = T.int32(is_size_var=True)
+                K = T.int32()
                 A = T.match_buffer(var_A, (K, N), "int8")
                 B = T.match_buffer(var_B, (K,), "int8")
                 for n in T.vectorized(N):

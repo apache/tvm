@@ -31,6 +31,7 @@
 #include <thrust/scan.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
+#include <tvm/ffi/container/tensor.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/extra/cuda/base.h>

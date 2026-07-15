@@ -50,7 +50,6 @@ pytestmark = [
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
-    dev = tvm.device(target, 0)
     with tvm.transform.PassContext(
         config={
             "relax.backend.use_cuda_graph": cuda_graph,
@@ -58,16 +57,23 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
         }
     ):
         ex = tvm.compile(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
-    f = vm["main"]
-    inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
-    # For cuda graph, run the compiled function twice to make sure that we can launch the cached
-    # graph on the second run.
-    if cuda_graph:
-        f(*inputs)
+    def run_and_check():
+        dev = tvm.device_from_target(target, 0)
+        vm = relax.VirtualMachine(ex, dev)
+        f = vm["main"]
+        inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
 
-    return f(*inputs).numpy()
+        # For cuda graph, run the compiled function twice to make sure that we can launch the
+        # cached graph on the second run.
+        if cuda_graph:
+            f(*inputs)
+
+        return f(*inputs).numpy()
+
+    if tvm.target.Target(target).kind.name == "cuda":
+        return tvm.testing.run_with_gpu_lock(run_and_check)
+    return run_and_check()
 
 
 def get_result_with_relax_cublas_offload(mod, np_inputs, cuda_graph=False, bind_constants=False):

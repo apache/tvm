@@ -21,9 +21,10 @@ import logging
 import math
 
 from tvm import s_tir, te, tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import _call_topi_without_attr, register_legalize
 
 

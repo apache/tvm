@@ -75,7 +75,7 @@ class CodeGenCPU : public CodeGenLLVM {
   void VisitStmt_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                const ffi::Array<PrimExpr>& args, bool skip_first_arg) override;
+                                const ffi::Array<Expr>& args, bool skip_first_arg) override;
 
  protected:
   void AddStartupFunction() final;
@@ -92,15 +92,14 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_ffi_c_func_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_lambda_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_func_call_{nullptr};
-  llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_handle_init_callback_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_handle_init_once_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_by_c_str_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_error_set_raised_from_c_str_parts_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
-  // Lazy entry for function call.
-  llvm::FunctionType* ftype_tvm_static_init_callback_{nullptr};
-  llvm::FunctionType* ftype_tvm_static_init_{nullptr};
 
  private:
   // the parallel group information
@@ -117,7 +116,8 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
   llvm::Value* RuntimeTVMFFIFunctionCall();
-  llvm::Value* RuntimeTVMGetFuncFromEnv();
+  llvm::Value* RuntimeTVMFFIEnvModLookupFromImports();
+  llvm::Value* RuntimeTVMFFIHandleInitOnce();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStr();
   llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStrParts();
   // Create a temp function to simplify error raising.
@@ -125,10 +125,11 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
+  llvm::Function* CreatePackedFuncInit(const std::string& fname);
   llvm::Value* GetPackedFuncHandle(const std::string& str);
   TypedPointer PackClosureData(const ffi::Array<Var>& fields, uint64_t* num_bytes,
                                std::string struct_name = "");
-  TypedPointer CreateStructRefPtr(PrimType t, llvm::Value* buffer, llvm::Value* index, int kind);
+  TypedPointer CreateStructRefPtr(Type type, llvm::Value* buffer, llvm::Value* index, int kind);
   void UnpackClosureData(TypedPointer cdata, const ffi::Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
   // Make packed call.
@@ -137,14 +138,12 @@ class CodeGenCPU : public CodeGenLLVM {
     llvm::Value* ret_type_index;
     llvm::BasicBlock* end_block;
   };
-  PackedCall MakeCallPackedLowered(const ffi::Array<PrimExpr>& args, const PrimType& r_type,
+  PackedCall MakeCallPackedLowered(const ffi::Array<Expr>& args, const Type& r_type,
                                    const int64_t begin, const int64_t end, bool use_string_lookup);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
   // Create trace call into tvm packed function.
   llvm::Value* CreateCallTracePacked(const CallNode* op);
-  // Create static initialization
-  void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch
   void CreateParallelLaunch(const Stmt& body, int num_task, std::string name = "");
   // Create a new compute scope.
@@ -161,14 +160,16 @@ class CodeGenCPU : public CodeGenLLVM {
   // Context for injection lookup
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
   llvm::GlobalVariable* gv_tvm_ffi_func_call_{nullptr};
-  llvm::GlobalVariable* gv_tvm_get_func_from_env_{nullptr};
+  llvm::GlobalVariable* gv_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
+  llvm::GlobalVariable* gv_tvm_ffi_handle_init_once_{nullptr};
   llvm::GlobalVariable* gv_tvm_ffi_set_last_error_c_str_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
   std::unordered_map<ffi::String, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_ffi_func_call_{nullptr};
-  llvm::Function* f_tvm_get_func_from_env_{nullptr};
+  llvm::Function* f_tvm_ffi_env_mod_lookup_from_imports_{nullptr};
+  llvm::Function* f_tvm_ffi_handle_init_once_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_by_c_str_{nullptr};
   llvm::Function* f_tvm_ffi_set_raised_from_c_str_parts_{nullptr};
   llvm::Function* f_tvm_parallel_launch_{nullptr};
@@ -180,6 +181,7 @@ class CodeGenCPU : public CodeGenLLVM {
   std::unordered_map<int, llvm::Function*> set_raised_helpers_;
   // global to packed function handle
   std::unordered_map<std::string, llvm::GlobalVariable*> func_handle_map_;
+  std::unordered_map<std::string, llvm::Function*> func_handle_init_map_;
   // List of symbols to be exported to TVM system lib.
   std::vector<std::pair<std::string, llvm::Constant*>> export_system_symbols_;
   // List of functions to be registered in the FuncRegistry, if generated.

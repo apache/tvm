@@ -889,10 +889,10 @@ def get_wmma_load_intrin(
                     n_dim,
                     k_dim,
                     get_wmma_fragment_index(C, d1, frag_m, frag_n),
-                    A.access_ptr("r"),
+                    A.access_ptr("r", ptr_type=dtype),
                     s1,
                     layout,
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -948,7 +948,7 @@ def get_wmma_fill_intrin(
                     k_dim,
                     get_wmma_fragment_index(C, d1, m_dim, n_dim),
                     T.float32(0),
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -1016,10 +1016,10 @@ def get_wmma_store_intrin(
                     n_dim,
                     k_dim,
                     get_wmma_fragment_index(A, d1, m_dim, n_dim),
-                    C.access_ptr("w"),
+                    C.access_ptr("w", ptr_type=dtype),
                     s1,
                     "row_major",
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 
@@ -1135,7 +1135,7 @@ def get_wmma_sync_intrin(
                     get_wmma_fragment_index(B, b1, b_shape_0, b_shape_1),
                     C.data,
                     get_wmma_fragment_index(C, c1, m_dim, n_dim),
-                    dtype="handle",
+                    dtype="void",
                 )
             )
 

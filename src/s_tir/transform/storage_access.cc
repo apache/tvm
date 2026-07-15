@@ -43,7 +43,7 @@ void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
-    e.dtype = op->ty().WithLanes(1);
+    e.dtype = op->ty.as_or_throw<PrimType>().WithLanes(1);
     for (const auto& index : op->indices) {
       e.touched.push_back(arith::IntSet::Vector(index));
     }
@@ -236,11 +236,18 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
-    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-    StmtExprVisitor::VisitExpr_(load);
+    if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+      // Taking an address does not read the buffer value.  Visit only the
+      // load's children so index expressions still contribute accesses.
+      StmtExprVisitor::VisitExpr_(load);
+    } else {
+      // address_of also accepts scalar variables (e.g. tcgen registers).
+      // Recurse without assuming the argument is a BufferLoad.
+      StmtExprVisitor::VisitExpr_(op);
+    }
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-    PrimType dtype = op->args[0].ty();
+    PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
     const VarNode* buffer = op->args[1].as<VarNode>();
     if (buffer == nullptr) {
       // args[1] is not a raw Var — e.g. a nested tvm_access_ptr or some
@@ -250,8 +257,8 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       StmtExprVisitor::VisitExpr_(op);
       return;
     }
-    PrimExpr offset = op->args[2];
-    PrimExpr extent = op->args[3];
+    PrimExpr offset = op->args[2].as_or_throw<PrimExpr>();
+    PrimExpr extent = op->args[3].as_or_throw<PrimExpr>();
     const IntImmNode* flag = op->args[4].as<IntImmNode>();
     StorageScope scope = GetScope(ffi::GetRef<Var>(buffer));
     // The buffer scope.
@@ -290,7 +297,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
-  if (buffer_var->type_annotation.as<PointerTypeNode>()) {
+  if (buffer_var->ty.as<PointerTypeNode>()) {
     return StorageScope::Create(GetPtrStorageScope(buffer_var));
   }
   return StorageScope();  // global by default

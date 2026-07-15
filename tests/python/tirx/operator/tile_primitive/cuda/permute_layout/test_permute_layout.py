@@ -162,10 +162,15 @@ def _compile_and_run(prim_func, np_inputs):
     with target:
         mod = tvm.IRModule({"main": prim_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
-    dev = tvm.cuda(0)
-    tensors = [tvm.runtime.tensor(a, dev) for a in np_inputs]
-    mod(*tensors)
-    return [t.numpy() for t in tensors], mod.mod.imports[0].inspect_source()
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        tensors = [tvm.runtime.tensor(a, dev) for a in np_inputs]
+        mod(*tensors)
+        return [tensor.numpy() for tensor in tensors]
+
+    outputs = tvm.testing.run_with_gpu_lock(run_and_check)
+    return outputs, mod.mod.imports[0].inspect_source()
 
 
 @pytest.mark.gpu
@@ -256,6 +261,7 @@ def test_identity_passes_through_as_copy():
     np.random.seed(0)
     A_np = tvm.testing.generate_random_array("uint32", shape)
     B_np = np.zeros_like(A_np)
+
     [_, B_out], _ = _compile_and_run(f, [A_np, B_np])
     np.testing.assert_array_equal(B_out, A_np)
 
@@ -415,6 +421,7 @@ def test_reject_non_warp_scope():
 
 
 @pytest.mark.parametrize("dtype", ["uint32", "float32"])
+@pytest.mark.gpu
 def test_shared_to_shared_uses_direct_ldst(dtype):
     """Compile-only: a shared->shared 32b transpose must take the direct
     base-ptr + byte-offset ``ld.shared`` / ``st.shared`` path.

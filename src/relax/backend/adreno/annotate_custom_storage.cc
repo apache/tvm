@@ -260,7 +260,7 @@ using tvm::tirx::Buffer;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();
-  TVM_FFI_ICHECK(shape.defined());
+  TVM_FFI_ICHECK(shape.has_value());
   return shape.value();
 }
 
@@ -341,7 +341,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     ffi::Optional<int64_t> op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
     Tuple func_args;
 
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       gv = call->args[0].as_or_throw<GlobalVar>();
       tirx::PrimFunc pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
       op_attrs = ExtractAttrs<tirx::PrimFunc>(pfunc);
@@ -494,9 +494,9 @@ class CollectProducerScopeInfo : public ExprVisitor {
     ExprVisitor::VisitBinding_(binding, call);
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    Type out_ty;
+    Type out_ty = Type::Missing();
 
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       out_ty = call->ty_args[0];
     } else {
       tvm::OpAttrMap<FInferType> op_map_infer_ty = Op::GetAttrMap<FInferType>("FInferType");
@@ -624,9 +624,9 @@ class DefineVDevice : ExprMutator {
     GlobalVar gv;
     Tuple func_args;
 
-    Type out_ty;
+    Type out_ty = Type::Missing();
 
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       gv = call->args[0].as_or_throw<GlobalVar>();
       func_args = call->args[1].as_or_throw<Tuple>();
     } else {
@@ -640,7 +640,7 @@ class DefineVDevice : ExprMutator {
       auto tensor_ty = updated_ret_ty.as_or_throw<TensorType>();
       auto shape = tensor_ty->shape.value();
       auto dtype = tensor_ty->dtype;
-      if (tensor_ty->vdevice.defined()) {
+      if (tensor_ty->vdevice.has_value()) {
         auto vdev = tensor_ty->vdevice.value();
         const VDevice& vdev_global = MakeGlobalVDevice(vdev);
         updated_ret_ty = TensorType(shape, dtype, vdev_global);
@@ -664,7 +664,7 @@ class DefineVDevice : ExprMutator {
 
         auto shape = ty->shape.value();
         auto dtype = ty->dtype;
-        if (ty->vdevice.defined()) {
+        if (ty->vdevice.has_value()) {
           auto vdev = ty->vdevice.value();
           const VDevice& vdev_global = MakeGlobalVDevice(vdev);
           ty_fields.push_back(TensorType(shape, dtype, vdev_global));
@@ -690,11 +690,12 @@ class DefineVDevice : ExprMutator {
       }
     }
 
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       return builder_->Normalize(
-          Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
+          Call(Type::Missing(), call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
     } else {
-      return builder_->Normalize(Call(call->op, new_args, call->attrs, {updated_ret_ty}));
+      return builder_->Normalize(
+          Call(Type::Missing(), call->op, new_args, call->attrs, {updated_ret_ty}));
     }
   }
 
@@ -715,9 +716,9 @@ class DefineVDevice : ExprMutator {
   Expr HintArg(const Expr& arg, ffi::String scope) {
     if (arg->IsInstance<ConstantNode>()) {
       if (auto tensor_ty = arg->ty.as<TensorTypeNode>()) {
-        if (!tensor_ty->vdevice.defined()) {
+        if (!tensor_ty->vdevice.has_value()) {
           const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
-          TVM_FFI_ICHECK(tensor_ty->shape.defined())
+          TVM_FFI_ICHECK(tensor_ty->shape.has_value())
               << "Shape not defined for a constant tensor ..!";
           arg->ty = TensorType(tensor_ty->shape.value(), tensor_ty->dtype, vdev, tensor_ty->span);
           return arg;
@@ -730,14 +731,14 @@ class DefineVDevice : ExprMutator {
     attrs->index = vdev->vdevice_id;
     attrs->memory_scope = vdev->memory_scope;
 
-    Expr new_arg = Call(hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
+    Expr new_arg = Call(Type::Missing(), hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
 
     return new_arg;
   }
 
   ffi::Optional<Target> GetTarget(const Type& ty) {
     auto tinfo = ty.as<TensorTypeNode>();
-    if (tinfo->vdevice.defined()) {
+    if (tinfo->vdevice.has_value()) {
       auto vdevice = tinfo->vdevice.value();
       if (vdevice->target.defined()) {
         return vdevice->target;

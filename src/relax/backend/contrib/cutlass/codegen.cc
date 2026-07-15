@@ -157,7 +157,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
 
   void AddParm(Var param) {
     ext_func_args_.push_back(param);
-    auto v_name = name_sup_->FreshName(param->name_hint());
+    auto v_name = name_sup_->FreshName(param->name_hint);
     var_name_map_[param.get()] = v_name;
   }
 

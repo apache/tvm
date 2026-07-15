@@ -38,6 +38,10 @@
 namespace tvm {
 namespace relax {
 
+struct OpIdentityLess {
+  bool operator()(const Op& lhs, const Op& rhs) const { return lhs.get() < rhs.get(); }
+};
+
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", bool);
 
 /*!
@@ -48,9 +52,9 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", bool);
  */
 bool KnowAllShapeValues(const Type& ty) {
   if (const auto* tensor_ty = ty.as<TensorTypeNode>()) {
-    return tensor_ty->shape.defined() && tensor_ty->shape.value()->IsInstance<ShapeExprNode>();
+    return tensor_ty->shape.has_value() && tensor_ty->shape.value()->IsInstance<ShapeExprNode>();
   } else if (const auto* shape_ty = ty.as<ShapeTypeNode>()) {
-    return shape_ty->values.defined();
+    return shape_ty->values.has_value();
   } else if (const auto* tuple_ty = ty.as<TupleTypeNode>()) {
     return std::all_of(tuple_ty->fields.begin(), tuple_ty->fields.end(),
                        [](Type field_ty) { return KnowAllShapeValues(field_ty); });
@@ -71,7 +75,7 @@ class LegalizeMutator : public ExprMutator {
     if (cmap) {
       cmap_ = cmap.value();
     }
-    if (skip_ops.defined()) {
+    if (skip_ops.has_value()) {
       for (const auto name : skip_ops.value()) {
         skip_ops_.insert(Op::Get(name));
       }
@@ -144,13 +148,13 @@ class LegalizeMutator : public ExprMutator {
     for (auto arg : ret->args) {
       ret_args.push_back(arg);
     }
-    return Call(call_pure_packed_op, ret_args, ret->attrs, ret->ty_args);
+    return Call(Type::Missing(), call_pure_packed_op, ret_args, ret->attrs, ret->ty_args);
   }
 
   ffi::Optional<Target> GetTarget(const ffi::Array<Type>& types) {
     for (auto ty : types) {
       if (const auto* tinfo = ty.as<TensorTypeNode>()) {
-        if (tinfo->vdevice.defined()) {
+        if (tinfo->vdevice.has_value()) {
           auto vdevice = tinfo->vdevice.value();
           if (vdevice->target.defined()) {
             return vdevice->target;
@@ -177,7 +181,7 @@ class LegalizeMutator : public ExprMutator {
     auto call = expr.as_or_throw<Call>();
 
     auto vdevice_target = GetTarget(call->ty_args);
-    if (!vdevice_target.defined()) {
+    if (!vdevice_target.has_value()) {
       // No vdevice annotation is present, so we don't need to apply
       // any updates.
       return expr;
@@ -331,12 +335,13 @@ class LegalizeMutator : public ExprMutator {
       // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
-        return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetType(call)});
+        return Call(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
+                    {GetType(call)});
       };
     } else {
       // No legalization.
-      if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
-          op != call_pure_packed_op) {
+      if (enable_warning_ && !op.same_as(call_tir_op) && !op.same_as(call_dps_packed_op) &&
+          !op.same_as(call_pure_packed_op)) {
         if (shapes_are_known_if_required) {
           LOG(WARNING) << "No legalization func for " << op->name << " is found.";
         } else {
@@ -406,7 +411,7 @@ class LegalizeMutator : public ExprMutator {
   /*!
    * \brief List of ops to be skipped from legalization
    */
-  std::set<Op> skip_ops_;
+  std::set<Op, OpIdentityLess> skip_ops_;
 };
 
 namespace transform {

@@ -29,7 +29,7 @@ class AddRFactorNode : public ScheduleRuleNode {
  public:
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    TVM_FFI_ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.has_value());
     Target target = context->target.value();
     this->max_parallel_basic_ = GetTargetNumCores(target);
     if (this->max_jobs_per_core != -1) {

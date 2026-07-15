@@ -45,7 +45,7 @@ Expr sort(Expr data, int axis, bool descending) {
   attrs->descending = std::move(descending);
 
   static const Op& op = Op::Get("relax.sort");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -73,7 +73,7 @@ Expr argsort(Expr data, int axis, bool descending, ffi::Optional<DLDataType> dty
   attrs->dtype = std::move(dtype);
 
   static const Op& op = Op::Get("relax.argsort");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -87,7 +87,7 @@ Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                          : data_ty->dtype;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   }
   return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
@@ -112,7 +112,7 @@ Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest,
   attrs->dtype = std::move(dtype);
 
   static const Op& op = Op::Get("relax.topk");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

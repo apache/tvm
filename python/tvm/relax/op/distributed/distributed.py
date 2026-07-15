@@ -17,10 +17,10 @@
 # pylint: disable=redefined-builtin
 """Operators for distributed Relax."""
 
-from tvm.ir import PrimExpr
+from tvm.ir import Call
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
 
-from ...expr import Call, Expr, GlobalVar, ShapeExpr
+from ...expr import Expr, GlobalVar, ShapeExpr
 from ...expr import Tuple as RxTuple
 from ...utils import convert_to_expr
 from . import _ffi_api
@@ -69,7 +69,7 @@ def call_tir_local_view(
     gvar: GlobalVar,
     args: Expr,
     out_ty: DTensorType | list[DTensorType],
-    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
+    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """
     Call a tirx.prim_func and return the output. The prim_func should be a worker-local function
@@ -89,7 +89,7 @@ def call_tir_local_view(
         It should be a single or a list of DTensorType. Each one denotes the
         type information of a returned tensor.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns

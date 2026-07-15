@@ -162,7 +162,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && !expr->ty.defined()) {
+    if (!expr.as<OpNode>() && expr->ty.IsMissing()) {
       TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is nullptr.";
     }
     relax::ExprVisitor::VisitExpr(expr);
@@ -170,7 +170,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = ffi::GetRef<GlobalVar>(op);
-    if (mod_.defined()) {
+    if (mod_.has_value()) {
       if (!(mod_.value()->ContainGlobalVar(var->name_hint) &&
             mod_.value()->GetGlobalVar(var->name_hint).same_as(var))) {
         TVM_FFI_VISIT_THROW(ValueError, var)
@@ -178,7 +178,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (op->ty.defined()) {
+    if (!op->ty.IsMissing()) {
       if (!op->ty->IsInstance<FuncTypeNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
             << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncType.";
@@ -281,7 +281,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       param_var_func_map_.insert({param, cur_visited_func_});
     }
     // check function ret_ty
-    if (op->ret_ty.defined()) {
+    if (!op->ret_ty.IsMissing()) {
       this->VisitType(op->ret_ty);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op)) << "Function must have defined ret_ty";
@@ -363,7 +363,7 @@ class WellFormedChecker : public relax::ExprVisitor,
             << "However, normalization of " << before_normalize << " resulted in the error: \n"
             << err.what();
       }
-      if (after_normalize && !before_normalize.same_as(after_normalize)) {
+      if (after_normalize && !after_normalize.same_as(before_normalize)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "If an operator defines an operator-specific normalization function (FNormalize), "
             << "calls to that operator must be normalized with it.  "
@@ -383,12 +383,16 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (check_ty && call->ty.defined()) {
+    bool has_infer_type = true;
+    if (auto op = call->op.as<Op>()) {
+      has_infer_type = op_map_infer_type_.count(op.value());
+    }
+    if (check_ty && !call->ty.IsMissing() && (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
       // The `InferType` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
       // an expression that does not yet have `Type`.
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
-      Call copied(call->op, call->args, call->attrs, call->ty_args);
+      Call copied(Type::Missing(), call->op, call->args, call->attrs, call->ty_args);
       ffi::Optional<Expr> normalized = std::nullopt;
       try {
         normalized = dummy_builder->Normalize(copied);
@@ -399,7 +403,7 @@ class WellFormedChecker : public relax::ExprVisitor,
             << " resulted in the error: \n"
             << err.what();
       }
-      if (normalized.defined()) {
+      if (normalized.has_value()) {
         auto inferred_ty = GetType(normalized.value());
         auto current_ty = call->ty.as_or_throw<Type>();
 
@@ -502,7 +506,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     this->VisitVarDef(binding->var);
 
-    if (check_ty && binding->var->ty.defined() && binding->value->ty.defined()) {
+    if (check_ty && !binding->var->ty.IsMissing() && !binding->value->ty.IsMissing()) {
       auto expr_ty = GetType(binding->value);
       auto var_ty = GetType(binding->var);
       if (!IsBaseOf(var_ty, expr_ty)) {
@@ -583,7 +587,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitType_(const FuncTypeNode* op) final {
-    if (op->params.defined()) {
+    if (op->params.has_value()) {
       WithMode(VisitMode::kMatchVarDef, [&]() {
         TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
         for (Type param : op->params.value()) {
@@ -668,6 +672,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
   tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
+  tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
 };
 
 void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {

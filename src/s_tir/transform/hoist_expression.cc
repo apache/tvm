@@ -324,7 +324,9 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   void VisitStmt_(const BindNode* op) final {
-    VisitBinding(op->var, op->value, HoistedLetBindings::kBind);
+    if (auto value = op->value.as<PrimExpr>()) {
+      VisitBinding(op->var, value.value(), HoistedLetBindings::kBind);
+    }
     Parent::VisitStmt_(op);
   }
 
@@ -364,13 +366,13 @@ class HoistInfoCollector : public StmtExprVisitor {
 
   void VisitStmt_(const IfThenElseNode* op) final {
     AttemptHoistConditional(op->condition, HoistedConditionals::kIfElseStmt,
-                            op->else_case.defined());
+                            op->else_case.has_value());
     Parent::VisitStmt_(op);
   }
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::if_then_else())) {
-      PrimExpr cond = op->args[0];
+      PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
       AttemptHoistConditional(cond, HoistedConditionals::kIfElseExpr);
     }
     Parent::VisitExpr_(op);
@@ -542,7 +544,7 @@ class ExpressionHoister : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  PrimExpr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const LetNode* op) final {
     if (hoisted_let_bindings.count(op->var.get())) {
       return this->VisitExpr(op->body);
     } else {
@@ -567,7 +569,7 @@ Pass HoistExpression() {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
 
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<HoistExpressionConfig>();
     }
     n->body = ExpressionHoister::Hoist(std::move(n->body), cfg.value());
@@ -601,7 +603,7 @@ static Pass HoistIfThenElseImpl() {
       n->body = ExpressionHoister::Hoist(std::move(n->body), config);
       return f;
     }
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<HoistIfThenElseConfig>();
     }
     int block_var = static_cast<int>(cfg.value()->support_block_scope_hoisting

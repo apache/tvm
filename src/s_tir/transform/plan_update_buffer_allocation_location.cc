@@ -123,7 +123,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     for (const auto& buffer : buffer_alloc_recorder) {
       auto it = buffer_lca.find(buffer);
       if (it != buffer_lca.end()) {
-        const StmtNode* stmt = (*it).second.get();
+        const StmtNode* stmt = (*it).second.has_value() ? (*it).second.value().get() : nullptr;
         if (arg_buffer_vars.count(buffer->data.get())) {
           continue;
         }
@@ -162,7 +162,7 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    TVM_FFI_ICHECK(!op->init.defined());
+    TVM_FFI_ICHECK(!op->init.has_value());
     ffi::Array<Buffer> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {

@@ -405,8 +405,8 @@ def _extract_arg_idx(pattern_name, f):
 
 
 def is_shape_valid_for_cutlass_matmul(
-    lhs_shape: Sequence[tvm.ir.PrimExpr],
-    rhs_shape: Sequence[tvm.ir.PrimExpr],
+    lhs_shape: Sequence[tvm.ir.Expr],
+    rhs_shape: Sequence[tvm.ir.Expr],
 ) -> bool:
     """
     Check whether the shape of inputs can be handled by CUTLASS GEMM.

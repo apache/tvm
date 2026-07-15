@@ -39,7 +39,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   ffi::Array<s_tir::LoopRV> loops = sch->GetLoops(block);
   for (const s_tir::LoopRV& loop : loops) {
     // skip block if already scheduled
-    if (sch->Get(loop)->thread_binding.defined()) {
+    if (sch->Get(loop)->thread_binding.has_value()) {
       return;
     }
   }
@@ -135,13 +135,15 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
   tvm::IntImm one(tvm::PrimType::Int(32), 1);
   tirx::Var loop_var("u", tvm::PrimType::Int(32));
   tirx::Var iter_var_var("vu", tvm::PrimType::Int(32));
-  tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), iter_var_var,
-                         tirx::IterVarType::kDataPar);
+  tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one),
+                         iter_var_var.as_or_throw<tirx::PrimVar>(), tirx::IterVarType::kDataPar);
   tirx::SBlock inner_block = realize->block;
   inner_block.CopyOnWrite()->iter_vars = ffi::Array<tirx::IterVar>{new_iter};
-  tirx::SBlockRealize inner_realize(/*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var},
-                                    /*predicate=*/realize->predicate, inner_block);
-  tirx::Stmt for_stmt = tirx::For(loop_var, zero, one, tirx::ForKind::kSerial, inner_realize);
+  tirx::SBlockRealize inner_realize(
+      /*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var.as_or_throw<tvm::PrimExpr>()},
+      /*predicate=*/realize->predicate, inner_block);
+  tirx::Stmt for_stmt = tirx::For(loop_var.as_or_throw<tirx::PrimVar>(), zero, one,
+                                  tirx::ForKind::kSerial, inner_realize);
   tirx::SBlock root_block(/*iter_vars=*/ffi::Array<tirx::IterVar>{},
                           /*reads=*/ffi::Array<tirx::BufferRegion>{},
                           /*writes=*/ffi::Array<tirx::BufferRegion>{},
@@ -158,7 +160,7 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
   tvm::Target target = tvm::Target::Current();
   // the Target in kTarget attribute of PrimFunc
   ffi::Optional<tvm::Target> func_target = func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
-  if (func_target.defined()) {
+  if (func_target.has_value()) {
     target = func_target.value();
   }
 
@@ -206,7 +208,7 @@ Pass DefaultGPUSchedule() {
             // get the target from kTarget attribute
             ffi::Optional<tvm::Target> func_target =
                 func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
-            if (func_target.defined()) {
+            if (func_target.has_value()) {
               target = func_target.value();
             }
             TVM_FFI_ICHECK(target.defined())

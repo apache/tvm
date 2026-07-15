@@ -33,7 +33,7 @@ IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p,
       PrintSeqExpr(n->true_branch, n_p->Attr("true_branch"), d, false),
       PrintSeqExpr(n->false_branch, n_p->Attr("false_branch"), d, false),
   };
-  if (var.defined()) {
+  if (var.has_value()) {
     for (ffi::Array<StmtDoc>& stmts : branches) {
       ExprDoc ret = stmts.back().as_or_throw<ExprStmtDoc>()->expr;
       stmts.Set(stmts.size() - 1, AssignDoc(var.value(), ret, ann));

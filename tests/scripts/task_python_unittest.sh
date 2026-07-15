@@ -18,48 +18,10 @@
 
 set -euxo pipefail
 
-source tests/scripts/setup-pytest-env.sh
-
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
+export PYTHONPATH="$(pwd)/python"
+export PYTEST_ADDOPTS="${CI_PYTEST_ADD_OPTIONS:-} ${PYTEST_ADDOPTS:-}"
 
 # setup tvm-ffi into python folder
 uv pip install -v --target=python ./3rdparty/tvm-ffi/
 
-# NOTE: also set by task_python_unittest_gpuonly.sh.
-if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
-    TVM_UNITTEST_TESTSUITE_NAME=python-unittest
-fi
-
-# First run minimal test on both ctypes and cython.
-run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
-
-# Then run all unittests on both ctypes and cython.
-TEST_FILES=(
-  "ffi"
-  "arith"
-  "ci"
-  "codegen"
-  "driver"
-  "ir"
-  "meta_schedule"
-  "runtime"
-  "target"
-  "te"
-  "testing"
-  "s_tir/base"
-  "s_tir/schedule"
-  "s_tir/dlight"
-  "s_tir/analysis"
-  "s_tir/transform"
-  "tirx-analysis"
-  "tirx-base"
-  "tirx-transform"
-  "tirx"
-  "tvmscript"
-  "relax"
-)
-
-for TEST_FILE in ${TEST_FILES[@]}; do
-    run_pytest ${TEST_FILE}, tests/python/${TEST_FILE}
-done
+python3 -m pytest -vvs -n auto -m "${TVM_TEST_MARKER:-not gpu}" tests/python

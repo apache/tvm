@@ -176,7 +176,7 @@ struct BufferPadding {
       Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
       loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
-      IterVar iter_var(dom, Var("v" + std::to_string(i), dim.ty()), kDataPar);
+      IterVar iter_var(dom, PrimVar("v" + std::to_string(i), dim.ty()), kDataPar);
       instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim.ty(), 1)));
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);
@@ -203,11 +203,13 @@ struct BufferPadding {
     SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name,
                      std::move(body));
     blocks->push_back(new_block);
-    body = SBlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()},
-                         IntImm::Bool(true), new_block);
+    ffi::Array<PrimExpr> prim_loop_vars;
+    prim_loop_vars.reserve(loop_vars.size());
+    for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
+    body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
-                 std::move(body));
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
+                 ForKind::kSerial, std::move(body));
     }
     return body;
   }
@@ -359,7 +361,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
+  Expr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
     BufferLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<BufferLoad>();
     if (ffi::Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
       return BufferLoad(buffer.value(), load->indices);

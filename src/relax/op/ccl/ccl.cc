@@ -42,7 +42,7 @@ Expr allreduce(Expr x, ffi::String op_type, bool in_group) {
   attrs->in_group = std::move(in_group);
 
   static const Op& op = Op::Get("relax.ccl.allreduce");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -71,7 +71,7 @@ Expr allgather(Expr x, int num_workers, bool in_group) {
   attrs->in_group = std::move(in_group);
 
   static const Op& op = Op::Get("relax.ccl.allgather");
-  return Call(op, {std::move(x)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -87,7 +87,7 @@ Type InferTypeAllGather(const Call& call, const BlockBuilder& ctx) {
 
   ffi::Optional<PrimType> output_dtype = input_ty->dtype;
   auto input_shape = input_ty->GetShape();
-  if (!input_shape.defined()) {
+  if (!input_shape.has_value()) {
     return input_ty;
   }
   ffi::Array<PrimExpr> output_shape = input_shape.value();
@@ -105,7 +105,7 @@ TVM_REGISTER_OP("relax.ccl.allgather")
 /* relax.ccl.broadcast_from_worker0 */
 Expr broadcast_from_worker0(Expr x) {
   static const Op& op = Op::Get("relax.ccl.broadcast_from_worker0");
-  return Call(op, {std::move(x)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(x)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -133,7 +133,7 @@ Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("relax.ccl.scatter_from_worker0");
 
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -150,7 +150,7 @@ Type InferTypeScatter(const Call& call, const BlockBuilder& ctx) {
 
   arith::Analyzer analyzer = ctx->GetAnalyzer();
   auto input_shape = input_ty->GetShape();
-  TVM_FFI_ICHECK(input_shape.defined())
+  TVM_FFI_ICHECK(input_shape.has_value())
       << "input tensor of scatter_from_worker0 should have defined shape.";
 
   if (analyzer->CanProve(floormod(input_shape.value()[attrs->axis], PrimExpr(num_workers)) != 0)) {

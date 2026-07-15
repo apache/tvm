@@ -24,7 +24,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 import tvm
-from tvm.ir import PrimExpr, Range
+from tvm.ir import Expr, Range
 from tvm.tirx import IterVar
 
 T = TypeVar("T")
@@ -50,7 +50,6 @@ class ExprFunctor:
     def __init__(self):
         self._dispatch_map = {
             "tirx.Var": self.visit_var_,
-            "tirx.SizeVar": self.visit_size_var_,
             "tirx.BufferLoad": self.visit_buffer_load_,
             "tirx.ProducerLoad": self.visit_producer_load_,
             "tirx.Let": self.visit_let_,
@@ -84,12 +83,12 @@ class ExprFunctor:
             "tirx.StringImm": self.visit_string_imm_,
         }
 
-    def visit_expr(self, expr: PrimExpr):
+    def visit_expr(self, expr: Expr):
         """Apply the visitor to an expression.
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
 
         Returns
@@ -102,7 +101,7 @@ class ExprFunctor:
 
         key = expr.__class__.__name__
         if key.endswith("Node"):
-            key = key[:-4]  # Remove the "Node" suffix
+            key = key[:-4]
 
         key = "tirx." + key
         if key in self._dispatch_map:
@@ -113,10 +112,6 @@ class ExprFunctor:
     def visit_var_(self, op):
         """Default visitor for Var node."""
         return None
-
-    def visit_size_var_(self, op):
-        """Default visitor for SizeVar node."""
-        return self.visit_var_(op)
 
     def visit_buffer_load_(self, op):
         """Default visitor for BufferLoad node."""
@@ -251,7 +246,7 @@ class ExprFunctor:
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression.
 
         Returns
@@ -272,10 +267,6 @@ class ExprVisitor(ExprFunctor):
     def visit_var_(self, op):
         """Visitor implementation for Var."""
         pass
-
-    def visit_size_var_(self, op):
-        """Visitor implementation for SizeVar."""
-        self.visit_var_(op)
 
     def visit_buffer_load_(self, op):
         """Visitor implementation for BufferLoad."""
@@ -455,10 +446,6 @@ class ExprMutator(ExprFunctor):
         """Mutator implementation for Var."""
         return op
 
-    def visit_size_var_(self, op):
-        """Mutator implementation for SizeVar."""
-        return self.visit_var_(op)
-
     def visit_buffer_load_(self, op):
         """Mutator implementation for BufferLoad."""
         indices = [self.visit_expr(index) for index in op.indices]
@@ -495,7 +482,7 @@ class ExprMutator(ExprFunctor):
         if all(old_arg is new_arg for old_arg, new_arg in zip(op.args, args)):
             return op
         else:
-            return tvm.tirx.Call(op.ty, op.op, args, attrs=op.attrs, span=op.span)
+            return tvm.ir.Call(op.op, args, attrs=op.attrs, span=op.span, ret_ty=op.ty)
 
     def _mutate_binary_op(self, op_cls, op):
         """Helper to mutate binary operators."""

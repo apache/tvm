@@ -280,6 +280,9 @@ class ConstantFolder : public ExprMutator {
 
     if (!func || !arr_args) return {};
 
+    // tir_vars are passed as extra scalar arguments to the PrimFunc, which we cannot supply here.
+    if (call->args.size() > 2) return {};
+
     // Handle tuple output: ty_args[0] is a TupleType.
     if (const auto* tuple_ty = call->ty_args[0].as<TupleTypeNode>()) {
       return ConstEvaluateCallTIRTuple(func.value(), arr_args.value(), tuple_ty);
@@ -310,6 +313,7 @@ class ConstantFolder : public ExprMutator {
     if (!ShouldBeFolded(post_call)) return post_call;
 
     static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const auto& infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     auto* op_node = post_call->op.as<OpNode>();
 
@@ -335,15 +339,19 @@ class ConstantFolder : public ExprMutator {
     for (auto arg : post_call->args) {
       if (arg->IsInstance<VarNode>()) {
         ffi::Optional<Expr> val = LookupBinding(arg.as_or_throw<Var>());
-        if (val.defined() && val.value()->IsInstance<ShapeExprNode>()) {
+        if (val.has_value() && val.value()->IsInstance<ShapeExprNode>()) {
           new_args.push_back(val.value());
           continue;
         }
       }
       new_args.push_back(arg);
     }
-    post_call =
-        Call(post_call->op, new_args, post_call->attrs, post_call->ty_args, post_call->span);
+    Type ret_ty = Type::Missing();
+    if (post_call->ty.as<PrimTypeNode>() && !infer_type_map.count(op)) {
+      ret_ty = post_call->ty.as_or_throw<Type>();
+    }
+    post_call = Call(ret_ty, post_call->op, new_args, post_call->attrs, post_call->ty_args,
+                     post_call->span);
 
     // If we are in a dataflow block, we can fold ops.
     if (builder_->CurrentBlockIsDataFlow()) {

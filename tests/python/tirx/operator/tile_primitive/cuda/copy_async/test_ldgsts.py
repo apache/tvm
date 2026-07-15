@@ -73,7 +73,6 @@ from tvm.tirx.layout import S, TileLayout
 )
 def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     g_shape, s_shape, g_st, g_extent, thread_cnt, layoutA, layoutB, layoutS = task
-    dev = tvm.cuda(0)
 
     r_smem = list(slice(None) for i in range(len(s_shape)))
     r_gmem = list(slice(g_st[i], g_st[i] + g_extent[i]) for i in range(len(g_shape)))
@@ -107,13 +106,17 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
         A_np = np.random.rand(*g_shape).astype(np_dtype)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
-
         B_ref = B_np.copy()
         B_ref[tuple(r_gmem)] = A_np[tuple(r_gmem)]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

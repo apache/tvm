@@ -46,7 +46,7 @@ struct IntervalEntry {
   PrimExpr max_value;
 };
 
-class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const PrimExpr&)> {
+class LinearEqDetector : public ExprFunctor<LinearEqEntry(const Expr&, const PrimExpr&)> {
  public:
   explicit LinearEqDetector(Var var) : var_(var) {}
 
@@ -54,10 +54,10 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     *ret = VisitExpr(e, e);
     if (fail_) return false;
     if (!ret->base.defined()) {
-      ret->base = IntImm(var_.ty(), 0);
+      ret->base = IntImm(var_->ty.as_or_throw<PrimType>(), 0);
     }
     if (!ret->coeff.defined()) {
-      ret->coeff = IntImm(var_.ty(), 0);
+      ret->coeff = IntImm(var_->ty.as_or_throw<PrimType>(), 0);
     }
     return true;
   }
@@ -101,7 +101,7 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
   LinearEqEntry VisitExpr_(const VarNode* op, const PrimExpr& e) final {
     LinearEqEntry ret;
     if (op == var_.get()) {
-      PrimType dtype = op->ty();
+      PrimType dtype = op->ty.as_or_throw<PrimType>();
       ret.coeff = MakeConst(PrimType::Int(dtype.bits(), dtype.lanes()), 1);
     } else {
       ret.base = e;
@@ -235,17 +235,17 @@ bool DetectClipBound(const PrimExpr& cond,
       min_value = max_value;
     }
   }
-  if (!min_value.defined() && !max_value.defined()) {
+  if (!min_value.has_value() && !max_value.has_value()) {
     return false;
   }
-  if (min_value.defined()) {
+  if (min_value.has_value()) {
     if (p.min_value.defined()) {
       p.min_value = max(p.min_value, min_value.value());
     } else {
       p.min_value = min_value.value();
     }
   }
-  if (max_value.defined()) {
+  if (max_value.has_value()) {
     if (p.max_value.defined()) {
       p.max_value = min(p.max_value, max_value.value());
     } else {

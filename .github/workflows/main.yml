@@ -30,6 +30,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: CI-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
@@ -44,8 +47,13 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
+      - name: Detect environment variables
+        uses: ./.github/actions/detect-env-vars
+        id: env_vars
       - name: Build TVM wheel
         shell: bash -l {0}
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
           pip install scikit-build-core
           export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
@@ -53,7 +61,17 @@ jobs:
       - name: Install TVM from wheel
         shell: bash -l {0}
         run: |
-          pip install dist/*.whl
+          export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
+          pip install ml_dtypes
+          # Keep the source-matched tvm-ffi installed by the setup action.
+          pip install --no-deps dist/*.whl
+          python - <<'PY'
+          import os
+          from importlib.metadata import requires, version
+
+          assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
+          assert "apache-tvm-ffi>=0.1.13" in requires("apache-tvm")
+          PY
 
       - name: Test
         shell: bash -l {0}
@@ -66,7 +84,7 @@ jobs:
           python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py::test_func_with_trailing_pod_params'
       - name: Minimal Metal Compile-and-Run
         shell: bash -l {0}
-        run: >-
+        run: |
           python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py'
           python -m pytest -v -s 'tests/python/codegen/test_target_codegen_gpu_common.py'
           python -m pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum[dims0-metal]'
@@ -80,8 +98,13 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
+      - name: Detect environment variables
+        uses: ./.github/actions/detect-env-vars
+        id: env_vars
       - name: Install TVM
         shell: cmd /C call {0}
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
           pip install scikit-build-core
           set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF

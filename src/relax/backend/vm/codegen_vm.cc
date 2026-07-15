@@ -91,7 +91,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     ffi::Array<ffi::String> param_names;
     for (Var param : func->params) {
-      param_names.push_back(param->name_hint());
+      param_names.push_back(param->name_hint);
     }
 
     builder_->EmitFunction(gsymbol.value(), func->params.size(), param_names);
@@ -137,22 +137,22 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const CallNode* call_node) final {
     Call call = ffi::GetRef<Call>(call_node);
 
-    if (call_node->op == null_value_op_) {
+    if (call_node->op.same_as(null_value_op_)) {
       return Instruction::Arg::Register(Instruction::kVoidRegister);
     }
 
     // allocate dst register.
     RegName dst_reg = HasVoidType(call) ? Instruction::kVoidRegister : NewRegister();
     if (call->op.as<OpNode>()) {
-      if (call_node->op == call_builtin_with_ctx_op_) {
+      if (call_node->op.same_as(call_builtin_with_ctx_op_)) {
         // TODO(relax-team) migrate most handling of op to
         // directly map to call_builtin_with_ctx before codegen and simplify vm codegen.
         EmitCallBuiltinWithCtx(call, dst_reg);
-      } else if (call_node->op == alloc_storage_op_) {
+      } else if (call_node->op.same_as(alloc_storage_op_)) {
         EmitAllocStorage(call, dst_reg);
-      } else if (call_node->op == alloc_tensor_op_) {
+      } else if (call_node->op.same_as(alloc_tensor_op_)) {
         EmitAllocTensor(call, dst_reg);
-      } else if (call_node->op == kill_object_op_) {
+      } else if (call_node->op.same_as(kill_object_op_)) {
         dst_reg = EmitKillObject(call);
       } else {
         // every "normal" operator is lowered to a global var in the IRModule. The Attrs for those
@@ -221,7 +221,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     auto arg = builder_->ConvertConstant(op->data);
 
     if (auto tensor_ty = op->ty.as<TensorTypeNode>()) {
-      if (tensor_ty->vdevice.defined()) {
+      if (tensor_ty->vdevice.has_value()) {
         VDevice vdev = tensor_ty->vdevice.value();
         builder_->SaveMemoryScope(arg, vdev->memory_scope);
       }
@@ -242,8 +242,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return builder_->ConvertConstant(ffi::Shape(shape));
   }
 
-  Instruction::Arg VisitExpr_(const PrimExprNode* op) final {
-    PrimExpr value = ffi::GetRef<PrimExpr>(op);
+  Instruction::Arg VisitExprFallback_(const ExprNode* op) final {
+    PrimExpr value = ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>();
     if (auto* int_imm = value.as<IntImmNode>()) {
       return builder_->ConvertConstant(int_imm->value);
     } else if (auto* float_imm = value.as<FloatImmNode>()) {
@@ -354,12 +354,12 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
       args.push_back(this->VisitExpr(call_node->args[i]));
     }
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call_node->args[4].as<PrimExprNode>()) {
-      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+    if (const auto* int_imm = call_node->args[4].as<IntImmNode>()) {
+      vdevice_index = int_imm->value;
     }
     auto vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-    if (vdevice.defined()) {
+    if (vdevice.has_value()) {
       args.push_back(this->VisitExpr(StringImm(vdevice.value()->memory_scope)));
     }
     builder_->EmitCall("vm.builtin.alloc_tensor", args, dst_reg);
@@ -503,7 +503,7 @@ ffi::Module VMLink(ExecBuilder builder, Target target, ffi::Optional<ffi::Module
                    ffi::Array<ffi::Module> ext_libs,
                    ffi::Map<ffi::String, runtime::Tensor> params) {
   ffi::ObjectPtr<VMExecutable> executable = builder->Get();
-  if (!lib.defined()) {
+  if (!lib.has_value()) {
     lib = codegen::CSourceModuleCreate(";", "c", ffi::Array<ffi::String>{});
   }
   LinkModules(executable, params, lib.value(), ext_libs);

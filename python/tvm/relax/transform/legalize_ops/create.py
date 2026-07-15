@@ -20,10 +20,12 @@
 
 import numpy as np
 
-from tvm import tirx, topi
+import tvm
+from tvm import te, tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, ShapeExpr, const
+from ...expr import Expr, ShapeExpr, const
 from ...type import ShapeType
 from .common import LegalizeFunc, _try_convert_to_scalar_const, register_legalize
 
@@ -115,17 +117,42 @@ register_legalize("relax.eye_like", _eye(is_like=True, primfunc_name="eye_like")
 @register_legalize("relax.arange")
 def _arange(bb: BlockBuilder, call: Call) -> Expr:
     assert len(call.args) == 3
-    assert all(isinstance(x, tirx.PrimExpr) for x in call.args)
+    assert all(tvm.ir.is_prim_expr(x) for x in call.args)
     start, end, step = call.args
     dtype = call.attrs.dtype
 
-    def is_const_scalar(x: tirx.PrimExpr):
+    def is_const_scalar(x: tirx.Expr):
         return isinstance(x, tirx.IntImm | tirx.FloatImm)
 
     if all([is_const_scalar(x) for x in call.args]):
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)
     else:
         return bb.call_te(topi.arange, start, end, step, dtype)
+
+
+@register_legalize("relax.shape_to_tensor")
+def _shape_to_tensor(bb: BlockBuilder, call: Call) -> Expr:
+    shape = call.args[0]
+    values = shape.values if isinstance(shape, ShapeExpr) else shape.ty.values
+    if values is None:
+        return call
+    values = list(values)
+    n = len(values)
+    symbolic = [v for v in values if not isinstance(v, tirx.IntImm)]
+
+    def te_shape_to_tensor(*sym):
+        sym = list(sym)
+        resolved = [v if isinstance(v, tirx.IntImm) else sym.pop(0) for v in values]
+
+        def fcompute(i):
+            result = tirx.const(0, "int64")
+            for idx in range(n - 1, -1, -1):
+                result = tirx.if_then_else(i == idx, tirx.Cast("int64", resolved[idx]), result)
+            return result
+
+        return te.compute((n,), fcompute, name="shape_to_tensor")
+
+    return bb.call_te(te_shape_to_tensor, *symbolic, primfunc_name_hint="shape_to_tensor")
 
 
 @register_legalize("relax.hamming_window")

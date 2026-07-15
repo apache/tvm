@@ -125,7 +125,7 @@ SBlockRV TracedScheduleNode::GetSBlock(const ffi::String& name,
   GlobalVar gv;
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
-  } else if (func_working_on_.defined()) {
+  } else if (func_working_on_.has_value()) {
     gv = this->func_working_on_.value();
   } else {
     TVM_FFI_THROW(ValueError)

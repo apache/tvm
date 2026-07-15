@@ -76,7 +76,7 @@ class LazyInputMutator : public ExprMutator {
     Type new_ret_ty =
         EraseToWellDefined(func->ret_ty, [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
           if (externally_visible_vars.count(var)) {
-            return var;
+            return var.as_or_throw<PrimExpr>();
           } else {
             return std::nullopt;
           }
@@ -97,13 +97,13 @@ class LazyInputMutator : public ExprMutator {
     if (plan_) {
       Var var = ffi::GetRef<Var>(op);
       if (auto it = plan_->param_lookup.find(var); it != plan_->param_lookup.end()) {
-        auto untyped = builder_->Emit(relax::Call(plan_->fget_param,
-                                                  {
-                                                      PrimExpr(IntImm::Int64(it->second)),
-                                                      StringImm(var->name_hint()),
-                                                  }),
-                                      var->name_hint() + "_untyped");
-        return builder_->EmitMatchCast(untyped, GetType(var), var->name_hint());
+        auto untyped = builder_->Emit(Call(Type::Missing(), plan_->fget_param,
+                                           {
+                                               PrimExpr(IntImm::Int64(it->second)),
+                                               StringImm(var->name_hint),
+                                           }),
+                                      var->name_hint + "_untyped");
+        return builder_->EmitMatchCast(untyped, GetType(var), var->name_hint);
       }
     }
 
@@ -167,7 +167,8 @@ class LazyOutputMutator : public ExprMutator {
     BindingBlock end_of_func = [&]() {
       ffi::Array<Binding> propagated_params;
       for (const auto& [output_index, expr] : inline_outputs) {
-        Call fset_output_call(fset_output, {PrimExpr(IntImm::Int64(output_index)), expr});
+        Call fset_output_call(Type::Missing(), fset_output,
+                              {PrimExpr(IntImm::Int64(output_index)), expr});
         Var void_output("_void", TupleType(ffi::Array<Type>{}));
         propagated_params.push_back(VarBinding(void_output, fset_output_call));
       }
@@ -208,7 +209,8 @@ class LazyOutputMutator : public ExprMutator {
     if (plan_.has_value()) {
       if (auto it = plan_->output_lookup.find(var); it != plan_->output_lookup.end()) {
         for (auto output_index : it->second) {
-          callback(Call(plan_->fset_output, {PrimExpr(IntImm::Int64(output_index)), var}));
+          callback(Call(Type::Missing(), plan_->fset_output,
+                        {PrimExpr(IntImm::Int64(output_index)), var}));
         }
       }
     }

@@ -115,14 +115,14 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return If(guard, true_b, false_b, op->span);
   }
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) override {
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) override {
     if (known_values_.empty()) {
       return expr;
     }
     PrimExpr output =
-        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
+        tirx::Substitute(expr, [this](const tirx::Var& var) -> ffi::Optional<tvm::Expr> {
           if (auto it = known_values_.find(var); it != known_values_.end()) {
-            return it->second.expr;
+            return tvm::Expr(it->second.expr);
           } else {
             return std::nullopt;
           }
@@ -135,6 +135,13 @@ class SymbolicVarCanonicalizer : public ExprMutator {
     return output;
   }
 
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutator::VisitExprFallback_(op);
+  }
+
  private:
   struct KnownValue {
     PrimExpr expr;
@@ -145,10 +152,10 @@ class SymbolicVarCanonicalizer : public ExprMutator {
 };
 
 struct CanonicalizationPlan {
-  ffi::Map<Id, Var> replace_usage;
-  ffi::Map<Id, Var> replace_binding;
-  std::unordered_set<Id, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> bindings_to_remove;
-  ffi::Map<Id, Constant> inline_constant;
+  ffi::Map<Var, Var> replace_usage;
+  ffi::Map<Var, Var> replace_binding;
+  std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> bindings_to_remove;
+  ffi::Map<Var, Constant> inline_constant;
 };
 
 /*! \brief Utility class to identify usage location
@@ -172,15 +179,15 @@ class CanonicalizePlanner : public ExprVisitor {
     // of trivial bindings, then we can replace it with a DataflowVar.
     for (auto var : visitor.defined_inside_dataflow_) {
       if (!var.as<DataflowVarNode>() && !visitor.used_outside_home_dataflow_.count(var)) {
-        DataflowVar new_var(var->name_hint(), GetType(var));
+        DataflowVar new_var(var->name_hint, GetType(var));
 
-        plan.replace_binding.Set(var->vid, new_var);
-        plan.replace_usage.Set(var->vid, new_var);
+        plan.replace_binding.Set(var, new_var);
+        plan.replace_usage.Set(var, new_var);
       }
     }
 
     for (const auto& [var, constant] : visitor.known_bound_to_constant_) {
-      plan.inline_constant.Set(var->vid, constant);
+      plan.inline_constant.Set(var, constant);
     }
 
     for (const auto& binding_iter : visitor.trivial_bindings_) {
@@ -193,7 +200,7 @@ class CanonicalizePlanner : public ExprVisitor {
         // non-trivial binding.
         bound_to = opt.value();
       }
-      while (auto opt = plan.replace_binding.Get(bound_to->vid)) {
+      while (auto opt = plan.replace_binding.Get(bound_to)) {
         // The variable we are binding to may have already been
         // replaced, if it fell into Case 4 (Var = DataflowVar).  In
         // that case, we check against its replacement instead.
@@ -210,8 +217,8 @@ class CanonicalizePlanner : public ExprVisitor {
         //
         // For these four cases, the trivial binding can be unwrapped,
         // using the bound variable directly at the point of use.
-        plan.replace_usage.Set(bound_var->vid, bound_to);
-        plan.bindings_to_remove.insert(bound_var->vid);
+        plan.replace_usage.Set(bound_var, bound_to);
+        plan.bindings_to_remove.insert(bound_var);
       } else {
         // Case 4b: Var = DataflowVar, where the Var is used somewhere
         //          outside the DataflowBlock containing the binding
@@ -220,9 +227,9 @@ class CanonicalizePlanner : public ExprVisitor {
         // use of a DataflowVar outside of a DataflowBlock.  Instead,
         // we replace in the opposite direction, replacing the binding
         // of the DataflowVar with a binding of the Var.
-        plan.replace_binding.Set(bound_to->vid, bound_var);
-        plan.replace_usage.Set(bound_to->vid, bound_var);
-        plan.bindings_to_remove.insert(bound_var->vid);
+        plan.replace_binding.Set(bound_to, bound_var);
+        plan.replace_usage.Set(bound_to, bound_var);
+        plan.bindings_to_remove.insert(bound_var);
       }
     }
 
@@ -251,14 +258,14 @@ class CanonicalizePlanner : public ExprVisitor {
   }
 
   void VisitBindingBlock_(const BindingBlockNode* block) override {
-    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.has_value()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<BindingBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
   }
 
   void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    TVM_FFI_ICHECK(!current_block_.defined()) << "Forgetting to unset current block";
+    TVM_FFI_ICHECK(!current_block_.has_value()) << "Forgetting to unset current block";
     current_block_ = ffi::GetRef<DataflowBlock>(block);
     ExprVisitor::VisitBindingBlock_(block);
     current_block_ = ffi::Optional<BindingBlock>();
@@ -390,15 +397,15 @@ class CanonicalizePlanner : public ExprVisitor {
     // if a var is used in a dataflow block but *not* the one
     // where it was defined, it also needs to be exposed, so also we treat that as
     // used outside of a dataflow block
-    if (!inside_dataflow() ||
-        (def_blocks_.count(var_ref) &&
-         (current_block_.defined() && !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
+    if (!inside_dataflow() || (def_blocks_.count(var_ref) &&
+                               (current_block_.has_value() &&
+                                !current_block_.value().same_as(def_blocks_.at(var_ref))))) {
       used_outside_home_dataflow_.insert(ffi::GetRef<Var>(var));
     }
   }
 
   inline bool inside_dataflow() {
-    return current_block_.defined() && current_block_.value().as<DataflowBlockNode>();
+    return current_block_.has_value() && current_block_.value().as<DataflowBlockNode>();
   }
 
   ffi::Optional<BindingBlock> current_block_;
@@ -426,14 +433,14 @@ class BindingCanonicalizer : public ExprMutator {
   explicit BindingCanonicalizer(CanonicalizationPlan plan) : plan_(plan) {}
 
   void VisitBinding(const Binding& binding) override {
-    if (!plan_.bindings_to_remove.count(binding->var->vid)) {
+    if (!plan_.bindings_to_remove.count(binding->var)) {
       ExprMutator::VisitBinding(binding);
     }
   }
 
   Var VisitVarDef(const Var& var) override {
     Var new_var = var;
-    while (auto opt = plan_.replace_binding.Get(new_var->vid)) {
+    while (auto opt = plan_.replace_binding.Get(new_var)) {
       new_var = opt.value();
     }
 
@@ -442,10 +449,10 @@ class BindingCanonicalizer : public ExprMutator {
 
   Expr VisitExpr_(const VarNode* var) override {
     Var new_var = ffi::GetRef<Var>(var);
-    while (auto opt = plan_.replace_usage.Get(new_var->vid)) {
+    while (auto opt = plan_.replace_usage.Get(new_var)) {
       new_var = opt.value();
     }
-    if (auto opt = plan_.inline_constant.Get(new_var->vid)) {
+    if (auto opt = plan_.inline_constant.Get(new_var)) {
       return VisitExpr(opt.value());
     }
 

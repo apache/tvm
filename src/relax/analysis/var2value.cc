@@ -74,12 +74,12 @@ class Name2BindingAnalysis : public relax::ExprVisitor {
   // so we use standard container for internal usage.
   std::map<ffi::String, ffi::Array<Binding>> name2bindings_;
   void VisitBinding_(const VarBindingNode* binding) override {
-    const auto& vname = binding->var->name_hint();
+    const auto& vname = binding->var->name_hint;
     name2bindings_[vname].push_back(ffi::GetRef<VarBinding>(binding));
   }
 
   void VisitBinding_(const MatchCastNode* binding) override {
-    const auto& vname = binding->var->name_hint();
+    const auto& vname = binding->var->name_hint;
     name2bindings_[vname].push_back(ffi::GetRef<MatchCast>(binding));
   }
 };

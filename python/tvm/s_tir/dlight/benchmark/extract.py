@@ -220,7 +220,7 @@ def extract_all_func_info_from_relax(
         if isinstance(func, tvm.relax.Function):
             for block in func.body.blocks:
                 for binding in block.bindings:
-                    if isinstance(binding.value, tvm.relax.expr.Call):
+                    if isinstance(binding.value, tvm.ir.Call):
                         raw_args = binding.value.args
                         functor = raw_args[0]
                         if isinstance(functor, tvm.ir.GlobalVar) and isinstance(
@@ -243,7 +243,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     prim_func_name: str,
     func: tvm.tirx.PrimFunc,
     *,
-    func_args: list[tuple[tuple[tvm.relax.expr.Call | int, ...], str]] | None = None,
+    func_args: list[tuple[tuple[tvm.ir.Call | int, ...], str]] | None = None,
     dym_var_dict: dict[str, str] | None = None,
     weight: int = 1,
     sample_number: int = 5,
@@ -261,7 +261,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
         The name of the prim function.
     func: tvm.tirx.PrimFunc
         The PrimFunc to be extracted.
-    func_args: Optional[List[Tuple[Tuple[Union[tvm.relax.expr.Call, int], ...], str]]]
+    func_args: Optional[List[Tuple[Tuple[Union[tvm.ir.Call, int], ...], str]]]
         The arguments of the prim function, including both static and dynamic shape arguments.
         Given in format [ ..., ((1, n, 128), "float32"), ... ].
         If not given, the arguments will be extracted from the PrimFunc.

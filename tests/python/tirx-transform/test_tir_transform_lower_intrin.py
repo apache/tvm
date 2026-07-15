@@ -25,7 +25,7 @@ from tvm.testing import env
 
 def lower_intrin(params, stmt):
     """wrapper to call transformation in stmt"""
-    lower_expr = isinstance(stmt, tvm.tirx.PrimExpr)
+    lower_expr = tvm.ir.is_prim_expr(stmt)
     stmt = tvm.tirx.Evaluate(stmt) if lower_expr else stmt
     mod = tvm.IRModule.from_expr(
         tvm.tirx.PrimFunc(params, stmt).with_attr("target", tvm.target.Target("llvm"))
@@ -84,6 +84,34 @@ def check_value(expr, variables, data, fref):
     f(*arrays, c)
     cref = np.array([fref(*row) for row in data])
     np.testing.assert_equal(c.numpy(), cref)
+
+
+def test_lower_nested_access_ptr():
+    data = tvm.tirx.Var("data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    inner = tvm.tirx.tvm_access_ptr("float32", data, 2, 16, 1)
+    outer = tvm.tirx.tvm_access_ptr("float32", inner, 3, 8, 1)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", outer))
+    mod = tvm.IRModule.from_expr(
+        tvm.tirx.PrimFunc([data], body).with_attr("target", tvm.target.Target("llvm"))
+    )
+
+    lowered = tvm.tirx.transform.LowerIntrin()(mod)["main"]
+    access_ptr_calls = []
+    address_calls = []
+
+    def collect(node):
+        if isinstance(node, tvm.ir.Call):
+            if node.op.name == "tirx.tvm_access_ptr":
+                access_ptr_calls.append(node)
+            elif node.op.name == "tirx.address_of":
+                address_calls.append(node)
+
+    tvm.tirx.stmt_functor.post_order_visit(lowered.body, collect)
+    assert not access_ptr_calls
+    assert len(address_calls) == 1
+    load = address_calls[0].args[0]
+    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert int(tvm.arith.Analyzer().simplify(load.indices[0])) == 5
 
 
 def get_ref_data():

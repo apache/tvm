@@ -39,7 +39,7 @@ namespace tvm {
 namespace tirx {
 
 Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
-  auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
+  auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return Var(buffer_var->name_hint, PointerType(ptr_type->element_type, storage_scope),
              buffer_var->span);
@@ -52,7 +52,7 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
   }
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
+Expr UpdatePointerStorageScope::VisitExpr_(const VarNode* op) {
   auto it = new_var_remap_.find(op);
   if (it == new_var_remap_.end()) {
     return ffi::GetRef<Var>(op);
@@ -100,7 +100,7 @@ Stmt UpdatePointerStorageScope::VisitStmt_(const DeclBufferNode* op) {
   return UpdateBufferAccess(node);
 }
 
-PrimExpr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
+Expr UpdatePointerStorageScope::VisitExpr_(const BufferLoadNode* op) {
   auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
   return UpdateBufferAccess(node);
 }

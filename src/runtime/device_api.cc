@@ -241,10 +241,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 using namespace tvm::runtime;
 
-int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFFIObjectHandle* func) {
-  return TVMFFIEnvModLookupFromImports(mod_node, func_name, func);
-}
-
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
                                int dtype_bits_hint) {
   DLDevice dev;
@@ -264,13 +260,5 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
   DeviceAPIManager::Get(dev)->FreeWorkspace(dev, ptr);
-  return 0;
-}
-
-int TVMBackendRunOnce(void** handle, int (*f)(void*), void* cdata, int nbytes) {
-  if (*handle == nullptr) {
-    *handle = reinterpret_cast<void*>(1);
-    return (*f)(cdata);
-  }
   return 0;
 }

@@ -52,7 +52,7 @@ class HasInitBlock : public ScheduleError {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_}; }
 
   static void Check(const IRModule& mod, const SBlock& block) {
-    if (block->init.defined()) {
+    if (block->init.has_value()) {
       throw HasInitBlock(mod, block);
     }
   }
@@ -305,7 +305,7 @@ class BaseInliner : public StmtExprMutator {
     AddBuffersInBlockSignature(inlined_block.get());
   }
 
-  PrimExpr VisitExpr_(const VarNode* var) final {
+  Expr VisitExpr_(const VarNode* var) final {
     CheckOpaqueAccess(var);
     return StmtExprMutator::VisitExpr_(var);
   }
@@ -515,8 +515,10 @@ class ComputeInliner : public BaseInliner {
     for (size_t i = 0; i < idx_vars_.size(); ++i) {
       idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].ty());
     }
-    auto inverse_iter_map = arith::InverseAffineIterMap(
-        res->indices, ffi::Array<PrimExpr>(idx_vars_.begin(), idx_vars_.end()));
+    ffi::Array<PrimExpr> prim_idx_vars;
+    prim_idx_vars.reserve(idx_vars_.size());
+    for (const Var& var : idx_vars_) prim_idx_vars.push_back(var.as_or_throw<PrimExpr>());
+    auto inverse_iter_map = arith::InverseAffineIterMap(res->indices, prim_idx_vars);
     for (const auto& iter : producer_block->iter_vars) {
       if (is_const_int(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
         // fallback mapping for constant iters
@@ -531,7 +533,7 @@ class ComputeInliner : public BaseInliner {
   using BaseInliner::VisitExpr_;
   using BaseInliner::VisitStmt_;
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+  Expr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
     if (!load->buffer.same_as(inlined_buffer_)) {
       return load;
@@ -577,7 +579,7 @@ class ReverseComputeInliner : public BaseInliner {
     explicit Substituter(ReverseComputeInliner* self) : self_(self) {}
 
    private:
-    PrimExpr VisitExpr_(const VarNode* var) final {
+    Expr VisitExpr_(const VarNode* var) final {
       auto it = self_->idx_sub_.find(var);
       if (it == self_->idx_sub_.end()) {
         return ffi::GetRef<Var>(var);
@@ -585,7 +587,7 @@ class ReverseComputeInliner : public BaseInliner {
       return (*it).second;
     }
 
-    PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+    Expr VisitExpr_(const BufferLoadNode* _load) final {
       BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
       return load->buffer.same_as(self_->inlined_buffer_) ? self_->producer_rhs_ : load;
     }
@@ -598,7 +600,7 @@ class ReverseComputeInliner : public BaseInliner {
     explicit RecursionResolver(ReverseComputeInliner* self) : self_(self) {}
 
    private:
-    PrimExpr VisitExpr_(const VarNode* var) final {
+    Expr VisitExpr_(const VarNode* var) final {
       auto it = self_->idx_sub_.find(var);
       if (it == self_->idx_sub_.end()) {
         return ffi::GetRef<Var>(var);
@@ -606,7 +608,7 @@ class ReverseComputeInliner : public BaseInliner {
       return (*it).second;
     }
 
-    PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+    Expr VisitExpr_(const BufferLoadNode* _load) final {
       BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
       return load->buffer.same_as(self_->inlined_buffer_)
                  ? StmtExprMutator::VisitExpr(
@@ -681,7 +683,7 @@ class ReverseComputeInliner : public BaseInliner {
 
     const BufferStoreNode* producer_store = nullptr;
     if (const auto* producer_if = producer_block_->body.as<tirx::IfThenElseNode>()) {
-      if (producer_if->else_case.defined()) {
+      if (producer_if->else_case.has_value()) {
         return false;
       }
       producer_store = producer_if->then_case.as<BufferStoreNode>();
@@ -736,14 +738,14 @@ class ReverseComputeInliner : public BaseInliner {
       bind(producer_inner_loop);
     }
     // Substitute the consumer block iters with the corresponding iters in the producer blocks
-    PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_);
+    PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_).as_or_throw<PrimExpr>();
     // Simplify the predicate using the producer block iter domains
     predicate = analyzer_->Simplify(predicate);
     if (is_one(predicate)) {
       return producer_block_realize;
     }
     if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
-      if (!if_->else_case.defined()) {
+      if (!if_->else_case.has_value()) {
         PrimExpr if_predicate = analyzer_->Simplify(if_->condition);
         if (!ffi::StructuralEqual()(predicate, if_predicate)) {
           predicate = analyzer_->Simplify(predicate && if_->condition);
@@ -817,7 +819,7 @@ class ReverseComputeInliner : public BaseInliner {
   Stmt ReplaceInlinedBuffer(BufferStore producer) {
     // "producer->value" may contain the buffer that is inlined in cases of reduction,
     // so we need to resolve the recursion first
-    producer_rhs_ = RecursionResolver(this)(producer->value);
+    producer_rhs_ = RecursionResolver(this)(producer->value).as_or_throw<PrimExpr>();
     return Substituter(this)(ffi::GetRef<BufferStore>(inlined_store_));
   }
 
@@ -1274,7 +1276,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
     InitSubstituter(const Buffer& target_buffer, PrimExpr identity_elem)
         : target_buffer_(target_buffer), identity_elem_(identity_elem) {}
 
-    PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    Expr VisitExpr_(const BufferLoadNode* op) final {
       BufferLoad load = ExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
       if (load->buffer.same_as(target_buffer_)) {
         return identity_elem_;
@@ -1292,7 +1294,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
 
   // Substitute reduction buffer load with identity element
   InitSubstituter init_subst(inlined_buffer_, identity_elem);
-  PrimExpr init_epilogue = init_subst(epilogue_expression_);
+  PrimExpr init_epilogue = init_subst(epilogue_expression_).as_or_throw<PrimExpr>();
 
   // Apply index mapping
   init_epilogue = Substitute(init_epilogue, var_map);
@@ -1328,7 +1330,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
           ReductionUpdateReplacer(const Buffer& old_buf, const Buffer& new_buf)
               : old_buffer_(old_buf), new_buffer_(new_buf) {}
 
-          PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+          Expr VisitExpr_(const BufferLoadNode* op) final {
             BufferLoad load = ExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
             if (load->buffer.same_as(old_buffer_)) {
               return BufferLoad(new_buffer_, load->indices);
@@ -1342,7 +1344,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         };
 
         ReductionUpdateReplacer reduction_replacer(old_buffer_, new_buffer_);
-        PrimExpr reduction_update = reduction_replacer(store->value);
+        PrimExpr reduction_update = reduction_replacer(store->value).as_or_throw<PrimExpr>();
 
         // Generalized approach: apply epilogue expression with reduction buffer load replaced
         // If reduction buffer load's direct parent is Add and the other operand is not a reduction
@@ -1356,7 +1358,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
                 replacement_(replacement),
                 found_target_load_(false) {}
 
-          PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+          Expr VisitExpr_(const BufferLoadNode* op) final {
             BufferLoad load = ExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
             if (load->buffer.same_as(target_buffer_)) {
               found_target_load_ = true;
@@ -1366,16 +1368,16 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
             return load;
           }
 
-          PrimExpr VisitExpr_(const AddNode* op) final {
+          Expr VisitExpr_(const AddNode* op) final {
             // Visit children first to see if we find the target buffer load
             bool found_before = found_target_load_;
             found_target_load_ = false;
 
-            PrimExpr a = VisitExpr(op->a);
+            PrimExpr a = VisitPrimExpr(op->a);
             bool found_in_a = found_target_load_;
             found_target_load_ = false;
 
-            PrimExpr b = VisitExpr(op->b);
+            PrimExpr b = VisitPrimExpr(op->b);
             bool found_in_b = found_target_load_;
 
             // If target buffer load was found in this Add node
@@ -1419,7 +1421,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
         };
 
         GeneralizedEpilogueApplier applier(old_buffer_, reduction_buffer_, reduction_update);
-        PrimExpr new_value = applier(epilogue_expression_);
+        PrimExpr new_value = applier(epilogue_expression_).as_or_throw<PrimExpr>();
 
         // Apply index mapping
         new_value = Substitute(new_value, var_map_);
@@ -1429,7 +1431,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
       return store;
     }
 
-    PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    Expr VisitExpr_(const BufferLoadNode* op) final {
       BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
       if (load->buffer.same_as(old_buffer_)) {
         return BufferLoad(new_buffer_, load->indices);

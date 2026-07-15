@@ -177,7 +177,27 @@ def test_relax_dynamo_dynamic():
         x = torch.randn(s, 100)
         y = torch.randn(s, 100)
         with torch.no_grad():
-            tvm.testing.assert_allclose(opt_func(x, y), opt_func(x, y))
+            tvm.testing.assert_allclose(Func1(x, y), opt_func(x, y))
+
+
+def test_relax_dynamo_dynamic_sym_input_reference():
+    class ViewModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv2d(3, 4, kernel_size=3, padding=1)
+
+        def forward(self, x):
+            return self.conv(x).view(x.size(0), -1)
+
+    model = ViewModel()
+    opt_model = torch.compile(model, backend=relax_dynamo(), dynamic=True)
+
+    with torch.no_grad():
+        for s in (1, 2, 4):
+            inp = torch.randn(s, 3, 8, 8)
+            tvm.testing.assert_allclose(
+                opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
+            )
 
 
 def test_subgraph_capture():

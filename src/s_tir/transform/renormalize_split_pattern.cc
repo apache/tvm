@@ -56,9 +56,9 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
 
   using IRMutatorWithAnalyzer::VisitExpr_;
 
-  PrimExpr VisitExpr_(const FloorDivNode* op) final {
-    PrimExpr a = VisitExpr(op->a);
-    PrimExpr b = VisitExpr(op->b);
+  Expr VisitExpr_(const FloorDivNode* op) final {
+    PrimExpr a = VisitPrimExpr(op->a);
+    PrimExpr b = VisitPrimExpr(op->b);
     PrimExpr ret = floordiv(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x, y, z;
@@ -139,15 +139,15 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  PrimExpr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
+  Expr VisitExpr_(const LENode* op) { return this->VisitExpr(Not(op->b < op->a)); }
 
-  PrimExpr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
+  Expr VisitExpr_(const GTNode* op) { return this->VisitExpr(op->b < op->a); }
 
-  PrimExpr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
+  Expr VisitExpr_(const GENode* op) { return this->VisitExpr(Not(op->a < op->b)); }
 
-  PrimExpr VisitExpr_(const LTNode* op) {
-    PrimExpr a = VisitExpr(op->a);
-    PrimExpr b = VisitExpr(op->b);
+  Expr VisitExpr_(const LTNode* op) {
+    PrimExpr a = VisitPrimExpr(op->a);
+    PrimExpr b = VisitPrimExpr(op->b);
     PrimExpr ret = tirx::LT(a, b);
     // Pattern var to match any expression
     PVar<PrimExpr> x;
@@ -158,8 +158,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     return ret;
   }
 
-  PrimExpr VisitExpr_(const NotNode* op) {
-    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
+  Expr VisitExpr_(const NotNode* op) {
+    PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<PrimExpr>();
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
     TRY_REWRITE(!(!x), x);
@@ -183,7 +183,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   PrimExpr RecursiveRewrite(const PrimExpr& x) {
     if (recur_depth_ >= kMaxRecurDepth) return x;
     ++recur_depth_;
-    PrimExpr res = this->VisitExpr(x);
+    PrimExpr res = this->VisitPrimExpr(x);
     --recur_depth_;
     return res;
   }

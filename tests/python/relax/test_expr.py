@@ -42,10 +42,15 @@ def _check_json_roundtrip(x):
     return xret
 
 
+def _check_type_missing(ty):
+    assert isinstance(ty, tvm.ir.Type)
+    assert ty.is_missing()
+
+
 def test_var() -> None:
     v0 = rx.Var("v0")
     assert v0.name_hint == "v0"
-    assert v0.ty is None
+    _check_type_missing(v0.ty)
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
     assert v1.name_hint == "v1"
@@ -67,7 +72,7 @@ def test_relax_expr_ty_running_example() -> None:
     assert x.ty.ndim == 2
 
     call = rx.op.add(x, x)
-    assert call.ty is None
+    _check_type_missing(call.ty)
 
     bb = rx.BlockBuilder()
     normalized = bb.normalize(call)
@@ -79,7 +84,7 @@ def test_relax_expr_ty_running_example() -> None:
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
     assert v0.name_hint == "v0"
-    assert v0.ty is None
+    _check_type_missing(v0.ty)
 
     shape = [54, 96]
     v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
@@ -122,7 +127,7 @@ def test_tuple_ty_requires_fields_with_known_ty():
     v1 = rx.Var("v1")
     tup = rx.Tuple((v0, v1))
 
-    assert tup.ty is None
+    _check_type_missing(tup.ty)
 
 
 def test_match_cast() -> None:
@@ -328,14 +333,17 @@ def test_call():
     assert call.args[0].same_as(arg)
 
 
-def test_call_raises_error_for_invalid_function():
-    """relax::Call requires the function to have FuncType"""
+def test_call_accepts_core_expr_operator():
+    """relax.Call aliases the core ir.Call constructor."""
     dtype = tvm.ir.PrimType("int32")
     func = rx.Var("func", dtype)
     arg = rx.Var("arg", dtype)
 
-    with pytest.raises(ValueError):
-        rx.Call(func, [arg])
+    call = rx.Call(func, [arg])
+    assert call.op.same_as(func)
+    assert len(call.args) == 1
+    assert call.args[0].same_as(arg)
+    _check_type_missing(call.ty)
 
 
 def test_call_raises_error_for_missing_operator():

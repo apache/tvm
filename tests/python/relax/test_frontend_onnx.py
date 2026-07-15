@@ -50,6 +50,17 @@ bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
 
 
+def collect_relax_call_ops(func):
+    call_ops = set()
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            call_ops.add(expr.op.name)
+
+    relax.analysis.post_order_visit(func.body, _visit)
+    return call_ops
+
+
 def generate_random_inputs(
     model: ModelProto, inputs: dict[str, np.ndarray] | None = None
 ) -> dict[str, np.ndarray]:
@@ -656,6 +667,86 @@ def test_div_integer_constant_zero_divisor_raises_valueerror():
         ValueError, match="ONNX Div with integer inputs encountered divisor value 0"
     ):
         from_onnx(model, opset=18, keep_params_in_input=False)
+
+
+def test_div_integer_constant_folding_truncates_toward_zero():
+    a = make_constant_node("a", TensorProto.INT64, [2], [-5, 5])
+    b = make_constant_node("b", TensorProto.INT64, [2], [2, 2])
+    node = helper.make_node("Div", ["a", "b"], ["y"])
+    graph = helper.make_graph(
+        [a, b, node],
+        "div_integer_constant",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.INT64, [2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
+
+    tvm_model = from_onnx(model, opset=13)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2,), dtype="int64"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const([-2, 2], "int64")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize(
+    ("input_size", "divisor_shape", "offset"),
+    [(386, [], None), (384, [1], 2)],
+)
+def test_div_integer_primexpr_folding_truncates_toward_zero(input_size, divisor_shape, offset):
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [0])
+    dim = helper.make_node("Gather", ["x_shape", "axis"], ["dim"])
+    nodes = [shape, axis, dim]
+    dividend = "dim"
+    if offset is not None:
+        offset_node = make_constant_node("offset", TensorProto.INT64, [], [offset])
+        shifted_dim = helper.make_node("Add", ["dim", "offset"], ["shifted_dim"])
+        nodes.extend([offset_node, shifted_dim])
+        dividend = "shifted_dim"
+
+    divisor = make_constant_node("divisor", TensorProto.INT64, divisor_shape, [3])
+    end = helper.make_node("Div", [dividend, "divisor"], ["end"])
+    starts = make_constant_node("starts", TensorProto.INT64, [1], [0])
+    axes = make_constant_node("axes", TensorProto.INT64, [1], [0])
+    steps = make_constant_node("steps", TensorProto.INT64, [1], [1])
+    slice_node = helper.make_node("Slice", ["x", "starts", "end", "axes", "steps"], ["y"])
+    nodes.extend([divisor, end, starts, axes, steps, slice_node])
+
+    graph = helper.make_graph(
+        nodes,
+        "div_integer_primexpr",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [input_size])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [128])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
+
+    tvm_model = from_onnx(model, opset=13)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((input_size,), dtype="float32"),
+        ) -> R.Tensor((128,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((128,), dtype="float32") = R.strided_slice(
+                    x, axes=[0], begin=[0], end=[128], strides=[1], assume_inbound=False
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("int_mode", [True, False])
@@ -3808,8 +3899,8 @@ def test_dynamic_squeeze(axis, A, B):
             x: R.Tensor((1, "A", "B"), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("A", "B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B), dtype="float32") = R.squeeze(x, axis=[0])
@@ -3928,12 +4019,14 @@ def test_dynamic_shape_squeeze(axis):
     assert len(tvm_model["main"].attrs["params"]) == 1
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    # TVMScript cannot currently round-trip this SizeVar dataflow binding.
-    a = tvm.tirx.SizeVar("A", "int64")
+    # Use an ordinary symbolic Var for the dynamic shape binding.
+    a = tvm.tirx.Var("A", "int64")
     x = relax.Var("x", relax.TensorType([a], "float32"))
     axes = relax.Var("axes", relax.TensorType([1], "int64"))
     gv = relax.Var("gv", tvm.ir.PrimType("int64"))
     body = relax.SeqExpr([relax.DataflowBlock([relax.VarBinding(gv, a)])], gv)
+    # Match the importer boundary, where BlockBuilder populates the SeqExpr result type.
+    body = relax.BlockBuilder().normalize(body)
     expected_func = relax.Function([x, axes], body, tvm.ir.PrimType("int64")).with_attrs(
         {"num_input": 1, "global_symbol": "main"}
     )
@@ -4352,6 +4445,254 @@ def test_rms_norm():
 
     model = helper.make_model(graph, producer_name="rms_norm_fp16_test")
     check_correctness(model, opset=23, rtol=1e-2, atol=1e-2)
+
+
+def _make_group_norm_expected_ir(
+    input_shape: list[int],
+    scale_shape: list[int],
+    bias_shape: list[int],
+    num_groups: int,
+    opset: int = 21,
+    dtype: str = "float32",
+    stash_type: int = 1,
+):
+    input_shape = tuple(input_shape)
+    scale_shape = tuple(scale_shape)
+    bias_shape = tuple(bias_shape)
+    axes = list(range(2, len(input_shape)))
+    epsilon = float(np.float32(1e-5))
+    affine_shape = (input_shape[1],) + (1,) * (len(input_shape) - 2)
+
+    if opset == 18:
+        channels = input_shape[1]
+        channels_per_group = channels // num_groups
+
+        @I.ir_module
+        class ExpectedGroupNormOpset18:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor((num_groups, 1), dtype=dtype) = R.reshape(
+                        scale, R.shape([num_groups, 1])
+                    )
+                    lv1: R.Tensor((num_groups, channels_per_group), dtype=dtype) = R.broadcast_to(
+                        lv, R.shape([num_groups, channels_per_group])
+                    )
+                    lv2: R.Tensor((channels,), dtype=dtype) = R.reshape(lv1, R.shape([channels]))
+                    lv3: R.Tensor((num_groups, 1), dtype=dtype) = R.reshape(
+                        bias, R.shape([num_groups, 1])
+                    )
+                    lv4: R.Tensor((num_groups, channels_per_group), dtype=dtype) = R.broadcast_to(
+                        lv3, R.shape([num_groups, channels_per_group])
+                    )
+                    lv5: R.Tensor((channels,), dtype=dtype) = R.reshape(lv4, R.shape([channels]))
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.nn.group_norm(
+                        input,
+                        lv2,
+                        lv5,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                    )
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset18
+
+    if opset == 21 and stash_type == 1 and dtype != "float32":
+
+        @I.ir_module
+        class ExpectedGroupNormOpset21Stash:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor(input_shape, dtype="float32") = R.astype(input, dtype="float32")
+                    lv1: R.Tensor(scale_shape, dtype="float32") = R.astype(scale, dtype="float32")
+                    lv2: R.Tensor(scale_shape, dtype="float32") = R.ones_like(lv1)
+                    lv3: R.Tensor(bias_shape, dtype="float32") = R.astype(bias, dtype="float32")
+                    lv4: R.Tensor(bias_shape, dtype="float32") = R.zeros_like(lv3)
+                    lv5: R.Tensor(input_shape, dtype="float32") = R.nn.group_norm(
+                        lv,
+                        lv2,
+                        lv4,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                        center=False,
+                        scale=False,
+                    )
+                    lv6: R.Tensor(input_shape, dtype=dtype) = R.astype(lv5, dtype=dtype)
+                    lv7: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        scale, R.shape(affine_shape)
+                    )
+                    lv8: R.Tensor(input_shape, dtype=dtype) = R.multiply(lv6, lv7)
+                    lv9: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        bias, R.shape(affine_shape)
+                    )
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.add(lv8, lv9)
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset21Stash
+
+    if opset == 21:
+
+        @I.ir_module
+        class ExpectedGroupNormOpset21:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor(scale_shape, dtype=dtype) = R.ones_like(scale)
+                    lv1: R.Tensor(bias_shape, dtype=dtype) = R.zeros_like(bias)
+                    lv2: R.Tensor(input_shape, dtype=dtype) = R.nn.group_norm(
+                        input,
+                        lv,
+                        lv1,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                        center=False,
+                        scale=False,
+                    )
+                    lv3: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        scale, R.shape(affine_shape)
+                    )
+                    lv4: R.Tensor(input_shape, dtype=dtype) = R.multiply(lv2, lv3)
+                    lv5: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        bias, R.shape(affine_shape)
+                    )
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.add(lv4, lv5)
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset21
+
+    raise AssertionError(f"No GroupNormalization expected IR for opset={opset}")
+
+
+def test_group_norm():
+    def verify_group_norm(
+        input_shape: list[int],
+        scale_shape: list[int],
+        bias_shape: list[int],
+        num_groups: int,
+        expected,
+        opset: int = 21,
+        dtype: int = TensorProto.FLOAT,
+        stash_type: int = 1,
+    ):
+        attrs = {"num_groups": num_groups, "epsilon": 1e-5}
+        if opset == 21:
+            attrs["stash_type"] = stash_type
+
+        node = helper.make_node(
+            "GroupNormalization", ["input", "scale", "bias"], ["output"], **attrs
+        )
+        graph = helper.make_graph(
+            [node],
+            "group_norm_test",
+            inputs=[
+                helper.make_tensor_value_info("input", dtype, list(input_shape)),
+                helper.make_tensor_value_info("scale", dtype, list(scale_shape)),
+                helper.make_tensor_value_info("bias", dtype, list(bias_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("output", dtype, list(input_shape))],
+        )
+
+        model = helper.make_model(
+            graph,
+            producer_name="group_norm_test",
+            opset_imports=[helper.make_opsetid("", opset)],
+        )
+        tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+        tvm_model["main"] = tvm_model["main"].without_attr("params")
+        expected = tvm.IRModule(expected.functions)
+        for gv in expected.get_global_vars():
+            if gv.name_hint != "main":
+                expected.update_func(gv, tvm_model[gv.name_hint])
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    for input_shape, scale_shape, bias_shape, num_groups, opset, dtype, dtype_str, stash_type in [
+        ([1, 4, 2, 2], [2], [2], 2, 18, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 2, 2], [4], [4], 2, 21, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 8], [4], [4], 2, 21, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 2, 2], [4], [4], 2, 21, TensorProto.FLOAT16, "float16", 1),
+    ]:
+        verify_group_norm(
+            input_shape,
+            scale_shape,
+            bias_shape,
+            num_groups,
+            _make_group_norm_expected_ir(
+                input_shape,
+                scale_shape,
+                bias_shape,
+                num_groups,
+                opset=opset,
+                dtype=dtype_str,
+                stash_type=stash_type,
+            ),
+            opset=opset,
+            dtype=dtype,
+            stash_type=stash_type,
+        )
+
+    for bad_stash_type in [0, 10, 11, 16]:
+        with pytest.raises(ValueError, match="stash_type=1"):
+            verify_group_norm(
+                [1, 4, 2, 2],
+                [4],
+                [4],
+                2,
+                _make_group_norm_expected_ir(
+                    [1, 4, 2, 2],
+                    [4],
+                    [4],
+                    2,
+                    opset=21,
+                    dtype="float16",
+                    stash_type=1,
+                ),
+                opset=21,
+                dtype=TensorProto.FLOAT16,
+                stash_type=bad_stash_type,
+            )
+
+    with pytest.raises(ValueError, match="currently only supports float32"):
+        verify_group_norm(
+            [1, 4, 2, 2],
+            [2],
+            [2],
+            2,
+            _make_group_norm_expected_ir(
+                [1, 4, 2, 2],
+                [2],
+                [2],
+                2,
+                opset=18,
+                dtype="float16",
+            ),
+            opset=18,
+            dtype=TensorProto.FLOAT16,
+        )
 
 
 # TODO Enable dynamism
@@ -4876,7 +5217,7 @@ def _make_composite_reduce_expected_ir(
     def expected_input_shape(shape):
         if not dynamic:
             return tuple(shape)
-        return tuple(tvm.tirx.SizeVar(f"reduce_dim_{i}", "int64") for i in range(len(shape)))
+        return tuple(f"reduce_dim_{i}" for i in range(len(shape)))
 
     axis = None if not axes else tuple(axes)
     parser_vars = {
@@ -5245,7 +5586,7 @@ def test_topk(axis: int, largest: int):
     )
     model = helper.make_model(graph, producer_name="topk_test")
 
-    check_correctness(model)
+    check_correctness(model, check_dtypes=True)
 
 
 def test_expand():
@@ -5331,12 +5672,25 @@ def test_expand():
             in_: R.Tensor((1, 32, 32), dtype="float32"),
             in_2: R.Tensor(("batch", 32, 32), dtype="float32"),
         ) -> R.Tensor(("batch", 32, 32), dtype="float32"):
-            batch = T.int64(is_size_var=True)
+            batch = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 32, 32), dtype="float32") = R.broadcast_to(
                     in_, R.shape([batch, 32, 32])
                 )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedHigherRankSamePaddedShape:
+        @R.function
+        def main(
+            in_: R.Tensor((1,), dtype="float32"),
+            in_2: R.Tensor((1, 1), dtype="float32"),
+        ) -> R.Tensor((1, 1), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 1), dtype="float32") = R.broadcast_to(in_, R.shape([1, 1]))
                 R.output(gv)
             return gv
 
@@ -5347,6 +5701,12 @@ def test_expand():
     )
     _assert_expand_dynamic_shapeexpr_ir(
         "expand_with_dynamic_dim", [1, 32, 32], ["batch", 32, 32], ExpectedDynamicShape
+    )
+    _assert_expand_dynamic_shapeexpr_ir(
+        "expand_with_higher_rank_same_padded_shape",
+        [1],
+        [1, 1],
+        ExpectedHigherRankSamePaddedShape,
     )
 
 
@@ -5521,6 +5881,29 @@ def test_constantofshape_default_value():
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_constantofshape_initializer_shape_with_keep_params_in_input():
+    shape_init = helper.make_tensor("shape", TensorProto.INT64, [1], [3])
+    node = helper.make_node(
+        "ConstantOfShape",
+        ["shape"],
+        ["y"],
+        value=helper.make_tensor("value", TensorProto.INT64, [1], [1]),
+    )
+    graph = helper.make_graph(
+        [node],
+        "constantofshape_initializer_shape_test",
+        inputs=[helper.make_tensor_value_info("shape", TensorProto.INT64, [1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [3])],
+        initializer=[shape_init],
+    )
+    model = helper.make_model(graph, producer_name="constantofshape_initializer_shape_test")
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    assert tuple(dim.value for dim in tvm_model["main"].ret_ty.shape.values) == (3,)
+    assert tvm_model["main"].ret_ty.dtype == "int64"
 
 
 def test_slice():
@@ -5884,7 +6267,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, 10]) = R.shape([A, 10])
@@ -5900,8 +6283,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
@@ -5917,7 +6300,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
@@ -5933,9 +6316,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
@@ -5966,7 +6349,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
@@ -5982,8 +6365,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
@@ -5999,7 +6382,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
@@ -6015,9 +6398,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
@@ -6048,7 +6431,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
@@ -6064,8 +6447,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, 5]) = R.shape([B, 5])
@@ -6081,7 +6464,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([10, C]) = R.shape([10, C])
@@ -6097,9 +6480,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, C]) = R.shape([B, C])
@@ -6277,9 +6660,18 @@ def test_attention(dynamic):
     )
 
 
-def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=14):
+def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=14, axes=None):
     len_dim = len(pads) // 2
     np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
+
+    if axes is not None:
+        rank = len(input_shape)
+        full_pads = [(0, 0)] * rank
+        for i, axis in enumerate(axes):
+            axis = axis if axis >= 0 else axis + rank
+            full_pads[axis] = np_pads[i]
+        np_pads = full_pads
+
     if mode == "constant":
         out_shape = np.pad(
             np.empty(input_shape, dtype=np.float32),
@@ -6294,6 +6686,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
     input_shape = tuple(input_shape)
     out_shape = tuple(out_shape)
     pads_shape = (len(pads),)
+    axes_shape = None if axes is None else (len(axes),)
 
     if mode == "constant" and opset >= 11:
 
@@ -6455,6 +6848,60 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         return ExpectedPadEdgeAttrs
 
+    if mode == "wrap" and opset >= 19:
+        if axes is None:
+
+            @I.ir_module
+            class ExpectedPadWrapWithInputs:
+                @T.prim_func(private=True, s_tir=True)
+                def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                    T.evaluate(0)
+
+                @R.function
+                def main(
+                    input: R.Tensor(input_shape, dtype="float32"),
+                    pads: R.Tensor(pads_shape, dtype="int64"),
+                ) -> R.Tensor(out_shape, dtype="float32"):
+                    R.func_attr({"num_input": 1})
+                    cls = ExpectedPadWrapWithInputs
+                    with R.dataflow():
+                        lv = R.call_tir(
+                            cls.circular_pad,
+                            (input,),
+                            out_ty=R.Tensor(out_shape, dtype="float32"),
+                        )
+                        gv: R.Tensor(out_shape, dtype="float32") = lv
+                        R.output(gv)
+                    return gv
+
+            return ExpectedPadWrapWithInputs
+
+        @I.ir_module
+        class ExpectedPadWrapWithAxes:
+            @T.prim_func(private=True, s_tir=True)
+            def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                T.evaluate(0)
+
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype="float32"),
+                pads: R.Tensor(pads_shape, dtype="int64"),
+                axes: R.Tensor(axes_shape, dtype="int64"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 1})
+                cls = ExpectedPadWrapWithAxes
+                with R.dataflow():
+                    lv = R.call_tir(
+                        cls.circular_pad,
+                        (input,),
+                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                    )
+                    gv: R.Tensor(out_shape, dtype="float32") = lv
+                    R.output(gv)
+                return gv
+
+        return ExpectedPadWrapWithAxes
+
     raise AssertionError(f"No Pad expected IR for mode={mode}, opset={opset}")
 
 
@@ -6463,21 +6910,41 @@ def test_pad(dynamic):
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
-    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0):
+    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0, opset=14, axes=None):
         len_dim = len(pads) // 2
         np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
-        pads = np.array(pads)
+
+        if axes is not None:
+            rank = len(input_shape)
+            full_pads = [(0, 0)] * rank
+            for i, axis in enumerate(axes):
+                axis = axis if axis >= 0 else axis + rank
+                full_pads[axis] = np_pads[i]
+            np_pads = full_pads
+
+        pads = np.array(pads, dtype=np.int64)
         #  onnx graph
-        if mode in ["edge", "reflect"]:
+        if mode in ["edge", "reflect", "wrap"]:
             outdata = np.pad(np.empty(input_shape, dtype=np.float32), pad_width=np_pads, mode=mode)
-            node = helper.make_node("Pad", inputs=["input", "pads"], outputs=["output"], mode=mode)
+
+            node_inputs = ["input", "pads"]
+            initializer = [helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)]
+
+            if axes is not None:
+                axes = np.array(axes, dtype=np.int64)
+                node_inputs = ["input", "pads", "", "axes"]
+                initializer.append(
+                    helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes)
+                )
+
+            node = helper.make_node("Pad", inputs=node_inputs, outputs=["output"], mode=mode)
             graph = helper.make_graph(
                 [node],
                 "pad_test",
                 inputs=[
                     helper.make_tensor_value_info("input", TensorProto.FLOAT, list(input_shape))
                 ],
-                initializer=[helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)],
+                initializer=initializer,
                 outputs=[
                     helper.make_tensor_value_info("output", TensorProto.FLOAT, list(outdata.shape))
                 ],
@@ -6510,8 +6977,8 @@ def test_pad(dynamic):
                 ],
             )
         model = helper.make_model(graph, producer_name="pad_test")
-        model.opset_import[0].version = 14
-        tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+        model.opset_import[0].version = opset
+        tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
         expected = tvm.IRModule(expected.functions)
         for gv in expected.get_global_vars():
@@ -6519,20 +6986,27 @@ def test_pad(dynamic):
                 expected.update_func(gv, tvm_model[gv.name_hint])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    for input_shape, pads, mode, value in [
-        ((2, 2), [0, 1, 0, 0], "constant", 0.0),
-        ((2, 3), [1, 0, 0, 1], "constant", 0.0),
-        ((3, 2), [0, 0, 1, 0], "constant", 5.0),
-        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect", 0.0),
-        ((2, 3), [1, 1, 1, 1], "edge", 0.0),
-        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge", 0.0),
+    for input_shape, pads, mode, value, opset, axes in [
+        ((2, 2), [0, 1, 0, 0], "constant", 0.0, 14, None),
+        ((2, 3), [1, 0, 0, 1], "constant", 0.0, 14, None),
+        ((3, 2), [0, 0, 1, 0], "constant", 5.0, 14, None),
+        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect", 0.0, 14, None),
+        ((2, 3), [1, 1, 1, 1], "edge", 0.0, 14, None),
+        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge", 0.0, 14, None),
+        ((1, 3, 4), [0, 0, 2, 0, 0, 2], "wrap", 0.0, 19, None),
+        ((1, 3, 4), [2, 2], "wrap", 0.0, 19, [2]),
+        ((1, 3, 4), [1, 2, 1, 2], "wrap", 0.0, 19, [1, 2]),
     ]:
         verify_pad(
             input_shape,
             pads,
-            _make_pad_expected_ir(input_shape, pads, mode=mode, value=value, opset=14),
+            _make_pad_expected_ir(
+                input_shape, pads, mode=mode, value=value, opset=opset, axes=axes
+            ),
             mode,
             value,
+            opset,
+            axes,
         )
 
 
@@ -6694,9 +7168,7 @@ def test_split():
             shape = shape_tuple(shape)
             if not dynamic:
                 return shape
-            return tuple(
-                tvm.tirx.SizeVar(f"split_input_dim_{i}", "int64") for i in range(len(shape))
-            )
+            return tuple(f"split_input_dim_{i}" for i in range(len(shape)))
 
         dtype = np.dtype(fp_arith).name
         input_shape = expected_input_shape(indata_shape)
@@ -6846,10 +7318,10 @@ def test_tile():
             ),
             dtype="float32",
         ):
-            tile_input_dim_0 = T.int64(is_size_var=True)
-            tile_input_dim_1 = T.int64(is_size_var=True)
-            tile_input_dim_2 = T.int64(is_size_var=True)
-            tile_input_dim_3 = T.int64(is_size_var=True)
+            tile_input_dim_0 = T.int64()
+            tile_input_dim_1 = T.int64()
+            tile_input_dim_2 = T.int64()
+            tile_input_dim_3 = T.int64()
             R.func_attr({"num_input": 1})
             cls = ExpectedTileDynamicInput
             with R.dataflow():
@@ -6939,9 +7411,7 @@ def test_tile_dynamic_repeats():
     def make_expected(dynamic_input, in_shape):
         rank = len(in_shape)
         input_shape = (
-            tuple(tvm.tirx.SizeVar(f"tile_data_dim_{i}", "int64") for i in range(rank))
-            if dynamic_input
-            else tuple(in_shape)
+            tuple(f"tile_data_dim_{i}" for i in range(rank)) if dynamic_input else tuple(in_shape)
         )
 
         if rank == 2:
@@ -7444,6 +7914,101 @@ def test_batch_norm_defaults_to_inference_mode():
 
     assert len(batch_norm_attrs) == 1
     assert batch_norm_attrs[0].training is False
+
+
+def test_batch_norm_mixed_dtype_params():
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT16, [1, 3, 2, 2])
+    output = helper.make_tensor_value_info("output", TensorProto.FLOAT16, [1, 3, 2, 2])
+    params = [
+        numpy_helper.from_array(np.array([1.0, 1.5, 2.0], dtype=np.float32), name="gamma"),
+        numpy_helper.from_array(np.array([0.0, 0.1, -0.1], dtype=np.float32), name="beta"),
+        numpy_helper.from_array(np.array([0.2, -0.3, 0.4], dtype=np.float32), name="mean"),
+        numpy_helper.from_array(np.array([1.0, 1.5, 2.0], dtype=np.float32), name="var"),
+    ]
+    batch_norm_node = helper.make_node(
+        "BatchNormalization",
+        ["data", "gamma", "beta", "mean", "var"],
+        ["output"],
+        epsilon=1e-5,
+        momentum=0.9,
+        training_mode=0,
+    )
+    graph = helper.make_graph(
+        [batch_norm_node],
+        "mixed_dtype_batchnorm",
+        [data],
+        [output],
+        initializer=params,
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 15)])
+
+    tvm_model = from_onnx(model, keep_params_in_input=False)
+
+    assert tuple(dim.value for dim in tvm_model["main"].ret_ty.shape.values) == (1, 3, 2, 2)
+    assert tvm_model["main"].ret_ty.dtype == "float16"
+
+    batch_norm_calls = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+            batch_norm_calls.append(expr)
+
+    relax.analysis.post_order_visit(tvm_model["main"], visit)
+
+    assert len(batch_norm_calls) == 1
+    arg_dtypes = [
+        str(getattr(arg, "struct_info", getattr(arg, "ty", None)).dtype)
+        for arg in batch_norm_calls[0].args
+    ]
+    assert arg_dtypes == ["float32"] * 5
+
+
+def test_batch_norm_training_preserves_output_dtypes():
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT16, [1, 3, 2, 2])
+    outputs = [
+        helper.make_tensor_value_info("output", TensorProto.FLOAT16, [1, 3, 2, 2]),
+        helper.make_tensor_value_info("running_mean", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("running_var", TensorProto.FLOAT16, [3]),
+    ]
+    inputs = [
+        data,
+        helper.make_tensor_value_info("gamma", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("beta", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("mean", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("var", TensorProto.FLOAT16, [3]),
+    ]
+    batch_norm_node = helper.make_node(
+        "BatchNormalization",
+        [value.name for value in inputs],
+        [value.name for value in outputs],
+        training_mode=1,
+    )
+    graph = helper.make_graph(
+        [batch_norm_node],
+        "mixed_dtype_training_batchnorm",
+        inputs,
+        outputs,
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 15)])
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    assert [str(field.dtype) for field in tvm_model["main"].ret_ty.fields] == [
+        "float16",
+        "float16",
+        "float16",
+    ]
+
+    batch_norm_calls = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+            batch_norm_calls.append(expr)
+
+    relax.analysis.post_order_visit(tvm_model["main"], visit)
+
+    assert len(batch_norm_calls) == 1
+    assert [str(arg.ty.dtype) for arg in batch_norm_calls[0].args] == ["float32"] * 5
 
 
 def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
@@ -8196,8 +8761,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             (1, "A * B * 32"), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1, A * B * 32), dtype="float32") = R.reshape(
@@ -8212,8 +8777,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             ("A * B", 32), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A * B, 32), dtype="float32") = R.reshape(x, R.shape([A * B, 32]))
@@ -8226,8 +8791,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             ("A", "B * 32"), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B * 32), dtype="float32") = R.reshape(x, R.shape([A, B * 32]))
@@ -9270,8 +9835,8 @@ def test_symbolic_shape_deduction():
             axes: R.Tensor((1,), dtype="int64"),
             target_shape: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64(is_size_var=True)
-            seq = T.int64(is_size_var=True)
+            batch = T.int64()
+            seq = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -9287,8 +9852,8 @@ def test_symbolic_shape_deduction():
             data: R.Tensor(("batch", "seq"), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64(is_size_var=True)
-            seq = T.int64(is_size_var=True)
+            batch = T.int64()
+            seq = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -9323,7 +9888,7 @@ def test_multi_inputs_with_same_symbolic_shape():
             data1: R.Tensor(("batch", 1), dtype="float32"),
             data2: R.Tensor(("batch", 1), dtype="float32"),
         ) -> R.Tensor(("batch", 2), dtype="float32"):
-            batch = T.int64(is_size_var=True)
+            batch = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 2), dtype="float32") = R.concat((data1, data2), axis=1)
@@ -9433,8 +9998,8 @@ def test_shape_dim_string_expression_graph_add():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A + B"), dtype="float32")) -> R.Tensor(("A", "B", "A + B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A + B), dtype="float32") = x
@@ -9467,8 +10032,8 @@ def test_shape_dim_string_expression_graph_subtract():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A - B"), dtype="float32")) -> R.Tensor(("A", "B", "A - B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A - B), dtype="float32") = x
@@ -9501,8 +10066,8 @@ def test_shape_dim_string_expression_graph_mul():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A * B"), dtype="float32")) -> R.Tensor(("A", "B", "A * B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A * B), dtype="float32") = x
@@ -9536,8 +10101,8 @@ def test_shape_dim_string_expression_graph_div_1():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
@@ -9571,8 +10136,8 @@ def test_shape_dim_string_expression_graph_div_2():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
@@ -10148,6 +10713,56 @@ def test_affine_grid():
     verify_affine_grid(None, ExpectedDefaultAlignCorners)
     verify_affine_grid(0, ExpectedDefaultAlignCorners)
     verify_affine_grid(1, ExpectedAlignCorners)
+
+
+def test_affine_grid_3d():
+    affine_grid_node = helper.make_node(
+        "AffineGrid",
+        ["theta", "size"],
+        ["grid"],
+        align_corners=1,
+    )
+
+    graph = helper.make_graph(
+        [affine_grid_node],
+        "affine_grid_3d_test",
+        inputs=[
+            helper.make_tensor_value_info("theta", TensorProto.FLOAT, [2, 3, 4]),
+        ],
+        initializer=[
+            helper.make_tensor("size", TensorProto.INT64, [5], [2, 3, 8, 16, 16]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, [2, 8, 16, 16, 3]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="affine_grid_3d_test")
+
+    tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
+    assert len(tvm_model["main"].attrs["params"]) == 1
+    tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            theta: R.Tensor((2, 3, 4), dtype="float32"),
+            size: R.Tensor((5,), dtype="int64"),
+        ) -> R.Tensor((2, 8, 16, 16, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 8, 16, 16), dtype="float32") = R.image.affine_grid(
+                    theta, size=(8, 16, 16), align_corners=True
+                )
+                lv1: R.Tensor((2, 8, 16, 16, 3), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 2, 3, 4, 1]
+                )
+                gv: R.Tensor((2, 8, 16, 16, 3), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
@@ -11777,6 +12392,255 @@ def test_dequantizelinear_default_axis_opset10():
 
     x = rg.integers(low=0, high=255, size=(2, 3, 4), dtype=np.uint8)
     check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+def test_quantizelinear_output_dtype(opset):
+    node = helper.make_node("QuantizeLinear", ["x", "scale"], ["y"], output_dtype=TensorProto.INT16)
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_output_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.INT16, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"),
+            scale: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="int16"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="int16") = R.quantize(
+                    x, scale, R.const(0, "int16"), out_dtype="int16", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_dequantizelinear_scale_dtype(opset):
+    node = helper.make_node("DequantizeLinear", ["x", "scale", "zero_point"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "dequantizelinear_scale_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT16, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT16, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int8"),
+            scale: R.Tensor((), dtype="float16"),
+            zero_point: R.Tensor((), dtype="int8"),
+        ) -> R.Tensor((2, 3), dtype="float16"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float16") = R.dequantize(
+                    x, scale, zero_point, out_dtype="float16", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [23, 24, 25])
+def test_dequantizelinear_output_dtype(opset):
+    node = helper.make_node(
+        "DequantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        output_dtype=TensorProto.FLOAT,
+    )
+    graph = helper.make_graph(
+        [node],
+        "dequantizelinear_output_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT16, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int8"),
+            scale: R.Tensor((), dtype="float16"),
+            zero_point: R.Tensor((), dtype="int8"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.dequantize(
+                    x, scale, zero_point, out_dtype="float32", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_quantizelinear_integer_saturate(opset):
+    node = helper.make_node("QuantizeLinear", ["x", "scale"], ["y"], saturate=0)
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_integer_saturate",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"),
+            scale: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="uint8"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="uint8") = R.quantize(
+                    x, scale, R.const(0, "uint8"), out_dtype="uint8", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_quantizelinear_float8_saturate_rejected(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        saturate=0,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_float8_saturate",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.FLOAT8E4M3FN, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT8E4M3FN, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="saturate=0"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+@pytest.mark.parametrize(
+    "op_name,input_dtype,output_dtype",
+    [
+        ("QuantizeLinear", TensorProto.FLOAT, TensorProto.INT8),
+        ("DequantizeLinear", TensorProto.INT8, TensorProto.FLOAT),
+    ],
+)
+def test_qdq_blocked_quantization_rejected(opset, op_name, input_dtype, output_dtype):
+    node = helper.make_node(
+        op_name,
+        ["x", "scale", "zero_point"],
+        ["y"],
+        axis=1,
+        block_size=2,
+    )
+    graph = helper.make_graph(
+        [node],
+        "qdq_blocked_quantization",
+        [
+            helper.make_tensor_value_info("x", input_dtype, [1, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [1, 2]),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, [1, 2]),
+        ],
+        [helper.make_tensor_value_info("y", output_dtype, [1, 4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="blocked quantization"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [23, 24, 25])
+def test_quantizelinear_precision_rejected(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale"],
+        ["y"],
+        output_dtype=TensorProto.INT8,
+        precision=TensorProto.FLOAT16,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_precision",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.INT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="precision attribute"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+def test_quantizelinear_output_dtype_mismatch(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        output_dtype=TensorProto.UINT8,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_output_dtype_mismatch",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="must match the zero-point dtype"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
 
 
 if __name__ == "__main__":

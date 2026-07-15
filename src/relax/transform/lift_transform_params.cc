@@ -101,12 +101,12 @@ struct BaseCollectInfo {
     ffi::Array<Binding> output_var_binding;
     ffi::Array<Expr> output_exprs;
     if (output_symbolic_vars.size()) {
-      output_exprs.push_back(
-          ShapeExpr(output_symbolic_vars.Map([](tirx::Var var) -> PrimExpr { return var; })));
+      output_exprs.push_back(ShapeExpr(
+          output_symbolic_vars.Map([](tirx::Var var) { return var.as_or_throw<PrimExpr>(); })));
     }
 
     for (const auto& var : outputs) {
-      Var out_var(var->name_hint() + "_output", GetType(var));
+      Var out_var(var->name_hint + "_output", GetType(var));
       output_var_binding.push_back(VarBinding(out_var, var));
       output_exprs.push_back(out_var);
     }
@@ -249,7 +249,8 @@ struct LocalCollectInfo : public BaseCollectInfo {
       return global_tir_vars;
     }();
     if (propagated_tir_vars.size()) {
-      ShapeType shape_ty(propagated_tir_vars.Map([](tirx::Var var) -> PrimExpr { return var; }));
+      ShapeType shape_ty(
+          propagated_tir_vars.Map([](tirx::Var var) { return var.as_or_throw<PrimExpr>(); }));
       Var shape_expr("vars_from_compile_time_params", shape_ty);
       params.push_back(shape_expr);
     }
@@ -279,7 +280,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       return global_outputs;
     }();
     for (const auto& var : compile_time_outputs) {
-      Var param_var(var->name_hint(), GetType(var));
+      Var param_var(var->name_hint, GetType(var));
       bindings.push_back(VarBinding(var, param_var));
       params.push_back(param_var);
     }
@@ -398,18 +399,17 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
           // mappings are applied.
           for (const auto& relax_or_tir_var : source_set) {
             if (relax_or_tir_var.as<relax::VarNode>()) {
-              if (auto it = var_remap.find(relax_or_tir_var.as_or_throw<Var>());
-                  it != var_remap.end()) {
+              if (auto it = var_remap.find(relax_or_tir_var.get<Var>()); it != var_remap.end()) {
                 target_set.insert((*it).second.as_or_throw<relax::Var>());
               } else {
-                target_set.insert(relax_or_tir_var.as_or_throw<relax::Var>());
+                target_set.insert(relax_or_tir_var.get<relax::Var>());
               }
             } else {
-              if (auto it = tir_var_remap.find(relax_or_tir_var.as_or_throw<tirx::Var>());
+              if (auto it = tir_var_remap.find(relax_or_tir_var.get<tirx::Var>());
                   it != tir_var_remap.end()) {
                 target_set.insert((*it).second.as_or_throw<tirx::Var>());
               } else {
-                target_set.insert(relax_or_tir_var.as_or_throw<tirx::Var>());
+                target_set.insert(relax_or_tir_var.get<tirx::Var>());
               }
             }
           }
@@ -549,7 +549,7 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
       if (auto it = tir_var_remap_.find(lhs_tir_vars[i]); it != tir_var_remap_.end()) {
         TVM_FFI_ICHECK((*it).second.same_as(rhs_tir_vars[i]));
       } else {
-        tir_var_remap_.Set(lhs_tir_vars[i], rhs_tir_vars[i]);
+        tir_var_remap_.Set(lhs_tir_vars[i], rhs_tir_vars[i].as_or_throw<PrimExpr>());
       }
     }
   }
@@ -675,7 +675,7 @@ class ConsumeBundledParams : public ExprMutator {
       auto new_var = VisitExpr(binding->var);
       param_remap_[tuple_get_item->index] = new_var;
       builder_->Emit(
-          Call(call_pure_packed,
+          Call(Type::Missing(), call_pure_packed,
                {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
                tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
     } else {

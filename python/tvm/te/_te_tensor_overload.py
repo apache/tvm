@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,29 +14,48 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import argparse
-import io
-from contextlib import redirect_stdout
-
-import pytest
+"""Tensor overload hooks for TE tensors and tensor slices."""
 
 
-class NodeidsCollector:
-    def pytest_collection_modifyitems(self, items):
-        self.nodeids = [item.nodeid for item in items]
+def __add__(_lhs, _rhs):
+    return NotImplemented
 
 
-def main(folder):
-    collector = NodeidsCollector()
-    f = io.StringIO()
-    with redirect_stdout(f):
-        pytest.main(["-qq", "--collect-only", folder], plugins=[collector])
-    for nodeid in collector.nodeids:
-        print(nodeid)
+def __radd__(_lhs, _rhs):
+    return NotImplemented
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
-    parser.add_argument("--folder", required=True, help="test folder to inspect")
-    args = parser.parse_args()
-    main(args.folder)
+def __sub__(_lhs, _rhs):
+    return NotImplemented
+
+
+def __rsub__(_lhs, _rhs):
+    return NotImplemented
+
+
+def __mul__(_lhs, _rhs):
+    return NotImplemented
+
+
+def __rmul__(_lhs, _rhs):
+    return NotImplemented
+
+
+def __div__(_lhs, _rhs):
+    return NotImplemented
+
+
+def __rdiv__(_lhs, _rhs):
+    return NotImplemented
+
+
+def __truediv__(_lhs, _rhs):
+    return NotImplemented
+
+
+def __rtruediv__(_lhs, _rhs):
+    return NotImplemented
+
+
+def astype(_value, _dtype, _span=None):
+    return NotImplemented

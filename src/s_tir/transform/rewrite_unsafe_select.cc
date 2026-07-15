@@ -35,27 +35,29 @@ using namespace tvm::tirx;
 
 // For now, rewrite unsafe select expression to if_then_else
 // TODO(tqchen) pattern matching to support masked load
-class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
+class UnsafeExprDetector : public ExprFunctor<bool(const Expr& n)> {
  public:
   // select itself is always considered safe if condition is safe
   // Because we will issue guard to make sure it is.
   bool VisitExpr_(const SelectNode* op) { return VisitExpr(op->condition); }
   bool VisitExpr_(const CallNode* op) {
     if (op->op.same_as(builtin::if_then_else())) {
-      return VisitExpr(op->args[0]);
+      return VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(builtin::address_of())) {
-      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      for (const auto& index : load->indices) {
-        if (VisitExpr(index)) {
-          return true;
+      if (const auto* load = op->args[0].as<BufferLoadNode>()) {
+        for (const auto& index : load->indices) {
+          if (VisitExpr(index)) {
+            return true;
+          }
         }
+        return false;
       }
-      return false;
+      return VisitExpr(op->args[0]);
     } else if (auto opt = op->op.as<Op>()) {
       auto effect_kind = static_cast<CallEffectKind>(op_call_effect_[opt.value()]);
       if (effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation) {
-        for (PrimExpr e : op->args) {
-          if (VisitExpr(e)) return true;
+        for (const Expr& arg : op->args) {
+          if (VisitExpr(arg)) return true;
         }
         return false;
       } else {
@@ -113,16 +115,17 @@ class UnsafeExprDetector : public ExprFunctor<bool(const PrimExpr& n)> {
 
 class UnsafeSelectRewriter : public StmtExprMutator {
  public:
-  PrimExpr VisitExpr_(const SelectNode* op) {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+  Expr VisitExpr_(const SelectNode* op) {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<SelectNode>();
     UnsafeExprDetector unsafe;
     PrimType cond_ty = op->condition.ty();
     bool cond_is_scalar_bool = cond_ty.MatchesCode(DLDataTypeCode::kDLBool) && cond_ty.IsScalar();
     if ((unsafe.VisitExpr(op->true_value) || unsafe.VisitExpr(op->false_value)) &&
         cond_is_scalar_bool) {
-      return Call(ffi::GetRef<PrimExpr>(op).ty(), builtin::if_then_else(),
-                  {op->condition, op->true_value, op->false_value});
+      return Call(op->ty.as_or_throw<PrimType>(), builtin::if_then_else(),
+                  {op->condition, op->true_value, op->false_value})
+          .as_or_throw<PrimExpr>();
     } else {
       return expr;
     }

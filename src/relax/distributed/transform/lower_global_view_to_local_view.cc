@@ -57,7 +57,7 @@ class DistBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+  Expr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
     if (buffer_map_.count(load->buffer)) {
       ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
@@ -166,10 +166,9 @@ class DistributedBufferCompactor : StmtExprMutator {
     }
     Stmt new_body = compactor(prim_func->body);
     new_body = DistBufferReplacer::BufferReplace(new_body, replace_buffer_map);
-    ffi::ObjectPtr<PrimFuncNode> new_func = ffi::make_object<PrimFuncNode>(*prim_func.get());
-    new_func->buffer_map = new_func_buffer_map;
-    new_func->body = new_body;
-    return std::make_tuple(PrimFunc(new_func), compactor.add_allreduce_kind_);
+    PrimFunc new_func(prim_func->params, new_body, prim_func->ret_type, new_func_buffer_map,
+                      prim_func->attrs, prim_func->span);
+    return std::make_tuple(new_func, compactor.add_allreduce_kind_);
   }
 
  private:
@@ -426,7 +425,8 @@ class LowerTIRToLocalView : public ExprMutator {
     if (allreduce_kind != "") {
       ffi::ObjectPtr<AllReduceAttrs> attrs = ffi::make_object<AllReduceAttrs>();
       attrs->op_type = allreduce_kind;
-      new_call = Call(Op::Get("relax.ccl.allreduce"), {new_call}, Attrs(attrs), {});
+      new_call =
+          Call(Type::Missing(), Op::Get("relax.ccl.allreduce"), {new_call}, Attrs(attrs), {});
     }
     ReEmitBinding(binding, this->builder_->Normalize(new_call));
   }

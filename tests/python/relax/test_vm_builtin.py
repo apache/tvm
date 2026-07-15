@@ -65,7 +65,6 @@ def test_alloc_tensor_raises_out_of_memory():
     buffer.
     """
     target = "cuda"
-    dev = tvm.device(target)
 
     @I.ir_module
     class Module:
@@ -78,10 +77,14 @@ def test_alloc_tensor_raises_out_of_memory():
             return output
 
     built = tvm.compile(Module, target=target)
-    vm = relax.VirtualMachine(built, dev)
 
-    with pytest.raises(Exception, match="CUDA.*out of memory"):
-        vm["main"]()
+    def run_and_check():
+        dev = tvm.cuda()
+        vm = relax.VirtualMachine(built, dev)
+        with pytest.raises(Exception, match="CUDA.*out of memory"):
+            vm["main"]()
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

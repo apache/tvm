@@ -96,7 +96,8 @@ class ForMatcher : public TensorizeComparator {
     return std::nullopt;
   }
 
-  bool VisitExpr(const PrimExpr& lhs, const PrimExpr& rhs) final {
+  bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
+    PrimExpr lhs = expr.as_or_throw<PrimExpr>();
     if (const auto* op = rhs.as<VarNode>()) {
       if (pattern_vars_.count(ffi::GetRef<Var>(op))) {
         // special case for pattern vars
@@ -104,7 +105,7 @@ class ForMatcher : public TensorizeComparator {
         if (lhs_ptr == nullptr) {
           if (lhs->IsInstance<tirx::IntImmNode>() || lhs->IsInstance<tirx::FloatImmNode>()) {
             ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(ffi::GetRef<Var>(op));
-            if (value.defined()) {
+            if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
             } else {
               evaluated_symbols.back()[ffi::GetRef<Var>(op)] = lhs;
@@ -233,7 +234,7 @@ class ForMatcher : public TensorizeComparator {
     return false;
   }
 
-  bool VisitExpr_(const tirx::CallNode* call, const PrimExpr& other) final {
+  bool VisitExpr_(const CallNode* call, const PrimExpr& other) final {
     const auto* rhs = other.as<CallNode>();
     if (rhs == nullptr) return false;
     const auto* lhs_op = call->op.as<OpNode>();
@@ -242,7 +243,7 @@ class ForMatcher : public TensorizeComparator {
     if (lhs_op->name != rhs_op->name) return false;
     if (call->args.size() != rhs->args.size()) return false;
     for (size_t i = 0; i < call->args.size(); ++i) {
-      if (!VisitExpr(call->args[i], rhs->args[i])) return false;
+      if (!CompareExpr(call->args[i], rhs->args[i])) return false;
     }
     return true;
   }
@@ -262,7 +263,7 @@ class ForMatcher : public TensorizeComparator {
     if (!DefEqual(op->loop_var, rhs->loop_var)) return false;
     // Only handle the case where the loop start from 0
     if (!is_zero(op->min) || !is_zero(rhs->min)) return false;
-    if (op->thread_binding.defined() || rhs->thread_binding.defined()) return false;
+    if (op->thread_binding.has_value() || rhs->thread_binding.has_value()) return false;
     if (op->kind != ForKind::kSerial || op->kind != rhs->kind) return false;
     if (!op->annotations.empty() || !rhs->annotations.empty()) return false;
     // Match the extents of loops
@@ -291,9 +292,9 @@ class ForMatcher : public TensorizeComparator {
       return false;
     }
     // Handle init block
-    if (op->init.defined() && !rhs->init.defined()) return false;
-    if (!op->init.defined() && rhs->init.defined()) return false;
-    if (op->init.defined() && rhs->init.defined()) {
+    if (op->init.has_value() && !rhs->init.has_value()) return false;
+    if (!op->init.has_value() && rhs->init.has_value()) return false;
+    if (op->init.has_value() && rhs->init.has_value()) {
       if (!VisitStmt(op->init.value(), rhs->init.value())) return false;
     }
     return VisitStmt(op->body, rhs->body);
@@ -622,7 +623,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(Var("output", PrimType::Handle()));
+  new_params1.push_back(Var("output", PointerType::VoidPointerTy()));
   ffi::Map<Var, Buffer> new_buffer_map1;
   for (const auto& kv : func->buffer_map) {
     if (partitioner.input1.count(kv.second)) {
@@ -635,7 +636,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(Var("input", PrimType::Handle()));
+  new_params2.push_back(Var("input", PointerType::VoidPointerTy()));
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
     if (partitioner.input2.count(func->buffer_map[param])) {
@@ -725,7 +726,7 @@ class SplitMutator : public ExprMutator {
     // split the function into two functions, one for the library kernel and one for the rest.
     std::pair<tirx::PrimFunc, ffi::Optional<tirx::PrimFunc>> split_funcs =
         tirx::SplitFunctions(func, &arg_partition, patterns_, fcodegen_);
-    if (!split_funcs.second.defined()) {
+    if (!split_funcs.second.has_value()) {
       // no need to split, the function itself a library kernel
       tvm::BaseFunc lib_func = CodegenWithLibrary(split_funcs.first.get(), gv->name_hint);
       if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
@@ -753,7 +754,7 @@ class SplitMutator : public ExprMutator {
     builder_->UpdateFunction(gv, lib_func);
     tirx::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
     PrimType dtype = intermediate_buffer->dtype;
-    Call call1(call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
+    Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
                {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});
     Var call_var1 = builder_->Emit(call1);
     // emit the second call to the rest of the function
@@ -763,7 +764,7 @@ class SplitMutator : public ExprMutator {
       args2.push_back(GetCallTIRArgs(call->args[1])[p]);
     }
     GlobalVar gv2 = builder_->AddFunction(func2, "unfused_epilogue");
-    Call call2(call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
+    Call call2(Type::Missing(), call_tir_op_, {gv2, Tuple(args2)}, call->attrs, call->ty_args);
     builder_->UpdateFunction(gv, WithoutAttr(func, "global_symbol"));
     return call2;
   }

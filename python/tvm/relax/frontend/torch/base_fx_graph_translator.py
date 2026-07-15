@@ -28,6 +28,7 @@ from functools import reduce
 
 import tvm_ffi
 
+import tvm
 from tvm import relax, tirx
 from tvm.ir import PrimType
 from tvm.runtime import DataTypeCode
@@ -2150,18 +2151,18 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                         return input_shape[axis]
                 return val
 
-            if isinstance(bound, tirx.PrimExpr):
+            if tvm.ir.is_prim_expr(bound):
                 value = _adjust(bound)
                 return relax.prim_value(value)
 
             bound = _adjust(bound)
-            if not isinstance(bound, tirx.PrimExpr):
+            if not tvm.ir.is_prim_expr(bound):
                 bound = relax.prim_value(bound)
             return bound
 
         start = _normalize_bound(start)
         end = _normalize_bound(end)
-        if not isinstance(step, tirx.PrimExpr):
+        if not tvm.ir.is_prim_expr(step):
             step = relax.prim_value(step)
 
         return self.block_builder.emit(
@@ -2618,6 +2619,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         data_flat = self.block_builder.emit(relax.op.reshape(data, [-1]))
         mask_flat = self.block_builder.emit(relax.op.reshape(mask, [-1]))
         indices = self.block_builder.emit(relax.op.nonzero(mask_flat))
+        tensor_meta = node.meta.get("tensor_meta")
+        if tensor_meta is not None and len(tensor_meta.shape) == 1:
+            num_selected = tensor_meta.shape[0]
+            if not isinstance(num_selected, int):
+                num_selected = tirx.Var(str(num_selected), "int64")
+        else:
+            num_selected = tirx.Var(f"{node.name}_num_selected", "int64")
+        indices = self.block_builder.match_cast(
+            indices, relax.TensorType([1, num_selected], "int64")
+        )
         indices_1d = self.block_builder.emit(relax.op.squeeze(indices, axis=[0]))
 
         result = self.block_builder.emit(relax.op.take(data_flat, indices_1d, axis=0))

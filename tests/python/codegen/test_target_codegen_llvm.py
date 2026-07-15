@@ -76,7 +76,7 @@ def test_llvm_intrin():
         @T.prim_func(s_tir=True)
         def main(A: T.handle("float32")):
             A_buf = T.decl_buffer((4,), "float32", data=A)
-            T.evaluate(T.Call("void", "tirx.prefetch", [T.address_of(A_buf[0]), 0, 3, 1]))
+            T.evaluate(T.Call("tirx.prefetch", [T.address_of(A_buf[0]), 0, 3, 1], ret_ty="void"))
 
     fcode = tvm.compile(Module)
 
@@ -227,7 +227,7 @@ def test_llvm_vadd_pipeline():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,))
@@ -323,7 +323,7 @@ def test_multiple_func():
         @T.prim_func(s_tir=True)
         def fadd1(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,))
@@ -337,7 +337,7 @@ def test_multiple_func():
         @T.prim_func(s_tir=True)
         def fadd2(var_A: T.handle, var_B: T.handle, var_C: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             C = T.match_buffer(var_C, (n,))
@@ -705,7 +705,7 @@ def test_llvm_fp_math():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             for i in range(n):
@@ -730,7 +730,7 @@ def test_llvm_fp_math():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, var_B: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             B = T.match_buffer(var_B, (n,))
             for i in range(n):
@@ -1160,9 +1160,9 @@ def test_call_packed_returning_void():
         @T.prim_func(s_tir=True)
         def main():
             T.Call(
-                "void",
                 tvm.ir.Op.get("tirx.tvm_call_packed"),
                 ["dummy_function_name"],
+                ret_ty="void",
             )
 
     # Error occurred during build, as part of
@@ -1184,7 +1184,7 @@ def test_call_packed_without_string_arg():
     class Module:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer(1, "float32")):
-            T.Call("int32", tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data])
+            T.Call(tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data], ret_ty="int32")
 
     with pytest.raises(RuntimeError):
         built = tvm.compile(Module, target="llvm")
@@ -1198,7 +1198,7 @@ def test_call_extern_returning_void():
     class Module:
         @T.prim_func(s_tir=True)
         def main():
-            T.Call("void", tvm.ir.Op.get("tirx.call_extern"), ["dummy_function_name"])
+            T.Call(tvm.ir.Op.get("tirx.call_extern"), ["dummy_function_name"], ret_ty="void")
 
     built = tvm.compile(Module, target="llvm")
 

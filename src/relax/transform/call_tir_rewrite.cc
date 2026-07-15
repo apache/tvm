@@ -70,19 +70,19 @@ class CallTIRMutator : public ExprMutator {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
-    if (call->op == call_tir_op || call->op == call_tir_inplace_op ||
-        call->op == call_dps_packed_op) {
-      bool is_inplace = (call->op == call_tir_inplace_op);
+    if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
+        call->op.same_as(call_dps_packed_op)) {
+      bool is_inplace = call->op.same_as(call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       ffi::Array<Expr> outs;
       if (const auto& tensor_ty = MatchType<TensorType>(expr)) {
         // single output case
         const TensorType& output_ty = tensor_ty.value();
-        TVM_FFI_ICHECK(output_ty->shape.defined())
+        TVM_FFI_ICHECK(output_ty->shape.has_value())
             << "the TensorType shape of call_tir has not populated";
         int dev_index = 0;
         ffi::String scope = "global";
-        if (output_ty->vdevice.defined()) {
+        if (output_ty->vdevice.has_value()) {
           dev_index = GetDeviceIndex(mod_, output_ty->vdevice.value());
           scope = output_ty->vdevice.value()->memory_scope;
         } else {
@@ -90,7 +90,7 @@ class CallTIRMutator : public ExprMutator {
         }
 
         if (!is_inplace) {
-          outs.push_back(builder_->Emit(Call(alloc_tensor_op,
+          outs.push_back(builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                              {output_ty->shape.value().as_or_throw<ShapeExpr>(),
                                               DataTypeImm(output_ty->dtype.value()->dtype),
                                               IntImm::Int64(dev_index), StringImm(scope)},
@@ -114,20 +114,20 @@ class CallTIRMutator : public ExprMutator {
               << "call_tir expects Tuple of TensorType, but got " << field
               << " as an element of TupleType";
           const auto& field_tensor = field.as_or_throw<TensorType>();
-          TVM_FFI_ICHECK(field_tensor->shape.defined())
+          TVM_FFI_ICHECK(field_tensor->shape.has_value())
               << "call_tir expects all TensorType has shape, but got " << field_tensor
               << " as an element of TupleType";
 
           int dev_index = 0;
           ffi::String scope = "global";
-          if (field_tensor->vdevice.defined()) {
+          if (field_tensor->vdevice.has_value()) {
             dev_index = GetDeviceIndex(mod_, field_tensor->vdevice.value());
             scope = field_tensor->vdevice.value()->memory_scope;
           }
 
           if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
             outs.push_back(
-                builder_->Emit(Call(alloc_tensor_op,
+                builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
                                     {field_tensor->shape.value().as_or_throw<ShapeExpr>(),
                                      DataTypeImm(field_tensor->dtype.value()->dtype),
                                      IntImm::Int64(dev_index), StringImm(scope)},
@@ -159,11 +159,11 @@ class CallTIRMutator : public ExprMutator {
         }
 
         if (call->args.size() == 2) {
-          builder_->Emit(Call(call->args[0], args), "_");
+          builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
         } else {
           // unpack semantics
           args.push_back(call->args[2]);
-          builder_->Emit(Call(call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
+          builder_->Emit(Call(Type::Missing(), call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
         }
       } else {
         if (!is_inplace) {
@@ -172,7 +172,7 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        builder_->Emit(Call(call->args[0], args), "_");
+        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
       }
 
       if (outs.size() == 1) {

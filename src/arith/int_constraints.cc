@@ -55,7 +55,7 @@ ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
   for (const auto v : variables) {
     TVM_FFI_ICHECK(bounds.count(v));
     const auto& bnds = bounds[v];
-    PrimExpr lhs = bnds->coef * v;
+    PrimExpr lhs = bnds->coef * v.as_or_throw<PrimExpr>();
     for (const PrimExpr& rhs : bnds->equal) {
       res.push_back(lhs == rhs);
     }
@@ -179,16 +179,16 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
       IntSet diff_set2 = EvalSet(diff_2, var_intsets);
       if (diff_set2.HasUpperBound()) {
         PrimExpr diff_over_2 = analyzer->Simplify(diff_set2.max(), 3);
-        diff_over = diff_over.defined() ? (analyzer->CanProve(diff_over_2 - diff_over.value() < 0)
-                                               ? diff_over_2
-                                               : diff_over.value())
-                                        : diff_over_2;
+        diff_over = diff_over.has_value() ? (analyzer->CanProve(diff_over_2 - diff_over.value() < 0)
+                                                 ? diff_over_2
+                                                 : diff_over.value())
+                                          : diff_over_2;
       }
 
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.
-      if (diff_over.defined() && (!best_diff_over.defined() ||
-                                  analyzer->CanProve(diff_over.value() - best_diff_over < 0))) {
+      if (diff_over.has_value() && (!best_diff_over.defined() ||
+                                    analyzer->CanProve(diff_over.value() - best_diff_over < 0))) {
         best_lower = low_divided;
         best_diff_over = diff_over.value();
       }
@@ -233,7 +233,7 @@ IntConstraints::IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> r
   }
   TVM_FFI_ICHECK(relations.defined());
   for (const auto& var : variables) {
-    PrimType var_ty = var.ty();
+    PrimType var_ty = var->ty.as_or_throw<PrimType>();
     TVM_FFI_ICHECK(var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
         << "Variables in IntConstraints must be integers";
   }

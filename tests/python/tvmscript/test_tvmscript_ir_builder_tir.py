@@ -69,20 +69,20 @@ def test_ir_builder_tir_primfunc_complete():
 
     # the expected prim_func
     c_handle, c_buffer = (
-        tirx.Var("c_handle", "handle"),
+        tirx.Var("c_handle", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
         tirx.decl_buffer((128, 128), "float32", name="c", layout=None),
     )
     d_handle, d_buffer = (
-        tirx.Var("d", "handle"),
+        tirx.Var("d", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
         tirx.decl_buffer((64, 64), "int64", name="d", layout=None),
     )
     e_handle, e_buffer = (
-        tirx.Var("e_handle", "handle"),
+        tirx.Var("e_handle", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
         tirx.decl_buffer((1024,), "int8", name="e", layout=None),
     )
     prim_func_expected = tirx.PrimFunc(
         params=[
-            tirx.Var("a", "handle"),
+            tirx.Var("a", tvm.ir.PointerType(tvm.ir.PrimType("void"))),
             tirx.Var("b", "int64"),
             c_handle,
             d_handle,

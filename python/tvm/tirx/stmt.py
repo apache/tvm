@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import tvm_ffi
 
-from tvm.ir import Op, PrimExpr, Range, Span
+from tvm.ir import Expr, Op, Range, Span, is_prim_expr
 from tvm.runtime import Object, Scriptable, const
 from tvm.tirx import FloatImm, IntImm
 
@@ -100,7 +100,7 @@ class Bind(Stmt):
     var : Var
         The variable in the binding.
 
-    value : PrimExpr
+    value : Expr
         The value to be bound.
 
     span : Optional[Span]
@@ -108,10 +108,10 @@ class Bind(Stmt):
     """
 
     var: Var
-    value: PrimExpr
+    value: Expr
     span: Span | None
 
-    def __init__(self, var: Var, value: PrimExpr, span: Span | None = None) -> None:
+    def __init__(self, var: Var, value: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Bind,
             var,
@@ -129,7 +129,7 @@ class AssertStmt(Stmt):
     kind : StringImm
         The error kind, e.g. "RuntimeError", "TypeError", "ValueError".
 
-    condition : PrimExpr
+    condition : Expr
         The assert condition.
 
     message_parts : list[StringImm]
@@ -140,14 +140,14 @@ class AssertStmt(Stmt):
     """
 
     kind: StringImm
-    condition: PrimExpr
+    condition: Expr
     message_parts: list
     span: Span | None
 
     def __init__(
         self,
         kind: StringImm,
-        condition: PrimExpr,
+        condition: Expr,
         message_parts: list | None = None,
         span: Span | None = None,
     ) -> None:
@@ -187,10 +187,10 @@ class For(Stmt):
     loop_var : Var
         The loop variable.
 
-    min : PrimExpr
+    min : Expr
         The beginning value.
 
-    extent : PrimExpr
+    extent : Expr
         The length of the loop.
 
     kind : ForKind
@@ -203,7 +203,7 @@ class For(Stmt):
         The thread this loop binds to. Only valid
         if kind is ThreadBinding
 
-    step : PrimExpr
+    step : Expr
         The loop step. Default to none which
         represent one.
 
@@ -215,25 +215,25 @@ class For(Stmt):
     """
 
     loop_var: Var
-    min: PrimExpr
-    extent: PrimExpr
+    min: Expr
+    extent: Expr
     kind: ForKind
     body: Stmt
     thread_binding: IterVar | None
     annotations: Mapping[str, Object]
-    step: PrimExpr | None
+    step: Expr | None
     span: Span | None
 
     def __init__(
         self,
         loop_var: Var,
-        min: PrimExpr,  # pylint: disable=redefined-builtin
-        extent: PrimExpr,
+        min: Expr,  # pylint: disable=redefined-builtin
+        extent: Expr,
         kind: ForKind,
         body: Stmt,
         thread_binding: IterVar | None = None,
         annotations: Mapping[str, Object] | None = None,
-        step: PrimExpr | None = None,
+        step: Expr | None = None,
         span: Span | None = None,
     ) -> None:
         body = _normalize_legacy_stmt(body)
@@ -257,7 +257,7 @@ class While(Stmt):
 
     Parameters
     ----------
-    condition : PrimExpr
+    condition : Expr
         The termination condition.
 
     body : Stmt
@@ -267,11 +267,11 @@ class While(Stmt):
         The location of the stmt in the source code.
     """
 
-    condition: PrimExpr
+    condition: Expr
     body: Stmt
     span: Span | None
 
-    def __init__(self, condition: PrimExpr, body: Stmt, span: Span | None = None) -> None:
+    def __init__(self, condition: Expr, body: Stmt, span: Span | None = None) -> None:
         body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
@@ -285,13 +285,13 @@ class BufferStore(Stmt):
     buffer : Buffer
         The buffer.
 
-    value : PrimExpr
+    value : Expr
         The value we to be stored.
 
-    indices : List[PrimExpr]
+    indices : List[Expr]
         The indices location to be stored.
 
-    predicate : Optional[PrimExpr]
+    predicate : Optional[Expr]
         A vector mask of boolean values indicating which lanes of a vector are to be
         stored. The number lanes of the mask must be equal to the number of lanes in
         value.
@@ -301,17 +301,17 @@ class BufferStore(Stmt):
     """
 
     buffer: Buffer
-    value: PrimExpr
-    indices: list[PrimExpr]
-    predicate: PrimExpr | None
+    value: Expr
+    indices: list[Expr]
+    predicate: Expr | None
     span: Span | None
 
     def __init__(
         self,
         buffer: Buffer,
-        value: PrimExpr,
-        indices: list[PrimExpr],
-        predicate: PrimExpr | None = None,
+        value: Expr,
+        indices: list[Expr],
+        predicate: Expr | None = None,
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
@@ -497,7 +497,7 @@ class AttrStmt(Stmt):
     attr_key : str
         Attribute type key.
 
-    value : PrimExpr
+    value : Expr
         The value of the attribute
 
     body : Stmt
@@ -509,12 +509,12 @@ class AttrStmt(Stmt):
 
     node: Object
     attr_key: str
-    value: PrimExpr
+    value: Expr
     body: Stmt
     span: Span | None
 
     def __init__(
-        self, node: Object, attr_key: str, value: PrimExpr, body: Stmt, span: Span | None = None
+        self, node: Object, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
     ) -> None:
         body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(
@@ -560,7 +560,7 @@ class IfThenElse(Stmt):
 
     Parameters
     ----------
-    condition : PrimExpr
+    condition : Expr
         The expression
 
     then_case : Stmt
@@ -573,12 +573,12 @@ class IfThenElse(Stmt):
         The location of the stmt in the source code.
     """
 
-    condition: PrimExpr
+    condition: Expr
     then_case: Stmt
     else_case: Stmt | None
 
     def __init__(
-        self, condition: PrimExpr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
+        self, condition: Expr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
     ) -> None:
         then_case = _normalize_legacy_stmt(then_case)
         else_case = _normalize_legacy_stmt(else_case)
@@ -597,17 +597,17 @@ class Evaluate(Stmt):
 
     Parameters
     ----------
-    value : PrimExpr
+    value : Expr
         The expression to be evaluated.
 
     span : Optional[Span]
         The location of the stmt in the source code.
     """
 
-    value: PrimExpr
+    value: Expr
     span: Span | None
 
-    def __init__(self, value: PrimExpr, span: Span | None = None) -> None:
+    def __init__(self, value: Expr, span: Span | None = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
 
 
@@ -656,7 +656,7 @@ class BufferRegion(Object, Scriptable):
                 new_min = old_range.min + index
                 new_region.append(
                     Range.from_min_extent(
-                        new_min, IntImm(index.ty, 1) if isinstance(index, PrimExpr) else 1
+                        new_min, IntImm(index.ty, 1) if is_prim_expr(index) else 1
                     )
                 )
         # Fill remaining dimensions with their original ranges
@@ -779,10 +779,10 @@ class SBlockRealize(Stmt):
 
     Parameters
     ----------
-    iter_values : List[PrimExpr]
+    iter_values : List[Expr]
         The binding values of the block var.
 
-    predicate : Union[PrimExpr, bool]
+    predicate : Union[Expr, bool]
         The predicate of the block.
 
     block : SBlock
@@ -792,15 +792,15 @@ class SBlockRealize(Stmt):
         The location of this block_realize in the source code.
     """
 
-    iter_values: list[PrimExpr]
-    predicate: PrimExpr
+    iter_values: list[Expr]
+    predicate: Expr
     block: SBlock
     span: Span | None
 
     def __init__(
         self,
-        iter_values: list[PrimExpr],
-        predicate: PrimExpr | bool,
+        iter_values: list[Expr],
+        predicate: Expr | bool,
         block: SBlock,
         span: Span | None = None,
     ) -> None:
@@ -872,12 +872,12 @@ class Continue(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Continue, span)  # type: ignore
 
 
-def stmt_seq(*args: PrimExpr | Stmt) -> SeqStmt:
+def stmt_seq(*args: Expr | Stmt) -> SeqStmt:
     """Make sequence of statements
 
     Parameters
     ----------
-    *args : Union[PrimExpr, Stmt]
+    *args : Union[Expr, Stmt]
         List of statements to be combined as sequence.
 
     Returns
@@ -916,7 +916,7 @@ def stmt_list(stmt: Stmt) -> list[Stmt]:
     return [stmt]
 
 
-def normalize_const_arg(arg) -> PrimExpr:
+def normalize_const_arg(arg) -> Expr:
     if isinstance(arg, float):
         return FloatImm("float32", arg)
     return arg
@@ -931,7 +931,7 @@ class TilePrimitiveCall(Stmt):
     op : Op
         The operator.
 
-    args : List[PrimExpr]
+    args : List[Expr]
         The arguments.
 
     workspace : Map[str, Buffer]
@@ -947,7 +947,7 @@ class TilePrimitiveCall(Stmt):
         The cooperation scope of this call. Defaults to ``thread`` (an unscoped call).
     """
 
-    args: list[PrimExpr]
+    args: list[Expr]
     workspace: dict[str, Buffer]
     config: dict[str, Any]
     dispatch: str | None
@@ -956,7 +956,7 @@ class TilePrimitiveCall(Stmt):
 
     def __init__(
         self,
-        *args: list[PrimExpr],
+        *args: list[Expr],
         op: Op | None = None,
         workspace: dict[str, Buffer] | None = None,
         config: dict[str, Any] | None = None,
@@ -1038,11 +1038,11 @@ class TilePrimitiveCall(Stmt):
         return self.replace(workspace=workspace)
 
     @property
-    def srcs(self) -> list[PrimExpr]:
+    def srcs(self) -> list[Expr]:
         raise NotImplementedError("Subclass must implement this method")
 
     @property
-    def dsts(self) -> list[PrimExpr]:
+    def dsts(self) -> list[Expr]:
         raise NotImplementedError("Subclass must implement this method")
 
     def get_private_buffers(

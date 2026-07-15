@@ -47,12 +47,15 @@ def test_large_uint_imm():
         target_kind = target["kind"] if isinstance(target, dict) else target
         if not tvm.testing.device_enabled(target_kind):
             return
-        dev = tvm.device(target_kind, 0)
         f = tvm.compile(Module, target=target)
-        # launch the kernel.
-        a = tvm.runtime.empty((12,), dtype="uint64", device=dev)
-        f(a)
-        assert a.numpy()[0] == value + 3
+
+        def run_and_check():
+            dev = tvm.device(target_kind, 0)
+            a = tvm.runtime.empty((12,), dtype="uint64", device=dev)
+            f(a)
+            assert a.numpy()[0] == value + 3
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_target("cuda")
     check_target({"kind": "vulkan", "from_device": 0})
@@ -66,7 +69,7 @@ def test_add_pipeline():
         @T.prim_func(s_tir=True)
         def main(var_A: T.handle, B: T.Buffer((), "float32"), var_D: T.handle):
             T.func_attr({"tirx.noalias": True})
-            n = T.int32(is_size_var=True)
+            n = T.int32()
             A = T.match_buffer(var_A, (n,))
             D = T.match_buffer(var_D, (n,))
             C = T.sblock_alloc_buffer((n,))
@@ -90,17 +93,20 @@ def test_add_pipeline():
     def check_target(device, host):
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
             return
-        dev = tvm.device(device, 0)
         target = tvm.target.Target(device, host)
         mhost = tvm.tirx.build(Module, target=target)
         f = mhost.main
-        # launch the kernel.
         n = 1027
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=()).astype("float32"), dev)
-        d = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
-        f(a, b, d)
-        tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
+
+        def run_and_check():
+            dev = tvm.device(device, 0)
+            a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+            b = tvm.runtime.tensor(np.random.uniform(size=()).astype("float32"), dev)
+            d = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+            f(a, b, d)
+            tvm.testing.assert_allclose(d.numpy(), a.numpy() + b.numpy() + 1)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_target("cuda", host="llvm")
     # check_target("nvptx", host="llvm")  # nvptx kernel entry-point lookup not wired here

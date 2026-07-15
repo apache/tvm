@@ -20,22 +20,22 @@
 
 from tvm.ir import IRModule
 from tvm.tirx.expr import Var
-from tvm.tirx.stmt import PrimExpr
+from tvm.tirx.stmt import Expr
 
 from .. import Stmt
 from ..function import PrimFunc
 from . import _ffi_api
 
 
-def expr_deep_equal(lhs: PrimExpr, rhs: PrimExpr) -> bool:
+def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:
     """Deeply compare two nested expressions.
 
     Parameters
     ----------
-    lhs : PrimExpr
+    lhs : Expr
         The left operand.
 
-    rhs : PrimExpr
+    rhs : Expr
         The right operand.
 
     Returns
@@ -96,12 +96,12 @@ def verify_memory(func: PrimFunc) -> bool:
     return _ffi_api.verify_memory(func)  # type: ignore
 
 
-def undefined_vars(node: Stmt | PrimExpr, defs: list[Var] | None = None) -> list[Var]:
+def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var]:
     """Find undefined vars in a TIR statement or expression.
 
     Parameters
     ----------
-    node: Union[Stmt, PrimExpr]
+    node: Union[Stmt, Expr]
         The TIR statement or expression to be checked.
 
     defs: Optional[List[Var]]

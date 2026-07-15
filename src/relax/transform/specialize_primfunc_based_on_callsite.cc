@@ -41,7 +41,7 @@ using tvm::tirx::Buffer;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();
-  TVM_FFI_ICHECK(shape.defined());
+  TVM_FFI_ICHECK(shape.has_value());
   return shape.value();
 }
 
@@ -69,7 +69,7 @@ class SpecializeTIRCallArgs : ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       return SpecializeTirPrimFunc(call);
     }
     return call;
@@ -80,21 +80,21 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto gv = call->args[0].as_or_throw<GlobalVar>();
     auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
     auto args = call->args[1].as_or_throw<Tuple>()->fields;
-    ffi::Map<tirx::Var, ffi::Variant<Buffer, PrimExpr>> param_map;
+    ffi::Map<tirx::Var, ffi::Variant<Buffer, Expr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);
       TVM_FFI_ICHECK(ty->IsInstance<TensorTypeNode>())
           << "Expected Tensor struct Info for call :" << call->op;
       auto tensor_ty = ty.as_or_throw<TensorType>();
-      TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Shape undefined for call:" << call->args[0];
+      TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Shape undefined for call:" << call->args[0];
       ffi::String scope = "global";
-      if (tensor_ty->vdevice.defined()) {
+      if (tensor_ty->vdevice.has_value()) {
         scope = tensor_ty->vdevice.value()->memory_scope;
       }
       ffi::String name;
       if (args[i]->IsInstance<relax::VarNode>()) {
-        name = args[i].as_or_throw<Var>()->name_hint();
+        name = args[i].as_or_throw<Var>()->name_hint;
       } else {
         name = std::string({static_cast<char>('A' + i)});
       }
@@ -107,7 +107,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto out_ty = call->ty_args[0];
     if (out_ty->IsInstance<TensorTypeNode>()) {
       auto ty = out_ty.as_or_throw<TensorType>();
-      if (ty->vdevice.defined()) {
+      if (ty->vdevice.has_value()) {
         scope = ty->vdevice.value()->memory_scope;
       }
       const Buffer& buffer =
@@ -128,7 +128,7 @@ class SpecializeTIRCallArgs : ExprMutator {
                "output structinfo, but got "
             << si;
         auto ty = si.as_or_throw<TensorType>();
-        if (ty->vdevice.defined()) {
+        if (ty->vdevice.has_value()) {
           scope = ty->vdevice.value()->memory_scope;
         }
 
@@ -141,7 +141,7 @@ class SpecializeTIRCallArgs : ExprMutator {
 
     auto new_pfunc = Specialize(pfunc, param_map);
     for (const auto& [var, buffer] : new_pfunc->buffer_map) {
-      auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+      auto* ptr = buffer->data->ty.as<PointerTypeNode>();
       TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     }
     auto new_prim_func = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));

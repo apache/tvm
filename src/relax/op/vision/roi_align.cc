@@ -52,7 +52,7 @@ Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spa
   attrs->mode = mode;
 
   static const Op& op = Op::Get("relax.vision.roi_align");
-  return Call(op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

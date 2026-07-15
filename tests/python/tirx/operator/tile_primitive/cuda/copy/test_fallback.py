@@ -146,7 +146,6 @@ def test_fallback_round_trip(scope, n_threads, shape, why):
     dtype = "float32"
     kernel = _build_round_trip_kernel(scope, n_threads, shape, dtype)
 
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target, pytest.warns(UserWarning, match="copy/fallback"):
         mod = tvm.IRModule({"main": kernel})
@@ -155,10 +154,15 @@ def test_fallback_round_trip(scope, n_threads, shape, why):
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     A_np = tvm.testing.generate_random_array(dtype, shape)
     B_np = np.zeros(shape, dtype=np_dtype)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(B_np, dev)
-    compiled(A, B)
-    np.testing.assert_array_equal(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        compiled(A, B)
+        np.testing.assert_array_equal(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -185,7 +189,6 @@ def test_fallback_thread_scope():
         T.cuda.cta_sync()
         Tx.copy(B[full], A_smem[full])
 
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
@@ -194,10 +197,15 @@ def test_fallback_thread_scope():
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     A_np = tvm.testing.generate_random_array(dtype, shape)
     B_np = np.zeros(shape, dtype=np_dtype)
-    A = tvm.runtime.tensor(A_np, dev)
-    B = tvm.runtime.tensor(B_np, dev)
-    compiled(A, B)
-    np.testing.assert_array_equal(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        compiled(A, B)
+        np.testing.assert_array_equal(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_fallback_emits_gate():

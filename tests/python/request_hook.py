@@ -16,7 +16,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501
 
 import logging
 import urllib.request
@@ -24,25 +23,19 @@ import urllib.request
 LOGGER = None
 
 
-# To update this list, run https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml
-# with the URL to download and the SHA-256 hash of the file.
-BASE = "https://tvm-ci-resources.s3.us-west-2.amazonaws.com"
-URL_MAP = {
-    "https://github.com/onnx/models/raw/131c99da401c757207a40189385410e238ed0934/vision/classification/mobilenet/model/mobilenetv2-7.onnx": f"{BASE}/onnx/models/raw/131c99da401c757207a40189385410e238ed0934/vision/classification/mobilenet/model/mobilenetv2-7.onnx",
-}
+URL_MAP = {}
 
 
 class TvmRequestHook(urllib.request.Request):
     def __init__(self, url, *args, **kwargs):
         LOGGER.info(f"Caught access to {url}")
         url = url.strip()
-        if url not in URL_MAP and not url.startswith(BASE):
-            # Dis-allow any accesses that aren't going through S3
+        if url not in URL_MAP:
+            # Disallow network accesses without an explicitly maintained mirror.
             msg = (
                 f"Uncaught URL found in CI: {url}. "
-                "A committer must upload the relevant file to S3 via "
-                "https://github.com/apache/tvm/actions/workflows/upload_ci_resource.yml "
-                "and add it to the mapping in tests/scripts/request_hook/request_hook.py"
+                "Avoid network access or arrange a stable project-managed mirror, "
+                "then add it to URL_MAP in tests/python/request_hook.py."
             )
             raise RuntimeError(msg)
 
@@ -53,6 +46,8 @@ class TvmRequestHook(urllib.request.Request):
 
 def init():
     global LOGGER
+    if urllib.request.Request is TvmRequestHook:
+        return
     urllib.request.Request = TvmRequestHook
     LOGGER = logging.getLogger("tvm_request_hook")
     LOGGER.setLevel(logging.DEBUG)

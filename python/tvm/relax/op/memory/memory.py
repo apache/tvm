@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 """Relax memory primitives."""
 
-from ...expr import Call, DataTypeImm, Expr, StringImm, prim_value
+from tvm.ir import Call
+
+from ...expr import DataTypeImm, Expr, StringImm, prim_value
 from ...utils import convert_to_expr
 from . import _ffi_api
 
@@ -96,6 +98,8 @@ def alloc_tensor(
     shape = convert_to_expr(shape)
     if isinstance(dtype, str):
         dtype = DataTypeImm(dtype)
+    if isinstance(runtime_device_ind, int):
+        runtime_device_ind = prim_value(runtime_device_ind)
     return _ffi_api.alloc_tensor(storage, offset, shape, dtype, runtime_device_ind)  # type: ignore
 
 

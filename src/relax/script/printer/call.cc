@@ -21,6 +21,7 @@
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/type.h>
 
+#include "../../../tirx/script/printer/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -33,7 +34,7 @@ class AttrPrinter {
                        ffi::Array<ExprDoc>* values)
       : p(std::move(p)), d(d), keys(keys), values(values) {}
 
-  void operator()(const tvm::Attrs& attrs) {
+  void operator()(const Attrs& attrs) {
     if (const auto* dict_attrs = attrs.as<DictAttrsNode>()) {
       for (const auto& [key, value] : dict_attrs->dict) {
         keys->push_back(key);
@@ -69,7 +70,7 @@ ExprDoc PrintCallee(const relax::Expr& n, const AccessPath& n_p, const IRDocsifi
   }
 }
 
-ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessPath& n_p,
+ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const Call& n, const AccessPath& n_p,
                                              const IRDocsifier& d) {
   static const Op& call_tir_op = Op::Get("relax.call_tir");
   static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
@@ -91,7 +92,7 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   // Step 2. Print n->args[1], the input arguments
   args.push_back(d->AsDoc<ExprDoc>(n->args[1], n_p->Attr("args")->ArrayItem(1)));
   // Step 3. Print n->ty_args, the output type
-  tvm::Type out_ty = n->ty_args[0];
+  Type out_ty = n->ty_args[0];
   AccessPath out_ty_p = n_p->Attr("ty_args")->ArrayItem(0);
   bool is_dtensor = false;
   kwargs_keys.push_back("out_ty");
@@ -160,8 +161,7 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const AccessP
   }
 }
 
-ffi::Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p,
-                                     const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintAssertOp(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
   static const Op& assert_op = Op::Get("relax.assert_op");
   if (!n->op.same_as(assert_op)) {
     return std::nullopt;
@@ -180,7 +180,7 @@ ffi::Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const AccessPath& n_p
   return Relax(d, "assert_op")->Call(args, {"format"}, {second_arg});
 }
 
-ffi::Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath& n_p,
+ffi::Optional<ExprDoc> PrintHintOnDevice(const Call& n, const AccessPath& n_p,
                                          const IRDocsifier& d) {
   static const Op& hint_on_device_op = Op::Get("relax.hint_on_device");
   if (!n->op.same_as(hint_on_device_op)) {
@@ -203,8 +203,7 @@ ffi::Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath&
   return Relax(d, "hint_on_device")->Call(args);
 }
 
-ffi::Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_p,
-                                      const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintToVDevice(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
   static const Op& to_vdevice_op = Op::Get("relax.to_vdevice");
   if (!n->op.same_as(to_vdevice_op)) {
     return std::nullopt;
@@ -227,8 +226,7 @@ ffi::Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const AccessPath& n_
   return Relax(d, "to_vdevice")->Call(args, kwargs_keys, kwargs_values);
 }
 
-ffi::Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n_p,
-                                       const IRDocsifier& d) {
+ffi::Optional<ExprDoc> PrintRelaxPrint(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
   static const Op& print_op = Op::Get("relax.print");
   if (!n->op.same_as(print_op)) {
     return std::nullopt;
@@ -246,9 +244,27 @@ ffi::Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const AccessPath& n
   return Relax(d, "print")->Call(args, {"format"}, {first_arg});
 }
 
+bool ShouldPrintAsTIR(const Call& call) {
+  if (!call->ty.as<PrimTypeNode>()) {
+    return false;
+  }
+  if (call->op->ty.as<relax::FuncTypeNode>() || call->op.as<relax::VarNode>() ||
+      call->op.as<relax::FunctionNode>() || call->op.as<relax::ExternFuncNode>()) {
+    return false;
+  }
+  if (auto op = call->op.as<Op>()) {
+    return op.value()->name.find("relax.") != 0;
+  }
+  return true;
+}
+
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::Call>(  //
-        "", [](relax::Call n, AccessPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<Call>(  //
+        "", [](Call call, AccessPath n_p, IRDocsifier d) -> Doc {
+          if (ShouldPrintAsTIR(call)) {
+            return PrintTIRCall(call, n_p, d);
+          }
+          Call n = call;
           // Special case: call_tir, call_dps_packed, call_tir_with_grad
           if (ffi::Optional<ExprDoc> doc = PrintCallTIRDPSPacked(n, n_p, d)) {
             return doc.value();
@@ -333,7 +349,15 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return prefix->Call(args, kwargs_keys, kwargs_values);
         });
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::CallNode, ReprPrintRelax);
+std::string ReprPrintCall(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
+  Call call = obj.as_or_throw<Call>();
+  if (ShouldPrintAsTIR(call)) {
+    return ReprPrintTIR(obj, cfg);
+  }
+  return ReprPrintRelax(obj, cfg);
+}
+
+TVM_REGISTER_SCRIPT_AS_REPR(CallNode, ReprPrintCall);
 
 }  // namespace printer
 }  // namespace script

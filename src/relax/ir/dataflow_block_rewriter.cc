@@ -209,7 +209,7 @@ static std::optional<MatchState> TryValidate(
 
   for (const auto& constraint : validation_constraints) {
     if (!current_match.is_validated(constraint.get())) {
-      auto [necessary_condition, is_sufficient] = constraint->AsPrimExpr(query_match_state);
+      auto [necessary_condition, is_sufficient] = constraint->AsCondition(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
       const auto* known = tirx::as_const_int(necessary_condition);

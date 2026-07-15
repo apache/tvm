@@ -194,7 +194,7 @@ class DFConstraintNode : public ffi::Object {
    *    second tuple element indicates whether the condition is also
    *    sufficient for the constraint to be satisfied.
    */
-  virtual std::tuple<PrimExpr, bool> AsPrimExpr(
+  virtual std::tuple<PrimExpr, bool> AsCondition(
       std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const = 0;
 
   static constexpr const uint32_t _type_child_slots = 1;
@@ -775,8 +775,8 @@ class WildcardPattern : public DFPattern {
  */
 class TypePatternNode : public DFPatternNode {
  public:
-  DFPattern pattern; /*!< The pattern to match */
-  Type ty;           /*!< The type to match */
+  DFPattern pattern;         /*!< The pattern to match */
+  Type ty = Type::Missing(); /*!< The type to match */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -831,7 +831,7 @@ class SameShapeConstraintNode : public DFConstraintNode {
 
   ffi::Array<DFPattern> GetDependentPatterns() const override { return args; }
 
-  std::tuple<PrimExpr, bool> AsPrimExpr(
+  std::tuple<PrimExpr, bool> AsCondition(
       std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const override;
 
   static void RegisterReflection() {

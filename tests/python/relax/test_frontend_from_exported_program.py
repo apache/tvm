@@ -5713,8 +5713,8 @@ def test_slice_with_symbolic_end():
         def main(x: R.Tensor(("s0", "s1", 4), dtype="float32")) -> R.Tuple(
             R.Tensor(("s0", "s1", 4), dtype="float32")
         ):
-            s0 = T.int64(is_size_var=True)
-            s1 = T.int64(is_size_var=True)
+            s0 = T.int64()
+            s1 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s27": 2, "s77": 2}})
             with R.dataflow():
                 lv: R.Tensor((s0, s1, 4), dtype="float32") = R.add(x, R.const(0.0, "float32"))
@@ -6227,9 +6227,9 @@ def test_hamming_window():
             with R.dataflow():
                 lv: R.Tensor((20,), dtype="float32") = R.hamming_window(
                     R.prim_value(20),
-                    R.prim_value(1),
-                    R.prim_value(T.float32(0.54000000000000004)),
-                    R.prim_value(T.float32(0.46000000000000002)),
+                    R.prim_value(True),
+                    R.prim_value(T.float64(0.54000000000000004)),
+                    R.prim_value(T.float64(0.46000000000000002)),
                     dtype="float32",
                 )
                 gv: R.Tuple(R.Tensor((20,), dtype="float32")) = (lv,)
@@ -6387,7 +6387,10 @@ def test_masked_fill():
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(128, 128, dtype=torch.float32), torch.rand(128, 128) < 0.5)
+    example_args = (
+        torch.randn(128, 128, dtype=torch.float32),
+        torch.testing.make_tensor((128, 128), dtype=torch.bool, device="cpu"),
+    )
     verify_model(Masked_Fill(), example_args, {}, Expected)
 
 
@@ -6409,7 +6412,10 @@ def test_masked_fill_inplace():
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(128, 128, dtype=torch.float32), torch.rand(128, 128) < 0.5)
+    example_args = (
+        torch.randn(128, 128, dtype=torch.float32),
+        torch.testing.make_tensor((128, 128), dtype=torch.bool, device="cpu"),
+    )
     verify_model(Masked_Fill_Inplace(), example_args, {}, Expected)
 
 
@@ -6425,16 +6431,19 @@ def test_masked_select():
             data: R.Tensor((2, 3), dtype="float32"), mask: R.Tensor((2, 3), dtype="bool")
         ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
             R.func_attr({"tir_var_lower_bound": {"u0": 0}, "tir_var_upper_bound": {"u0": 6}})
+            u0 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((6,), dtype="float32") = R.reshape(data, R.shape([6]))
                 lv1: R.Tensor((6,), dtype="bool") = R.reshape(mask, R.shape([6]))
                 lv2: R.Tensor(dtype="int64", ndim=2) = R.nonzero(lv1)
-                lv3: R.Tensor(dtype="int64", ndim=1) = R.squeeze(lv2, axis=[0])
-                lv4: R.Tensor(dtype="float32", ndim=1) = R.take(lv, lv3, axis=0, mode="fast")
-                lv5: R.Tensor((), dtype="int64") = R.const(0, "int64")
+                lv3: R.Tensor((1, u0), dtype="int64") = R.match_cast(
+                    lv2, R.Tensor((1, u0), dtype="int64")
+                )
+                lv4: R.Tensor((u0,), dtype="int64") = R.squeeze(lv3, axis=[0])
+                lv5: R.Tensor((u0,), dtype="float32") = R.take(lv, lv4, axis=0, mode="fast")
                 lv6: R.Tensor((), dtype="bool") = R.const(True, "bool")
                 lv7: R.Tensor((), dtype="bool") = R.const(True, "bool")
-                gv: R.Tuple(R.Tensor(dtype="float32", ndim=1)) = (lv4,)
+                gv: R.Tuple(R.Tensor((u0,), dtype="float32")) = (lv5,)
                 R.output(gv)
             return gv
 
@@ -6443,6 +6452,19 @@ def test_masked_select():
         torch.tensor([[True, False, True], [False, True, False]]),
     )
     verify_model(MaskedSelect(), example_args, {}, Expected)
+
+
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_masked_select_numerically():
+    class MaskedSelect(Module):
+        def forward(self, data: torch.Tensor, mask: torch.Tensor):
+            return torch.masked_select(data, mask)
+
+    example_args = (
+        torch.tensor([[1, 2, 3], [4, 5, 6]], dtype=torch.float32),
+        torch.tensor([[True, False, True], [False, True, False]]),
+    )
+    verify_model_numerically(MaskedSelect(), example_args)
 
 
 def test_new_ones():
@@ -7797,7 +7819,7 @@ def test_where():
                 R.output(gv)
             return gv
 
-    condition = torch.randint(0, 2, (5, 3), dtype=torch.bool)
+    condition = torch.testing.make_tensor((5, 3), dtype=torch.bool, device="cpu")
     x = torch.randn(5, 3, dtype=torch.float32)
     y = torch.randn(5, 3, dtype=torch.float32)
 
@@ -7827,6 +7849,19 @@ def test_bucketize():
     boundaries = torch.arange(0, 20, 2)
 
     verify_model(Bucketize(), (input_tensor, boundaries), {}, Expected)
+
+
+@pytest.mark.parametrize("right", [False, True])
+@pytest.mark.parametrize("out_int32", [False, True])
+def test_bucketize_numerically(right, out_int32):
+    class Bucketize(Module):
+        def forward(self, input_tensor, boundaries):
+            return torch.bucketize(input_tensor, boundaries, right=right, out_int32=out_int32)
+
+    input_tensor = torch.tensor([-0.5, 0.0, 0.5, 1.0, 2.0, 2.5], dtype=torch.float32)
+    boundaries = torch.tensor([0.0, 1.0, 2.0], dtype=torch.float32)
+
+    verify_model_numerically(Bucketize(), (input_tensor, boundaries))
 
 
 def test_argsort():
@@ -7896,7 +7931,7 @@ def test_dynamic_shape():
             lhs: R.Tensor(("s0", 4), dtype="float32"),
             rhs: R.Tensor(("s0", 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s24": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(lhs, rhs)
@@ -8252,8 +8287,8 @@ def test_linspace():
 )
 def test_dtypes(torch_dtype, relax_dtype):
     example_args = (
-        torch.randint(0, 10, (10, 10)).to(torch_dtype),
-        torch.randint(0, 10, (10, 10)).to(torch_dtype),
+        torch.testing.make_tensor((10, 10), dtype=torch_dtype, device="cpu", low=0, high=10),
+        torch.testing.make_tensor((10, 10), dtype=torch_dtype, device="cpu", low=0, high=10),
     )
 
     class Model(Module):
@@ -8620,7 +8655,7 @@ def test_dynamic_shape_with_range_constraints():
         def main(
             x1: R.Tensor(("s0", 4), dtype="float32"), x2: R.Tensor(("s0", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s24": 1}, "tir_var_upper_bound": {"s24": 64}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(x1, x2)
@@ -8653,8 +8688,8 @@ def test_dynamic_shape_with_addition_constraints():
         def main(
             x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0___1", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0 + s0___1", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
-            s0___1 = T.int64(is_size_var=True)
+            s0 = T.int64()
+            s0___1 = T.int64()
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s77": 1, "s77___1": 2},
@@ -8687,8 +8722,8 @@ def test_dynamic_shape_with_subtraction_constraints():
         def main(
             x: R.Tensor(("s0___1", 4), dtype="float32"), y: R.Tensor(("s0", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0___1 + s0", 4), dtype="float32")):
-            s0___1 = T.int64(is_size_var=True)
-            s0 = T.int64(is_size_var=True)
+            s0___1 = T.int64()
+            s0 = T.int64()
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s17": 0, "s17___1": 1},
@@ -8721,8 +8756,8 @@ def test_dynamic_shape_with_multiplication_constraints():
         def main(
             x: R.Tensor(("s0", 4), dtype="float32"), y: R.Tensor(("s0_2", 4), dtype="float32")
         ) -> R.Tuple(R.Tensor(("s0 + s0_2", 4), dtype="float32")):
-            s0 = T.int64(is_size_var=True)
-            s0_2 = T.int64(is_size_var=True)
+            s0 = T.int64()
+            s0_2 = T.int64()
             R.func_attr(
                 {
                     "tir_var_lower_bound": {"s77": 1, "s77_2": 2},
@@ -8755,7 +8790,7 @@ def test_dynamic_shape_with_unbounded_constraints():
         def main(x: R.Tensor(("s0", 4), dtype="float32")) -> R.Tuple(
             R.Tensor(("s0", 4), dtype="float32")
         ):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 2}})
             with R.dataflow():
                 lv: R.Tensor((s0, 4), dtype="float32") = R.add(x, x)
@@ -8822,7 +8857,7 @@ def test_sym_size_int():
         def main(x: R.Tensor(("s0", 3, 4), dtype="float32")) -> R.Tuple(
             R.Tensor(("s0", 12), dtype="float32")
         ):
-            s0 = T.int64(is_size_var=True)
+            s0 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 0}})
             with R.dataflow():
                 lv: R.Tensor((s0, 12), dtype="float32") = R.reshape(x, R.shape([s0, 12]))
@@ -9214,7 +9249,7 @@ def test_cond_shape_predicate():
         def cond_true_branch_0(
             x: R.Tensor(("s77", 4), dtype="float32"),
         ) -> R.Tensor(("s77", 4), dtype="float32"):
-            s77 = T.int64(is_size_var=True)
+            s77 = T.int64()
             gv: R.Tensor((s77, 4), dtype="float32") = R.add(x, R.const(1.0, "float32"))
             gv1: R.Tensor((s77, 4), dtype="float32") = gv
             return gv1
@@ -9223,7 +9258,7 @@ def test_cond_shape_predicate():
         def cond_false_branch_1(
             x: R.Tensor(("s77", 4), dtype="float32"),
         ) -> R.Tensor(("s77", 4), dtype="float32"):
-            s77 = T.int64(is_size_var=True)
+            s77 = T.int64()
             gv: R.Tensor((s77, 4), dtype="float32") = R.subtract(x, R.const(1.0, "float32"))
             gv1: R.Tensor((s77, 4), dtype="float32") = gv
             return gv1
@@ -9232,7 +9267,7 @@ def test_cond_shape_predicate():
         def main(
             x: R.Tensor(("s77", 4), dtype="float32"),
         ) -> R.Tuple(R.Tensor(("s77", 4), dtype="float32")):
-            s77 = T.int64(is_size_var=True)
+            s77 = T.int64()
             R.func_attr({"tir_var_lower_bound": {"s77": 1}})
             cls = expected
             gv: R.Tensor((), dtype="bool") = R.const(True, "bool")

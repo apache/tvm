@@ -88,7 +88,7 @@ class DataflowBlockExtractor : public ExprMutator {
         // changed.  A change requires that this either be a new
         // dataflow block, or have additional dataflow bindings in the
         // current block.
-        changed = changed || !input_dataflow_block.defined() ||
+        changed = changed || !input_dataflow_block.has_value() ||
                   input_dataflow_block.value()->bindings.size() != dataflow_bindings.size();
       }
 

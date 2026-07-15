@@ -49,7 +49,7 @@ class ExprBinder : public ExprMutator {
         Var new_param = this->VisitVarDef(param);
         params.push_back(new_param);
         if (!param.same_as(new_param)) {
-          this->var_remap_[param->vid] = new_param;
+          this->var_remap_[param] = new_param;
           all_params_unchanged = false;
         }
       }
@@ -76,13 +76,20 @@ class ExprBinder : public ExprMutator {
     }
   }
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final {
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
     auto new_expr = tirx::Substitute(expr, symbolic_var_map_);
     if (!expr.same_as(new_expr)) {
       arith::Analyzer analyzer;
       new_expr = analyzer->Simplify(new_expr);
     }
     return new_expr;
+  }
+
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutator::VisitExprFallback_(op);
   }
 
  private:
@@ -122,11 +129,11 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
   auto bind_from_shape = [&bind_from_prim_expr](const Type& var, const Type& expr) {
     auto var_shape = var.as<ShapeTypeNode>();
     if (!var_shape) return;
-    if (!var_shape->values.defined()) return;
+    if (!var_shape->values.has_value()) return;
 
     auto expr_shape = expr.as<ShapeTypeNode>();
     if (!expr_shape) return;
-    if (!expr_shape->values.defined()) return;
+    if (!expr_shape->values.has_value()) return;
 
     auto var_shape_arr = var_shape->values.value();
     auto expr_shape_arr = expr_shape->values.value();
@@ -139,11 +146,11 @@ tvm::ffi::Map<tirx::Var, PrimExpr> InferSymbolicVarMap(
   auto bind_from_tensor = [&bind_from_shape](const Type& var, const Type& expr) {
     auto var_tensor = var.as<TensorTypeNode>();
     if (!var_tensor) return;
-    if (!var_tensor->shape.defined()) return;
+    if (!var_tensor->shape.has_value()) return;
 
     auto expr_tensor = expr.as<TensorTypeNode>();
     if (!expr_tensor) return;
-    if (!expr_tensor->shape.defined()) return;
+    if (!expr_tensor->shape.has_value()) return;
 
     bind_from_shape(GetType(var_tensor->shape.value()), GetType(expr_tensor->shape.value()));
   };
@@ -196,9 +203,9 @@ bool IsBoolType(const Type& ty, bool permit_unknown_rank, bool permit_unknown_dt
     return false;
   }
 
-  // Bool-type matching preserves the old element-code-only behavior; rank is checked separately.
-  bool correct_dtype = dtype.code == DLDataTypeCode::kDLBool ||
-                       (permit_unknown_dtype && dtype == DLDataType{kDLOpaqueHandle, 0, 0});
+  // Bool-type matching uses element-code-only behavior; rank is checked separately.
+  // Unknown dtype is already handled above via IsUnknownDtype().
+  bool correct_dtype = dtype.code == DLDataTypeCode::kDLBool;
   bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
   return correct_dtype && correct_rank;
 }

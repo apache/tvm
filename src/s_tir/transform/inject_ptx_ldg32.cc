@@ -67,9 +67,9 @@ class PTXRewriter : public StmtMutator {
     if (call != nullptr) {
       const OpNode* op = call->op.as<OpNode>();
       if (op != nullptr && op->name == "tirx.if_then_else") {
-        const PrimExpr& predicate = call->args[0];
-        const PrimExpr& lhs = call->args[1];
-        const PrimExpr& rhs = call->args[2];
+        PrimExpr predicate = call->args[0].as_or_throw<PrimExpr>();
+        PrimExpr lhs = call->args[1].as_or_throw<PrimExpr>();
+        PrimExpr rhs = call->args[2].as_or_throw<PrimExpr>();
         PrimExpr global_addr, local_addr;
         const BufferLoadNode* load = lhs.as<BufferLoadNode>();
         PrimExpr imm_value = rhs;
@@ -99,7 +99,8 @@ class PTXRewriter : public StmtMutator {
         BufferStore value_store(store->buffer, imm_value, {new_indice});
         static const Op& ptx_ldg32_op = Op::Get("tirx.ptx.ldg32");
         Evaluate ptx_load(Call(store->buffer->dtype, ptx_ldg32_op,
-                               {store->buffer->data, new_predicate, new_lhs, new_indice}));
+                               {store->buffer->data, new_predicate, new_lhs, new_indice})
+                              .as_or_throw<PrimExpr>());
         ffi::Array<Stmt> tmp_seq = {addr_store, local_addr_store, predicate_store, value_store,
                                     ptx_load};
         SeqStmt seq_stmt = SeqStmt(tmp_seq);
@@ -130,7 +131,7 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
   auto pass_func = [enable_inject_ptx_intrin](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_inject_ptx_intrin) {
       auto target = f->GetAttr<Target>("target");
-      if (!target.defined() || target.value()->kind->name != "cuda") {
+      if (!target.has_value() || target.value()->kind->name != "cuda") {
         return f;
       }
       auto* n = f.CopyOnWrite();

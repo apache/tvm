@@ -1093,6 +1093,10 @@ class TorchFXImporter(BaseFXGraphImporter):
         # Find all the missing function types
         self._check_unsupported_func_type(graph.nodes)
 
+        from tvm import tirx
+
+        sym_vars = {v.name: v for shape, _ in input_info for v in shape if isinstance(v, tirx.Var)}
+
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
@@ -1108,11 +1112,13 @@ class TorchFXImporter(BaseFXGraphImporter):
                 # Translate the model.
                 for node in graph.nodes:
                     if node.op == "placeholder":
-                        assert len(inputs) > 0, "Provided inputs is less than actual inputs"
                         if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
-                            # Ignore sym input
+                            # Sym input: bind to the matching shape var if referenced
+                            if node.name in sym_vars:
+                                self.env[node] = sym_vars[node.name]
                             continue
 
+                        assert len(inputs) > 0, "Provided inputs is less than actual inputs"
                         self.env[node] = inputs.pop(0)
                     elif node.op == "output":
                         args = self.retrieve_args(node)

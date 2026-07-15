@@ -201,7 +201,7 @@ class PrimFuncInliner : StmtExprMutator {
     return VisitStmt(inlined);
   }
 
-  PrimExpr VisitExpr_(const CallNode* call) override {
+  Expr VisitExpr_(const CallNode* call) override {
     // Because the current implementation inlines a subroutine inserts
     // the `tirx::Stmt` body at the point of use, replacement must
     // occur in a context where a `tirx::Stmt` can be returned. Support
@@ -222,8 +222,7 @@ class PrimFuncInliner : StmtExprMutator {
     return StmtExprMutator::VisitExpr_(call);
   }
 
-  Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee,
-                       const ffi::Array<PrimExpr>& args) const {
+  Stmt InlineArguments(const GlobalVar& gvar, PrimFunc callee, const ffi::Array<Expr>& args) const {
     TVM_FFI_ICHECK_EQ(callee->params.size(), args.size())
         << "Callee " << gvar << " accepts " << callee->params.size() << " parameters ("
         << callee->params << "), but is called with " << args.size() << " arguments (" << args
@@ -233,7 +232,7 @@ class PrimFuncInliner : StmtExprMutator {
         << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
         << "but callee " << gvar << " has non-empty buffer map " << callee->buffer_map;
 
-    ffi::Map<Var, ffi::Variant<tirx::Buffer, tvm::PrimExpr>> param_map;
+    ffi::Map<Var, ffi::Variant<tirx::Buffer, tvm::Expr>> param_map;
     for (size_t i = 0; i < callee->params.size(); i++) {
       param_map.Set(callee->params[i], args[i]);
     }

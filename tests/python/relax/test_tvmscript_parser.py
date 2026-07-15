@@ -1313,6 +1313,14 @@ def test_scalar_tensor_as_branch_condition():
     tvm.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
 
 
+def test_prim_annotation_requires_dtype():
+    with pytest.raises(TypeError, match="missing 1 required positional argument: 'dtype'"):
+        R.Prim()
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'value'"):
+        R.Prim(value="n")
+
+
 def test_prim_value_as_branch_condition():
     """In addition to scalar tensor, can use R.Prim condition"""
 
@@ -1343,13 +1351,13 @@ def test_computed_prim_value_as_branch_condition():
 
     N = func.params[0].ty.shape[0]
     if_else = func.body.blocks[0].bindings[0].value
-    assert isinstance(if_else.cond, tvm.tirx.PrimExpr)
+    assert tvm.ir.is_prim_expr(if_else.cond)
     tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond)
     tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_branch_condition():
-    """Syntactic sugar, use PrimExpr directly"""
+    """Syntactic sugar, use Expr directly"""
 
     @R.function(private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
@@ -1415,13 +1423,13 @@ def test_computed_prim_value_as_assert_condition():
     N = func.params[0].ty.shape[0]
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
-    assert isinstance(condition, tvm.tirx.PrimExpr)
+    assert tvm.ir.is_prim_expr(condition)
     tvm.ir.assert_structural_equal(N % 16 == 0, condition)
     tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_assert_condition():
-    """Syntactic sugar, use PrimExpr directly"""
+    """Syntactic sugar, use Expr directly"""
 
     @R.function(pure=False, private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
@@ -2297,7 +2305,7 @@ def test_function_symbolic_variables_are_annotated():
 
 
 def test_constant_prim_expr_alias_is_not_symbolic_declaration():
-    """Constant PrimExpr locals are constants, not declarations."""
+    """Constant Expr locals are constants, not declarations."""
 
     @R.function(private=True)
     def func(A: R.Tensor([4], "float32")):

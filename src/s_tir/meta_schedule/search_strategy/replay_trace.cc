@@ -86,10 +86,10 @@ class ReplayTraceNode : public SearchStrategyNode {
                                     SearchStrategyNode);
 
   void InitializeWithTuneContext(const TuneContext& ctx) final {
-    TVM_FFI_CHECK(ctx->mod.defined(), ValueError) << "TuneContext.mod is not defined";
-    TVM_FFI_CHECK(ctx->space_generator.defined(), ValueError)
+    TVM_FFI_CHECK(ctx->mod.has_value(), ValueError) << "TuneContext.mod is not defined";
+    TVM_FFI_CHECK(ctx->space_generator.has_value(), ValueError)
         << "TuneContext.space_generator is not defined";
-    if (!ctx->space_generator.value()->postprocs.defined()) {
+    if (!ctx->space_generator.value()->postprocs.has_value()) {
       TVM_PY_LOG(WARNING, ctx->logger)
           << "`postprocs` is not defined in " << ctx->space_generator.value()
           << ". Please explicitly set `postprocs` to an empty list if you don't want to "

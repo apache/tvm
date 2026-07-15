@@ -47,7 +47,7 @@ Expr matmul(Expr x1, Expr x2, ffi::Optional<DLDataType> out_dtype) {
   attrs->out_dtype = out_dtype;
 
   static const Op& op = Op::Get("relax.matmul");
-  return Call(op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -63,13 +63,13 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   TensorType x2_ty = input_ty[1];
 
   VDevice vdev = VDevice();
-  if (x1_ty->vdevice.defined() && x2_ty->vdevice.defined()) {
+  if (x1_ty->vdevice.has_value() && x2_ty->vdevice.has_value()) {
     if (x1_ty->vdevice.value() == x2_ty->vdevice.value()) {
       vdev = x1_ty->vdevice.value();
     }
-  } else if (x1_ty->vdevice.defined()) {
+  } else if (x1_ty->vdevice.has_value()) {
     vdev = x1_ty->vdevice.value();
-  } else if (x2_ty->vdevice.defined()) {
+  } else if (x2_ty->vdevice.has_value()) {
     vdev = x2_ty->vdevice.value();
   }
 
@@ -126,7 +126,7 @@ Type InferTypeMatmul(const Call& call, const BlockBuilder& ctx) {
                                        x2_shape->values.end() - 2 + x2_appended};
   ffi::Optional<ffi::Array<PrimExpr>> output_shape_prefix =
       InferBinaryBroadcastShape(call, ctx, x1_shape_prefix, x2_shape_prefix);
-  if (!output_shape_prefix.defined()) {
+  if (!output_shape_prefix.has_value()) {
     if (vdev.defined()) {
       return TensorType(out_dtype, output_ndim, vdev);
     }
@@ -178,7 +178,7 @@ Expr einsum(Expr operands, ffi::String subscripts) {
   attrs->subscripts = std::move(subscripts);
 
   static const Op& op = Op::Get("relax.einsum");
-  return Call(op, {std::move(operands)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(operands)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -203,7 +203,7 @@ Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
   VDevice vdev = VDevice();
   for (TensorType ty : operands_tensor_ty) {
     if (!vdevice_unknown) {
-      if (ty->vdevice.defined()) {
+      if (ty->vdevice.has_value()) {
         if (!vdev.defined()) {
           vdev = ty->vdevice.value();
         } else if (ty->vdevice.value()->target.defined()) {
@@ -262,7 +262,7 @@ TVM_REGISTER_OP("relax.einsum")
 
 Expr outer(Expr x1, Expr x2) {
   static const Op& op = Op::Get("relax.outer");
-  return Call(op, {std::move(x1), std::move(x2)}, {});
+  return Call(Type::Missing(), op, {std::move(x1), std::move(x2)}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

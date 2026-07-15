@@ -104,10 +104,12 @@ class LayoutConvertMutator : public ExprMutator {
     for (int i = 0; i < ndim; ++i) {
       auto var = tvm::tirx::Var("i" + std::to_string(i), PrimType::Int(32));
       initial_indices.push_back(var);
-      initial_indices_expr.push_back(var);
+      initial_indices_expr.push_back(var.as_or_throw<PrimExpr>());
     }
     ffi::Array<PrimExpr> desired_shape = todesired.ForwardIndex(initial_indices_expr);
-    return IndexMap(initial_indices, desired_shape, std::move(inverse_index_map));
+    return IndexMap(initial_indices.Map(
+                        [](tvm::tirx::Var var) { return var.as_or_throw<tvm::tirx::PrimVar>(); }),
+                    desired_shape, std::move(inverse_index_map));
   }
 
   Expr RewriteExpr(const Expr& expr, const NLayout& to) {
@@ -135,7 +137,8 @@ class LayoutConvertMutator : public ExprMutator {
         attrs->axis_separators = std::move(axis_separator);
         attrs->input_axis_separators = std::move(input_axis_separator);
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
-        auto ret_expr = Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+        auto ret_expr =
+            Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
         return ret_expr;
       }
     };
@@ -228,8 +231,8 @@ class LayoutConvertMutator : public ExprMutator {
     ffi::Optional<InferLayoutOutput> res =
         GetInferLayoutInfo(call_node, desired_layouts_, layout_cb_, var_layout_map_);
     ffi::ObjectPtr<CallNode> new_call = ffi::make_object<CallNode>(*call_node);
-    new_call->ty = Type();
-    if (!res.defined() ||
+    new_call->ty = Type::Missing();
+    if (!res.has_value() ||
         (!IsNestedTensor(binding->var) && !binding->var->IsInstance<DataflowVarNode>())) {
       // Default policy: use the initial layout.
       // When we don't have the infer layout info, or it's a non-tensor global var binding.
@@ -316,7 +319,7 @@ class LayoutConvertMutator : public ExprMutator {
           << "Cannot convert when exactly one of the layouts is unknown";
       const TensorTypeNode* tensor_ty = ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(tensor_ty != nullptr) << "We can not set layout for non-tensor struct";
-      if (!tensor_ty->shape.defined()) return ty;
+      if (!tensor_ty->shape.has_value()) return ty;
       const ShapeExprNode* shape = tensor_ty->shape.value().as<ShapeExprNode>();
       if (shape == nullptr) return ty;
       TVM_FFI_ICHECK_EQ(shape->values.size(), to.LeafValue()->layout.ndim());
@@ -336,7 +339,7 @@ class LayoutConvertMutator : public ExprMutator {
     } else {
       Var new_var = builder_->EmitMatchCast(RewriteExpr(binding->value, input_layout), new_ty);
       var_layout_map_[binding->var] = input_layout;
-      this->var_remap_[binding->var->vid] = new_var;
+      this->var_remap_[binding->var] = new_var;
     }
   }
 

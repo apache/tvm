@@ -149,7 +149,7 @@ def _dummy_result(num_samples: int = 4, max_run_sec: int = 10):
 @requires_xgboost
 def test_meta_schedule_xgb_model():
     extractor = RandomFeatureExtractor()
-    model = XGBModel(extractor=extractor, num_warmup_samples=2)
+    model = XGBModel(extractor=extractor, num_warmup_samples=2, num_tuning_cores=1)
     update_sample_count = 10
     predict_sample_count = 100
     model.update(
@@ -162,9 +162,10 @@ def test_meta_schedule_xgb_model():
 
 @requires_xgboost
 def test_meta_schedule_xgb_model_no_feature():
-    model = XGBModel(num_warmup_samples=0)
+    model = XGBModel(num_warmup_samples=0, num_tuning_cores=1)
     tune_ctx = TuneContext(
         FullModule,
+        num_threads=1,
         target={"kind": "llvm", "num-cores": 16},
         space_generator="post-order-apply",
         search_strategy="evolutionary",
@@ -177,7 +178,7 @@ def test_meta_schedule_xgb_model_no_feature():
 @requires_xgboost
 def test_meta_schedule_xgb_model_reload():
     extractor = RandomFeatureExtractor()
-    model = XGBModel(extractor=extractor, num_warmup_samples=10)
+    model = XGBModel(extractor=extractor, num_warmup_samples=10, num_tuning_cores=1)
     update_sample_count = 20
     predict_sample_count = 30
     model.update(
@@ -221,7 +222,7 @@ def test_meta_schedule_xgb_model_reload():
 @requires_xgboost
 def test_meta_schedule_xgb_model_reupdate():
     extractor = RandomFeatureExtractor()
-    model = XGBModel(extractor=extractor, num_warmup_samples=2)
+    model = XGBModel(extractor=extractor, num_warmup_samples=2, num_tuning_cores=1)
     update_sample_count = 60
     predict_sample_count = 100
     model.update(
@@ -252,7 +253,7 @@ def test_meta_schedule_xgb_model_callback_as_function():
     # pylint: enable=import-outside-toplevel
 
     extractor = RandomFeatureExtractor()
-    model = XGBModel(extractor=extractor, num_warmup_samples=10)
+    model = XGBModel(extractor=extractor, num_warmup_samples=10, num_tuning_cores=1)
     update_sample_count = 20
     predict_sample_count = 30
 

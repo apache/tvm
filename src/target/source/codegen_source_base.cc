@@ -34,7 +34,9 @@ void CodeGenSourceBase::ClearFuncState() {
   scope_mark_.clear();
 }
 
-std::string CodeGenSourceBase::SSAGetID(std::string src, const PrimType& t) {
+std::string CodeGenSourceBase::SSAGetID(std::string src, const Type& t) {
+  TVM_FFI_ICHECK(t.as<PrimTypeNode>() || t.as<PointerTypeNode>())
+      << "Cannot assign an SSA value of type " << t;
   if (name_supply_->ContainsName(src)) return src;
   auto it = ssa_assign_map_.find(src);
   if (it != ssa_assign_map_.end()) {
@@ -102,10 +104,6 @@ void CodeGenSourceBase::EndScope(int scope_id) {
 void CodeGenSourceBase::PrintType(const PrimType& type, std::ostream& os) {  // NOLINT(*)
   int lanes = type.lanes();
   TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
-  if (type.IsHandle()) {
-    os << "void*";
-    return;
-  }
   if (type.IsVoid()) {
     os << "void";
     return;

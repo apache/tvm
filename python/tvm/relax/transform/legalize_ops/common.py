@@ -20,11 +20,12 @@ from collections.abc import Callable
 
 import tvm
 from tvm import te
+from tvm.ir import Call
 from tvm.runtime import DataTypeCode
-from tvm.tirx import FloatImm, IntImm, PrimExpr
+from tvm.tirx import FloatImm, IntImm
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Constant, Expr
+from ...expr import Constant, Expr
 
 ##################### Types #####################
 
@@ -40,7 +41,7 @@ LegalizeFunc = Callable[[BlockBuilder, Call], Expr]
 
 
 def _is_relax_expr(expr: object) -> bool:
-    return isinstance(expr, Expr) and not isinstance(expr, PrimExpr)
+    return isinstance(expr, Expr) and not tvm.ir.is_prim_expr(expr)
 
 
 def _try_convert_to_scalar_const(

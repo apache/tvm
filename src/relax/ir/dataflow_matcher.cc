@@ -499,7 +499,7 @@ bool DFPatternMatcher::VisitDFPattern_(const ShapePatternNode* op, const Expr& e
   return false;
 }
 
-std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
+std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsCondition(
     std::function<ffi::Optional<Var>(const DFPatternNode*)> match_state) const {
   ffi::Optional<ffi::Array<PrimExpr>> expected_shape;
   bool all_shapes_defined = true;
@@ -521,14 +521,14 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
         }
       }();
 
-      if (!opt_var_shape.defined()) {
+      if (!opt_var_shape.has_value()) {
         // The pattern has matched to something without a shape.
         // Therefore, it cannot have the same shape as something else.
         return {PrimExpr(IntImm::Bool(false)), true};
       }
       auto var_shape = opt_var_shape.value();
 
-      if (expected_shape.defined()) {
+      if (expected_shape.has_value()) {
         auto prev_shape = expected_shape.value();
         if (prev_shape.size() == var_shape.size()) {
           // The dimensionalities match, so build up the expression
@@ -582,7 +582,7 @@ bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& exp
   // We don't jump for var pattern, as there's no need to access its value to judge it.
   if (const auto* var_node = expr.as<VarNode>()) {
     // "" means any name.
-    return "" == op->name_hint() || op->name_hint() == var_node->name_hint();
+    return "" == op->name_hint() || op->name_hint() == var_node->name_hint;
   }
   return false;
 }

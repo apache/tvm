@@ -289,7 +289,14 @@ def test_simple_replace_all_uses():
     n2binding = name_to_binding(root_fn)
 
     rwt = DataflowBlockRewrite(dfb, root_fn)
+    missing = Var("missing")
+    with pytest.raises(RuntimeError, match="Cannot find"):
+        rwt.replace_all_uses(missing, missing)
+
     rwt.replace_all_uses(n2binding["lv0"][0].var, n2binding["lv1"][0].var)
+    rwt.replace_all_uses(n2binding["lv1"][0].var, n2binding["lv1"][0].var)
+    with pytest.raises(RuntimeError, match=r"is used by 2 vars"):
+        rwt.remove_unused(n2binding["lv1"][0].var)
     rwt.remove_unused(n2binding["lv0"][0].var)
 
     assert_immutability(rwt, dfb, root_fn)

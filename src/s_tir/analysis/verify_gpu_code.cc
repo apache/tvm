@@ -202,7 +202,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   void CheckBufferIndicesVectorizable(const ffi::Array<PrimExpr> indices) {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
-        PrimType ramp_ty = ramp->ty();
+        PrimType ramp_ty = ramp->ty.as_or_throw<PrimType>();
         if (!is_one(ramp->stride) && ramp_ty.IsFixedLengthVector() &&
             ElementBytes(ramp_ty) > max_vector_bytes_) {
           std::stringstream s;
@@ -216,7 +216,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CastNode* op) {
-    PrimType op_ty = op->ty();
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (op_ty.IsFixedLengthVector()) {
       if (ElementBytes(op_ty) > max_vector_bytes_) {
         std::stringstream s;
@@ -230,7 +230,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) {
-    PrimType op_ty = op->ty();
+    PrimType op_ty = op->ty.as_or_throw<PrimType>();
     if (op_ty.IsFixedLengthVector()) {
       if (ElementBytes(op_ty) > max_vector_bytes_) {
         std::stringstream s;

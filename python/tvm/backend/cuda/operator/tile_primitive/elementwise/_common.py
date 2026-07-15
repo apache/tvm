@@ -120,7 +120,7 @@ def _tensor_shape_of(region) -> tuple[int, ...]:
     Accepts either ``[(start, end), ...]`` pairs (as built locally from a
     ``BufferRegion``) or the ``BufferRegion.region`` sequence of ``Range``
     objects directly. ``Range.extent`` is already simplified by the
-    front-end, so we avoid computing ``end - start`` on raw PrimExpr (which
+    front-end, so we avoid computing ``end - start`` on raw Expr (which
     yields an un-simplified ``Sub`` and breaks ``int(...)``).
     """
     out = []

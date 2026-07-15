@@ -67,7 +67,7 @@ def test_double_buffer():
     count = [0]
 
     def count_sync(op):
-        if isinstance(op, tvm.tirx.Call) and op.op.same_as(tvm.ir.Op.get("tirx.tvm_storage_sync")):
+        if isinstance(op, tvm.ir.Call) and op.op.same_as(tvm.ir.Op.get("tirx.tvm_storage_sync")):
             count[0] += 1
 
     tvm.tirx.stmt_functor.post_order_visit(f.body, count_sync)

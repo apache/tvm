@@ -194,7 +194,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override {
+  Expr VisitExpr_(const BufferLoadNode* op) override {
     if (map_buffer_assumption.find(op->buffer) != map_buffer_assumption.end()) {
       PrimExpr buf_value;
       /* If the cuurent context where the buffer load is present is same as
@@ -222,9 +222,9 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     // Eliminate the builtin if_then_else statement
     if (auto* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::if_then_else())) {
-        PrimExpr cond = call->args[0];
-        PrimExpr then_clause = call->args[1];
-        PrimExpr else_clause = call->args[2];
+        PrimExpr cond = call->args[0].as_or_throw<PrimExpr>();
+        PrimExpr then_clause = call->args[1].as_or_throw<PrimExpr>();
+        PrimExpr else_clause = call->args[2].as_or_throw<PrimExpr>();
 
         PrimExpr then_clause_in_then_context;
         PrimExpr else_clause_in_then_context;
@@ -234,20 +234,20 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
           // Simplifying expressions in " then context "
           InternalConstraintContext then_ctx(this, cond);
           // This will call the current class's appropriate VisitStmt function
-          then_clause_in_then_context = (*this)(then_clause);
+          then_clause_in_then_context = (*this)(then_clause).as_or_throw<PrimExpr>();
           then_clause_in_then_context = analyzer_->Simplify(then_clause_in_then_context);
 
-          else_clause_in_then_context = (*this)(else_clause);
+          else_clause_in_then_context = (*this)(else_clause).as_or_throw<PrimExpr>();
           else_clause_in_then_context = analyzer_->Simplify(else_clause_in_then_context);
         }
         {
           // Simplifying expressions in " else context "
           InternalConstraintContext else_ctx(this, !cond);
           // This will call the current class's appropriate VisitStmt function
-          then_clause_in_else_context = (*this)(then_clause);
+          then_clause_in_else_context = (*this)(then_clause).as_or_throw<PrimExpr>();
           then_clause_in_else_context = analyzer_->Simplify(then_clause_in_else_context);
 
-          else_clause_in_else_context = (*this)(else_clause);
+          else_clause_in_else_context = (*this)(else_clause).as_or_throw<PrimExpr>();
           else_clause_in_else_context = analyzer_->Simplify(else_clause_in_else_context);
         }
 
@@ -267,9 +267,9 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return Parent::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     if (op->op.same_as(builtin::assume())) {
-      Assume(op->args[0]);
+      Assume(op->args[0].as_or_throw<PrimExpr>());
     }
     return Parent::VisitExpr_(op);
   }

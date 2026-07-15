@@ -63,15 +63,19 @@ class TestBasePyModule:
         ir_mod = tvm.IRModule({"simple_func": simple_func})
 
         if tvm.cuda().exist:
-            device = tvm.cuda(0)
-            py_mod = BasePyModule(ir_mod, device)
 
-            assert isinstance(py_mod, BasePyModule)
-            assert hasattr(py_mod, "call_tir")
-            assert hasattr(py_mod, "call_dps_packed")
-            assert hasattr(py_mod, "compiled_tir_funcs")
-            # Check if target contains "cuda" instead of exact match
-            assert "cuda" in str(py_mod.target)
+            def run_and_check():
+                device = tvm.cuda(0)
+                py_mod = BasePyModule(ir_mod, device)
+
+                assert isinstance(py_mod, BasePyModule)
+                assert hasattr(py_mod, "call_tir")
+                assert hasattr(py_mod, "call_dps_packed")
+                assert hasattr(py_mod, "compiled_tir_funcs")
+                # Check if target contains "cuda" instead of exact match
+                assert "cuda" in str(py_mod.target)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 
@@ -112,21 +116,27 @@ class TestBasePyModule:
 
     def test_call_tir_with_pytorch_tensors_gpu(self):
         if tvm.cuda().exist:
-            # Create a simple IRModule without TIR functions for GPU testing
-            ir_mod = tvm.IRModule({})
-            device = tvm.cuda(0)
-            py_mod = BasePyModule(ir_mod, device)
 
-            # Test basic GPU functionality without TIR compilation issues
-            assert isinstance(py_mod, BasePyModule)
-            assert hasattr(py_mod, "call_tir")
-            assert hasattr(py_mod, "call_dps_packed")
-            assert "cuda" in str(py_mod.target)
+            def run_and_check():
+                # Create a simple IRModule without TIR functions for GPU testing
+                ir_mod = tvm.IRModule({})
+                device = tvm.cuda(0)
+                py_mod = BasePyModule(ir_mod, device)
 
-            # Test that we can create GPU tensors and they work
-            input_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda")
-            assert input_tensor.device.type == "cuda"
-            assert input_tensor.shape == (4,)
+                # Test basic GPU functionality without TIR compilation issues
+                assert isinstance(py_mod, BasePyModule)
+                assert hasattr(py_mod, "call_tir")
+                assert hasattr(py_mod, "call_dps_packed")
+                assert "cuda" in str(py_mod.target)
+
+                # Test that we can create GPU tensors and they work
+                input_tensor = torch.tensor(
+                    [1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda"
+                )
+                assert input_tensor.device.type == "cuda"
+                assert input_tensor.shape == (4,)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 

@@ -26,6 +26,7 @@ from pathlib import Path
 
 import tvm_ffi
 
+import tvm
 from tvm import libinfo, tirx
 from tvm.runtime import Module, load_static_library
 from tvm.support import cc as _cc
@@ -60,7 +61,7 @@ class ExternModule:
                     return rx.prim_value(tirx.FloatImm("float64", arg))
                 if isinstance(arg, str):
                     return rx.StringImm(arg)
-                if isinstance(arg, tirx.PrimExpr):
+                if tvm.ir.is_prim_expr(arg):
                     return rx.prim_value(arg)
                 if isinstance(arg, tuple | list):
                     return rx.Tuple([_convert(e, f"{name}_{i}") for i, e in enumerate(arg)])

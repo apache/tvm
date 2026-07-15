@@ -65,10 +65,12 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   }
 
  private:
+  using StmtExprVisitor::VisitExpr_;
+
   void VisitExpr_(const VarNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
     Var buffer_var = ffi::GetRef<Var>(op);
-    if (buffer_var.ty().IsHandle()) {
+    if (buffer_var->ty.as<PointerTypeNode>()) {
       info_.write_access_set.insert(buffer_var);
     }
   }
@@ -119,7 +121,7 @@ void CodeGenWebGPU::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg.ty().IsHandle()) {
+    if (arg->ty.as<PointerTypeNode>()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -161,8 +163,12 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
                 << "// Function: " << global_symbol.value() << "\n"
                 << "//----------------------------------------\n";
   ffi::String func_name = global_symbol.value();
-  ffi::Array<DLDataType> func_arg_types;
+  ffi::Array<DLDataType> runtime_arg_types;
   ffi::Array<ffi::String> func_launch_param_tags;
+
+  // FunctionInfo stores runtime launch ABI dtypes rather than semantic IR Types.  WebGPU's
+  // runtime classifies storage-buffer arguments by the serialized "handle" dtype.
+  constexpr DLDataType kRuntimeOpaqueHandleType{kDLOpaqueHandle, 64, 1};
 
   WebGPUWorkGroupInfo info = WebGPUWorkgroupInfoCollector::Collect(f->body);
 
@@ -174,21 +180,16 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   os_param_access << "paramWriteAccess:[";
   // setup buffer argumemts
   for (Var arg : f->params) {
-    PrimType t = arg.ty();
-    func_arg_types.push_back(t->dtype);
-
-    if (t.IsHandle()) {
-      auto* ptr = arg->type_annotation.as<PointerTypeNode>();
-      TVM_FFI_ICHECK(ptr)
-          << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
-             "PointerType, "
-          << "and must point to a PrimType";
+    if (auto* ptr = arg->ty.as<PointerTypeNode>()) {
+      runtime_arg_types.push_back(kRuntimeOpaqueHandleType);
       auto* prim = ptr->element_type.as<PrimTypeNode>();
       TVM_FFI_ICHECK(prim)
           << "All handles passed to the CodeGenWebGPU must have a type_annotation as a "
              "PointerType, "
           << "and must point to a PrimType";
       PrimType value_storage_type = ffi::GetRef<PrimType>(prim);
+      TVM_FFI_ICHECK(!value_storage_type.IsVoid())
+          << "WebGPU storage buffers must have a concrete primitive element type";
       if (value_storage_type.MatchesCode(DLDataTypeCode::kDLBool)) {
         // We need a physically addressable buffer type to support boolean tensors.
         // The loaded byte is cast to bool inside the LoadNode visitor below.
@@ -212,6 +213,9 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
       this->PrintType(value_storage_type, this->decl_stream);
       this->decl_stream << ">;\n";
     } else {
+      PrimType pod_type = arg->ty.as_or_throw<PrimType>();
+      TVM_FFI_ICHECK(!pod_type.IsVoid()) << "WebGPU POD arguments cannot have void type";
+      runtime_arg_types.push_back(pod_type->dtype);
       pod_args.push_back(arg);
     }
   }
@@ -228,17 +232,18 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 
   for (size_t i = 0; i < pod_args.size(); ++i) {
     Var v = pod_args[i];
-    TVM_FFI_ICHECK(!v.ty().IsHandle());
+    PrimType value_type = v->ty.as_or_throw<PrimType>();
+    TVM_FFI_ICHECK(!value_type.IsVoid());
     std::string vid = AllocVarID(v.get());
 
-    if (v.ty() == PrimType::Int(32)) {
+    if (value_type == PrimType::Int(32)) {
       this->decl_stream << "  " << vid << ": i32";
-    } else if (v.ty() == PrimType::UInt(32)) {
+    } else if (value_type == PrimType::UInt(32)) {
       this->decl_stream << "  " << vid << ": u32";
-    } else if (v.ty() == PrimType::Float(32)) {
+    } else if (value_type == PrimType::Float(32)) {
       this->decl_stream << "  " << vid << ": f32";
     } else {
-      TVM_FFI_THROW(InternalError) << "Do not support pod argument type " << v.ty()->dtype;
+      TVM_FFI_THROW(InternalError) << "Do not support pod argument type " << value_type;
     }
     this->decl_stream << ",\n";
     // value ref
@@ -282,20 +287,20 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
-  return runtime::FunctionInfo(std::move(func_name), std::move(func_arg_types),
+  return runtime::FunctionInfo(std::move(func_name), std::move(runtime_arg_types),
                                std::move(func_launch_param_tags), {});
 }
 
 void CodeGenWebGPU::BindThreadIndex(const IterVar& iv) {
   TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
   std::ostringstream os;
-  PrintType(iv->var.ty()->dtype, os);
+  PrintType(iv->var.ty(), os);
   if (iv->thread_tag == "blockIdx.x") {
     // WebGPU have restriction to limit the maximum size of blockId.x to be 65535
     // We allow runtime to spread the load out to blockIdx.z so it can be a large number.
     os << "(blockIdx.z * gridDim.x + blockIdx.x)";
     std::string tidx = os.str();
-    std::string aggregated_bidx = SSAGetID(os.str(), iv->var.ty()->dtype);
+    std::string aggregated_bidx = SSAGetID(os.str(), iv->var.ty());
     var_idmap_[iv->var.get()] = aggregated_bidx;
   } else {
     os << "(" << iv->thread_tag << ")";
@@ -306,16 +311,12 @@ void CodeGenWebGPU::BindThreadIndex(const IterVar& iv) {
 }
 
 void CodeGenWebGPU::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
-  const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_THROW(InternalError) << "Cannot print handle type in WebGPU";
-  }
   if (t.IsVoid()) {
     os << "void";
     return;
   }
-  if (raw_t == DLDataType{kDLBool, 8, 1}) {
+  if (t == PrimType::Bool()) {
     os << "bool";
     return;
   }
@@ -346,7 +347,7 @@ void CodeGenWebGPU::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(
     os << "i" << t.bits();
   } else {
     TVM_FFI_THROW(InternalError) << "CodeGenWebGPU: Cannot convert type "
-                                 << ffi::DLDataTypeToString(raw_t) << " to WebGPU type";
+                                 << ffi::DLDataTypeToString(t->dtype) << " to WebGPU type";
   }
   if (lanes != 1) {
     os << ">";
@@ -367,9 +368,11 @@ void CodeGenWebGPU::PrintStorageSync(const CallNode* op) {
 }
 
 void CodeGenWebGPU::PrintSSAAssign(const std::string& target, const std::string& src,
-                                   const PrimType& type) {
+                                   const Type& type) {
+  auto prim_type = type.as<PrimType>();
+  TVM_FFI_ICHECK(prim_type) << "WebGPU SSA values must have a primitive type, but got " << type;
   stream << "let " << target << " : ";
-  PrintType(type, stream);
+  PrintType(prim_type.value(), stream);
   stream << " = " << src << ";\n";
 }
 
@@ -386,8 +389,8 @@ void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, const PrimType& t,
 
 void CodeGenWebGPU::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = op->ty().lanes();
-  PrintType(op->ty()->dtype, os);
+  int lanes = op->ty.as_or_throw<PrimType>().lanes();
+  PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << "(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -404,7 +407,7 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
   if (op->op.same_as(builtin::reinterpret())) {
     // generate bitcast<TYPE>(ARG)
     os << "bitcast<";
-    this->PrintType(op->ty()->dtype, os);
+    this->PrintType(op->ty.as_or_throw<PrimType>(), os);
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << ")";
@@ -413,14 +416,14 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     this->PrintExpr(op->args[0], os);
     os << ">>";
     // WebGPU requires shift bits to be u32.
-    this->PrintExpr(EnforceU32(op->args[1]), os);
+    this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
     os << ')';
   } else if (op->op.same_as(builtin::shift_left())) {
     os << '(';
     this->PrintExpr(op->args[0], os);
     os << "<<";
     // WebGPU requires shift bits to be u32.
-    this->PrintExpr(EnforceU32(op->args[1]), os);
+    this->PrintExpr(EnforceU32(op->args[1].as_or_throw<PrimExpr>()), os);
     os << ')';
   } else if (op->op.same_as(builtin::if_then_else())) {
     // conditional that skips eval if cond evals to false
@@ -428,7 +431,7 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
     std::string cond = PrintExpr(op->args[0]);
     this->PrintIndent();
     this->stream << "var " << result << " : ";
-    PrintType(op->ty()->dtype, this->stream);
+    PrintType(op->ty.as_or_throw<PrimType>(), this->stream);
     this->stream << ";\n";
     this->PrintIndent();
     this->stream << "if (" << cond << ") {\n";
@@ -461,7 +464,7 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
 }
 
 void CodeGenWebGPU::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintType(op->ty()->dtype, os);
+  PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << "(" << PrintExpr(op->value) << ")";
 }
 
@@ -480,7 +483,7 @@ void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT
     PrintIndent();
     std::string value = PrintExpr(op->value);
     this->stream << "let " << AllocVarID(op->var.get()) << " : ";
-    PrintType(op->var.ty()->dtype, this->stream);
+    PrintType(op->var->ty, this->stream);
     this->stream << " = " << value << ";\n";
   }
   os << PrintExpr(op->body);
@@ -492,18 +495,18 @@ void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT
 }
 
 void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
-  if (op->ty().bits() == 32) {
+  if (op->ty.as_or_throw<PrimType>().bits() == 32) {
     std::ostringstream temp;
-    if (op->ty().MatchesCode(DLDataTypeCode::kDLInt)) {
+    if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLInt)) {
       temp << op->value << "i";
     } else {
-      TVM_FFI_ICHECK(op->ty().MatchesCode(DLDataTypeCode::kDLUInt));
+      TVM_FFI_ICHECK(op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLUInt));
       temp << op->value << "u";
     }
     this->MarkConst(temp.str());
     os << temp.str();
   } else {
-    this->PrintType(op->ty()->dtype, os);
+    this->PrintType(op->ty.as_or_throw<PrimType>(), os);
     os << "(" << op->value << ")";
   }
 }
@@ -511,14 +514,15 @@ void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOL
 void CodeGenWebGPU::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   temp << std::scientific << op->value;
-  if (op->ty().bits() == 32) {
+  if (op->ty.as_or_throw<PrimType>().bits() == 32) {
     temp << 'f';
-  } else if (op->ty().bits() == 16) {
+  } else if (op->ty.as_or_throw<PrimType>().bits() == 16) {
     // Using f16 requires enable directive
     enable_fp16_ = true;
     temp << 'h';
   } else {
-    TVM_FFI_THROW(InternalError) << "Unsupported floating point bits " << op->ty().bits();
+    TVM_FFI_THROW(InternalError) << "Unsupported floating point bits "
+                                 << op->ty.as_or_throw<PrimType>().bits();
   }
   MarkConst(temp.str());
   os << temp.str();
@@ -530,14 +534,12 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   // to ensure correctness in the case of nested-expression
   // do not try to lift common printings from each case
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
-  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
+  TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer load is not supported.";
 
-  DLDataType value_dtype = op->ty()->dtype;
-  PrimType value_ty(value_dtype);
+  PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
   Var buffer_var = op->buffer->data;
-  DLDataType element_dtype = op->buffer->dtype->dtype;
-  PrimType element_ty(element_dtype);
+  const PrimType& element_ty = op->buffer->dtype;
 
   int lanes = value_ty.lanes();
   std::string buffer_vid = GetVarID(buffer_var.get());
@@ -545,29 +547,28 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   if (value_ty.lanes() == element_ty.lanes()) {
     // Direct buffer loading
     // Special handle bool loading
-    if (value_dtype == DLDataType{kDLBool, 8, 1}) {
-      this->PrintType(value_dtype, os);
+    if (value_ty == PrimType::Bool()) {
+      this->PrintType(value_ty, os);
       os << "(";
     } else {
-      TVM_FFI_ICHECK(value_dtype == element_dtype);
+      TVM_FFI_ICHECK(value_ty == element_ty);
     }
     TVM_FFI_ICHECK_EQ(index.ty().lanes(), 1);
     os << buffer_vid << "[" << this->PrintExpr(index) << "]";
     // Special handle bool loading
-    if (value_dtype == DLDataType{kDLBool, 8, 1}) {
+    if (value_ty == PrimType::Bool()) {
       os << ")";
     }
   } else {
     // Vector load from scalar buffer
     TVM_FFI_ICHECK_EQ(element_ty.lanes(), 1) << "Can only vector load scalar array";
-    DLDataType value_element_dtype{value_dtype.code, value_dtype.bits, 1};
-    TVM_FFI_ICHECK(value_element_dtype == element_dtype)
+    TVM_FFI_ICHECK(value_ty.WithLanes(1) == element_ty)
         << "WebGPU vector loading requires base type to match";
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, value_ty.lanes()).Match(index)) {
       // vec3<f32>(buf[base + 0], buf[base + 1], buf[base + 2]);
-      std::string base_vid = SSAGetID(PrintExpr(base.Eval()), base.Eval().ty()->dtype);
-      PrintType(element_ty.WithLanes(value_ty.lanes())->dtype, os);
+      std::string base_vid = SSAGetID(PrintExpr(base.Eval()), base.Eval().ty());
+      PrintType(element_ty.WithLanes(value_ty.lanes()), os);
       os << "(";
       for (int i = 0; i < lanes; ++i) {
         if (i != 0) os << ", ";
@@ -576,8 +577,8 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
       os << ")";
     } else {
       // vec3<f32>(buf[index[0]], buf[index[1]], buf[index[2]]);
-      std::string index_vid = SSAGetID(PrintExpr(index), index.ty()->dtype);
-      PrintType(element_ty.WithLanes(value_ty.lanes())->dtype, os);
+      std::string index_vid = SSAGetID(PrintExpr(index), index.ty());
+      PrintType(element_ty.WithLanes(value_ty.lanes()), os);
       os << "(";
       for (int i = 0; i < lanes; ++i) {
         if (i != 0) os << ", ";
@@ -598,19 +599,17 @@ void CodeGenWebGPU::VisitStmt_(const BindNode* op) {
     PrintIndent();
     std::string value = PrintExpr(op->value);
     this->stream << "let " << AllocVarID(op->var.get()) << " : ";
-    PrintType(op->var.ty()->dtype, this->stream);
+    PrintType(op->var->ty, this->stream);
     this->stream << " = " << value << ";\n";
   }
 }
 
 void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
-  TVM_FFI_ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
+  TVM_FFI_ICHECK(!op->predicate.has_value()) << "Predicated buffer store is not supported.";
 
-  DLDataType value_dtype = op->value.ty()->dtype;
-  PrimType value_ty(value_dtype);
-  DLDataType element_dtype = op->buffer->dtype->dtype;
-  PrimType element_ty(element_dtype);
+  PrimType value_ty = op->value.ty();
+  const PrimType& element_ty = op->buffer->dtype;
   PrimExpr index = op->indices[0];
   Var buffer_var = op->buffer->data;
 
@@ -625,30 +624,29 @@ void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
     this->PrintIndent();
     stream << buffer_vid << "[" << index_vid << "] = ";
     // special explicit conversion of bool
-    if (value_dtype == DLDataType{kDLBool, 8, 1}) {
-      PrintType(element_dtype, stream);
+    if (value_ty == PrimType::Bool()) {
+      PrintType(element_ty, stream);
       stream << "(";
     } else {
-      TVM_FFI_ICHECK(value_dtype == element_dtype);
+      TVM_FFI_ICHECK(value_ty == element_ty);
     }
     stream << value_vid;
     // Special handle bool store
-    if (value_dtype == DLDataType{kDLBool, 8, 1}) {
+    if (value_ty == PrimType::Bool()) {
       stream << ")";
     }
     stream << ";\n";
   } else {
     // Vector store into scalar buffer
     TVM_FFI_ICHECK_EQ(element_ty.lanes(), 1) << "Can only vector load scalar array";
-    DLDataType value_element_dtype{value_dtype.code, value_dtype.bits, 1};
-    TVM_FFI_ICHECK(value_element_dtype == element_dtype)
+    TVM_FFI_ICHECK(value_ty.WithLanes(1) == element_ty)
         << "WebGPU vector stire requires base type to match";
     std::string value_vid = PrintExpr(op->value);
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, value_ty.lanes()).Match(index)) {
       // buf[base + 0] = value[0]
       // buf[base + 1] = value[1]
-      std::string base_vid = SSAGetID(PrintExpr(base.Eval()), base.Eval().ty()->dtype);
+      std::string base_vid = SSAGetID(PrintExpr(base.Eval()), base.Eval().ty());
       for (int i = 0; i < value_ty.lanes(); ++i) {
         this->PrintIndent();
         stream << buffer_vid << "[" << base_vid << " + " << i << "] = " << value_vid << "[" << i
@@ -657,7 +655,7 @@ void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
     } else {
       // buf[index[0]] = value[0]
       // buf[index[1]] = value[1]
-      std::string index_vid = SSAGetID(PrintExpr(index), index.ty()->dtype);
+      std::string index_vid = SSAGetID(PrintExpr(index), index.ty());
       for (int i = 0; i < value_ty.lanes(); ++i) {
         this->PrintIndent();
         stream << buffer_vid << "[" << index_vid << "[" << i << "]] = " << value_vid << "[" << i
@@ -681,12 +679,12 @@ void CodeGenWebGPU::VisitStmt_(const AllocBufferNode* op) {
 
   if (storage_scope.rank == runtime::StorageRank::kShared) {
     this->decl_stream << "var<workgroup> " << vid << " : array<";
-    PrintType(op->buffer->dtype->dtype, this->decl_stream);
+    PrintType(op->buffer->dtype, this->decl_stream);
     this->decl_stream << ", " << constant_size << ">;\n";
   } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
     this->PrintIndent();
     this->stream << "var " << vid << " : array<";
-    PrintType(op->buffer->dtype->dtype, this->stream);
+    PrintType(op->buffer->dtype, this->stream);
     this->stream << ", " << constant_size << ">;\n";
   } else {
     TVM_FFI_THROW(InternalError) << "WebGPU: Do not support storage scope: "
@@ -702,7 +700,7 @@ void CodeGenWebGPU::VisitStmt_(const ForNode* op) {
   std::string vid = AllocVarID(op->loop_var.get());
   PrintIndent();
   stream << "for (var " << vid << " : ";
-  PrintType(op->loop_var.ty()->dtype, stream);
+  PrintType(op->loop_var.ty(), stream);
   stream << " = " << begin_str << "; " << vid << " < " << end_str << "; " << vid;
   if (step_str.empty()) {
     stream << "++";

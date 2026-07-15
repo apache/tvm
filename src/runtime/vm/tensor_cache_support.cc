@@ -136,13 +136,13 @@ void CopyTensorFromBytes(Tensor param, const void* data, size_t nbytes,
   // Special handle for OpenCL runtime.
   // It creates a host side memory mirror, for every cl_mem that tries to copy data from host
   // which can cause memory issue. Her we use a large staging buffer to postpone deallocation
-  if (staging_buffer->defined()) {
+  if (staging_buffer->has_value()) {
     size_t curr_size = ffi::GetDataSize(*(staging_buffer->value().operator->()));
     if (curr_size < nbytes) {
       *staging_buffer = std::nullopt;
     }
   }
-  if (!staging_buffer->defined()) {
+  if (!staging_buffer->has_value()) {
     *staging_buffer = Tensor::Empty(param.Shape(), param->dtype, param->device);
   }
   Tensor staging_view = staging_buffer->value().CreateView(param.Shape(), param->dtype);

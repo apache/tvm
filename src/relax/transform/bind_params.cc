@@ -48,7 +48,7 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
   TensorType const_ty = opt_const_ty.value();
   TVM_FFI_ICHECK(!const_ty->IsUnknownDtype());
   TVM_FFI_ICHECK(!const_ty->IsUnknownNdim());
-  TVM_FFI_ICHECK(const_ty->shape.defined());
+  TVM_FFI_ICHECK(const_ty->shape.has_value());
 
   // dtype mismatch
   if (!arg_ty->IsUnknownDtype() && arg_ty->dtype != const_ty->dtype) {
@@ -60,7 +60,7 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
     TVM_FFI_THROW(InternalError) << "The ndim of the bound parameter is expected to be "
                                  << arg_ty->ndim << ", but got: " << const_ty->ndim;
   }
-  if (!arg_ty->shape.defined()) return;
+  if (!arg_ty->shape.has_value()) return;
   const auto* arg_shape = arg_ty->shape.value().as<ShapeExprNode>();
   const auto* const_shape = const_ty->shape.value().as<ShapeExprNode>();
 
@@ -92,7 +92,7 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tirx::Var, PrimExpr>> NormalizeBindings
   std::unordered_map<std::string, ffi::Array<relax::Var>> string_lookup;
   std::unordered_set<const relax::VarNode*> var_set;
   for (const auto& param : func->params) {
-    string_lookup[param->name_hint()].push_back(param);
+    string_lookup[param->name_hint].push_back(param);
     var_set.insert(param.get());
   }
 
@@ -105,7 +105,7 @@ std::tuple<ffi::Map<Var, Expr>, ffi::Map<tirx::Var, PrimExpr>> NormalizeBindings
       TVM_FFI_ICHECK(it != string_lookup.end())
           << "Function does not have parameter with name \"" << str << "\".  "
           << "Function parameters are named "
-          << func->params.Map([](const auto& param) { return param->name_hint(); });
+          << func->params.Map([](const auto& param) { return param->name_hint; });
       TVM_FFI_ICHECK_EQ(it->second.size(), 1)
           << "Function contains multiple parameters with name \"" << str << "\".  "
           << "The Relax variables " << it->second << " are all named \"" << str << "\"";

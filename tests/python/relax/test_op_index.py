@@ -537,7 +537,6 @@ def test_strided_slice_infer_ty_more_input_dtype():
 def test_strided_slice_infer_ty_symbolic_begin_end_strides():
     bb = relax.BlockBuilder()
     var = tirx.Var("var", "int64")
-    size_var = tirx.SizeVar("size_var", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     _check_inference(
@@ -550,20 +549,10 @@ def test_strided_slice_infer_ty_symbolic_begin_end_strides():
     )
     _check_inference(
         bb,
-        relax.op.strided_slice(x, axes=[0], begin=[size_var], end=[8]),
-        relax.TensorType((tirx.max(8 - size_var, 0), 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
         relax.op.strided_slice(x, axes=[0], begin=[0], end=[var]),
         relax.TensorType(
             (tirx.min(tirx.max(tirx.if_then_else(var < 0, var + 8, var), 0), 8), 9), dtype="float32"
         ),
-    )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[size_var]),
-        relax.TensorType((tirx.min(size_var, 8), 9), dtype="float32"),
     )
     _check_inference(
         bb,
@@ -573,17 +562,11 @@ def test_strided_slice_infer_ty_symbolic_begin_end_strides():
             dtype="float32",
         ),
     )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[8], strides=[size_var]),
-        relax.TensorType([7 // size_var + 1, 9], dtype="float32"),
-    )
 
 
 def test_strided_slice_infer_ty_symbolic_begin_end_strides_inbound():
     bb = relax.BlockBuilder()
     var = tirx.Var("var", "int64")
-    size_var = tirx.SizeVar("size_var", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     _check_inference(
@@ -596,23 +579,8 @@ def test_strided_slice_infer_ty_symbolic_begin_end_strides_inbound():
     )
     _check_inference(
         bb,
-        relax.op.strided_slice(x, axes=[0], begin=[size_var], end=[8], assume_inbound=True),
-        relax.TensorType((8 - size_var, 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
         relax.op.strided_slice(x, axes=[0], begin=[0], end=[var], assume_inbound=True),
         relax.TensorType((var, 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[size_var], assume_inbound=True),
-        relax.TensorType((size_var, 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[8], strides=[var], assume_inbound=True),
-        relax.TensorType([(var + 7) // var, 9], dtype="float32"),
     )
     _check_inference(
         bb,

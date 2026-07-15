@@ -33,6 +33,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   StmtDocNode::RegisterReflection();
   StmtBlockDocNode::RegisterReflection();
   LiteralDocNode::RegisterReflection();
+  ExprStringDocNode::RegisterReflection();
   IdDocNode::RegisterReflection();
   AttrAccessDocNode::RegisterReflection();
   IndexDocNode::RegisterReflection();
@@ -88,7 +89,16 @@ StmtBlockDoc::StmtBlockDoc(ffi::Array<StmtDoc> stmts) {
 LiteralDoc::LiteralDoc(ffi::Any value, const ffi::Optional<AccessPath>& object_path) {
   ffi::ObjectPtr<LiteralDocNode> n = ffi::make_object<LiteralDocNode>();
   n->value = value;
-  if (object_path.defined()) {
+  if (object_path.has_value()) {
+    n->source_paths.push_back(object_path.value());
+  }
+  this->data_ = std::move(n);
+}
+
+ExprStringDoc::ExprStringDoc(ExprDoc value, const ffi::Optional<AccessPath>& object_path) {
+  ffi::ObjectPtr<ExprStringDocNode> n = ffi::make_object<ExprStringDocNode>();
+  n->value = value;
+  if (object_path.has_value()) {
     n->source_paths.push_back(object_path.value());
   }
   this->data_ = std::move(n);
@@ -167,7 +177,7 @@ SliceDoc::SliceDoc(ffi::Optional<ExprDoc> start, ffi::Optional<ExprDoc> stop,
 }
 
 AssignDoc::AssignDoc(ExprDoc lhs, ffi::Optional<ExprDoc> rhs, ffi::Optional<ExprDoc> annotation) {
-  TVM_FFI_CHECK(rhs.defined() || annotation.defined(), ValueError)
+  TVM_FFI_CHECK(rhs.has_value() || annotation.has_value(), ValueError)
       << "At least one of rhs and annotation needs to be non-null for AssignDoc.";
   TVM_FFI_CHECK(lhs->IsInstance<IdDocNode>() || annotation == nullptr, ValueError)
       << "annotation can only be nonnull if lhs is an identifier.";

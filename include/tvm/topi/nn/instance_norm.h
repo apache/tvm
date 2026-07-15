@@ -72,7 +72,7 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   PrimType f32_ty = PrimType::Float(32);
 
   auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func, &data,
-                  f32_ty](const ffi::Array<Var>& indices) {
+                  f32_ty](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
@@ -110,8 +110,8 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
   for (int i : real_axis) {
     reduce_extent *= data->shape[i];
   }
-  auto instance_norm_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> reduce_indices, non_reduce_indices;
+  auto instance_norm_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> reduce_indices, non_reduce_indices;
 
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
@@ -120,7 +120,7 @@ inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tenso
         non_reduce_indices.push_back(indices[i]);
       }
     }
-    Var channel;
+    PrimVar channel;
     channel = indices[channel_axis];
     auto mean = temp_x(non_reduce_indices) / reduce_extent;
     auto var = temp_x2(non_reduce_indices) / reduce_extent - mean * mean;

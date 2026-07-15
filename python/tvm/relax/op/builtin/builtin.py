@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-from ...expr import Call, DataTypeImm, Expr, StringImm, prim_value
+from tvm.ir import Call
+
+from ...expr import DataTypeImm, Expr, StringImm, prim_value
 from ...utils import convert_to_expr
 from . import _ffi_api
 

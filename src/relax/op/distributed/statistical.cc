@@ -33,14 +33,14 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
-  if (!data_ty->IsUnknownNdim() && attrs->axis.defined()) {
+  if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
     axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim = 0;
   if (attrs->keepdims) {
     out_ndim = data_ty->ndim;
-  } else if (!attrs->axis.defined()) {
+  } else if (!attrs->axis.has_value()) {
     out_ndim = 0;
   } else if (data_ty->IsUnknownNdim()) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must be known ndim";
@@ -64,7 +64,7 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
   for (int i = 0; i < data_ty->ndim; ++i) {
-    if (attrs->axis.defined() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
+    if (attrs->axis.has_value() && std::find(axes.begin(), axes.end(), i) == axes.end()) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
       out_shape.push_back(IntImm::Int64(/*value=*/1));

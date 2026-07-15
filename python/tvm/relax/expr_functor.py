@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 import tvm_ffi
 
-from tvm.ir import Op
+from tvm.ir import Call, Op
 from tvm.ir.utils import derived_object
 from tvm.runtime import Object
 
@@ -32,7 +32,6 @@ from .block_builder import BlockBuilder
 from .expr import (
     Binding,
     BindingBlock,
-    Call,
     Constant,
     DataflowBlock,
     DataflowVar,
@@ -41,10 +40,8 @@ from .expr import (
     ExternFunc,
     Function,
     GlobalVar,
-    Id,
     If,
     MatchCast,
-    PrimExpr,
     SeqExpr,
     ShapeExpr,
     Span,
@@ -162,12 +159,12 @@ class ExprFunctor:
             ret = self.visit_op_(expr)
         elif isinstance(expr, TupleGetItem):
             ret = self.visit_tuple_getitem_(expr)
-        elif isinstance(expr, PrimExpr):
-            ret = self.visit_prim_expr_(expr)
         elif isinstance(expr, StringImm):
             ret = self.visit_string_imm_(expr)
         elif isinstance(expr, DataTypeImm):
             ret = self.visit_data_type_imm_(expr)
+        elif isinstance(expr, Expr):
+            ret = self.visit_expr_fallback_(expr)
         else:
             raise TypeError(f"Invalid type: {type(expr)}")
 
@@ -212,7 +209,7 @@ class ExprFunctor:
     def visit_tuple_getitem_(self, op: TupleGetItem):
         raise NotImplementedError()
 
-    def visit_prim_expr_(self, op: PrimExpr):
+    def visit_expr_fallback_(self, op: Expr):
         raise NotImplementedError()
 
     def visit_string_imm_(self, op: StringImm):
@@ -291,7 +288,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
         f_visit_if_: Callable | None = None,
         f_visit_op_: Callable | None = None,
         f_visit_tuple_getitem_: Callable | None = None,
-        f_visit_prim_expr_: Callable | None = None,
+        f_visit_expr_fallback_: Callable | None = None,
         f_visit_string_imm_: Callable | None = None,
         f_visit_data_type_imm_: Callable | None = None,
         f_visit_binding: Callable | None = None,
@@ -323,7 +320,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
             f_visit_if_,
             f_visit_op_,
             f_visit_tuple_getitem_,
-            f_visit_prim_expr_,
+            f_visit_expr_fallback_,
             f_visit_string_imm_,
             f_visit_data_type_imm_,
             f_visit_binding,
@@ -418,7 +415,7 @@ class PyExprVisitor:
             "visit_if_",
             "visit_op_",
             "visit_tuple_getitem_",
-            "visit_prim_expr_",
+            "visit_expr_fallback_",
             "visit_string_imm_",
             "visit_data_type_imm_",
             "visit_binding",
@@ -654,18 +651,16 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_prim_expr_(self, op: PrimExpr) -> None:
-        """Visit PrimExpr.
-        Users can customized this function to overwrite VisitExpr_(const PrimExprNode* op)
-        on the C++ side.
+    def visit_expr_fallback_(self, op: Expr) -> None:
+        """Visit an expression handled by the C++ fallback.
 
         Parameters
         ----------
-        op : PrimExpr
-            The PrimExpr to be visited.
+        op : Expr
+            The expression to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
+        return _ffi_api.ExprVisitorVisitExprFallback(self._outer(), op)  # type: ignore
 
     def visit_string_imm_(self, op: StringImm) -> None:
         """Visit StringImm.
@@ -812,7 +807,7 @@ class _PyExprMutator(Object):
         f_visit_if_: Callable | None = None,
         f_visit_op_: Callable | None = None,
         f_visit_tuple_getitem_: Callable | None = None,
-        f_visit_prim_expr_: Callable | None = None,
+        f_visit_expr_fallback_: Callable | None = None,
         f_visit_string_imm_: Callable | None = None,
         f_visit_data_type_imm_: Callable | None = None,
         f_visit_binding: Callable | None = None,
@@ -845,7 +840,7 @@ class _PyExprMutator(Object):
             f_visit_if_,
             f_visit_op_,
             f_visit_tuple_getitem_,
-            f_visit_prim_expr_,
+            f_visit_expr_fallback_,
             f_visit_string_imm_,
             f_visit_data_type_imm_,
             f_visit_binding,
@@ -956,7 +951,7 @@ class PyExprMutator:
             "visit_if_",
             "visit_op_",
             "visit_tuple_getitem_",
-            "visit_prim_expr_",
+            "visit_expr_fallback_",
             "visit_string_imm_",
             "visit_data_type_imm_",
             "visit_binding",
@@ -1276,15 +1271,13 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_prim_expr_(self, op: PrimExpr) -> Expr:
-        """Visit PrimExpr.
-        Users can customized this function to overwrite VisitExpr_(const PrimExprNode* op)
-        on the C++ side.
+    def visit_expr_fallback_(self, op: Expr) -> Expr:
+        """Visit an expression handled by the C++ fallback.
 
         Parameters
         ----------
-        op : PrimExpr
-            The PrimExpr to be visited.
+        op : Expr
+            The expression to be visited.
 
         Returns
         -------
@@ -1292,7 +1285,7 @@ class PyExprMutator:
             The Expr after transformation
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
+        return _ffi_api.ExprMutatorVisitExprFallback(self._outer(), op)  # type: ignore
 
     def visit_string_imm_(self, op: StringImm) -> Expr:
         """Visit StringImm.
@@ -1459,26 +1452,28 @@ class PyExprMutator:
         """
         return _ffi_api.PyExprMutatorVisitExprPostOrder(self._outer(), expr)  # type: ignore
 
-    def set_var_remap(self, vid: Id, var: Var) -> None:
+    def set_var_remap(self, old_var: Var, new_var: Var) -> None:
         """Remap a var to a new var in use-site.
 
         Parameters
         ----------
-        vid : Id
-            The vid of the old var.
-        var : Var
+        old_var : Var
+            The old var.
+        new_var : Var
             The new var.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorSetVarRemap(self._outer(), vid, var)  # type: ignore
+        return _ffi_api.PyExprMutatorSetVarRemap(  # type: ignore
+            self._outer(), old_var, new_var
+        )
 
-    def get_var_remap(self, vid: Id) -> Var:
+    def get_var_remap(self, var: Var) -> Var:
         """Remap a var to a new var in use-site.
 
         Parameters
         ----------
-        vid : Id
-            The vid of the old var
+        var : Var
+            The old var.
 
         Returns
         -------
@@ -1486,7 +1481,7 @@ class PyExprMutator:
             The remapped var.
         """
         # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), vid)  # type: ignore
+        return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), var)  # type: ignore
 
     def visit_with_new_scope(self, expr: Expr) -> Expr:
         """Rewrite the expr with a new scope, used in a Function's body and the branches of If.

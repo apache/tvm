@@ -110,7 +110,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   size_t num_buffer = 0;
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v.ty().IsHandle()) {
+    if (!v->ty.as<PointerTypeNode>()) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
@@ -140,7 +140,6 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 void CodeGenTrainium::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   TVM_FFI_ICHECK(lanes == 1) << "Trainium codegen does not support vector types";
-  TVM_FFI_ICHECK(!t.IsHandle()) << "Trainium codegen does not support handle type";
   TVM_FFI_ICHECK(!t.IsVoid()) << "Trainium codegen does not support void type";
   if (t.MatchesCode(DLDataTypeCode::kDLBool)) {
     os << "np.bool";
@@ -330,7 +329,7 @@ void CodeGenTrainium::VisitStmt_(const BufferStoreNode* op) {
 }
 
 void CodeGenTrainium::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
+  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
     this->PrintIndent();
@@ -379,7 +378,7 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
 
   if (is_op(nki_matmul_op, "tirx.nki.matmul")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
-    std::string accum = is_one(op->args[3]) ? " += " : " = ";
+    std::string accum = is_one(op->args[3].as_or_throw<PrimExpr>()) ? " += " : " = ";
     os << PrintExpr(op->args[0]) << accum;
     ctx_.is_matmul_input = true;
     os << "nisa.nc_matmul(" << PrintExpr(op->args[1]) << "," << PrintExpr(op->args[2]);
@@ -432,7 +431,10 @@ void CodeGenTrainium::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOL
     TVM_FFI_ICHECK(opcode_map_.count(op->args[2].as<StringImmNode>()->value));
     std::string nki_op = opcode_map_[op->args[2].as<StringImmNode>()->value];
     bool negate = op->args[3].as<IntImmNode>()->value != 0;
-    Array<PrimExpr> axes(op->args.begin() + 4, op->args.end());
+    Array<PrimExpr> axes;
+    for (size_t i = 4; i < op->args.size(); ++i) {
+      axes.push_back(op->args[i].as_or_throw<PrimExpr>());
+    }
     os << PrintExpr(op->args[0]) << " = nisa.tensor_reduce(data=" << PrintExpr(op->args[1])
        << ", op=" << nki_op << ", negate=" << PrintBool(negate) << ", axis=" << axes;
   } else if (is_op(nki_activation_reduce_op, "tirx.nki.activation_reduce")) {
@@ -589,7 +591,7 @@ void CodeGenTrainium::VisitExpr_(const VarNode* op, std::ostream& os) {  // NOLI
 }
 
 void CodeGenTrainium::VisitExpr_(const CastNode* op, std::ostream& os) {
-  ctx_.dst_dtype = op->ty();
+  ctx_.dst_dtype = op->ty.as_or_throw<PrimType>();
   CodeGenTrainium::VisitExpr(op->value, os);
 }
 
@@ -655,7 +657,7 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
 
 void CodeGenTrainium::VisitStmt_(const IfThenElseNode* op) {
   if (ctx_.tensorizing) {
-    TVM_FFI_ICHECK(!op->else_case.defined()) << "Else not allowed in tensorized instruction";
+    TVM_FFI_ICHECK(!op->else_case.has_value()) << "Else not allowed in tensorized instruction";
     TVM_FFI_ICHECK(!ctx_.mask.defined()) << "Only one if stmt allowed in tensorized instruction";
     ctx_.mask = op->condition;
     VisitStmt(op->then_case);

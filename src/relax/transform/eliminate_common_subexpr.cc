@@ -125,7 +125,7 @@ class CommonSubexprEliminator : public ExprMutator {
 
     ReplacementKey lookup_key(output_binding);
 
-    if (call_only_ && !bound_value->IsInstance<relax::CallNode>()) {
+    if (call_only_ && !bound_value->IsInstance<tvm::CallNode>()) {
       VLOG(1) << "Since call_only_ is true, it is forbidden to de-duplicate " << bound_value;
 
     } else if (ContainsImpureCall(bound_value)) {
@@ -141,7 +141,7 @@ class CommonSubexprEliminator : public ExprMutator {
               << "and occurrences of " << binding->var << " will be replaced with "
               << it->second[0];
       output_binding = VarBinding(binding->var, it->second[0]);
-      var_remap_.insert({binding->var->vid, it->second[0]});
+      var_remap_.insert({binding->var, it->second[0]});
       it->second.push_back(binding->var);
 
     } else {

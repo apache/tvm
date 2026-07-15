@@ -49,7 +49,7 @@ Expr roi_pool(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spat
   attrs->layout = layout;
 
   static const Op& op = Op::Get("relax.vision.roi_pool");
-  return Call(op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

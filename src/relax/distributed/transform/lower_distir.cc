@@ -112,11 +112,11 @@ class DistIRSharder : public ExprMutator {
   }
 
   Expr ShardInputParamTensorAndConstant(Expr input) {
-    TVM_FFI_ICHECK(input->ty.defined());
+    TVM_FFI_ICHECK(!input->ty.IsMissing());
     Type old_ty = GetType(input);
     Type new_ty = ConvertType(old_ty, false);
     if (const auto* var = input.as<VarNode>()) {
-      Var new_param(var->name_hint(), new_ty);
+      Var new_param(var->name_hint, new_ty);
       return new_param;
     } else if (const auto* constant = input.as<ConstantNode>()) {
       for (const auto& spec : old_ty.as_or_throw<DTensorType>()->placement->dim_specs) {
@@ -137,7 +137,7 @@ class DistIRSharder : public ExprMutator {
     if (sharding_spec->kind == PlacementSpecKind::kReplica) {
       Var new_var = builder_->Emit(broadcast_from_worker0(new_expr));
       if (const auto* var = old_expr.as<VarNode>()) {
-        var_remap_[var->vid] = new_var;
+        var_remap_[ffi::GetRef<Var>(var)] = new_var;
       } else {
         tuple_getitem_remap_[old_expr.as_or_throw<TupleGetItem>()] = new_var;
       }
@@ -145,7 +145,7 @@ class DistIRSharder : public ExprMutator {
       Var scatter_var = builder_->Emit(
           scatter_from_worker0(new_expr, dtensor_ty->device_mesh->shape[0], sharding_spec->axis));
       if (const auto* var = old_expr.as<VarNode>()) {
-        var_remap_[var->vid] = scatter_var;
+        var_remap_[ffi::GetRef<Var>(var)] = scatter_var;
       } else {
         tuple_getitem_remap_[old_expr.as_or_throw<TupleGetItem>()] = scatter_var;
       }
@@ -174,7 +174,7 @@ class DistIRSharder : public ExprMutator {
     ffi::Array<Var> new_params;
     for (const Var& var : func->params) {
       Var new_param = ShardInputParamTensorAndConstant(var).as_or_throw<Var>();
-      var_remap_[var->vid] = new_param;
+      var_remap_[var] = new_param;
       new_params.push_back(new_param);
     }
     func_ = func;
@@ -186,7 +186,7 @@ class DistIRSharder : public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
     if (tuple_getitem_remap_.count(ffi::GetRef<TupleGetItem>(val))) {
-      var_remap_[binding->var->vid] = tuple_getitem_remap_[ffi::GetRef<TupleGetItem>(val)];
+      var_remap_[binding->var] = tuple_getitem_remap_[ffi::GetRef<TupleGetItem>(val)];
     } else {
       ExprMutator::VisitBinding_(binding, val);
     }

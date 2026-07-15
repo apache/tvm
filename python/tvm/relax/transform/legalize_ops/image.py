@@ -18,9 +18,10 @@
 """Default legalization function for image operators."""
 
 from tvm import tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import register_legalize
 
 

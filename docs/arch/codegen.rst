@@ -144,7 +144,7 @@ backend (x86, ARM, NVPTX, AMDGPU, etc.).
    ├── CodeGenNVPTX     ← NVIDIA PTX via LLVM (target.build.nvptx)
    └── CodeGenAMDGPU    ← AMD GPU via LLVM (target.build.rocm)
 
-``CodeGenLLVM`` inherits from both ``ExprFunctor<llvm::Value*(const PrimExpr&)>`` and
+``CodeGenLLVM`` inherits from both ``ExprFunctor<llvm::Value*(const Expr&)>`` and
 ``StmtFunctor<void(const Stmt&)>``. Each TIR node type has a corresponding visitor:
 
 - **Expressions** (``VisitExpr_``) convert TIR expressions to LLVM ``Value``\ s:

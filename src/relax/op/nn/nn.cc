@@ -66,7 +66,7 @@ Expr leakyrelu(Expr data, double alpha) {
   auto attrs = ffi::make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("relax.nn.leakyrelu");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -88,7 +88,7 @@ Expr softplus(Expr data, double beta, double threshold) {
   attrs->beta = beta;
   attrs->threshold = threshold;
   static const Op& op = Op::Get("relax.nn.softplus");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -109,7 +109,7 @@ Expr prelu(Expr data, Expr alpha, int axis = 1) {
   auto attrs = ffi::make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.prelu");
-  return Call(op, {data, alpha}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, alpha}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -174,7 +174,7 @@ Expr softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.softmax");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -238,7 +238,7 @@ Expr log_softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("relax.nn.log_softmax");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -261,7 +261,7 @@ Expr pad(Expr data, ffi::Array<int64_t> pad_width, ffi::String pad_mode, double 
   attrs->pad_mode = std::move(pad_mode);
   attrs->pad_value = pad_value;
   static const Op& op = Op::Get("relax.nn.pad");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -277,7 +277,7 @@ Type InferTypePad(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(static_cast<int>(pad_width.size()) == 2 * ndim) << "Illegal pad_width";
 
   ffi::Array<PrimExpr> out_shape;
-  if (input_ty[0]->shape.defined()) {
+  if (input_ty[0]->shape.has_value()) {
     // Compute output shape by adding corresponding pad width to each axis.
     const auto* data_shape = input_ty[0]->shape.as<ShapeExprNode>();
     for (int i = 0; i < ndim; i++) {
@@ -306,7 +306,7 @@ Expr pixel_shuffle(Expr data, int upscale_factor) {
   auto attrs = ffi::make_object<PixelShuffleAttrs>();
   attrs->upscale_factor = upscale_factor;
   static const Op& op = Op::Get("relax.nn.pixel_shuffle");
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -324,7 +324,7 @@ Type InferTypePixelShuffle(const Call& call, const BlockBuilder& ctx) {
   int ndim = input->ndim;
   TVM_FFI_ICHECK_GE(ndim, 3) << "PixelShuffle requires at least 3D input tensor";
 
-  if (!input->shape.defined()) {
+  if (!input->shape.has_value()) {
     return TensorType(input->dtype, ndim);
   }
 
@@ -455,7 +455,7 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
   attrs->training = training;
 
   static const Op& op = Op::Get("relax.nn.batch_norm");
-  return Call(op,
+  return Call(Type::Missing(), op,
               {std::move(data), std::move(gamma), std::move(beta), std::move(moving_mean),
                std::move(moving_var)},
               Attrs{attrs}, {});
@@ -535,7 +535,8 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<int64_t> axes, doub
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.layer_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -604,7 +605,8 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.group_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -716,7 +718,8 @@ Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Arra
   attrs->scale = scale;
 
   static const Op& op = Op::Get("relax.nn.instance_norm");
-  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+              Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -812,7 +815,7 @@ Expr rms_norm(Expr data, Expr weight, ffi::Array<int64_t> axes, double epsilon) 
   attrs->epsilon = epsilon;
 
   static const Op& op = Op::Get("relax.nn.rms_norm");
-  return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -871,7 +874,7 @@ Expr dropout(Expr data, double rate) {
   attrs->rate = rate;
 
   static const Op& op = Op::Get("relax.nn.dropout");
-  return Call(op, {std::move(data)}, Attrs{attrs}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -914,16 +917,16 @@ Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> pred_shape_value;
-  if (pred_ty->shape.defined()) {
+  if (pred_ty->shape.has_value()) {
     pred_shape_value = GetTypeAs<ShapeTypeNode>(pred_ty->shape.value())->values;
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> label_shape_value;
-  if (label_ty->shape.defined()) {
+  if (label_ty->shape.has_value()) {
     label_shape_value = GetTypeAs<ShapeTypeNode>(label_ty->shape.value())->values;
   }
 
-  if (pred_shape_value.defined() && label_shape_value.defined()) {
+  if (pred_shape_value.has_value() && label_shape_value.has_value()) {
     arith::Analyzer analyzer = ctx->GetAnalyzer();
     for (size_t i = 0; i < pred_shape_value.value().size(); ++i) {
       if (analyzer->CanProve(pred_shape_value.value()[i] != label_shape_value.value()[i])) {
@@ -940,7 +943,7 @@ Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
 
 Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
   static const Op& op = Op::Get("relax.nn.cross_entropy_with_logits");
-  return Call(op, {std::move(predictions), std::move(labels)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(predictions), std::move(labels)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -970,11 +973,12 @@ Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::
   attrs->ignore_index = ignore_index;
 
   static const Op& op = Op::Get("relax.nn.nll_loss");
-  if (weights.defined()) {
-    return Call(op, {std::move(predictions), std::move(targets), weights.value()}, Attrs{attrs},
-                {});
+  if (weights.has_value()) {
+    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets), weights.value()},
+                Attrs{attrs}, {});
   } else {
-    return Call(op, {std::move(predictions), std::move(targets)}, Attrs{attrs}, {});
+    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets)}, Attrs{attrs},
+                {});
   }
 }
 
@@ -1064,10 +1068,10 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
   ffi::Array<PrimExpr> output_shape;  // N, d1, d2, ..., dk
 
   ffi::Optional<ffi::Array<PrimExpr>> pred_shape_value;
-  if (pred_ty->shape.defined()) {
+  if (pred_ty->shape.has_value()) {
     pred_shape_value = GetTypeAs<ShapeTypeNode>(pred_ty->shape.value())->values;
   }
-  if (pred_shape_value.defined()) {
+  if (pred_shape_value.has_value()) {
     if (pred_shape_value.value().size() == 1) {
       // (C,)
       TVM_FFI_ICHECK(pred_ty->ndim == 1);
@@ -1087,14 +1091,14 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> tgt_shape_value;
-  if (tgt_ty->shape.defined()) {
+  if (tgt_ty->shape.has_value()) {
     tgt_shape_value = GetTypeAs<ShapeTypeNode>(tgt_ty->shape.value())->values;
   }
-  if (tgt_shape_value.defined()) {
+  if (tgt_shape_value.has_value()) {
     if (tgt_shape_value.value().empty()) {
       // ()
       TVM_FFI_ICHECK(tgt_ty->ndim == 0);
-      if (N.defined()) {
+      if (N.has_value()) {
         TVM_FFI_VISIT_THROW(ValueError, call) << "Shape mismatch for NLLLoss. Predictions shape is "
                                                  "(N, C, ...) while targets is a scalar";
       }
@@ -1102,14 +1106,14 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
       // (N,) or (N, d1, d2, ..., dk)
       // check N
       const PrimExpr& N_tgt = tgt_shape_value.value()[0];
-      if (N.defined() && analyzer->CanProve(N.value() != N_tgt)) {
+      if (N.has_value() && analyzer->CanProve(N.value() != N_tgt)) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "NLLLoss expects minibatch size N inferred from different "
                "arguments to be equal. However, N from predictions is "
             << N << " while N from targets is " << N_tgt;
       }
       // only C case
-      if (!N.defined() && C.defined()) {
+      if (!N.has_value() && C.has_value()) {
         TVM_FFI_VISIT_THROW(ValueError, call) << "Shape mismatch for NLLLoss. Predictions shape is "
                                                  "(C,) while targets is not a scalar";
       }
@@ -1123,7 +1127,7 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
         TVM_FFI_ICHECK(tgt_ty->IsUnknownNdim() ||
                        tgt_ty->ndim == static_cast<int>(tgt_shape_value.value().size()));
 
-        if (pred_shape_value.defined()) {
+        if (pred_shape_value.has_value()) {
           // check (d1, d2, ..., dk)
           for (size_t i = 1; i < tgt_shape_value.value().size(); ++i) {
             if (analyzer->CanProve(output_shape[i] != tgt_shape_value.value()[i])) {
@@ -1140,14 +1144,14 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
   if (wgt_ty != nullptr) {
     ffi::Optional<ffi::Array<PrimExpr>> wgt_shape_value;
-    if (wgt_ty->shape.defined()) {
+    if (wgt_ty->shape.has_value()) {
       wgt_shape_value = GetTypeAs<ShapeTypeNode>(wgt_ty->shape.value())->values;
     }
-    if (wgt_shape_value.defined()) {
+    if (wgt_shape_value.has_value()) {
       TVM_FFI_ICHECK(wgt_shape_value.value().size() == 1);
       TVM_FFI_ICHECK(wgt_ty->IsUnknownNdim() || wgt_ty->ndim == 1);
       const PrimExpr& C_wgt = wgt_shape_value.value()[0];
-      if (C.defined() && analyzer->CanProve(C.value() != C_wgt)) {
+      if (C.has_value() && analyzer->CanProve(C.value() != C_wgt)) {
         TVM_FFI_VISIT_THROW(ValueError, call)
             << "NLLLoss expects number of classes C inferred from different "
                "arguments to be equal. However, C from predictions is "
@@ -1186,7 +1190,7 @@ TVM_REGISTER_OP("relax.nn.nll_loss")
 
 Expr batch_flatten(Expr data) {
   static const Op& op = Op::Get("relax.nn.batch_flatten");
-  return Call(op, {std::move(data)}, {}, {});
+  return Call(Type::Missing(), op, {std::move(data)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

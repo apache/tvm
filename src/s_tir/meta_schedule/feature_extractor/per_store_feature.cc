@@ -268,17 +268,17 @@ Pass SimplifyForFeatureExtraction() {
       return found;
     }
 
-    PrimExpr VisitExpr_(const SelectNode* node) final {
+    Expr VisitExpr_(const SelectNode* node) final {
       if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
           HasBufferLoad(node->condition)) {
         return ffi::GetRef<Select>(node);
       }
-      return MakeConst(node->ty(), 1.0);
+      return MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);
     }
 
-    PrimExpr VisitExpr_(const VarNode* var) final {
+    Expr VisitExpr_(const VarNode* var) final {
       if (unit_vars_.count(ffi::GetRef<Var>(var))) {
-        return MakeConst(var->ty(), 0.0);
+        return MakeConst(var->ty.as_or_throw<PrimType>(), 0.0);
       }
       return ffi::GetRef<Var>(var);
     }
@@ -551,14 +551,14 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
     result_.Counter += this->prod_loop_extent_; \
     ExprVisitor::VisitExpr_(op);                \
   }
-#define TVM_FEATURE_BINARY(Type, FloatCounter, IntCounter) \
-  void VisitExpr_(const Type* op) final {                  \
-    if (op->ty().MatchesCode(DLDataTypeCode::kDLFloat)) {  \
-      result_.FloatCounter += this->prod_loop_extent_;     \
-    } else {                                               \
-      result_.IntCounter += this->prod_loop_extent_;       \
-    }                                                      \
-    ExprVisitor::VisitExpr_(op);                           \
+#define TVM_FEATURE_BINARY(Type, FloatCounter, IntCounter)                      \
+  void VisitExpr_(const Type* op) final {                                       \
+    if (op->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLFloat)) { \
+      result_.FloatCounter += this->prod_loop_extent_;                          \
+    } else {                                                                    \
+      result_.IntCounter += this->prod_loop_extent_;                            \
+    }                                                                           \
+    ExprVisitor::VisitExpr_(op);                                                \
   }
     TVM_FEATURE_SIMPLE(AndNode, bool_op);
     TVM_FEATURE_SIMPLE(OrNode, bool_op);
@@ -583,19 +583,24 @@ Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_exte
 #undef TVM_FEATURE_SIMPLE
 
     void VisitExpr_(const CallNode* op) final {
+      auto result_type = op->ty.as<PrimType>();
+      if (!result_type) {
+        ExprVisitor::VisitExpr_(op);
+        return;
+      }
       static auto op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
       CallEffectKind effect_kind =
           static_cast<CallEffectKind>(op_call_effect_[op->op.as_or_throw<Op>()]);
       bool is_pure =
           effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
       if (is_pure) {
-        if (op->ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
+        if (result_type.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
           result_.float_math_func += prod_loop_extent_;
         } else {
           result_.int_math_func += prod_loop_extent_;
         }
       } else {
-        if (op->ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
+        if (result_type.value().MatchesCode(DLDataTypeCode::kDLFloat)) {
           result_.float_other_func += prod_loop_extent_;
         } else {
           result_.int_other_func += prod_loop_extent_;

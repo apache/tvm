@@ -72,7 +72,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     const auto* tir_out_ty = call_tir->ty_args[0].as<TensorTypeNode>();
     if (!tir_out_ty) return expr;
 
-    if (!tir_out_ty->vdevice.defined()) return expr;
+    if (!tir_out_ty->vdevice.has_value()) return expr;
 
     const VarNode* arg_var = out->args[0].as<VarNode>();
     if (consumers.find(ffi::GetRef<Expr>(arg_var)) != consumers.end()) {
@@ -88,7 +88,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       auto shape_arr = tir_out_ty->GetShape().value();
       auto new_ty = TensorType(ShapeExpr(shape_arr), tir_out_ty->dtype, vdev_attrs->dst_vdevice);
 
-      return Call(call_tir->op, call_tir->args, call_tir->attrs, {new_ty});
+      return Call(Type::Missing(), call_tir->op, call_tir->args, call_tir->attrs, {new_ty});
     }
     return expr;
   };
@@ -136,7 +136,7 @@ class CollectConsumerDetails : public ExprVisitor {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     Tuple func_args;
 
-    if (call->op == call_tir_op) {
+    if (call->op.same_as(call_tir_op)) {
       func_args = call->args[1].as_or_throw<Tuple>();
     } else {
       func_args = Tuple(call->args);

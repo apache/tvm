@@ -49,6 +49,7 @@ struct NKIInstructionCtx {
 class CodeGenTrainium final : public CodeGenC {
  public:
   explicit CodeGenTrainium(Target target);
+  using CodeGenC::PrintType;
   using CodeGenC::VisitExpr_;
   using CodeGenC::VisitStmt_;
   // override print thread tag.

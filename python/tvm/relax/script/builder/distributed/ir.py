@@ -26,9 +26,9 @@ import numpy as _np  # type: ignore
 
 import tvm
 from tvm import base as _base
-from tvm.ir import PrimExpr
+from tvm.ir import Call
 from tvm.relax.distributed import DeviceMesh, DTensorType, Placement
-from tvm.relax.expr import Call, Constant, Expr, ExternFunc, ShapeExpr
+from tvm.relax.expr import Constant, Expr, ExternFunc, ShapeExpr
 from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.op.distributed import (
     annotate_sharding as _annotate_sharding,
@@ -53,7 +53,7 @@ def call_tir(
     func: str | Expr,
     args: Expr,
     out_ty: DTensorType | list[DTensorType],
-    tir_vars: ShapeExpr | tuple[PrimExpr] | list[PrimExpr] | None = None,
+    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """Distributed version of call_tir
 
@@ -70,7 +70,7 @@ def call_tir(
         It should be a single or a list of DTensorType. Each one denotes the
         type information of a returned distributed tensor.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
+    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns

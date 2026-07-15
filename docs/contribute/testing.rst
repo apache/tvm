@@ -62,7 +62,7 @@ over ``target`` with ``@pytest.mark.parametrize``.  Tag each GPU target
 with ``pytest.mark.gpu`` so the CI routes it to a GPU node, skip a target
 that cannot run on the current machine with
 :py:func:`tvm.testing.device_enabled`, and obtain its device with
-``tvm.device(target)``.  The function is run once per target, the
+``tvm.device_from_target(target)``.  The function is run once per target, the
 success/failure of each is reported separately, and a target whose device
 is disabled in ``config.cmake`` or absent from the machine is reported as
 skipped.
@@ -76,7 +76,7 @@ skipped.
     def test_function(target):
         if not tvm.testing.device_enabled(target):
             pytest.skip(f"{target} not enabled")
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         # Test code goes here
 
 For a test that only applies to a single target, omit the parametrization
@@ -91,7 +91,7 @@ for a GPU target):
     )
     def test_function():
         target = "cuda"
-        dev = tvm.device(target)
+        dev = tvm.cuda()
         # Test code goes here
 
 To exclude a target, leave it out of the parametrize list.  To mark a
@@ -113,7 +113,7 @@ as above:
     def test_function(target, impl):
         if not tvm.testing.device_enabled(target):
             pytest.skip(f"{target} not enabled")
-        dev = tvm.device(target)
+        dev = tvm.device_from_target(target)
         # Test code goes here
 
 
@@ -145,6 +145,45 @@ marks are as follows.
   module, when called at import time) if an optional Python package is
   not installed.  Use this instead of a ``skipif`` for package
   dependencies.
+
+Tests that execute on a local GPU must put the complete live-device
+lifetime in a small callback passed to
+:py:func:`tvm.testing.run_with_gpu_lock`.  Target construction and
+compilation remain outside so that pytest-xdist workers can compile in
+parallel.  Device creation, allocation, execution, synchronization,
+host conversion, result checks, and child-process teardown remain inside
+the callback so no device-backed object outlives the lock.
+
+.. code-block:: python
+
+    @pytest.mark.gpu
+    @pytest.mark.skipif(not tvm.testing.env.has_cuda(), reason="need cuda")
+    def test_cuda_add_one():
+        target = tvm.target.Target("cuda -arch=sm_90")
+        executable = tvm.compile(make_add_one_module(), target)
+        host_input = np.arange(16, dtype="float32")
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            device_input = tvm.runtime.tensor(host_input, dev)
+            device_output = tvm.runtime.empty(host_input.shape, "float32", dev)
+            executable(device_input, device_output)
+            dev.sync()
+            tvm.testing.assert_allclose(device_output.numpy(), host_input + 1)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
+
+The wrapper uses the existing :py:class:`tvm_ffi.utils.FileLock` with a
+persistent machine-local path.  A process exit releases the kernel lock;
+the remaining file is not stale ownership.  Test startup must never
+delete or rotate it, because another process could then lock a different
+inode.  Set ``TVM_TEST_LOCK_DIR`` only when all cooperating processes need
+an explicitly configured shared machine-local directory.  The default
+temporary path coordinates processes running as the same user.  Multi-user
+runners sharing a GPU must use one administrator-provisioned directory and
+persistent lock file that every contender can write, or enforce exclusivity
+through the runner.  A per-user lock path cannot protect a GPU shared across
+users because each user would lock a different file.
 
 There also exists a ``tvm.testing.enabled_targets()`` that returns
 all targets that are enabled and runnable on the current machine,
@@ -260,8 +299,8 @@ in which stages.
 
 - Which tests run
 
-  The ``Unit Test`` and ``Integration Test`` stages of the Jenkinsfile
-  determine how ``pytest`` is called.  Each task starts by unpacking a
+  The ``Unit Test`` stage of the Jenkinsfile determines how ``pytest``
+  is called.  Each task starts by unpacking a
   compiled library that was previous compiled in the ``BUILD`` stage,
   then runs a test script
   (e.g. ``tests/scripts/task_python_unittest.sh``).  These scripts set

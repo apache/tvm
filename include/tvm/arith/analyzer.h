@@ -735,6 +735,10 @@ class TVM_DLL AnalyzerObj : public ffi::Object {
    *
    * This function does best-effort propagations to the sub-analyzers
    *
+   * A canonical use of MarkGlobalNonNegValue is to record a non-negativity
+   * fact at a Var's definition site. Because each Var identity is defined
+   * exactly once in canonical IR, the fact is globally valid for that identity.
+   *
    * \note We expose this function because non-negative global values,
    * such as symbolic buffer shapes in function arguments are really
    * important to ensure the best simplification, and usually they

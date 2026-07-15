@@ -52,7 +52,7 @@ class AndOfOrs {
   explicit AndOfOrs(const PrimExpr& expr);
 
   /*! \brief Convert internal representation to PrimExpr */
-  PrimExpr AsPrimExpr() const;
+  PrimExpr ToPrimExpr() const;
 
   /*! \brief Simplify the internal representation */
   void Simplify(AnalyzerObj* analyzer);
@@ -233,7 +233,7 @@ PrimExpr AndOfOrs::GetExpr(AndOfOrs::Key key) const {
   return it->second;
 }
 
-PrimExpr AndOfOrs::AsPrimExpr() const {
+PrimExpr AndOfOrs::ToPrimExpr() const {
   PrimExpr expr = IntImm::Bool(true);
   for (const auto& chunk : chunks_) {
     PrimExpr chunk_expr = IntImm::Bool(false);
@@ -438,7 +438,7 @@ PrimExpr SimplifyAsAndOfOrs(const PrimExpr& expr, AnalyzerObj* analyzer) {
   DisableAndOfOrRecursion context(analyzer);
   AndOfOrs repr(analyzer->Simplify(expr));
   repr.Simplify(analyzer);
-  return repr.AsPrimExpr();
+  return repr.ToPrimExpr();
 }
 
 }  // namespace arith

@@ -103,7 +103,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
     ffi::Map<ffi::String, tirx::Var> name_lookup;
     for (const auto& tir_var : TIRVarsInType(GetType(func))) {
       name_lookup.Set(tir_var->name_hint, tir_var);
-      symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var);
+      symbolic_var_constraints = symbolic_var_constraints && (0 <= tir_var.as_or_throw<PrimExpr>());
     }
 
     // Add lower bound constraints
@@ -113,7 +113,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         if (auto opt_var = name_lookup.Get(tir_var_name)) {
           auto var = opt_var.value();
           auto expr_bound = obj_bound.cast<PrimExpr>();
-          symbolic_var_constraints = symbolic_var_constraints && (expr_bound <= var);
+          symbolic_var_constraints =
+              symbolic_var_constraints && (expr_bound <= var.as_or_throw<PrimExpr>());
         }
       }
     }
@@ -125,7 +126,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
         if (auto opt_var = name_lookup.Get(tir_var_name)) {
           auto var = opt_var.value();
           auto expr_bound = obj_bound.cast<PrimExpr>();
-          symbolic_var_constraints = symbolic_var_constraints && (var < expr_bound);
+          symbolic_var_constraints =
+              symbolic_var_constraints && (var.as_or_throw<PrimExpr>() < expr_bound);
         }
       }
     }

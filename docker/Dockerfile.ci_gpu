@@ -17,7 +17,7 @@
 
 # CI docker GPU env
 # tag: v0.60
-FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
 COPY --from=ghcr.io/astral-sh/uv:0.10.5 /uv /uvx /bin/
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
@@ -25,7 +25,7 @@ COPY utils/download-and-verify.sh /usr/local/bin/download-and-verify
 
 # Per https://forums.developer.nvidia.com/t/notice-cuda-linux-repository-key-rotation/212772
 # we need to add a new GPG key before running apt update.
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
 
 # Base scripts
 RUN rm -f /etc/apt/sources.list.d/nvidia-ml.list && apt-get clean

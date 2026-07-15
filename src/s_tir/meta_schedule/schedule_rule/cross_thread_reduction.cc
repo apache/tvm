@@ -28,7 +28,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
  public:
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    TVM_FFI_ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.has_value());
     Target target = context->target.value();
 
     ffi::Optional<int64_t> opt_max_threads_per_block =

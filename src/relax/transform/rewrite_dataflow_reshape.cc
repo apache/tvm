@@ -78,7 +78,7 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    if (call->op != call_tir_op) {
+    if (!call->op.same_as(call_tir_op)) {
       return ffi::GetRef<Call>(call);
     }
 
@@ -121,14 +121,14 @@ class DataflowReshapeRewriter : public ExprMutator {
     // as the number of elements in the result. There are operators that could have a reshape
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
-    TVM_FFI_ICHECK(inp->ty.defined() && call->ty.defined());
+    TVM_FFI_ICHECK(!inp->ty.IsMissing() && !call->ty.IsMissing());
     TensorType inp_ty = inp->ty.as_or_throw<TensorType>();
     TensorType res_ty = call->ty.as_or_throw<TensorType>();
 
     if (inp_ty->IsUnknownDtype() || inp_ty->dtype != res_ty->dtype) {
       return false;
     }
-    TVM_FFI_ICHECK(inp_ty->shape.defined() && res_ty->shape.defined());
+    TVM_FFI_ICHECK(inp_ty->shape.has_value() && res_ty->shape.has_value());
     if (inp_ty->IsUnknownNdim() || res_ty->IsUnknownNdim()) {
       return false;
     }

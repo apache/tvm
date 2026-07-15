@@ -14,9 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501
-
-
 import random
 
 import numpy as np
@@ -52,12 +49,7 @@ def test_sampling():
     # Probability tensor (each row sums to 1)
     probs_np = np.array([[0.1, 0.2, 0.3, 0.2, 0.2] for _ in range(batch_size)], dtype="float32")
 
-    dev = tvm.cuda(0)
-    prob_tvm = tvm.runtime.tensor(probs_np, device=dev)
-    output_tvm = tvm.runtime.empty((batch_size,), "int32", device=dev)
-
-    device = tvm.cuda()
-    target = tvm.target.Target.from_device(device)
+    target = tvm.testing.run_with_gpu_lock(lambda: tvm.target.Target.from_device(tvm.cuda()))
     sampling_mod = load_module(
         "flashinfer_sampling",
         relax.backend.cuda.flashinfer.gen_sampling_module(
@@ -66,28 +58,31 @@ def test_sampling():
     )
     sampling_func = sampling_mod["sampling_from_probs"]
 
-    counts = np.zeros((batch_size, vocab_size), dtype="int32")
+    def run_and_check():
+        dev = tvm.cuda(0)
+        prob_tvm = tvm.runtime.tensor(probs_np, device=dev)
+        output_tvm = tvm.runtime.empty((batch_size,), "int32", device=dev)
+        counts = np.zeros((batch_size, vocab_size), dtype="int32")
 
-    for _ in range(num_iterations):
-        deterministic = False
-        # Generate seed and a random offset.
-        philox_seed = np.uint64(random.getrandbits(63))
-        philox_offset = np.uint64(random.getrandbits(63) % 1000)
+        for _ in range(num_iterations):
+            deterministic = False
+            philox_seed = np.uint64(random.getrandbits(63))
+            philox_offset = np.uint64(random.getrandbits(63) % 1000)
 
-        # the kernel expects (probs, output, maybe_indices, deterministic, philox_seed, philox_offset, cuda_stream)
-        sampling_func(prob_tvm, output_tvm, None, deterministic, philox_seed, philox_offset, 0)
+            sampling_func(prob_tvm, output_tvm, None, deterministic, philox_seed, philox_offset, 0)
 
-        out = output_tvm.numpy()
-        for i in range(batch_size):
-            sampled_token = out[i]
-            counts[i, sampled_token] += 1
+            out = output_tvm.numpy()
+            for i in range(batch_size):
+                sampled_token = out[i]
+                counts[i, sampled_token] += 1
 
-    # Convert counts to frequencies.
-    frequencies = counts / float(num_iterations)
+        frequencies = counts / float(num_iterations)
+        for row in range(batch_size):
+            tvm.testing.assert_allclose(
+                frequencies[row], probs_np[row], rtol=tol_rtol, atol=tol_atol
+            )
 
-    # For each row, check that the empirical frequency is close to the input probability.
-    for row in range(batch_size):
-        tvm.testing.assert_allclose(frequencies[row], probs_np[row], rtol=tol_rtol, atol=tol_atol)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

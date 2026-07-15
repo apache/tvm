@@ -23,16 +23,16 @@ import tvm.script
 tvm.script.register_dialect("tirx", "tvm.tirx.script")
 
 
-from tvm.ir import PrimExpr
+from tvm.ir import Expr
 from tvm.runtime import const
 
 from .buffer import Buffer, decl_buffer, DataProducer
 from .expr import convert
-from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
+from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
-from .expr import Call, CallEffectKind, Let, IterVar, CommReducer
+from .expr import CallEffectKind, Let, IterVar, CommReducer
 
 from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While
 
@@ -82,7 +82,6 @@ from .op import start_profile_intrinsic, end_profile_intrinsic
 from .op import vscale, get_active_lane_mask, get_vscale_expr
 from .op import dp4a
 from .op import ignore_loop_partition
-from .generic import add, subtract, multiply
 
 # TIRX-specific imports (must come before subpackage imports to avoid circular imports)
 from .exec_scope import ExecScope, ScopeIdDef

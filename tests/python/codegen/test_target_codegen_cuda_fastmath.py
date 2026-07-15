@@ -39,7 +39,7 @@ def make_prim_func(
     name: str,
     dtype: str,
     num_inputs: int,
-    op: Callable[[tirx.PrimExpr, ...], tirx.PrimExpr],
+    op: Callable[[tirx.Expr, ...], tirx.Expr],
 ) -> tirx.PrimFunc:
     """Make a primitive function that applies the given operation to the input buffer."""
     if num_inputs == 1:
@@ -74,7 +74,7 @@ def make_prim_func(
 @dataclass(frozen=True)
 class MathCase:
     name: str
-    op: Callable[[tirx.PrimExpr, ...], tirx.PrimExpr]
+    op: Callable[[tirx.Expr, ...], tirx.Expr]
     num_inputs: int
     default_intrinsic_f16: str
     default_intrinsic_bf16: str
@@ -266,20 +266,20 @@ def make_numpy_inputs(dtype: str, case: MathCase):
 
 def check_runtime(dtype: str, case: MathCase, executable: Executable):
     """Check the runtime for the given dtype and case."""
-    dev = tvm.cuda(0)
-
     np_inputs = make_numpy_inputs(dtype, case)
     expected = case.np_ref(*[arr.astype(dtype) for arr in np_inputs]).astype(dtype)
 
-    tvm_inputs = [tvm.runtime.tensor(arr, device=dev) for arr in np_inputs]
-    output = tvm.runtime.empty((VECTOR_N_INPUTS,), dtype, dev)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        tvm_inputs = [tvm.runtime.tensor(arr, device=dev) for arr in np_inputs]
+        output = tvm.runtime.empty((VECTOR_N_INPUTS,), dtype, dev)
 
-    executable(*tvm_inputs, output)
-    dev.sync()
+        executable(*tvm_inputs, output)
 
-    actual = output.numpy()
+        actual = output.numpy()
+        np.testing.assert_allclose(actual, expected, rtol=case.rtol, atol=case.atol)
 
-    np.testing.assert_allclose(actual, expected, rtol=case.rtol, atol=case.atol)
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("enable_fast_math", [False, True], ids=["default", "fast_math"])

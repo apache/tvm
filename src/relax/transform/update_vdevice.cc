@@ -43,11 +43,11 @@ class VDeviceMutator : public ExprMutator {
 
   Expr VisitExpr(const Expr& expr) final {
     auto visited_expr = ExprMutator::VisitExpr(expr);
-    if (visited_expr->ty.defined()) {
+    if (!visited_expr->ty.IsMissing()) {
       auto* tinfo = GetTypeAs<TensorTypeNode>(visited_expr);
       bool unchanged = true;
       if (tinfo != nullptr) {
-        if (tinfo->vdevice.defined()) {
+        if (tinfo->vdevice.has_value()) {
           VDevice cur_vdevice = tinfo->vdevice.value();
           if (cur_vdevice == old_vdevice_) {
             unchanged = false;
@@ -55,7 +55,7 @@ class VDeviceMutator : public ExprMutator {
         }
       }
       if (!unchanged) {
-        if (tinfo->shape.defined()) {
+        if (tinfo->shape.has_value()) {
           visited_expr->ty =
               TensorType(tinfo->shape.value(), tinfo->dtype, new_vdevice_, tinfo->span);
         } else {

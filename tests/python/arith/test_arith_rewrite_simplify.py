@@ -57,7 +57,7 @@ class TestCase:
     def constraint(self):
         if self.preconditions is None:
             return True
-        elif isinstance(self.preconditions, tvm.ir.PrimExpr):
+        elif tvm.ir.is_prim_expr(self.preconditions):
             return self.preconditions
         else:
             return tvm.tirx.all(*self.preconditions)

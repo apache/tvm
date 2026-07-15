@@ -113,7 +113,7 @@ Type TypeFromStaticType(const Type& type) {
     return FuncType(params, ret, true, func_type->span);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type: " << type;
-    return Type();
+    return Type::Missing();
   }
 }
 
@@ -133,9 +133,10 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
     bool has_undefined = false;
     ffi::Optional<ffi::Array<PrimExpr>> values;
 
-    if (op->values.defined()) {
+    if (op->values.has_value()) {
       std::swap(has_undefined_, has_undefined);
-      values = op->values.value().Map([&](PrimExpr val) { return this->VisitPrimExpr(val); });
+      values =
+          op->values.value().Map([&](PrimExpr val) { return this->VisitTypePrimExprField(val); });
       std::swap(has_undefined_, has_undefined);
     }
     // erase symbolic shape if we have undefined.
@@ -154,7 +155,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
     bool has_undefined = false;
     ffi::Optional<Expr> shape;
 
-    if (op->shape.defined()) {
+    if (op->shape.has_value()) {
       std::swap(has_undefined_, has_undefined);
       shape = relax::ExprMutatorBase::VisitExpr(op->shape.value());
       std::swap(has_undefined_, has_undefined);
@@ -167,7 +168,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
       if (shape.same_as(op->shape)) {
         return ffi::GetRef<Type>(op);
       } else {
-        if (shape.defined()) {
+        if (shape.has_value()) {
           return TensorType(shape.value(), op->dtype, vdev, op->span);
         } else {
           return TensorType(op->dtype, op->ndim, vdev, op->span);
@@ -189,10 +190,9 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
   using relax::ExprMutatorBase::VisitExpr_;
   using tirx::ExprMutator::VisitExpr_;
 
-  // connect things up
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) {
+  PrimExpr VisitPrimitiveExpr(const PrimExpr& expr) {
     // apply eager simplification
-    PrimExpr val = tirx::ExprMutator::VisitExpr(expr);
+    PrimExpr val = tirx::ExprMutator::VisitExpr(expr).as_or_throw<PrimExpr>();
     if (!val.same_as(expr)) {
       return ana_->Simplify(val);
     } else {
@@ -200,27 +200,36 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
     }
   }
 
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitPrimitiveExpr(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutatorBase::VisitExprFallback_(op);
+  }
+
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return VisitPrimitiveExpr(expr); }
+
   Expr VisitExpr_(const VarNode* var) final {
     ffi::Optional<Expr> ret;
     if (f_var_map_ != nullptr) {
       ret = f_var_map_(ffi::GetRef<Var>(var));
     }
-    has_undefined_ = has_undefined_ || !ret.defined();
-    if (ret.defined()) {
+    has_undefined_ = has_undefined_ || !ret.has_value();
+    if (ret.has_value()) {
       TVM_FFI_ICHECK(ret.as<VarNode>() || ret.as<ShapeExprNode>())
           << "Only allow Expr in Type to be ShapeExpr or Var";
     }
     return ret.value_or(ffi::GetRef<Expr>(var));
   }
 
-  PrimExpr VisitExpr_(const tirx::VarNode* var) final {
+  Expr VisitExpr_(const tirx::VarNode* var) final {
     ffi::Optional<PrimExpr> ret;
     if (f_shape_var_map_ != nullptr) {
       ret = f_shape_var_map_(ffi::GetRef<tirx::Var>(var));
     }
-    has_undefined_ = has_undefined_ || !ret.defined();
+    has_undefined_ = has_undefined_ || !ret.has_value();
 
-    if (ret.defined()) {
+    if (ret.has_value()) {
       PrimExpr value = ret.value();
       if (value->IsInstance<IntImmNode>()) {
         return tvm::cast(PrimType::Int(64), value);
@@ -229,7 +238,7 @@ class WellDefinedEraser : public TypeMutator, public ExprMutatorBase, public tir
           << "Can only provide i64 expressions in shape";
       return value;
     } else {
-      return ffi::GetRef<PrimExpr>(var);
+      return ffi::GetRef<tirx::Var>(var);
     }
   }
 
@@ -340,9 +349,9 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
     }
 
     // lhs does not have symbolic value
-    if (!lhs->values.defined()) return BaseCheckResult::kPass;
+    if (!lhs->values.has_value()) return BaseCheckResult::kPass;
     // rhs does not have symbolic value but lhs do.
-    if (!rhs->values.defined()) return BaseCheckResult::kFailL2;
+    if (!rhs->values.has_value()) return BaseCheckResult::kFailL2;
 
     // shape match check
     return ShapeMatchCheck(lhs->values.value(), rhs->values.value());
@@ -369,8 +378,8 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
     }
 
     // vdevice mismatch
-    if (lhs->vdevice.defined() && !rhs->vdevice.defined()) return BaseCheckResult::kFailL1;
-    if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
+    if (lhs->vdevice.has_value() && !rhs->vdevice.has_value()) return BaseCheckResult::kFailL1;
+    if (lhs->vdevice.has_value() && rhs->vdevice.has_value()) {
       VDevice lhs_vdevice = lhs->vdevice.value();
       VDevice rhs_vdevice = rhs->vdevice.value();
       if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined())
@@ -384,9 +393,9 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
     }
 
     // lhs does not have defined shape and everything else matches
-    if (!lhs->shape.defined()) return BaseCheckResult::kPass;
+    if (!lhs->shape.has_value()) return BaseCheckResult::kPass;
     // rhs does not have symbolic value but lhs don't
-    if (!rhs->shape.defined()) return BaseCheckResult::kFailL2;
+    if (!rhs->shape.has_value()) return BaseCheckResult::kFailL2;
 
     // shape match check
     return ShapeMatchCheck(lhs->shape.value(), rhs->shape.value());
@@ -434,7 +443,7 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
 
     // lhs opaque handling
     if (lhs->IsOpaque()) {
-      if (lhs->derive_func.defined()) {
+      if (lhs->derive_func.has_value()) {
         // function proving is best effort.
         return lhs->derive_func.same_as(rhs->derive_func) ? BaseCheckResult::kPass
                                                           : BaseCheckResult::kFailL2;
@@ -659,9 +668,9 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
       return IntImm::Bool(false);
     }
 
-    if (lhs->values.defined() && rhs->values.defined()) {
+    if (lhs->values.has_value() && rhs->values.has_value()) {
       return ArrayCheck(lhs->values.value(), rhs->values.value());
-    } else if (lhs->values.defined() && !rhs->values.defined()) {
+    } else if (lhs->values.has_value() && !rhs->values.has_value()) {
       return IntImm::Bool(false);
     } else {
       return IntImm::Bool(true);
@@ -688,10 +697,10 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
     }
 
     // vdevice mismatch
-    if (lhs->vdevice.defined() && !rhs->vdevice.defined()) {
+    if (lhs->vdevice.has_value() && !rhs->vdevice.has_value()) {
       return IntImm::Bool(false);
     }
-    if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
+    if (lhs->vdevice.has_value() && rhs->vdevice.has_value()) {
       VDevice lhs_vdevice = lhs->vdevice.value();
       VDevice rhs_vdevice = rhs->vdevice.value();
       if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined()) {
@@ -708,7 +717,7 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
     if (lhs->shape.same_as(rhs->shape)) {
       return IntImm::Bool(true);
-    } else if (lhs->shape.defined() && !rhs->shape.defined()) {
+    } else if (lhs->shape.has_value() && !rhs->shape.has_value()) {
       return IntImm::Bool(false);
     }
 
@@ -757,17 +766,17 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
       return IntImm::Bool(false);
     }
 
-    if (lhs->derive_func.defined() && !lhs->derive_func.same_as(rhs->derive_func)) {
+    if (lhs->derive_func.has_value() && !lhs->derive_func.same_as(rhs->derive_func)) {
       return IntImm::Bool(false);
     }
-    if (lhs->params.defined() && !rhs->params.defined()) {
+    if (lhs->params.has_value() && !rhs->params.has_value()) {
       return IntImm::Bool(false);
     }
 
     PrimExpr all_match = VisitType(lhs->ret, rhs->ret);
 
     PrimExpr param_check;
-    if (lhs->params.defined()) {
+    if (lhs->params.has_value()) {
       param_check = ArrayCheck(lhs->params.value(), rhs->params.value());
     } else {
       param_check = IntImm::Bool(true);
@@ -828,7 +837,7 @@ class CallRetTypeDeriver : public TypeBaseChecker {
   Type Derive(const FuncType& finfo, const Call& call, const BlockBuilder& ctx) {
     // opaque derivation
     if (finfo->IsOpaque()) {
-      if (finfo->derive_func.defined()) {
+      if (finfo->derive_func.has_value()) {
         // derive using custom derivation function.
         return finfo->derive_func.value()(call, ctx);
       } else {
@@ -1004,11 +1013,11 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     if (rhs == nullptr) return AnyType(lhs->span);
 
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
-    if (lhs->ndim != rhs->ndim || !lhs->values.defined() || !rhs->values.defined() ||
+    if (lhs->ndim != rhs->ndim || !lhs->values.has_value() || !rhs->values.has_value() ||
         !CanProveShapeEqual(lhs->values.value(), rhs->values.value(),
                             ffi::GetRef<arith::Analyzer>(analyzer_))) {
       // prefers return same when possible
-      if (!lhs->values.defined() && lhs->ndim == ndim) {
+      if (!lhs->values.has_value() && lhs->ndim == ndim) {
         return ffi::GetRef<Type>(lhs);
       } else {
         return ShapeType(ndim, lhs->span);
@@ -1029,25 +1038,25 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
                                         : std::nullopt;
     int ndim = lhs->ndim == rhs->ndim ? lhs->ndim : kUnknownNDim;
     VDevice vdev = VDevice();
-    if (lhs->vdevice.defined() && rhs->vdevice.defined() &&
+    if (lhs->vdevice.has_value() && rhs->vdevice.has_value() &&
         lhs->vdevice.value() == rhs->vdevice.value()) {
       vdev = lhs->vdevice.value();
     }
     // if ndim mismatch or one side of shape is missing
     // then we cannot keep in symbolic shape
-    if (lhs->ndim != rhs->ndim || !lhs->shape.defined() || !rhs->shape.defined() ||
+    if (lhs->ndim != rhs->ndim || !lhs->shape.has_value() || !rhs->shape.has_value() ||
         !CanProveShapeEqual(lhs->shape.value(), rhs->shape.value(),
                             ffi::GetRef<arith::Analyzer>(analyzer_))) {
       // reuse lhs when possible
-      if (!lhs->shape.defined() && lhs->dtype == dtype && lhs->ndim == ndim &&
-          (!lhs->vdevice.defined() || vdev.defined())) {
+      if (!lhs->shape.has_value() && lhs->dtype == dtype && lhs->ndim == ndim &&
+          (!lhs->vdevice.has_value() || vdev.defined())) {
         return ffi::GetRef<Type>(lhs);
       } else {
         return TensorType(dtype, ndim, vdev, lhs->span);
       }
     }
     // symbolic shape and vdevice match but dtype mismatch
-    if (lhs->dtype != dtype || (lhs->vdevice.defined() && !vdev.defined())) {
+    if (lhs->dtype != dtype || (lhs->vdevice.has_value() && !vdev.defined())) {
       return TensorType(lhs->shape.value(), dtype, vdev, lhs->span);
     } else {
       return ffi::GetRef<Type>(lhs);
@@ -1059,7 +1068,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
     if (rhs == nullptr) return AnyType(lhs->span);
     ffi::Optional<ffi::Array<Type>> fields = UnifyArray(lhs->fields, rhs->fields);
     // tuple length not the same.
-    if (!fields.defined()) return AnyType(lhs->span);
+    if (!fields.has_value()) return AnyType(lhs->span);
 
     // same length tuple.
     if (!fields.same_as(lhs->fields)) {
@@ -1078,7 +1087,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
 
     // lhs opaque handling
     if (lhs->IsOpaque()) {
-      if (lhs->derive_func.defined()) {
+      if (lhs->derive_func.has_value()) {
         if (lhs->derive_func.same_as(rhs->derive_func)) {
           return ffi::GetRef<Type>(lhs);
         } else {
@@ -1126,7 +1135,7 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
       return ffi::GetRef<Type>(lhs);
     } else {
       // fail to unify the params
-      if (!params.defined()) {
+      if (!params.has_value()) {
         return FuncType::OpaqueFunc(ret, purity, lhs->span);
       } else {
         return FuncType(params.value(), ret, purity, lhs->span);
@@ -1180,7 +1189,7 @@ class TIRVarsDetector : public TypeVisitor {
   ffi::Array<tirx::Var> GetTIRVars() const { return tir_vars_; }
 
  private:
-  void VisitPrimExpr(PrimExpr expr) {
+  void VisitTypePrimExprField(PrimExpr expr) {
     if (collection_type == VarType::Definition) {
       if (auto opt = expr.as<tirx::Var>()) {
         RecordTIRVar(opt.value());
@@ -1197,20 +1206,20 @@ class TIRVarsDetector : public TypeVisitor {
 
   void VisitShape(ffi::Array<PrimExpr> shape) {
     for (const PrimExpr& expr : shape) {
-      VisitPrimExpr(expr);
+      VisitTypePrimExprField(expr);
     }
   }
 
   void VisitType_(const PrimTypeNode* prim_ty) final {}
 
   void VisitType_(const ShapeTypeNode* shape_ty) final {
-    if (shape_ty->values.defined()) {
+    if (shape_ty->values.has_value()) {
       VisitShape(shape_ty->values.value());
     }
   }
 
   void VisitType_(const TensorTypeNode* tensor_ty) final {
-    if (tensor_ty->shape.defined()) {
+    if (tensor_ty->shape.has_value()) {
       VisitType(GetType(tensor_ty->shape.value()));
     }
   }
@@ -1257,7 +1266,7 @@ class NonNegativeExpressionCollector : relax::TypeVisitor {
 
  private:
   void VisitType_(const TensorTypeNode* op) override {
-    if (op->shape.defined()) {
+    if (op->shape.has_value()) {
       VisitType(GetType(op->shape.value()));
     }
   }
@@ -1301,7 +1310,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
  public:
   static ffi::Array<tirx::Var> Free(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(expr);
+    collector.relax::ExprVisitor::VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.free_symbolic_var_.begin(),
                               collector.free_symbolic_var_.end()};
     return ret;
@@ -1309,7 +1318,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
 
   static ffi::Array<tirx::Var> Defined(const Expr& expr) {
     SymbolicVarCollector collector;
-    collector.VisitExpr(expr);
+    collector.relax::ExprVisitor::VisitExpr(expr);
     ffi::Array<tirx::Var> ret{collector.defined_symbolic_var_.begin(),
                               collector.defined_symbolic_var_.end()};
     return ret;
@@ -1367,7 +1376,7 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   void VisitExprDepTypeField(const Type& ty) { return this->VisitType(ty); }
 
   void VisitType_(const FuncTypeNode* op) final {
-    if (op->params.defined()) {
+    if (op->params.has_value()) {
       // Visit the parameters once to collect bindings, and another
       // time to collect usages.  Otherwise, a symbolic variable
       // defined by a later parameter may be treated as undefined when

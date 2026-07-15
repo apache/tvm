@@ -116,14 +116,14 @@ def _unravel_index(index, shape):
 
     Parameters
     ----------
-    index : PrimExpr
+    index : Expr
         The flat index.
     shape : Tuple
         The shape of the buffer.
 
     Returns
     -------
-    List[PrimExpr]
+    List[Expr]
         The multi-dimensional indices.
     """
     indices = []

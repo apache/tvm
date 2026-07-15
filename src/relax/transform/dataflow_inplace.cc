@@ -285,7 +285,7 @@ class AliasAnalyzer {
     // function constant: give them a fresh index (TODO: we can handle in more detail if this is a
     // case we need to support) prim value: fresh index if node: should not happen inside dataflow
     // block
-    if (value.as<ConstantNode>() || value.as<PrimExprNode>() || value.as<FunctionNode>()) {
+    if (value.as<ConstantNode>() || value.as<FunctionNode>()) {
       // TODO(@slyubomirsky): We will probably want special handling for closures
       ret.insert(get_fresh_idx());
     } else if (auto* target_var_node = value.as<VarNode>()) {
@@ -295,6 +295,8 @@ class AliasAnalyzer {
       } else {
         ret.insert(-1);
       }
+    } else if (value.as<PrimExpr>()) {
+      ret.insert(get_fresh_idx());
     } else if (auto* target_tuple = value.as<TupleNode>()) {
       // fresh idx but we update the tuple map
       int tup_idx = get_fresh_idx();
@@ -421,13 +423,13 @@ std::pair<bool, bool> SizeMatches(const Type& target_info, const Type& arg_info,
   if (target_info.as<TensorTypeNode>() && arg_info.as<TensorTypeNode>()) {
     auto target_tensor = target_info.as_or_throw<TensorType>();
     auto arg_tensor = arg_info.as_or_throw<TensorType>();
-    if (target_tensor->shape.defined() && target_tensor->shape.as<ShapeExprNode>() &&
-        arg_tensor->shape.defined() && arg_tensor->shape.as<ShapeExprNode>()) {
+    if (target_tensor->shape.has_value() && target_tensor->shape.as<ShapeExprNode>() &&
+        arg_tensor->shape.has_value() && arg_tensor->shape.as<ShapeExprNode>()) {
       if (target_tensor->dtype != arg_tensor->dtype) {
         return {false, false};
       }
-      auto target_shape = target_tensor->shape.as_or_throw<ShapeExpr>();
-      auto arg_shape = arg_tensor->shape.as_or_throw<ShapeExpr>();
+      auto target_shape = target_tensor->shape.value().as_or_throw<ShapeExpr>();
+      auto arg_shape = arg_tensor->shape.value().as_or_throw<ShapeExpr>();
       PrimExpr target_size = NumElements(target_shape);
       PrimExpr arg_size = NumElements(arg_shape);
       if (!ctx->GetAnalyzer()->CanProve(arg_size >= target_size)) {
@@ -769,7 +771,7 @@ tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
 
     tirx::Stmt Remap(const tirx::Stmt& stmt) { return VisitStmt(stmt); }
 
-    PrimExpr VisitExpr_(const tirx::BufferLoadNode* op) final {
+    Expr VisitExpr_(const tirx::BufferLoadNode* op) final {
       auto node = tirx::StmtExprMutator::VisitExpr_(op).as_or_throw<tirx::BufferLoad>();
       auto* node_cow = node.CopyOnWrite();
       node_cow->buffer = AttemptRemap(node->buffer);
@@ -972,13 +974,13 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // apply substitutions
     new_body = RemapBuffers(new_body, buffer_subst_map);
-    new_body =
-        tirx::Substitute(new_body, [&var_subst_map](const tirx::Var& v) -> ffi::Optional<PrimExpr> {
-          if (var_subst_map.count(v)) {
-            return var_subst_map.at(v);
-          }
-          return ffi::Optional<PrimExpr>();
-        });
+    new_body = tirx::Substitute(new_body,
+                                [&var_subst_map](const tirx::Var& v) -> ffi::Optional<tvm::Expr> {
+                                  if (var_subst_map.count(v)) {
+                                    return tvm::Expr(var_subst_map.at(v));
+                                  }
+                                  return std::nullopt;
+                                });
 
     // remove the now-unused outputs from the buffer map
     auto new_buffer_map = old_primfunc->buffer_map;

@@ -83,6 +83,12 @@ class DocPrinter {
    */
   ffi::String GetString() const;
 
+  /*!
+   * \brief Return the visible source path selected for each requested
+   *        underline path.
+   */
+  ffi::Array<ffi::Optional<AccessPath>> GetVisiblePaths() const;
+
  protected:
   /*!
    * \brief Get the printed string
@@ -98,6 +104,11 @@ class DocPrinter {
    * \brief Virtual method to print a LiteralDoc
    */
   virtual void PrintTypedDoc(const LiteralDoc& doc) = 0;
+
+  /*!
+   * \brief Virtual method to print an ExprStringDoc
+   */
+  virtual void PrintTypedDoc(const ExprStringDoc& doc) = 0;
 
   /*!
    * \brief Virtual method to print an IdDoc
@@ -292,6 +303,9 @@ class DocPrinter {
 
   /*! \brief Path length of the objects that are current candidates for underlining. */
   std::vector<int> current_max_path_depth_;
+
+  /*! \brief Visible path selected by the current best underline candidate. */
+  std::vector<ffi::Optional<AccessPath>> current_visible_paths_;
 
   /*! \brief Spans that we have already committed to underline. */
   std::vector<ByteSpan> underlines_;

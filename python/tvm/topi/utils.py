@@ -25,7 +25,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm.s_tir import sbijective_layout, slayout
-from tvm.tirx import SizeVar
+from tvm.tirx import Var
 
 from . import cpp, tag
 
@@ -276,7 +276,7 @@ def simplify(expr):
             name="simplify_output",
             tag="simplify",
         )
-    elif isinstance(expr, tvm.tirx.PrimExpr):
+    elif tvm.ir.is_prim_expr(expr):
         return tvm.arith.Analyzer().simplify(expr)
     else:
         return expr
@@ -542,4 +542,4 @@ def is_target(names):
 
 def is_dynamic_shape(shape):
     """Checks if any part of a shape is dynamic"""
-    return any([isinstance(x, SizeVar) for x in shape])
+    return any(isinstance(x, Var) for x in shape)

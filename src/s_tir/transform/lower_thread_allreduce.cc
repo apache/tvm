@@ -131,7 +131,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return node;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     if (auto it = load_remap_.find(op->buffer->data.get()); it != load_remap_.end()) {
       for (const auto& index : op->indices) {
         TVM_FFI_ICHECK(is_zero(index));
@@ -182,9 +182,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     std::vector<PrimExpr> values(size);
     std::vector<PrimType> dtypes;
     dtypes.reserve(size);
-    PrimExpr cond = call->args[size + 1];
+    PrimExpr cond = call->args[size + 1].as_or_throw<PrimExpr>();
     for (size_t idx = 0; idx < size; ++idx) {
-      values[idx] = call->args[1 + idx];
+      values[idx] = call->args[1 + idx].as_or_throw<PrimExpr>();
       if (!is_one(cond)) {
         values[idx] = Select(cond, values[idx], inits[idx]);
       }
@@ -192,7 +192,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     std::vector<Buffer> buffers(size);
     for (size_t idx = 0; idx < size; ++idx) {
-      PrimExpr arg = call->args[2 + size + idx];
+      PrimExpr arg = call->args[2 + size + idx].as_or_throw<PrimExpr>();
       // Loads from boolean buffers may have cast nodes inserted by
       // earlier passes.
       if (auto cast = arg.as<CastNode>()) {
@@ -309,7 +309,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     PrimExpr zero_index = IntImm(reduce_index.ty(), 0);
     if (IsWarpReduction(dtypes, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
-      PrimExpr mask = Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {});
+      PrimExpr mask =
+          Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {}).as_or_throw<PrimExpr>();
 
       if (reduce_extent <= warp_size_) {
         std::tie(reduce_results, new_alloc_bufs) =
@@ -336,7 +337,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         staging_shared_bufs.reserve(size);
         for (size_t i = 0; i < size; ++i) {
           Buffer staging_shared_buf = decl_buffer(
-              /*shape=*/{MakeConst(reduce_index.ty(), n_warps * group_extent)},
+              /*shape=*/{IntImm(reduce_index.ty(), n_warps * group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_buf_staging", /*storage_scope=*/"shared");
           staging_shared_bufs.push_back(staging_shared_buf);
           new_alloc_bufs.push_back(staging_shared_buf);
@@ -370,7 +371,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         }
         std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
             values, dtypes, combiner, reduce_index, n_warps, group_index, mask,
-            /*predicate=*/reduce_index < MakeConst(reduce_index.ty(), n_warps), &seq);
+            /*predicate=*/reduce_index < IntImm(reduce_index.ty(), n_warps), &seq);
         new_alloc_bufs.insert(new_alloc_bufs.end(), local_bufs.begin(), local_bufs.end());
 
         // 5. Create shared memory buffer(s) of `group_extent` elements, storing
@@ -380,7 +381,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         for (size_t i = 0; i < size; ++i) {
           new_alloc_bufs.push_back(reduce_results[i].as_or_throw<BufferLoad>()->buffer);
           Buffer broadcast_shared_buf = decl_buffer(
-              /*shape=*/{MakeConst(reduce_index.ty(), group_extent)},
+              /*shape=*/{IntImm(reduce_index.ty(), group_extent)},
               /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
           write_result.push_back(
               BufferStore(broadcast_shared_buf, reduce_results[i], {group_index}));
@@ -485,7 +486,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       local_bufs.push_back(decl_buffer(shape, dtypes[idx], "t" + std::to_string(idx), "local"));
     }
 
-    if (predicate.defined()) {
+    if (predicate.has_value()) {
       seq->push_back(IfThenElse(predicate.value(), SeqStmt::Flatten(load_values)));
     } else {
       seq->insert(seq->end(), load_values.begin(), load_values.end());
@@ -664,8 +665,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
         std::vector<Stmt> in_let_statement;
         in_let_statement.emplace_back(SyncThread("warp"));
-        in_let_statement.emplace_back(
-            fstore({in_warp_local_vars.begin(), in_warp_local_vars.end()}));
+        ffi::Array<PrimExpr> prim_in_warp_local_vars =
+            in_warp_local_vars.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
+        in_let_statement.emplace_back(fstore(prim_in_warp_local_vars));
         in_let_statement.emplace_back(SyncThread("warp"));
 
         ffi::Array<Stmt> bind_stmts;
@@ -717,7 +719,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
-    return Evaluate(Call(PrimType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync)}));
+    return Evaluate(Call(PrimType::Int(32), builtin::tvm_storage_sync(), {StringImm(sync)})
+                        .as_or_throw<PrimExpr>());
   }
 
   // Emit warp shuffle  calls.
@@ -725,14 +728,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                        PrimExpr delta_or_lane) {
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask;
-    if (mask_buffer.defined()) {
+    if (mask_buffer.has_value()) {
       mask = BufferLoad(mask_buffer.value(), indices);
     } else {
       mask = IntImm::Int32(0);
     }
     PrimExpr width = IntImm::Int32(warp_size_);
     ffi::Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
-    return Call(val.ty(), op, args);
+    return Call(val.ty(), op, args).as_or_throw<PrimExpr>();
   }
 
   // Check if we can use warp level reduction.
@@ -913,7 +916,7 @@ Pass LowerThreadAllreduce() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    TVM_FFI_ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
+    TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
     ThreadAllreduceBuilder thread_all_reduce(target_node);
     n->body = thread_all_reduce(n->body);

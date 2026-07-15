@@ -320,6 +320,7 @@ std::optional<std::string> RenderScriptWithUnderline(const ffi::ObjectRef& node,
     // module. A small TIR/Relax function is ~8-15 lines; 10 lines of context
     // on each side of the underline covers it end-to-end.
     config_dict.Set("num_context_lines", static_cast<int>(10));
+    config_dict.Set("render_invisible_path_info", true);
     ffi::Any cfg = (*config_fn)(config_dict);
     ffi::Any rendered = (*script_fn)(node, cfg);
     return rendered.cast<ffi::String>().operator std::string();
@@ -635,7 +636,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         pctx->disabled_pass = std::move(disabled);
         pctx->instruments = std::move(instruments);
 
-        if (config.defined()) {
+        if (config.has_value()) {
           pctx->config = config.value();
         }
         PassConfigManager::Global()->Legalize(&(pctx->config));

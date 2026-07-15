@@ -63,7 +63,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
   tvm::ffi::Map<ffi::String, ffi::Any> attrs;
   attrs.Set("axis", IntImm::Int32(axis));
 
-  auto insert_reduce_index = [axis, ndim](const ffi::Array<Var>& indices,
+  auto insert_reduce_index = [axis, ndim](const ffi::Array<PrimVar>& indices,
                                           const IterVar& reduce_index) {
     ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
@@ -77,7 +77,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
     return eval_range;
   };
 
-  auto get_non_reduce_indices = [axis, ndim](const ffi::Array<Var>& indices) {
+  auto get_non_reduce_indices = [axis, ndim](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> non_reduce_indices;
     for (size_t i = 0; i < ndim; ++i) {
       if (static_cast<int>(i) != axis) non_reduce_indices.push_back(indices[i]);
@@ -85,34 +85,38 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
     return non_reduce_indices;
   };
 
-  auto _compute_max = [&](const ffi::Array<Var>& indices) {
+  auto _compute_max = [&](const ffi::Array<PrimVar>& indices) {
     auto eval_range = insert_reduce_index(indices, k1);
     return topi::MaxOp(x(eval_range), {k1});
   };
 
-  auto _compute_exp = [&](const Tensor& max_elem, const ffi::Array<Var>& indices) {
+  auto _compute_exp = [&](const Tensor& max_elem, const ffi::Array<PrimVar>& indices) {
     auto non_reduce_indices = get_non_reduce_indices(indices);
     return tvm::exp(x(indices) - max_elem(non_reduce_indices));
   };
 
-  auto _compute_expsum = [&](const Tensor& exp, const ffi::Array<Var>& indices) {
+  auto _compute_expsum = [&](const Tensor& exp, const ffi::Array<PrimVar>& indices) {
     auto eval_range = insert_reduce_index(indices, k2);
     return tvm::sum(exp(eval_range), {k2});
   };
 
-  auto _normalize = [&](const Tensor& exp, const Tensor& expsum, const ffi::Array<Var>& indices) {
+  auto _normalize = [&](const Tensor& exp, const Tensor& expsum,
+                        const ffi::Array<PrimVar>& indices) {
     auto non_reduce_indices = get_non_reduce_indices(indices);
     return exp(indices) / expsum(non_reduce_indices);
   };
 
   auto max_elem = tvm::te::compute(reduced_shape, _compute_max);
-  auto exp = tvm::te::compute(
-      input_shape, [&](const ffi::Array<Var>& indices) { return _compute_exp(max_elem, indices); });
-  auto expsum = tvm::te::compute(
-      reduced_shape, [&](const ffi::Array<Var>& indices) { return _compute_expsum(exp, indices); });
+  auto exp = tvm::te::compute(input_shape, [&](const ffi::Array<PrimVar>& indices) {
+    return _compute_exp(max_elem, indices);
+  });
+  auto expsum = tvm::te::compute(reduced_shape, [&](const ffi::Array<PrimVar>& indices) {
+    return _compute_expsum(exp, indices);
+  });
   return tvm::te::compute(
-      input_shape, [&](const ffi::Array<Var>& indices) { return _normalize(exp, expsum, indices); },
-      name, tag, attrs);
+      input_shape,
+      [&](const ffi::Array<PrimVar>& indices) { return _normalize(exp, expsum, indices); }, name,
+      tag, attrs);
 }
 
 /*!
@@ -133,15 +137,15 @@ inline Tensor log_softmax(const Tensor& x, std::string name = "tensor",
 
   auto k = tvm::te::reduce_axis(Range(0, n), "k");
   auto max_elem =
-      tvm::te::compute({m}, [&](Var i) { return tvm::max(x(i, k), ffi::Array<IterVar>{k}); });
+      tvm::te::compute({m}, [&](PrimVar i) { return tvm::max(x(i, k), ffi::Array<IterVar>{k}); });
   k = tvm::te::reduce_axis(Range(0, n), "k");
 
-  auto expsum =
-      tvm::te::compute({m}, [&](Var i) { return tvm::sum(tvm::exp(x(i, k) - max_elem(i)), {k}); });
+  auto expsum = tvm::te::compute(
+      {m}, [&](PrimVar i) { return tvm::sum(tvm::exp(x(i, k) - max_elem(i)), {k}); });
 
   return tvm::te::compute(
-      x->shape, [&](Var i, Var j) { return x(i, j) - max_elem(i) - tvm::log(expsum(i)); }, name,
-      tag);
+      x->shape, [&](PrimVar i, PrimVar j) { return x(i, j) - max_elem(i) - tvm::log(expsum(i)); },
+      name, tag);
 }
 
 }  // namespace nn

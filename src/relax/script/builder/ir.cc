@@ -36,20 +36,16 @@ using tvm::script::ir_builder::details::Namer;
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
       using tvm::relax::VarNode;
-      using tvm::relax::IdNode;
-      const VarNode* var = node.as<VarNode>();
-      IdNode* vid = const_cast<IdNode*>(var->vid.get());
-      vid->name_hint = name;
+      VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
+      var->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::DataflowVarNode>([](const ffi::ObjectRef& node,
                                                   ffi::String name) -> void {
       using tvm::relax::DataflowVarNode;
-      using tvm::relax::IdNode;
-      const DataflowVarNode* var = node.as<DataflowVarNode>();
-      IdNode* vid = const_cast<IdNode*>(var->vid.get());
-      vid->name_hint = name;
+      DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
+      var->name_hint = name;
     });
 
 /////////////////////////////// Function ////////////////////////////////
@@ -108,7 +104,7 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
 
 void FuncRetType(const tvm::Type& ret_ty) {
   FunctionFrame frame = FindFunctionFrame("R.func_ret_type");
-  if (frame->ret_ty.defined()) {
+  if (frame->ret_ty.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate function return type, previous one is:\n "
                               << frame->ret_ty.value();
   }
@@ -136,7 +132,7 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   }
   // Step 2. Add the output value to the function frame.
   FunctionFrame frame = FindFunctionFrame("return");
-  TVM_FFI_CHECK(!frame->output.defined(), ValueError)
+  TVM_FFI_CHECK(!frame->output.has_value(), ValueError)
       << "Relax functions do not support multiple return statement.  "
       << "However, return of " << normalized_value << " occurred after a return of "
       << frame->output << ".  "
@@ -177,7 +173,7 @@ void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
   // Step 1. Check that we're in a Dataflow block that is not ended.
   ffi::Optional<BindingBlockFrame> block_frame =
       IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
-  TVM_FFI_CHECK(block_frame.defined() && block_frame.value()->is_dataflow, ValueError)
+  TVM_FFI_CHECK(block_frame.has_value() && block_frame.value()->is_dataflow, ValueError)
       << "`R.output` should appear inside a dataflow block. However, the current "
          "innermost block is not a dataflow block.";
   TVM_FFI_CHECK(!block_frame.value()->block_ended, ValueError)
@@ -191,7 +187,10 @@ void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
   // block.
   const ffi::Array<tvm::relax::Var>& emitted_vars = block_frame.value()->emitted_vars;
   for (const tvm::relax::Var& var : vars) {
-    TVM_FFI_CHECK(std::find(emitted_vars.begin(), emitted_vars.end(), var) != emitted_vars.end(),
+    TVM_FFI_CHECK(std::find_if(emitted_vars.begin(), emitted_vars.end(),
+                               [&](const tvm::relax::Var& emitted) {
+                                 return emitted.same_as(var);
+                               }) != emitted_vars.end(),
                   ValueError)
         << "An output variable is not emitted by this dataflow block. Please make sure "
            "all dataflow block output variables are emitted exactly by this block.";
@@ -213,9 +212,9 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr, const ffi::Optional<tvm::Type
   using tvm::relax::GetType;
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
-  if (annotate_ty.defined()) {
+  if (annotate_ty.has_value()) {
     const auto& ty = annotate_ty.value();
-    if (!expr->ty.defined()) {
+    if (expr->ty.IsMissing()) {
       tvm::relax::UpdateType(expr, ty);
     } else {
       TVM_FFI_ICHECK(tvm::relax::TypeBaseCheck(ty, GetType(expr)) !=

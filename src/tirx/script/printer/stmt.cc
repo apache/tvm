@@ -26,7 +26,7 @@ namespace printer {
 Doc DoConciseScoping(const ffi::Optional<ExprDoc>& lhs, const ExprDoc& rhs,
                      ffi::Array<StmtDoc>* stmts, bool concise_scoping) {
   if (concise_scoping) {
-    if (lhs.defined()) {
+    if (lhs.has_value()) {
       stmts->insert(stmts->begin(), AssignDoc(lhs.value(), rhs, std::nullopt));
     } else {
       stmts->insert(stmts->begin(), ExprStmtDoc(rhs));
@@ -66,11 +66,11 @@ bool IsAncestorOfAllVarUse(const tirx::Stmt& node, const ffi::ObjectRef& var,
   return false;
 }
 
-ffi::Optional<PrimExpr> FindReturnValue(const tirx::Stmt& node) {
+ffi::Optional<Expr> FindReturnValue(const tirx::Stmt& node) {
   auto eval = node.as<tirx::EvaluateNode>();
   if (!eval) return std::nullopt;
 
-  auto call = eval->value.as<tirx::CallNode>();
+  auto call = eval->value.as<CallNode>();
   if (!call) return std::nullopt;
 
   if (!call->op.same_as(tirx::builtin::ret())) return std::nullopt;
@@ -198,7 +198,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       }
 
       ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
-      if (eval->value->IsInstance<tirx::CallNode>()) {
+      if (eval->value->IsInstance<CallNode>()) {
         return ExprStmtDoc(value);
       }
       return ExprStmtDoc(TIR(d, "evaluate")->Call({value}));
@@ -207,11 +207,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Bind>("", [](tirx::Bind stmt, AccessPath p, IRDocsifier d) -> Doc {
       // Step 1. Type annotation
-      TVM_FFI_ICHECK(stmt->var->type_annotation.defined())
+      TVM_FFI_ICHECK(!stmt->var->ty.IsMissing())
           << "Type annotation is required for variable: " << stmt->var->name_hint;
-      ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->type_annotation,  //
-                                                          p->Attr("var")->Attr("type_annotation"));
-      if (const auto* tuple_type = stmt->var->type_annotation.as<TupleTypeNode>()) {
+      ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->ty,  //
+                                                          p->Attr("var")->Attr("ty"));
+      if (const auto* tuple_type = stmt->var->ty.as<TupleTypeNode>()) {
         if (tuple_type->fields.empty()) {
           type_doc = std::nullopt;
         }
@@ -222,8 +222,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (!d->IsVarDefined(stmt->var)) {
         TVM_FFI_ICHECK(!d->frames.empty());
         ExprDoc lhs = DefineVar(stmt->var, d->frames.back(), d);
-        ExprDoc let_ann = type_doc.defined() ? ExprDoc(IndexDoc(TIR(d, "let"), {type_doc.value()}))
-                                             : TIR(d, "let");
+        ExprDoc let_ann = type_doc.has_value()
+                              ? ExprDoc(IndexDoc(TIR(d, "let"), {type_doc.value()}))
+                              : TIR(d, "let");
         return AssignDoc(lhs, rhs, let_ann);
       } else {
         ExprDoc lhs = d->AsDoc<ExprDoc>(stmt->var, p->Attr("var"));
@@ -289,7 +290,7 @@ std::vector<tirx::Buffer> FindParentBuffers(const tirx::Buffer& child, const IRD
  * \brief Check if a layout is the default layout for a given shape.
  */
 bool IsDefaultLayout(const ffi::Optional<tirx::Layout>& layout, const ffi::Array<PrimExpr>& shape) {
-  if (!layout.defined()) return false;
+  if (!layout.has_value()) return false;
   return StructuralEqual()(layout.value(), tirx::TileLayoutNode::DefaultLayout(shape));
 }
 
@@ -303,7 +304,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
                                                     const IRDocsifier& d,
                                                     const tirx::Buffer& parent) {
   ffi::Optional<ExprDoc> parent_doc = d->GetVarDoc(parent);
-  if (!parent_doc.defined()) return std::nullopt;
+  if (!parent_doc.has_value()) return std::nullopt;
   ExprDoc pdoc = parent_doc.value();
 
   tirx::ExprDeepEqual expr_equal;
@@ -389,7 +390,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
   }
 
   // --- (b) Local: parent has thread axes, child has storage layout (non-thread part) ---
-  if (same_elem_offset && same_dtype && !parent_is_default && parent->layout.defined()) {
+  if (same_elem_offset && same_dtype && !parent_is_default && parent->layout.has_value()) {
     if (auto* parent_tile = parent->layout.value().as<tirx::TileLayoutNode>()) {
       if (parent_tile->HasThreadAxis()) {
         // Check if child's layout matches the storage layout (parent layout with thread axes
@@ -417,7 +418,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
             ffi::Array<tirx::Iter>(storage_replica.begin(), storage_replica.end()), storage_offset);
 
         bool child_matches_storage = false;
-        if (child->layout.defined()) {
+        if (child->layout.has_value()) {
           child_matches_storage =
               StructuralEqual()(child->layout.value(), tirx::Layout(expected_storage));
         }
@@ -484,7 +485,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
       }
     }
     // Also verify the parent's layout is compatible with the pack/unpack operation
-    if (shapes_compatible && parent->layout.defined()) {
+    if (shapes_compatible && parent->layout.has_value()) {
       if (auto* ptile = parent->layout.value().as<tirx::TileLayoutNode>()) {
         if (!ptile->shard.empty() && child_bits > parent_bits) {
           // Cast up requires pack: last shard iter must have stride=1
@@ -542,7 +543,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
     if (is_permutation && !is_identity) {
       // Verify the layout matches permutation by comparing shard iters directly
       bool layout_matches = false;
-      if (parent->layout.defined() && child->layout.defined()) {
+      if (parent->layout.has_value() && child->layout.has_value()) {
         auto* parent_tile = parent->layout.value().as<tirx::TileLayoutNode>();
         auto* child_tile = child->layout.value().as<tirx::TileLayoutNode>();
         if (parent_tile && child_tile && parent_tile->shard.size() == child_tile->shard.size()) {
@@ -655,12 +656,12 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
     }
     // Check if layout differs
     bool same_layout = false;
-    if (child->layout.defined() && parent->layout.defined()) {
+    if (child->layout.has_value() && parent->layout.has_value()) {
       same_layout = StructuralEqual()(child->layout.value(), parent->layout.value());
-    } else if (!child->layout.defined() && !parent->layout.defined()) {
+    } else if (!child->layout.has_value() && !parent->layout.has_value()) {
       same_layout = true;
     }
-    if (!same_layout && child->layout.defined() && !child_is_default) {
+    if (!same_layout && child->layout.has_value() && !child_is_default) {
       kwargs_keys.push_back("layout");
       kwargs_values.push_back(
           d->AsDoc<ExprDoc>(child->layout.value(), p->Attr("buffer")->Attr("layout")));
@@ -763,8 +764,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             AsDocBody(stmt->then_case, p->Attr("then_case"), f->get(), d);
             then_branch = (*f)->stmts;
           }
-          if (stmt->else_case.defined()) {
-            With<TIRFrame> f(d, stmt->else_case);
+          if (stmt->else_case.has_value()) {
+            With<TIRFrame> f(d, stmt->else_case.value());
             AsDocBody(stmt->else_case.value(), p->Attr("else_case"), f->get(), d);
             else_branch = (*f)->stmts;
           }
@@ -814,7 +815,7 @@ ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& a
 /*! \brief Check whether an AttrStmt has node=IntImm(int32, 0) (the dict-attr pattern). */
 static bool IsDictAttrPattern(const tirx::AttrStmt& stmt) {
   if (auto int_imm = stmt->node.as<IntImmNode>()) {
-    return int_imm->ty() == PrimType::Int(32) && int_imm->value == 0;
+    return int_imm->ty.as_or_throw<PrimType>() == PrimType::Int(32) && int_imm->value == 0;
   }
   return false;
 }
@@ -850,7 +851,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               rhs = TIR(d, "hint")->Call(args, kwargs_keys, kwargs_values);
             }
           }
-          if (!rhs.defined()) {
+          if (!rhs.has_value()) {
             // Try to collapse consecutive dict-attr-pattern AttrStmts into T.attr({...})
             if (IsDictAttrPattern(stmt)) {
               ffi::Array<ExprDoc> keys;
@@ -881,7 +882,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           With<TIRFrame> f(d, stmt);
-          if (define_var.defined()) {
+          if (define_var.has_value()) {
             lhs = DefineVar(define_var.value(), *f, d);
           }
           AsDocBody(body, body_p, f->get(), d);

@@ -35,9 +35,9 @@ apt-get update && apt-install-and-clear -y --no-install-recommends \
     libcurl4-openssl-dev \
     libopenblas-dev \
     libssl-dev \
-    libtinfo-dev \
+    libncurses-dev \
     libz-dev \
-    lsb-core \
+    lsb-release \
     make \
     ninja-build \
     parallel \

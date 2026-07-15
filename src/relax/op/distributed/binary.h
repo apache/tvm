@@ -51,13 +51,13 @@ Type InferDistTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_c
 
   const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
   const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
-  Type output_tensor_ty;
+  Type output_tensor_ty = Type::Missing();
   // Shapes and ndims
   if (x1_shape && x2_shape) {
     // If all inputs have shapes, directly infer shapes
     ffi::Optional<ffi::Array<PrimExpr>> output_shape =
         InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
-    if (!output_shape.defined()) {
+    if (!output_shape.has_value()) {
       output_tensor_ty = TensorType(output_dtype, /*ndim=*/output_ndim);
     } else {
       TVM_FFI_ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);

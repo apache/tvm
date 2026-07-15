@@ -123,7 +123,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx.ldmatrix_legacy");
     static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
     if (op->op.same_as(ptx_ldmatrix_op) && op->args[3].as<VarNode>() == buffer_) {
-      UpdatePattern(op->args[4]);
+      UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(mma_fill_op) && op->args[1].as<VarNode>() == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
@@ -132,7 +132,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
       // ldmatrix writes the warp buffer; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
       // is derived.
-      UpdatePattern(op->args[4]);
+      UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(mma_fill_legacy_op) && op->args[1].as<VarNode>() == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
@@ -284,21 +284,19 @@ class WarpAccessRewriter : protected StmtExprMutator {
   }
 
  protected:
-  PrimExpr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
-    ffi::Array<PrimExpr> new_args = op->args;
+  Expr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
+    ffi::Array<Expr> new_args = op->args;
     for (int i : indices) {
-      // Compare on the VarNode* not the bare Object* — args[i] may be
-      // a PrimExpr wrapping a Var, whose .get() returns the base
-      // PrimExprNode pointer (not VarNode*).
+      // Preserve the pointer operand as an Expr and narrow only its scalar index.
       if (op->args[i].as<VarNode>() == buffer_) {
-        PrimExpr local_index = SplitIndexByGroup(op->args[i + 1]).first;
+        PrimExpr local_index = SplitIndexByGroup(op->args[i + 1].as_or_throw<PrimExpr>()).first;
         new_args.Set(i + 1, local_index);
       }
     }
-    return Call(ffi::GetRef<PrimExpr>(op).ty(), op->op, new_args, op->attrs, op->span);
+    return Call(op->ty, op->op, new_args, op->attrs, {}, op->span);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     static const Op& ptx_mma_op = Op::Get("tirx.ptx.mma");
     static const Op& ptx_ldmatrix_op = Op::Get("tirx.ptx.ldmatrix");
     static const Op& mma_store_op = Op::Get("tirx.mma_store");
@@ -345,7 +343,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) override {
+  Expr VisitExpr_(const VarNode* op) override {
     TVM_FFI_ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -367,7 +365,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override {
+  Expr VisitExpr_(const BufferLoadNode* op) override {
     auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
 
     if (load->buffer->data.get() != buffer_) {
@@ -387,12 +385,15 @@ class WarpAccessRewriter : protected StmtExprMutator {
     auto writer = load.CopyOnWrite();
     writer->indices = {local_index};
 
-    if (analyzer_->CanProveEqual(group, warp_index_)) {
+    if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;
     }
 
-    PrimExpr mask = Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {});
-    return Call(load.ty(), builtin::tvm_warp_shuffle(), {mask, load, group, width_, warp_size_});
+    PrimExpr mask =
+        Call(PrimType::UInt(32), builtin::tvm_warp_activemask(), {}).as_or_throw<PrimExpr>();
+    return Call(load.ty(), builtin::tvm_warp_shuffle(),
+                ffi::Array<PrimExpr>{mask, load, group, width_, warp_size_})
+        .as_or_throw<PrimExpr>();
   }
 
   // Split the index to the two component
@@ -407,10 +408,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
       TVM_FFI_ICHECK(arith::ramp(base, 1, index_ty.lanes()).Match(index));
 
       auto [local_index, group] = SplitIndexByGroup(base.Eval());
-      local_index = Ramp(local_index, MakeConst(local_index.ty(), 1), index_ty.lanes());
+      local_index = Ramp(local_index, IntImm(local_index.ty(), 1), index_ty.lanes());
       return std::make_pair(local_index, group);
     }
-    PrimExpr m = MakeConst(index_ty, warp_coeff_);
+    PrimExpr m = IntImm(index_ty, warp_coeff_);
 
     // simple case, warp index is on the highest.
     if (warp_group_ == 1) {
@@ -421,7 +422,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
       PrimExpr y = index / MakeConst(index_ty, warp_coeff_ * width_);
       y = y * m + x;
-      PrimExpr z = indexdiv(indexmod(index, MakeConst(index_ty, warp_coeff_ * width_)), m);
+      PrimExpr z = indexdiv(indexmod(index, IntImm(index_ty, warp_coeff_ * width_)), m);
       return std::make_pair(analyzer_->canonical_simplify(y), analyzer_->canonical_simplify(z));
     }
   }
@@ -538,7 +539,7 @@ Pass LowerWarpMemory() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    TVM_FFI_ICHECK(target.defined()) << "LowerWarpMemory: Require the target attribute";
+    TVM_FFI_ICHECK(target.has_value()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<int64_t>("thread_warp_size", 1).value();
     WarpMemoryRewriter warp_memory_rewriter(warp_size);
     auto stmt = warp_memory_rewriter.Rewrite(std::move(n->body));

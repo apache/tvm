@@ -122,8 +122,9 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
     auto mp_argmax = tvm::te::compute(
         out_shape,
-        [&](const ffi::Array<Var>& inds) {
-          ffi::Array<PrimExpr> window_inds{inds.begin(), inds.end()};
+        [&](const ffi::Array<PrimVar>& inds) {
+          ffi::Array<PrimExpr> window_inds =
+              inds.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
           window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight);
           window_inds.Set(width_axis, inds[width_axis] * stride_width + dwidth);
           auto idx = detail::RavelIndex(window_inds, ravel_shape);
@@ -135,13 +136,15 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
     return tvm::te::compute(
         data_shape,
-        [&](const ffi::Array<Var>& inds) {
-          ffi::Array<PrimExpr> pad_inds{inds.begin(), inds.end()};
+        [&](const ffi::Array<PrimVar>& inds) {
+          ffi::Array<PrimExpr> pad_inds =
+              inds.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
           pad_inds.Set(height_axis, pad_inds[height_axis] + pad_top);
           pad_inds.Set(width_axis, pad_inds[width_axis] + pad_left);
           auto idx = detail::RavelIndex(pad_inds, ravel_shape);
 
-          ffi::Array<PrimExpr> out_idx{inds.begin(), inds.end()};
+          ffi::Array<PrimExpr> out_idx =
+              inds.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
           out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
           out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
@@ -167,12 +170,13 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
         tvm::te::reduce_axis(Range(0, (kernel_width + stride_width - 1) / stride_width), "ww");
     return tvm::te::compute(
         data_shape,
-        [&](const ffi::Array<Var>& inds) {
+        [&](const ffi::Array<PrimVar>& inds) {
           PrimExpr pad_h_idx = inds[height_axis] + pad_top;
           PrimExpr pad_w_idx = inds[width_axis] + pad_left;
 
           // output indices whose pooling windows cover current input element (can be out-of-bound)
-          ffi::Array<PrimExpr> out_idx{inds.begin(), inds.end()};
+          ffi::Array<PrimExpr> out_idx =
+              inds.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
           out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh));
           out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
@@ -194,7 +198,7 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
             PrimExpr w_end = min(w_start + kernel_width, width);
             h_start = max(h_start, IntImm(h_start.ty(), 0));
             w_start = max(w_start, IntImm(w_start.ty(), 0));
-            divide_factor = max((h_end - h_start) * (w_end - w_start), MakeConst(h_end.ty(), 1));
+            divide_factor = max((h_end - h_start) * (w_end - w_start), IntImm(h_end.ty(), 1));
           }
           return tvm::sum(
               tvm::if_then_else(tirx::And(tirx::And(out_idx[height_axis] >= out_idx_lower_h,
@@ -305,11 +309,11 @@ inline Tensor pool_grad(const Tensor& out_grad, const Tensor& x,
                         height_axis, width_axis, count_include_pad);
 }
 
-inline PrimExpr start_index(const Var& out_index, const PrimExpr& odim, const PrimExpr& idim) {
+inline PrimExpr start_index(const PrimVar& out_index, const PrimExpr& odim, const PrimExpr& idim) {
   return indexdiv(out_index * idim, odim);
 }
 
-inline PrimExpr end_index(const Var& out_index, const PrimExpr& odim, const PrimExpr& idim) {
+inline PrimExpr end_index(const PrimVar& out_index, const PrimExpr& odim, const PrimExpr& idim) {
   PrimExpr tmp = indexdiv((out_index + 1) * idim, odim);
   return tvm::tirx::Select(indexmod((out_index + 1) * idim, odim) == 0, tmp, tmp + 1);
 }
@@ -338,7 +342,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
     out_shape.Set(axes[i], out_size[i]);
   }
 
-  auto get_iter_vars = [=](const ffi::Array<Var>& output, bool reduce_indices) {
+  auto get_iter_vars = [=](const ffi::Array<PrimVar>& output, bool reduce_indices) {
     ffi::Array<PrimExpr> indices;
     for (size_t i = 0; i < output.size(); ++i) indices.push_back(output[i]);
     ffi::Array<tirx::IterVar> reduce_axes;
@@ -360,7 +364,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
     attrs.Set("schedule_rule", tvm::ffi::String("meta_schedule.adaptive_pool_max"));
     return tvm::te::compute(
         out_shape,
-        [&](const ffi::Array<Var>& output) {
+        [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
           ffi::Array<tirx::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
@@ -371,7 +375,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
     attrs.Set("schedule_rule", tvm::ffi::String("meta_schedule.adaptive_pool_avg"));
     auto pool_sum = tvm::te::compute(
         out_shape,
-        [&](const ffi::Array<Var>& output) {
+        [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
           ffi::Array<tirx::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
@@ -381,7 +385,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
 
     return tvm::te::compute(
         out_shape,
-        [&](const ffi::Array<Var>& output) {
+        [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
           ffi::Array<tirx::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, false);
@@ -589,9 +593,9 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
     attrs.Set("schedule_rule", tvm::ffi::String("meta_schedule.pool_max"));
     return tvm::te::compute(
         out_shape,
-        [&](const ffi::Array<Var>& output) {
+        [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
-          for (const Var& var : output) indices.push_back(var);
+          for (const PrimVar& var : output) indices.push_back(var);
 
           for (int i = 0; i < k_size; i++) {
             int ii = axis[i];
@@ -608,9 +612,9 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
     // TVM compute for summing the pooling window.
     auto pool_sum = tvm::te::compute(
         out_shape,
-        [&](const ffi::Array<Var>& output) {
+        [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
-          for (const Var& var : output) indices.push_back(var);
+          for (const PrimVar& var : output) indices.push_back(var);
 
           for (int i = 0; i < k_size; i++) {
             int ii = axis[i];
@@ -623,9 +627,9 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
     // TVM compute for dividing the reduced window sum by kernel size.
     return tvm::te::compute(
         out_shape,
-        [&](const ffi::Array<Var>& output) {
+        [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
-          for (const Var& var : output) indices.push_back(var);
+          for (const PrimVar& var : output) indices.push_back(var);
           if (count_include_pad) {
             std::vector<PrimExpr> start(k_size);
             std::vector<PrimExpr> end(k_size);

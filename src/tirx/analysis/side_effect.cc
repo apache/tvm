@@ -32,7 +32,7 @@ namespace tirx {
 
 class ExprSideEffect : public ExprVisitor {
  public:
-  void VisitExpr(const PrimExpr& e) final {
+  void VisitExpr(const Expr& e) final {
     if (kind_ == CallEffectKind::kUpdateState) return;
     ExprVisitor::VisitExpr(e);
   }

@@ -249,7 +249,6 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
     shape = (n_threads, k)
     kernel = _build_roundtrip_kernel(scope, n_threads, k, dtype, non_r_scope)
 
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
     with target:
         mod = tvm.IRModule({"main": kernel})
@@ -257,15 +256,20 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     B_np = np.zeros(shape, dtype=np_dtype)
-    B = tvm.runtime.tensor(B_np, dev)
     expected = _expected(shape, dtype)
-    if non_r_scope == "shared":
-        compiled(B)
-    else:
-        A_np = np.zeros(shape, dtype=np_dtype)
-        A = tvm.runtime.tensor(A_np, dev)
-        compiled(A, B)
-    np.testing.assert_array_equal(B.numpy(), expected)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        B = tvm.runtime.tensor(B_np, dev)
+        if non_r_scope == "shared":
+            compiled(B)
+        else:
+            A_np = np.zeros(shape, dtype=np_dtype)
+            A = tvm.runtime.tensor(A_np, dev)
+            compiled(A, B)
+        np.testing.assert_array_equal(B.numpy(), expected)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ----------------------------------------------------------------------------
@@ -286,7 +290,6 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
             TileLayout(S[4, 16, 16]),  # layoutA
             TileLayout(S[4, 16, 16]),  # layoutB
             TileLayout(S[8, 8]),  # layoutLocal
-            tvm.cuda(0),
         ),
     ],
 )
@@ -296,7 +299,7 @@ def test_reg_roundtrip(scope, n_threads, k, dtype, non_r_scope):
     "dtype", ["int8", "float8_e4m3fn", "float8_e5m2", "float16", "bfloat16", "float32"]
 )
 def test_copy_g2l_l2g_vec_load(task, dtype):
-    g_shape, l_shape, g_region, thread_cnt, layoutA, layoutB, layoutLocal, dev = task
+    g_shape, l_shape, g_region, thread_cnt, layoutA, layoutB, layoutLocal = task
 
     r_lmem = tuple(slice(None) for _ in range(len(l_shape)))
     r_gmem = tuple(slice(g_region[i][0], g_region[i][1]) for i in range(len(g_shape)))
@@ -322,15 +325,20 @@ def test_copy_g2l_l2g_vec_load(task, dtype):
         A_np = tvm.testing.generate_random_array(dtype, g_shape)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
-
         B_ref = B_np.copy()
         B_ref[r_gmem] = A_np[r_gmem]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.gpu
 def test_reg_copy_wg_local_to_swizzled_shared_uses_swizzle_fastpath():
     """Regression: R→S copy where R has a ``wg_local_layout`` (thread iter
     ``1 @ tid_in_wg``) must pick the widest vec PTX ``st.shared.v4`` AND use the
@@ -603,15 +611,19 @@ def test_reg_copy_tcgen05_d_epilogue_deposit_gpu():
             tir_pipeline="tirx",
         )
 
-    dev = tvm.cuda(0)
     rows = np.arange(m, dtype=np.int32)[:, None]
     cols = np.arange(n, dtype=np.int32)[None, :]
     a_np = (rows * 100 + cols).astype(np.float32)
     b_np = np.zeros((m, n), dtype=np.float32)
-    a = tvm.runtime.tensor(a_np, dev)
-    b = tvm.runtime.tensor(b_np, dev)
-    mod(a, b)
-    np.testing.assert_allclose(b.numpy(), a_np, rtol=0, atol=0)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        a = tvm.runtime.tensor(a_np, dev)
+        b = tvm.runtime.tensor(b_np, dev)
+        mod(a, b)
+        np.testing.assert_allclose(b.numpy(), a_np, rtol=0, atol=0)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

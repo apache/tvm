@@ -487,7 +487,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   TVM_TIR_SCHEDULE_BEGIN();
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
-    if (!factor_rvs[i].defined()) {
+    if (!factor_rvs[i].has_value()) {
       factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
@@ -554,7 +554,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
   }
   // infer factor if needed and check validity of factors
   for (size_t i = 0; i < factor_rvs.size(); i++) {
-    if (!factor_rvs[i].defined()) {
+    if (!factor_rvs[i].has_value()) {
       factors.push_back(IntImm::Int32(-1));
       if (infer_index != -1) {
         throw NotSingleInferFactorError(state_->mod);
@@ -946,10 +946,10 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     return (*std::move(opt_floatimm))->value;
   }
 
-  if (const auto* expr = ann_val.as<PrimExprNode>()) {
-    TVM_FFI_CHECK(!expr->IsInstance<StringImmNode>(), TypeError)
+  if (auto expr = ann_val.as<PrimExpr>()) {
+    TVM_FFI_CHECK(!expr.value().as<StringImmNode>(), TypeError)
         << "ffi::String is expected, but gets StringImm";
-    auto res_expr = this->Get(ffi::GetRef<PrimExpr>(expr));
+    auto res_expr = this->Get(expr.value());
     // prefer to return int/float literals for annotations
     if (auto opt_intimm = res_expr.as<IntImm>()) {
       return (*std::move(opt_intimm))->value;

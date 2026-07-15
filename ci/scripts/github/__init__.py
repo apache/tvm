@@ -15,6 +15,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package to enable testing of GitHub scripts"""
-
-from . import github_skipped_tests_comment, github_pr_comment, github_tag_teams, github_docs_comment
+"""Package to enable testing of GitHub scripts."""

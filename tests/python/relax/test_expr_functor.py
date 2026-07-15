@@ -20,12 +20,11 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, tirx
-from tvm.ir import Op
+from tvm.ir import Call, Op
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import PyExprMutator, PyExprVisitor
 from tvm.relax.expr import (
     BindingBlock,
-    Call,
     Constant,
     DataflowBlock,
     DataflowVar,
@@ -36,7 +35,6 @@ from tvm.relax.expr import (
     GlobalVar,
     If,
     MatchCast,
-    PrimExpr,
     SeqExpr,
     ShapeExpr,
     StringImm,
@@ -141,8 +139,8 @@ class ASTPrinter(PyExprVisitor):
         self.visit_expr(op.tuple_value)
         self.log.pop_scope()
 
-    def visit_prim_expr_(self, op: PrimExpr) -> None:
-        self.log.add("PrimExpr")
+    def visit_expr_fallback_(self, op: Expr) -> None:
+        self.log.add("ExprFallback")
 
     def visit_string_imm_(self, op: StringImm) -> None:
         self.log.add("StringImm")
@@ -262,9 +260,9 @@ class ASTPostPrinterMutator(PyExprMutator):
         self.log.add("TupleGetItem")
         return op
 
-    def visit_prim_expr_(self, op: PrimExpr) -> Expr:
+    def visit_expr_fallback_(self, op: Expr) -> Expr:
         op = self.visit_expr_post_order(op)
-        self.log.add("PrimExpr")
+        self.log.add("ExprFallback")
         return op
 
     def visit_string_imm_(self, op: StringImm) -> Expr:
@@ -305,7 +303,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         temp = self.with_type(new_var, new_value.ty)
         if not temp.same_as(new_var):
             new_var = temp
-            self.set_var_remap(binding.var.vid, new_var)
+            self.set_var_remap(binding.var, new_var)
 
         self.builder_.emit_normalized(VarBinding(new_var, new_value))
 
@@ -317,7 +315,7 @@ class ASTPostPrinterMutator(PyExprMutator):
         temp = self.with_type(new_var, binding.ty)
         if not temp.same_as(new_var):
             new_var = temp
-            self.set_var_remap(binding.var.vid, new_var)
+            self.set_var_remap(binding.var, new_var)
 
         self.log.add("MatchCast")
         self.builder_.emit_normalized(MatchCast(new_var, new_value, binding.ty))
@@ -425,13 +423,18 @@ def test_seq_expr():
 
 def test_shape_expr():
     x = relax.ShapeExpr([m, n])
-    basic_check(x, "ShapeExpr", "ShapeExpr")
+    basic_check(x, "ShapeExpr", "\n".join(["ExprFallback", "ExprFallback", "ShapeExpr"]))
 
 
 def test_prim_expr():
-    basic_check(tvm.tirx.IntImm("int64", 1), "PrimExpr", "PrimExpr")
-    basic_check(tvm.tirx.FloatImm("float32", 1.0), "PrimExpr", "PrimExpr")
-    basic_check(m + n, "PrimExpr", "PrimExpr")
+    basic_check(tvm.tirx.IntImm("int64", 1), "ExprFallback", "ExprFallback")
+    basic_check(tvm.tirx.FloatImm("float32", 1.0), "ExprFallback", "ExprFallback")
+    basic_check(m + n, "ExprFallback", "ExprFallback")
+    basic_check(
+        tvm.tirx.call_extern("int32", "test"),
+        "\n".join(["Call", "\tOp", "\tExprFallback"]),
+        "\n".join(["Op", "ExprFallback", "Call"]),
+    )
 
 
 def test_call():
@@ -439,7 +442,7 @@ def test_call():
     basic_check(
         call_node,
         "\n".join(["Call", "\tOp", "\tVar", "\tVar"]),
-        "\n".join(["Op", "Var", "Var", "ShapeExpr", "Call"]),
+        "\n".join(["Op", "Var", "Var", "ExprFallback", "ExprFallback", "ShapeExpr", "Call"]),
     )
 
 

@@ -49,14 +49,15 @@ tvm::Type InferType(const PrimFunc& prim_func) {
         return relax::TensorType(shape, buf->dtype);
       }
 
-      if (auto prim_type = param->type_annotation.as<PrimTypeNode>()) {
-        const DLDataType& dtype = prim_type->dtype;
-        if (dtype.code == kDLOpaqueHandle && (dtype.bits != 0 || dtype.lanes != 0)) {
-          return relax::AnyType();
-        }
+      // A pointer parameter without a buffer annotation is an opaque runtime
+      // object from Relax's perspective (for example, a DLTensor*).  Keep the
+      // same Relax-facing wildcard semantics that opaque handle parameters had
+      // before pointers became exact IR types.
+      if (param->ty.as<PointerTypeNode>()) {
+        return relax::AnyType();
       }
 
-      return param.ty();
+      return param->ty;
     }();
     params.push_back(param_ty);
   }
@@ -80,7 +81,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
                    ffi::Map<tirx::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
-  if (!ret_type.defined()) {
+  if (ret_type.IsMissing()) {
     ret_type = VoidType();
   }
 
@@ -100,7 +101,7 @@ PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type,
 FuncType PrimFuncNode::func_type_annotation() const {
   ffi::Array<Type> param_types;
   for (auto param : this->params) {
-    param_types.push_back(GetType(param));
+    param_types.push_back(param->ty);
   }
   return FuncType(param_types, ret_type);
 }
@@ -120,11 +121,12 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   TVM_FFI_CHECK_EQ(desc->params.size(), impl->params.size(), ValueError)
       << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
+  auto is_handle = [](const Var& param) { return param->ty.as<PointerTypeNode>() != nullptr; };
   for (size_t i = 0; i < desc->params.size(); i++) {
-    TVM_FFI_CHECK(desc->params[i].ty().IsHandle(), ValueError)
+    TVM_FFI_CHECK(is_handle(desc->params[i]), ValueError)
         << "Parameters of the description of the "
            "tensor intrinsic should be handle only.";
-    TVM_FFI_CHECK(impl->params[i].ty().IsHandle(), ValueError)
+    TVM_FFI_CHECK(is_handle(impl->params[i]), ValueError)
         << "Parameters of the implementation of "
            "the tensor intrinsic should be handle only.";
   }

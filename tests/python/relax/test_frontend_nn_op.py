@@ -645,7 +645,7 @@ def test_tensor_ir_op():
         # including the output tensor arguments
         #
         # TODO(Lunderberg): Update
-        # `tvm.relax.frontend.nn.op.tensor_ir_op` to use `PrimExpr`
+        # `tvm.relax.frontend.nn.op.tensor_ir_op` to use `Expr`
         # instead of `tir_vars`, so that the order can be consistent
         # between the function definition and the arguments in
         # `op.tensor_ir_op`.
@@ -981,7 +981,7 @@ def test_multinomial_from_uniform():
         mod = relax.backend.DispatchSampling()(mod)
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
-    dev = tvm.device(target.kind.name, 0)
+    dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
@@ -1028,11 +1028,11 @@ def test_sample_top_p_top_k_from_sorted_prob():
     class Expected:
         @T.prim_func(private=True, s_tir=True)
         def get_index_from_sorted(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle):
-            batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
+            batch, vocab_size = T.int64(), T.int64()
             cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
             indices = T.match_buffer(B, (batch, vocab_size), "int64")
             renorm_prob = T.match_buffer(C, (batch, 1))
-            out_batch = T.int64(is_size_var=True)
+            out_batch = T.int64()
             usample = T.match_buffer(D, (out_batch, 1))
             sample_indices = T.match_buffer(E, (out_batch, 1), "int64")
             output_index = T.match_buffer(F, (out_batch, 1), "int64")
@@ -1051,7 +1051,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
         @T.prim_func(private=True, s_tir=True)
         def get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-            batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
+            batch, vocab_size = T.int64(), T.int64()
             cumsum_sorted = T.match_buffer(A, (batch, vocab_size))
             top_p = T.match_buffer(B, (batch, 1))
             top_k = T.match_buffer(C, (batch, 1), "int64")
@@ -1116,23 +1116,24 @@ def test_sample_top_p_top_k_from_sorted_prob():
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
-    dev = tvm.cuda(0)
-    vm = relax.VirtualMachine(ex, dev)
 
-    effects = vm["_initialize_effect"]()
-    sorted_prob = tvm.runtime.tensor(
-        np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
-    )
-    indices = tvm.runtime.tensor(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
-    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
-    usample = tvm.runtime.tensor(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
-    sample_indices = tvm.runtime.tensor(np.array([[0], [1], [1]]).astype(np.int64), dev)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        vm = relax.VirtualMachine(ex, dev)
+        effects = vm["_initialize_effect"]()
+        sorted_prob = tvm.runtime.tensor(
+            np.array([[0.5, 0.4, 0.1], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+        )
+        indices = tvm.runtime.tensor(np.array([[2, 1, 0], [2, 0, 1]]).astype(np.int64), dev)
+        top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+        top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+        usample = tvm.runtime.tensor(np.array([[0.5], [0.6], [0.7]]).astype(np.float32), dev)
+        sample_indices = tvm.runtime.tensor(np.array([[0], [1], [1]]).astype(np.int64), dev)
+        inputs = [sorted_prob, indices, top_p, top_k, usample, sample_indices, effects]
+        res = vm["foo"](*inputs)
+        tvm.testing.assert_allclose(res[0].numpy(), np.array([[2], [0], [0]]).astype(np.int64))
 
-    inputs = [sorted_prob, indices, top_p, top_k, usample, sample_indices, effects]
-
-    res = vm["foo"](*inputs)
-    tvm.testing.assert_allclose(res[0].numpy(), np.array([[2], [0], [0]]).astype(np.int64))
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1235,23 +1236,27 @@ def test_renormalize_top_p_top_k_prob():
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
 
     ex = tvm.compile(mod, target)
-    dev = tvm.cuda(0)
-    vm = relax.VirtualMachine(ex, dev)
 
-    effects = vm["_initialize_effect"]()
-    prob = tvm.runtime.tensor(np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev)
-    sorted_prob = tvm.runtime.tensor(
-        np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev
-    )
-    top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
-    top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+    def run_and_check():
+        dev = tvm.cuda(0)
+        vm = relax.VirtualMachine(ex, dev)
+        effects = vm["_initialize_effect"]()
+        prob = tvm.runtime.tensor(
+            np.array([[0.2, 0.3, 0.5], [0.3, 0.3, 0.4]]).astype(np.float32), dev
+        )
+        sorted_prob = tvm.runtime.tensor(
+            np.array([[0.5, 0.3, 0.2], [0.4, 0.3, 0.3]]).astype(np.float32), dev
+        )
+        top_p = tvm.runtime.tensor(np.array([[0.6], [0.9]]).astype(np.float32), dev)
+        top_k = tvm.runtime.tensor(np.array([[3], [2]]).astype(np.int64), dev)
+        inputs = [prob, sorted_prob, top_p, top_k, effects]
+        res = vm["foo"](*inputs)
+        tvm.testing.assert_allclose(
+            res[0].numpy(),
+            np.array([[0, 0.375, 0.625], [0.3, 0.3, 0.4]]).astype(np.float32),
+        )
 
-    inputs = [prob, sorted_prob, top_p, top_k, effects]
-
-    res = vm["foo"](*inputs)
-    tvm.testing.assert_allclose(
-        res[0].numpy(), np.array([[0, 0.375, 0.625], [0.3, 0.3, 0.4]]).astype(np.float32)
-    )
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_sort_argsort_topk():

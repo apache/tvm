@@ -37,7 +37,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   FuncTypeNode::RegisterReflection();
 }
 
-AnyType::AnyType(Span span) {
+AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
   n->span = span;
   data_ = std::move(n);
@@ -51,7 +51,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Shape
-ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) {
+ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   n->ndim = static_cast<int>(values.size());
   n->values = values.Map([](PrimExpr value) {
@@ -66,7 +66,7 @@ ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) {
   data_ = std::move(n);
 }
 
-ShapeType::ShapeType(int ndim, Span span) {
+ShapeType::ShapeType(int ndim, Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapeTypeNode> n = ffi::make_object<ShapeTypeNode>();
   TVM_FFI_ICHECK(ndim >= -1) << "ndim of ShapeType must be >= -1, but got " << ndim;
   n->ndim = ndim;
@@ -78,7 +78,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "relax.ShapeType", [](ffi::Optional<ffi::Array<PrimExpr>> values, int ndim, Span span) {
-        if (values.defined()) {
+        if (values.has_value()) {
           TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify values and ndim";
           return ShapeType(values.value(), span);
         } else {
@@ -89,7 +89,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Tensor
 TensorType::TensorType(Expr shape, ffi::Optional<PrimType> dtype, ffi::Optional<VDevice> vdevice,
-                       Span span) {
+                       Span span)
+    : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   // assign ndim before move
   TVM_FFI_ICHECK(shape.defined()) << "Must provide a shape in this constructor";
@@ -107,7 +108,8 @@ TensorType::TensorType(Expr shape, ffi::Optional<PrimType> dtype, ffi::Optional<
 }
 
 TensorType::TensorType(ffi::Optional<PrimType> dtype, int ndim, ffi::Optional<VDevice> vdevice,
-                       Span span) {
+                       Span span)
+    : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<TensorTypeNode> n = ffi::make_object<TensorTypeNode>();
   TVM_FFI_ICHECK(ndim >= -1) << "ndim of TensorType must be >= -1, but got " << ndim;
   n->ndim = ndim;
@@ -122,7 +124,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "relax.TensorType", [](ffi::Optional<Expr> shape, ffi::Optional<PrimType> dtype, int ndim,
                              VDevice vdevice, Span span) {
-        if (shape.defined()) {
+        if (shape.has_value()) {
           TVM_FFI_CHECK_EQ(ndim, kUnknownNDim, ValueError) << "Cannot both specify shape and ndim";
           return TensorType(shape.value(), dtype, vdevice, span);
         } else {
@@ -132,7 +134,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Func
-FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, Span span) {
+FuncType::FuncType(ffi::Array<Type> params, Type ret, bool purity, Span span)
+    : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<FuncTypeNode> n = ffi::make_object<FuncTypeNode>();
   n->params = std::move(params);
   n->ret = std::move(ret);
@@ -166,8 +169,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.FuncTypeOpaqueFunc", [](ffi::Optional<Type> ret,
                                           ffi::Optional<TypeDeriveFunc> derive_func, bool purity,
                                           Span span) {
-        if (derive_func.defined()) {
-          TVM_FFI_CHECK(!ret.defined(), ValueError) << "Cannot specify both ret and derive_func";
+        if (derive_func.has_value()) {
+          TVM_FFI_CHECK(!ret.has_value(), ValueError) << "Cannot specify both ret and derive_func";
           return FuncType::OpaqueFunc(derive_func.value(), purity, span);
         } else {
           return FuncType::OpaqueFunc(ret.value_or(AnyType()), purity, span);
@@ -177,11 +180,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Helper functions
 void UpdateType(Expr expr, Type ty) {
-  TVM_FFI_ICHECK(!expr->ty.defined()) << "To ensure idempotency, "
-                                      << "the expression passed to UpdateType "
-                                      << "must not have any prior type.  "
-                                      << "However, expression " << expr << " has type " << expr->ty
-                                      << ", which cannot be overwritten with " << ty;
+  TVM_FFI_ICHECK(expr->ty.IsMissing()) << "To ensure idempotency, "
+                                       << "the expression passed to UpdateType "
+                                       << "must not have any prior type.  "
+                                       << "However, expression " << expr << " has type " << expr->ty
+                                       << ", which cannot be overwritten with " << ty;
   expr->ty = ty;
 }
 

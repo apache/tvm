@@ -81,7 +81,7 @@ class GradientSimplifier : private ExprMutator {
 
  private:
   static bool IsTransposeOp(const CallNode* call_node) {
-    if (call_node->op != Op::Get("relax.permute_dims")) {
+    if (!call_node->op.same_as(Op::Get("relax.permute_dims"))) {
       return false;
     }
     auto ty = MatchType<TensorType>(call_node->args[0]);
@@ -92,7 +92,7 @@ class GradientSimplifier : private ExprMutator {
     if (ndim == kUnknownNDim || ndim == 1) {
       return false;
     }
-    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.defined()) {
+    if (!call_node->attrs.as<PermuteDimsAttrs>()->axes.has_value()) {
       return ndim == 2;
     }
     auto axes = call_node->attrs.as<PermuteDimsAttrs>()->axes.value();
@@ -130,7 +130,7 @@ class GradientSimplifier : private ExprMutator {
       return GetTransposeOf(expr);
     }
     auto prev_expr = builder_->LookupBinding(expr.as_or_throw<Var>());
-    if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
+    if (!prev_expr || !prev_expr.value()->IsInstance<CallNode>()) {
       return GetTransposeOf(expr);
     }
     auto prev_call_node = prev_expr.as<CallNode>();
@@ -158,7 +158,7 @@ class GradientSimplifier : private ExprMutator {
     }
 
     auto prev_expr = builder_->LookupBinding(arg.as_or_throw<Var>());
-    if (!prev_expr || !prev_expr->IsInstance<CallNode>()) {
+    if (!prev_expr || !prev_expr.value()->IsInstance<CallNode>()) {
       return reemit_and_return();
     }
 
@@ -166,12 +166,12 @@ class GradientSimplifier : private ExprMutator {
     if (IsTransposeOp(prev_call_node)) {
       // rewrite rule #1: permute_dims(permute_dims(a)) -> a
       if (prev_call_node->args[0]->IsInstance<VarNode>()) {
-        var_remap_[binding->var->vid] = prev_call_node->args[0].as_or_throw<Var>();
+        var_remap_[binding->var] = prev_call_node->args[0].as_or_throw<Var>();
         return;
       } else {
         return reemit_and_return();
       }
-    } else if (prev_call_node->op == Op::Get("relax.matmul")) {
+    } else if (prev_call_node->op.same_as(Op::Get("relax.matmul"))) {
       // rewrite rule #2: permute_dims(matmul(a, b)) -> matmul(permute_dims(b), permute_dims(a))
       // Should "a" or "b" already be in the form of "permute_dims", the redundant permute_dims
       // operation should be eliminated

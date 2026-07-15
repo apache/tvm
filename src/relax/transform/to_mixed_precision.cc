@@ -279,20 +279,20 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
  private:
   Var GetRemapped(const Var& var) {
-    auto it = var_remap_.find(var->vid);
+    auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
       return it->second;
     } else {
-      if (fp16_input_names_.count(var->name_hint())) {
+      if (fp16_input_names_.count(var->name_hint)) {
         auto ty = GetType(var);
         if (auto tensor_ty = ty.as<TensorTypeNode>()) {
           VDevice vdev = VDevice();
-          if (tensor_ty->vdevice.defined()) {
+          if (tensor_ty->vdevice.has_value()) {
             vdev = tensor_ty->vdevice.value();
           }
           TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
-          Var fp16_var(var->vid, fp16_ty, var->span);
-          var_remap_[var->vid] = fp16_var;
+          Var fp16_var(var->name_hint, fp16_ty, var->span);
+          var_remap_[var] = fp16_var;
           return fp16_var;
         }
       }
@@ -424,13 +424,13 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // If cur_var is not rewritten, we don't need to emit a new var
     if (!rewrite.same_as(cur_var)) {
       // Emit a new var, and update the var remap
-      var_remap_[var->vid] = builder_->Emit(rewrite);
+      var_remap_[var] = builder_->Emit(rewrite);
     }
   }
 
   Expr VisitVar_(const Var& var) {
     // We rewrite the remapped var to the original dtype
-    auto it = var_remap_.find(var->vid);
+    auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
       return RewriteExpr(it->second, NTypeFrom(var));
     }
@@ -512,7 +512,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     if (opt_new_dtype) {
       auto new_dtype = opt_new_dtype.value();
       new_call.CopyOnWrite()->args = RewriteArgs(new_call->args, new_dtype);
-      new_call.CopyOnWrite()->ty = Type();
+      new_call.CopyOnWrite()->ty = Type::Missing();
 
       new_value = builder_->Normalize(Call(new_call));
 
@@ -536,7 +536,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
     ffi::ObjectPtr<TupleNode> new_tuple = ffi::make_object<TupleNode>(*tuple_node);
     new_tuple->fields = RemapArgs(tuple_node->fields);
-    new_tuple->ty = Type();
+    new_tuple->ty = Type::Missing();
     Expr new_value = builder_->Normalize(Tuple(new_tuple));
     if (!binding->var->IsInstance<DataflowVarNode>()) {
       // Global var: store the tensors to the original dtype
@@ -556,7 +556,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     ffi::ObjectPtr<TupleGetItemNode> new_tuple_get_item =
         ffi::make_object<TupleGetItemNode>(*tuple_get_item_node);
     new_tuple_get_item->tuple = RemapArgs({tuple_get_item_node->tuple})[0];
-    new_tuple_get_item->ty = Type();
+    new_tuple_get_item->ty = Type::Missing();
     Expr new_value = TupleGetItem(new_tuple_get_item);
     if (!binding->var->IsInstance<DataflowVarNode>()) {
       // Global var: store the tensors to the original dtype
@@ -577,7 +577,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     }
     for (auto param : params_) {
       // remove the local version of params
-      auto it = var_remap_.find(param->vid);
+      auto it = var_remap_.find(param);
       if (it != var_remap_.end()) {
         var_remap_.erase(it);
       }

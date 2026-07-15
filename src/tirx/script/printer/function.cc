@@ -48,12 +48,12 @@ bool IsSimpleBuffer(const tirx::Buffer& buf, bool s_tir) {
     }
   }
   if (s_tir) {
-    if (buf->layout.defined() &&
+    if (buf->layout.has_value() &&
         !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
       return false;
     }
   } else {
-    if (!buf->layout.defined() ||
+    if (!buf->layout.has_value() ||
         !ffi::StructuralEqual()(buf->layout, tirx::TileLayoutNode::DefaultLayout(buf->shape))) {
       return false;
     }
@@ -70,10 +70,10 @@ int CountVarOccurrence(const tirx::PrimFunc& f, const tirx::Var& v) {
   OccurrenceCounter counter(v.get());
   counter(f->body);
   for (const tirx::Var& v : f->params) {
-    counter(v);
+    counter.VisitVar(v);
   }
   for (const auto& pair : f->buffer_map) {
-    counter(pair.first);
+    counter.VisitVar(pair.first);
     counter.VisitBuffer(pair.second.get());
   }
   return counter.count;
@@ -116,7 +116,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             continue;
           }
         }
-        ExprDoc a = d->AsDoc<ExprDoc>(var->type_annotation, var_p->Attr("type_annotation"));
+        ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
         args.push_back(AssignDoc(DefineVar(var, *f, d), std::nullopt, a));
       }
       // Step 2. Handle `func->attrs`
@@ -173,7 +173,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           tirx::SBlock root_block = root_block_realize->block;
           if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
               !root_block->reads.size() && !root_block->writes.size() &&
-              !root_block->init.defined()) {
+              !root_block->init.has_value()) {
             const tirx::SBlockRealizeNode* block_realize =
                 root_block->body.as<tirx::SBlockRealizeNode>();
             if (root_block->alloc_buffers.size() ||
@@ -203,7 +203,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         AsDocBody(func->body, p->Attr("body"), f->get(), d);
       }
       ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (func->ret_type.defined()) {
+      if (!func->ret_type.IsMissing()) {
         const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
         if (!as_tuple || as_tuple->fields.size()) {
           ret_type = d->AsDoc<ExprDoc>(func->ret_type, p->Attr("ret_type"));

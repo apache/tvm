@@ -40,7 +40,7 @@ ffi::Array<PrimExpr> GetStrides(const Buffer& buffer) {
     return {};
   }
   ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
-  PrimExpr stride = MakeConst(PrimType(buffer->DefaultIndexType()), 1);
+  PrimExpr stride = IntImm(PrimType(buffer->DefaultIndexType()), 1);
   for (int i = ndim - 1; i >= 0; --i) {
     strides.Set(i, stride);
     stride = stride * buffer->shape[i];
@@ -188,7 +188,8 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
       analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
     }
     // Step 5.1: Fuse all indices into a flattened one
-    PrimExpr index = f_flatten_index({indices.begin(), indices.end()});
+    PrimExpr index =
+        f_flatten_index(indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); }));
     int ndim = split_exprs.size();
     // Step 5.2. Split the flattened index according to `split_exprs`
     std::vector<PrimExpr> split;
@@ -223,10 +224,11 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
     }
 
     // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.
-    PrimExpr flattened_index = IntImm(indices[0].ty(), 0);
+    PrimExpr flattened_index = IntImm(indices[0]->ty.as_or_throw<PrimType>(), 0);
     int64_t stride = 1;
     for (int i = static_cast<int>(split_exprs.size()) - 1; i >= 0; --i) {
-      flattened_index = inv_permuted_indices[i] * IntImm::Int32(stride) + flattened_index;
+      flattened_index =
+          inv_permuted_indices[i].as_or_throw<PrimExpr>() * IntImm::Int32(stride) + flattened_index;
       stride *= split_exprs[i].extent;
     }
     // Step 6.3: Split the flattened index into multiple indices. This is the inverse of Step 5.1.

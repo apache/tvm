@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E741, F821
+# ruff: noqa: E741
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 
 from functools import reduce
@@ -37,7 +37,7 @@ from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_
 from .base import GPUScheduleRule
 
 
-def _get_reduction_expr(block: tirx.SBlock) -> tirx.PrimExpr | None:
+def _get_reduction_expr(block: tirx.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
     buffer_store = block.body
     if not isinstance(buffer_store, tirx.BufferStore):
@@ -114,7 +114,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
 
 
-def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.PrimExpr:
+def detect_dominant_read(block: tirx.SBlock, const_iter_vars: set[tirx.Var]) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1
@@ -492,7 +492,7 @@ class LowBatchGEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
                     _, _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
-                    _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
+                    _, tx = sch.split(sch.fuse(*s), factors=[None, TS])
                     sch.bind(tx, TAG_S)
                 else:
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)

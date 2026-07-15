@@ -111,7 +111,7 @@ void AnalyzerObj::MarkGlobalNonNegValue(const PrimExpr& value) {
     Var var = ffi::GetRef<Var>(var_ptr);
     // skip non-index type, keep it to be compatible
     // with any_dim that do not represent any value
-    if (!IsIndexTypedExpr(var)) return;
+    if (!IsIndexTypedExpr(var.as_or_throw<PrimExpr>())) return;
     bool allow_override = true;
     // mark the constant bound is sufficient
     // we cannot mark interval set as that will cause relaxation of the var
@@ -170,7 +170,7 @@ bool AnalyzerObj::CanProveEqual(const PrimExpr& lhs, const PrimExpr& rhs) {
   const auto* clhs = lhs.as<IntImmNode>();
   const auto* crhs = rhs.as<IntImmNode>();
   if (clhs && crhs) return clhs->value == crhs->value;
-  if (lhs->ty().IsHandle() || rhs->ty().IsHandle()) {
+  if (is_pos_inf(lhs) || is_neg_inf(lhs) || is_pos_inf(rhs) || is_neg_inf(rhs)) {
     return lhs.same_as(rhs);
   }
   return CanProve(lhs - rhs == 0);

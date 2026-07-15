@@ -27,6 +27,7 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ir/cow.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/type.h>
 
 #include <functional>
 #include <string>
@@ -45,39 +46,29 @@ namespace tirx {
  * - Let
  * - Bind
  */
-class VarNode : public PrimExprNode {
+class VarNode : public ExprNode {
  public:
   /*!
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
   ffi::String name_hint;
-  /*!
-   * \brief type annotation of the variable.
-   *
-   * It is an optional field that provides a refined type of the variable than dtype.
-   *
-   * \sa tvm/ir/type.h for discussion of relations between DLPack dtype and Type.
-   */
-  Type type_annotation;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>()
-        .def_ro("name", &VarNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("type_annotation", &VarNode::type_annotation);
+    refl::ObjectDef<VarNode>().def_ro("name", &VarNode::name_hint,
+                                      refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("tirx.Var", VarNode, PrimExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("tirx.Var", VarNode, ExprNode);
 };
 
 /*! \brief a named variable in TIR */
-class Var : public PrimExpr {
+class Var : public Expr {
  public:
-  explicit Var(ffi::UnsafeInit tag) : PrimExpr(tag) {}
-  explicit Var(ffi::ObjectPtr<VarNode> n) : PrimExpr(n) {}
+  explicit Var(ffi::UnsafeInit tag) : Expr(tag) {}
+  explicit Var(ffi::ObjectPtr<VarNode> n) : Expr(n) {}
   /*!
    * \brief Constructor
    * \param name_hint variable name
@@ -104,7 +95,7 @@ class Var : public PrimExpr {
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
-  TVM_DLL Var copy_with_suffix(const ffi::String& suffix) const;
+  TVM_DLL Var CopyWithSuffix(const ffi::String& suffix) const;
   /*!
    * \brief Make a new copy of the variable with specified dtype
    * \param dtype The specified dtype
@@ -124,53 +115,39 @@ class Var : public PrimExpr {
   const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
   /*! \brief type indicate the container type */
   using ContainerType = VarNode;
+  static constexpr bool _type_container_is_exact = true;
 };
 
 /*!
- * \brief A variable node represent a tensor index size,
- * whose value must be non-negative.
+ * \brief Checked scalar view over a VarNode.
+ *
+ * PrimVar is a zero-state reference view over the same VarNode as Var.  It additionally
+ * guarantees that the inherited ExprNode::ty is PrimType.
  */
-class SizeVarNode : public VarNode {
+class PrimVar : public PrimExpr {
  public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<SizeVarNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.SizeVar", SizeVarNode, VarNode);
-};
+  /*! \brief Construct a scalar variable directly from a primitive type. */
+  explicit PrimVar(ffi::String name_hint, PrimType dtype = PrimType::Int(32), Span span = Span())
+      : PrimExpr(
+            Var(std::move(name_hint), std::move(dtype), std::move(span)).as_or_throw<PrimExpr>()) {}
 
-/*! \brief a named variable represents a tensor index size */
-class SizeVar : public Var {
- public:
-  explicit SizeVar(ffi::ObjectPtr<SizeVarNode> n) : Var(n) {}
-  explicit SizeVar(ffi::UnsafeInit tag) : Var(tag) {}
-  /*!
-   * \brief constructor
-   * \param name_hint variable name
-   * \param t data type
-   * \param span The location of this object in the source code.
-   */
-  TVM_DLL explicit SizeVar(ffi::String name_hint = "s", PrimType t = PrimType::Int(32),
-                           Span span = Span());
-  /*!
-   * \brief Constructor which provides a more detailed type annotation.
-   * \param name_hint variable name.
-   * \param type_annotation The type annotation.
-   * \param span The location of this object in the source code.
-   */
-  TVM_DLL explicit SizeVar(ffi::String name_hint, Type type_annotation, Span span = Span());
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the corresponding Variable.
-   */
-  const SizeVarNode* operator->() const { return get(); }
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the corresponding Variable.
-   */
-  const SizeVarNode* get() const { return static_cast<const SizeVarNode*>(data_.get()); }
-  /*! \brief type indicate the container type */
-  using ContainerType = SizeVarNode;
+  /*! \brief Construct a scalar variable directly from a checked type annotation. */
+  explicit PrimVar(ffi::String name_hint, Type type_annotation, Span span = Span())
+      : PrimExpr(Var(std::move(name_hint), std::move(type_annotation), std::move(span))
+                     .as_or_throw<PrimExpr>()) {}
+
+  /*! \brief Safe widening to a general Var view over the same node. */
+  operator Var() const { return this->as_or_throw<Var>(); }
+
+  PrimVar CopyWithSuffix(const ffi::String& suffix) const {
+    return this->as_or_throw<Var>().CopyWithSuffix(suffix).as_or_throw<PrimVar>();
+  }
+  PrimVar copy_with_dtype(PrimType dtype) const {
+    return this->as_or_throw<Var>().copy_with_dtype(dtype).as_or_throw<PrimVar>();
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
+  static constexpr bool _type_container_is_exact = true;
 };
 
 using Region = ffi::Array<Range>;
@@ -259,7 +236,7 @@ class IterVarNode : public PrimExprConvertibleNode {
    */
   Range dom;
   /*! \brief The looping variable */
-  Var var;
+  PrimVar var;
   /*! \brief The type of the IterVar */
   IterVarType iter_type;
   /*!
@@ -296,7 +273,7 @@ class IterVarNode : public PrimExprConvertibleNode {
  */
 class IterVar : public PrimExprConvertible {
  public:
-  TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, ffi::String thread_tag = "",
+  TVM_DLL IterVar(Range dom, PrimVar var, IterVarType iter_type, ffi::String thread_tag = "",
                   Span span = Span());
   /*!
    * \return the corresponding var in the IterVar.
@@ -334,7 +311,51 @@ inline const char* IterVarType2String(IterVarType t) {
   return "Unknown";
 }
 }  // namespace tirx
+
 }  // namespace tvm
+
+namespace tvm::ffi {
+
+template <>
+inline constexpr bool use_default_type_traits_v<tirx::PrimVar> = false;
+
+template <>
+struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar> {
+  using Base = ObjectRefTypeTraitsBase<tirx::PrimVar>;
+  using Base::CopyFromAnyViewAfterCheck;
+  using Base::CopyToAnyView;
+  using Base::GetMismatchTypeInfo;
+  using Base::MoveFromAnyAfterCheck;
+  using Base::MoveToAny;
+  using Base::TypeSchema;
+  using Base::TypeStr;
+
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return tirx::PrimVar::_type_is_nullable;
+    }
+    if (src->type_index < TypeIndex::kTVMFFIStaticObjectBegin ||
+        !details::IsObjectInstance<tirx::VarNode>(src->type_index)) {
+      return false;
+    }
+    const auto* var = static_cast<const tirx::VarNode*>(
+        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
+    return details::AnyUnsafe::CheckAnyStrict<PrimType>(var->ExprNode::ty);
+  }
+
+  TVM_FFI_INLINE static std::optional<tirx::PrimVar> TryCastFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyStrict(src)) {
+      if (src->type_index == TypeIndex::kTVMFFINone) {
+        return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::PrimVar>(nullptr);
+      }
+      return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::PrimVar>(
+          details::ObjectUnsafe::ObjectPtrFromUnowned<tirx::VarNode>(src->v_obj));
+    }
+    return std::nullopt;
+  }
+};
+
+}  // namespace tvm::ffi
 
 /* \brief Allow tirx.Var as key in STL tables
  *

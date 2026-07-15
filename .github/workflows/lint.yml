@@ -23,6 +23,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: Lint-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true

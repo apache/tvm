@@ -26,9 +26,9 @@ from tvm.tirx import Buffer
 
 
 def test_buffer():
-    m = tvm.tirx.SizeVar("m", "int32")
-    n = tvm.tirx.SizeVar("n", "int32")
-    l = tvm.tirx.SizeVar("l", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    n = tvm.tirx.Var("n", "int32")
+    l = tvm.tirx.Var("l", "int32")
     Ab = tvm.tirx.decl_buffer((m, n), "float32")
     Bb = tvm.tirx.decl_buffer((n, l), "float32")
 
@@ -38,25 +38,34 @@ def test_buffer():
 
 
 def test_buffer_access_ptr():
-    m = tvm.tirx.SizeVar("m", "int32")
-    n = tvm.tirx.SizeVar("n", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw")
+    assert isinstance(aptr.ty, tvm.ir.PointerType)
+    assert aptr.ty.element_type == tvm.ir.PrimType("void")
     tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m)
     assert aptr.args[0].ty == Ab.dtype
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
+    typed_ptr = Ab.access_ptr("r", ptr_type="uint8")
+    assert typed_ptr.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"))
+    shared = tvm.tirx.decl_buffer((m, n), "float32", scope="shared")
+    assert shared.access_ptr("r").ty == tvm.ir.PointerType(tvm.ir.PrimType("void"), "shared")
+    assert shared.access_ptr("r", ptr_type="uint8").ty == tvm.ir.PointerType(
+        tvm.ir.PrimType("uint8"), "shared"
+    )
     aptr = Ab.access_ptr("w")
     assert aptr.args[4].value == Buffer.WRITE
 
 
 def test_buffer_access_ptr_offset():
-    m = tvm.tirx.SizeVar("m", "int32")
-    n = tvm.tirx.SizeVar("n", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw", offset=100)
     tvm.testing.assert_prim_expr_equal(aptr.args[2], 100)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
-    v = tvm.tirx.SizeVar("int32", "int32")
+    v = tvm.tirx.Var("int32", "int32")
     aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
     tvm.testing.assert_prim_expr_equal(aptr.args[2], 200 + v)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
@@ -68,8 +77,8 @@ def test_buffer_access_ptr_offset():
 
 
 def test_buffer_access_ptr_extent():
-    m = tvm.tirx.SizeVar("m", "int32")
-    n = tvm.tirx.SizeVar("n", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw")
     tvm.ir.assert_structural_equal(aptr.args[3], m * n)
@@ -87,27 +96,27 @@ def test_buffer_access_ptr_extent():
 
 
 def test_buffer_vload():
-    m = tvm.tirx.SizeVar("m", "int32")
-    n = tvm.tirx.SizeVar("n", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_buffer((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
     tvm.ir.assert_structural_equal(load.indices, [T.int32(2), T.int32(3)])
 
 
 def test_buffer_offset_of():
-    m = tvm.tirx.SizeVar("m", "int32")
-    n = tvm.tirx.SizeVar("n", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    n = tvm.tirx.Var("n", "int32")
     Ab = tvm.tirx.decl_buffer((m, n), "float32", elem_offset=100)
     offset = Ab.offset_of([2, 3])
     tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
 
 def test_buffer_index_merge_mult_mod():
-    m = tvm.tirx.SizeVar("m", "int32")
-    n = tvm.tirx.SizeVar("n", "int32")
-    s = tvm.tirx.SizeVar("s", "int32")
-    k0 = tvm.tirx.SizeVar("k0", "int32")
-    k1 = tvm.tirx.SizeVar("k1", "int32")
+    m = tvm.tirx.Var("m", "int32")
+    n = tvm.tirx.Var("n", "int32")
+    s = tvm.tirx.Var("s", "int32")
+    k0 = tvm.tirx.Var("k0", "int32")
+    k1 = tvm.tirx.Var("k1", "int32")
     A = tvm.tirx.decl_buffer((m, n), "float32")
     A_stride = tvm.tirx.decl_buffer((m, n), "float32", strides=(s, 1))
 
@@ -153,9 +162,9 @@ def test_buffer_index_merge_mult_mod():
 
     # Test Case5
     B = tvm.tirx.decl_buffer((1, 14, 14, 1024))
-    i = tvm.tirx.SizeVar("i", "int32")
-    j = tvm.tirx.SizeVar("j", "int32")
-    k = tvm.tirx.SizeVar("k", "int32")
+    i = tvm.tirx.Var("i", "int32")
+    j = tvm.tirx.Var("j", "int32")
+    k = tvm.tirx.Var("k", "int32")
 
     index_simplified1 = B.offset_of(
         (

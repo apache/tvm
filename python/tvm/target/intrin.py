@@ -27,12 +27,12 @@ def _rule_float_suffix(op):
 
     Parameters
     ----------
-    op : PrimExpr
+    op : Expr
         The call expression of original intrinsic.
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The translated intrinsic rule.
         Return same op if no translation is possible.
 
@@ -58,12 +58,12 @@ def _rule_float_direct(op):
 
     Parameters
     ----------
-    op : PrimExpr
+    op : Expr
         The call expression of original intrinsic.
 
     Returns
     -------
-    ret : PrimExpr
+    ret : Expr
         The translated intrinsic rule.
         Return same op if no translation is possible.
 

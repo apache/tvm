@@ -271,8 +271,9 @@ class ScopeReconstructor : private StmtMutator {
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
         loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
-        iter_values.push_back(iter_dom->min + var);
-        analyzer->Bind(var, Range::FromMinExtent(IntImm(var.ty(), 0), iter_dom->extent));
+        iter_values.push_back(iter_dom->min + var.as_or_throw<PrimExpr>());
+        analyzer->Bind(var, Range::FromMinExtent(IntImm(var->ty.as_or_throw<PrimType>(), 0),
+                                                 iter_dom->extent));
       } else {
         iter_values.push_back(iter_dom->min);
       }
@@ -299,7 +300,7 @@ class ScopeReconstructor : private StmtMutator {
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
-      new_subtree = For(/*loop_var=*/loop_var,
+      new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
                         /*min=*/IntImm::Int32(0),
                         /*extent=*/loop_extent,
                         /*ForKind=*/ForKind::kSerial,
@@ -384,7 +385,7 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
     runtime::StorageScope scope =
         relax_storage_scope ? runtime::StorageScope::Create(buffer.scope()) : global_scope;
     runtime::StorageRank rank = scope.rank;
-    if (rank != previous_rank || !var_dom.defined()) {
+    if (rank != previous_rank || !var_dom.has_value()) {
       previous_rank = rank;
       var_dom = arith::AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/relax_path_low_inclusive,
@@ -469,7 +470,8 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
       }
     }
   }
-  TVM_FFI_CHECK(var.defined(), ValueError) << "BufferRegion pattern match failed: " << provided_min;
+  TVM_FFI_CHECK(var.has_value(), ValueError)
+      << "BufferRegion pattern match failed: " << provided_min;
   return {var.value(), BlockVarDomainInfo{var_dom, var_bound}};
 }
 

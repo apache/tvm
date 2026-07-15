@@ -38,19 +38,37 @@ namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ExprNode::RegisterReflection();
-  PrimExprNode::RegisterReflection();
   BaseFuncNode::RegisterReflection();
   GlobalVarNode::RegisterReflection();
+  CallNode::RegisterReflection();
   IntImmNode::RegisterReflection();
   FloatImmNode::RegisterReflection();
   RangeNode::RegisterReflection();
 }
+
+PrimExpr::PrimExpr(Call call) : PrimExpr(std::move(call).as_or_throw<PrimExpr>()) {}
 
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
 PrimExpr PrimExpr::ConvertFallbackValue(ffi::String value) { return tirx::StringImm(value); }
+
+namespace ffi {
+
+PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
+  return IntImm::Bool(value);
+}
+
+PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(int64_t value) {
+  return TypeTraits<IntImm>::ConvertFallbackValue(value);
+}
+
+PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value) {
+  return TypeTraits<FloatImm>::ConvertFallbackValue(value);
+}
+
+}  // namespace ffi
 
 IntImm::IntImm(PrimType value_ty, int64_t value, Span span) {
   DLDataType runtime_dtype = value_ty->dtype;
@@ -224,7 +242,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("ir.Range_from_min_extent", Range::FromMinExtent)
       .def("ir.Range", [](PrimExpr begin, ffi::Optional<PrimExpr> end, Span span) -> Range {
-        if (end.defined()) {
+        if (end.has_value()) {
           return Range(begin, end.value(), span);
         } else {
           return Range(IntImm(begin.ty(), 0), begin, span);
@@ -239,10 +257,27 @@ GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
   data_ = std::move(n);
 }
 
+Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
+           Span span) {
+  TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
+
+  ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>();
+  n->ExprNode::ty = std::move(ret_ty);
+  n->op = std::move(op);
+  n->args = std::move(args);
+  n->attrs = std::move(attrs);
+  n->ty_args = std::move(ty_args);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); })
+      .def("ir.Call",
+           [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
+              Span span) { return Call(ret_ty, op, args, attrs, ty_args, span); })
       .def("ir.DebugPrint", [](ffi::ObjectRef ref) {
         std::stringstream ss;
         ss << ref;

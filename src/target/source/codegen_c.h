@@ -56,7 +56,7 @@ using namespace tirx;
  * and OpenCL-C. You might find some odd variant features, e.g., type `int3` for
  * a vector of 3 `int`s. For native C code generator, see `CodeGenLLVM`.
  */
-class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
+class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
                  public StmtFunctor<void(const Stmt&)>,
                  public CodeGenSourceBase {
  public:
@@ -108,11 +108,17 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param os The output stream
    */
   void PrintExpr(const PrimExpr& n, std::ostream& os);
+  void PrintExpr(const Expr& n, std::ostream& os);
   /*!
    * \brief Same as PrintExpr, but simply returns result string
    * \param n The expression to be printed.
    */
   std::string PrintExpr(const PrimExpr& n) {
+    std::ostringstream os;
+    PrintExpr(n, os);
+    return os.str();
+  }
+  std::string PrintExpr(const Expr& n) {
     std::ostringstream os;
     PrintExpr(n, os);
     return os.str();
@@ -227,9 +233,6 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void PrintVecConstructor(const PrimType& t, std::ostream& os);
   // Get a cast type from to
   virtual std::string CastFromTo(std::string value, const PrimType& from, const PrimType& target);
-  std::string CastFromTo(std::string value, DLDataType from, DLDataType target) {
-    return CastFromTo(std::move(value), PrimType(from), PrimType(target));
-  }
   // Get load of single element with expression
   virtual void PrintVecElemLoadExpr(const PrimType& t, int i, const std::string& value,
                                     std::ostream& os);
@@ -244,8 +247,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   /*! \brief Print a C string literal with proper escaping of special chars. */
   void PrintEscapedCString(const std::string& str, std::ostream& os);
   // Print reference to struct location
-  std::string GetStructRef(const PrimType& t, const PrimExpr& buffer, const PrimExpr& index,
-                           int kind);
+  std::string GetStructRef(const Type& t, const Expr& buffer, const PrimExpr& index, int kind);
   // Print reference to a buffer as type t in index.
   virtual std::string GetBufferRef(const PrimType& t, const BufferNode* buffer, PrimExpr index);
 
@@ -293,7 +295,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * \param os The output stream.
    */
   virtual void PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                               const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                               const ffi::Array<Expr>& args, bool skip_first_arg,
                                std::ostream& os);  // NOLINT(*)
   /*!
    * \brief If buffer is allocated as type t.
@@ -314,10 +316,9 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * code shape.  Only explicit pointer-offset values opt into typed pointer
    * arithmetic.
    */
-  void RegisterHandleTypeFromPointer(const tirx::Var& var, const PrimExpr* value);
+  void RegisterHandleTypeFromPointer(const tirx::Var& var, const Expr* value);
   // override
-  void PrintSSAAssign(const std::string& target, const std::string& src,
-                      const PrimType& t) override;
+  void PrintSSAAssign(const std::string& target, const std::string& src, const Type& t) override;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 

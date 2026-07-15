@@ -129,16 +129,16 @@ class FuncBuilder : public ExprMutator {
     if (shape_expr_inputs_.size()) {
       ffi::Array<PrimExpr> tir_vars;
       for (const auto* var : shape_expr_inputs_) {
-        auto new_var = ffi::GetRef<tirx::Var>(var).copy_with_suffix("");
-        tir_var_remap_.Set(ffi::GetRef<tirx::Var>(var), new_var);
-        tir_vars.push_back(new_var);
+        auto new_var = ffi::GetRef<tirx::Var>(var).CopyWithSuffix("");
+        tir_var_remap_.Set(ffi::GetRef<tirx::Var>(var), new_var.as_or_throw<PrimExpr>());
+        tir_vars.push_back(new_var.as_or_throw<PrimExpr>());
       }
       shape_expr = Var("shape_expr", ShapeType(tir_vars));
     }
     // Set up the parameters
     for (const auto* input : inputs_) {
-      auto new_var = Var(input->name_hint(), VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
-      var_remap_[input->vid] = new_var;
+      auto new_var = Var(input->name_hint, VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
+      var_remap_[ffi::GetRef<Var>(input)] = new_var;
       params.push_back(new_var);
     }
     if (shape_expr) {
@@ -164,7 +164,16 @@ class FuncBuilder : public ExprMutator {
     return func;
   }
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) { return tirx::Substitute(expr, tir_var_remap_); }
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) {
+    return tirx::Substitute(expr, tir_var_remap_);
+  }
+
+  Expr VisitExprFallback_(const ExprNode* op) final {
+    if (op->ty.as<PrimTypeNode>()) {
+      return VisitTypePrimExprField(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>());
+    }
+    return ExprMutator::VisitExprFallback_(op);
+  }
 
   support::OrderedSet<const VarNode*> inputs_;
   support::OrderedSet<const VarNode*> outputs_;
@@ -279,7 +288,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
       if (region->shape_expr_inputs_.size()) {
         ffi::Array<PrimExpr> tir_vars;
         for (const auto* var : region->shape_expr_inputs_) {
-          tir_vars.push_back(ffi::GetRef<PrimExpr>(var));
+          tir_vars.push_back(ffi::GetRef<tirx::Var>(var).as_or_throw<PrimExpr>());
         }
         plan->propogated_tir_vars = ShapeExpr(tir_vars);
       }
@@ -504,8 +513,8 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
         expr->IsInstance<StringImmNode>() || expr->IsInstance<GlobalVarNode>()) {
       return true;
     }
-    if (const auto* prim_value = expr.as<PrimExprNode>()) {
-      return IsStatic(ffi::GetRef<PrimExpr>(prim_value), vars_collector, tir_vars_collector);
+    if (auto prim_value = expr.as<PrimExpr>()) {
+      return IsStatic(prim_value.value(), vars_collector, tir_vars_collector);
     }
     if (const auto* var = expr.as<VarNode>()) {
       if (vars_collector != nullptr) {
@@ -779,12 +788,12 @@ class CUDAGraphRewriter : public ExprMutator {
     Expr launch_subgraph;
     if (plan->is_alloc) {
       // Storage allocation should be fully static and shouldn't depend on any symbolic variables.
-      TVM_FFI_ICHECK(!plan->propogated_tir_vars.defined());
+      TVM_FFI_ICHECK(!plan->propogated_tir_vars.has_value());
       TVM_FFI_ICHECK(plan->inputs.empty());
       auto gv_alloc = gv_global_alloc_.value();
       auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
       launch_subgraph =
-          Call(call_builtin_with_ctx_op,
+          Call(Type::Missing(), call_builtin_with_ctx_op,
                {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})}, Attrs(),
                {ret_ty});
     } else {
@@ -796,7 +805,7 @@ class CUDAGraphRewriter : public ExprMutator {
       for (const auto& arg : plan->inputs) {
         args.push_back(VisitExpr_(arg));
       }
-      if (plan->propogated_tir_vars.defined()) {
+      if (plan->propogated_tir_vars.has_value()) {
         ShapeExpr propogated_tir_vars = plan->propogated_tir_vars.value();
         args.push_back(propogated_tir_vars);
         // The ret_ty of the lifted function can contain symbolic variables. We need to
@@ -814,13 +823,13 @@ class CUDAGraphRewriter : public ExprMutator {
       // Arguments of builtin_run_or_capture
       ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
                                         PrimExpr(IntImm::Int64(index_capture_++))};
-      if (plan->propogated_tir_vars.defined()) {
+      if (plan->propogated_tir_vars.has_value()) {
         // The shape expr is explicitly passed twice, one as the last argument of the lifted
         // function, one as the last argument of builtin_run_or_capture as the cache key. Explicitly
         // passing it twice simplifies the handling during the capture phase.
         tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
       }
-      launch_subgraph = Call(call_builtin_with_ctx_op,
+      launch_subgraph = Call(Type::Missing(), call_builtin_with_ctx_op,
                              {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(), {call_ty});
     }
     Expr ret_value = builder_->Emit(launch_subgraph);
@@ -837,7 +846,7 @@ class CUDAGraphRewriter : public ExprMutator {
       LaunchSubgraph(op, subgraph_launches_[op->var.get()]);
     }
     if (auto it = var_redef_.find(op->var.get());
-        it != var_redef_.end() && !var_remap_.count(op->var->vid)) {
+        it != var_redef_.end() && !var_remap_.count(op->var)) {
       EmitRedef(op->var.get(), it->second);
       return;
     }
@@ -849,7 +858,8 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
-    if (auto it = var_remap_.find(op->vid); it != var_remap_.end()) {
+    Var var = ffi::GetRef<Var>(op);
+    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
       return it->second;
     }
     if (auto it = var_redef_.find(op); it != var_redef_.end()) {
@@ -861,8 +871,8 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   Var EmitRedef(const VarNode* var, const Expr& redef) {
-    auto new_var = builder_->Emit(redef, var->name_hint());
-    var_remap_[var->vid] = new_var;
+    auto new_var = builder_->Emit(redef, var->name_hint);
+    var_remap_[ffi::GetRef<Var>(var)] = new_var;
     return new_var;
   }
 
@@ -889,7 +899,7 @@ Pass RewriteCUDAGraph() {
       [=](IRModule mod, PassContext pc) {
         bool use_cuda_graph = pc->GetConfig<bool>("relax.backend.use_cuda_graph").value_or(false);
         if (use_cuda_graph) {
-          mod = ::tvm::relax::RewriteCUDAGraph(std::move(mod));
+          mod = relax::RewriteCUDAGraph(std::move(mod));
         }
 
         return mod;

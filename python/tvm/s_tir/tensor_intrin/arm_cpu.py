@@ -178,14 +178,14 @@ def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
     ----------
     tensor : tvm.tirx.Buffer
         The tensor the buffer access will be performed on.
-    relative_offsets : Tuple[PrimExpr, PrimExpr]
+    relative_offsets : Tuple[Expr, Expr]
         The vertical and horizontal offsets into the accumulator tile.
-    vertical_limit : PrimExpr
+    vertical_limit : Expr
         An absolute offset specifying the limit at which rows should be stored.
 
     Returns
     -------
-    PrimExpr
+    Expr
         The active lane mask intrinsic.
     """
     vertical_offset, horizontal_offset = relative_offsets

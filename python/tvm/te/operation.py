@@ -26,6 +26,7 @@ from tvm_ffi import Array
 import tvm.arith._ffi_api
 import tvm.tirx
 import tvm.tirx._ffi_api
+from tvm.ir import is_prim_expr
 from tvm.runtime import convert
 
 from . import _ffi_api
@@ -91,7 +92,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, tvm.tirx.PrimExpr) else shape
+    shape = (shape,) if tvm.ir.is_prim_expr(shape) else shape
     # for python3
     shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     out_ndim = len(shape)
@@ -284,8 +285,8 @@ def extern(
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
-    shape = (shape,) if isinstance(shape, tvm.tirx.PrimExpr | _Integral) else shape
-    if shape == () or isinstance(shape[0], tvm.tirx.PrimExpr | _Integral):
+    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, _Integral) else shape
+    if shape == () or is_prim_expr(shape[0]) or isinstance(shape[0], _Integral):
         shape = [shape]
     if in_buffers is not None:
         in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
@@ -337,11 +338,11 @@ def extern(
                 )
             )
     body = fcompute(input_placeholders, output_placeholders)
-    if isinstance(body, tvm.tirx.PrimExpr):
+    if tvm.ir.is_prim_expr(body):
         body = tvm.tirx.Evaluate(body)
     if not isinstance(body, tvm.tirx.Stmt):
         raise ValueError(
-            f"Function '{fcompute.__name__}' should return PrimExpr or Stmt, but it returned "
+            f"Function '{fcompute.__name__}' should return Expr or Stmt, but it returned "
             f"'{type(body)}'"
         )
 
@@ -472,32 +473,10 @@ def const(value, dtype="int32", span=None):
 
     Returns
     -------
-    const : PrimExpr
+    const : Expr
         The result constant expr.
     """
     return tvm.tirx.const(value, dtype, span)
-
-
-def size_var(name="size", dtype="int32", span=None):
-    """Create a new variable represents a tensor shape size, which is non-negative.
-
-    Parameters
-    ----------
-    name : str
-        The name
-
-    dtype : str
-        The data type
-
-    span : Optional[Span]
-        The location of this variable in the source.
-
-    Returns
-    -------
-    var : SizeVar
-        The result symbolic shape variable.
-    """
-    return tvm.tirx.SizeVar(name, dtype, span)
 
 
 def thread_axis(dom=None, tag="", name="", span=None):

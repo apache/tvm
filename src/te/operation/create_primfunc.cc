@@ -50,7 +50,7 @@ class ProducerToBufferTransformer : public StmtExprMutator {
   explicit ProducerToBufferTransformer(const std::unordered_map<te::Tensor, Buffer>& tensor2buffers)
       : tensor2buffers_(tensor2buffers) {}
 
-  PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
+  Expr VisitExpr_(const ProducerLoadNode* op) final {
     auto visited_op = StmtExprMutator::VisitExpr_(op).as_or_throw<ProducerLoad>();
     te::Tensor tensor = visited_op->producer.as_or_throw<te::Tensor>();
     auto it = tensor2buffers_.find(tensor);
@@ -67,11 +67,11 @@ class ProducerToBufferTransformer : public StmtExprMutator {
 /*! \brief The helper mutator to rewrite buffer and buffer var accessed by block body */
 class BufferSubstituter : public StmtExprMutator {
  public:
-  explicit BufferSubstituter(const std::unordered_map<const VarNode*, PrimExpr>& var_map,
+  explicit BufferSubstituter(const std::unordered_map<const VarNode*, Expr>& var_map,
                              const std::unordered_map<const BufferNode*, Buffer>& buffer_map)
       : var_map_(var_map), buffer_map_(buffer_map) {}
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     auto it = var_map_.find(op);
     if (it != var_map_.end()) {
       return it->second;
@@ -79,7 +79,7 @@ class BufferSubstituter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_map_.find(load->buffer.get());
     if (it != buffer_map_.end()) {
@@ -98,7 +98,7 @@ class BufferSubstituter : public StmtExprMutator {
   }
 
  private:
-  const std::unordered_map<const VarNode*, PrimExpr>& var_map_;
+  const std::unordered_map<const VarNode*, Expr>& var_map_;
   const std::unordered_map<const BufferNode*, Buffer>& buffer_map_;
 };
 
@@ -337,7 +337,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                       CreateFuncInfo* info) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
-    return Substitute(info->transformer(e), var_map);
+    return Substitute(info->transformer(e).as_or_throw<PrimExpr>(), var_map);
   };
   ffi::Optional<Stmt> init = std::nullopt;
   Stmt body;
@@ -367,7 +367,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                       CreateFuncInfo* info, arith::AnalyzerObj* analyzer) {
   // helper to transform the expr and remap iters to the block domain
   auto f_transform_and_remap = [&](const PrimExpr& e) {
-    return Substitute(info->transformer(e), var_map);
+    return Substitute(info->transformer(e).as_or_throw<PrimExpr>(), var_map);
   };
   Stmt body;
   if (const auto* reduce = expr_body.as<ReduceNode>()) {
@@ -405,7 +405,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
       PrimExpr value{nullptr};
       if (n_buffers > 1) {
         temp_vars.push_back(Var("v_" + buffer->name, lhs[i].ty()));
-        value = temp_vars.back();
+        value = temp_vars.back().as_or_throw<PrimExpr>();
       } else {
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
         value = f_transform_and_remap(combined);
@@ -450,7 +450,7 @@ struct NestedScopeInfo {
                     const PrimExpr& value) {
     block_iters.push_back(iter);
     bindings.push_back(value);
-    if (origin_axis.defined()) {
+    if (origin_axis.has_value()) {
       if (iter->iter_type != IterVarType::kCommReduce) {
         store_indices.push_back(iter->var);
       }
@@ -462,15 +462,15 @@ struct NestedScopeInfo {
   void Renew(const ffi::Array<IterVar>& origin_axes) {
     block_iters.MutateByApply([](const IterVar& itervar) {
       auto n = ffi::make_object<IterVarNode>(*itervar.get());
-      n->var = n->var.copy_with_suffix("");
+      n->var = n->var.CopyWithSuffix("");
       return IterVar(n);
     });
     for (size_t i = 0; i < origin_axes.size(); ++i) {
       Var block_var = block_iters[i]->var;
       if (origin_axes[i]->iter_type != IterVarType::kCommReduce) {
-        store_indices.Set(i, block_var);
+        store_indices.Set(i, block_var.as_or_throw<PrimExpr>());
       }
-      axes_remap.Set(origin_axes[i]->var, block_var);
+      axes_remap.Set(origin_axes[i]->var, block_var.as_or_throw<PrimExpr>());
     }
   }
 };
@@ -508,9 +508,10 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
           extent = Substitute(extent, scope_repl);
         }
         Range dom = Range::FromMinExtent(analyzer->Simplify(min), analyzer->Simplify(extent));
-        IterVar new_block_iter(dom, block_var, axis->iter_type, axis->thread_tag, axis->span);
+        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                               axis->thread_tag, axis->span);
         cur_scope.loop_vars.emplace_back(loop_var, dom);
-        cur_scope.AddBlockIter(axis, new_block_iter, loop_var);
+        cur_scope.AddBlockIter(axis, new_block_iter, loop_var.as_or_throw<PrimExpr>());
         defined_axes.insert(axis->var);
       } else if (defined_axes.count(axis->var)) {
         TVM_FFI_ICHECK_GT(i, 0);
@@ -518,13 +519,14 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         PrimExpr prev_binding = scopes[i - 1].axes_remap.at(axis->var);
         Var block_var("v_" + axis->var->name_hint, index_type);
         Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
-        IterVar new_block_iter(dom, block_var, axis->iter_type, axis->thread_tag, axis->span);
+        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                               axis->thread_tag, axis->span);
         cur_scope.AddBlockIter(axis, new_block_iter, prev_binding);
       }
     }
     if (i == axes_levels.size() - 1 && cur_scope.block_iters.empty()) {
       // for the leaf scope, we ensure at least one block var exists
-      IterVar dummy(Range::FromMinExtent(0, 1), Var("vi", PrimType::Int(32)),
+      IterVar dummy(Range::FromMinExtent(0, 1), PrimVar("vi", PrimType::Int(32)),
                     IterVarType::kDataPar);
       cur_scope.AddBlockIter(std::nullopt, dummy, 0);
     }
@@ -614,7 +616,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
     for (size_t j = cur.loop_vars.size(); j > 0; --j) {
       const auto& [loop_var, dom] = cur.loop_vars[j - 1];
-      body = For(loop_var, dom->min, dom->extent, ForKind::kSerial, body);
+      body = For(loop_var.as_or_throw<PrimVar>(), dom->min, dom->extent, ForKind::kSerial, body);
     }
   }
   return body;
@@ -622,7 +624,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
 
 Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* info) {
   // Step 1. Check all inputs are visited before and update var_map.
-  std::unordered_map<const VarNode*, PrimExpr> var_map;
+  std::unordered_map<const VarNode*, Expr> var_map;
   std::unordered_map<const BufferNode*, Buffer> input_buffer_map;
   TVM_FFI_ICHECK_EQ(extern_op->inputs.size(), extern_op->input_placeholders.size());
   for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
@@ -639,10 +641,17 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   for (int i = 0; i < extern_op->num_outputs(); ++i) {
     const Buffer& placeholder = extern_op->output_placeholders[i];
     const te::Tensor& output_tensor = extern_op.output(i);
-    info->tensor2buffers[output_tensor] = placeholder;
+    Buffer output_buffer = placeholder;
     if (!info->IsArg(output_tensor)) {
-      info->root_alloc.push_back(placeholder);
+      PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
+      if (const auto* offset_var = placeholder->elem_offset.as<VarNode>()) {
+        var_map[offset_var] = zero_offset;
+      }
+      output_buffer.CopyOnWrite()->elem_offset = zero_offset;
+      input_buffer_map[placeholder.get()] = output_buffer;
+      info->root_alloc.push_back(output_buffer);
     }
+    info->tensor2buffers[output_tensor] = output_buffer;
   }
 
   // The access region does not need to be collected here, as it will
@@ -740,12 +749,11 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   ffi::Map<Var, Buffer> buffer_map;
-  PrimType handle_ty = PrimType::Handle();
   for (const te::Tensor& tensor : arg_list) {
-    Var arg("var_" + tensor->GetNameHint(), handle_ty);
-    parameters.push_back(arg);
     auto it = info->tensor2buffers.find(tensor);
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
+    Var arg("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
+    parameters.push_back(arg);
     buffer_map.Set(arg, it->second);
   }
   PrimFunc func = WithAttrs(
@@ -807,15 +815,14 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   ffi::Map<Var, Buffer> buffer_map;
-  PrimType handle_ty = PrimType::Handle();
   for (const ffi::ObjectRef& arg : arg_tir_var_list) {
     if (auto opt_tensor = arg.as<te::Tensor>()) {
       te::Tensor tensor = opt_tensor.value();
-      Var arg("var_" + tensor->GetNameHint(), handle_ty);
-      parameters.push_back(arg);
       auto it = info->tensor2buffers.find(tensor);
       TVM_FFI_ICHECK(it != info->tensor2buffers.end());
-      buffer_map.Set(arg, it->second);
+      Var param("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
+      parameters.push_back(param);
+      buffer_map.Set(param, it->second);
     } else if (auto var = arg.as<tirx::Var>()) {
       parameters.push_back(var.value());
     }
