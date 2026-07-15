@@ -29,6 +29,14 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
+using tvm::script::ir_builder::details::Namer;
+
+TVM_STATIC_IR_FUNCTOR(Namer, vtable)
+    .set_dispatch<tvm::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
+      VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
+      var->name_hint = name;
+    });
+
 IRModuleFrame IRModule() {
   ffi::ObjectPtr<IRModuleFrameNode> n = ffi::make_object<IRModuleFrameNode>();
   n->global_var_map.clear();

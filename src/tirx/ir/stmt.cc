@@ -568,7 +568,7 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   for (size_t i = 0; i < buffer->shape.size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const PrimExpr& buffer_shape = buffer->shape[i];
-    if (!buffer_shape->IsInstance<VarNode>()) {
+    if (!buffer_shape.as<PrimVar>()) {
       TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == buffer_shape))
           << "The dimension mismatched between source region and target buffer shape, got "
           << source_range->extent << " vs. " << buffer_shape << ".";

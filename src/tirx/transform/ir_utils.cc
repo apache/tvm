@@ -720,19 +720,19 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
     return std::nullopt;
   }
   ffi::Array<PrimExpr> equations;
-  ffi::Array<Var> vars;
+  ffi::Array<PrimVar> vars;
   std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
       bool is_simple = true;
-      std::vector<Var> cand_vars;
+      std::vector<PrimVar> cand_vars;
       PostOrderVisit(e, [&cand_vars, &is_simple, &e](const ffi::ObjectRef& obj) {
         if (obj.same_as(e)) {
           return;
         } else if (const VarNode* var = obj.as<VarNode>()) {
           PrimType var_ty = var->ty.as_or_throw<PrimType>();
           if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-            cand_vars.push_back(ffi::GetRef<Var>(var));
+            cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
           }
         } else {
           is_simple &= obj->IsInstance<AddNode>() || obj->IsInstance<SubNode>() ||
@@ -741,9 +741,9 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
         }
       });
       if (is_simple && !cand_vars.empty()) {
-        for (const Var& new_var : cand_vars) {
+        for (const PrimVar& new_var : cand_vars) {
           if (!std::any_of(vars.begin(), vars.end(),
-                           [&new_var](const Var& v) { return v.same_as(new_var); })) {
+                           [&new_var](const PrimVar& v) { return v.same_as(new_var); })) {
             vars.push_back(new_var);
           }
         }

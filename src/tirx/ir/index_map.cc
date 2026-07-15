@@ -86,8 +86,8 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // TODO(Lunderberg): Name a pair of output indices split from a single
     // input index as (X.outer, X.inner).
     std::string name;
-    if (auto* var = index.as<VarNode>()) {
-      name = var->name_hint;
+    if (auto var = index.as<PrimVar>()) {
+      name = var.value()->name_hint;
     } else {
       name = "axis" + std::to_string(i);
     }
@@ -96,7 +96,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   }
 
   // Dummy ranges for the extent of each input.
-  ffi::Map<Var, Range> input_iters;
+  ffi::Map<PrimVar, Range> input_iters;
   TVM_FFI_ICHECK_EQ(self->initial_indices.size(), initial_ranges.size());
   for (size_t i = 0; i < initial_ranges.size(); i++) {
     input_iters.Set(self->initial_indices[i], initial_ranges[i]);
@@ -213,7 +213,7 @@ ffi::Array<Range> IndexMapNode::MapRanges(const ffi::Array<Range>& ranges,
   arith::AnalyzerObj* analyzer_ptr = analyzer.get();
   TVM_FFI_ICHECK_EQ(ranges.size(), initial_indices.size());
 
-  ffi::Map<Var, Range> input_iters;
+  ffi::Map<PrimVar, Range> input_iters;
   for (size_t i = 0; i < initial_indices.size(); i++) {
     input_iters.Set(initial_indices[i], ranges[i]);
   }
@@ -364,19 +364,19 @@ IndexMap IndexMap::RenameVariables(
     std::unordered_set<const ffi::Object*> visited;
     std::for_each(n->final_indices.begin(), n->final_indices.end(), [&](const PrimExpr& expr) {
       PostOrderVisit(expr, [&](const ffi::ObjectRef& obj) {
-        if (!obj->IsInstance<VarNode>()) {
+        auto var = obj.as<PrimVar>();
+        if (!var) {
           return;
         }
         if (visited.count(obj.get())) {
           return;
         }
         visited.emplace(obj.get());
-        Var var = obj.as_or_throw<Var>();
-        if (ffi::Optional<ffi::String> opt_name = f_name_map(var); opt_name.has_value()) {
+        if (ffi::Optional<ffi::String> opt_name = f_name_map(var.value()); opt_name.has_value()) {
           ffi::String name = opt_name.value();
           TVM_FFI_ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
           name_supply->ReserveName(name, /*add_prefix=*/false);
-          var_remap.Set(var, Var(name, var->ty));
+          var_remap.Set(var.value(), PrimVar(name, var.value().ty()));
         }
       });
     });
@@ -390,7 +390,7 @@ IndexMap IndexMap::RenameVariables(
     ffi::String unique_name =
         name_supply->FreshName(initial_index->name_hint, /*add_prefix=*/false);
     if (unique_name != initial_index->name_hint) {
-      var_remap.Set(initial_index, Var(unique_name));
+      var_remap.Set(initial_index, PrimVar(unique_name));
     }
   }
 
@@ -417,19 +417,26 @@ std::string IndexMap2PythonLambdaExpr(const ffi::Array<PrimVar>& initial_indices
   std::unordered_set<std::string> used_names;
   ffi::Map<Var, PrimExpr> var_remap;
   std::ostringstream oss;
+  auto print_expr = [&oss](const PrimExpr& expr) {
+    if (auto var = expr.as<PrimVar>()) {
+      oss << var.value()->name_hint;
+    } else {
+      oss << expr;
+    }
+  };
   oss << "lambda ";
   for (size_t i = 0; i < initial_indices.size(); ++i) {
     if (i != 0) {
       oss << ", ";
     }
-    oss << initial_indices[i];
+    oss << initial_indices[i]->name_hint;
   }
   oss << ": (";
   for (size_t i = 0; i < final_indices.size(); ++i) {
     if (i != 0) {
       oss << " ";
     }
-    oss << final_indices[i];
+    print_expr(final_indices[i]);
     oss << ",";
   }
   oss << ")";
