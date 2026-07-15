@@ -82,7 +82,7 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const Call& n, const AccessPath& n_
       !n->op.same_as(call_tir_inplace_op)) {
     return std::nullopt;
   }
-  TVM_FFI_ICHECK(n->args.size() == 2 || n->args.size() == 3);
+  TVM_FFI_ICHECK_EQ(n->args.size(), 2);
   TVM_FFI_ICHECK(n->ty_args.size() == 1);
   ffi::Array<ExprDoc> args;
   ffi::Array<ffi::String> kwargs_keys;
@@ -144,11 +144,6 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const Call& n, const AccessPath& n_
 
   if (n->op.same_as(call_dps_packed_op)) {
     return Relax(d, "call_dps_packed")->Call(args, kwargs_keys, kwargs_values);
-  }
-  // Step 4. Print n->args[2], the tirx variables
-  if (n->args.size() == 3) {
-    kwargs_keys.push_back("tir_vars");
-    kwargs_values.push_back(d->AsDoc<ExprDoc>(n->args[2], n_p->Attr("args")->ArrayItem(2)));
   }
   if (n->op.same_as(call_tir_local_view)) {
     return Relax(d, "dist.call_tir_local_view")->Call(args, kwargs_keys, kwargs_values);

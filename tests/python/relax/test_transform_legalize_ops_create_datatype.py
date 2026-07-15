@@ -600,11 +600,11 @@ def test_arange_symbolic():
         def main(x: R.Tensor(["n"], "float32")):
             cls = Expected
             n = T.int64()
-            gv = R.call_tir(cls.arange, R.tuple(), out_ty=R.Tensor((n // 2,), dtype="int64"), tir_vars=R.shape([n]))
+            gv = R.call_tir(cls.arange, (n,), out_ty=R.Tensor((n // 2,), dtype="int64"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
-        def arange(var_T_arange: T.handle, n: T.int64):
+        def arange(n: T.int64, var_T_arange: T.handle):
             T.func_attr({"tirx.noalias": True})
             T_arange = T.match_buffer(var_T_arange, (n // T.int64(2),), "int64")
             for ax0 in range(n // T.int64(2)):
@@ -665,11 +665,11 @@ def test_shape_to_tensor_symbolic():
             n = T.int64()
             cls = Expected
             gv: R.Shape([m, n]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), out_ty=R.Tensor((2,), dtype="int64"), tir_vars=R.shape([m, n]))
+            gv_1 = R.call_tir(cls.shape_to_tensor, (m, n), out_ty=R.Tensor((2,), dtype="int64"))
             return gv_1
 
         @T.prim_func(private=True, s_tir=True)
-        def shape_to_tensor(shape_to_tensor: T.Buffer((T.int64(2),), "int64"), m: T.int64, n: T.int64):
+        def shape_to_tensor(m: T.int64, n: T.int64, shape_to_tensor: T.Buffer((T.int64(2),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(2)):
                 with T.sblock("shape_to_tensor"):
@@ -697,11 +697,11 @@ def test_shape_to_tensor_mixed():
             m = T.int64()
             cls = Expected
             gv: R.Shape([m, 3]) = R.shape_of(x)
-            gv_1 = R.call_tir(cls.shape_to_tensor, R.tuple(), out_ty=R.Tensor((2,), dtype="int64"), tir_vars=R.shape([m]))
+            gv_1 = R.call_tir(cls.shape_to_tensor, (m,), out_ty=R.Tensor((2,), dtype="int64"))
             return gv_1
 
         @T.prim_func(private=True, s_tir=True)
-        def shape_to_tensor(shape_to_tensor: T.Buffer((T.int64(2),), "int64"), m: T.int64):
+        def shape_to_tensor(m: T.int64, shape_to_tensor: T.Buffer((T.int64(2),), "int64")):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(2)):
                 with T.sblock("shape_to_tensor"):

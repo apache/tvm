@@ -959,8 +959,8 @@ def test_symbolic_var_in_call_tir_args():
         def foo(
             X: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             m: T.int64,
+            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
         ):
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
                 with T.sblock("rotary"):
@@ -980,9 +980,8 @@ def test_symbolic_var_in_call_tir_args():
                 lv1 = R.emit_te(topi.add, x, x)
                 gv = R.call_tir(
                     cls.foo,
-                    [lv1, y],
+                    [lv1, y, m],
                     out_ty=R.Tensor((1, 1, 32, 128), dtype="float32"),
-                    tir_vars=R.shape([m]),
                 )
                 R.output(gv)
             return gv
@@ -1005,8 +1004,8 @@ def test_symbolic_var_in_call_tir_args():
         def fused(
             X: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             m: T.int64,
+            rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             T_add = T.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)))
@@ -1032,9 +1031,8 @@ def test_symbolic_var_in_call_tir_args():
             with R.dataflow():
                 gv = R.call_tir(
                     cls.fused,
-                    (x, y),
+                    (x, y, m),
                     out_ty=R.Tensor([1, 1, 32, 128], "float32"),
-                    tir_vars=R.shape([m]),
                 )
                 R.output(gv)
             return gv
@@ -1196,8 +1194,8 @@ def test_tir_expression_in_shape():
         def fused_transpose_matmul(
             x: T.Buffer((T.int64(3), T.int64(4)), "float32"),
             p_y: T.handle,
-            p_output0: T.handle,
             n: T.int64,
+            p_output0: T.handle,
         ):
             T.func_attr({"tirx.noalias": True})
             y = T.match_buffer(p_y, (n - T.int64(1), T.int64(4)))
@@ -1228,9 +1226,8 @@ def test_tir_expression_in_shape():
             with R.dataflow():
                 lv = R.call_tir(
                     cls.fused_transpose_matmul,
-                    (x, y),
+                    (x, y, n),
                     out_ty=R.Tensor((n - 1, 3), dtype="float32"),
-                    tir_vars=R.shape([n]),
                 )
                 R.output(lv)
             return lv
@@ -1466,8 +1463,8 @@ def test_symbolic_var_in_buffer_shape():
         def foo(
             X_handle: T.handle,
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rotary_handle: T.handle,
             m: T.int64,
+            rotary_handle: T.handle,
         ):
             sequence_length = T.int64()
 
@@ -1497,9 +1494,8 @@ def test_symbolic_var_in_buffer_shape():
                 lv1 = R.emit_te(topi.add, x, x)
                 gv = R.call_tir(
                     cls.foo,
-                    [lv1, y],
+                    [lv1, y, m],
                     out_ty=R.Tensor((1, sequence_length, 32, 128), dtype="float32"),
-                    tir_vars=R.shape([m]),
                 )
                 R.output(gv)
             return gv
@@ -1522,8 +1518,8 @@ def test_symbolic_var_in_buffer_shape():
         def fused(
             X_handle: T.handle,
             Y: T.Buffer((T.int64(2048), T.int64(128)), "float32"),
-            rotary_handle: T.handle,
             m: T.int64,
+            rotary_handle: T.handle,
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -1562,9 +1558,8 @@ def test_symbolic_var_in_buffer_shape():
             with R.dataflow():
                 gv = R.call_tir(
                     cls.fused,
-                    (x, y),
+                    (x, y, m),
                     out_ty=R.Tensor([1, sequence_length, 32, 128], "float32"),
-                    tir_vars=R.shape([m]),
                 )
                 R.output(gv)
             return gv
@@ -1765,10 +1760,9 @@ def test_symbolic_var_called_with_multiple_static_shapes():
 def test_symbolic_var_called_with_static_argument():
     """A dynamic PrimFunc may accept a static argument
 
-    The `tir_vars` parameter in `R.call_tir` contains definitions for
-    all TIR variables explicitly listed in the function signature, and
-    contains the TIR expression to be passed as the argument for for
-    each parameter.
+    Primitive arguments in `R.call_tir` contain definitions for all TIR
+    variables explicitly listed in the function signature, and contain
+    the TIR expression to be passed for each parameter.
 
     This test is identical to the earlier test named
     "test_symbolic_var_called_with_static_shape", except for the
@@ -1780,8 +1774,8 @@ def test_symbolic_var_called_with_static_argument():
         @T.prim_func(private=True, s_tir=True)
         def sum_1d(
             X_handle: T.handle,
-            Y: T.Buffer([T.int64(1)], "float32"),
             num_elements: T.int64,
+            Y: T.Buffer([T.int64(1)], "float32"),
         ):
             X = T.match_buffer(X_handle, [num_elements], "float32")
 
@@ -1801,9 +1795,8 @@ def test_symbolic_var_called_with_static_argument():
             with R.dataflow():
                 gv = R.call_tir(
                     cls.sum_1d,
-                    [x],
+                    [x, 64],
                     out_ty=R.Tensor([1], dtype="float32"),
-                    tir_vars=R.shape([64]),
                 )
                 R.output(gv)
             return gv
@@ -2524,7 +2517,7 @@ def test_primitive_scalar_parameter_preserves_identity():
     @I.ir_module(s_tir=True)
     class Before:
         @T.prim_func(private=True, s_tir=True)
-        def add_scalar(x: T.Buffer((4,), "int64"), y: T.Buffer((1,), "int64"), p: T.int64):
+        def add_scalar(x: T.Buffer((4,), "int64"), p: T.int64, y: T.Buffer((1,), "int64")):
             for i in range(1):
                 with T.sblock("add"):
                     vi = T.axis.spatial(1, i)
@@ -2536,9 +2529,8 @@ def test_primitive_scalar_parameter_preserves_identity():
             cls = Before
             out = R.call_tir(
                 cls.add_scalar,
-                (x,),
+                (x, p),
                 out_ty=R.Tensor((1,), "int64"),
-                tir_vars=R.shape([p]),
             )
             return out
 

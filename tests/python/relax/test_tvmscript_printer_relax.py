@@ -485,14 +485,14 @@ def test_shape_expr():
 def test_call():
     x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorType([1, x, 3], "float32"))
-    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_ty=a.ty, tir_vars=[x])
+    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=(a, x), out_ty=a.ty)
     o1 = relax.call_dps_packed("my_dps_func", args=a, out_ty=a.ty)
     _assert_print(
         o0,
         """
 x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_tir(tir_func, (a,), out_ty=R.Tensor((1, x, 3), dtype="float32"), tir_vars=R.shape([x]))
+R.call_tir(tir_func, (a, x), out_ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
     )
     _assert_print(
@@ -535,10 +535,10 @@ def test_call_tir_inplace():
         (
             x,
             y,
+            t,
         ),
         inplace_indices=[-1, 0],
         out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")],
-        tir_vars=[t],
     )
     _assert_print(
         call,
@@ -546,7 +546,7 @@ def test_call_tir_inplace():
 x: R.Tensor((32, 32), dtype="int32")
 y: R.Tensor((32, 32), dtype="int32")
 t = T.int64()
-R.call_tir_inplace(tir_func, (x, y), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0], tir_vars=R.shape([t]))
+R.call_tir_inplace(tir_func, (x, y, t), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0])
         """,
     )
 

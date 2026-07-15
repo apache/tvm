@@ -982,11 +982,11 @@ def test_call_tir_with_tir_var():
         ) -> R.Tensor(("n * 2",), "float32"):
             n = T.int64()
             cls = Module
-            y = R.call_tir(cls.copy, x, R.Tensor((n * 2,), dtype="float32"), tir_vars=(n,))
+            y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
             return y
 
         @T.prim_func(s_tir=True)
-        def copy(var_x: T.handle, var_y: T.handle, n: T.int64):
+        def copy(var_x: T.handle, n: T.int64, var_y: T.handle):
             X = T.match_buffer(var_x, (n * 2,), dtype="float32")
             Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
             for i in T.grid(n * 2):

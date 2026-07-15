@@ -748,6 +748,55 @@ def test_call_tir_with_matching_arguments():
     rx.analysis.well_formed(Module)
 
 
+def test_call_tir_with_interspersed_primitive_argument():
+    """Primitive values are positional arguments in the call_tir tuple."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor([16], "float16"),
+            scale: R.Prim("float32"),
+            C: R.Tensor([16], "float16"),
+        ):
+            B = R.call_tir(Module.add_scaled, (A, scale, C), out_ty=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func(s_tir=True)
+        def add_scaled(
+            A: T.Buffer([T.int64(16)], "float16"),
+            scale: T.float32,
+            C: T.Buffer([T.int64(16)], "float16"),
+            B: T.Buffer([T.int64(16)], "float16"),
+        ):
+            for i in range(T.int64(16)):
+                B[i] = A[i] + T.Cast("float16", scale) * C[i]
+
+    rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_incorrect_primitive_argument_dtype():
+    """Primitive call_tir arguments must match the PrimFunc parameter dtype."""
+
+    @I.ir_module(check_well_formed=False, s_tir=True)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16"), scale: R.Prim("int64")):
+            B = R.call_tir(Module.scale, (A, scale), out_ty=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func(s_tir=True)
+        def scale(
+            A: T.Buffer([T.int64(16)], "float16"),
+            scale: T.float32,
+            B: T.Buffer([T.int64(16)], "float16"),
+        ):
+            for i in range(T.int64(16)):
+                B[i] = A[i] * T.Cast("float16", scale)
+
+    assert not rx.analysis.check_well_formed(Module)
+
+
 def test_call_tir_input_ndim():
     """Arguments to R.call_tir must have the correct dimensionality
 

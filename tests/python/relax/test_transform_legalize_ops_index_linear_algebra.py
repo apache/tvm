@@ -71,11 +71,11 @@ def test_take_prim_value():
     class Expected:
         @R.function
         def main(x: R.Tensor((2, 3, 4), "float32"), index: R.Prim("int64")) -> R.Tensor((2, 4), "float32"):
-            gv = R.call_tir(Expected.take, (x,), R.Tensor((2, 4), dtype="float32"), tir_vars=R.shape([index]))
+            gv = R.call_tir(Expected.take, (x, index), R.Tensor((2, 4), dtype="float32"))
             return gv
 
         @T.prim_func(private=True, s_tir=True)
-        def take(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_take: T.Buffer((T.int64(2), T.int64(4)), "float32"), index: T.int64):
+        def take(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), index: T.int64, T_take: T.Buffer((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i2 in T.grid(T.int64(2), T.int64(4)):
                 with T.sblock("T_take"):

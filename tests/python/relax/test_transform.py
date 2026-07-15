@@ -178,6 +178,42 @@ def test_call_tir_rewrite():
     assert s2.op.name_hint == "exp"
 
 
+def test_call_tir_rewrite_with_interspersed_primitive_argument():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def scale_add(
+            A: T.Buffer((16,), "float32"),
+            scale: T.float32,
+            C: T.Buffer((16,), "float32"),
+            B: T.Buffer((16,), "float32"),
+        ):
+            for i in range(16):
+                B[i] = A[i] + scale * C[i]
+
+        @R.function
+        def main(
+            A: R.Tensor((16,), "float32"),
+            scale: R.Prim("float32"),
+            C: R.Tensor((16,), "float32"),
+        ) -> R.Tensor((16,), "float32"):
+            R.func_attr({"relax.force_pure": True})
+            B = R.call_tir(Module.scale_add, (A, scale, C), R.Tensor((16,), "float32"))
+            return B
+
+    after = relax.transform.CallTIRRewrite()(Module)
+    func = after["main"]
+    bindings = func.body.blocks[0].bindings
+    output_buffer = bindings[0].var
+    call = bindings[1].value
+
+    assert call.op.name_hint == "scale_add"
+    tvm.ir.assert_structural_equal(
+        call.args,
+        [func.params[0], func.params[1], func.params[2], output_buffer],
+    )
+
+
 def test_transform_remove_purity_checking():
     @tvm.script.ir_module
     class Before:

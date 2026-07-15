@@ -26,7 +26,7 @@ import tvm.runtime
 from tvm.ir import Call
 from tvm.runtime import Object, ObjectConvertible
 
-from ..expr import Expr, ExternFunc, GlobalVar, ShapeExpr, StringImm, Var
+from ..expr import Expr, ExternFunc, GlobalVar, StringImm, Var
 from ..type import TensorType, Type
 from ..utils import convert_to_expr
 from . import _ffi_api
@@ -93,7 +93,6 @@ def call_tir(
     gvar: GlobalVar,
     args: Expr,
     out_ty: TensorType | list[TensorType],
-    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """
     Call a tirx.prim_func and return the output.
@@ -104,15 +103,13 @@ def call_tir(
         The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
-        The input arguments.
+        The ordered tensor and primitive input arguments.  These correspond
+        positionally to the leading parameters of the PrimFunc.
 
     out_ty : Union[TensorType, List[TensorType]]
         The type information of the call_tir output.
         It should be a single or a list of TensorType. Each one denotes the
         type information of a returned tensor.
-
-    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
-        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
 
     Returns
     -------
@@ -124,10 +121,7 @@ def call_tir(
     if not isinstance(out_ty, list):
         out_ty = [out_ty]
 
-    if isinstance(tir_vars, list | tuple):
-        tir_vars = ShapeExpr(tir_vars)
-
-    return _ffi_api.call_tir(gvar, args, out_ty, tir_vars)  # type: ignore
+    return _ffi_api.call_tir(gvar, args, out_ty)  # type: ignore
 
 
 def call_tir_with_grad(
@@ -136,7 +130,6 @@ def call_tir_with_grad(
     out_ty: TensorType | list[TensorType],
     te_grad_name: str,
     te_grad_kwargs: dict[str, Object] | None = None,
-    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """
     Call a tirx.prim_func and return the output. This intrinsic will bind a te gradient function
@@ -149,7 +142,8 @@ def call_tir_with_grad(
         The GlobalVar referring to a tirx PrimFunc.
 
     args : Expr
-        The input arguments.
+        The ordered tensor and primitive input arguments.  These correspond
+        positionally to the leading parameters of the PrimFunc.
 
     out_ty : Union[TensorType, List[TensorType]]
         The type information of the call_tir_with_grad output.
@@ -164,9 +158,6 @@ def call_tir_with_grad(
         The keyword arguments passed to the te gradient function.
         Optionally provided as a keyword argument. Default: {}.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
-        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
-
     Returns
     -------
     ret: Call
@@ -177,14 +168,11 @@ def call_tir_with_grad(
     if not isinstance(out_ty, list):
         out_ty = [out_ty]
 
-    if isinstance(tir_vars, list | tuple):
-        tir_vars = ShapeExpr(tir_vars)
-
     if te_grad_kwargs is None:
         te_grad_kwargs = {}
 
     return _ffi_api.call_tir_with_grad(  # type: ignore
-        gvar, args, out_ty, te_grad_name, te_grad_kwargs, tir_vars
+        gvar, args, out_ty, te_grad_name, te_grad_kwargs
     )
 
 
@@ -193,7 +181,6 @@ def call_tir_inplace(
     args: Expr,
     inplace_indices: int | list[int],
     out_ty: TensorType | list[TensorType],
-    tir_vars: ShapeExpr | tuple[Expr] | list[Expr] | None = None,
 ) -> Call:
     """
     Call a TIR PrimFunc and return the result, doing the specified computations in-place
@@ -214,7 +201,8 @@ def call_tir_inplace(
         The GlobalVar referring to a TIR PrimFunc.
 
     args : Expr
-        The input arguments.
+        The ordered tensor and primitive input arguments.  These correspond
+        positionally to the leading parameters of the PrimFunc.
 
     inplace_indices : Union[int, List[int]]
         Specify which arguments should be used for in-place computations.
@@ -230,9 +218,6 @@ def call_tir_inplace(
         Each one denotes the type information of a returned tensor.
         If a list of `TensorType` is given, the result will be a tuple of `TensorType`.
 
-    tir_vars : Optional[Union[ShapeExpr, Tuple[Expr], List[Expr]]]
-        ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
-
     Returns
     -------
     ret: Call
@@ -246,15 +231,11 @@ def call_tir_inplace(
     if not isinstance(out_ty, list):
         out_ty = [out_ty]
 
-    if isinstance(tir_vars, list | tuple):
-        tir_vars = ShapeExpr(tir_vars)
-
     return _ffi_api.call_tir_inplace(  # type: ignore
         gvar,
         args,
         inplace_indices,
         out_ty,
-        tir_vars,
     )
 
 

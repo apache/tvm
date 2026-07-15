@@ -403,8 +403,14 @@ class LowerTIRToLocalView : public ExprMutator {
     ffi::Array<Expr> args = val->args[1].as_or_throw<Tuple>()->fields;
     for (const auto& arg : args) {
       const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
-      TVM_FFI_ICHECK(ty);
-      sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
+      if (ty) {
+        sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
+      } else {
+        TVM_FFI_ICHECK(GetType(arg).as<PrimTypeNode>())
+            << "Expected call_tir arguments to be distributed tensors or primitive arguments, "
+               "but got "
+            << arg << " with type " << GetType(arg);
+      }
     }
     Var output_var = binding->var;
     ffi::Array<DTensorType> output_tys = ExtractDTensorType(output_var);

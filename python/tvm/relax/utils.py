@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, RUF005
+# ruff: noqa: F401
 
 # pylint: disable=invalid-name,too-many-locals
 
@@ -145,7 +145,7 @@ def copy_with_new_vars(func: Function) -> Function:
 
 def gen_call_tir_inputs(
     func: Callable, *args: Any, **kwargs: Any
-) -> tuple[tirx.PrimFunc, Expr, list[TensorType], ShapeExpr | None]:
+) -> tuple[tirx.PrimFunc, Expr, list[TensorType]]:
     """Generate the inputs for call_tir according to the te function.
     This function converts arguments from relax expression to te tensor,
     The callback func should return a te tensor or a list of te tensors.
@@ -165,9 +165,9 @@ def gen_call_tir_inputs(
 
     Returns
     -------
-    ret : Tuple[tirx.PrimFunc, Expr, List[TensorType], Optional[ShapeExpr]]
+    ret : Tuple[tirx.PrimFunc, Expr, List[TensorType]]
         ret contains the inputs for call_tir, including a tirx prim_func, args,
-        out_ty, and tir_vars.
+        and out_ty.
     """
 
     tir_var_map: dict[tvm.ir.Var, tirx.Var] = {}
@@ -350,7 +350,7 @@ def gen_call_tir_inputs(
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)
     unbound_tir_vars = _get_unbound_tir_vars([*create_primfunc_args, *outs], extra_tir_args_list)
 
-    inputs = [*create_primfunc_args] + outs + unbound_tir_vars
+    inputs = [*create_primfunc_args, *unbound_tir_vars, *outs]
     tir_func = create_prim_func(inputs, "int64")
 
     if primfunc_attrs:
@@ -374,8 +374,8 @@ def gen_call_tir_inputs(
             for out in outs
         ]
 
-    tir_vars = None
-    if len(unbound_tir_vars) > 0:
-        tir_vars = _shape_with_old_tir_var(unbound_tir_vars, tir_var_inverse_map)
+    call_tir_args.extend(
+        tirx.stmt_functor.substitute(value, tir_var_inverse_map) for value in unbound_tir_vars
+    )
 
-    return (tir_func, call_tir_args, output_ty, tir_vars)
+    return (tir_func, call_tir_args, output_ty)

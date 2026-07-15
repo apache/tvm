@@ -68,8 +68,6 @@ class CallTIRMutator : public ExprMutator {
     static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
-
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
         call->op.same_as(call_dps_packed_op)) {
       bool is_inplace = call->op.same_as(call_tir_inplace_op);
@@ -157,14 +155,7 @@ class CallTIRMutator : public ExprMutator {
             }
           }
         }
-
-        if (call->args.size() == 2) {
-          builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
-        } else {
-          // unpack semantics
-          args.push_back(call->args[2]);
-          builder_->Emit(Call(Type::Missing(), call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
-        }
+        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
       } else {
         if (!is_inplace) {
           args = outs;
