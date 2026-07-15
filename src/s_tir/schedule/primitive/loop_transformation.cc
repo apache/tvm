@@ -424,7 +424,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).copy_with_dtype(dtype);
+    Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).CopyWithDType(dtype);
     substitute_value = substitute_value * factor + var.as_or_throw<PrimExpr>();
     analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
@@ -675,7 +675,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   // Iterate over each pair of factors and create partition
   for (int i = 0; i < n; i++) {
     extent_value = analyzer->Simplify(factors[i]);
-    Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).copy_with_dtype(dtype);
+    Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).CopyWithDType(dtype);
     Stmt loop_body = tirx::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
@@ -929,7 +929,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   }
   suffix += "_fused";
 
-  Var fused_var = loops[0]->loop_var.CopyWithSuffix(suffix).copy_with_dtype(PrimType::Int(bits));
+  Var fused_var = loops[0]->loop_var.CopyWithSuffix(suffix).CopyWithDType(PrimType::Int(bits));
   ffi::Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
