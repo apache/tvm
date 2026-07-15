@@ -110,7 +110,7 @@ def test_tensorrt_offload():
         [
             relax.transform.BindParams("main", params_np),
             relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(),
+            relax.transform.MergeCompositeFunctions(["tensorrt"]),
             relax.transform.RunCodegen(),
         ]
     )(Conv2dResidualBlock)
@@ -132,7 +132,7 @@ def _offload_and_compare(mod, params_np, patterns, data_np, rtol=1e-2, atol=1e-2
         [
             relax.transform.BindParams("main", params_np),
             relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(),
+            relax.transform.MergeCompositeFunctions(["tensorrt"]),
         ]
     )(mod)
     # Guard against a silent false pass: if no pattern matched, nothing is offloaded and the
@@ -348,7 +348,7 @@ def test_tensorrt_int8_calibration(monkeypatch):
         [
             relax.transform.BindParams("main", {"weight": weight}),
             relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(),
+            relax.transform.MergeCompositeFunctions(["tensorrt"]),
             relax.transform.RunCodegen(),
         ]
     )(Conv2dInt8)
@@ -511,24 +511,35 @@ def test_tensorrt_strided_slice():
 def test_tensorrt_split():
     # Regression test: Relax split has no Relay-style "mode"; it is multi-output. The converter
     # derives per-output extents from the codegen-recorded output shapes.
+    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
+
     @tvm.script.ir_module
     class Split:
         @R.function
         def main(data: R.Tensor((4, 8, 16), "float32")):
             with R.dataflow():
                 parts = relax.op.split(data, 2, axis=1)
-                out = relax.op.add(parts[0], parts[1])
+                out = relax.op.subtract(parts[1], parts[0])
                 R.output(out)
             return out
 
-    data = np.random.randn(4, 8, 16).astype("float32")
-    # Offload the add too so both split outputs are consumed inside TensorRT (and nothing is left
-    # for the VM to legalize).
-    patterns = [
-        ("tensorrt.split", is_op("relax.split")(wildcard())),
-        ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
+    data = np.ones((4, 8, 16), dtype="float32")
+    data[:, 4:, :] = 5
+    ref = build_and_run(Split, [data], "llvm", legalize=True)
+    partitioned = partition_for_tensorrt(Split)
+    regions = [
+        func
+        for func in partitioned.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Codegen") == "tensorrt"
     ]
-    _offload_and_compare(Split, {}, patterns, data)
+    assert len(regions) == 1
+
+    offloaded = relax.transform.RunCodegen()(partitioned)
+    out = build_and_run(offloaded, [data], "cuda")
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+    tvm.testing.assert_allclose(out, np.full_like(out, 4), rtol=1e-2, atol=1e-2)
 
 
 def test_tensorrt_layout_transform():

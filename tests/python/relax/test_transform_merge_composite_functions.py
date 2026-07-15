@@ -931,6 +931,15 @@ def check(mod, expected):
     tvm.ir.assert_structural_equal(partitioned, expected)
 
 
+def count_codegen_regions(mod, codegen_name):
+    return sum(
+        isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Codegen") == codegen_name
+        for func in mod.functions.values()
+    )
+
+
 def test_conv2d_relu_x2():
     check(Conv2dReLUx2, Conv2dReLUx2_merged)
 
@@ -1270,15 +1279,171 @@ def test_tuple_get_item_dependency_prevents_cyclic_merge():
                 R.output(out)
             return out
 
-    after = relax.transform.MergeCompositeFunctions()(Before)
-    codegen_regions = [
-        func
-        for func in after.functions.values()
-        if isinstance(func, relax.Function)
-        and func.attrs is not None
-        and func.attrs.get("Codegen") == "compiler_A"
-    ]
-    assert len(codegen_regions) == 2
+    for codegen_names in (None, ["tensorrt"]):
+        after = relax.transform.MergeCompositeFunctions(codegen_names)(Before)
+        assert count_codegen_regions(after, "compiler_A") == 2
+        relax.analysis.well_formed(after)
+
+
+def test_opt_in_tuple_projection_merging():
+    """An opted-in backend may keep flat tuple projections inside one region."""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(private=True)
+        def split(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            R.func_attr({"Composite": "tensorrt.split", "Primitive": True})
+            return R.split(x, indices_or_sections=2, axis=0)
+
+        @R.function(private=True)
+        def subtract(
+            x: R.Tensor((1, 4), "float32"),
+            y: R.Tensor((1, 4), "float32"),
+        ) -> R.Tensor((1, 4), "float32"):
+            R.func_attr({"Composite": "tensorrt.subtract", "Primitive": True})
+            return R.subtract(x, y)
+
+        @R.function
+        def main(x: R.Tensor((2, 4), "float32")) -> R.Tensor((1, 4), "float32"):
+            cls = Before
+            with R.dataflow():
+                parts = cls.split(x)
+                alias = parts
+                left = alias[0]
+                right = alias[1]
+                repacked = R.tuple(left, right)
+                reordered_left = repacked[0]
+                reordered_right = repacked[1]
+                out = cls.subtract(reordered_right, reordered_left)
+                R.output(out)
+            return out
+
+    default = relax.transform.MergeCompositeFunctions()(Before)
+    assert count_codegen_regions(default, "tensorrt") == 2
+    relax.analysis.well_formed(default)
+
+    merged = relax.transform.MergeCompositeFunctions(["tensorrt"])(Before)
+    assert count_codegen_regions(merged, "tensorrt") == 1
+    relax.analysis.well_formed(merged)
+
+
+def test_inline_tuple_argument_is_visited():
+    """Inline tuple call arguments must have a group before dependency analysis."""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(private=True)
+        def concat(
+            values: R.Tuple(
+                R.Tensor((1, 4), "float32"),
+                R.Tensor((1, 4), "float32"),
+            ),
+        ) -> R.Tensor((2, 4), "float32"):
+            R.func_attr({"Composite": "tensorrt.concatenate", "Primitive": True})
+            return R.concat(values, axis=0)
+
+        @R.function
+        def main(
+            x: R.Tensor((1, 4), "float32"),
+            y: R.Tensor((1, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            cls = Before
+            with R.dataflow():
+                out = cls.concat((x, y))
+                R.output(out)
+            return out
+
+    for codegen_names in (None, ["tensorrt"]):
+        after = relax.transform.MergeCompositeFunctions(codegen_names)(Before)
+        assert count_codegen_regions(after, "tensorrt") == 1
+        relax.analysis.well_formed(after)
+
+
+def test_opt_in_tuple_projection_preserves_real_cycle_boundary():
+    """Transparent projections must not bridge a real dependency through another backend."""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(private=True)
+        def split(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            R.func_attr({"Composite": "tensorrt.split", "Primitive": True})
+            return R.split(x, indices_or_sections=2, axis=0)
+
+        @R.function(private=True)
+        def foreign_relu(
+            x: R.Tensor((1, 4), "float32"),
+        ) -> R.Tensor((1, 4), "float32"):
+            R.func_attr({"Composite": "compiler_B.relu", "Primitive": True})
+            return R.nn.relu(x)
+
+        @R.function(private=True)
+        def add(
+            x: R.Tensor((1, 4), "float32"),
+            y: R.Tensor((1, 4), "float32"),
+        ) -> R.Tensor((1, 4), "float32"):
+            R.func_attr({"Composite": "tensorrt.add", "Primitive": True})
+            return R.add(x, y)
+
+        @R.function
+        def main(x: R.Tensor((2, 4), "float32")) -> R.Tensor((1, 4), "float32"):
+            cls = Before
+            with R.dataflow():
+                parts = cls.split(x)
+                left = parts[0]
+                right = parts[1]
+                foreign = cls.foreign_relu(left)
+                out = cls.add(right, foreign)
+                R.output(out)
+            return out
+
+    after = relax.transform.MergeCompositeFunctions(["tensorrt"])(Before)
+    assert count_codegen_regions(after, "tensorrt") == 2
+    assert count_codegen_regions(after, "compiler_B") == 1
+    relax.analysis.well_formed(after)
+
+
+def test_opt_in_tuple_projection_rejects_escaping_tuple():
+    """Keep the projection outside when the complete tuple also crosses the region boundary."""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function(private=True)
+        def split(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
+            R.func_attr({"Composite": "tensorrt.split", "Primitive": True})
+            return R.split(x, indices_or_sections=2, axis=0)
+
+        @R.function(private=True)
+        def relu(
+            x: R.Tensor((1, 4), "float32"),
+        ) -> R.Tensor((1, 4), "float32"):
+            R.func_attr({"Composite": "tensorrt.relu", "Primitive": True})
+            return R.nn.relu(x)
+
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tuple(
+            R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")),
+            R.Tensor((1, 4), "float32"),
+        ):
+            cls = Before
+            with R.dataflow():
+                parts = cls.split(x)
+                alias = parts
+                left = alias[0]
+                out = cls.relu(left)
+                result = R.tuple(parts, out)
+                R.output(result)
+            return result
+
+    after = relax.transform.MergeCompositeFunctions(["tensorrt"])(Before)
+    assert count_codegen_regions(after, "tensorrt") == 2
     relax.analysis.well_formed(after)
 
 

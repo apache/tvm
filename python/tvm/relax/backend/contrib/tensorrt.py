@@ -140,5 +140,5 @@ def partition_for_tensorrt(mod: IRModule) -> IRModule:
     """
     patterns = get_patterns_with_prefix("tensorrt")
     mod = FuseOpsByPattern(patterns, bind_constants=True, annotate_codegen=False)(mod)
-    mod = MergeCompositeFunctions()(mod)
+    mod = MergeCompositeFunctions(["tensorrt"])(mod)
     return mod
