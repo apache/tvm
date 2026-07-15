@@ -66,7 +66,11 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
       for (size_t j = 0; j < buf->shape.size(); ++j) {
         if (j > 0) os << ", ";
         std::ostringstream shape_os;
-        shape_os << buf->shape[j];
+        if (auto var = buf->shape[j].as<PrimVar>()) {
+          shape_os << ((*var)->name_hint.empty() ? "v" : (*var)->name_hint.c_str());
+        } else {
+          shape_os << buf->shape[j];
+        }
         os << shape_os.str();
       }
       os << "], " << buf->dtype->dtype << ")";

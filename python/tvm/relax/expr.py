@@ -410,45 +410,8 @@ class Constant(ExprWithOp):
         )
 
 
-@tvm_ffi.register_object("relax.expr.Var")
-class Var(ExprWithOp):
-    """The variable class for all Relax bindings.
-
-    Parameters
-    ----------
-    name_hint: str
-        The name hint of the variable.
-
-    ty: Optional[Type]
-        The type annotation of the variable.
-
-    span: Optional[Span]
-        Span that points to original source code
-    """
-
-    name_hint: str
-    span: Span | None
-
-    def __init__(
-        self,
-        name_hint: str,
-        ty: Type | None = None,
-        span: Span | None = None,
-    ) -> None:
-        if ty is not None:
-            ty = tvm.runtime.convert(ty)
-            if not isinstance(ty, Type):
-                raise TypeError(
-                    "ty needs to be an instance of Type. "
-                    "If you attempt to pass in shape, "
-                    "use relax.TensorType(shape, dtype)."
-                )
-        self.__init_handle_by_constructor__(
-            _ffi_api.Var,  # type: ignore
-            name_hint,
-            ty,
-            span,
-        )
+# Ordinary Relax bindings use the canonical IR Var directly.
+Var = tvm.ir.Var
 
 
 @tvm_ffi.register_object("relax.expr.DataflowVar")
@@ -459,8 +422,8 @@ class DataflowVar(Var):
 
     Parameters
     ----------
-    name_hint: str
-        The name hint of the variable.
+    name: str
+        The API name of the variable.  It is stored internally as a name hint.
 
     ty: Optional[Type]
         The type annotation of the variable.
@@ -469,16 +432,25 @@ class DataflowVar(Var):
         Span that points to original source code
     """
 
-    name_hint: str
+    name: str
     span: Span | None
 
     def __init__(
         self,
-        name_hint: str,
+        name: str | None = None,
         ty: Type | None = None,
         span: Span | None = None,
+        *,
+        name_hint: str | None = None,
     ) -> None:
         # pylint: disable=super-init-not-called
+        if name is None:
+            name = name_hint
+        elif name_hint is not None:
+            raise TypeError("Specify either name or name_hint, not both")
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+
         if ty is not None:
             ty = tvm.runtime.convert(ty)
             if not isinstance(ty, Type):
@@ -488,7 +460,7 @@ class DataflowVar(Var):
                     "use relax.TensorType(shape, dtype)."
                 )
 
-        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name_hint, ty, span)  # type: ignore
+        self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name, ty, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.StringImm")
@@ -836,19 +808,21 @@ class TEPlaceholderOp(tvm.te.tensor.Operation):
 
 
 def te_tensor(
-    value: Expr, tir_var_map: dict[tvm.tirx.Var, tvm.tirx.Expr], name: str = "rxplaceholder"
+    value: Expr,
+    tir_var_map: dict[tvm.ir.Var, tvm.tirx.Expr],
+    name: str = "rxplaceholder",
 ):
-    """Create a TE tensor from relax expression, with TIR variables in the
-    tensor shape substituted by the given mapping
+    """Create a TE tensor from a Relax expression, with primitive variables
+    in the tensor shape substituted by the given mapping.
 
     Parameters
     ----------
     value : Expr
         The relax expression, which is required to have TensorType.
 
-    tir_var_map : Dict[tvm.tirx.Var, tvm.tirx.Expr]
-        The mapping to substitute the TIR variables appeared in the
-        shape of the input Expr.
+    tir_var_map : Dict[tvm.ir.Var, tvm.tirx.Expr]
+        The exact-identity mapping used to refresh canonical primitive Vars
+        that appear in the input shape.
 
     name : str
         The name of the created tensor.

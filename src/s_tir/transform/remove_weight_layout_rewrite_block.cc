@@ -96,7 +96,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
 
     ffi::Array<PrimVar> load_indices;
     for (auto ind : load->indices) {
-      TVM_FFI_ICHECK(ind->IsInstance<VarNode>());
+      TVM_FFI_ICHECK(ind.as<PrimVar>());
       load_indices.push_back(ind.as_or_throw<PrimVar>());
     }
     buffer_var_to_index_map_[load->buffer->data.get()] = IndexMap(load_indices, store->indices);

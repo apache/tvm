@@ -170,7 +170,8 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
   }
 
   void UpdatePattern(const PrimExpr& index) {
-    ffi::Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
+    ffi::Array<PrimExpr> m =
+        arith::DetectLinearEquation(index, {warp_index_.as_or_throw<PrimVar>()});
     TVM_FFI_ICHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed. Could not simplify the store index `" << index
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "

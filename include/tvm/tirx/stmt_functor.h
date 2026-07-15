@@ -407,6 +407,17 @@ inline PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<Expr>(cons
 }
 
 /*!
+ * \brief Substitute the vars specified by vmap.
+ * \param range The array of Stmt/PrimExpr to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The modified Range.
+ */
+inline Range Substitute(const Range& range,
+                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
+  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
+}
+
+/*!
  * \brief Substitute the var specified by vmap.
  * \param arr The array of Stmt/PrimExpr to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
@@ -416,17 +427,6 @@ template <typename T>
 ffi::Array<T> Substitute(const ffi::Array<T>& arr,
                          std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
   return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- * \param range The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The modified Range.
- */
-inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
 }
 
 /*!

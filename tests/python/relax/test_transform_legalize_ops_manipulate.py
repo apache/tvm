@@ -1201,9 +1201,9 @@ def test_repeat_symbolic():
 
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor(("2 * a", "b", "c"), dtype="float32"):
-            a = T.Var("a", "int64")
-            b = T.Var("b", "int64")
-            c = T.Var("c", "int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(Expected.repeat, (x,), out_ty=R.Tensor((2 * a, b, c), dtype="float32"))
             return gv
     # fmt: on
@@ -1273,9 +1273,9 @@ def test_tile_symbolic():
 
         @R.function
         def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor((2, "a", "b * 2", "c * 3"), dtype="float32"):
-            a = T.Var("a", "int64")
-            b = T.Var("b", "int64")
-            c = T.Var("c", "int64")
+            a = T.int64()
+            b = T.int64()
+            c = T.int64()
             gv = R.call_tir(Expected.tile, (x,), out_ty=R.Tensor((2, a, b * 2, c * 3), dtype="float32"))
             return gv
     # fmt: on

@@ -57,6 +57,12 @@ class ExprFunctor;
     return VisitExprDefault_(op, std::forward<Args>(args)...); \
   }
 
+#define EXPR_FUNCTOR_DISABLED                                                                    \
+  final {                                                                                        \
+    TVM_FFI_THROW(TypeError) << "Relax does not support " << op->GetTypeKey() << " expressions"; \
+    throw;                                                                                       \
+  }
+
 #define RELAX_EXPR_FUNCTOR_DISPATCH(OP)                                                     \
   vtable.template set_dispatch<OP>([](const ffi::ObjectRef& n, TSelf* self, Args... args) { \
     return self->VisitExpr_(static_cast<const OP*>(n.get()), std::forward<Args>(args)...);  \
@@ -149,6 +155,36 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const GlobalVarNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FunctionNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::BufferLoadNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::ProducerLoadNode* op, Args...) EXPR_FUNCTOR_DISABLED;
+  virtual R VisitExpr_(const tirx::LetNode* op, Args...) EXPR_FUNCTOR_DISABLED;
+  virtual R VisitExpr_(const tirx::ReduceNode* op, Args...) EXPR_FUNCTOR_DISABLED;
+  virtual R VisitExpr_(const tirx::AddNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::SubNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::MulNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::DivNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::ModNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::FloorDivNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::FloorModNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::MinNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::MaxNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::EQNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::NENode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::LTNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::LENode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::GTNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::GENode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::AndNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::OrNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::CastNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::NotNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::SelectNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::RampNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::BroadcastNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::ShuffleNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tvm::IntImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tvm::FloatImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const tirx::StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const SeqExprNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const IfNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const OpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -175,6 +211,36 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(GlobalVarNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(FunctionNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(CallNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::ProducerLoadNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::LetNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::ReduceNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::BufferLoadNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::AddNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::SubNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::MulNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::DivNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::ModNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::FloorDivNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::FloorModNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::MinNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::MaxNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::EQNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::NENode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::LTNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::LENode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::GTNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::GENode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::AndNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::OrNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::CastNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::NotNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::SelectNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::RampNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::BroadcastNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::ShuffleNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tvm::IntImmNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tvm::FloatImmNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(tirx::StringImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(SeqExprNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(IfNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(OpNode);
@@ -207,6 +273,33 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const GlobalVarNode* op) override;
   void VisitExpr_(const FunctionNode* op) override;
   void VisitExpr_(const CallNode* op) override;
+  void VisitExpr_(const tirx::BufferLoadNode* op) override;
+  void VisitExpr_(const tirx::AddNode* op) override;
+  void VisitExpr_(const tirx::SubNode* op) override;
+  void VisitExpr_(const tirx::MulNode* op) override;
+  void VisitExpr_(const tirx::DivNode* op) override;
+  void VisitExpr_(const tirx::ModNode* op) override;
+  void VisitExpr_(const tirx::FloorDivNode* op) override;
+  void VisitExpr_(const tirx::FloorModNode* op) override;
+  void VisitExpr_(const tirx::MinNode* op) override;
+  void VisitExpr_(const tirx::MaxNode* op) override;
+  void VisitExpr_(const tirx::EQNode* op) override;
+  void VisitExpr_(const tirx::NENode* op) override;
+  void VisitExpr_(const tirx::LTNode* op) override;
+  void VisitExpr_(const tirx::LENode* op) override;
+  void VisitExpr_(const tirx::GTNode* op) override;
+  void VisitExpr_(const tirx::GENode* op) override;
+  void VisitExpr_(const tirx::AndNode* op) override;
+  void VisitExpr_(const tirx::OrNode* op) override;
+  void VisitExpr_(const tirx::CastNode* op) override;
+  void VisitExpr_(const tirx::NotNode* op) override;
+  void VisitExpr_(const tirx::SelectNode* op) override;
+  void VisitExpr_(const tirx::RampNode* op) override;
+  void VisitExpr_(const tirx::BroadcastNode* op) override;
+  void VisitExpr_(const tirx::ShuffleNode* op) override;
+  void VisitExpr_(const tvm::IntImmNode* op) override;
+  void VisitExpr_(const tvm::FloatImmNode* op) override;
+  void VisitExpr_(const tirx::StringImmNode* op) override;
   void VisitExpr_(const SeqExprNode* op) override;
   void VisitExpr_(const IfNode* op) override;
   void VisitExpr_(const OpNode* op) override;
@@ -262,7 +355,8 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
    *
    * By default, this function recurse into type such as
    * TensorType and ShapeType and call VisitExpr/VisitTypePrimExprField
-   * accordingly. It does not recurse into FunctionType as it does
+   * accordingly. It does not
+   * recurse into FunctionType as it does
    * not contain Expr defined in the current scope.
    *
    * Pass writers can overload this function to change to other behaviors.
@@ -334,6 +428,33 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const GlobalVarNode* op) override;
   Expr VisitExpr_(const FunctionNode* op) override;
   Expr VisitExpr_(const CallNode* op) override;
+  Expr VisitExpr_(const tirx::BufferLoadNode* op) override;
+  Expr VisitExpr_(const tirx::AddNode* op) override;
+  Expr VisitExpr_(const tirx::SubNode* op) override;
+  Expr VisitExpr_(const tirx::MulNode* op) override;
+  Expr VisitExpr_(const tirx::DivNode* op) override;
+  Expr VisitExpr_(const tirx::ModNode* op) override;
+  Expr VisitExpr_(const tirx::FloorDivNode* op) override;
+  Expr VisitExpr_(const tirx::FloorModNode* op) override;
+  Expr VisitExpr_(const tirx::MinNode* op) override;
+  Expr VisitExpr_(const tirx::MaxNode* op) override;
+  Expr VisitExpr_(const tirx::EQNode* op) override;
+  Expr VisitExpr_(const tirx::NENode* op) override;
+  Expr VisitExpr_(const tirx::LTNode* op) override;
+  Expr VisitExpr_(const tirx::LENode* op) override;
+  Expr VisitExpr_(const tirx::GTNode* op) override;
+  Expr VisitExpr_(const tirx::GENode* op) override;
+  Expr VisitExpr_(const tirx::AndNode* op) override;
+  Expr VisitExpr_(const tirx::OrNode* op) override;
+  Expr VisitExpr_(const tirx::CastNode* op) override;
+  Expr VisitExpr_(const tirx::NotNode* op) override;
+  Expr VisitExpr_(const tirx::SelectNode* op) override;
+  Expr VisitExpr_(const tirx::RampNode* op) override;
+  Expr VisitExpr_(const tirx::BroadcastNode* op) override;
+  Expr VisitExpr_(const tirx::ShuffleNode* op) override;
+  Expr VisitExpr_(const tvm::IntImmNode* op) override;
+  Expr VisitExpr_(const tvm::FloatImmNode* op) override;
+  Expr VisitExpr_(const tirx::StringImmNode* op) override;
   Expr VisitExpr_(const SeqExprNode* op) override;
   Expr VisitExpr_(const IfNode* op) override;
   Expr VisitExpr_(const OpNode* op) override;
@@ -350,9 +471,10 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   virtual BindingBlock VisitBindingBlock(const BindingBlock& block);
 
   /*!
-   * \brief Used to visit the PrimExpr inside of expressions.
+   * \brief Used to visit the PrimExpr inside of dependent type fields.
    *
-   * Can be overloaded to transform the shape expressions.
+   * Can be overloaded to transform shape expressions without changing
+   * runtime PrimExpr traversal.
    */
   virtual PrimExpr VisitTypePrimExprField(const PrimExpr& expr);
 
@@ -361,7 +483,8 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
    *
    * By default, this function recurse into type such as
    * TensorType and ShapeType and call VisitExpr/VisitTypePrimExprField
-   * accordingly. It does not recurse into FunctionType as it does
+   * accordingly. It does not
+   * recurse into FunctionType as it does
    * not contain Expr defined in the current scope.
    *
    * Pass writers can overload this function to change to other behaviors.

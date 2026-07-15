@@ -64,8 +64,8 @@ def test_function_simple():
 
     tvm.ir.assert_structural_equal(func, mod["foo"])
     # check names
-    assert func.params[0].name_hint == "x"
-    assert func.body.body.name_hint == "out"
+    assert func.params[0].name == "x"
+    assert func.body.body.name == "out"
 
 
 def test_emits():
@@ -86,8 +86,8 @@ def test_emits():
             R.func_name("foo")
             x = R.arg("x", relax.TensorType(ndim=-1, dtype="float32"))
             y = R.arg("y", relax.TensorType(ndim=-1, dtype="float32"))
-            m = tirx.Var("m", dtype="int64")
-            n = tirx.Var("n", dtype="int64")
+            m = tirx.Var("m", ty="int64")
+            n = tirx.Var("n", ty="int64")
             _ = R.emit_match_cast(x, relax.TensorType((m,), "float32"))
             y1 = R.emit_match_cast(y, relax.TensorType((n,), "float32"))
             v = relax.Var("v", relax.TensorType((n,), "float32"))
@@ -100,8 +100,8 @@ def test_emits():
     func = ir_builder.get()
 
     # create with BlockBuilder
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     x = relax.Var("x", relax.TensorType(dtype="float32", ndim=-1))
     y = relax.Var("y", relax.TensorType(dtype="float32", ndim=-1))
     v = relax.Var("v", relax.TensorType((n,), "float32"))

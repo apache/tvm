@@ -29,94 +29,13 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 
-#include <functional>
-#include <string>
+#include <utility>
 
 namespace tvm {
 namespace tirx {
 
-/*!
- * \brief A variable node in the IR.
- *
- * A variable is uniquely identified by its address.
- *
- * Each variable is only bound once in the following nodes:
- * - Allocate
- * - For
- * - Let
- * - Bind
- */
-class VarNode : public ExprNode {
- public:
-  /*!
-   * \brief The hint to the variable name.
-   * \note Each variable is uniquely identified by its address.
-   */
-  ffi::String name_hint;
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>().def_ro("name", &VarNode::name_hint,
-                                      refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("tirx.Var", VarNode, ExprNode);
-};
-
-/*! \brief a named variable in TIR */
-class Var : public Expr {
- public:
-  explicit Var(ffi::UnsafeInit tag) : Expr(tag) {}
-  explicit Var(ffi::ObjectPtr<VarNode> n) : Expr(n) {}
-  /*!
-   * \brief Constructor
-   * \param name_hint variable name
-   * \param dtype data type
-   * \param span The location of this object in the source code.
-   */
-  TVM_DLL explicit Var(ffi::String name_hint = "v", PrimType dtype = PrimType::Int(32),
-                       Span span = Span());
-  /*!
-   * \brief Constructor which provides a more detailed type annotation.
-   * \param name_hint variable name.
-   * \param type_annotation The type annotation.
-   * \param span The location of this object in the source code.
-   */
-  TVM_DLL explicit Var(ffi::String name_hint, Type type_annotation, Span span = Span());
-  /*!
-   * \brief Make a new copy of var with same type, but a different nam
-   * \param name The new name to be used.
-   * \return the new Var copy
-   */
-  TVM_DLL Var copy_with_name(const ffi::String& name) const;
-  /*!
-   * \brief Make a new copy of var with same type, append suffix
-   * \param suffix The suffix to be appended.
-   * \return the new Var copy
-   */
-  TVM_DLL Var CopyWithSuffix(const ffi::String& suffix) const;
-  /*!
-   * \brief Make a new copy of the variable with specified dtype
-   * \param dtype The specified dtype
-   * \return The new variable
-   */
-  TVM_DLL Var copy_with_dtype(PrimType dtype) const;
-
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the corresponding Variable.
-   */
-  const VarNode* operator->() const { return get(); }
-  /*!
-   * \brief Get pointer to the internal value.
-   * \return the corresponding Variable.
-   */
-  const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
-  /*! \brief type indicate the container type */
-  using ContainerType = VarNode;
-  static constexpr bool _type_container_is_exact = true;
-};
+using VarNode = tvm::VarNode;
+using Var = tvm::Var;
 
 /*!
  * \brief Checked scalar view over a VarNode.
@@ -147,7 +66,7 @@ class PrimVar : public PrimExpr {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
-  static constexpr bool _type_container_is_exact = true;
+  static constexpr bool _type_container_is_exact = false;
 };
 
 using Region = ffi::Array<Range>;
@@ -334,8 +253,7 @@ struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar>
     if (src->type_index == TypeIndex::kTVMFFINone) {
       return tirx::PrimVar::_type_is_nullable;
     }
-    if (src->type_index < TypeIndex::kTVMFFIStaticObjectBegin ||
-        !details::IsObjectInstance<tirx::VarNode>(src->type_index)) {
+    if (src->type_index != tirx::VarNode::RuntimeTypeIndex()) {
       return false;
     }
     const auto* var = static_cast<const tirx::VarNode*>(
@@ -356,31 +274,5 @@ struct TypeTraits<tirx::PrimVar> : public ObjectRefTypeTraitsBase<tirx::PrimVar>
 };
 
 }  // namespace tvm::ffi
-
-/* \brief Allow tirx.Var as key in STL tables
- *
- * For most TIR expressions, it would be ambiguous whether the
- * expression should follow reference equality or structural equality.
- * This is not the case for variables, which do not contain nested
- * internal structure, and are frequently used as keys in lookup
- * tables.
- *
- * Providing `std::hash` and `std::equal_to` specializations for
- * `tirx::Var` allows it to be used as a key in STL tables.  For
- * `PrimExpr`, the user must specify the type of equality used
- * (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>` or
- * `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
- */
-template <>
-struct std::hash<tvm::tirx::Var> {
-  std::size_t operator()(const tvm::tirx::Var& var) const { return tvm::ffi::ObjectPtrHash()(var); }
-};
-
-template <>
-struct std::equal_to<tvm::tirx::Var> {
-  bool operator()(const tvm::tirx::Var& var_a, const tvm::tirx::Var& var_b) const {
-    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
-  }
-};
 
 #endif  // TVM_TIR_VAR_H_

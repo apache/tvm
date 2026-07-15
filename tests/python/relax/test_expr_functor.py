@@ -423,17 +423,17 @@ def test_seq_expr():
 
 def test_shape_expr():
     x = relax.ShapeExpr([m, n])
-    basic_check(x, "ShapeExpr", "\n".join(["ExprFallback", "ExprFallback", "ShapeExpr"]))
+    basic_check(x, "ShapeExpr", "\n".join(["Var", "Var", "ShapeExpr"]))
 
 
 def test_prim_expr():
-    basic_check(tvm.tirx.IntImm("int64", 1), "ExprFallback", "ExprFallback")
-    basic_check(tvm.tirx.FloatImm("float32", 1.0), "ExprFallback", "ExprFallback")
-    basic_check(m + n, "ExprFallback", "ExprFallback")
+    basic_check(tvm.tirx.IntImm("int64", 1), "", "")
+    basic_check(tvm.tirx.FloatImm("float32", 1.0), "", "")
+    basic_check(m + n, "\n".join(["Var", "Var"]), "\n".join(["Var", "Var"]))
     basic_check(
         tvm.tirx.call_extern("int32", "test"),
-        "\n".join(["Call", "\tOp", "\tExprFallback"]),
-        "\n".join(["Op", "ExprFallback", "Call"]),
+        "\n".join(["Call", "\tOp"]),
+        "\n".join(["Op", "Call"]),
     )
 
 
@@ -442,7 +442,7 @@ def test_call():
     basic_check(
         call_node,
         "\n".join(["Call", "\tOp", "\tVar", "\tVar"]),
-        "\n".join(["Op", "Var", "Var", "ExprFallback", "ExprFallback", "ShapeExpr", "Call"]),
+        "\n".join(["Op", "Var", "Var", "Var", "Var", "ShapeExpr", "Call"]),
     )
 
 
@@ -820,7 +820,7 @@ def test_call_mutator_super():
 
     lm = LeafMutator()
     lm.visit_expr(call_node)
-    assert str(lm.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var"])
+    assert str(lm.log) == "\n".join(["LeafCall", "InternalCall", "Op", "Var", "Var", "Var", "Var"])
 
     lm = LeafMutator()
     lm.visit_expr(dummy)
@@ -851,10 +851,10 @@ def test_function_parameter_mutation():
             self.shape_replacements = shape_replacements
 
         def visit_var_def_(self, var):
-            if var.name_hint in self.shape_replacements:
-                new_shape = self.shape_replacements[var.name_hint]
+            if var.name in self.shape_replacements:
+                new_shape = self.shape_replacements[var.name]
                 new_ty = relax.TensorType(new_shape, dtype=var.ty.dtype)
-                return relax.Var(f"{var.name_hint}_with_new_shape", new_ty)
+                return relax.Var(f"{var.name}_with_new_shape", new_ty)
             else:
                 return var
 

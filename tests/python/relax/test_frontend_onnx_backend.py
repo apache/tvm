@@ -109,7 +109,7 @@ class TVMRelaxBackend(Backend):
         tvm_model, params = relax.frontend.detach_params(tvm_model)
 
         func = tvm_model["main"]
-        func_param_names = [p.name_hint for p in func.params]
+        func_param_names = [p.name for p in func.params]
         graph_input_names = [inp.name for inp in model.graph.input]
 
         return TVMRelaxBackendRep(tvm_model, params, func_param_names, graph_input_names)

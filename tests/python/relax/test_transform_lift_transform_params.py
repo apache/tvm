@@ -227,8 +227,8 @@ def test_basic(consume_params):
         after = relax.transform.LiftTransformParams()(mod)
     tvm.ir.assert_structural_equal(after, expected)
 
-    names_after = [param.name_hint for param in after["main"].params]
-    names_expected = [param.name_hint for param in expected["main"].params]
+    names_after = [param.name for param in after["main"].params]
+    names_expected = [param.name for param in expected["main"].params]
     assert names_after == names_expected
 
 
@@ -1862,6 +1862,53 @@ def test_lift_transform_when_one_already_exists():
     tvm.ir.assert_structural_equal(
         after_lift_without_previous_identity_function,
         after_lift_with_previous_identity_function,
+    )
+
+
+def test_lift_transform_with_primitive_param_used_by_model_tensor():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(dtype="float32", ndim=1),
+            extent: R.Prim("int64"),
+            weight: R.Tensor(["extent"], "float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            transformed = R.multiply(weight, weight)
+            out = R.add(x, transformed)
+            return out
+
+    old_extent = Before["main"].params[1]
+    after = relax.transform.LiftTransformParams(shared_transform=False)(Before)
+    relax.analysis.well_formed(after)
+
+    transform = after["main_transform_params"]
+    bundled_ty = transform.params[0].ty
+    assert isinstance(bundled_ty, relax.TupleType)
+    assert isinstance(bundled_ty.fields[0], tvm.ir.PrimType)
+    assert isinstance(bundled_ty.fields[1], relax.TensorType)
+    assert bundled_ty.fields[1].shape is None
+    assert bundled_ty.fields[1].ndim == 1
+
+    bindings = [binding for block in transform.body.blocks for binding in block.bindings]
+    extent_index = next(
+        i
+        for i, binding in enumerate(bindings)
+        if isinstance(binding, relax.VarBinding) and tvm.ir.is_prim_var(binding.var)
+    )
+    match_cast_index = next(
+        i for i, binding in enumerate(bindings) if isinstance(binding, relax.MatchCast)
+    )
+    extent = bindings[extent_index].var
+    weight = bindings[match_cast_index]
+    assert extent_index < match_cast_index
+    assert weight.ty.shape[0].same_as(extent)
+
+    signature_types = [param.ty for param in transform.params] + [transform.ret_ty]
+    assert all(
+        all(not var.same_as(old_extent) for var in relax.analysis.tir_vars_in_type(ty))
+        for ty in signature_types
     )
 
 

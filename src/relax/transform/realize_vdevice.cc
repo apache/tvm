@@ -247,9 +247,14 @@ class VDeviceSetCollector : ExprVisitor {
     }
   }
 
+  void VisitExprDepTypeField(const Type&) final {}
+
   void VisitExpr_(const VarNode* op) override {
-    if (current_binding_) {
+    if (current_binding_ && !GetType(current_binding_.value()).as<PrimTypeNode>()) {
       auto var = ffi::GetRef<Var>(op);
+      if (GetType(var).as<PrimTypeNode>()) {
+        return;
+      }
       var_to_co_located_vars_[current_binding_.value()].push_back(var);
       var_to_co_located_vars_[var].push_back(current_binding_.value());
     }

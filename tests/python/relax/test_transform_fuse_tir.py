@@ -2520,5 +2520,38 @@ def test_block_name_numeric_suffix_deduplication():
     _check(Before, Expected)
 
 
+def test_primitive_scalar_parameter_preserves_identity():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def add_scalar(x: T.Buffer((4,), "int64"), y: T.Buffer((1,), "int64"), p: T.int64):
+            for i in range(1):
+                with T.sblock("add"):
+                    vi = T.axis.spatial(1, i)
+                    y[vi] = x[0] + p
+
+        @R.function(private=True)
+        def fused(x: R.Tensor((4,), "int64"), p: R.Prim("int64")) -> R.Tensor((1,), "int64"):
+            R.func_attr({"Primitive": True})
+            cls = Before
+            out = R.call_tir(
+                cls.add_scalar,
+                (x,),
+                out_ty=R.Tensor((1,), "int64"),
+                tir_vars=R.shape([p]),
+            )
+            return out
+
+        @R.function
+        def main(x: R.Tensor((4,), "int64"), p: R.Prim("int64")) -> R.Tensor((1,), "int64"):
+            cls = Before
+            out = cls.fused(x, p)
+            return out
+
+    after = relax.transform.FuseTIR()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert tvm.tirx.analysis.verify_well_formed(after["fused"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

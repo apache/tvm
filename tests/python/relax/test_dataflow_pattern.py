@@ -241,7 +241,7 @@ def test_shape_pattern():
     tvm_ffi.structural_equal(pattern.shape, shape)
     assert pattern.match(bindings[0].var)
     assert wildcard().has_shape([32, 32]).match(bindings[0].var)
-    n, m = tirx.Var("n", dtype="int64"), tirx.Var("m", dtype="int64")
+    n, m = tirx.Var("n", ty="int64"), tirx.Var("m", ty="int64")
     symsh_var = rx.Var("x", R.Tensor([n, m, n + m], "float32"))
     assert wildcard().has_shape([n, m, n + m]).match(symsh_var)
     assert wildcard().has_shape([n, m, m + n]).match(symsh_var)  # + is commutative.
@@ -260,7 +260,7 @@ def test_prim_arr_pattern():
     assert pattern[1] == 32
     assert isinstance(pattern, PrimArrPattern)
     assert pattern.match(rx.get_shape_of(bindings[0].var))
-    n, m = tirx.Var("n", dtype="int64"), tirx.Var("m", dtype="int64")
+    n, m = tirx.Var("n", ty="int64"), tirx.Var("m", ty="int64")
     symbolic_shape = rx.ShapeExpr([n, m, n + m])
     assert is_shape([n, m, n + m]).match(symbolic_shape)
     assert not is_shape([n, m, n * m]).match(symbolic_shape)
@@ -1009,9 +1009,9 @@ def test_attention_qkv():
         dfb = QKV_proj["main"].body.blocks[0]
         out = ctx.match_dfb(dfb)
 
-        assert out[Q_weight_pat].name_hint == "w0"
-        assert out[K_weight_pat].name_hint == "w1"
-        assert out[V_weight_pat].name_hint == "w2"
+        assert out[Q_weight_pat].name == "w0"
+        assert out[K_weight_pat].name == "w1"
+        assert out[V_weight_pat].name == "w2"
 
 
 def test_attention_fake_qkv():

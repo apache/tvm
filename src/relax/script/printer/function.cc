@@ -50,7 +50,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { RelaxFrameNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Function>("", [](relax::Function n, AccessPath n_p, IRDocsifier d) -> Doc {
-      std::unordered_set<const tirx::VarNode*> func_vars;
+      std::unordered_set<const VarNode*> func_vars;
       With<RelaxFrame> f(d);
 
       IdDoc func_name("");
@@ -64,23 +64,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->AddDispatchToken(d, "relax");
       (*f)->is_func = true;
       (*f)->func_vars = &func_vars;
-      // Step 1. Print the return type
-      ffi::Optional<ExprDoc> ret_type = std::nullopt;
-      if (const auto& func_ty = relax::MatchType<relax::FuncType>(n)) {
-        ret_type = d->AsDoc<ExprDoc>(func_ty.value()->ret,  //
-                                     n_p->Attr("ty")->Attr("ret"));
-      }
-      // Step 2. Print params
+      // Step 1. Print params
       ffi::Array<AssignDoc> params;
       {
         AccessPath params_p = n_p->Attr("params");
         for (int i = 0, l = n->params.size(); i < l; ++i) {
           params.push_back(AssignDoc(
-              /*lhs=*/DefineVar(n->params[i], *f, d),
+              /*lhs=*/DefineRelaxVar(n->params[i], *f, d),
               /*rhs=*/std::nullopt,
               TypeAsAnn(n->params[i], params_p->ArrayItem(i), d, std::nullopt)));
         }
       }
+      // Step 2. Print the return type
+      ffi::Optional<ExprDoc> ret_type = d->AsDoc<ExprDoc>(n->ret_ty, n_p->Attr("ret_ty"));
       // Step 3. Clean up func variables
       (*f)->func_vars = nullptr;
       // Step 4. Print attributes

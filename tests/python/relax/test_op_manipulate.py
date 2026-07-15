@@ -288,7 +288,7 @@ def test_reshape_infer_ty_wrong_input_type():
     x1 = relax.Var("x", relax.FuncType([], R.Tensor((2, 3, 4, 5), "float32")))
     x2 = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
     ns = relax.Var("ns", relax.TensorType((120,), "float32"))
-    pv = relax.Var("pv", tvm.ir.PrimType("int64"))
+    pv = relax.DataflowVar("pv", tvm.ir.PrimType("int64"))
 
     with pytest.raises(TypeError):
         bb.normalize(relax.op.reshape(x0, (2, 3, 4, 5)))

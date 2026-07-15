@@ -104,6 +104,32 @@ def test_dataflow_var():
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
 
 
+def test_nested_tir_call_in_dependent_type_is_well_formed():
+    p = rx.Var("p", tvm.ir.PrimType("int64"))
+    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    x = rx.Var("x", rx.TensorType([outer], "float32"))
+    bb = rx.BlockBuilder()
+
+    with bb.function("main", [p, x]):
+        bb.emit_func_output(x)
+
+    rx.analysis.well_formed(bb.get())
+
+
+def test_nested_tir_call_in_shape_expr_is_well_formed():
+    p = rx.Var("p", tvm.ir.PrimType("int64"))
+    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    bb = rx.BlockBuilder()
+
+    with bb.function("main", [p]):
+        shape = bb.emit(rx.ShapeExpr([outer]))
+        bb.emit_func_output(shape)
+
+    rx.analysis.well_formed(bb.get())
+
+
 def test_param_var():
     v0 = rx.Var("v0", R.Tensor([m, n], "float32"))
     v1 = rx.Var("v1", R.Tensor([m, n], "float32"))

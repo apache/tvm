@@ -1136,7 +1136,7 @@ def test_apply():
 
     def test_tile_layout_4():
         layout = TileLayout(S[(8, 8) : (8, 1)])
-        v = tvm.tirx.Var("v", dtype="int32")
+        v = tvm.tirx.Var("v", ty="int32")
         res = layout.apply(v)
         assert res["m"] == v
 

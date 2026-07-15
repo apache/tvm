@@ -215,8 +215,9 @@ TVM_DLL Pass BindParams(ffi::String func_name, ffi::Map<Any, ffi::ObjectRef> par
  *
  * \return The Pass.
  */
-TVM_DLL Pass BindSymbolicVars(ffi::Map<ffi::Variant<tirx::Var, ffi::String>, PrimExpr> binding_map,
-                              ffi::Optional<ffi::String> func_name = std::nullopt);
+TVM_DLL Pass
+BindSymbolicVars(ffi::Map<ffi::Variant<tirx::PrimVar, ffi::String>, PrimExpr> binding_map,
+                 ffi::Optional<ffi::String> func_name = std::nullopt);
 
 /*!
  * \brief Fold constant expressions within dataflow blocks.

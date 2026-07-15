@@ -748,7 +748,7 @@ def permute_dims(x: Tensor, axes: list[int] | None = None, name: str | None = No
         The transposed result.
     """
     if name is None:
-        x_name = getattr(getattr(x, "_expr", None), "name_hint", None)
+        x_name = getattr(getattr(x, "_expr", None), "name", None)
         if x_name is not None and "linear" in x_name:
             name = x_name.replace("linear", "matmul")
         else:
@@ -2283,7 +2283,7 @@ def debug_func(
             *converted_args,
             ty_args=[rx.AnyType()],
         ),
-        name_hint=io.effect.name_hint,
+        name_hint=io.effect.name,
     )
 
 

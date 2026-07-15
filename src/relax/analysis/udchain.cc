@@ -142,6 +142,7 @@ std::set<const VarNode*> GetUsedVars(const Expr& expr) {
   class UsedVars : public ExprVisitor {
    public:
     std::set<const VarNode*> used_vars;
+    void VisitExprDepTypeField(const Type&) final {}
     void VisitExpr_(const VarNode* op) override { used_vars.insert(op); }
   } visitor;
   visitor.VisitExpr(expr);

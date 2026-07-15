@@ -272,7 +272,7 @@ struct ReadWriteAtImpl {
     std::vector<Var> loop_vars;
     loop_vars.reserve(n);
     for (int i = 0; i < n; ++i) {
-      loop_vars.push_back(Var("ax" + std::to_string(i)));
+      loop_vars.push_back(PrimVar("ax" + std::to_string(i)));
     }
     ffi::Map<Var, PrimExpr> bindings;
     ffi::Array<IterVar> iter_vars;
@@ -289,12 +289,11 @@ struct ReadWriteAtImpl {
           return (*it).second;
         }
         Range range = loop_domain.at(var);
-        ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*var.get());
-        v->name_hint = "v" + std::to_string(iter_vars.size());
-        bindings.Set(var, Var(v).as_or_throw<PrimExpr>());
+        Var v("v" + std::to_string(iter_vars.size()), var->ty, var->span);
+        bindings.Set(var, v.as_or_throw<PrimExpr>());
         iter_values.push_back(var.as_or_throw<PrimExpr>());
-        iter_vars.push_back(IterVar(range, Var(v).as_or_throw<PrimVar>(), IterVarType::kDataPar));
-        return Var(v).as_or_throw<PrimExpr>();
+        iter_vars.push_back(IterVar(range, v.as_or_throw<PrimVar>(), IterVarType::kDataPar));
+        return v.as_or_throw<PrimExpr>();
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
       dom->min = Substitute(std::move(dom->min), f_substitute);

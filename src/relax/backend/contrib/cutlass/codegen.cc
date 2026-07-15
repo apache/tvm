@@ -152,6 +152,8 @@ using OutputType = std::vector<Output>;
 class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
                        public relax::contrib::CodegenCBase {
  public:
+  using relax::MemoizedExprTranslator<OutputType>::VisitExpr_;
+
   CodegenCutlass(const std::string& id, const ffi::Map<Var, Expr>& bindings)
       : ext_func_id_(id), bindings_(bindings) {}
 

@@ -127,7 +127,7 @@ void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_in
   inequality_set->push_back(new_ineq);
 }
 
-void ClassifyByPolarity(const Var& var, const std::vector<PrimExpr>& current_ineq_set,
+void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current_ineq_set,
                         std::vector<PrimExpr>* next_ineq_set, std::vector<PrimExpr>* rest,
                         std::vector<std::pair<int64_t, PrimExpr>>* coef_pos,
                         std::vector<std::pair<int64_t, PrimExpr>>* coef_neg,
@@ -223,8 +223,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   }
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
-  for (const Var& var : system_to_solve->variables) {
-    PrimVar v = var.as_or_throw<PrimVar>();
+  for (const PrimVar& v : system_to_solve->variables) {
     TVM_FFI_ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
@@ -394,7 +393,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     arith::Analyzer analyzer;
     analyzer->Bind(vranges);
 
-    const Var& var = *it;
+    const PrimVar& var = *it;
     TVM_FFI_ICHECK(solved_bounds.count(var));
     auto bnd = solved_bounds[var];
     if (is_one(bnd->coef) && !bnd->equal.empty()) {
@@ -458,7 +457,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
   ffi::Map<Var, PrimExpr> res_src_to_dst;
   ffi::Map<Var, PrimExpr> res_dst_to_src;
-  ffi::Array<Var> res_variables;
+  ffi::Array<PrimVar> res_variables;
   ffi::Array<PrimExpr> res_relations;
 
   // this keeps being updated during determining the range of each variable.
@@ -471,7 +470,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   // We process variables in the reverse direction to start with the most independent one.
   // This order is needed to compute new ranges.
   for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
-    const Var& var = *it;
+    const PrimVar& var = *it;
     auto bnd = solved_bounds[var];
     // Note that we replace old vars with new ones
     bnd = bnd.Substitute(res_src_to_dst);
@@ -489,7 +488,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
       auto best_range = bnd.FindBestRange(vranges);
 
-      Var new_var = var.CopyWithSuffix(".shifted");
+      PrimVar new_var = var.CopyWithSuffix(".shifted");
       if (!best_range.defined()) {
         res_src_to_dst.Set(var, var.as_or_throw<PrimExpr>());
         res_dst_to_src.Set(var, var.as_or_throw<PrimExpr>());
@@ -536,7 +535,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   }
 
   // Reverse the axis so that it matches the order of the original variables
-  res_variables = ffi::Array<Var>(res_variables.rbegin(), res_variables.rend());
+  res_variables = ffi::Array<PrimVar>(res_variables.rbegin(), res_variables.rend());
 
   IntConstraints new_inequalities(res_variables, res_ranges, res_relations);
   IntConstraintsTransform transform(inequalities, new_inequalities, res_src_to_dst, res_dst_to_src);
@@ -555,7 +554,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                       problem = args[0].cast<IntConstraints>();
                       ret_ineq = SolveLinearInequalities(problem);
                     } else if (args.size() == 3) {
-                      problem = IntConstraints(args[0].cast<ffi::Array<Var>>(),
+                      problem = IntConstraints(args[0].cast<ffi::Array<PrimVar>>(),
                                                args[1].cast<ffi::Map<Var, Range>>(),
                                                args[2].cast<ffi::Array<PrimExpr>>());
                       ret_ineq = SolveLinearInequalities(problem);
@@ -572,7 +571,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                       *ret = SolveInequalitiesToRange(args[0].cast<IntConstraints>());
                     } else if (args.size() == 3) {
                       auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
-                      IntConstraints problem(args[0].cast<ffi::Array<Var>>(), opt_map.value_or({}),
+                      IntConstraints problem(args[0].cast<ffi::Array<PrimVar>>(),
+                                             opt_map.value_or({}),
                                              args[2].cast<ffi::Array<PrimExpr>>());
                       *ret = SolveInequalitiesToRange(problem);
                     } else {
@@ -586,7 +586,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           *ret = SolveInequalitiesDeskewRange(args[0].cast<IntConstraints>());
         } else if (args.size() == 3) {
           auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
-          IntConstraints problem(args[0].cast<ffi::Array<Var>>(), opt_map.value_or({}),
+          IntConstraints problem(args[0].cast<ffi::Array<PrimVar>>(), opt_map.value_or({}),
                                  args[2].cast<ffi::Array<PrimExpr>>());
           *ret = SolveInequalitiesDeskewRange(problem);
         } else {

@@ -383,6 +383,21 @@ def func() -> T.int64:
     tvm.ir.assert_structural_equal(tvm.script.from_source(float_script), float_func)
 
 
+def test_primitive_bindings_roundtrip_without_prim_value_marker():
+    @R.function
+    def func(n: R.Prim("int64")) -> R.Prim("int64"):
+        plus_one = n + 1
+        alias = R.prim_value(plus_one)
+        return alias
+
+    for show_all_ty in [False, True]:
+        source = func.script(show_all_ty=show_all_ty)
+        assert "R.prim_value" not in source
+        assert "plus_one: T.int64" in source
+        assert "alias: T.int64" in source
+        tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+
+
 def test_string_imm():
     obj = relax.StringImm("hello")
     _assert_print(obj, 'R.str("hello")')
@@ -514,7 +529,7 @@ R.call_tir_with_grad(tir_func, (v0,), out_ty=R.Tensor((54, 96), dtype="float32")
 def test_call_tir_inplace():
     x = relax.Var("x", R.Tensor((32, 32), dtype="int32"))
     y = relax.Var("y", R.Tensor((32, 32), dtype="int32"))
-    t = tirx.Var("t", dtype="int64")
+    t = tirx.Var("t", ty="int64")
     call = relax.call_tir_inplace(
         relax.GlobalVar("tir_func"),
         (

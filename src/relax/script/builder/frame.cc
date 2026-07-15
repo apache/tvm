@@ -136,12 +136,11 @@ void BindingBlockFrameNode::EnterWithScope() {
 class VarReplacer : public tvm::relax::ExprMutator {
  public:
   explicit VarReplacer(
-      std::unordered_map<tvm::relax::Var, tvm::relax::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-          var_remap) {
+      std::unordered_map<tvm::Var, tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap) {
     var_remap_ = std::move(var_remap);
   }
 
-  tvm::relax::Var VisitVarDef(const tvm::relax::Var& var) override {
+  tvm::Var VisitVarDef(const tvm::Var& var) override {
     // ExprMutator only applies var_remap_ at usage sites.  This
     // applies var_remap_ at each definition site as well.
     if (auto it = var_remap_.find(var); it != var_remap_.end()) {
@@ -167,11 +166,10 @@ void BindingBlockFrameNode::ExitWithScope() {
   // Step 3. Rewrite the dataflow block.
   if (is_dataflow) {
     // Step 3.0.  Define a map to replace variables
-    ffi::Array<tvm::relax::Var> new_output_vars;
-    std::unordered_map<tvm::relax::Var, tvm::relax::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
-        var_remap;
+    ffi::Array<tvm::Var> new_output_vars;
+    std::unordered_map<tvm::Var, tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap;
     for (const auto& output_var : output_vars) {
-      tvm::relax::Var new_output_var(output_var->name_hint, GetType(output_var));
+      tvm::Var new_output_var(output_var->name_hint, tvm::relax::GetType(output_var));
       new_output_vars.push_back(new_output_var);
       var_remap[output_var] = new_output_var;
     }

@@ -292,6 +292,43 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     return it->second;
   }
 
+  ffi::Optional<Expr> VisitExpr_(const DataflowVarNode* op) final {
+    return VisitExpr_(static_cast<const VarNode*>(op));
+  }
+
+#define VM_TIR_PRIM_EXPR(OP) \
+  ffi::Optional<Expr> VisitExpr_(const OP* op) final { return ffi::GetRef<Expr>(op); }
+
+  VM_TIR_PRIM_EXPR(tirx::BufferLoadNode);
+  VM_TIR_PRIM_EXPR(tirx::AddNode);
+  VM_TIR_PRIM_EXPR(tirx::SubNode);
+  VM_TIR_PRIM_EXPR(tirx::MulNode);
+  VM_TIR_PRIM_EXPR(tirx::DivNode);
+  VM_TIR_PRIM_EXPR(tirx::ModNode);
+  VM_TIR_PRIM_EXPR(tirx::FloorDivNode);
+  VM_TIR_PRIM_EXPR(tirx::FloorModNode);
+  VM_TIR_PRIM_EXPR(tirx::MinNode);
+  VM_TIR_PRIM_EXPR(tirx::MaxNode);
+  VM_TIR_PRIM_EXPR(tirx::EQNode);
+  VM_TIR_PRIM_EXPR(tirx::NENode);
+  VM_TIR_PRIM_EXPR(tirx::LTNode);
+  VM_TIR_PRIM_EXPR(tirx::LENode);
+  VM_TIR_PRIM_EXPR(tirx::GTNode);
+  VM_TIR_PRIM_EXPR(tirx::GENode);
+  VM_TIR_PRIM_EXPR(tirx::AndNode);
+  VM_TIR_PRIM_EXPR(tirx::OrNode);
+  VM_TIR_PRIM_EXPR(tirx::CastNode);
+  VM_TIR_PRIM_EXPR(tirx::NotNode);
+  VM_TIR_PRIM_EXPR(tirx::SelectNode);
+  VM_TIR_PRIM_EXPR(tirx::RampNode);
+  VM_TIR_PRIM_EXPR(tirx::BroadcastNode);
+  VM_TIR_PRIM_EXPR(tirx::ShuffleNode);
+  VM_TIR_PRIM_EXPR(tvm::IntImmNode);
+  VM_TIR_PRIM_EXPR(tvm::FloatImmNode);
+  VM_TIR_PRIM_EXPR(tirx::StringImmNode);
+
+#undef VM_TIR_PRIM_EXPR
+
   ffi::Optional<Expr> VisitExpr_(const ConstantNode* op) final {
     return ConstListGet(builder_->ConvertConstant(op->data).value());
   }
@@ -308,8 +345,6 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
     }
     return ConstListGet(builder_->ConvertConstant(ffi::Shape(shape)).value());
   }
-
-  ffi::Optional<Expr> VisitExprFallback_(const ExprNode* op) final { return ffi::GetRef<Expr>(op); }
 
   ffi::Optional<Expr> VisitExpr_(const StringImmNode* op) final {
     return ConstListGet(builder_->ConvertConstant(op->value).value());

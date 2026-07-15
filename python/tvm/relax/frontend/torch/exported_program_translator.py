@@ -1618,7 +1618,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     # Create fresh symbolic variables to avoid sharing with the caller function.
                     if orig_si.shape is not None:
                         new_shape = [
-                            tvm.tirx.Var(s.name, s.ty) if isinstance(s, tvm.tirx.Var) else s
+                            tvm.ir.Var(s.name, s.ty) if tvm.ir.is_prim_var(s) else s
                             for s in orig_si.shape
                         ]
                         si = relax.TensorType(new_shape, orig_si.dtype)
@@ -2077,12 +2077,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         if isinstance(tir_expr, tvm.tirx.Add):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
+                if isinstance(const, tvm.tirx.IntImm) and tvm.ir.is_prim_var(var):
                     return f"{var.name}___{const.value}", tir_expr
 
         if isinstance(tir_expr, tvm.tirx.Mul):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
+                if isinstance(const, tvm.tirx.IntImm) and tvm.ir.is_prim_var(var):
                     return f"{var.name}_{const.value}", tir_expr
 
         return str(symbol), tir_expr

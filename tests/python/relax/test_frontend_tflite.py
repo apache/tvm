@@ -2995,7 +2995,7 @@ def test_scatter_nd():
                 gv: R.Tensor(dtype="float32", ndim=1) = R.scatter_nd(
                     lv2, lv3, updates, reduction="update"
                 )
-                R.output(gv)
+                R.output(lv1, gv)
             return gv
 
     verify(Model, Expected)
@@ -5294,6 +5294,37 @@ def _get_builtin_operator(builtin_name):
     if not hasattr(_tfl_builtin_operator, builtin_name):
         pytest.skip(f"TFLite schema does not provide BuiltinOperator.{builtin_name}")
     return getattr(_tfl_builtin_operator, builtin_name)
+
+
+def test_broadcast_to_dynamic_shape():
+    builder = flatbuffers.Builder(1024)
+    op_code = _build_operator_code(builder, _get_builtin_operator("BROADCAST_TO"))
+    tensors = [
+        _build_tensor(builder, 0, [2, 2], tensor_type=_tfl_tensor_type.FLOAT32),
+        _build_tensor(builder, 0, [3], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 0, [3, 2, 2], tensor_type=_tfl_tensor_type.FLOAT32),
+    ]
+    op = _build_operator(builder, 0, [0, 1], [2])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+    model = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[op_code],
+        buffers=[_build_buffer(builder)],
+    )
+    mod = _load_model_from_buffer(model)
+    relax.analysis.well_formed(mod)
+
+    shape_binding, result_binding = mod["main"].body.blocks[0].bindings
+    assert not isinstance(shape_binding.var, relax.DataflowVar)
+    tvm.ir.assert_structural_equal(result_binding.var.ty.shape, shape_binding.var)
+    assert mod["main"].body.body.same_as(result_binding.var)
 
 
 def _build_tflite_operator_marker_model(builtin_name):

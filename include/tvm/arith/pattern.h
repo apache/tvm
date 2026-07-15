@@ -37,7 +37,7 @@ namespace arith {
  * \param vars List of variables to be used in detection.
  * \return [coeff[i]] if it is possible, empty array if it is not.
  */
-ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<tirx::Var>& vars);
+ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<tirx::PrimVar>& vars);
 
 /*!
  * \brief Detect if expression corresponds to clip bound of the vars
@@ -47,7 +47,7 @@ ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<ti
  * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
  *          return empty if the e does not match the pattern.
  */
-ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<tirx::Var>& vars);
+ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<tirx::PrimVar>& vars);
 
 }  // namespace arith
 }  // namespace tvm

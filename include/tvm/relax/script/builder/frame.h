@@ -98,7 +98,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
    */
   ffi::Optional<ffi::String> name;
   /*! \brief The function params. */
-  ffi::Array<tvm::relax::Var> params;
+  ffi::Array<tvm::Var> params;
   /*!
    * \brief The function return type.
    * \note Usually the function return type can be deduced by the function body.
@@ -151,7 +151,7 @@ class BindingBlockFrameNode : public RelaxFrameNode {
   /*! \brief The flag that indicates whether the block is a dataflow block. */
   bool is_dataflow;
   /*! \brief The variables emitted in this block. */
-  ffi::Array<tvm::relax::Var> emitted_vars;
+  ffi::Array<tvm::Var> emitted_vars;
   /*!
    * \brief A boolean indicating if the dataflow block is ended of construction.
    * If it is true, any new binding trying to be emitted into this block will cause an error.
@@ -162,7 +162,7 @@ class BindingBlockFrameNode : public RelaxFrameNode {
    * \brief The output vars of the dataflow block.
    * \note Only used for a dataflow block.
    */
-  ffi::Array<tvm::relax::Var> output_vars;
+  ffi::Array<tvm::Var> output_vars;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -203,7 +203,7 @@ class IfFrameNode : public RelaxFrameNode {
   /*! \brief The Bindings in the false branch. */
   ffi::Optional<tvm::relax::Expr> else_expr;
   /*! \brief The Binding var. */
-  tvm::relax::Var var;
+  tvm::Var var;
   /*! \brief The binding var name. */
   ffi::String var_name;
 

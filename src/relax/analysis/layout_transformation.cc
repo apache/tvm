@@ -41,7 +41,7 @@ using namespace tirx;
 
 /*! \brief Checks if a transformation is bijective affine over the given ranges */
 static bool IsBijectiveAffine(const IndexMap& m, const ffi::Array<Range>& ranges) {
-  ffi::Map<tirx::Var, Range> input_iters;
+  ffi::Map<tirx::PrimVar, Range> input_iters;
   TVM_FFI_ICHECK_EQ(m->initial_indices.size(), ranges.size());
   for (size_t i = 0; i < ranges.size(); i++) {
     input_iters.Set(m->initial_indices[i], ranges[i]);
@@ -85,8 +85,8 @@ class IndexAnalyzer : public ExprVisitor {
   }
 
   void VisitIterMark(const arith::IterMark& op) {
-    if (const auto* var = op->source.as<tirx::VarNode>())
-      iterators_.push_back(ffi::GetRef<tirx::Var>(var));
+    if (auto var = op->source.as<tirx::PrimVar>())
+      iterators_.push_back(var.value());
     else
       VisitExpr(op->source);
     VisitExpr(op->extent);
@@ -298,8 +298,8 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
       continue;
     }
 
-    auto new_dim = tirx::Var("d");
-    PrimExpr new_dim_expr = new_dim.as_or_throw<PrimExpr>();
+    tirx::PrimVar new_dim("d");
+    PrimExpr new_dim_expr = new_dim;
     initial_indices_it = initial_indices.insert(initial_indices_it, new_dim);
     final_indices_it = final_indices.insert(final_indices_it, new_dim_expr);
     // Advance past the newly inserted element so subsequent iterations start correctly.
@@ -531,7 +531,7 @@ class BlockAnalyzer : public StmtExprVisitor {
  private:
   bool can_transform_block_;
   IndexMap write_transformation_;
-  ffi::Map<tirx::Var, Range> spatial_dom_;
+  ffi::Map<tirx::PrimVar, Range> spatial_dom_;
   arith::Analyzer arith_analyzer_;
 
   SBlock block_;

@@ -408,10 +408,11 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     if (buf_store == nullptr) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
     }
-    const auto* var = buf_store->value.as<VarNode>();
-    if (var == nullptr) {
+    auto var_ref = buf_store->value.as<PrimVar>();
+    if (!var_ref.has_value()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/7);
     }
+    const VarNode* var = var_ref.value().get();
     auto it = var2index.find(var);
     if (it == var2index.end()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/7);

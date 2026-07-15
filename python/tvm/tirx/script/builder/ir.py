@@ -39,6 +39,7 @@ from tvm.ir import register_op_attr as _register_op_attr
 from tvm.ir.base import deprecated
 from tvm.runtime import convert
 from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.ir import meta_var
 from tvm.target import Target
 
 # pylint: disable=unused-import
@@ -1471,9 +1472,11 @@ def Bind(  # pylint: disable=invalid-name
         The bound variable.
     """
     if type_annotation is not None:
-        if callable(type_annotation):
+        # Canonical Vars are callable when they denote functions.  Here a Var is
+        # already a resolved type annotation, rather than a deferred annotation factory.
+        if callable(type_annotation) and not isinstance(type_annotation, Expr):
             type_annotation = type_annotation()
-        if isinstance(type_annotation, Var):
+        if isinstance(type_annotation, ir.Var):
             type_annotation = type_annotation.ty
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -1510,7 +1513,7 @@ class LetAnnotation:
     def as_var(self, rhs_dtype=None):
         """Resolve to a tir.Var."""
         if self.type_spec is not None:
-            if isinstance(self.type_spec, Var):
+            if isinstance(self.type_spec, ir.Var):
                 return self.type_spec  # Already a Var (e.g. T.handle(...))
             elif callable(self.type_spec):
                 return self.type_spec()  # e.g. T.int32() -> Var
@@ -2123,7 +2126,7 @@ def _name_meta_value(
         IRBuilder.name(prefix, resource)
         named_resources.append(resource)
         return
-    if isinstance(value, Var | IterVar):
+    if isinstance(value, ir.Var | IterVar):
         if owned_resources is not None:
             return
         IRBuilder.name(prefix, value)
@@ -2872,13 +2875,7 @@ def Range(begin: Expr, end: Expr) -> ir.Range:  # pylint: disable=invalid-name
 
 
 if TYPE_CHECKING:
-    T = TypeVar("T")
     C = TypeVar("C")
-
-    # When type checking (and by extension, for linters like Pylint), treat
-    # meta_var as an identity function.
-    def meta_var(x: T) -> T:
-        return x
 
     def meta_class(cls: C) -> C:
         return cls
@@ -2923,25 +2920,6 @@ else:
         Instances of decorated classes are treated as parser meta values.
         """
         return _install_meta_class(cls)
-
-    class meta_var:
-        """A meta variable used in TVMScript metaprogramming.
-
-        The value does not appear in the final TIR and only exists in the parser.
-
-        Parameters
-        ----------
-        value: Any
-            The meta variable.
-        """
-
-        def __init__(self, value: Any) -> None:
-            self.value = value
-
-        def __iter__(self):
-            # Return a generator that yields wrapped items.
-            return (meta_var(i) for i in self.value)
-
 
 # pylint: disable=invalid-name
 

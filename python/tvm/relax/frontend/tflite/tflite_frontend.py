@@ -5180,7 +5180,7 @@ class OperatorConverter:
         if self.has_expr(shape_tensor.tensor_idx):
             shape_expr = self.get_expr(shape_tensor.tensor_idx)
             shape_expr = self.bb.normalize(relax.op.astype(shape_expr, "int64"))
-            shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
+            shape = self.bb.emit_output(relax.op.tensor_to_shape(shape_expr))
         else:
             shape = to_int_list(self.get_tensor_value(shape_tensor))
 
@@ -6780,7 +6780,7 @@ class OperatorConverter:
         shape_tensor = input_tensors[1]
         if self.has_expr(shape_tensor.tensor_idx):
             shape_expr = self.get_expr(shape_tensor.tensor_idx)
-            shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
+            shape = self.bb.emit_output(relax.op.tensor_to_shape(shape_expr))
         else:
             shape = to_int_list(self.get_tensor_value(shape_tensor))
         return relax.op.broadcast_to(data, shape)
@@ -9006,7 +9006,7 @@ def from_tflite(
                         "(e.g. runtime string queries)"
                     )
                 input_var = relax.Var(
-                    name_hint=model_input_name,
+                    name=model_input_name,
                     ty=relax.TensorType(shape=shape, dtype=dtype),
                 )
                 exp_tab.set_expr(model_input_name, input_var)

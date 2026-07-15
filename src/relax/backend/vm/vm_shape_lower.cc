@@ -34,6 +34,8 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 
+#include <unordered_set>
+
 namespace tvm {
 namespace relax {
 
@@ -73,6 +75,8 @@ struct MatchShapeTodoItem {
 using PrimExprSlotMap =
     std::unordered_map<PrimExpr, PrimExprSlot*, ffi::StructuralHash, tirx::ExprDeepEqual>;
 
+using LiveVarSet = std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
+
 static bool IsRelaxOwnedCall(const CallNode* call) {
   auto op = call->op.as<Op>();
   if (!op) return true;
@@ -90,30 +94,61 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
     PrimExprSlotCollector collector;
     collector.slot_vec_ = slot_vec;
     collector.slot_map_ = slot_map;
-    // collect shape declaration in func params
-    for (auto param : func->params) {
+    VarUsageInfo usage = CollectVarUsage(func);
+    collector.bound_values_ = &usage.bound_values;
+    for (const Var& output : usage.outputs) collector.MarkLive(output);
+    for (const Var& param : func->params) collector.VisitType(GetType(param));
+    collector.VisitType(func->ret_ty);
+    collector.VisitExpr(func->body);
+    collector.collect_slots_ = true;
+    for (const Var& param : func->params) {
       collector.VisitType(GetType(param));
-      collector.VisitExpr(param);
     }
     collector.VisitExpr(func->body);
     collector.VisitType(func->ret_ty);
   }
 
  private:
-  void VisitExpr_(const CallNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>(); prim_expr && !IsRelaxOwnedCall(op)) {
-      CollectPrimExprSlot(prim_expr.value());
+  void VisitBinding_(const VarBindingNode* op) final {
+    if (!collect_slots_) {
+      VisitVarDef(op->var);
       return;
+    }
+    bool collect_scalar = collect_scalar_;
+    collect_scalar_ = live_vars_.count(op->var);
+    ExprVisitor::VisitExpr(op->value);
+    collect_scalar_ = collect_scalar;
+    VisitVarDef(op->var);
+  }
+
+  void MarkLive(const PrimExpr& expr) {
+    for (const Var& var : tirx::UndefinedVars(expr)) MarkLive(var);
+  }
+
+  void MarkLive(const Var& var) {
+    if (!live_vars_.insert(var).second) return;
+    if (auto it = bound_values_->find(var); it != bound_values_->end()) {
+      for (const VarNode* used : GetUsedVars((*it).second)) MarkLive(ffi::GetRef<Var>(used));
+    }
+  }
+
+  void VisitExpr_(const VarNode* op) final {
+    Var var = ffi::GetRef<Var>(op);
+    if (collect_scalar_ && !var.as<DataflowVarNode>()) {
+      if (auto prim_var = var.as<tirx::PrimVar>();
+          prim_var && prim_var.value().ty()->dtype == DLDataType{kDLInt, 64, 1}) {
+        HandlePrimExpr(prim_var.value());
+      }
     }
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExprFallback_(const ExprNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>()) {
-      CollectPrimExprSlot(prim_expr.value());
-    } else {
-      ExprVisitor::VisitExprFallback_(op);
-    }
+  void VisitExpr_(const ShapeExprNode* op) final {
+    for (const PrimExpr& value : op->values) HandlePrimExpr(value);
+  }
+
+  void HandlePrimExpr(const PrimExpr& expr) {
+    collect_slots_ ? CollectPrimExprSlot(expr) : MarkLive(expr);
   }
 
   void CollectPrimExprSlot(const PrimExpr& expr) {
@@ -150,14 +185,18 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
     // Do not recurse into function type as it is self-contained
   }
 
-  void VisitTypePrimExprField(const PrimExpr& expr) final { CollectPrimExprSlot(expr); }
+  void VisitTypePrimExprField(const PrimExpr& expr) final { HandlePrimExpr(expr); }
 
-  void VisitTypeExprField(const PrimExpr& expr) final { CollectPrimExprSlot(expr); }
+  void VisitTypeExprField(const PrimExpr& expr) final { HandlePrimExpr(expr); }
 
   void VisitTypeExprField(const Expr& expr) final { ExprVisitor::VisitExpr(expr); }
 
   std::vector<std::unique_ptr<PrimExprSlot>>* slot_vec_;
   PrimExprSlotMap* slot_map_;
+  const ffi::Map<Var, Expr>* bound_values_;
+  LiveVarSet live_vars_;
+  bool collect_slots_{false};
+  bool collect_scalar_{true};
 };
 
 /*!
@@ -258,18 +297,42 @@ class VMShapeLowerMutator
 
   using ExprMutator::VisitExpr_;
 
+  Expr VisitExpr_(const VarNode* op) final {
+    Var var = ffi::GetRef<Var>(op);
+    if (!var.as<DataflowVarNode>()) {
+      if (auto prim_var = var.as<tirx::PrimVar>(); prim_var && slot_map_.count(*prim_var)) {
+        return RewritePrimValue(*prim_var);
+      }
+    }
+    return ExprMutator::VisitExpr_(op);
+  }
+
   Expr VisitExpr_(const CallNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>(); prim_expr && !IsRelaxOwnedCall(op)) {
+    if (auto prim_expr = ffi::GetRef<Call>(op).as<PrimExpr>();
+        prim_expr && slot_map_.count(prim_expr.value()) && !IsRelaxOwnedCall(op)) {
       return RewritePrimValue(prim_expr.value());
     }
     return ExprMutator::VisitExpr_(op);
   }
 
   Expr VisitExprFallback_(const ExprNode* op) final {
-    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>()) {
+    if (auto prim_expr = ffi::GetRef<Expr>(op).as<PrimExpr>();
+        prim_expr && slot_map_.count(prim_expr.value())) {
       return RewritePrimValue(prim_expr.value());
     }
     return ExprMutator::VisitExprFallback_(op);
+  }
+
+  void VisitBinding_(const VarBindingNode* binding) final {
+    if (binding->var.as<DataflowVarNode>()) {
+      ExprMutator::VisitBinding_(binding);
+      return;
+    }
+    ExprMutator::VisitBinding_(binding);
+    PrimExprSlot* result_slot = GetPrimValueSlot(binding->var);
+    if (result_slot != nullptr) {
+      EmitRuntimePrimValueMatch(binding->var, result_slot, "");
+    }
   }
 
   // Unit rewrite function per function.
@@ -308,6 +371,9 @@ class VMShapeLowerMutator
                 << "], param=" << func->params[i]->name_hint << ", annotation=" << ty << ") ";
         this->CheckMatchCast(ty, func->params[i], true, i >= num_input, err_ctx.str(),
                              &match_todos);
+        if (PrimExprSlot* slot = GetPrimValueSlot(func->params[i])) {
+          match_todos.push_back(MatchShapeTodoItem{func->params[i], {slot->expr}, err_ctx.str()});
+        }
       }
       // insert heap generation logic.
       match_todos = this->RunMatch(match_todos, false);
@@ -349,6 +415,29 @@ class VMShapeLowerMutator
   // PrimExpr slot handling
   //-------------------------------------------------------
   static DLDataType ShapeDType() { return DLDataType{kDLInt, 64, 1}; }
+
+  PrimExprSlot* GetPrimValueSlot(const Var& var) const {
+    if (var.as<DataflowVarNode>()) return nullptr;
+    auto prim_var = var.as<tirx::PrimVar>();
+    if (!prim_var) return nullptr;
+    auto it = slot_map_.find(PrimExpr(*prim_var));
+    return it == slot_map_.end() ? nullptr : it->second;
+  }
+
+  /*! \brief Match one runtime register against its demanded leaf slot. */
+  void EmitRuntimePrimValueMatch(const Var& var, PrimExprSlot* slot, const ffi::String& err_ctx) {
+    Var runtime_var = var;
+    if (auto it = var_remap_.find(var); it != var_remap_.end()) {
+      runtime_var = it->second;
+    }
+
+    auto [code, rvalue] = MakeMatchArgs(slot->expr, false);
+    ffi::Array<Expr> args = {runtime_var, shape_heap_, IntImm::Int64(static_cast<int>(code)),
+                             rvalue, GetErrContext(err_ctx)};
+    builder_->Emit(Call(Type::Missing(), builtin_match_prim_value_, args, Attrs(), {void_ty_}),
+                   "_");
+    this->EmitOutstandingPrimExprCompute();
+  }
 
   /*! \brief populate additional information in the slot. */
   void PopulateSlotInfo() {
@@ -462,10 +551,10 @@ class VMShapeLowerMutator
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
-    Expr value = this->VisitExpr(binding->value);
-    std::vector<MatchShapeTodoItem> match_todos;
     std::ostringstream err_ctx;
     err_ctx << "ErrorContext(match_cast, ty=" << binding->ty << ") ";
+    Expr value = this->VisitExpr(binding->value);
+    std::vector<MatchShapeTodoItem> match_todos;
     // always_check=false
     this->CheckMatchCast(binding->ty, value, false, false, err_ctx.str(), &match_todos);
 
@@ -476,6 +565,9 @@ class VMShapeLowerMutator
     // These checks are emitted as extra, in codegen
     // match-cast is simply ignored and treated as a normal binding.
     ExprMutator::VisitBinding_(binding);
+    if (PrimExprSlot* slot = GetPrimValueSlot(binding->var)) {
+      EmitRuntimePrimValueMatch(binding->var, slot, err_ctx.str());
+    }
   }
 
   // Do not override shape in type fields

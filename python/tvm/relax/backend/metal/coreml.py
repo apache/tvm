@@ -353,7 +353,7 @@ class CodegenCoreML(PyExprVisitor):
 
     def visit_function_(self, op) -> None:
         for var in op.params:
-            name = var.name_hint
+            name = var.name
             ty = var.ty
             if isinstance(ty, TensorType):
                 shape = [int(v) for v in list(ty.shape)]
@@ -367,7 +367,7 @@ class CodegenCoreML(PyExprVisitor):
         self.visit_expr(op.body)
 
     def visit_var_(self, var):
-        self.out_map[var] = [var.name_hint]
+        self.out_map[var] = [var.name]
         prev_binding_var = self.cur_binding_var
         self.cur_binding_var = var
         if var in self.var2val:

@@ -143,8 +143,8 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
           vars = &result.non_spatial_vars;
         }
         PostOrderVisit(iter_value, [vars](const ffi::ObjectRef& obj) {
-          if (const VarNode* var = obj.as<VarNode>()) {
-            vars->insert(var);
+          if (auto var = obj.as<PrimVar>()) {
+            vars->insert(var.value().get());
           }
         });
       }
@@ -560,9 +560,13 @@ bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& l
   if (loop_var_ranges.empty()) {
     return true;
   }
+  ffi::Map<PrimVar, Range> primitive_loop_var_ranges;
+  for (const auto& [var, range] : loop_var_ranges) {
+    primitive_loop_var_ranges.Set(var.as_or_throw<PrimVar>(), range);
+  }
   auto res = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
-      /*input_iters=*/loop_var_ranges,
+      /*input_iters=*/primitive_loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*check_level=*/arith::IterMapLevel::Surjective,
       /*analyzer=*/ffi::GetRef<arith::Analyzer>(analyzer),
@@ -1387,8 +1391,8 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
     if (as_const_int(dom->extent) == nullptr) {
       return kNotExist;
     }
-    if (const auto* v = dom->min.as<VarNode>()) {
-      var2idx.emplace(v, i);
+    if (auto var = dom->min.as<PrimVar>()) {
+      var2idx.emplace(var.value().get(), i);
     } else {
       return kNotExist;
     }
@@ -1998,8 +2002,8 @@ class AutoTensorizeMappingProposer {
     for (const auto& it : extractor_->rhs_buffer_indices_map_) {
       const Buffer& rhs_buffer = it.first;
       for (const PrimExpr& rhs_index : it.second) {
-        if (const VarNode* var_node = rhs_index.as<VarNode>()) {
-          update_mask(var_node, &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
+        if (auto var = rhs_index.as<PrimVar>()) {
+          update_mask(var.value().get(), &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
         } else {
           TVM_FFI_THROW(ValueError)
               << "Buffer index " << rhs_index
@@ -2012,8 +2016,8 @@ class AutoTensorizeMappingProposer {
       const Buffer& lhs_buffer = lhs_buffer_it->second;
       for (const PrimExpr& index : extractor_->lhs_buffer_indices_map_.at(lhs_buffer)) {
         PreOrderVisit(index, [&](const ffi::ObjectRef& obj) -> bool {
-          if (const VarNode* var = obj.as<VarNode>()) {
-            update_mask(var, &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
+          if (auto var = obj.as<PrimVar>()) {
+            update_mask(var.value().get(), &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
           }
           return true;
         });

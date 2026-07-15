@@ -248,7 +248,7 @@ bool ShouldPrintAsTIR(const Call& call) {
   if (!call->ty.as<PrimTypeNode>()) {
     return false;
   }
-  if (call->op->ty.as<relax::FuncTypeNode>() || call->op.as<relax::VarNode>() ||
+  if (call->op->ty.as<relax::FuncTypeNode>() || call->op.as<tvm::VarNode>() ||
       call->op.as<relax::FunctionNode>() || call->op.as<relax::ExternFuncNode>()) {
     return false;
   }
@@ -301,8 +301,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               prefix = IdDoc(name);
             }
             prefix->source_paths.push_back(n_p->Attr("op"));
-          } else if (n->op->IsInstance<relax::VarNode>() ||
-                     n->op->IsInstance<tvm::GlobalVarNode>()) {
+          } else if (n->op->IsInstance<tvm::VarNode>() || n->op->IsInstance<tvm::GlobalVarNode>()) {
             prefix = d->AsDoc<ExprDoc>(n->op, n_p->Attr("op"));
           } else {
             TVM_FFI_THROW(TypeError) << "Unsupported op: " << n->op->GetTypeKey();

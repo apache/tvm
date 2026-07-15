@@ -235,8 +235,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     // Collect the block vars in original index computation
     info->origin_block_vars.push_back({});
     PostOrderVisit(index_expr, [&info, &expr_index](const ffi::ObjectRef& node) {
-      if (node->IsInstance<VarNode>()) {
-        Var iter_var = node.as_or_throw<Var>();
+      if (auto var = node.as<PrimVar>()) {
+        Var iter_var = var.value();
         const ffi::Array<Var>& origin_block_var = info->origin_block_vars[expr_index];
         auto find_result = std::find_if(origin_block_var.begin(), origin_block_var.end(),
                                         [&](Var it) { return it.get() == iter_var.get(); });
@@ -251,8 +251,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
     std::vector<Var> iter_vars;
     for (const Var& it : info->origin_block_vars[expr_index]) {
       PostOrderVisit(info->var_binding.at(it), [/*&info,*/ &iter_vars](const ffi::ObjectRef& node) {
-        if (node->IsInstance<VarNode>()) {
-          Var iter_var = node.as_or_throw<Var>();
+        if (auto var = node.as<PrimVar>()) {
+          Var iter_var = var.value();
           if (std::find_if(iter_vars.begin(), iter_vars.end(),
                            [&](Var it) { return it.get() == iter_var.get(); }) == iter_vars.end()) {
             iter_vars.push_back(iter_var);

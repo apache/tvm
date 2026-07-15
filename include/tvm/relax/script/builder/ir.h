@@ -45,7 +45,7 @@ TVM_DLL FunctionFrame Function(bool is_pure, bool is_private);
  * \param ty The ty of the parameter.
  * \return The created function parameter var.
  */
-TVM_DLL tvm::relax::Var Arg(const ffi::String& name, const tvm::Type& ty);
+TVM_DLL tvm::Var Arg(const ffi::String& name, const tvm::Type& ty);
 
 /*!
  * \brief Specify the name of the last function frame.
@@ -89,7 +89,7 @@ TVM_DLL BindingBlockFrame Dataflow();
  * \brief Expose the dataflow block output variables as global ones
  * \param vars The output variables of a dataflow block
  */
-TVM_DLL void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars);
+TVM_DLL void DataflowBlockOutput(const ffi::Array<tvm::Var>& vars);
 
 ////////////////////////////// Bindings ////////////////////////////////
 
@@ -99,8 +99,8 @@ TVM_DLL void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars);
  * \param annotate_ty The optional type annotation for the emitted value.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value,
-                             const ffi::Optional<tvm::Type>& annotate_ty = std::nullopt);
+TVM_DLL tvm::Var Emit(const tvm::relax::Expr& value,
+                      const ffi::Optional<tvm::Type>& annotate_ty = std::nullopt);
 
 /*!
  * \brief Emit a match_cast binding to the last binding block frame.
@@ -108,14 +108,14 @@ TVM_DLL tvm::relax::Var Emit(const tvm::relax::Expr& value,
  * \param ty The type of the MatchCast to be emitted.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& ty);
+TVM_DLL tvm::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& ty);
 
 /*!
  * \brief Emit a binding to the last binding block frame.
  * \param binding The binding to be emitted.
  * \return The left side var of the emitted binding.
  */
-TVM_DLL tvm::relax::Var EmitVarBinding(const tvm::relax::VarBinding& binding);
+TVM_DLL tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding);
 
 ///////////////////////////// If Then Else /////////////////////////////
 

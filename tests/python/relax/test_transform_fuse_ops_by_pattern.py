@@ -836,8 +836,8 @@ def test_check_pattern():
         lhs = context.annotated_expr["lhs"]
         rhs = context.annotated_expr["rhs"]
         expr = context.annotated_expr["root"]
-        assert isinstance(lhs, relax.expr.Var) and lhs.name_hint == "data"
-        assert isinstance(rhs, relax.expr.Var) and rhs.name_hint == "weight1"
+        assert isinstance(lhs, relax.expr.Var) and lhs.name == "data"
+        assert isinstance(rhs, relax.expr.Var) and rhs.name == "weight1"
         assert isinstance(expr, tvm.ir.Call) and expr.op.name == "relax.nn.conv2d"
         return False
 

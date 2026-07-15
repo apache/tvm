@@ -321,8 +321,9 @@ class DistributedBufferCompactor : StmtExprMutator {
       if (!iter_var_shards_.count(iter_var->var)) {
         continue;
       }
-      TVM_FFI_ICHECK(iter_value.as<VarNode>());
-      loop_var_shards_[iter_value.as_or_throw<Var>()] = iter_var_shards_[iter_var->var];
+      auto loop_var = iter_value.as<PrimVar>();
+      TVM_FFI_ICHECK(loop_var);
+      loop_var_shards_[loop_var.value()] = iter_var_shards_[iter_var->var];
     }
     return realize;
   }

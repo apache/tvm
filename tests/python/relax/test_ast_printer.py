@@ -77,11 +77,11 @@ def assert_fields(nodename: str, fields: dict[str, str], target: str) -> None:
 def test_var() -> None:
     v0 = rx.Var("v0")
     v0_str = dump_ast(v0)
-    assert v0_str == 'Var(name_hint="v0")'
+    assert v0_str == 'Var(name="v0")'
 
     v1 = rx.Var("v1", R.Tensor([54, 96], "float32"))
     v1_no_annos = dump_ast(v1, include_ty_annotations=False)
-    assert v1_no_annos == 'Var(name_hint="v1")'
+    assert v1_no_annos == 'Var(name="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "Expr" in v1_annos
@@ -91,11 +91,11 @@ def test_var() -> None:
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
     v0_str = dump_ast(v0)
-    assert v0_str == 'DataflowVar(name_hint="v0")'
+    assert v0_str == 'DataflowVar(name="v0")'
 
     v1 = rx.DataflowVar("v1", R.Tensor([54, 96], "float16"))
     v1_no_annos = dump_ast(v1, include_ty_annotations=False)
-    assert v1_no_annos == 'DataflowVar(name_hint="v1")'
+    assert v1_no_annos == 'DataflowVar(name="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "Expr" in v1_annos
@@ -104,8 +104,8 @@ def test_dataflow_var() -> None:
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
@@ -135,14 +135,14 @@ def test_var_binding() -> None:
     b0 = rx.VarBinding(v0, val)
     b0_str = dump_ast(b0, include_ty_annotations=False)
     assert b0_str.startswith("VarBinding(")
-    assert 'var=Var(name_hint="v0")' in b0_str
+    assert 'var=Var(name="v0")' in b0_str
     assert "value=" in b0_str
     assert "Constant(" in b0_str
 
 
 def test_binding_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -160,8 +160,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -189,14 +189,14 @@ def test_seq_expr() -> None:
     assert "BindingBlock(" in seqe_str
     assert "VarBinding(" in seqe_str
     assert "Constant(" in seqe_str
-    assert 'var=Var(name_hint="foo")' in seqe_str
+    assert 'var=Var(name="foo")' in seqe_str
     assert "value=Constant(data" in strip_whitespace(seqe_str)
     assert "body=" in seqe_str
 
 
 def test_shape_expr() -> None:
-    m = tirx.Var("m", dtype="int32")
-    n = tirx.Var("n", dtype="int32")
+    m = tirx.Var("m", ty="int32")
+    n = tirx.Var("n", ty="int32")
     s = rx.ShapeExpr([m, n])
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
@@ -233,7 +233,7 @@ def test_shape_of():
     assert s0_str.startswith("Call(")
     assert 'op=Op(name="relax.shape_of")' in s0_str
     assert "args=" in s0_str
-    assert 'name_hint="v0"' in s0_str
+    assert 'name="v0"' in s0_str
 
     v1 = rx.Var("v1", R.Tensor([96, 54]))
     s1 = rx.get_shape_of(v1)
@@ -321,7 +321,7 @@ def test_ty():
         TensorType(
             dtype=int32,
             shape=Var(
-                name_hint="x",
+                name="x",
                 ty=ShapeType(ndim=0, values=[])
             )
         )
@@ -392,7 +392,7 @@ def test_call_packed():
         "Call",
         {
             "op": 'ExternFunc(global_symbol="contrib.tensor_array_stack")',
-            "args": '[Var(name_hint="x"), Var(name_hint="y")]',
+            "args": '[Var(name="x"), Var(name="y")]',
             "ty_args": "[AnyType()]",
             "attrs": '{"test_attr": True}',
         },
@@ -411,7 +411,7 @@ def test_call_packed():
         "Call",
         {
             "op": 'Op(name="relax.multiply")',
-            "args": '[Var(name_hint="x"), Var(name_hint="y")]',
+            "args": '[Var(name="x"), Var(name="y")]',
         },
         op_call_text,
     )
@@ -467,7 +467,7 @@ def test_call_tir():
             include_call_attrs=False,
         )
     )
-    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
+    assert foo_str.startswith('Function(params=[Var(name="x")]')
 
     # call_tir is an op in Relax and it takes an extern func as an argument
     assert isinstance(foo.body, rx.SeqExpr)
@@ -483,7 +483,7 @@ def test_call_tir():
             "op": 'Op(name="relax.call_tir")',
             "args": """[
                 GlobalVar(name_hint="addone"),
-                Tuple(fields=[Var(name_hint="x")])
+                Tuple(fields=[Var(name="x")])
             ]""",
             "ty_args": """[
                 TensorType(
@@ -516,7 +516,7 @@ def test_call_dps_packed():
             include_call_attrs=False,
         )
     )
-    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
+    assert foo_str.startswith('Function(params=[Var(name="x")]')
 
     # call_dps_packed is an op in Relax and it takes an extern func as an argument
     assert isinstance(foo.body, rx.SeqExpr)
@@ -532,7 +532,7 @@ def test_call_dps_packed():
             "op": 'Op(name="relax.call_dps_packed")',
             "args": """[
                 ExternFunc(global_symbol="test.op.identity"),
-                Tuple(fields=[Var(name_hint="x")])
+                Tuple(fields=[Var(name="x")])
             ]""",
             "ty_args": """[
                 TensorType(
@@ -646,7 +646,7 @@ def test_tuple_get_item():
     body_str = strip_whitespace(dump_ast(body))
 
     assert "TupleGetItem" in body_str
-    assert 'tuple_value=Var(name_hint="x"' in body_str
+    assert 'tuple_value=Var(name="x"' in body_str
     assert "index=0" in body_str
 
 

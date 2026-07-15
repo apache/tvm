@@ -102,12 +102,12 @@ class Trainer:
 
         self._params: list[Tensor | None] = [None] * self._param_num
         self._param_name_to_pos: dict[str, int] = {
-            p.name_hint: i for i, p in enumerate(self._param_vars)
+            p.name: i for i, p in enumerate(self._param_vars)
         }
 
         self._states: list[Tensor | None] = [None] * self._state_num
         self._state_name_to_pos: dict[str, int] = {
-            s.name_hint: i for i, s in enumerate(self._state_vars)
+            s.name: i for i, s in enumerate(self._state_vars)
         }
 
         if zero_init_param_state:

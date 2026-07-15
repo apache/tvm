@@ -37,7 +37,7 @@ class ReplaceVar(ExprMutator):
 
 
 def test_expr_constructor():
-    x = tvm.tirx.Var("xx", "float32")
+    x = tvm.tirx.Var(name="xx", ty="float32")
     assert isinstance(x, tvm.tirx.Var)
     assert x.name == "xx"
 

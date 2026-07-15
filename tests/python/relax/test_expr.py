@@ -49,14 +49,21 @@ def _check_type_missing(ty):
 
 def test_var() -> None:
     v0 = rx.Var("v0")
-    assert v0.name_hint == "v0"
+    assert v0.name == "v0"
     _check_type_missing(v0.ty)
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
-    assert v1.name_hint == "v1"
+    assert v1.name == "v1"
     for s0, s1 in zip(v1.ty.shape, shape):
         assert s0 == s1
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float32"))
+
+
+def test_var_name_keyword_compatibility() -> None:
+    assert tvm.ir.Var(name="primary").name == "primary"
+    assert tvm.ir.Var(name_hint="legacy").name == "legacy"
+    with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
+        tvm.ir.Var(name="primary", name_hint="legacy")
 
 
 def test_tensor_type_empty_dtype_is_unknown() -> None:
@@ -83,15 +90,22 @@ def test_relax_expr_ty_running_example() -> None:
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
-    assert v0.name_hint == "v0"
+    assert v0.name == "v0"
     _check_type_missing(v0.ty)
 
     shape = [54, 96]
     v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
-    assert v1.name_hint == "v1"
+    assert v1.name == "v1"
 
     assert isinstance(v1, rx.DataflowVar)
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float16"))
+
+
+def test_dataflow_var_name_keyword_compatibility() -> None:
+    assert rx.DataflowVar(name="primary").name == "primary"
+    assert rx.DataflowVar(name_hint="legacy").name == "legacy"
+    with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
+        rx.DataflowVar(name="primary", name_hint="legacy")
 
 
 def test_tuple() -> None:
@@ -132,8 +146,8 @@ def test_tuple_ty_requires_fields_with_known_ty():
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
@@ -155,8 +169,8 @@ def test_match_cast() -> None:
 
 
 def test_match_cast() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     ivalue = rx.Var("input_value")
     ty = rx.TensorType([n, m], "float32")
     b0 = rx.MatchCast(rx.Var("v"), ivalue, ty)
@@ -169,13 +183,13 @@ def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    assert b0.var.name_hint == "v0"
+    assert b0.var.name == "v0"
     assert b0.value == val
 
 
 def test_binding_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -189,8 +203,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -237,8 +251,8 @@ def test_shape_of():
 
 
 def test_shape_expr():
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     s = rx.ShapeExpr([m, n])
     assert s.values[0] == m
     assert s.values[1] == n

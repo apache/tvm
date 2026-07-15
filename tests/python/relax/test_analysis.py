@@ -40,7 +40,7 @@ from tvm.script import tirx as T
 
 
 def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
-    return set(map(lambda v: v.name_hint, vars))
+    return {v.name if isinstance(v, rx.Var) else v.name_hint for v in vars}
 
 
 def test_use_def():
@@ -450,7 +450,7 @@ class VarExample:
 def test_all_vars():
     vars = all_vars(VarExample["func"])
     assert len(vars) == 2
-    assert vars[0].name_hint == "a"
+    assert vars[0].name == "a"
     # the body of the seq expr in the func body is a var
     assert vars[1] == VarExample["func"].body.body
 
@@ -470,7 +470,7 @@ def test_all_vars_from_expr_using_dataflow():
 def test_bound_vars():
     vars = bound_vars(VarExample["func"])
     assert len(vars) == 2
-    assert vars[0].name_hint == "a"
+    assert vars[0].name == "a"
     # the body of the seq expr in the func body is a bound var
     assert vars[1] == VarExample["func"].body.body
 
@@ -517,6 +517,26 @@ def test_free_vars():
     )
     assert len(free_vars(outer)) == 0
     assert var_name_set(free_vars(inner)) == {"x", "y"}
+
+
+@pytest.mark.parametrize("definition_site", ["parameter", "match_cast"])
+def test_free_vars_primitive_definition_sites(definition_site):
+    n = tirx.Var("n", "int64")
+    if definition_site == "parameter":
+        y = rx.Var("y", rx.TensorType([n], "float32"))
+    else:
+        y = rx.Var("y", rx.TensorType(ndim=1, dtype="float32"))
+
+    bb = rx.BlockBuilder()
+    with bb.function("inner", [y]):
+        if definition_site == "match_cast":
+            bb.match_cast(y, rx.TensorType([n], "float32"))
+        output = bb.emit(rx.op.ones((n,), "float32"))
+        bb.emit_func_output(output)
+
+    inner = bb.get()["inner"]
+    assert rx.analysis.check_well_formed(inner)
+    assert not free_vars(inner)
 
 
 def test_all_global_vars():

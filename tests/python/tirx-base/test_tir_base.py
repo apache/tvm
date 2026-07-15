@@ -59,8 +59,8 @@ def test_scalar_add():
 
 
 def assignment_helper(store_dtype, value_dtype):
-    store = tirx.Var("store", dtype=store_dtype)
-    value = tirx.Var("value", dtype=value_dtype)
+    store = tirx.Var("store", ty=store_dtype)
+    value = tirx.Var("value", ty=value_dtype)
     tirx.Let(store, value, body=store)
 
 
@@ -171,7 +171,7 @@ def test_continue_loop():
 
 def test_exception():
     with pytest.raises(TypeError):
-        x = tirx.Var(name=1, dtype="int")
+        x = tirx.Var(name=1, ty="int")
 
 
 def test_eq_ops():

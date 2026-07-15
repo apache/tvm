@@ -560,7 +560,7 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const FunctionNode* func) final {
     auto relax_to_tir_var_map =
         RelaxToTIRVarMapCollector::Collect(mod_, ffi::GetRef<Function>(func));
-    std::vector<ffi::Variant<tirx::Var, tirx::Buffer>> prim_func_params;
+    std::vector<ffi::Variant<tirx::PrimVar, tirx::Buffer>> prim_func_params;
     for (const Var& relax_param : func->params) {
       size_t size_before = prim_func_params.size();
       CollectPrimFuncParams(relax_param, &prim_func_params, relax_to_tir_var_map.Get(relax_param));
@@ -583,8 +583,8 @@ class FusedTIRConstructor : public ExprVisitor {
     // std::stable_sort is used instead of std::sort.
     std::stable_sort(prim_func_params.begin(), prim_func_params.end(),
                      [](const auto& a, const auto& b) {
-                       bool a_is_var = a.template as<tirx::VarNode>();
-                       bool b_is_var = b.template as<tirx::VarNode>();
+                       bool a_is_var = a.template as<tirx::PrimVar>().has_value();
+                       bool b_is_var = b.template as<tirx::PrimVar>().has_value();
                        return a_is_var < b_is_var;
                      });
 
@@ -651,7 +651,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 4. Append symbolic vars
     for (const auto& param : prim_func_params) {
-      if (auto var = param.as<tirx::Var>()) {
+      if (auto var = param.as<tirx::PrimVar>()) {
         func_info_.params.push_back(var.value());
       }
     }
@@ -960,7 +960,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param out The vector into which to collect the params/buffers
    */
   static void CollectPrimFuncParams(const Var& relax_param,
-                                    std::vector<ffi::Variant<tirx::Var, tirx::Buffer>>* out,
+                                    std::vector<ffi::Variant<tirx::PrimVar, tirx::Buffer>>* out,
                                     const ffi::Optional<tirx::Buffer>& tir_buffer_param) {
     auto ty = GetType(relax_param);
 
@@ -985,15 +985,16 @@ class FusedTIRConstructor : public ExprVisitor {
       }
       out->push_back(std::move(buffer));
 
-    } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
-      // Case 2. The relax param is a scalar, we directly create a tirx var
-      out->push_back(tirx::Var(name_hint, tvm::PrimType(prim_value->dtype)));
+    } else if (ty.as<PrimTypeNode>()) {
+      // Case 2. The relax param is a scalar, so its canonical Var is a TIR parameter.
+      out->push_back(relax_param.as_or_throw<tirx::PrimVar>());
 
     } else if (const auto* shape_expr = ty.as<ShapeTypeNode>()) {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
       for (const auto& var : shape_expr->values.value()) {
-        TVM_FFI_ICHECK(var->IsInstance<tirx::VarNode>());
-        out->push_back(var.as_or_throw<tirx::Var>());
+        auto prim_var = var.as<tirx::PrimVar>();
+        TVM_FFI_ICHECK(prim_var.has_value());
+        out->push_back(prim_var.value());
       }
     } else {
       TVM_FFI_THROW(TypeError) << "The param type of PrimFunc is expected to be "
@@ -1257,18 +1258,15 @@ class TIRFuseMutator : public ExprMutator {
         TVM_FFI_ICHECK(shape->values.has_value())
             << "FuseTIR requires all shape input has ty value.";
         for (const PrimExpr& prim_value : shape->values.value()) {
-          TVM_FFI_ICHECK(prim_value->IsInstance<tirx::VarNode>())
+          TVM_FFI_ICHECK(prim_value.as<tirx::PrimVar>())
               << "All shape inputs are expected to be single tirx var.";
           tir_vars.push_back(prim_value);
         }
-      } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
-        if (const auto* var = arg.as<VarNode>()) {
-          tir_vars.push_back(
-              tirx::Var(var->name_hint, tvm::PrimType(prim_value->dtype)).as_or_throw<PrimExpr>());
-        } else if (auto literal = arg.as<PrimExpr>()) {
+      } else if (ty.as<PrimTypeNode>()) {
+        if (auto literal = arg.as<PrimExpr>()) {
           tir_vars.push_back(literal.value());
         } else {
-          TVM_FFI_THROW(TypeError) << "FuseTIR expects scalar arguments to be PrimExpr or Var, "
+          TVM_FFI_THROW(TypeError) << "FuseTIR expects scalar arguments to be PrimExpr, "
                                    << "but received " << arg;
         }
 

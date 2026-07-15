@@ -122,7 +122,7 @@ ffi::Array<ffi::Array<arith::IterMark>> TrivialSubspaceDivision(
     bool outer = use_outer_loop_vars(bindings[i]);
     bool inner = use_inner_loop_vars(bindings[i]);
     arith::IterMark iter_mark;
-    if (bindings[i]->IsInstance<VarNode>()) {
+    if (bindings[i].as<PrimVar>()) {
       iter_mark = arith::IterMark(
           arith::IterSplitExpr(arith::IterMark(bindings[i], iter_vars[i]->dom->extent)),
           iter_vars[i]->dom->extent);
@@ -169,7 +169,8 @@ ffi::Array<ffi::Array<arith::IterMark>> SubspaceDivide(const SBlockRealize& real
                                                        bool loop_sref_as_outer = false) {
   ffi::Array<Var> inner_vars;
   ffi::Array<Var> outer_vars;
-  ffi::Map<Var, Range> loop_var_domain;
+  ffi::Array<PrimVar> primitive_inner_vars;
+  ffi::Map<PrimVar, Range> primitive_loop_var_domain;
   bool inner = true;
   for (StmtSRefNode* sref = block_sref->parent;    //
        sref && sref->stmt->IsInstance<ForNode>();  //
@@ -178,18 +179,19 @@ ffi::Array<ffi::Array<arith::IterMark>> SubspaceDivide(const SBlockRealize& real
     if (inner) {
       loops->push_back(loop);
       inner_vars.push_back(loop->loop_var);
+      primitive_inner_vars.push_back(loop->loop_var);
     } else {
       outer_vars.push_back(loop->loop_var);
     }
-    loop_var_domain.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
+    primitive_loop_var_domain.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
     if ((loop_sref_as_outer && sref->parent == loop_sref.get()) || sref == loop_sref.get()) {
       inner = false;
     }
   }
-  ffi::Array<ffi::Array<arith::IterMark>> result =
-      arith::SubspaceDivide(realize->iter_values, loop_var_domain, inner_vars, realize->predicate,
-                            arith::IterMapLevel::Surjective, ffi::GetRef<arith::Analyzer>(analyzer),
-                            /*simplify_trivial_iterators=*/!preserve_unit_iters);
+  ffi::Array<ffi::Array<arith::IterMark>> result = arith::SubspaceDivide(
+      realize->iter_values, primitive_loop_var_domain, primitive_inner_vars, realize->predicate,
+      arith::IterMapLevel::Surjective, ffi::GetRef<arith::Analyzer>(analyzer),
+      /*simplify_trivial_iterators=*/!preserve_unit_iters);
   if (!result.empty()) {
     return result;
   }
@@ -615,7 +617,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     }
     ffi::Map<Var, arith::IntSet> inner_iter_dom;
     for (const IterVar& iter : inner_iter_vars) {
-      Range dom = Substitute(iter->dom, loop_var_subst);
+      Range dom = tirx::Substitute(iter->dom, loop_var_subst);
       inner_iter_dom.Set(iter->var, arith::IntSet::FromRange(dom));
       analyzer->Bind(iter->var, dom);
     }
@@ -648,7 +650,7 @@ SBlockRealize BlockizeBlocks(const ScheduleState& self, const ffi::Array<StmtSRe
     for (const ForNode* loop : loops) {
       ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loop);
       new_loop->body = std::move(stmt);
-      new_loop->extent = Substitute(new_loop->extent, loop_var_subst);
+      new_loop->extent = tirx::Substitute(new_loop->extent, loop_var_subst);
       stmt = For(new_loop);
     }
     seq_body.push_back(stmt);

@@ -496,7 +496,7 @@ class ComputeInliner : public BaseInliner {
 
     // If the mapping for store indices is non-trivial
     // check bijective mapping from producer iter var to store indices
-    ffi::Map<Var, Range> producer_iter_doms;
+    ffi::Map<PrimVar, Range> producer_iter_doms;
     for (const auto& iter : producer_block->iter_vars) {
       producer_iter_doms.Set(iter->var, iter->dom);
     }
@@ -629,9 +629,9 @@ class ReverseComputeInliner : public BaseInliner {
     // Initialize the predicates to ensure consumer block iters are in-bound
     consumer_iter_in_bound_ = IntImm::Bool(true);
     for (const IterVar& iter : consumer_block_realize->block->iter_vars) {
-      consumer_iter_in_bound_ =
-          consumer_iter_in_bound_ &&
-          (iter->var >= iter->dom->min && iter->var < iter->dom->min + iter->dom->extent);
+      consumer_iter_in_bound_ = consumer_iter_in_bound_ && (iter->var >= iter->dom->min &&
+                                                            static_cast<PrimExpr>(iter->var) <
+                                                                iter->dom->min + iter->dom->extent);
     }
   }
 
@@ -653,7 +653,7 @@ class ReverseComputeInliner : public BaseInliner {
     }
 
     // Collect block iter domains and update the substition map
-    ffi::Map<Var, Range> consumer_iter_doms;
+    ffi::Map<PrimVar, Range> consumer_iter_doms;
     for (const auto& iter_var : consumer_block->iter_vars) {
       consumer_iter_doms.Set(iter_var->var, iter_var->dom);
       // Set default mapping for unit iters

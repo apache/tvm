@@ -60,7 +60,7 @@ class SplitExprCollector {
    */
   struct SplitExpr {
     /*! \brief The source variable */
-    Var source;
+    PrimVar source;
     /*! \brief The lower factor of the split expression */
     int64_t lower_factor;
     /*! \brief The extent of the split expression */
@@ -77,9 +77,9 @@ class SplitExprCollector {
    * \return The collected split expressions
    */
   static std::vector<SplitExpr> Collect(const PrimExpr& index,
-                                        const ffi::Map<Var, Range>& input_iters,  //
-                                        const PrimExpr& predicate,                //
-                                        arith::IterMapLevel check_level,          //
+                                        const ffi::Map<PrimVar, Range>& input_iters,  //
+                                        const PrimExpr& predicate,                    //
+                                        arith::IterMapLevel check_level,              //
                                         arith::AnalyzerObj* analyzer) {
     arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
     arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
@@ -102,14 +102,14 @@ class SplitExprCollector {
 
  private:
   void Visit(const arith::IterSplitExpr& expr) {
-    if (const auto* var = expr->source->source.as<tirx::VarNode>()) {
+    if (auto var = expr->source->source.as<PrimVar>()) {
       const int64_t* lower_factor = as_const_int(expr->lower_factor);
       const int64_t* extent = as_const_int(expr->extent);
       if (lower_factor == nullptr || extent == nullptr) {
         failed_ = true;
         return;
       }
-      exprs_.push_back(SplitExpr{ffi::GetRef<Var>(var), *lower_factor, *extent});
+      exprs_.push_back(SplitExpr{var.value(), *lower_factor, *extent});
     } else if (auto iter_sum_expr = expr->source->source.as<arith::IterSumExpr>()) {
       Visit(iter_sum_expr.value());
     } else {
@@ -135,7 +135,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
   int ndim = buffer->shape.size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
-  ffi::Map<Var, Range> input_iters;
+  ffi::Map<PrimVar, Range> input_iters;
   std::unordered_map<const VarNode*, int> var2id;
   var2id.reserve(n_loops);
   for (int i = 0; i < n_loops; ++i) {

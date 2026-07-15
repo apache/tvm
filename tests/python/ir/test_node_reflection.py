@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: E712, F401, F841
+import copy
 import json
 import sys
 
@@ -43,6 +44,106 @@ def test_save_json_metadata_version():
     json_str = tvm.ir.save_json(obj)
     assert json.loads(json_str)["metadata"]["tvm_version"] == tvm.__version__
     assert list(tvm.ir.load_json(json_str)) == [1, 2]
+
+
+_LEGACY_RELAX_VAR_JSON = """{
+  "root_index": 9,
+  "nodes": [
+    {"type": "ir.SourceName", "data": "legacy_relax.py"},
+    {"type": "ir.Span", "data": {"source_name": 0, "line": 3, "column": 3,
+      "end_line": 5, "end_column": 11}},
+    {"type": "None"},
+    {"type": "ir.PrimType", "data": {"span": 2, "dtype": "int64"}},
+    {"type": "ffi.Array", "data": [3, 3]},
+    {"type": "ir.TupleType", "data": {"span": 2, "fields": 4}},
+    {"type": "ffi.String", "data": "legacy"},
+    {"type": "relax.expr.Var", "data": {"span": 1, "ty": 3, "name_hint": 6}},
+    {"type": "ffi.Array", "data": [7, 7]},
+    {"type": "relax.expr.Tuple", "data": {"span": 1, "ty": 5, "fields": 8}}
+  ],
+  "metadata": {"tvm_version": "0.26.dev0"}
+}"""
+
+_LEGACY_TIRX_VAR_JSON = """{
+  "root_index": 6,
+  "nodes": [
+    {"type": "ir.SourceName", "data": "legacy_tirx.py"},
+    {"type": "ir.Span", "data": {"source_name": 0, "line": 7, "column": 2,
+      "end_line": 9, "end_column": 14}},
+    {"type": "None"},
+    {"type": "ir.PrimType", "data": {"span": 2, "dtype": "int64"}},
+    {"type": "ffi.String", "data": "legacy"},
+    {"type": "tirx.Var", "data": {"span": 1, "ty": 3, "name": 4}},
+    {"type": "tirx.Add", "data": {"span": 1, "ty": 3, "a": 5, "b": 5}}
+  ],
+  "metadata": {"tvm_version": "0.26.dev0"}
+}"""
+
+
+@pytest.mark.parametrize(
+    ("legacy_json", "legacy_type", "var_index"),
+    [
+        (_LEGACY_RELAX_VAR_JSON, "relax.expr.Var", 7),
+        (_LEGACY_TIRX_VAR_JSON, "tirx.Var", 5),
+    ],
+)
+def test_var_exact_base_legacy_json_graph_rewrite(legacy_json, legacy_type, var_index):
+    from tvm.ir.json_compact import upgrade_json
+
+    original = json.loads(legacy_json)
+    expected = copy.deepcopy(original)
+    expected["nodes"][var_index]["type"] = "ir.Var"
+    if legacy_type == "tirx.Var":
+        expected["nodes"][var_index]["data"]["name_hint"] = expected["nodes"][var_index][
+            "data"
+        ].pop("name")
+
+    upgraded = json.loads(upgrade_json(legacy_json))
+    assert upgraded == expected
+    assert upgraded["root_index"] == original["root_index"]
+    assert len(upgraded["nodes"]) == len(original["nodes"])
+
+
+def _check_legacy_var(var, source_name, line, end_line, column, end_column):
+    assert type(var) is tvm.ir.Var
+    assert var.name == "legacy"
+    assert var.ty == tvm.ir.PrimType("int64")
+    assert var.span.source_name.name == source_name
+    assert var.span.line == line
+    assert var.span.end_line == end_line
+    assert var.span.column == column
+    assert var.span.end_column == end_column
+
+
+def test_var_exact_base_legacy_relax_json_load():
+    restored = tvm.ir.load_json(_LEGACY_RELAX_VAR_JSON)
+    assert isinstance(restored, tvm.relax.Tuple)
+    assert restored.fields[0].same_as(restored.fields[1])
+    _check_legacy_var(restored.fields[0], "legacy_relax.py", 3, 5, 3, 11)
+    assert restored.span.same_as(restored.fields[0].span)
+    assert {node["type"] for node in json.loads(tvm.ir.save_json(restored))["nodes"]}.isdisjoint(
+        {"relax.expr.Var", "tirx.Var"}
+    )
+
+
+def test_var_exact_base_legacy_tirx_json_load():
+    restored = tvm.ir.load_json(_LEGACY_TIRX_VAR_JSON)
+    assert isinstance(restored, tvm.tirx.Add)
+    assert restored.a.same_as(restored.b)
+    _check_legacy_var(restored.a, "legacy_tirx.py", 7, 9, 2, 14)
+    assert restored.span.same_as(restored.a.span)
+    assert {node["type"] for node in json.loads(tvm.ir.save_json(restored))["nodes"]}.isdisjoint(
+        {"relax.expr.Var", "tirx.Var"}
+    )
+
+
+def test_dataflow_var_json_is_not_migrated_to_canonical_var():
+    dataflow_var = tvm.relax.DataflowVar("value", tvm.ir.PrimType("int64"))
+    graph = json.loads(tvm.ir.save_json(dataflow_var))
+    root = graph["nodes"][graph["root_index"]]
+    assert root["type"] == "relax.expr.DataflowVar"
+    restored = tvm.ir.load_json(json.dumps(graph))
+    assert type(restored) is tvm.relax.DataflowVar
 
 
 def _test_infinity_value(value, dtype):
@@ -174,9 +275,9 @@ def test_tensor_dict():
 
 
 def test_free_var_equal():
-    x = tvm.tirx.Var("x", dtype="int32")
-    y = tvm.tirx.Var("y", dtype="int32")
-    z = tvm.tirx.Var("z", dtype="int32")
+    x = tvm.tirx.Var("x", ty="int32")
+    y = tvm.tirx.Var("y", ty="int32")
+    z = tvm.tirx.Var("z", ty="int32")
     v1 = x + y
     v1 = y + z
     tvm.ir.assert_structural_equal(x, z, map_free_vars=True)

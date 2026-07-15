@@ -32,6 +32,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_functor.h>
+#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/function.h>
 
@@ -196,9 +197,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // defined in parameter type annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
     // but can be further improved.
-    ffi::Map<tirx::Var, PrimExpr> var_map = TypeVarCollector::Collect(GetType(var));
+    ffi::Map<tirx::PrimVar, PrimExpr> var_map = TypeVarCollector::Collect(GetType(var));
     for (const auto& kv : var_map) {
-      const tirx::Var& shape_var = kv.first;
+      const tirx::PrimVar& shape_var = kv.first;
       const PrimExpr& shape_expr = kv.second;
       auto it = shape_var_map.find(shape_var);
       if (it == shape_var_map.end()) {
@@ -207,7 +208,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
         // of shape inference.  In many cases, knowning that the
         // shape variable is non-negative allows for simpler
         // expressions for dynamic shapes.
-        analyzer_->MarkGlobalNonNegValue(shape_var.as_or_throw<PrimExpr>());
+        analyzer_->MarkGlobalNonNegValue(shape_var);
       } else {
         const PrimExpr& old_shape_expr = (*it).second;
         TVM_FFI_ICHECK(old_shape_expr.same_as(shape_expr) ||
@@ -332,7 +333,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     //
     // TODO(relax-team) tracks the var defined also through match-cast.
     /*! \brief set of defined symbolic vars, value as themself. */
-    ffi::Map<tirx::Var, PrimExpr> shape_var_map;
+    ffi::Map<tirx::PrimVar, PrimExpr> shape_var_map;
   };
 
   /*! \brief A stack to store block frames. */
@@ -471,7 +472,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   // shape vars as defined when calling BeginScope(params)
   class TypeVarCollector : public TypeVisitor {
    public:
-    static ffi::Map<tirx::Var, PrimExpr> Collect(const Type& ty) {
+    static ffi::Map<tirx::PrimVar, PrimExpr> Collect(const Type& ty) {
       TypeVarCollector collector;
       collector(ty);
       return collector.shape_var_map_;
@@ -482,8 +483,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       if (const auto* shape_expr = op->shape.as<ShapeExprNode>()) {
         for (const PrimExpr& s : shape_expr->values) {
           // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
-          if (const auto* var = s.as<tirx::VarNode>()) {
-            shape_var_map_.Set(ffi::GetRef<tirx::Var>(var), s);
+          if (auto var = s.as<tirx::PrimVar>()) {
+            shape_var_map_.Set(var.value(), s);
           }
         }
       }
@@ -492,14 +493,14 @@ class BlockBuilderImpl : public BlockBuilderNode {
     void VisitType_(const ShapeTypeNode* op) final {
       for (const PrimExpr& s : op->values.value_or(ffi::Array<PrimExpr>())) {
         // Only collect single var defined shape. Ignore something like `R.Shape((m + 1, n + 1))
-        if (const auto* var = s.as<tirx::VarNode>()) {
-          shape_var_map_.Set(ffi::GetRef<tirx::Var>(var), s);
+        if (auto var = s.as<tirx::PrimVar>()) {
+          shape_var_map_.Set(var.value(), s);
         }
       }
     }
 
    private:
-    ffi::Map<tirx::Var, PrimExpr> shape_var_map_;
+    ffi::Map<tirx::PrimVar, PrimExpr> shape_var_map_;
   };
 };
 
@@ -578,7 +579,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(StringImmNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataTypeImmNode);
 
-  Expr VisitExprFallback_(const ExprNode* op) final { return ffi::GetRef<Expr>(op); }
+  Expr VisitExprDefault_(const ffi::Object* op) final {
+    Expr expr = ffi::GetRef<Expr>(static_cast<const ExprNode*>(op));
+    if (expr.as<PrimExpr>()) return expr;
+    return ExprFunctor::VisitExprDefault_(op);
+  }
 
   template <typename T>
   Expr VisitVar_(const typename T::ContainerType* var) {
@@ -858,12 +863,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return info;
     }
     auto* curr_scope = CurrentScopeFrame();
-    auto f_shape_var_map = [curr_scope](tirx::Var var) -> ffi::Optional<PrimExpr> {
-      auto it = curr_scope->shape_var_map.find(var);
+    auto f_var_map = [curr_scope](const Var& var) -> ffi::Optional<Expr> {
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var) return std::nullopt;
+      auto it = curr_scope->shape_var_map.find(prim_var.value());
       if (it != curr_scope->shape_var_map.end()) return (*it).second;
       return std::nullopt;
     };
-    return EraseToWellDefined(info, f_shape_var_map);
+    return EraseToWellDefined(info, f_var_map);
   }
 
   Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {

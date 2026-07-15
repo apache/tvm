@@ -157,9 +157,9 @@ Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dt
                    ffi::Optional<Layout> layout) {
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators, layout, {});
-  if (const auto* var = param.as<tvm::tirx::VarNode>()) {
+  if (auto var = param.as<tvm::tirx::Var>()) {
     PrimFuncFrame frame = FindPrimFuncFrame("T.match_buffer");
-    Var v = ffi::GetRef<Var>(var);
+    Var v = var.value();
     for (auto const& arg : frame->args) {
       if (arg.same_as(v)) {
         frame->buffer_map.Set(v, buffer);
@@ -210,7 +210,7 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   }
   ffi::Array<tvm::tirx::Var> scope_ids;
   for (size_t i = 0; i < n_vars; ++i) {
-    scope_ids.push_back(tvm::tirx::Var(""));
+    scope_ids.push_back(tvm::tirx::PrimVar(""));
   }
   // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
   // The def is visible to all subsequent stmts within the same enclosing
@@ -237,7 +237,7 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
         << "ValueError: preferred=... requires explicit extents (deferred form is incompatible)";
     ffi::Array<tvm::tirx::Var> scope_ids;
     for (size_t i = 0; i < extents.value().size(); ++i) {
-      scope_ids.push_back(tvm::tirx::Var(""));
+      scope_ids.push_back(tvm::tirx::PrimVar(""));
     }
     tvm::tirx::ScopeIdDef def(
         scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::tirx::PrimVar>(); }),
@@ -249,7 +249,7 @@ ffi::Array<tvm::tirx::Var> CtaId(ffi::Optional<ffi::Array<PrimExpr>> extents, ff
 }
 
 ffi::Array<tvm::tirx::Var> CtaIdInPair() {
-  ffi::Array<tvm::tirx::Var> scope_ids{tvm::tirx::Var("")};
+  ffi::Array<tvm::tirx::Var> scope_ids{tvm::tirx::PrimVar("")};
   tvm::tirx::ScopeIdDef def(
       scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::tirx::PrimVar>(); }),
       ffi::Array<PrimExpr>{IntImm::Int32(2)}, tvm::tirx::ScopeBinding::kClusterCtaPair);
@@ -451,7 +451,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
   for (int i = 0; i < n; ++i) {
     char c = kinds.c_str()[i];
     PrimExpr e = bindings[i];
-    const VarNode* v = e.as<VarNode>();
+    auto v = e.as<PrimVar>();
     TVM_FFI_ICHECK(v) << "TypeError: Only Var is supported in T.axis.remap";
     Range dom{nullptr};
     for (const auto& frame : IRBuilder::Current()->frames) {
@@ -459,7 +459,7 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
         TVM_FFI_ICHECK_EQ(for_frame->doms.size(), for_frame->vars.size());
         int n = for_frame->doms.size();
         for (int i = 0; i < n; ++i) {
-          if (for_frame->vars[i].get() == v) {
+          if (for_frame->vars[i].same_as(v.value())) {
             dom = for_frame->doms[i];
             break;
           }
@@ -469,9 +469,8 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
         }
       }
     }
-    TVM_FFI_ICHECK(dom.defined()) << "TypeError: Variable is not in the loop: "
-                                  << ffi::GetRef<Var>(v);
-    PrimType dtype = v->ty.as_or_throw<PrimType>();
+    TVM_FFI_ICHECK(dom.defined()) << "TypeError: Variable is not in the loop: " << v.value();
+    PrimType dtype = v.value().ty();
     if (c == 'S') {
       results.push_back(PushBlockVar(IterVar(/*dom=*/dom,
                                              /*var=*/tvm::tirx::PrimVar("", dtype),
@@ -887,7 +886,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       int n = buffer->strides.size();
       for (int i = 0; i < n; ++i) {
         PrimExpr e = buffer->strides[i];
-        if (auto v = e.as<tvm::tirx::Var>()) {
+        if (auto v = e.as<tvm::tirx::PrimVar>()) {
           Namer::Name(v.value(), name + "_s" + std::to_string(i));
         }
       }
@@ -905,13 +904,6 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::tirx::TileLayoutNode>([](const ffi::ObjectRef& node,
                                                 ffi::String name) -> void {
 
-    });
-
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::tirx::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
-      using namespace tvm::tirx;
-      VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
-      var->name_hint = name;
     });
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)

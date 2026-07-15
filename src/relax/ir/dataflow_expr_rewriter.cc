@@ -774,8 +774,8 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
       // wouldn't normally be normalized into a variable.
       Var intermediate_var("intermediate_var", GetType(matched_expr));
       wildcard_bindings.push_back(VarBinding(intermediate_var, matched_expr));
-      wildcard_bindings.push_back(
-          MatchCast(func_replacement->params[i], intermediate_var, GetType(matched_expr)));
+      wildcard_bindings.push_back(MatchCast(func_replacement->params[i], intermediate_var,
+                                            GetType(func_replacement->params[i])));
     }
 
     new_blocks.push_back(DataflowBlock(wildcard_bindings));
