@@ -61,8 +61,8 @@ class PrimVar : public PrimExpr {
   PrimVar CopyWithSuffix(const ffi::String& suffix) const {
     return this->as_or_throw<Var>().CopyWithSuffix(suffix).as_or_throw<PrimVar>();
   }
-  PrimVar copy_with_dtype(PrimType dtype) const {
-    return this->as_or_throw<Var>().copy_with_dtype(dtype).as_or_throw<PrimVar>();
+  PrimVar CopyWithDType(PrimType dtype) const {
+    return this->as_or_throw<Var>().CopyWithDType(dtype).as_or_throw<PrimVar>();
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);

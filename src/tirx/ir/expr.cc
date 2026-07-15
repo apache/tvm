@@ -623,8 +623,8 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
   var_map.reserve(n_group * 2);
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
     PrimType dtype = identity_element[i].ty();
-    PrimVar l = lhs[i].copy_with_dtype(dtype);
-    PrimVar r = rhs[i].copy_with_dtype(dtype);
+    PrimVar l = lhs[i].CopyWithDType(dtype);
+    PrimVar r = rhs[i].CopyWithDType(dtype);
     var_map[lhs[i].get()] = l;
     var_map[rhs[i].get()] = r;
 
