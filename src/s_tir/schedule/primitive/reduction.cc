@@ -428,10 +428,14 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  PrimExpr idx =
-                      Select(Or(greater(x[1], y[1]), And(equal(x[1], y[1]), greater(x[0], y[0]))),
-                             x[0], y[0]);
-                  PrimExpr val = Select(greater(x[1], y[1]), x[1], y[1]);
+                  PrimExpr idx = Select(
+                      Or(greater(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                         And(equal(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             greater(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>()))),
+                      x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>());
+                  PrimExpr val =
+                      Select(greater(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>());
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
@@ -443,10 +447,14 @@ struct ReducerRegistry {
             CreateReducerGetter(
                 /*n_buffers=*/2,
                 [](const ffi::Array<Var>& x, const ffi::Array<Var>& y) {
-                  PrimExpr idx =
-                      Select(Or(less(x[1], y[1]), And(equal(x[1], y[1]), greater(x[0], y[0]))),
-                             x[0], y[0]);
-                  PrimExpr val = Select(less(x[1], y[1]), x[1], y[1]);
+                  PrimExpr idx = Select(
+                      Or(less(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                         And(equal(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             greater(x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>()))),
+                      x[0].as_or_throw<PrimExpr>(), y[0].as_or_throw<PrimExpr>());
+                  PrimExpr val =
+                      Select(less(x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>()),
+                             x[1].as_or_throw<PrimExpr>(), y[1].as_or_throw<PrimExpr>());
                   return ffi::Array<PrimExpr>{idx, val};
                 },
                 [](const ffi::Array<PrimExpr>& values) {
