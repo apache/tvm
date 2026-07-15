@@ -309,7 +309,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
     if (value.ty() != op->value.ty()) {
-      var = op->var.copy_with_dtype(op->value.ty());
+      var = op->var.CopyWithDType(op->value.ty());
       var_remap_[op->var] = var;
     }
 
@@ -343,7 +343,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr value = PromoteToTarget(prim_value.value());
     Var var = op->var;
     if (value.ty() != prim_value.value().ty()) {
-      var = op->var.copy_with_dtype(prim_value.value().ty());
+      var = op->var.CopyWithDType(prim_value.value().ty());
       var_remap_[op->var] = var;
     }
 
@@ -407,11 +407,11 @@ class ComputeLegalizer : public StmtExprMutator {
       for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
         Var lhs_var = reducer->lhs[i];
         if (lhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
+          var_remap_[lhs_var] = lhs_var.CopyWithDType(legalized_identity_elements[i].ty());
         }
         Var rhs_var = reducer->rhs[i];
         if (rhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
+          var_remap_[rhs_var] = rhs_var.CopyWithDType(legalized_identity_elements[i].ty());
         }
       }
 
