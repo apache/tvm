@@ -20,6 +20,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import laneid, warpid
@@ -965,6 +966,25 @@ def test_range():
     tvm.ir.assert_structural_equal(test, expected)
 
 
+def test_shared_meta_var_alias():
+    assert I.meta_var is T.meta_var
+
+    @T.prim_func(private=True)
+    def via_ir_namespace():
+        value = I.meta_var(T.int32(1))
+        T.evaluate(value)
+
+    @T.prim_func(private=True)
+    def via_tirx_alias():
+        value = T.meta_var(T.int32(1))
+        T.evaluate(value)
+
+    assert_structural_equal(via_ir_namespace, via_tirx_alias)
+    code = via_ir_namespace.script()
+    assert "meta_var" not in code
+    assert_structural_equal(via_ir_namespace, from_source(code))
+
+
 def test_buffer():
     # fmt: off
     @T.prim_func(private=True)
@@ -1230,7 +1250,7 @@ def test_annotation_syntax_comprehensive():
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("void")))] = T.reinterpret(
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("void")))] = T.reinterpret(
             "handle", smem.access_ptr("rw")
         )
         T.evaluate(ptr)
@@ -1254,7 +1274,7 @@ from tvm.script import tirx as T
 from tvm.ir import PointerType, PrimType
 @T.prim_func
 def func():
-    x: T.Var(name="x", dtype=PointerType(PrimType("float16"))) = T.int64(0)
+    x: T.Var(name="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
 """
     with pytest.raises(tvm.error.DiagnosticError):
         from_source(src_ptr)

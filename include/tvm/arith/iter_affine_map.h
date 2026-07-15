@@ -316,8 +316,9 @@ class IterMapResult : public ffi::ObjectRef {
  * The return object's .indices is empty on failure.
  */
 IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
-                            const ffi::Map<Var, Range>& input_iters, const PrimExpr& predicate,
-                            IterMapLevel check_level, const arith::Analyzer& analyzer,
+                            const ffi::Map<tirx::PrimVar, Range>& input_iters,
+                            const PrimExpr& predicate, IterMapLevel check_level,
+                            const arith::Analyzer& analyzer,
                             bool simplify_trivial_iterators = true);
 
 /*!
@@ -332,7 +333,7 @@ IterMapResult DetectIterMap(const ffi::Array<PrimExpr>& indices,
  * \return The indices after rewrite
  */
 ffi::Array<PrimExpr> IterMapSimplify(const ffi::Array<PrimExpr>& indices,
-                                     const ffi::Map<Var, Range>& input_iters,
+                                     const ffi::Map<tirx::PrimVar, Range>& input_iters,
                                      const PrimExpr& input_pred, IterMapLevel check_level,
                                      const arith::Analyzer& analyzer,
                                      bool simplify_trivial_iterators = true);
@@ -388,8 +389,8 @@ ffi::Map<Var, PrimExpr> InverseAffineIterMap(const ffi::Array<IterSumExpr>& iter
         Empty array if no match can be found.
  */
 ffi::Array<ffi::Array<IterMark>> SubspaceDivide(const ffi::Array<PrimExpr>& bindings,
-                                                const ffi::Map<Var, Range>& input_iters,
-                                                const ffi::Array<Var>& sub_iters,
+                                                const ffi::Map<tirx::PrimVar, Range>& input_iters,
+                                                const ffi::Array<tirx::PrimVar>& sub_iters,
                                                 const PrimExpr& predicate, IterMapLevel check_level,
                                                 const arith::Analyzer& analyzer,
                                                 bool simplify_trivial_iterators = true);
@@ -417,7 +418,7 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr);
  * \param analyzer The input analyzer.
  * \note This function is useful to detect iterator stride patterns.
  */
-IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<Var, Range>& input_iters,
+IterSumExpr NormalizeToIterSum(PrimExpr index, const ffi::Map<tirx::PrimVar, Range>& input_iters,
                                const arith::Analyzer& analyzer);
 
 }  // namespace arith

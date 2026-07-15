@@ -25,6 +25,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/tirx_op.h>
+#include <tvm/tirx/var.h>
 
 namespace tvm {
 namespace tirx {

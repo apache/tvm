@@ -656,7 +656,7 @@ tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtyp
   bool has_any = false;
   if (!compact) {
     for (const auto& it : shape) {
-      if (it.as<tirx::VarNode>()) {
+      if (it.as<tirx::PrimVar>()) {
         has_any = true;
         break;
       }

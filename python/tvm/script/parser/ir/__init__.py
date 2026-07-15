@@ -28,6 +28,7 @@ __all__ = [
     "dummy_global_info",
     "ir_module",
     "lookup_vdevice",
+    "meta_var",
     "module_attrs",
     "module_global_infos",
     "pyfunc",

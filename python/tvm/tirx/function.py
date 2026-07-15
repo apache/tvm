@@ -73,7 +73,7 @@ class PrimFunc(BaseFunc, Scriptable):
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if isinstance(x, Buffer):
-                var = Var(x.name, dtype="handle")
+                var = Var(x.name, ty="handle")
                 param_list.append(var)
                 buffer_map[var] = x
             elif isinstance(x, Var):
@@ -405,11 +405,14 @@ class IndexMap(Object):
         final_indices = []
         axis_separators = []
 
-        try:
-            iter(mapping)
-            is_iterable = True
-        except TypeError:
+        if tvm.ir.is_prim_expr(mapping):
             is_iterable = False
+        else:
+            try:
+                iter(mapping)
+                is_iterable = True
+            except TypeError:
+                is_iterable = False
 
         if is_iterable:
             for val in mapping:

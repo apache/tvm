@@ -174,7 +174,7 @@ ffi::Array<PrimExpr> IRMutatorWithAnalyzer::IterMapSimplifyWithContext(
       indices, this->iter_vars_, pred, arith::IterMapLevel::Surjective, analyzer_ref);
   if (non_trivial_only) {
     for (int i = 0; i < n; ++i) {
-      if (simplified[i]->IsInstance<IntImmNode>() && indices[i]->IsInstance<VarNode>()) {
+      if (simplified[i]->IsInstance<IntImmNode>() && indices[i].as<PrimVar>()) {
         simplified.Set(i, indices[i]);
       }
     }

@@ -173,7 +173,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const ForNode* op) final {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
-    With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
+    With<ConstraintContext> ctx2(analyzer_,
+                                 static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
     return IRMutatorWithAnalyzer::VisitStmt_(op);
   }
 

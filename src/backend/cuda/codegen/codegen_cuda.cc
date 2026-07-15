@@ -1635,7 +1635,7 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
 
   this->PrintIndent();
   std::string scope = GetPtrStorageScope(op->buffer->data);
-  const VarNode* buffer = op->buffer->data.as<VarNode>();
+  const VarNode* buffer = op->buffer->data.get();
   PrimType dtype = op->buffer->dtype;
 
   if (scope.find("wmma.") == 0) {
