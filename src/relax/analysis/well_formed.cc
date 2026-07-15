@@ -167,7 +167,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
   void VisitExpr(const Expr& expr) final {
     if (!expr.as<OpNode>() && expr->ty.IsMissing()) {
-      TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is nullptr.";
+      TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is missing.";
     }
     relax::ExprVisitor::VisitExpr(expr);
   }
