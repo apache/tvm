@@ -233,6 +233,48 @@ def test_basic(consume_params):
     assert names_after == names_expected
 
 
+@pytest.mark.parametrize("shared_transform", [True, False])
+def test_num_input_equal_to_num_params(shared_transform):
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((16,), "float32")) -> R.Tensor((16,), "float32"):
+            R.func_attr({"num_input": 1})
+            return x
+
+    after = relax.transform.LiftTransformParams(shared_transform=shared_transform)(Before)
+    assert len(after["main"].params) == 1
+
+
+@pytest.mark.parametrize("shared_transform", [True, False])
+def test_num_input_greater_than_num_params_raises_error(shared_transform):
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((16,), "float32")) -> R.Tensor((16,), "float32"):
+            R.func_attr({"num_input": 2})
+            return x
+
+    with pytest.raises(
+        tvm.TVMError,
+        match=r"num_input \(2\) exceeds the number of function parameters \(1\)",
+    ):
+        relax.transform.LiftTransformParams(shared_transform=shared_transform)(Before)
+
+
+@pytest.mark.parametrize("shared_transform", [True, False])
+def test_negative_num_input_raises_error(shared_transform):
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((16,), "float32")) -> R.Tensor((16,), "float32"):
+            R.func_attr({"num_input": -1})
+            return x
+
+    with pytest.raises(tvm.TVMError, match=r"num_input \(-1\) must be non-negative"):
+        relax.transform.LiftTransformParams(shared_transform=shared_transform)(Before)
+
+
 def test_tuple():
     @tvm.script.ir_module
     class Before:

@@ -46,6 +46,18 @@ constexpr const char* kLiftTransformConsumeParams = "relax.lift_transform_params
 TVM_REGISTER_PASS_CONFIG_OPTION(kLiftTransformConsumeParams, bool);
 
 namespace {
+std::optional<size_t> GetNumInput(const FunctionNode* func) {
+  if (auto opt = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
+    int64_t num_input = opt.value();
+    TVM_FFI_ICHECK_GE(num_input, 0) << "num_input (" << num_input << ") must be non-negative";
+    TVM_FFI_ICHECK_LE(static_cast<size_t>(num_input), func->params.size())
+        << "num_input (" << num_input << ") exceeds the number of function parameters ("
+        << func->params.size() << ")";
+    return static_cast<size_t>(num_input);
+  }
+  return std::nullopt;
+}
+
 struct BaseCollectInfo {
  public:
   /*! \brief Bindings that can be lifted out into a pre-processing
@@ -435,10 +447,7 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
     info_.global_info = global_info;
   }
   void VisitExpr_(const FunctionNode* func) override {
-    size_t num_runtime_params = func->params.size();
-    if (auto opt = func->attrs.GetAttr<int64_t>(attr::kNumInput)) {
-      num_runtime_params = opt.value();
-    }
+    size_t num_runtime_params = GetNumInput(func).value_or(func->params.size());
 
     info_.num_runtime_params = num_runtime_params;
 
@@ -517,17 +526,17 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
       const ffi::Array<Function>& functions) {
     ParamRemapper mapper;
     if (functions.size()) {
-      auto num_inputs_0 = functions[0]->GetAttr<int64_t>(attr::kNumInput).value();
-      int num_params = static_cast<int>(functions[0]->params.size()) - num_inputs_0;
-      for (int i = 0; i < static_cast<int>(functions.size()); i++) {
-        auto num_inputs_i = functions[i]->GetAttr<int64_t>(attr::kNumInput).value();
-        TVM_FFI_ICHECK_EQ(num_params, static_cast<int>(functions[i]->params.size()) - num_inputs_i)
+      size_t num_inputs_0 = GetNumInput(functions[0].get()).value();
+      size_t num_params = functions[0]->params.size() - num_inputs_0;
+      for (size_t i = 0; i < functions.size(); i++) {
+        size_t num_inputs_i = GetNumInput(functions[i].get()).value();
+        TVM_FFI_ICHECK_EQ(num_params, functions[i]->params.size() - num_inputs_i)
             << "The number of parameters should be the same for all target functions";
 
-        for (int j = 0; j < num_params; j++) {
+        for (size_t j = 0; j < num_params; j++) {
           // Map the parameters to the first function
-          int index_i = j + num_inputs_i;
-          int index_0 = j + num_inputs_0;
+          size_t index_i = j + num_inputs_i;
+          size_t index_0 = j + num_inputs_0;
           mapper.VisitExpr(functions[i]->params[index_i], functions[0]->params[index_0]);
           ffi::StructuralEqual eq;
           eq(functions[i]->params[index_i]->struct_info_,
@@ -573,15 +582,14 @@ class GlobalLiftableBindingCollector : public BaseLiftableBindingCollector {
     GlobalLiftableBindingCollector collector(var_remap, tir_var_remap);
     TVM_FFI_ICHECK(functions.size());
     for (const auto& func : functions) {
-      int num_inputs = func->GetAttr<int64_t>(attr::kNumInput).value();
-      for (int i = num_inputs; i < static_cast<int>(func->params.size()); i++) {
+      size_t num_inputs = GetNumInput(func.get()).value();
+      for (size_t i = num_inputs; i < func->params.size(); i++) {
         collector.liftable_vars_.insert(func->params[i]);
       }
       collector(func);
     }
-    ffi::Array<Var> params(
-        functions[0]->params.begin() + functions[0]->GetAttr<int64_t>(attr::kNumInput).value(),
-        functions[0]->params.end());
+    ffi::Array<Var> params(functions[0]->params.begin() + GetNumInput(functions[0].get()).value(),
+                           functions[0]->params.end());
     // todo(@tvm-team): use c++20 designated initializers when windows CI supports it
     GlobalCollectInfo info = GlobalCollectInfo();
     info.orig_functions = functions;
