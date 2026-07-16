@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_DEVICE_API_H_
 
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/device.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
