@@ -1700,6 +1700,11 @@ def While(condition: Expr) -> frame.WhileFrame:  # pylint: disable=invalid-name
     return _ffi_api.While(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def Return(value: Expr) -> None:  # pylint: disable=invalid-name
+    """Create a return node."""
+    return _ffi_api.Return(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 def Break() -> None:  # pylint: disable=invalid-name
     """Create a break node."""
     return _ffi_api.Break()  # type: ignore[attr-defined] # pylint: disable=no-member
@@ -3118,7 +3123,6 @@ popcount = _op_wrapper(_tir_op.popcount)
 pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
 q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
-ret = _op_wrapper(_tir_op.ret)
 continue_loop = _op_wrapper(_tir_op.continue_loop)
 break_loop = _op_wrapper(_tir_op.break_loop)
 round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
@@ -3357,6 +3361,7 @@ __all__ = [
     "attr",
     "hint",
     "While",
+    "Return",
     "Break",
     "Continue",
     "If",
@@ -3432,7 +3437,6 @@ __all__ = [
     "pow",
     "q_multiply_shift",
     "q_multiply_shift_per_axis",
-    "ret",
     "continue_loop",
     "break_loop",
     "reinterpret",

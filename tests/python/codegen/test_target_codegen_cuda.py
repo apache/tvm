@@ -1096,7 +1096,7 @@ def test_device_host_call_same_func():
                     C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
 
     # 1. If we set host to llvm, it will raise an error of
-    #    "the tirx.ret should be transformed to return zero before the llvm code generation."
+    #    "Return should be transformed to return zero before LLVM code generation."
     #    Need to revisit this.
     # 2. We set a dummy mcpu value for testing purpose,
     #    in order to avoid checking a function is host or device based on the "cpu" substring.

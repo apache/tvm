@@ -172,7 +172,7 @@ class HostDeviceSplitter : public StmtMutator {
     Type kernel_ret_type = Type::Missing();
     if (can_propagate_errors) {
       kernel_ret_type = PrimType::Int(32);
-      body = SeqStmt::Flatten(body, Evaluate(ret(success)));
+      body = SeqStmt::Flatten(body, Return(success));
     } else {
       kernel_ret_type = VoidType();
     }
@@ -393,26 +393,11 @@ class ReturnRemover : public StmtExprMutator {
   }
 
  private:
-  using Parent = StmtExprMutator;
-  Stmt VisitStmt_(const EvaluateNode* op) override {
-    if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::ret())) {
-        TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-        auto as_int = call->args[0].as<IntImmNode>();
-        TVM_FFI_ICHECK(as_int && as_int->value == 0)
-            << "Device kernel may only contain successful return, T.ret(0)";
-        return Evaluate(0);
-      }
-    }
-    return Parent::VisitStmt_(op);
-  }
-
-  Expr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::ret())) {
-      TVM_FFI_THROW(InternalError)
-          << "Call to builtin::ret() should only appear within an Evaluate node";
-    }
-    return Parent::VisitExpr_(op);
+  Stmt VisitStmt_(const ReturnNode* op) override {
+    auto as_int = op->value.as<IntImmNode>();
+    TVM_FFI_ICHECK(as_int && as_int->value == 0)
+        << "Device kernel may only contain a successful return, return 0";
+    return Evaluate(0);
   }
 };
 

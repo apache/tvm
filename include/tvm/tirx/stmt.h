@@ -688,6 +688,34 @@ class While : public Stmt {
 };
 
 /*!
+ * \brief A return from the current function.
+ */
+class ReturnNode : public StmtNode {
+ public:
+  /*! \brief The value to return. */
+  Expr value;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReturnNode>().def_ro("value", &ReturnNode::value);
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Return", ReturnNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to ReturnNode.
+ * \sa ReturnNode
+ */
+class Return : public Stmt {
+ public:
+  TVM_DLL explicit Return(Expr value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Return, Stmt, ReturnNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ReturnNode);
+};
+
+/*!
  * \brief A Break in control flow.
  */
 class BreakNode : public StmtNode {
