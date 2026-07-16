@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm.script import ir as I
@@ -116,10 +118,29 @@ def test_split_host_device_on_cpu():
                 }
             )
             T.evaluate(n)
-            T.ret(0)
+            return 0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_device_kernel_nonzero_return_is_rejected():
+    """A device kernel may only return the zero success code."""
+
+    device_target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm.target.Target(device_target, host="llvm")
+    body = tvm.tirx.AttrStmt(
+        device_target,
+        "target",
+        0,
+        tvm.tirx.Return(tvm.tirx.IntImm("int32", 1)),
+    )
+    func = tvm.tirx.PrimFunc([], body)
+    func = func.with_attr("global_symbol", "main")
+    func = func.with_attr("target", target)
+
+    with pytest.raises(tvm.error.InternalError, match="successful return"):
+        tvm.tirx.transform.SplitHostDevice()(tvm.IRModule({"main": func}))
 
 
 def test_split_host_device_without_func_host_attribute():

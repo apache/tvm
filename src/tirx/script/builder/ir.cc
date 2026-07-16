@@ -698,6 +698,8 @@ WhileFrame While(PrimExpr condition) {
   return WhileFrame(n);
 }
 
+void Return(Expr value) { AddToParent(tvm::tirx::Return(std::move(value), Span())); }
+
 void Break() { AddToParent(tvm::tirx::Break(Span())); }
 
 void Continue() { AddToParent(tvm::tirx::Continue(Span())); }
@@ -990,6 +992,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Attr", Attr)
       .def("script.ir_builder.tirx.DeviceEntry", DeviceEntry)
       .def("script.ir_builder.tirx.While", While)
+      .def("script.ir_builder.tirx.Return", Return)
       .def("script.ir_builder.tirx.Break", Break)
       .def("script.ir_builder.tirx.Continue", Continue)
       .def("script.ir_builder.tirx.If", If)

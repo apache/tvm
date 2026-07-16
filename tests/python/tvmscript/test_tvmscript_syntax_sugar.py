@@ -506,11 +506,11 @@ def test_foldable_boolean_in_assert():
 
 
 def test_return_statement():
-    """A python `return` statement uses `T.ret`"""
+    """A Python `return` statement creates a first-class Return node."""
 
     @T.prim_func(s_tir=True)
     def explicit():
-        T.evaluate(T.ret(5))
+        T.Return(T.int32(5))
 
     @T.prim_func(s_tir=True)
     def implicit():

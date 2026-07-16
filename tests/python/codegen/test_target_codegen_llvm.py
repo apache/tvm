@@ -941,15 +941,15 @@ def test_llvm_order_functions():
     class Module:
         @T.prim_func(s_tir=True)
         def Danny(v: T.float32) -> T.float32:
-            T.ret(T.call_extern("float32", "Dave", v))
+            return T.call_extern("float32", "Dave", v)
 
         @T.prim_func(s_tir=True)
         def Sammy(v: T.float32) -> T.float32:
-            T.ret(T.call_extern("float32", "Eve", v))
+            return T.call_extern("float32", "Eve", v)
 
         @T.prim_func(s_tir=True)
         def Kirby(v: T.float32) -> T.float32:
-            T.ret(T.call_extern("float32", "Fred", v))
+            return T.call_extern("float32", "Fred", v)
 
     ir_text = tvm.tirx.build(Module, target="llvm").inspect_source("ll")
     # Skip functions whose names start with _.

@@ -56,18 +56,9 @@ class ReturnRewriter : public StmtMutator {
     return ret;
   }
 
-  Stmt VisitStmt_(const EvaluateNode* node) override {
-    Stmt ret = StmtMutator::VisitStmt_(node);
-    const EvaluateNode* eval = ret.as<EvaluateNode>();
-    TVM_FFI_ICHECK(eval);
-    if (const CallNode* call = eval->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::ret())) {
-        TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "tirx.ret cannot be used in parallel scope.";
-        TVM_FFI_ICHECK_EQ(call->args.size(), 1) << "tirx.ret expect a single argument.";
-        ret = WriteToOut(call->args[0]);
-      }
-    }
-    return ret;
+  Stmt VisitStmt_(const ReturnNode* node) override {
+    TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "Return cannot be used in parallel scope.";
+    return WriteToOut(this->VisitExpr(node->value));
   }
 
  private:
@@ -124,7 +115,7 @@ class ReturnRewriter : public StmtMutator {
                             {ret_var_, IntImm::Int32(0),
                              IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
                            .as_or_throw<PrimExpr>());
-    Stmt ret_zero = Evaluate(tvm::ret(0));
+    Stmt ret_zero = Return(IntImm::Int32(0));
     return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
 
@@ -275,7 +266,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   // Return error code of zero on success
-  body = SeqStmt({body, Evaluate(ret(IntImm::Int32(0)))});
+  body = SeqStmt({body, Return(IntImm::Int32(0))});
 
   body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
                     std::move(result.decl_buffers)},

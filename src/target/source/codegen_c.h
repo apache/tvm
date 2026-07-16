@@ -197,6 +197,7 @@ class CodeGenC : public ExprFunctor<void(const Expr&, std::ostream&)>,
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const ReturnNode* op) override;
   void VisitStmt_(const BreakNode* op) override;
   void VisitStmt_(const ContinueNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;

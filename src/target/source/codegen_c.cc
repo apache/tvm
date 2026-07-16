@@ -673,10 +673,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(builtin::ret())) {
-      os << "return ";
-      PrintExpr(op->args[0], os);
-    } else if (op->op.same_as(builtin::continue_loop())) {
+    if (op->op.same_as(builtin::continue_loop())) {
       os << "continue;";
     } else if (op->op.same_as(builtin::break_loop())) {
       os << "break;";
@@ -1346,6 +1343,13 @@ void CodeGenC::VisitStmt_(const WhileNode* op) {
   this->EndScope(while_scope);
   PrintIndent();
   stream << "}\n";
+}
+
+void CodeGenC::VisitStmt_(const ReturnNode* op) {
+  PrintIndent();
+  stream << "return ";
+  PrintExpr(op->value, stream);
+  stream << ";\n";
 }
 
 void CodeGenC::VisitStmt_(const BreakNode* op) {

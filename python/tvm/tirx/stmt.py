@@ -860,6 +860,26 @@ class Break(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Break, span)  # type: ignore
 
 
+@tvm_ffi.register_object("tirx.Return")
+class Return(Stmt):
+    """Return node.
+
+    Parameters
+    ----------
+    value : Expr
+        The value to return.
+
+    span : Optional[Span]
+        The location of this statement in the source code.
+    """
+
+    value: Expr
+    span: Span | None
+
+    def __init__(self, value: Expr, span: Span | None = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.Return, value, span)  # type: ignore
+
+
 @tvm_ffi.register_object("tirx.Continue")
 class Continue(Stmt):
     """Continue node.

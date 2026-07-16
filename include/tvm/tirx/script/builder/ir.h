@@ -368,6 +368,12 @@ AttrFrame DeviceEntry();
 WhileFrame While(PrimExpr condition);
 
 /*!
+ * \brief Create a return statement.
+ * \param value The value to return.
+ */
+void Return(Expr value);
+
+/*!
  * \brief Create a break statement.
  */
 void Break();

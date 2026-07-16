@@ -3013,7 +3013,7 @@ def subroutine_call_returning_int():
 
         @T.prim_func(s_tir=True)
         def subroutine(x: T.float32) -> T.float32:
-            T.ret(x * x)
+            return x * x
 
     return mod
 
@@ -3091,7 +3091,7 @@ def subroutine_call_without_arguments():
 def return_zero():
     @T.prim_func(s_tir=True)
     def func() -> T.int32:
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3099,7 +3099,7 @@ def return_zero():
 def return_zero_private():
     @T.prim_func(private=True, s_tir=True)
     def func() -> T.int32:
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3108,7 +3108,7 @@ def return_zero_private_with_attr():
     @T.prim_func(private=True, s_tir=True)
     def func() -> T.int32:
         T.func_attr({"greeting": "hello"})
-        T.ret(0)
+        return 0
 
     return func
 
