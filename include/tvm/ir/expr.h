@@ -268,12 +268,12 @@ TVM_DLL PrimExpr operator~(PrimExpr a);
  */
 class VarNode : public ExprNode {
  public:
-  /*! \brief The hint to the variable name. */
-  ffi::String name_hint;
+  /*! \brief The variable name. */
+  ffi::String name;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>().def_ro("name_hint", &VarNode::name_hint,
+    refl::ObjectDef<VarNode>().def_ro("name", &VarNode::name,
                                       refl::AttachFieldFlag::SEqHashIgnore());
   }
 
@@ -285,8 +285,7 @@ class VarNode : public ExprNode {
 /*! \brief Managed reference to VarNode. */
 class Var : public Expr {
  public:
-  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
-                       Span span = Span());
+  TVM_DLL explicit Var(ffi::String name, ffi::Optional<Type> ty_annotation, Span span = Span());
 
   /*! \brief Return a fresh ordinary Var with the same type and a new name. */
   TVM_DLL Var CopyWithName(const ffi::String& name) const;

@@ -324,7 +324,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
     llvm::Argument* v = &(*arg_it);
     const Var& var = f->params[i];
     var_map_[var.get()] = v;
-    v->setName(std::string(var->name_hint));
+    v->setName(std::string(var->name));
     if (is_restricted_) {
       if (var->ty.as<PointerTypeNode>() && !alias_var_set_.count(var.get())) {
         // set non alias.
@@ -875,7 +875,7 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                                   const PrimVar& loop_var, const Stmt& body) {
   llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
-  std::string loop_var_name = loop_var->name_hint;
+  std::string loop_var_name = loop_var->name;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   auto* for_begin = llvm::BasicBlock::Create(*ctx, "for_begin_" + loop_var_name, function_);
   auto* for_body = llvm::BasicBlock::Create(*ctx, "for_body_" + loop_var_name, function_);
@@ -1021,7 +1021,7 @@ CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(llvm::Value* buffer_ptr,
 
 llvm::Value* CodeGenLLVM::GetVarValue(const VarNode* v) const {
   auto it = var_map_.find(v);
-  TVM_FFI_ICHECK(it != var_map_.end()) << "cannot find variable " << v->name_hint;
+  TVM_FFI_ICHECK(it != var_map_.end()) << "cannot find variable " << v->name;
   return it->second;
 }
 
@@ -2191,7 +2191,7 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
         << ", but is being bound to expression with type " << op->value->ty;
     auto* llvm_type = GetLLVMType(v->ty);
     if (llvm_type != value->getType()) {
-      value->setName((v->name_hint + "_void_ptr").c_str());
+      value->setName((v->name + "_void_ptr").c_str());
       value = builder_->CreatePointerCast(value, llvm_type);
     }
   }
@@ -2300,7 +2300,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm,
 
 void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_var,
                                       llvm::Instruction* insert_before) {
-  llvm_value->setName(tir_var->name_hint.c_str());
+  llvm_value->setName(tir_var->name.c_str());
 
   if (!di_subprogram_) return;
 
@@ -2308,7 +2308,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   // no invalid dtypes
   if (!dbg_dtype) return;
   auto local_var = dbg_info_->di_builder_->createAutoVariable(
-      di_subprogram_, std::string(tir_var->name_hint), dbg_info_->file_, 0, dbg_dtype);
+      di_subprogram_, std::string(tir_var->name), dbg_info_->file_, 0, dbg_dtype);
 
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 

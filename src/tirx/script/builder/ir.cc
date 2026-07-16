@@ -628,8 +628,8 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
     if (ffi::Optional<IterVar> opt_iter_var = opt_frame.value()->env_threads.Get(var)) {
       iter_var = opt_iter_var.value();
     } else {
-      TVM_FFI_THROW(InternalError) << "ValueError: " << var->name_hint
-                                   << " is not an env_thread created using T.env_thread.";
+      TVM_FFI_THROW(InternalError)
+          << "ValueError: " << var->name << " is not an env_thread created using T.env_thread.";
     }
   } else {
     TVM_FFI_THROW(InternalError) << "LaunchThread can only be used inside a PrimFunc";

@@ -748,7 +748,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
           << "Let cannot bind the same var to two different values";
     }
     if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(op->value.ty())) {
-      Var new_var(op->var->name_hint, value.ty());
+      Var new_var(op->var->name, value.ty());
       let_binding_[op->var] = new_var.as_or_throw<PrimExpr>();
       return Let(new_var, value, this->VisitPrimExpr(op->body));
     } else {
@@ -961,7 +961,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
     let_binding_[op->var] = value;
 
     if (GetLanesOrVScaleFactor(value.ty()) != GetLanesOrVScaleFactor(prim_value.value().ty())) {
-      Var new_var(op->var->name_hint, value.ty());
+      Var new_var(op->var->name, value.ty());
       let_binding_[op->var] = new_var.as_or_throw<PrimExpr>();
       return Bind(new_var, value);
     } else {
@@ -979,7 +979,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     PrimType var_ty = var_->ty.as_or_throw<PrimType>();
-    Var idx(var_->name_hint + ".s", var_ty);
+    Var idx(var_->name + ".s", var_ty);
     stmt = Substitute(stmt, ffi::Map<Var, Expr>{{var_, idx}});
     return For(idx.as_or_throw<PrimVar>(), IntImm(var_ty, 0), var_lanes_, ForKind::kSerial, stmt);
   }
@@ -1157,8 +1157,8 @@ class LoopVectorizer : public StmtMutator {
     }
     PrimExpr num_chunks = ceildiv(fixed_extent, scalable_lanes_index);
 
-    PrimVar outer(op->loop_var->name_hint + ".vla.o", index_dtype);
-    PrimVar inner(op->loop_var->name_hint + ".vla.i", lane_dtype);
+    PrimVar outer(op->loop_var->name + ".vla.o", index_dtype);
+    PrimVar inner(op->loop_var->name + ".vla.i", lane_dtype);
     PrimExpr inner_index = inner;
     if (inner_index.ty() != index_dtype) {
       inner_index = Cast(index_dtype, inner_index);

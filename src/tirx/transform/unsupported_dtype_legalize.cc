@@ -119,7 +119,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
       if (auto* ptr_type = op->buffer->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
-      Var buffer_var = Var(op->buffer->data->name_hint, PointerType(dtype, storage_scope));
+      Var buffer_var = Var(op->buffer->data->name, PointerType(dtype, storage_scope));
       (*var_remap_)[op->buffer->data] = buffer_var;
     }
     return StmtExprVisitor::VisitStmt_(op);
@@ -583,7 +583,7 @@ class StorageLegalizer : public StmtExprMutator {
       if (auto* ptr_type = buf->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
-      Var new_data = Var(buf->data->name_hint, PointerType(new_dtype, storage_scope));
+      Var new_data = Var(buf->data->name, PointerType(new_dtype, storage_scope));
       var_remap_[buf->data] = new_data;
       buf = Buffer(new_data, new_dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
                    buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
@@ -747,8 +747,8 @@ class StorageLegalizer : public StmtExprMutator {
       if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
         PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
         if (MatchType(elem_prim_type)) {
-          Var new_var = Var(var->name_hint, PointerType(GetStorageUIntDType(elem_prim_type),
-                                                        ptr_type->storage_scope));
+          Var new_var = Var(
+              var->name, PointerType(GetStorageUIntDType(elem_prim_type), ptr_type->storage_scope));
           var_remap_[var] = new_var;
           return new_var;
         }

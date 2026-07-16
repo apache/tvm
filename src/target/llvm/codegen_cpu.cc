@@ -546,7 +546,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
     llvm::Value* value = MakeValue(v);
-    value->setName(v->name_hint.c_str());
+    value->setName(v->name.c_str());
     arg_values.push_back(value);
     arg_types.push_back(value->getType());
   }
@@ -561,7 +561,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   SetTargetAttributes(fcompute);
   for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); it++) {
     const Var& var = vargs[std::distance(fcompute->arg_begin(), it)];
-    it->setName(std::string(var->name_hint));
+    it->setName(std::string(var->name));
   }
 
   llvm::BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
@@ -635,8 +635,7 @@ void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const ffi::Array<Var>& vf
     llvm::Type* field_type = cdata.type->getStructElementType(i);
     llvm::Value* field_addr =
         builder_->CreateInBoundsGEP(cdata.type, cdata.addr, {ConstInt32(0), ConstInt32(i)});
-    llvm::Value* load =
-        builder_->CreateLoad(field_type, field_addr, std::string(vfields[i]->name_hint));
+    llvm::Value* load = builder_->CreateLoad(field_type, field_addr, std::string(vfields[i]->name));
     (*vmap)[vfields[i].get()] = load;
   }
 }
@@ -1190,7 +1189,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
     if (parallel_env_.penv == nullptr) {
       auto copy_node = For(ffi::make_object<ForNode>(*op));
       CreateParallelLaunch(copy_node, 0,
-                           std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
+                           std::string("loop_parallel_") + op->loop_var->name.c_str());
     } else {
       // already in parallel env.
       TVM_FFI_ICHECK(parallel_env_.task_id.defined());
