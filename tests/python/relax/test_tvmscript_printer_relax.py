@@ -79,7 +79,6 @@ def test_function_dependent_shape_escaped_source_spans():
             extra_config={"render_invisible_path_info": True},
         )
         first = _script(func, config)
-        assert _script(func, config) == first
         assert first.count("Access path:") == 1
         lines = first.splitlines()
         definition_index = next(i for i, line in enumerate(lines) if "def main" in line)

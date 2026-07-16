@@ -31,16 +31,15 @@ def rand(dtype, *shape):
     return tvm.runtime.tensor(np.random.rand(*shape).astype(dtype))
 
 
-def _legalize_and_build(mod, target, dev):
+def _legalize_and_build(mod, target):
     ex = tvm.compile(mod, target)
-    vm = relax.VirtualMachine(ex, dev)
+    vm = relax.VirtualMachine(ex, tvm.device_from_target(target))
     return vm
 
 
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_manual_gradient():
     target = "llvm"
-    dev = tvm.cpu()
 
     # The expression computed is sum((2x - 2y) * (y + z))
     # the gradient of x is broadcast_to(2y + 2z, x.shape)
@@ -71,7 +70,7 @@ def test_manual_gradient():
     args = [rand("float32", 3, 5), rand("float32", 5), rand("float32", 5), rand("float32", 5)]
     args_np = [x.numpy() for x in args]
 
-    vm = _legalize_and_build(After, target, dev)
+    vm = _legalize_and_build(After, target)
     output, grads = vm["main_adjoint"](*args)
     output_np = np.sum((2 * args_np[0] - 2 * args_np[1]) * (args_np[1] + args_np[2]))
     assert_allclose(output.numpy(), output_np, atol=1e-4)
@@ -89,7 +88,6 @@ def test_manual_gradient():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_mlp_blockbuilder():
     target = "llvm"
-    dev = tvm.cpu()
     layers, in_size, out_size, hidden_size, batch_size = 3, 5, 5, 5, 4
 
     input_list = [relax.Var("x", R.Tensor((batch_size, in_size), "float32"))]
@@ -133,8 +131,8 @@ def test_mlp_blockbuilder():
         else:  # float32
             args.append(rand("float32", *shape))
 
-    vm_before = _legalize_and_build(Before, target, dev)
-    vm_after = _legalize_and_build(After, target, dev)
+    vm_before = _legalize_and_build(Before, target)
+    vm_after = _legalize_and_build(After, target)
     _, grad = vm_after["MLP_adjoint"](*args)
 
     def func(*inputs):
@@ -147,7 +145,6 @@ def test_mlp_blockbuilder():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_complex():
     target = "llvm"
-    dev = tvm.cpu()
     cst = relax.const(np.ones((6,)), dtype="float32")
     cst1 = relax.const(np.array(3), dtype="int64")
 
@@ -191,8 +188,8 @@ def test_complex():
         shape = [int(l) for l in arg.ty.shape]
         args.append(rand("float32", *shape))
 
-    vm_before = _legalize_and_build(Before, target, dev)
-    vm_after = _legalize_and_build(After, target, dev)
+    vm_before = _legalize_and_build(Before, target)
+    vm_after = _legalize_and_build(After, target)
     _, grad = vm_after["main_adjoint"](*args)
 
     def func(*inputs):
@@ -205,7 +202,6 @@ def test_complex():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_matmul():
     target = "llvm"
-    dev = tvm.cpu()
 
     @tvm.script.ir_module
     class Before:
@@ -231,8 +227,8 @@ def test_matmul():
         shape = [int(l) for l in arg.ty.shape]
         args.append(rand("float32", *shape))
 
-    vm_before = _legalize_and_build(Before, target, dev)
-    vm_after = _legalize_and_build(After, target, dev)
+    vm_before = _legalize_and_build(Before, target)
+    vm_after = _legalize_and_build(After, target)
     _, grad = vm_after["main_adjoint"](*args)
 
     def func(*inputs):

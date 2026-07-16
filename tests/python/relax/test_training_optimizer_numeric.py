@@ -31,9 +31,9 @@ from tvm.script.parser import relax as R
 from tvm.testing import assert_allclose
 
 
-def _legalize_and_build(mod: IRModule, target, dev):
+def _legalize_and_build(mod: IRModule, target):
     ex = tvm.compile(mod, target)
-    vm = VirtualMachine(ex, dev)
+    vm = VirtualMachine(ex, tvm.device_from_target(target))
     return vm
 
 
@@ -65,12 +65,12 @@ def _assert_run_result_same(tvm_func: Callable, np_func: Callable, np_inputs: li
     _assert_allclose_nested(result, expected)
 
 
-def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
+def _test_optimizer(target, np_func, opt_type, *args, **kwargs):
     x = relax.Var("x", R.Tensor((3, 3), "float32"))
     y = relax.Var("y", R.Tensor((3,), "float32"))
     opt = opt_type(*args, **kwargs).init([x, y])
     mod = IRModule.from_expr(opt.get_function().with_attr("global_symbol", "main"))
-    tvm_func = _legalize_and_build(mod, target, dev)["main"]
+    tvm_func = _legalize_and_build(mod, target)["main"]
 
     param_arr = [np.random.rand(3, 3).astype(np.float32), np.random.rand(3).astype(np.float32)]
     grad_arr = [np.random.rand(3, 3).astype(np.float32), np.random.rand(3).astype(np.float32)]
@@ -89,7 +89,6 @@ def _test_optimizer(target, dev, np_func, opt_type, *args, **kwargs):
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_sgd(lr, weight_decay):
     target = "llvm"
-    dev = tvm.cpu()
 
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
@@ -101,7 +100,7 @@ def test_sgd(lr, weight_decay):
             param_tuple_new.append(param - lr * (grad + weight_decay * param))
         return param_tuple_new, state_tuple_new
 
-    _test_optimizer(target, dev, np_func, SGD, lr, weight_decay)
+    _test_optimizer(target, np_func, SGD, lr, weight_decay)
 
 
 @pytest.mark.parametrize(
@@ -115,7 +114,6 @@ def test_sgd(lr, weight_decay):
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
     target = "llvm"
-    dev = tvm.cpu()
 
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
@@ -137,9 +135,7 @@ def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
 
         return param_tuple_new, state_tuple_new
 
-    _test_optimizer(
-        target, dev, np_func, MomentumSGD, lr, momentum, dampening, weight_decay, nesterov
-    )
+    _test_optimizer(target, np_func, MomentumSGD, lr, momentum, dampening, weight_decay, nesterov)
 
 
 @pytest.mark.parametrize(
@@ -152,7 +148,6 @@ def test_momentum_sgd(lr, momentum, dampening, weight_decay, nesterov):
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_adam(lr, betas, eps, weight_decay):
     target = "llvm"
-    dev = tvm.cpu()
 
     def np_func(param_tuple, grad_tuple, state_tuple):
         num_steps = state_tuple[0]
@@ -181,7 +176,7 @@ def test_adam(lr, betas, eps, weight_decay):
 
         return param_tuple_new, state_tuple_new
 
-    _test_optimizer(target, dev, np_func, Adam, lr, betas, eps, weight_decay)
+    _test_optimizer(target, np_func, Adam, lr, betas, eps, weight_decay)
 
 
 if __name__ == "__main__":

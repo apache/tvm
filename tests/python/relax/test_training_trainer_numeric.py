@@ -56,7 +56,7 @@ def _make_dataset():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_execute():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm.device_from_target(target)
     backbone = _get_backbone()
     pred_ty = relax.TensorType((1, 5), "float32")
 
@@ -82,7 +82,7 @@ def test_execute():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_execute_numeric():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm.device_from_target(target)
     backbone = _get_backbone()
     pred_ty = relax.TensorType((1, 5), "float32")
 
@@ -113,7 +113,7 @@ def test_execute_numeric():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_load_export_params():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm.device_from_target(target)
     backbone = _get_backbone()
     pred_ty = relax.TensorType((1, 5), "float32")
 
@@ -150,7 +150,7 @@ def test_load_export_params():
 @pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 def test_setting_error():
     target = "llvm"
-    dev = tvm.cpu()
+    dev = tvm.device_from_target(target)
     backbone = _get_backbone()
     pred_ty = relax.TensorType((1, 5), "float32")
 

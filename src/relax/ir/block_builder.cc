@@ -533,7 +533,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!normalized->IsInstance<OpNode>()) {
       TVM_FFI_ICHECK(!normalized->ty.IsMissing())
           << "The ty of an Expr except OpNode after "
-             "normalization must not be nullptr. However, this Expr does not have ty: "
+             "normalization must not be missing. However, this Expr does not have ty: "
           << normalized;
     }
 
