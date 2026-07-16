@@ -874,7 +874,7 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     value = self.eval_expr(node.value)
     if value is None:
         self.report_error(node, "Expression to be returned must be a Expr")
-    T.evaluate(tvm.tirx.ret(value))
+    T.Return(value)
 
 
 @dispatch.register(token="tirx", type_name="tvm_declare_function")

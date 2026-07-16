@@ -1182,27 +1182,6 @@ def dp4a(vec1, vec2, acc=0):
     return call_intrin("int32", "tirx.dp4a", vec1, vec2, acc)
 
 
-def ret(val, span=None):
-    """Create a tir return expression
-
-    Parameters
-    ----------
-    val : Expr
-        The returned tir expression, whose data type is int, float or void pointer.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    ret : Expr
-        The return expression
-    """
-    if not isinstance(val, Expr):
-        val = tirx.convert(val)
-    return Call(Op.get("tirx.ret"), [val], span=span, ret_ty=val.ty)
-
-
 def any(*args, span=None):
     """Create a new experssion of the union of all conditions in the arguments
 

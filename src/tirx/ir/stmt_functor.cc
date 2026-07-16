@@ -59,6 +59,8 @@ void StmtVisitor::VisitStmt_(const WhileNode* op) {
   this->VisitStmt(op->body);
 }
 
+void StmtVisitor::VisitStmt_(const ReturnNode* op) { this->VisitExpr(op->value); }
+
 void StmtVisitor::VisitStmt_(const BreakNode* op) {}
 
 void StmtVisitor::VisitStmt_(const ContinueNode* op) {}
@@ -340,6 +342,17 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
     n->body = std::move(body);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const ReturnNode* op) {
+  Expr value = this->VisitExpr(op->value);
+  if (value.same_as(op->value)) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->value = std::move(value);
     return Stmt(n);
   }
 }

@@ -288,19 +288,6 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   }
 }
 
-PrimExpr ret(PrimExpr value, Span span) {
-  TVM_FFI_ICHECK(value.defined());
-  return Call(value.ty(), tirx::builtin::ret(), {value}, {}, {}, span).as_or_throw<PrimExpr>();
-}
-
-Expr ret(Expr value, Span span) {
-  TVM_FFI_ICHECK(value.defined());
-  if (auto prim_value = value.as<PrimExpr>()) {
-    return ret(prim_value.value(), span);
-  }
-  return Call(value->ty, tirx::builtin::ret(), {value}, {}, {}, span);
-}
-
 PrimExpr thread_return(Span span) {
   return Call(PrimType::Void(), tirx::builtin::thread_return(), {}, {}, {}, span)
       .as_or_throw<PrimExpr>();
@@ -319,7 +306,6 @@ PrimExpr break_loop(Span span) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("tirx.ret", [](Expr value, Span span) { return ret(value, span); })
       .def("tirx.thread_return", thread_return)
       .def("tirx.continue_loop", continue_loop)
       .def("tirx.break_loop", break_loop);

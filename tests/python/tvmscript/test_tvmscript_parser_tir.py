@@ -407,7 +407,7 @@ def test_inferred_ty_with_prim_args():
 
     @T.prim_func(s_tir=True)
     def func(M: T.int32, N: T.int32) -> T.int32:
-        T.ret(M * N)
+        return M * N
 
     expected = tvm.relax.FuncType(
         [
@@ -425,7 +425,7 @@ def test_inferred_ty_with_buffer_args():
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
-        T.ret(T.float32(42.0))
+        return T.float32(42.0)
 
     expected = tvm.relax.FuncType(
         [
@@ -452,7 +452,7 @@ def test_inferred_ty_with_internal_allocation():
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]
 
-        T.ret(Sum[()])
+        return Sum[()]
 
     expected = tvm.relax.FuncType(
         [

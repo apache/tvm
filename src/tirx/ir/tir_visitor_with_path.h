@@ -129,6 +129,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const BreakNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;

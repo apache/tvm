@@ -179,6 +179,17 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     }
   }
 
+  void VisitStmt_(const ReturnNode* op) final {
+    scope_.push_back(StmtEntry());
+    StmtExprVisitor::VisitStmt_(op);
+    StmtEntry e = scope_.back();
+    scope_.pop_back();
+    if (e.touched.size() != 0) {
+      e.stmt = op;
+      linear_seq_.push_back(e);
+    }
+  }
+
   void VisitExpr_(const VarNode* buf) final {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);

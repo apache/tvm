@@ -353,8 +353,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   EmitDebugLocation(f->span);
 
   if (IsVoidType(f->ret_type)) {
-    // All other return types are handled when encountering
-    // builtin::ret().
+    // All other return types are handled when encountering Return.
     builder_->CreateRetVoid();
   } else {
     builder_->CreateRet(ConstInt32(0));
@@ -1463,19 +1462,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
-  } else if (op->op.same_as(builtin::ret())) {
-    auto const* val = args[0].as<IntImmNode>();
-    TVM_FFI_ICHECK(val) << "the tirx.ret should be transformed to return zero "
-                        << "before the llvm code generation.";
-    TVM_FFI_ICHECK_EQ(val->value, 0) << "the tirx.ret should be transformed to "
-                                     << "return zero before the llvm code generation.";
-    builder_->CreateRet(ConstInt32(0));
-    // LLVM allows exactly one terminator in a single basic block
-    // append a new dummy basic block to avoid error.
-    llvm::BasicBlock* ret_dummy =
-        llvm::BasicBlock::Create(*llvm_target_->GetContext(), "ret_dummy", function_);
-    builder_->SetInsertPoint(ret_dummy);
-    return ret_dummy;
   } else if (op->op.same_as(builtin::continue_loop())) {
     TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty())
         << "the tirx.continue_loop should be inserted under at least one For or While stmts.";
@@ -2068,6 +2054,21 @@ void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
   PopLoopFrame();
   builder_->CreateBr(while_cond);
   builder_->SetInsertPoint(while_merge);
+}
+
+void CodeGenLLVM::VisitStmt_(const ReturnNode* op) {
+  EmitDebugLocation(op);
+  auto const* val = op->value.as<IntImmNode>();
+  TVM_FFI_ICHECK(val) << "Return should be transformed to return zero "
+                      << "before LLVM code generation.";
+  TVM_FFI_ICHECK_EQ(val->value, 0)
+      << "Return should be transformed to return zero before LLVM code generation.";
+  builder_->CreateRet(ConstInt32(0));
+  // LLVM allows exactly one terminator in a basic block. Append a dummy block
+  // so code generation can continue after the return statement.
+  llvm::BasicBlock* ret_dummy =
+      llvm::BasicBlock::Create(*llvm_target_->GetContext(), "ret_dummy", function_);
+  builder_->SetInsertPoint(ret_dummy);
 }
 
 void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {

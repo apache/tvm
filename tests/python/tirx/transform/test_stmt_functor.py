@@ -98,6 +98,12 @@ class ASTPrinter(StmtVisitor):
         self.visit_stmt(op.body)
         self.log.pop_scope()
 
+    def visit_return_(self, op):
+        self.log.add("Return")
+        self.log.push_scope()
+        self.visit_expr(op.value)
+        self.log.pop_scope()
+
     def visit_buffer_store_(self, op):
         self.log.add("BufferStore")
         self.log.push_scope()
@@ -254,6 +260,11 @@ class ASTPrinterMutator(StmtMutator):
     def visit_while_(self, op):
         result = super().visit_while_(op)
         self.log.add("While")
+        return result
+
+    def visit_return_(self, op):
+        result = super().visit_return_(op)
+        self.log.add("Return")
         return result
 
     def visit_buffer_store_(self, op):
@@ -641,6 +652,9 @@ def create_test_statements():
     # While loop
     while_loop = tir.While(tir.LT(x, int_imm), evaluate_stmt)
 
+    # Return
+    return_stmt = tir.Return(add_expr)
+
     # Buffer operations
     buffer_var = tir.Var("buf", "handle")
     buffer = tir.decl_buffer((10,), "int32", buffer_var.name)
@@ -685,6 +699,7 @@ def create_test_statements():
         "let": let_stmt,
         "for": for_loop,
         "while": while_loop,
+        "return": return_stmt,
         "buffer_store": buffer_store,
         "seq_stmt": seq_stmt,
         "block_realize": block_realize,
@@ -755,6 +770,16 @@ def test_while():
             ]
         ),
         "\n".join(["Var", "IntImm", "LT", "Var", "IntImm", "Add", "Evaluate", "While"]),
+    )
+
+
+def test_return():
+    """Test return statement."""
+    return_stmt = create_test_statements()["return"]
+    basic_check(
+        return_stmt,
+        "\n".join(["Return", "\tAdd", "\t\tVar", "\t\tIntImm"]),
+        "\n".join(["Var", "IntImm", "Add", "Return"]),
     )
 
 

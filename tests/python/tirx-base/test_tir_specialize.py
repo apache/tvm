@@ -341,11 +341,11 @@ def test_specialization_updates_ty():
 
     @T.prim_func(private=True, s_tir=True)
     def before(n: T.int32) -> T.int32:
-        T.ret(n * 10)
+        return n * 10
 
     @T.prim_func(private=True, s_tir=True)
     def expected() -> T.int32:
-        T.ret(50)
+        return 50
 
     ty_before = tvm.relax.FuncType([tvm.ir.PrimType("int32")], tvm.ir.PrimType("int32"))
     tvm.ir.assert_structural_equal(before.ty, ty_before)

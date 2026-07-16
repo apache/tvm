@@ -910,7 +910,7 @@ def test_return_statement():
 
     @T.prim_func(s_tir=True)
     def func():
-        T.evaluate(T.ret(5))
+        return T.int32(5)
 
     expected_output = """
 # from tvm.script import tirx as T
@@ -921,6 +921,7 @@ def func():
     return 5
     """
     _assert_print(func, expected_output)
+    assert func.script(verbose_expr=True, syntax_sugar=False).strip() == expected_output.strip()
 
 
 CUSTOM_FLOAT_DTYPES = [
