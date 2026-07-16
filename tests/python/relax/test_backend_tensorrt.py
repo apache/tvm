@@ -27,6 +27,7 @@ def _make_resize2d_module(
     size=(16, 16),
     *,
     dynamic_size=False,
+    bind_static_size=False,
     layout="NCHW",
     method="linear",
     coordinate_transformation_mode="half_pixel",
@@ -43,6 +44,8 @@ def _make_resize2d_module(
         size_expr = relax.ShapeExpr(size)
 
     with builder.function("main", params):
+        if bind_static_size:
+            size_expr = builder.emit(size_expr, "size")
         with builder.dataflow():
             output = builder.emit(
                 relax.op.image.resize2d(
@@ -84,6 +87,7 @@ def _collect_call_ops(expr):
 def test_resize2d_partition_supported():
     mod = _make_resize2d_module(
         size=(13, 11),
+        bind_static_size=True,
         method="nearest_neighbor",
         coordinate_transformation_mode="asymmetric",
         rounding_method="floor",
@@ -92,7 +96,9 @@ def test_resize2d_partition_supported():
 
     regions = _functions_with_attr(partitioned, "Codegen", "tensorrt")
     assert len(regions) == 1
+    assert len(regions[0].params) == 1
     assert "relax.image.resize2d" in _collect_call_ops(regions[0])
+    relax.transform.RunCodegen()(partitioned)
 
 
 @pytest.mark.parametrize(

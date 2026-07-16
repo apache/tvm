@@ -396,7 +396,8 @@ class GraphCreator : public ExprVisitor {
  */
 class FunctionCreator : public ExprMutator {
  public:
-  explicit FunctionCreator(bool lift_constant) : lift_constant_(lift_constant) {}
+  explicit FunctionCreator(bool lift_constant, ffi::Map<Var, Expr> outer_bindings)
+      : outer_bindings_(std::move(outer_bindings)), lift_constant_(lift_constant) {}
   /*!
    * \brief Append a new binding to this function and possibly create new parameters for the
    * function accordingly
@@ -621,6 +622,21 @@ class FunctionCreator : public ExprMutator {
     // If the expression is not a variable or is a undefined variable, it should be populated as a
     // parameter of the relax function.
     const auto* var = expr.as<VarNode>();
+    if (var != nullptr && defined_vars_.count(var) == 0) {
+      Var bound_var = ffi::GetRef<Var>(var);
+      Expr bound_value = bound_var;
+      std::unordered_set<const VarNode*> visited;
+      while (const auto* current_var = bound_value.as<VarNode>()) {
+        if (!visited.insert(current_var).second) break;
+        auto it = outer_bindings_.find(ffi::GetRef<Var>(current_var));
+        if (it == outer_bindings_.end()) break;
+        bound_value = (*it).second;
+      }
+      if (!bound_value.same_as(bound_var) && IsInlinableConstants(bound_value)) {
+        inlined_bindings_[var] = bound_value;
+        return;
+      }
+    }
     if ((var == nullptr || defined_vars_.count(var) == 0) &&
         (lift_constant_ || !expr->IsInstance<ConstantNode>())) {
       ffi::String name = var != nullptr
@@ -649,6 +665,11 @@ class FunctionCreator : public ExprMutator {
     if (it != arguments_.end()) {
       return params_[it - arguments_.begin()];
     }
+    if (const auto* var = expr.as<VarNode>()) {
+      if (auto inlined = inlined_bindings_.find(var); inlined != inlined_bindings_.end()) {
+        return inlined->second;
+      }
+    }
     // Otherwise, recurse into this expression.
     return ExprMutator::VisitExpr(expr);
   }
@@ -673,10 +694,14 @@ class FunctionCreator : public ExprMutator {
  private:
   /*! \brief The variables defined in this function */
   std::unordered_set<const VarNode*> defined_vars_;
+  /*! \brief Caller variables replaced by statically inlinable bound values. */
+  std::unordered_map<const VarNode*, Expr> inlined_bindings_;
   /*! \brief The number of parameters reserved for constants */
   int n_param_for_const_ = 0;
   /*! \brief The output vars */
   std::vector<const VarNode*> output_vars_;
+  /*! \brief Bindings in the caller function, used to inline static leaf expressions. */
+  ffi::Map<Var, Expr> outer_bindings_;
   /*! \brief Whether or not to lift bound constants to parameters */
   bool lift_constant_;
   /*! \brief Mapping from tuple parameter of the function to its position index */
@@ -749,8 +774,10 @@ class OperatorFusor : public ExprMutator {
       // attr::kCodegen.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
           !func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
+        outer_bindings_ = AnalyzeVar2Value(func);
         auto updated_func = VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, updated_func);
+        outer_bindings_ = {};
       }
     }
     return builder_->GetContextIRModule();
@@ -906,10 +933,8 @@ class OperatorFusor : public ExprMutator {
       }
       // Add the binding to the grouped function it's in, and update the function information
       // accordingly.
-      if (!group2func_.count(group)) {
-        group2func_.emplace(group, lift_constants_);
-      }
-      group2func_.find(group)->second.AppendBinding(binding);
+      auto it = group2func_.try_emplace(group, lift_constants_, outer_bindings_).first;
+      it->second.AppendBinding(binding);
     }
   }
 
@@ -1038,6 +1063,8 @@ class OperatorFusor : public ExprMutator {
   GroupMap obj2group_;
   /*! \brief Internal function information map. */
   std::unordered_map<Group*, FunctionCreator> group2func_;
+  /*! \brief Bindings visible while rewriting the current Relax function. */
+  ffi::Map<Var, Expr> outer_bindings_;
   /*!
    * \brief A map from a group to its dependent groups, used to detect cyclic dependencies.
    * \note Use vector so we can be deterministic, there won't be a lot of dep groups so

@@ -1467,5 +1467,43 @@ def test_unique_boundary_output_precedes_last_group_binding():
     assert after["main"].body.body.same_as(grouped_result)
 
 
+def test_inline_bound_static_shape_argument():
+    """A static leaf binding should not become a grouped-function parameter."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((4,), "float32")) -> R.Tensor((2, 2), "float32"):
+            shape: R.Shape([2, 2]) = R.shape([2, 2])
+            with R.dataflow():
+                out: R.Tensor((2, 2), "float32") = R.reshape(x, shape)
+                R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def fused_relax_reshape(
+            x: R.Tensor((4,), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            R.func_attr({"Composite": "compiler_A.reshape", "Primitive": True})
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = R.reshape(x, R.shape([2, 2]))
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
+            cls = Expected
+            shape: R.Shape([2, 2]) = R.shape([2, 2])
+            with R.dataflow():
+                gv: R.Tensor((2, 2), dtype="float32") = cls.fused_relax_reshape(x)
+                R.output(gv)
+            return gv
+
+    pattern = is_op("relax.reshape")(wildcard(), wildcard())
+    check(Before, [("compiler_A.reshape", pattern)], Expected)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

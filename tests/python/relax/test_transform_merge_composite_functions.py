@@ -1413,6 +1413,29 @@ def test_tuple_projection_preserves_real_cycle_boundary():
     }
     relax.analysis.well_formed(after)
 
+    bindings = [binding for block in after["main"].body.blocks for binding in block.bindings]
+    codegen_calls = {
+        binding.value.op.name_hint: binding
+        for binding in bindings
+        if isinstance(binding.value, relax.Call) and isinstance(binding.value.op, relax.GlobalVar)
+    }
+    split_binding = codegen_calls["fused_split_compiler_A"]
+    foreign_binding = codegen_calls["fused_foreign_relu_compiler_B"]
+    add_binding = codegen_calls["fused_add_compiler_A"]
+
+    projection_bindings = [
+        binding
+        for binding in bindings
+        if isinstance(binding.value, relax.TupleGetItem)
+        and binding.value.tuple_value.same_as(split_binding.var)
+    ]
+    assert len(projection_bindings) == 2
+    projections = {binding.value.index: binding.var for binding in projection_bindings}
+    assert set(projections) == {0, 1}
+    assert foreign_binding.value.args[0].same_as(projections[0])
+    assert add_binding.value.args[0].same_as(projections[1])
+    assert add_binding.value.args[1].same_as(foreign_binding.var)
+
 
 def test_tuple_projection_rejects_escaping_tuple():
     """Keep the projection outside when the complete tuple also crosses the region boundary."""
