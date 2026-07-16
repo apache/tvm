@@ -142,8 +142,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
       /*name=*/"src",
       /*data_alignment=*/64,
-      /*offset_factor=*/16,
-      /*buffer_type=*/kDefault);
+      /*offset_factor=*/16);
   Buffer new_tgt_buffer(
       /*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
       /*dtype=*/dtype,
@@ -152,8 +151,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
       /*name=*/"tgt",
       /*data_alignment=*/64,
-      /*offset_factor=*/16,
-      /*buffer_type=*/kDefault);
+      /*offset_factor=*/16);
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
   static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
@@ -253,8 +251,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                         /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
                         /*name=*/"src",
                         /*data_alignment=*/64,
-                        /*offset_factor=*/16,
-                        /*buffer_type=*/kDefault);
+                        /*offset_factor=*/16);
   Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
@@ -262,8 +259,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                         /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
                         /*name=*/"tgt",
                         /*data_alignment=*/64,
-                        /*offset_factor=*/16,
-                        /*buffer_type=*/kDefault);
+                        /*offset_factor=*/16);
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
@@ -481,8 +477,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                         /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
                         /*name=*/"src",
                         /*data_alignment=*/64,
-                        /*offset_factor=*/8,
-                        /*buffer_type=*/kDefault);
+                        /*offset_factor=*/8);
   Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
@@ -490,8 +485,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                         /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
                         /*name=*/"tgt",
                         /*data_alignment=*/64,
-                        /*offset_factor=*/8,
-                        /*buffer_type=*/kDefault);
+                        /*offset_factor=*/8);
 
   // Step 3.2. Generate new r/w region
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);

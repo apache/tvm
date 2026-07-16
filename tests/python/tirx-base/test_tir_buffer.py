@@ -202,18 +202,5 @@ def test_buffer_flatten_preserves_identity():
     assert buf.same_as(flat)
 
 
-def test_buffer_flatten_uses_axis_separators():
-    """Flattening to N-d physical buffers uses the axis separators"""
-    buf = tvm.tirx.decl_buffer([4, 16, 32], axis_separators=[2])
-    flat = buf.get_flattened_buffer()
-    tvm.ir.assert_structural_equal(flat.axis_separators, [T.int32(1)])
-    tvm.ir.assert_structural_equal(flat.shape, [T.int32(4 * 16), T.int32(32)])
-
-
-def test_invalid_axis_separators_raises_exception():
-    with pytest.raises(ValueError):
-        tvm.tirx.decl_buffer([1], axis_separators=[1, 2])
-
-
 if __name__ == "__main__":
     tvm.testing.main()

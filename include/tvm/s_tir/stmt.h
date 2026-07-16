@@ -227,15 +227,6 @@ constexpr const char* warp_execution = "warp_execution";
 constexpr const char* layout_transforms = "layout_transforms";
 
 /*!
- * \brief Marks the physical axis separators
- *
- * Only applies to a DataProducer, as it should be made part of the
- * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
- * for more details.
- */
-constexpr const char* axis_separators = "axis_separators";
-
-/*!
  * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted
  */
 constexpr const char* hand_threaded = "hand_threaded";

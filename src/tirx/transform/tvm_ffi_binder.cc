@@ -663,23 +663,6 @@ void TVMFFIABIBuilder::BindCompactStrides(const Buffer& buffer, const Var& strid
   }
 }
 
-void TVMFFIABIBuilder::BindAutoBroadcastStrides(const Buffer& buffer, const Var& strides_ptr,
-                                                const PrimExpr& v_strides_is_null,
-                                                const ffi::reflection::AccessPath& param_path) {
-  PrimType stype(buffer->DefaultIndexType());
-  PrimExpr stride = IntImm(stype, 1);
-  for (size_t i = buffer->shape.size(); i != 0; --i) {
-    size_t k = i - 1;
-    PrimExpr value = cast(buffer->shape[k].ty(), LoadInt64ArrayElem(strides_ptr, k));
-    value = tvm::if_then_else(v_strides_is_null, stride, value);
-    value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
-    ffi::reflection::AccessPath strides_k_path =
-        param_path->Attr(ffi::String("strides"))->ArrayItem(k);
-    BindScalar(buffer->strides[k], value, strides_k_path, true);
-    stride = analyzer_->Simplify(stride * buffer->shape[k]);
-  }
-}
-
 void TVMFFIABIBuilder::BindRegularStrides(const Buffer& buffer, const Var& strides_ptr,
                                           const Var& shape_ptr, const PrimExpr& v_strides_is_null,
                                           const ffi::reflection::AccessPath& param_path) {
@@ -761,8 +744,6 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
       Call(PrimType::Bool(), builtin::isnullptr(), {strides_ptr}).as_or_throw<PrimExpr>();
   if (buffer->strides.size() == 0) {
     BindCompactStrides(buffer, strides_ptr, v_strides_is_null, param_path);
-  } else if (buffer->buffer_type == kAutoBroadcast) {
-    BindAutoBroadcastStrides(buffer, strides_ptr, v_strides_is_null, param_path);
   } else {
     BindRegularStrides(buffer, strides_ptr, shape_ptr, v_strides_is_null, param_path);
   }

@@ -181,9 +181,6 @@ class ConcreteScheduleNode : public ScheduleNode {
                        const ffi::Optional<IndexMap>& pad_value,
                        bool assume_injective_transform = false) override;
   void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) override;
-  void SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                        BufferIndexType buffer_index_type,
-                        const ffi::Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
   SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) override;
   /******** Schedule: Buffer transformation ********/

@@ -941,8 +941,7 @@ class FusedTIRConstructor : public ExprVisitor {
       tirx::Buffer buffer;
       if (tir_buffer_param.has_value()) {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
-                                   tir_buffer_param.value().scope(),
-                                   tir_buffer_param.value()->axis_separators);
+                                   tir_buffer_param.value().scope());
       } else {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint);
       }

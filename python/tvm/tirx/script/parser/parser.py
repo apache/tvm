@@ -64,8 +64,6 @@ def slice_buffer_from_region(br: BufferRegion) -> Buffer:
             buf.scope(),
             buf.data_alignment,
             buf.offset_factor,
-            "",
-            buf.axis_separators,
             sliced_layout,
         )
     # Fallback: compute elem_offset for default/no layout
@@ -89,8 +87,6 @@ def slice_buffer_from_region(br: BufferRegion) -> Buffer:
         buf.scope(),
         buf.data_alignment,
         buf.offset_factor,
-        "",
-        buf.axis_separators,
         buf.layout,
     )
 

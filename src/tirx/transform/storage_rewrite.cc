@@ -132,11 +132,11 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
       scope_[it->second.level].touched.push_back(buffer_var);
 
-      TVM_FFI_ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
           << "Buffer " << op->buffer->name << " is allocated with "
           << it->second.num_physical_dimensions
           << " physical dimensions, but is accessed as having "
-          << op->buffer->axis_separators.size() + 1 << " physical dimensions" << std::endl;
+          << "1 physical dimension" << std::endl;
     }
     StmtEntry e = scope_.back();
     scope_.pop_back();
@@ -159,11 +159,11 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
           << "Load memory in places other than store.";
       scope_[it->second.level].touched.push_back(buffer_var);
 
-      TVM_FFI_ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
           << "Buffer " << op->buffer->name << " is allocated with "
           << it->second.num_physical_dimensions
           << " physical dimensions, but is accessed as having "
-          << op->buffer->axis_separators.size() + 1 << " physical dimensions" << std::endl;
+          << "1 physical dimension" << std::endl;
     }
   }
 
@@ -477,10 +477,9 @@ class StoragePlanRewriter : public StmtExprMutator {
       return it->second;
     }
 
-    Buffer remapped =
-        Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides, buf->elem_offset,
-               new_backing_array->name, buf->data_alignment, buf->offset_factor, buf->buffer_type,
-               buf->axis_separators, buf->span, buf->layout, buf->allocated_addr);
+    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides,
+                             buf->elem_offset, new_backing_array->name, buf->data_alignment,
+                             buf->offset_factor, buf->span, buf->layout, buf->allocated_addr);
     buffer_remap_[key] = remapped;
     return remapped;
   }
@@ -786,7 +785,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           combo_size = analyzer_->Simplify(combo_size);
           Buffer buf(e->alloc_var, alloc_type, {combo_size}, {}, PrimExpr(), e->alloc_var->name, 0,
-                     0, BufferType::kDefault);
+                     0);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
@@ -823,8 +822,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     PrimExpr alloc_size =
         MakeConst(e->allocs[0]->buffer->shape[0].ty(), (total_bits + type_bits - 1) / type_bits);
-    Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name, 0, 0,
-               BufferType::kDefault);
+    Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name, 0, 0);
     bool any_volatile = e->is_volatile;
     for (StorageEntry* child : e->merged_children) {
       if (child->is_volatile) any_volatile = true;

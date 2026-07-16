@@ -590,6 +590,3 @@ def create_prim_func(
     if not isinstance(ops, list | tuple | Array):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
-
-
-AXIS_SEPARATOR = tvm.tirx.IndexMap.AXIS_SEPARATOR

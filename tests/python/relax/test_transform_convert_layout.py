@@ -1676,8 +1676,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 16, 3, 3, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1685,8 +1683,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1706,8 +1702,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i1 * 4 + i4, i2, i3), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1728,8 +1722,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 3, 3, 16, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1737,8 +1729,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1758,8 +1748,6 @@ def test_conv2d_NCHW_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1799,8 +1787,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i3 // 4, i1, i2, i3 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 16, 3, 3, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1808,8 +1794,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i3, i1, i2, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 1, 26, 26, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1829,8 +1813,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i2, i3, i1 * 4 + i4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1851,8 +1833,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i1, i2, i3 // 4, i3 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 3, 3, 16, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -1860,8 +1840,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((2, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -1881,8 +1859,6 @@ def test_conv2d_NHWC_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i1, i2, i3 * 4 + i4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -1979,8 +1955,6 @@ def test_conv2d_symbolic_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i1 // 4, i2, i3, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1_1: R.Tensor((1, 16, Hw, Ww, 4), dtype="float32") = R.layout_transform(
                     lv1,
@@ -1988,8 +1962,6 @@ def test_conv2d_symbolic_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i1, i2, i3, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((N, 1, H + 1 - Hw, W + 1 - Ww, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -2009,8 +1981,6 @@ def test_conv2d_symbolic_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i1 * 4 + i4, i2, i3), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -2073,8 +2043,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1_1: R.Tensor((1, Hw, Ww, 16, 4), dtype="float32") = R.layout_transform(
                     lv1,
@@ -2082,8 +2050,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv2: R.Tensor((N, H + 1 - Hw, W + 1 - Ww, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -2108,8 +2074,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                             index_dtype="int32",
                         ),
                         pad_value=None,
-                        axis_separators=[],
-                        input_axis_separators=[],
                     )
                 )
                 lv3: R.Tensor(dtype="float32", ndim=5) = R.add(lv2, lv2_1)
@@ -2119,8 +2083,6 @@ def test_conv2d_matchcast_bias_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv)
             return gv
@@ -2437,8 +2399,6 @@ def test_relu_conv2d_relu_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 gv: R.Tensor((2, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -2455,8 +2415,6 @@ def test_relu_conv2d_relu_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 R.output(gv2)
             return gv2
@@ -3422,8 +3380,6 @@ def test_conv2d_squeeze_sub_indexed():
                         lambda i0, i1, i2, i3: (i0, i2, i3, i1 // 4, i1 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 lv1: R.Tensor((1, 3, 3, 16, 4), dtype="float32") = R.layout_transform(
                     w,
@@ -3431,8 +3387,6 @@ def test_conv2d_squeeze_sub_indexed():
                         lambda i0, i1, i2, i3: (i0 // 4, i2, i3, i1, i0 % 4), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 gv: R.Tensor((1, 26, 26, 1, 4), dtype="float32") = R.nn.conv2d(
                     lv,
@@ -3452,8 +3406,6 @@ def test_conv2d_squeeze_sub_indexed():
                         lambda i0, i1, i2, i3, i4: (i0, i3 * 4 + i4, i1, i2), index_dtype="int32"
                     ),
                     pad_value=None,
-                    axis_separators=[],
-                    input_axis_separators=[],
                 )
                 gv2: R.Tensor((4, 26, 26), dtype="float32") = R.squeeze(lv2, axis=[0])
                 R.output(gv2)

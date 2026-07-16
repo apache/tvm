@@ -1496,89 +1496,6 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   self->Replace(scope_sref, body, {{block, new_block}});
 }
 
-class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
- public:
-  static SBlock Mutate(const SBlock& scope_block, const Buffer& old_buffer, Buffer new_buffer,
-                       ffi::Map<SBlock, SBlock>* block_sref_reuse) {
-    BufferAxisSeparatorMutator mutator(old_buffer, std::move(new_buffer), block_sref_reuse);
-    return mutator.VisitStmt(scope_block).as_or_throw<SBlock>();
-  }
-
- private:
-  BufferAxisSeparatorMutator(const Buffer& old_buffer, Buffer new_buffer,
-                             ffi::Map<SBlock, SBlock>* block_sref_reuse)
-      : ReplaceBufferMutator(old_buffer, new_buffer, block_sref_reuse) {}
-
-  MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
-    auto it = buffer_var_map_.find(match_buffer->source->buffer->data.get());
-    if (it != buffer_var_map_.end()) {
-      const Buffer& new_source_buffer = it->second;
-      Buffer new_target_buffer = match_buffer->buffer;
-
-      if (new_target_buffer->shape.size() == new_source_buffer->shape.size()) {
-        new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
-      } else {
-        new_target_buffer.CopyOnWrite()->axis_separators =
-            ffi::Array<IntImm>(new_source_buffer->axis_separators.size(), IntImm::Int32(0));
-        LOG(WARNING) << "Buffer view " << new_target_buffer
-                     << " has different dimensionality than backing buffer " << new_source_buffer
-                     << ".  The `axis_separators` for " << new_target_buffer << "."
-                     << "`axis_separators` for the view might be incorrect.";
-      }
-      buffer_var_map_[new_target_buffer->data.get()] = new_target_buffer;
-      return MatchBufferRegion(new_target_buffer,
-                               BufferRegion(new_source_buffer, match_buffer->source->region));
-    }
-    return match_buffer;
-  }
-};
-
-void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
-                      BufferIndexType buffer_index_type,
-                      const ffi::Array<IntImm>& axis_separators) {
-  const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
-  Buffer old_buffer =
-      GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block_ptr), buffer_index, buffer_index_type);
-  auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, old_buffer);
-  if (defining_site_sref.has_value() && !is_alloc) {
-    throw BufferIsSubregionError(self->mod, old_buffer);
-  }
-
-  StmtSRef scope_sref = defining_site_sref.has_value()
-                            ? defining_site_sref.value()
-                            : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
-  const SBlockNode* scope_block = TVM_SREF_TO_SBLOCK(scope_sref);
-
-  // Step 1: Check and update axis_separators of the buffer.
-  Buffer new_buffer = old_buffer;
-  new_buffer.CopyOnWrite()->axis_separators = axis_separators;
-
-  ffi::Map<SBlock, SBlock> block_sref_reuse;
-
-  // Step 2: Rewrite alloc_buffer of the block or buffer_map of the PrimFunc.
-  SBlock new_scope_block = BufferAxisSeparatorMutator::Mutate(
-      ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer, &block_sref_reuse);
-  if (!defining_site_sref.has_value()) {
-    // mutate buffer_map of the PrimFunc
-    GlobalVar g_var;
-    GetRootPrimFunc(self->mod, scope_block, &g_var);
-    IRModuleNode* new_mod = self->mod.CopyOnWrite();
-    ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
-    PrimFunc ref_new_func = std::move(new_map->at(g_var)).as_or_throw<PrimFunc>();
-    PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
-    ffi::MapObj* new_buffer_map = new_func->buffer_map.CopyOnWrite();
-    for (auto it = new_buffer_map->begin(); it != new_buffer_map->end(); ++it) {
-      if ((*it).second.same_as(old_buffer)) {
-        (*it).second = new_buffer;
-      }
-    }
-    new_map->at(g_var) = std::move(ref_new_func);
-  }
-
-  // Step 4: Replace the scope block with the new block
-  self->Replace(scope_sref, new_scope_block, block_sref_reuse);
-}
-
 /******** InstructionKind Registration ********/
 
 struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> {
@@ -1696,45 +1613,8 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-struct SetAxisSeparatorTraits : public UnpackedInstTraits<SetAxisSeparatorTraits> {
-  static constexpr const char* kName = "SetAxisSeparator";
-  static constexpr bool kIsPure = false;
-
- private:
-  static constexpr size_t kNumInputs = 1;
-  static constexpr size_t kNumAttrs = 3;
-  static constexpr size_t kNumDecisions = 0;
-
-  static void UnpackedApplyToSchedule(Schedule sch, SBlockRV block_rv, IntImm buffer_index,
-                                      IntImm buffer_index_type,
-                                      ffi::Array<IntImm> axis_separators) {
-    return sch->SetAxisSeparator(block_rv, buffer_index->value,
-                                 static_cast<BufferIndexType>(buffer_index_type->value),
-                                 axis_separators);
-  }
-
-  static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String block_rv,
-                                      IntImm buffer_index, IntImm buffer_index_type,
-                                      ffi::Array<IntImm> axis_separators) {
-    PythonAPICall py("set_axis_separator");
-    py.Input("block", block_rv);
-
-    std::ostringstream os;
-    os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
-       << "\", " << buffer_index << ")";
-    py.Input("buffer", os.str());
-
-    py.Input("axis_separators", axis_separators);
-    return py.Str();
-  }
-
-  template <typename>
-  friend struct ::tvm::s_tir::UnpackedInstTraits;
-};
-
 TVM_REGISTER_INST_KIND_TRAITS(TransformLayoutTraits);
 TVM_REGISTER_INST_KIND_TRAITS(TransformBlockLayoutTraits);
-TVM_REGISTER_INST_KIND_TRAITS(SetAxisSeparatorTraits);
 
 }  // namespace s_tir
 }  // namespace tvm

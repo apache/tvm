@@ -3349,11 +3349,6 @@ class Schedule(Object):
 
             The transformation to apply.
 
-            If `index_map` is a callable, and the returned list
-            contains IndexMap.AXIS_SEPARATOR, the SetAxisSeparators
-            primitive will be called in addition to the
-            TransformLayout primitive.
-
         pad_value: Optional[int | float | Expr | IndexMap | Callable]
 
             The value to be used for any padding introduced by the
@@ -3444,13 +3439,11 @@ class Schedule(Object):
 
         ndim = len(buffer_obj.shape)
         if callable(index_map):
-            index_map, axis_separators = IndexMap.from_func_with_separators(
+            index_map = IndexMap.from_func(
                 index_map,
                 ndim=ndim,
                 index_dtype=_get_sblock_default_dtype(self.get(block)),
             )
-        else:
-            axis_separators = []
 
         if pad_value is None:
             pass
@@ -3489,10 +3482,6 @@ class Schedule(Object):
             pad_value,
             assume_injective_transform,
         )
-        if axis_separators:
-            _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
-                self, block, buffer_index, buffer_index_type_enum, axis_separators
-            )
 
     @type_checked
     def transform_block_layout(self, block: SBlockRV | str, index_map: IndexMap | Callable) -> None:
@@ -3553,103 +3542,6 @@ class Schedule(Object):
             )
         _ffi_api.ScheduleTransformBlockLayout(  # type: ignore # pylint: disable=no-member
             self, block, index_map
-        )
-
-    def set_axis_separator(
-        self,
-        block: SBlockRV | str,
-        buffer: tuple[str, int] | str | Buffer,
-        axis_separators: list[int] | None,
-    ) -> None:
-        """Set the axis separator of a buffer, where the buffer is specified by a block and a read
-        or write index.
-
-        Parameters
-        ----------
-        block : SBlockRV | str
-
-            The block that accesses the target buffer.  If a string,
-            this must uniquely identify a block.
-
-        buffer: Union[Tuple[str,int], Buffer, str]
-
-            The buffer to be transformed, or a specification of how to
-            identify the buffer to be transformed.
-
-            If `buffer` if a tuple of ``(str,int)``, the first item
-            should be either "read" or "write", and the second item is
-            an index into the block's read or write regions.
-
-            If `buffer` is a string, it is the name of the buffer,
-            which must exist within the reads/writes of the block.  In
-            addition, the reads/writes of the block may not contain
-            more than one buffer with this name.
-
-            If `buffer` is a Buffer object, it must exist within the
-            reads/writes of the block.
-
-        axis_separators : Optional[List[int]]
-
-            The axis separators.
-
-        Examples
-        --------
-
-        Before set_axis_separator, in TensorIR, the IR is:
-
-        .. code-block:: python
-
-            @T.prim_func(s_tir=True)
-            def before_set_axis_separator(
-                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
-            ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), dtype="float32")
-
-                for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = A[vi, vj] * 2.0
-                for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        C[vi, vj] = B[vi, vj] + 1.0
-
-        Create the schedule and do set_axis_separator:
-
-        .. code-block:: python
-
-            sch = tvm.s_tir.Schedule(before_set_axis_separator)
-            sch.set_axis_separators(sch.get_sblock("B"), buffer=("write", 0),
-                                    axis_separators=[1])
-            print(sch.mod["main"].script())
-
-        After applying set_axis_separator, the IR becomes:
-
-        .. code-block:: python
-
-            @T.prim_func(s_tir=True)
-            def after_set_axis_separators(
-                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
-            ) -> None:
-                B = T.sblock_alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
-
-                for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = A[vi, vj] * T.float32(2)
-                for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        C[vi, vj] = B[vi, vj] + T.float32(1)
-        """
-        axis_separators = axis_separators or []
-
-        block = self._normalize_block_arg(block)
-        buffer_index_type, buffer_index, _ = self._normalize_buffer_arg(block, buffer)
-
-        buffer_index_type_enum = 0 if buffer_index_type == "read" else 1
-        _ffi_api.ScheduleSetAxisSeparator(  # type: ignore # pylint: disable=no-member
-            self, block, buffer_index, buffer_index_type_enum, axis_separators
         )
 
     ########## Schedule: Padding decomposition #########

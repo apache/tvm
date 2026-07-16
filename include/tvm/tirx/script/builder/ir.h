@@ -53,16 +53,12 @@ using tvm::tirx::Var;
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
 Buffer BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                   ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                   ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                  int offset_factor, ffi::String buffer_type,
-                  ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                  ffi::Optional<Layout> layout = std::nullopt,
+                  int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
                   ffi::Array<PrimExpr> allocated_addr = {});
 
 /*!
@@ -117,16 +113,12 @@ Type FuncRet(Type ret_type);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The matched buffer.
  */
 Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                    PrimType dtype = PrimType::Float(32), ffi::Optional<Var> data = std::nullopt,
                    ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
                    ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
-                   ffi::String buffer_type = "default",
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
                    ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
@@ -189,8 +181,6 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \param allocated_addr The allocated address of the buffer. Might be multi-dimensional.
  * \return The allocated buffer or the AllocBufferFrame if the function is called under
@@ -200,9 +190,8 @@ ffi::Variant<Buffer, AllocBufferFrame> SBlockAllocBuffer(
     ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
     ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
     PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "", int align = -1,
-    int offset_factor = 0, ffi::String buffer_type = "default",
-    ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-    ffi::Optional<Layout> layout = std::nullopt, ffi::Array<PrimExpr> allocated_addr = {});
+    int offset_factor = 0, ffi::Optional<Layout> layout = std::nullopt,
+    ffi::Array<PrimExpr> allocated_addr = {});
 
 namespace axis {
 
@@ -413,16 +402,13 @@ ElseFrame Else();
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \return The declaration frame.
  */
 DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                            ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                           int align, int offset_factor,
                            ffi::Optional<Layout> layout = std::nullopt,
                            ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 

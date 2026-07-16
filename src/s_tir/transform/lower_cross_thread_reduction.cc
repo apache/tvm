@@ -154,8 +154,7 @@ ffi::Array<Buffer> MakeScratchpads(const ffi::Array<Buffer>& reduction_buffers,
                                  /*elem_offset=*/PrimExpr{nullptr},
                                  /*name=*/name,
                                  /*data_alignment=*/0,
-                                 /*offset_factor=*/0,
-                                 /*buffer_type=*/kDefault));
+                                 /*offset_factor=*/0));
   }
   return new_buffers;
 }
