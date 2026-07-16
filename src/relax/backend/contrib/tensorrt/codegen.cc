@@ -36,7 +36,6 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/index_map.h>
 
-#include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
@@ -100,18 +99,13 @@ using JSONGraphObjectPtr = backend::contrib::JSONGraphObjectPtr;
 using OpAttrExtractor = backend::contrib::OpAttrExtractor;
 using JSONSerializer = backend::contrib::JSONSerializer;
 
-class TensorRTJSONSerializer;
-
 /*!
- * \brief Collect the constants and attributes from all operator calls in the body
- * of a "Composite" function.
+ * \brief Collect the primitive operator call and its attributes from a "Composite" function.
  */
 class CollectFromCompositeFunctionBody : public ExprVisitor {
  public:
-  explicit CollectFromCompositeFunctionBody(TensorRTJSONSerializer* serializer)
-      : serializer_(serializer), node_(std::make_shared<JSONGraphNode>()) {}
+  CollectFromCompositeFunctionBody() : node_(std::make_shared<JSONGraphNode>()) {}
 
-  void VisitExpr_(const ConstantNode* constant_node) final;
   void VisitExpr_(const CallNode* call_node) final;
 
   void SetGenericAttributes(const CallNode* call_node) {
@@ -215,15 +209,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     return true;
   }
 
-  TensorRTJSONSerializer* serializer_;
-  /*! \brief Accumulated translated arguments. */
-  std::vector<JSONGraphNodeEntry> args_;
-  /*! \brief The first primitive operator call in the composite function. */
+  /*! \brief The primitive operator call in the composite function. */
   const CallNode* operator_call_{nullptr};
-  /*! \brief Total number of calls in the composite function. */
-  size_t num_calls_{0};
-  /*! \brief Number of primitive operator calls in the composite function. */
-  size_t num_operator_calls_{0};
   /*!
    * \brief Temporary node into which we'll accumulate attributes. Ideally this would be the
    * final JSONGraphNode however we don't yet know how many inputs that will have.
@@ -254,78 +241,37 @@ class TensorRTJSONSerializer : public JSONSerializer {
     TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
-    // Collect the constants and attributes of all operator calls inside the composite body.
-    CollectFromCompositeFunctionBody collector(this);
+    // TensorRT patterns describe a single primitive operator and use the Composite function only
+    // to bind that operator's arguments and attributes.
+    CollectFromCompositeFunctionBody collector;
     collector.VisitExpr(fn->body);
+    TVM_FFI_ICHECK(collector.operator_call_ != nullptr)
+        << "TensorRT Composite function " << name
+        << " must contain exactly one primitive Relax operator call";
 
-    // Capture the args to the "Composite" function as inputs for this node, and bind the
-    // composite parameters back to those caller-side expressions.
+    // Bind Composite parameters back to the caller. The primitive operator's tensor arguments
+    // are serialized below in their original order, regardless of whether they are constants or
+    // parameters. Non-tensor scalar and shape arguments have already been captured as attributes.
     TVM_FFI_ICHECK_EQ(fn->params.size(), call_node->args.size());
     ffi::Map<Var, Expr> param_bindings;
-    std::vector<JSONGraphNodeEntry> arguments;
     for (size_t i = 0; i < call_node->args.size(); ++i) {
-      const Expr& arg = call_node->args[i];
-      param_bindings.Set(fn->params[i], arg);
-      auto res = VisitExpr(arg);
-      arguments.insert(arguments.end(), res.begin(), res.end());
+      param_bindings.Set(fn->params[i], call_node->args[i]);
     }
 
-    // Capture constants from the composite function body as additional inputs for this node.
-    // FuseOps keeps constants in the composite body, so the legacy serializer discovered caller
-    // arguments and constants separately and always placed constants last.  For the single-op
-    // composites registered by TensorRT, bind the operator arguments back to caller expressions
-    // and visit them in their original order.  This matters for non-commutative operators such as
-    // subtract(constant, tensor), as well as for constants interleaved in tuple arguments.
     std::vector<JSONGraphNodeEntry> inputs;
-    bool inputs_are_ordered = collector.num_calls_ == 1 && collector.num_operator_calls_ == 1;
-    if (inputs_are_ordered) {
-      TVM_FFI_ICHECK_NOTNULL(collector.operator_call_);
-      auto is_resolvable = [&](const auto& self, const Expr& expr) -> bool {
-        if (const auto* tuple = expr.as<TupleNode>()) {
-          return std::all_of(tuple->fields.begin(), tuple->fields.end(),
-                             [&](const Expr& field) { return self(self, field); });
-        }
-        Type type = GetType(expr);
-        if (!type->IsInstance<TensorTypeNode>() && !type->IsInstance<TupleTypeNode>()) return true;
-        if (expr->IsInstance<ConstantNode>()) return true;
-        if (const auto* var = expr.as<VarNode>()) {
-          return param_bindings.count(ffi::GetRef<Var>(var));
-        }
-        if (expr->IsInstance<TupleGetItemNode>()) {
-          for (const Var& var : FreeVars(expr)) {
-            if (!param_bindings.count(var)) return false;
-          }
-          return true;
-        }
-        return false;
-      };
-      for (const Expr& arg : collector.operator_call_->args) {
-        if (!is_resolvable(is_resolvable, arg)) {
-          inputs_are_ordered = false;
-          break;
-        }
+    auto append_tensor_inputs = [&](const auto& self, const Expr& expr) -> void {
+      if (const auto* tuple = expr.as<TupleNode>()) {
+        for (const Expr& field : tuple->fields) self(self, field);
+        return;
       }
-    }
-    if (inputs_are_ordered) {
-      auto append_tensor_inputs = [&](const auto& self, const Expr& expr) -> void {
-        if (const auto* tuple = expr.as<TupleNode>()) {
-          for (const Expr& field : tuple->fields) self(self, field);
-          return;
-        }
-        Type type = GetType(expr);
-        if (type->IsInstance<TensorTypeNode>() || type->IsInstance<TupleTypeNode>()) {
-          auto entries = VisitExpr(expr);
-          inputs.insert(inputs.end(), entries.begin(), entries.end());
-        }
-      };
-      for (const Expr& arg : collector.operator_call_->args) {
-        append_tensor_inputs(append_tensor_inputs, Bind(arg, param_bindings));
+      Type type = GetType(expr);
+      if (type->IsInstance<TensorTypeNode>() || type->IsInstance<TupleTypeNode>()) {
+        auto entries = VisitExpr(expr);
+        inputs.insert(inputs.end(), entries.begin(), entries.end());
       }
-    } else {
-      VLOG(1) << name << " is not a directly resolvable single-op composite; preserving the "
-              << "legacy argument ordering";
-      inputs = std::move(arguments);
-      inputs.insert(inputs.end(), collector.args_.begin(), collector.args_.end());
+    };
+    for (const Expr& arg : collector.operator_call_->args) {
+      append_tensor_inputs(append_tensor_inputs, Bind(arg, param_bindings));
     }
 
     // Create the final node.
@@ -366,18 +312,12 @@ class TensorRTJSONSerializer : public JSONSerializer {
   ffi::Map<Var, Expr> bindings_;
 };
 
-void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
-  for (const auto& entry : serializer_->VisitExpr(ffi::GetRef<Constant>(constant_node))) {
-    args_.emplace_back(entry);
-  }
-}
-
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
-  ++num_calls_;
-  if (call_node->op->IsInstance<OpNode>()) {
-    ++num_operator_calls_;
-    if (operator_call_ == nullptr) operator_call_ = call_node;
-  }
+  TVM_FFI_ICHECK(call_node->op->IsInstance<OpNode>())
+      << "TensorRT Composite functions must contain exactly one primitive Relax operator call";
+  TVM_FFI_ICHECK(operator_call_ == nullptr)
+      << "TensorRT Composite functions must contain exactly one primitive Relax operator call";
+  operator_call_ = call_node;
   if (!TrySetLayoutTransformAttributes(call_node)) {
     SetGenericAttributes(call_node);
     SetArgumentAttributes(call_node);

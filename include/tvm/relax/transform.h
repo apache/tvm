@@ -548,16 +548,6 @@ TVM_DLL Pass FuseOpsByPattern(const tvm::ffi::Array<FusionPattern>& patterns,
 TVM_DLL Pass MergeCompositeFunctions();
 
 /*!
- * \brief Group composite functions, optionally absorbing tuple projections for selected codegens.
- *
- * \param transparent_tuple_codegen_names Codegen names for which Tuple and TupleGetItem nodes
- * may be absorbed into an adjacent composite group. This is intended for backends whose codegen
- * can preserve tuple projection semantics inside an external function.
- * \return The Pass.
- */
-TVM_DLL Pass MergeCompositeFunctions(ffi::Array<ffi::String> transparent_tuple_codegen_names);
-
-/*!
  * \brief Fuse relax sub-function into a larger TIR function if possible.
     this pass works together with FuseOps to perform operator fusion.
 

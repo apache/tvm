@@ -60,6 +60,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/utils.h>
 #include <tvm/tirx/function.h>
 
 #include "../../support/arena.h"
@@ -79,35 +80,17 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   using GroupMap = std::unordered_map<const ffi::Object*, Group*>;
   using MemoizedExprTranslator<Group*>::VisitExpr_;
 
-  CompositeGroupsBuilder(IRModule mod, support::Arena* arena,
-                         ffi::Array<ffi::String> transparent_tuple_codegen_names)
-      : mod_(mod),
-        arena_(arena),
-        transparent_tuple_codegen_names_(transparent_tuple_codegen_names.begin(),
-                                         transparent_tuple_codegen_names.end()) {}
+  CompositeGroupsBuilder(IRModule mod, support::Arena* arena) : mod_(mod), arena_(arena) {}
 
   GroupMap Run(Function func) {
-    if (!transparent_tuple_codegen_names_.empty()) {
-      var_usage_ = CollectVarUsage(func);
-      for (const auto& [var, value] : var_usage_.bound_values) {
-        value_to_bound_vars_[value.get()].push_back(var);
-      }
+    var_usage_ = CollectVarUsage(func);
+    for (const auto& [var, value] : var_usage_.bound_values) {
+      value_to_bound_vars_[value.get()].push_back(var);
     }
 
     for (const auto& param : func->params) {
       memo_[param] = arena_->make<Group>();
     }
-
-    PostOrderVisit(func, [this](Expr e) {
-      // Make default groups for dataflow nodes other than CallNode.
-      // Groups for CallNode are created in its visitor.
-      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
-          e->IsInstance<StringImmNode>() || e->IsInstance<DataTypeImmNode>() ||
-          e->IsInstance<ExternFuncNode>() ||
-          (!e->IsInstance<CallNode>() && !e->IsInstance<VarNode>() && e.as<PrimExpr>())) {
-        memo_[e] = arena_->make<Group>();
-      }
-    });
 
     VisitExpr(func->body);
 
@@ -183,13 +166,20 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     return group;
   }
 
+  // Leaf expressions without explicit dependency semantics form singleton groups.
+  Group* VisitExprDefault_(const ffi::Object* op) final {
+    const auto* expr_node = static_cast<const ExprNode*>(op);
+    TVM_FFI_ICHECK(IsLeafOrTuple(ffi::GetRef<Expr>(expr_node)))
+        << "Unsupported expression in MergeCompositeFunctions: " << op->GetTypeKey();
+    return arena_->make<Group>();
+  }
+
   Group* VisitExpr_(const TupleNode* tuple) {
     for (const Expr& field : tuple->fields) {
       EnsureVisited(field);
     }
     Expr tuple_expr = ffi::GetRef<Tuple>(tuple);
-    if (!transparent_tuple_codegen_names_.empty() && IsFlatTensorTuple(tuple_expr) &&
-        HasOnlyTupleGetItemUsers(tuple_expr)) {
+    if (IsFlatTensorTuple(tuple_expr) && HasOnlyTupleGetItemUsers(tuple_expr)) {
       Group* tuple_group = nullptr;
       for (const Expr& field : tuple->fields) {
         auto it = memo_.find(field);
@@ -219,8 +209,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   Group* VisitExpr_(const TupleGetItemNode* tuple_get_item) {
     EnsureVisited(tuple_get_item->tuple);
     auto it = memo_.find(tuple_get_item->tuple);
-    if (!transparent_tuple_codegen_names_.empty() && it != memo_.end() &&
-        IsFlatTensorTuple(tuple_get_item->tuple) &&
+    if (it != memo_.end() && IsFlatTensorTuple(tuple_get_item->tuple) &&
         HasOnlyTupleGetItemUsers(tuple_get_item->tuple)) {
       Group* tuple_group = it->second->FindRoot();
       if (CanAbsorbTupleNodes(tuple_group)) {
@@ -263,10 +252,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     return std::nullopt;
   }
 
-  bool CanAbsorbTupleNodes(Group* group) {
-    auto codegen_name = GetCodegenName(group->FindRoot());
-    return codegen_name.has_value() && transparent_tuple_codegen_names_.count(codegen_name.value());
-  }
+  bool CanAbsorbTupleNodes(Group* group) { return GetCodegenName(group->FindRoot()).has_value(); }
 
   bool IsFlatTensorTuple(const Expr& expr) {
     const auto* tuple_type = GetType(expr).as<TupleTypeNode>();
@@ -446,7 +432,6 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
   IRModule mod_;
   support::Arena* arena_;
-  std::unordered_set<ffi::String> transparent_tuple_codegen_names_;
   VarUsageInfo var_usage_;
   std::unordered_map<const ffi::Object*, std::vector<Var>> value_to_bound_vars_;
   std::unordered_map<const ffi::Object*, bool> tuple_get_item_only_usage_;
@@ -556,12 +541,11 @@ class CompositeFunctionAnnotator : public ExprMutator {
 
 }  // namespace
 
-IRModule MergeCompositeFunctions(IRModule mod,
-                                 ffi::Array<ffi::String> transparent_tuple_codegen_names) {
+IRModule MergeCompositeFunctions(IRModule mod) {
   auto gvar = mod->GetGlobalVar("main");
   auto func = mod->Lookup(gvar).as_or_throw<Function>();
   support::Arena arena;
-  auto group_map = CompositeGroupsBuilder(mod, &arena, transparent_tuple_codegen_names).Run(func);
+  auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
   auto new_mod = MakeGroupedFunctions(mod, group_map);
   new_mod = CompositeFunctionAnnotator(mod, new_mod).update();
 
@@ -571,13 +555,9 @@ IRModule MergeCompositeFunctions(IRModule mod,
 
 namespace transform {
 
-Pass MergeCompositeFunctions() { return MergeCompositeFunctions({}); }
-
-Pass MergeCompositeFunctions(ffi::Array<ffi::String> transparent_tuple_codegen_names) {
+Pass MergeCompositeFunctions() {
   auto pass_func =  //
-      [=](IRModule mod, PassContext pc) {
-        return relax::MergeCompositeFunctions(mod, transparent_tuple_codegen_names);
-      };
+      [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
   return CreateModulePass(/*pass_function=*/pass_func,              //
                           /*opt_level=*/0,                          //
                           /*pass_name=*/"MergeCompositeFunctions",  //
@@ -586,15 +566,7 @@ Pass MergeCompositeFunctions(ffi::Array<ffi::String> transparent_tuple_codegen_n
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed(
-      "relax.transform.MergeCompositeFunctions", [](ffi::PackedArgs args, ffi::Any* ret) {
-        TVM_FFI_ICHECK_LE(args.size(), 1);
-        ffi::Array<ffi::String> transparent_tuple_codegen_names;
-        if (args.size() == 1) {
-          transparent_tuple_codegen_names = args[0].cast<ffi::Array<ffi::String>>();
-        }
-        *ret = MergeCompositeFunctions(std::move(transparent_tuple_codegen_names));
-      });
+  refl::GlobalDef().def("relax.transform.MergeCompositeFunctions", MergeCompositeFunctions);
 }
 
 }  // namespace transform

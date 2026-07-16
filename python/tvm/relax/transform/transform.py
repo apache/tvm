@@ -961,26 +961,17 @@ def FuseOpsByPattern(
     )  # type: ignore
 
 
-def MergeCompositeFunctions(
-    transparent_tuple_codegen_names: list[str] | None = None,
-) -> tvm.ir.transform.Pass:
+def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     """Group one or multiple composite functions created by FuseOpsByPattern into a new function.
     The new function will be annotated with "Codegen" and "global_symbol" attributes, and it
     is intented to be offloaded to an external backend.
-
-    Parameters
-    ----------
-    transparent_tuple_codegen_names : Optional[List[str]]
-        Codegen names for which Tuple and TupleGetItem nodes may be absorbed into an adjacent
-        composite group. The backend must preserve tuple projection semantics inside an external
-        function. By default, tuple nodes remain separate for all backends.
 
     Returns
     -------
     ret : tvm.transform.Pass
         The registered pass for merging composite functions.
     """
-    return _ffi_api.MergeCompositeFunctions(transparent_tuple_codegen_names or [])  # type: ignore
+    return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
 def AttachAttrLayoutFreeBuffers() -> tvm.ir.transform.Pass:

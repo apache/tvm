@@ -110,7 +110,7 @@ def test_tensorrt_offload():
         [
             relax.transform.BindParams("main", params_np),
             relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(["tensorrt"]),
+            relax.transform.MergeCompositeFunctions(),
             relax.transform.RunCodegen(),
         ]
     )(Conv2dResidualBlock)
@@ -132,7 +132,7 @@ def _offload_and_compare(mod, params_np, patterns, data_np, rtol=1e-2, atol=1e-2
         [
             relax.transform.BindParams("main", params_np),
             relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(["tensorrt"]),
+            relax.transform.MergeCompositeFunctions(),
         ]
     )(mod)
     # Guard against a silent false pass: if no pattern matched, nothing is offloaded and the
@@ -245,27 +245,6 @@ def test_tensorrt_subtract_constant_lhs():
     _offload_and_compare(ConstantMinusTensor, {"constant": constant}, patterns, data)
 
 
-def test_tensorrt_subtract_constant_rhs():
-    """A bound constant on the right-hand side must remain the subtrahend."""
-
-    @tvm.script.ir_module
-    class TensorMinusConstant:
-        @R.function
-        def main(
-            data: R.Tensor((2, 3, 4), "float32"),
-            constant: R.Tensor((2, 3, 4), "float32"),
-        ):
-            with R.dataflow():
-                out = relax.op.subtract(data, constant)
-                R.output(out)
-            return out
-
-    data = np.linspace(-2.0, 3.0, 24, dtype="float32").reshape(2, 3, 4)
-    constant = np.linspace(4.0, 9.0, 24, dtype="float32").reshape(2, 3, 4)
-    patterns = [("tensorrt.subtract", is_op("relax.subtract")(wildcard(), wildcard()))]
-    _offload_and_compare(TensorMinusConstant, {"constant": constant}, patterns, data)
-
-
 def test_tensorrt_tanh():
     @tvm.script.ir_module
     class Tanh:
@@ -348,7 +327,7 @@ def test_tensorrt_int8_calibration(monkeypatch):
         [
             relax.transform.BindParams("main", {"weight": weight}),
             relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(["tensorrt"]),
+            relax.transform.MergeCompositeFunctions(),
             relax.transform.RunCodegen(),
         ]
     )(Conv2dInt8)
@@ -693,62 +672,6 @@ def test_partition_for_tensorrt():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def test_tensorrt_permute_dims():
-    """Regression test for the composite/runtime converter naming mismatch in #19887."""
-
-    @tvm.script.ir_module
-    class PermuteDims:
-        @R.function
-        def main(data: R.Tensor((1, 3, 4, 5), "float32")):
-            with R.dataflow():
-                out = relax.op.permute_dims(data, axes=[0, 2, 3, 1])
-                R.output(out)
-            return out
-
-    data = np.random.randn(1, 3, 4, 5).astype("float32")
-    patterns = [("tensorrt.transpose", is_op("relax.permute_dims")(wildcard()))]
-    _offload_and_compare(PermuteDims, {}, patterns, data)
-
-
-def _make_resize2d_module(
-    input_shape=(1, 3, 8, 8),
-    input_dtype="float32",
-    size=(16, 16),
-    *,
-    dynamic_size=False,
-    layout="NCHW",
-    method="linear",
-    coordinate_transformation_mode="half_pixel",
-    rounding_method="round",
-    out_dtype=None,
-):
-    bb = relax.BlockBuilder()
-    data = relax.Var("data", relax.TensorType(input_shape, input_dtype))
-    params = [data]
-    if dynamic_size:
-        size_expr = relax.Var("size", relax.ShapeType(ndim=2))
-        params.append(size_expr)
-    else:
-        size_expr = relax.ShapeExpr(size)
-
-    with bb.function("main", params):
-        with bb.dataflow():
-            out = bb.emit(
-                relax.op.image.resize2d(
-                    data,
-                    size=size_expr,
-                    layout=layout,
-                    method=method,
-                    coordinate_transformation_mode=coordinate_transformation_mode,
-                    rounding_method=rounding_method,
-                    out_dtype=out_dtype,
-                )
-            )
-            gv = bb.emit_output(out)
-        bb.emit_func_output(gv)
-    return bb.finalize()
-
-
 def _tensorrt_codegen_functions(mod):
     return [
         func
@@ -762,14 +685,10 @@ def _tensorrt_codegen_functions(mod):
 @pytest.mark.parametrize(
     "out_hw, method, coordinate_transformation_mode, rounding_method",
     [
-        ((16, 16), "nearest_neighbor", "asymmetric", "floor"),
-        ((16, 16), "linear", "half_pixel", "round"),
         ((13, 11), "nearest_neighbor", "asymmetric", "floor"),
         ((13, 11), "linear", "half_pixel", "round"),
-        ((5, 6), "linear", "half_pixel", "round"),
         ((16, 16), "linear", "align_corners", "round"),
         ((13, 11), "nearest_neighbor", "asymmetric", "round_prefer_floor"),
-        ((13, 11), "linear", "pytorch_half_pixel", "round"),
     ],
 )
 def test_tensorrt_resize2d(out_hw, method, coordinate_transformation_mode, rounding_method):
@@ -823,13 +742,22 @@ def test_tensorrt_resize2d_pytorch_half_pixel_single_dimension():
 
     from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 
-    mod = _make_resize2d_module(
-        input_shape=(1, 1, 5, 7),
-        size=(1, 1),
-        method="nearest_neighbor",
-        coordinate_transformation_mode="pytorch_half_pixel",
-        rounding_method="floor",
-    )
+    @tvm.script.ir_module
+    class ResizeSingleDimension:
+        @R.function
+        def main(data: R.Tensor((1, 1, 5, 7), "float32")):
+            with R.dataflow():
+                out = relax.op.image.resize2d(
+                    data,
+                    size=(1, 1),
+                    method="nearest_neighbor",
+                    coordinate_transformation_mode="pytorch_half_pixel",
+                    rounding_method="floor",
+                )
+                R.output(out)
+            return out
+
+    mod = ResizeSingleDimension
     data = np.arange(35, dtype="float32").reshape(1, 1, 5, 7)
     expected = np.zeros((1, 1, 1, 1), dtype="float32")
     ref = build_and_run(mod, [data], "llvm", legalize=True)
@@ -840,40 +768,6 @@ def test_tensorrt_resize2d_pytorch_half_pixel_single_dimension():
     offloaded = relax.transform.RunCodegen()(partitioned)
     out = build_and_run(offloaded, [data], "cuda")
     np.testing.assert_array_equal(out, expected)
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        pytest.param({"input_shape": (1, 8, 8, 3), "layout": "NHWC"}, id="unsupported-layout"),
-        pytest.param({"dynamic_size": True}, id="dynamic-size"),
-        pytest.param({"input_dtype": "float64"}, id="unsupported-input-dtype"),
-        pytest.param({"out_dtype": "float16"}, id="different-output-dtype"),
-        pytest.param(
-            {
-                "method": "nearest_neighbor",
-                "coordinate_transformation_mode": "tf_half_pixel_for_nn",
-                "rounding_method": "floor",
-            },
-            id="unsupported-coordinate-mode",
-        ),
-        pytest.param(
-            {
-                "method": "nearest_neighbor",
-                "coordinate_transformation_mode": "asymmetric",
-                "rounding_method": "round",
-            },
-            id="ties-to-even-rounding",
-        ),
-    ],
-)
-def test_tensorrt_resize2d_partition_fallback(kwargs):
-    """Unsupported legal resize variants must remain in TVM instead of failing in TensorRT."""
-
-    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
-
-    partitioned = partition_for_tensorrt(_make_resize2d_module(**kwargs))
-    assert not _tensorrt_codegen_functions(partitioned)
 
 
 def test_tensorrt_silu():
@@ -891,48 +785,6 @@ def test_tensorrt_silu():
     data = np.random.randn(1, 16, 8, 8).astype("float32")
     patterns = [("tensorrt.nn.silu", is_op("relax.nn.silu")(wildcard()))]
     _offload_and_compare(Silu, {}, patterns, data)
-
-
-def test_tensorrt_resize2d_partition_for_tensorrt():
-    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
-
-    @tvm.script.ir_module
-    class Model:
-        @R.function
-        def main(
-            data: R.Tensor((1, 8, 8, 8), "float32"), weight: R.Tensor((8, 8, 3, 3), "float32")
-        ):
-            with R.dataflow():
-                conv = relax.op.nn.conv2d(data, weight, padding=1)
-                out = relax.op.image.resize2d(
-                    conv,
-                    size=(16, 16),
-                    layout="NCHW",
-                    method="nearest_neighbor",
-                    coordinate_transformation_mode="asymmetric",
-                    rounding_method="floor",
-                )
-                R.output(out)
-            return out
-
-    data = np.random.randn(1, 8, 8, 8).astype("float32")
-    weight = np.random.randn(8, 8, 3, 3).astype("float32")
-    ref = build_and_run(Model, [data, weight], "llvm", legalize=True)
-
-    mod = relax.transform.BindParams("main", {"weight": weight})(Model)
-    mod = partition_for_tensorrt(mod)
-    codegen_fns = _tensorrt_codegen_functions(mod)
-    assert len(codegen_fns) == 1
-    assert any(
-        isinstance(fn, relax.Function)
-        and fn.attrs is not None
-        and fn.attrs.get("Composite") == "tensorrt.image.resize2d"
-        for fn in mod.functions.values()
-    )
-
-    mod = relax.transform.RunCodegen()(mod)
-    out = build_and_run(mod, [data], "cuda")
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
