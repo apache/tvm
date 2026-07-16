@@ -38,6 +38,7 @@ class StmtFunctor:
             "tirx.IfThenElse": self.visit_if_then_else_,
             "tirx.For": self.visit_for_,
             "tirx.While": self.visit_while_,
+            "tirx.Return": self.visit_return_,
             "tirx.Break": self.visit_break_,
             "tirx.Continue": self.visit_continue_,
             "tirx.Allocate": self.visit_allocate_,
@@ -110,6 +111,10 @@ class StmtFunctor:
 
     def visit_while_(self, op):
         """Visitor for While nodes."""
+        return self.visit_stmt_default_(op)
+
+    def visit_return_(self, op):
+        """Visitor for Return nodes."""
         return self.visit_stmt_default_(op)
 
     def visit_break_(self, op):
@@ -252,6 +257,10 @@ class StmtVisitor(StmtFunctor):
         """Visitor implementation for While."""
         self.visit_expr(op.condition)
         self.visit_stmt(op.body)
+
+    def visit_return_(self, op):
+        """Visitor implementation for Return."""
+        self.visit_expr(op.value)
 
     def visit_break_(self, op):
         """Visitor implementation for Break."""
@@ -469,6 +478,15 @@ class StmtMutator(StmtFunctor):
             return op
 
         return tvm.tirx.While(condition, body, op.span)
+
+    def visit_return_(self, op):
+        """Mutator implementation for Return."""
+        value = self.visit_expr(op.value)
+
+        if value is op.value:
+            return op
+
+        return tvm.tirx.Return(value, op.span)
 
     def visit_break_(self, op):
         """Mutator implementation for Break."""

@@ -97,7 +97,7 @@ tirx::PrimFunc GetDLTensorField(tirx::builtin::TVMStructFieldKind field, PrimTyp
       {tirx::Bind(value, tvm::Call(field_ty, tirx::builtin::tvm_struct_get(),
                                    {dlpack_handle, IntImm::Int32(0), IntImm::Int32(field)})
                              .as_or_throw<PrimExpr>()),
-       tirx::Evaluate(tvm::ret(value.as_or_throw<PrimExpr>()))});
+       tirx::Return(value)});
 
   DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
@@ -282,7 +282,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                                IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)})),
          tirx::DeclBuffer(shape_buffer),
          tirx::Bind(extent, tirx::BufferLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
-         tirx::Evaluate(tvm::ret(extent.as_or_throw<PrimExpr>()))});
+         tirx::Return(extent)});
 
     DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 

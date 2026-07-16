@@ -42,10 +42,6 @@ namespace tirx {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
- * \brief Return value.
- */
-TVM_DLL const Op& ret();
-/*!
  * \brief Return from a GPU thread.
  */
 TVM_DLL const Op& thread_return();

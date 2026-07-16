@@ -48,6 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfThenElseNode::RegisterReflection();
   ForNode::RegisterReflection();
   WhileNode::RegisterReflection();
+  ReturnNode::RegisterReflection();
   BreakNode::RegisterReflection();
   ContinueNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
@@ -239,6 +240,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.While", [](PrimExpr condition, Stmt body, Span span) {
     return While(condition, body, span);
   });
+}
+
+// Return
+Return::Return(Expr value, Span span) {
+  TVM_FFI_ICHECK(value.defined());
+
+  ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>();
+  node->value = std::move(value);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.Return", [](Expr value, Span span) { return Return(value, span); });
 }
 
 // Break

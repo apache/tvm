@@ -79,16 +79,6 @@ TVM_DLL Type GetType(const PrimExpr& expr);
 TVM_DLL Type GetTypeFromRuntimeDataType(DLDataType dtype);
 
 /*!
- * \brief Return the value.
- *
- * \param value The returned value.
- * \param span The location of this operation in the source.
- * \return The return expression.
- */
-TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
-TVM_DLL Expr ret(Expr value, Span span = Span());
-
-/*!
  * \brief Return from a thread.
  *
  * \param span The location of this operation in the source.

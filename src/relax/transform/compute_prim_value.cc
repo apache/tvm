@@ -102,8 +102,7 @@ class PrimExprComputeInjector : public ExprMutator {
 
     tvm::PrimType ret_ty = node.ty();
     auto param_vars = tirx::UndefinedVars(node);
-    tirx::Stmt body =
-        tirx::Evaluate(tvm::Call(node.ty(), tirx::builtin::ret(), {node}).as_or_throw<PrimExpr>());
+    tirx::Stmt body = tirx::Return(node);
 
     tirx::PrimFunc func(param_vars, body, ret_ty, {},
                         DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));

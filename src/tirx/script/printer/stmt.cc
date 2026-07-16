@@ -66,20 +66,6 @@ bool IsAncestorOfAllVarUse(const tirx::Stmt& node, const ffi::ObjectRef& var,
   return false;
 }
 
-ffi::Optional<Expr> FindReturnValue(const tirx::Stmt& node) {
-  auto eval = node.as<tirx::EvaluateNode>();
-  if (!eval) return std::nullopt;
-
-  auto call = eval->value.as<CallNode>();
-  if (!call) return std::nullopt;
-
-  if (!call->op.same_as(tirx::builtin::ret())) return std::nullopt;
-
-  if (call->args.size() != 1) return std::nullopt;
-
-  return call->args[0];
-}
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::TilePrimitiveCall>(
         "", [](tirx::TilePrimitiveCall op_call, AccessPath p, IRDocsifier d) -> Doc {
@@ -189,19 +175,17 @@ TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Evaluate>("", [](tirx::Evaluate eval, AccessPath p, IRDocsifier d) -> Doc {
-      if (d->cfg->syntax_sugar) {
-        if (auto return_value = FindReturnValue(eval)) {
-          ExprDoc value =
-              d->AsDoc<ExprDoc>(return_value.value(), p->Attr("value")->Attr("args")->ArrayItem(0));
-          return ReturnDoc(value);
-        }
-      }
-
       ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
       if (eval->value->IsInstance<CallNode>()) {
         return ExprStmtDoc(value);
       }
       return ExprStmtDoc(TIR(d, "evaluate")->Call({value}));
+    });
+
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
+    .set_dispatch<tirx::Return>("", [](tirx::Return stmt, AccessPath p, IRDocsifier d) -> Doc {
+      ExprDoc value = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
+      return ReturnDoc(value);
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -894,6 +878,7 @@ TVM_SCRIPT_REPR(tirx::AttrStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::AssertStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::WhileNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::AllocBufferNode, ReprPrintTIR);
+TVM_SCRIPT_REPR(tirx::ReturnNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::BreakNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::ContinueNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::DeclBufferNode, ReprPrintTIR);

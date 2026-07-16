@@ -43,7 +43,7 @@ def test_prim_value_in_assert_condition():
         @T.prim_func(private=True, s_tir=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
-            T.ret(N % 16 == 0)
+            return N % 16 == 0
 
     After = tvm.relax.transform.ComputePrimValue()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -76,7 +76,7 @@ def test_prim_value_in_branch_condition():
         @T.prim_func(private=True, s_tir=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
             T.func_attr({"tirx.is_host_func": True})
-            T.ret(N % 16 == 0)
+            return N % 16 == 0
 
     After = tvm.relax.transform.ComputePrimValue()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
