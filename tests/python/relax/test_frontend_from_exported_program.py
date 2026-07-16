@@ -5683,6 +5683,18 @@ def test_tile():
             return gv
 
     @tvm.script.ir_module
+    class expected1_decomposed:
+        @R.function
+        def main(x: R.Tensor((1, 3), dtype="float32")) -> R.Tuple(
+            R.Tensor((1, 6), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((1, 6), dtype="float32") = R.tile(x, repeats=[1, 2])
+                gv: R.Tuple(R.Tensor((1, 6), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
     class expected2:
         @R.function
         def main(x: R.Tensor((1, 3), dtype="float32")) -> R.Tuple(
@@ -5696,6 +5708,7 @@ def test_tile():
             return gv
 
     example_args = (torch.randn(1, 3, dtype=torch.float32),)
+    verify_model(Tile1(), example_args, {}, expected1_decomposed)
     verify_model(Tile1(), example_args, {}, expected1, run_ep_decomposition=False)
     verify_model(Tile2(), example_args, {}, expected2, run_ep_decomposition=False)
 
@@ -6566,6 +6579,7 @@ def test_unflatten():
 
     example_args = (torch.randn(2, 15, 7, dtype=torch.float32),)
 
+    verify_model(Unflatten(), example_args, {}, Expected)
     verify_model(Unflatten(), example_args, {}, Expected, run_ep_decomposition=False)
     verify_model(Unflatten1(), example_args, {}, Expected, run_ep_decomposition=False)
 

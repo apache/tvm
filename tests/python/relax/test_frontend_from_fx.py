@@ -1830,6 +1830,8 @@ def test_stochastic_depth():
                 R.output(gv)
             return gv
 
+    # The PyTorch frontend imports models with inference semantics, so stochastic
+    # depth is lowered to an identity even when the traced module is in training mode.
     verify_model(StochasticDepth1(), input_info, {}, expected1)
 
 
@@ -4283,6 +4285,30 @@ def test_masked_fill_inplace():
 
     input_info = [((10, 10), "float32"), ((10, 10), "bool")]
     verify_model(Masked_Fill_Inplace(), input_info, {}, Expected)
+
+
+@pytest.mark.parametrize(
+    "torch_dtype, expected_dtype",
+    [(torch.float32, "float32"), (None, "int64")],
+    ids=["float32", "default-int64"],
+)
+def test_get_attr_scalar_tensor_constant(torch_dtype, expected_dtype):
+    """Import rank-0 tensor constants folded to get_attr by FX tracing."""
+
+    class ScalarTensor(Module):
+        def forward(self, input):
+            if torch_dtype is None:
+                return torch.tensor(3)
+            return torch.tensor(3, dtype=torch_dtype)
+
+    graph_model = fx.symbolic_trace(ScalarTensor())
+    mod = from_fx(graph_model, [([10, 10], "float32")])
+    bindings = mod["main"].body.blocks[0].bindings
+    assert len(bindings) == 1
+    value = bindings[0].value
+    assert isinstance(value, relax.Constant)
+    assert value.data.shape == ()
+    assert value.data.dtype == expected_dtype
 
 
 def test_new_ones():
