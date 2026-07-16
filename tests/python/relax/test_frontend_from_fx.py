@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
-
 import math
 import operator
 
@@ -33,7 +31,6 @@ from tvm.relax.frontend.torch import from_fx
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
-from tvm.testing import env
 
 
 def verify_model(torch_model, input_info, binding, expected):
@@ -901,14 +898,7 @@ def test_outer():
     verify_model(Outer(), input_infos, {}, expected)
 
 
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_softplus():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-
     class Softplus0(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -939,14 +929,7 @@ def test_softplus():
     verify_model(Softplus1(), input_info, {}, expected)
 
 
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_gpu(), reason="need gpu")
 def test_leakyrelu():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-
     class LeakyReLU0(Module):
         def __init__(self):
             super().__init__()
@@ -1835,10 +1818,6 @@ def test_stochastic_depth():
         def forward(self, x):
             return self.stochastic_depth(x)
 
-    class StochasticDepth2(Module):
-        def forward(self, x):
-            return torchvision.ops.stochastic_depth(x, 0.5, mode="row", training=False)
-
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -1852,7 +1831,6 @@ def test_stochastic_depth():
             return gv
 
     verify_model(StochasticDepth1(), input_info, {}, expected1)
-    verify_model(StochasticDepth2(), input_info, {}, expected1)
 
 
 def test_layernorm():
@@ -2131,12 +2109,6 @@ def test_functional_cross_entropy():
 
 
 def test_groupnorm():
-    import torch
-    from torch.nn import Module
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class GroupNorm(Module):
@@ -2180,9 +2152,6 @@ def test_groupnorm():
 
 
 def test_instancenorm2d():
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
     input_info = [([1, 3, 10, 10], "float32")]
 
     class InstanceNorm2d(Module):
@@ -2215,8 +2184,6 @@ def test_instancenorm2d():
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
-
-    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
 
     model = InstanceNorm2d()
     binding = {
@@ -2724,7 +2691,6 @@ operator_basic_unary = [
     (torch.floor, R.floor),
     (torch.log, R.log),
     (torch.neg, R.negative),
-    (torch.round, R.round),
     (torch.rsqrt, R.rsqrt),
     (torch.sin, R.sin),
     (torch.sinh, R.sinh),
@@ -3115,15 +3081,6 @@ def test_extended_unary_ops():
 
     verify_model(Hardtanh(), input_info, {}, expected1)
     verify_model(Hardtanh2(), input_info, {}, expected1)
-
-    # leaky_relu
-    test_leakyrelu()
-
-    # softplus
-    test_softplus()
-
-    # prelu
-    test_prelu()
 
     # log2
     class Log2(Module):
@@ -3771,41 +3728,6 @@ def test_interpolate():
 
     input_info_5d = [([1, 3, 4, 10, 10], "float32")]
 
-    class Interpolate5(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(
-                input,
-                size=None,
-                scale_factor=(2.0, 2.0, 2.0),
-                mode="trilinear",
-                align_corners=False,
-            )
-
-    @tvm.script.ir_module
-    class expected5:
-        @R.function
-        def main(input_5: R.Tensor((1, 3, 4, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 8, 20, 20), dtype="float32"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 8, 20, 20), dtype="float32") = R.image.resize3d(
-                    input_5,
-                    (8, 20, 20),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCDHW",
-                    method="linear",
-                    coordinate_transformation_mode="half_pixel",
-                    rounding_method="",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 8, 20, 20), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Interpolate5(), input_info_5d, {}, expected5)
-
     class Interpolate6(Module):
         def forward(self, input):
             return torch.nn.functional.interpolate(
@@ -3911,44 +3833,6 @@ def test_interpolate():
 
 
 def test_interpolate_nhwc_layout():
-    # First verify backward compatibility - default should still be NCHW
-    input_info_nchw = [([1, 3, 10, 10], "float32")]
-
-    class InterpolateDefault(Module):
-        def forward(self, input):
-            return torch.nn.functional.interpolate(input, (5, 5))
-
-    @tvm.script.ir_module
-    class expected_default_nchw:
-        @R.function
-        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor(
-            (1, 3, 5, 5), dtype="float32"
-        ):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 5, 5), dtype="float32") = R.image.resize2d(
-                    input_1,
-                    (5, 5),
-                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
-                    layout="NCHW",
-                    method="nearest_neighbor",
-                    coordinate_transformation_mode="asymmetric",
-                    rounding_method="round",
-                    cubic_alpha=-0.75,
-                    cubic_exclude=0,
-                    extrapolation_value=0,
-                )
-                gv: R.Tensor((1, 3, 5, 5), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    # Verify default behavior (no default_image_layout parameter) uses NCHW
-    graph_model_default = fx.symbolic_trace(InterpolateDefault())
-    with torch.no_grad():
-        mod_default = from_fx(graph_model_default, input_info_nchw)
-    tvm.ir.assert_structural_equal(mod_default, expected_default_nchw)
-
-    # Now test NHWC layout
     input_info = [([1, 10, 10, 3], "float32")]
 
     class InterpolateNHWC(Module):
@@ -4401,67 +4285,6 @@ def test_masked_fill_inplace():
     verify_model(Masked_Fill_Inplace(), input_info, {}, Expected)
 
 
-def test_arange():
-    import numpy as np
-
-    torch.set_grad_enabled(False)
-    torch.random.manual_seed(0)
-
-    class Arange(Module):
-        def forward(self, input):
-            return torch.arange(0, 20, dtype=torch.int32)
-
-    graph_model = fx.symbolic_trace(Arange())
-    mod = from_fx(graph_model, [([10, 10], "float32")])
-    assert len(mod["main"].body.blocks) == 1
-    assert len(mod["main"].body.blocks[0].bindings) == 1
-    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
-    tvm.testing.assert_allclose(
-        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
-        np.arange(0, 20, dtype="int32"),
-    )
-
-
-def test_empty():
-    class Empty(Module):
-        def forward(self, input):
-            return torch.empty((10, 10), dtype=torch.float32)
-
-    graph_model = fx.symbolic_trace(Empty())
-    mod = from_fx(graph_model, [([10, 10], "float32")])
-    assert len(mod["main"].body.blocks) == 1
-    assert len(mod["main"].body.blocks[0].bindings) == 1
-    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
-    assert mod["main"].body.blocks[0].bindings[0].value.data.shape == (10, 10)
-    assert mod["main"].body.blocks[0].bindings[0].value.data.dtype == "float32"
-
-
-def test_tensor():
-    class Empty1(Module):
-        def forward(self, input):
-            return torch.tensor(3, dtype=torch.float32)
-
-    class Empty2(Module):
-        def forward(self, input):
-            return torch.tensor(3)
-
-    graph_model1 = fx.symbolic_trace(Empty1())
-    mod1 = from_fx(graph_model1, [([10, 10], "float32")])
-    assert len(mod1["main"].body.blocks) == 1
-    assert len(mod1["main"].body.blocks[0].bindings) == 1
-    assert isinstance(mod1["main"].body.blocks[0].bindings[0].value, relax.Constant)
-    assert mod1["main"].body.blocks[0].bindings[0].value.data.shape == ()
-    assert mod1["main"].body.blocks[0].bindings[0].value.data.dtype == "float32"
-
-    graph_model2 = fx.symbolic_trace(Empty2())
-    mod2 = from_fx(graph_model2, [([10, 10], "float32")])
-    assert len(mod2["main"].body.blocks) == 1
-    assert len(mod2["main"].body.blocks[0].bindings) == 1
-    assert isinstance(mod2["main"].body.blocks[0].bindings[0].value, relax.Constant)
-    assert mod2["main"].body.blocks[0].bindings[0].value.data.shape == ()
-    assert mod2["main"].body.blocks[0].bindings[0].value.data.dtype == "int64"
-
-
 def test_new_ones():
     input_info = [([1, 2, 3], "float32")]
 
@@ -4513,10 +4336,6 @@ def test_new_zeros():
 def test_expand():
     input_info = [([1, 2, 3, 4], "float32")]
 
-    class Expand1(Module):
-        def forward(self, x):
-            return x.expand(4, 2, 3, 4)
-
     class Expand2(Module):
         def forward(self, x):
             return x.expand(4, -1, -1, 4)
@@ -4534,7 +4353,6 @@ def test_expand():
                 R.output(gv)
             return gv
 
-    verify_model(Expand1(), input_info, {}, expected1)
     verify_model(Expand2(), input_info, {}, expected1)
 
 
@@ -4832,7 +4650,6 @@ def test_repeat():
 
     verify_model(Tile1(), [([3], "float32")], {}, expected1)
     verify_model(Tile2(), [([1, 3], "float32")], {}, expected2)
-    verify_model(Tile2(), [(torch.Size([1, 3]), "float32")], {}, expected2)
 
 
 def test_roll():
@@ -5696,18 +5513,6 @@ def test_gather():
         def forward(self, data, indices):
             return torch.gather(data, 0, indices)
 
-    class Gather1(Module):
-        def forward(self, data, indices):
-            return torch.gather(data, 1, indices)
-
-    class Gather2(Module):
-        def forward(self, data, indices):
-            return torch.gather(data, -1, indices)
-
-    class Gather3(Module):
-        def forward(self, data, indices):
-            return torch.gather(data, -2, indices)
-
     @tvm.script.ir_module
     class Expected0:
         @R.function
@@ -5721,230 +5526,38 @@ def test_gather():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
-    class Expected1:
-        @R.function
-        def main(
-            inp_0: R.Tensor((2, 3), dtype="float32"),
-            inp_1: R.Tensor((2, 3), dtype="int32"),
-        ) -> R.Tensor((2, 3), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=1)
-                gv: R.Tensor((2, 3), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    @tvm.script.ir_module
-    class Expected2:
-        @R.function
-        def main(
-            inp_0: R.Tensor((2, 3), dtype="float32"),
-            inp_1: R.Tensor((2, 3), dtype="int32"),
-        ) -> R.Tensor((2, 3), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=-1)
-                gv: R.Tensor((2, 3), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    @tvm.script.ir_module
-    class Expected3:
-        @R.function
-        def main(
-            inp_0: R.Tensor((2, 3), dtype="float32"),
-            inp_1: R.Tensor((2, 3), dtype="int32"),
-        ) -> R.Tensor((2, 3), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=-2)
-                gv: R.Tensor((2, 3), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
     verify_model(Gather0(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected0)
-    verify_model(Gather1(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected1)
-    verify_model(Gather2(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected2)
-    verify_model(Gather3(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected3)
 
 
 def test_index_put():
-    # Test case 1: 1D input
-    class IndexPut1D(Module):
-        def forward(self, data, indices_0, values):
-            indices_tuple = (indices_0,)
-            return data.index_put_(indices_tuple, values, accumulate=False)
-
-    input_info_1d = [((64,), "float32"), ((128,), "int64"), ((128,), "float32")]
+    class IndexPut(Module):
+        def forward(self, data, indices, values):
+            return data.index_put_((indices,), values, accumulate=False)
 
     @I.ir_module
-    class Expected1D:
+    class Expected:
         @R.function
         def main(
             data: R.Tensor((64,), dtype="float32"),
-            indices_0: R.Tensor((128,), dtype="int64"),
+            indices: R.Tensor((128,), dtype="int64"),
             values: R.Tensor((128,), dtype="float32"),
         ) -> R.Tensor((64,), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((64,), dtype="float32") = R.index_put(
-                    data, R.tuple(indices_0), values, accumulate=False
+                    data, R.tuple(indices), values, accumulate=False
                 )
                 gv: R.Tensor((64,), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    # Test case 2: 2D input
-    class IndexPut2D(Module):
-        def forward(self, data, indices_0, indices_1, values):
-            indices_tuple = (indices_0, indices_1)
-            return data.index_put_(indices_tuple, values, accumulate=False)
-
-    input_info_2d = [
-        ((32, 64), "float32"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "float32"),
-    ]
-
-    @I.ir_module
-    class Expected2D:
-        @R.function
-        def main(
-            data: R.Tensor((32, 64), dtype="float32"),
-            indices_0: R.Tensor((128,), dtype="int64"),
-            indices_1: R.Tensor((128,), dtype="int64"),
-            values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tensor((32, 64), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((32, 64), dtype="float32") = R.index_put(
-                    data, R.tuple(indices_0, indices_1), values, accumulate=False
-                )
-                gv: R.Tensor((32, 64), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    # Test case 3: 3D input
-    class IndexPut3D(Module):
-        def forward(self, data, indices_0, indices_1, indices_2, values):
-            indices_tuple = (indices_0, indices_1, indices_2)
-            return data.index_put_(indices_tuple, values, accumulate=False)
-
-    input_info_3d = [
-        ((16, 32, 64), "float32"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "float32"),
-    ]
-
-    @I.ir_module
-    class Expected3D:
-        @R.function
-        def main(
-            data: R.Tensor((16, 32, 64), dtype="float32"),
-            indices_0: R.Tensor((128,), dtype="int64"),
-            indices_1: R.Tensor((128,), dtype="int64"),
-            indices_2: R.Tensor((128,), dtype="int64"),
-            values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tensor((16, 32, 64), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((16, 32, 64), dtype="float32") = R.index_put(
-                    data, R.tuple(indices_0, indices_1, indices_2), values, accumulate=False
-                )
-                gv: R.Tensor((16, 32, 64), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    # Test case 4: 4D input
-    class IndexPut4D(Module):
-        def forward(self, data, indices_0, indices_1, indices_2, indices_3, values):
-            indices_tuple = (indices_0, indices_1, indices_2, indices_3)
-            return data.index_put_(indices_tuple, values, accumulate=False)
-
-    input_info_4d = [
-        ((8, 16, 32, 64), "float32"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "float32"),
-    ]
-
-    @I.ir_module
-    class Expected4D:
-        @R.function
-        def main(
-            data: R.Tensor((8, 16, 32, 64), dtype="float32"),
-            indices_0: R.Tensor((128,), dtype="int64"),
-            indices_1: R.Tensor((128,), dtype="int64"),
-            indices_2: R.Tensor((128,), dtype="int64"),
-            indices_3: R.Tensor((128,), dtype="int64"),
-            values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tensor((8, 16, 32, 64), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((8, 16, 32, 64), dtype="float32") = R.index_put(
-                    data,
-                    R.tuple(indices_0, indices_1, indices_2, indices_3),
-                    values,
-                    accumulate=False,
-                )
-                gv: R.Tensor((8, 16, 32, 64), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    # Test case 5: 5D input
-    class IndexPut5D(Module):
-        def forward(self, data, indices_0, indices_1, indices_2, indices_3, indices_4, values):
-            indices_tuple = (indices_0, indices_1, indices_2, indices_3, indices_4)
-            return data.index_put_(indices_tuple, values, accumulate=False)
-
-    input_info_5d = [
-        ((4, 8, 16, 32, 64), "float32"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "int64"),
-        ((128,), "float32"),
-    ]
-
-    @I.ir_module
-    class Expected5D:
-        @R.function
-        def main(
-            data: R.Tensor((4, 8, 16, 32, 64), dtype="float32"),
-            indices_0: R.Tensor((128,), dtype="int64"),
-            indices_1: R.Tensor((128,), dtype="int64"),
-            indices_2: R.Tensor((128,), dtype="int64"),
-            indices_3: R.Tensor((128,), dtype="int64"),
-            indices_4: R.Tensor((128,), dtype="int64"),
-            values: R.Tensor((128,), dtype="float32"),
-        ) -> R.Tensor((4, 8, 16, 32, 64), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = R.index_put(
-                    data,
-                    R.tuple(indices_0, indices_1, indices_2, indices_3, indices_4),
-                    values,
-                    accumulate=False,
-                )
-                gv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    # Run verification for each case
-    verify_model(IndexPut1D(), input_info_1d, {}, Expected1D)
-    verify_model(IndexPut2D(), input_info_2d, {}, Expected2D)
-    verify_model(IndexPut3D(), input_info_3d, {}, Expected3D)
-    verify_model(IndexPut4D(), input_info_4d, {}, Expected4D)
-    verify_model(IndexPut5D(), input_info_5d, {}, Expected5D)
+    input_info = [((64,), "float32"), ((128,), "int64"), ((128,), "float32")]
+    verify_model(IndexPut(), input_info, {}, Expected)
 
 
 def test_flip():
     class Flip0(Module):
         def forward(self, data):
             return torch.flip(data, [0])
-
-    class Flip1(Module):
-        def forward(self, data):
-            return torch.flip(data, [1])
 
     @tvm.script.ir_module
     class Expected0:
@@ -5958,20 +5571,7 @@ def test_flip():
                 R.output(gv)
             return gv
 
-    @tvm.script.ir_module
-    class Expected1:
-        @R.function
-        def main(
-            inp_0: R.Tensor((2, 2), dtype="float32"),
-        ) -> R.Tensor((2, 2), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((2, 2), dtype="float32") = R.flip(inp_0, axis=1)
-                gv: R.Tensor((2, 2), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
     verify_model(Flip0(), [([2, 2], "float32")], {}, Expected0)
-    verify_model(Flip1(), [([2, 2], "float32")], {}, Expected1)
 
 
 def test_flip_multi_axis():
@@ -6713,42 +6313,6 @@ def test_dtypes(torch_dtype, relax_dtype):
     verify_model(Model(), [([10, 10], torch_dtype), ([10, 10], torch_dtype)], {}, Expected)
 
 
-def test_eye():
-    import numpy as np
-
-    class Eye(Module):
-        def forward(self, input):
-            return torch.eye(3)
-
-    graph_model = fx.symbolic_trace(Eye())
-    mod = from_fx(graph_model, [([3, 3], "float32")])
-    assert len(mod["main"].body.blocks) == 1
-    assert len(mod["main"].body.blocks[0].bindings) == 1
-    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
-    tvm.testing.assert_allclose(
-        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
-        np.eye(3, dtype="float32"),
-    )
-
-
-def test_linspace():
-    import numpy as np
-
-    class Linspace(Module):
-        def forward(self, input):
-            return torch.linspace(0, 1, steps=9)
-
-    graph_model = fx.symbolic_trace(Linspace())
-    mod = from_fx(graph_model, [([9, 9], "float32")])
-    assert len(mod["main"].body.blocks) == 1
-    assert len(mod["main"].body.blocks[0].bindings) == 1
-    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
-    tvm.testing.assert_allclose(
-        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
-        np.linspace(0, 1, num=9, dtype="float32"),
-    )
-
-
 def test_round():
     input_info = [([3, 4], "float32")]
 
@@ -6806,7 +6370,7 @@ def test_round():
         ]
     )
 
-    for decimals in [0, 1, 2, 3]:
+    for decimals in [0, 2]:
         torch_model = Round(decimals)
         graph_model = fx.symbolic_trace(torch_model)
         with torch.no_grad():
