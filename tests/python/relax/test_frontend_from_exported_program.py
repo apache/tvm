@@ -5204,7 +5204,7 @@ def test_reshape():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Reshape(), example_args, {}, expected1, run_ep_decomposition=False)
+    verify_model(Reshape(), example_args, {}, expected1)
 
 
 def test_reshape_as():
@@ -5677,18 +5677,6 @@ def test_tile():
         ):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((1, 6), dtype="float32") = R.tile(x, repeats=[2])
-                gv: R.Tuple(R.Tensor((1, 6), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    @tvm.script.ir_module
-    class expected1_decomposed:
-        @R.function
-        def main(x: R.Tensor((1, 3), dtype="float32")) -> R.Tuple(
-            R.Tensor((1, 6), dtype="float32")
-        ):
-            with R.dataflow():
                 lv: R.Tensor((1, 6), dtype="float32") = R.tile(x, repeats=[1, 2])
                 gv: R.Tuple(R.Tensor((1, 6), dtype="float32")) = (lv,)
                 R.output(gv)
@@ -5708,9 +5696,8 @@ def test_tile():
             return gv
 
     example_args = (torch.randn(1, 3, dtype=torch.float32),)
-    verify_model(Tile1(), example_args, {}, expected1_decomposed)
-    verify_model(Tile1(), example_args, {}, expected1, run_ep_decomposition=False)
-    verify_model(Tile2(), example_args, {}, expected2, run_ep_decomposition=False)
+    verify_model(Tile1(), example_args, {}, expected1)
+    verify_model(Tile2(), example_args, {}, expected2)
 
 
 def test_transpose():
@@ -5732,7 +5719,7 @@ def test_transpose():
             return gv
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
-    verify_model(Transpose(), example_args, {}, expected1, run_ep_decomposition=False)
+    verify_model(Transpose(), example_args, {}, expected1)
 
 
 def test_unsqueeze():
@@ -6580,8 +6567,7 @@ def test_unflatten():
     example_args = (torch.randn(2, 15, 7, dtype=torch.float32),)
 
     verify_model(Unflatten(), example_args, {}, Expected)
-    verify_model(Unflatten(), example_args, {}, Expected, run_ep_decomposition=False)
-    verify_model(Unflatten1(), example_args, {}, Expected, run_ep_decomposition=False)
+    verify_model(Unflatten1(), example_args, {}, Expected)
 
 
 def test_gather():
@@ -7984,7 +7970,6 @@ def test_tensor_none_tuple():
     verify_model(TensorNoneModel(), example_args, {}, Expected)
 
 
-@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_gru():
     class GRU(nn.Module):
         def __init__(self, input_size, hidden_size, batch_first, bidirectional):
