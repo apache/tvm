@@ -1422,5 +1422,81 @@ def test_concat():
     check(mod, [("x.concat", pat_clip)], Expected2)
 
 
+def test_unique_boundary_output_precedes_last_group_binding():
+    """Export a sole boundary output even when a dead internal binding follows it."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor((2, 4), "float32"),
+        ) -> R.Tensor((2, 4), "float32"):
+            with R.dataflow():
+                first = R.nn.relu(x)
+                kept = R.nn.relu(first)
+                dead = R.nn.relu(kept)
+                R.output(kept)
+            return kept
+
+    pattern = is_op("relax.nn.relu")(is_op("relax.nn.relu")(is_op("relax.nn.relu")(wildcard())))
+    after = relax.transform.FuseOpsByPattern(
+        [("compiler_A.relu_chain", pattern)], annotate_codegen=True
+    )(Before)
+
+    relax.analysis.well_formed(after)
+    assert not relax.analysis.free_vars(after["main"])
+
+    calls = [
+        binding
+        for block in after["main"].body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.Call)
+        and isinstance(binding.value.op, relax.GlobalVar)
+        and after[binding.value.op].attrs.get("Codegen") == "compiler_A"
+    ]
+    assert len(calls) == 1
+    grouped_result = calls[0].var
+    assert not isinstance(grouped_result, relax.DataflowVar)
+    assert after["main"].body.body.same_as(grouped_result)
+
+
+def test_inline_bound_static_shape_argument():
+    """A static leaf binding should not become a grouped-function parameter."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((4,), "float32")) -> R.Tensor((2, 2), "float32"):
+            shape: R.Shape([2, 2]) = R.shape([2, 2])
+            with R.dataflow():
+                out: R.Tensor((2, 2), "float32") = R.reshape(x, shape)
+                R.output(out)
+            return out
+
+    pattern = is_op("relax.reshape")(wildcard(), wildcard())
+    after = relax.transform.FuseOpsByPattern([("compiler_A.reshape", pattern)])(Before)
+    grouped = [
+        func
+        for func in after.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Composite") == "compiler_A.reshape"
+    ]
+    assert len(grouped) == 1
+    assert len(grouped[0].params) == 1
+
+    reshape_calls = []
+    relax.analysis.post_order_visit(
+        grouped[0],
+        lambda expr: reshape_calls.append(expr)
+        if isinstance(expr, relax.Call)
+        and isinstance(expr.op, tvm.ir.Op)
+        and expr.op.name == "relax.reshape"
+        else None,
+    )
+    assert len(reshape_calls) == 1
+    assert isinstance(reshape_calls[0].args[1], relax.ShapeExpr)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
