@@ -75,6 +75,12 @@ class Tensor(tvm_ffi.core.Tensor):
     how can we use TVM in existing project which might have their own array containers.
     """
 
+    # Keep the same instance layout as ``tvm_ffi.core.Tensor``: the FFI runtime
+    # registers ``ffi.Tensor`` to its base wrapper and rejects re-registration
+    # with a larger wrapper (a subclass without ``__slots__`` would add
+    # ``__dict__``/``__weakref__`` and grow ``__basicsize__``).
+    __slots__ = ()
+
     def __setitem__(self, in_slice, value):
         """Set ndarray value"""
         if (
