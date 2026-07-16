@@ -359,7 +359,10 @@ class MetalMatmul(GPUScheduleRule):
         if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        root_block = get_root_block(sch)
+        try:
+            root_block = get_root_block(sch)
+        except ValueError:
+            return None
         blocks = sch.get_child_blocks(root_block)
 
         reduction_blocks = get_reduction_blocks(sch, blocks)
@@ -500,7 +503,10 @@ class MatmulTensorization(GPUScheduleRule):
         if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        root_block = get_root_block(sch)
+        try:
+            root_block = get_root_block(sch)
+        except ValueError:
+            return None
         blocks = sch.get_child_blocks(root_block)
 
         if "dlight.do_not_tensorize" in func.attrs.keys():
@@ -721,7 +727,10 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        root_block = get_root_block(sch)
+        try:
+            root_block = get_root_block(sch)
+        except ValueError:
+            return None
         blocks = sch.get_child_blocks(root_block)
 
         if "dlight.do_not_tensorize" in func.attrs.keys():
@@ -972,7 +981,10 @@ class Matmul(GPUScheduleRule):
             return None
         sch = s_tir.Schedule(func)
         config = self.get_configs(target)
-        root_block = get_root_block(sch)
+        try:
+            root_block = get_root_block(sch)
+        except ValueError:
+            return None
         blocks = sch.get_child_blocks(root_block)
 
         reduction_blocks = get_reduction_blocks(sch, blocks)
