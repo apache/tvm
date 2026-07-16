@@ -43,6 +43,9 @@ constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
  */
 constexpr const char* async_scope = "async_scope";
 
+/*! \brief Mark stores/loads with their bounds. */
+constexpr const char* buffer_bound = "buffer_bound";
+
 /*!
  * \brief Marks production of double buffer data
  */

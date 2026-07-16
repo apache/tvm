@@ -124,7 +124,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
-               !op->annotations.count(tirx::attr::irregular_loop_mark)) {
+               !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
       // Case 2. Unit loop elimination
       return body;
     } else {
