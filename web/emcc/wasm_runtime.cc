@@ -59,6 +59,7 @@
 #include "3rdparty/tvm-ffi/src/ffi/extra/library_module_system_lib.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/module.cc"
 #include "3rdparty/tvm-ffi/src/ffi/function.cc"
+#include "3rdparty/tvm-ffi/src/ffi/init_once.cc"
 #include "3rdparty/tvm-ffi/src/ffi/object.cc"
 #include "3rdparty/tvm-ffi/src/ffi/tensor.cc"
 #include "3rdparty/tvm-ffi/src/ffi/testing/testing.cc"
