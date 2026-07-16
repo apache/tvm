@@ -62,15 +62,13 @@ def verify_model(
     tvm.ir.assert_structural_equal(mod, expected, map_free_vars=map_free_vars)
 
 
-def verify_model_numerically(
-    torch_model, example_args, rtol=1e-7, atol=1e-7, run_ep_decomposition=True
-):
+def verify_model_numerically(torch_model, example_args, rtol=1e-7, atol=1e-7):
     """Verify model by comparing numerical outputs between PyTorch and TVM."""
     with torch.no_grad():
         pytorch_output = torch_model(*example_args)
 
     exported_program = export(torch_model, args=example_args)
-    mod = from_exported_program(exported_program, run_ep_decomposition=run_ep_decomposition)
+    mod = from_exported_program(exported_program)
     target = tvm.target.Target("llvm")
     ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
@@ -7932,38 +7930,22 @@ def test_lstm():
     # Unidirectional LSTM with batch_first=True
     torch.manual_seed(42)
     x = torch.randn(2, 3, 4, dtype=torch.float32)
-    verify_model_numerically(
-        LSTM(4, 8, batch_first=True, bidirectional=False),
-        (x,),
-        run_ep_decomposition=False,
-    )
+    verify_model_numerically(LSTM(4, 8, batch_first=True, bidirectional=False), (x,))
 
     # Unidirectional LSTM with batch_first=False
     torch.manual_seed(43)
     x2 = torch.randn(4, 2, 3, dtype=torch.float32)
-    verify_model_numerically(
-        LSTM(3, 6, batch_first=False, bidirectional=False),
-        (x2,),
-        run_ep_decomposition=False,
-    )
+    verify_model_numerically(LSTM(3, 6, batch_first=False, bidirectional=False), (x2,))
 
     # Bidirectional LSTM with batch_first=True
     torch.manual_seed(44)
     x3 = torch.randn(2, 3, 4, dtype=torch.float32)
-    verify_model_numerically(
-        LSTM(4, 8, batch_first=True, bidirectional=True),
-        (x3,),
-        run_ep_decomposition=False,
-    )
+    verify_model_numerically(LSTM(4, 8, batch_first=True, bidirectional=True), (x3,))
 
     # Bidirectional LSTM with batch_first=False
     torch.manual_seed(45)
     x4 = torch.randn(4, 2, 3, dtype=torch.float32)
-    verify_model_numerically(
-        LSTM(3, 6, batch_first=False, bidirectional=True),
-        (x4,),
-        run_ep_decomposition=False,
-    )
+    verify_model_numerically(LSTM(3, 6, batch_first=False, bidirectional=True), (x4,))
 
 
 def test_tensor_none_tuple():
@@ -8019,7 +8001,6 @@ def test_gru():
             (x,),
             rtol=1e-4,
             atol=1e-5,
-            run_ep_decomposition=False,
         )
 
 
