@@ -40,6 +40,12 @@ class IRModule(Node, Scriptable):
         Map of global var to BaseFunc
     """
 
+    # Opt into a per-instance ``__dict__``: ``IRModule`` stores the Python-only
+    # ``pyfuncs`` mapping. The base ``Object`` metaclass otherwise injects
+    # ``__slots__ = ()`` (required by the tvm-ffi lifetime model), which would
+    # forbid setting attributes.
+    __slots__ = ("__dict__",)
+
     def __init__(self, functions=None, attrs=None, global_infos=None):
         if functions is None:
             functions = {}

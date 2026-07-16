@@ -342,6 +342,12 @@ class AllocBuffer(Stmt):
         The location of this AllocBuffer in the source code.
     """
 
+    # Opt into a per-instance ``__dict__``: the legacy ``body`` is carried on the
+    # Python side only. The base ``Object`` metaclass otherwise injects
+    # ``__slots__ = ()`` (required by the tvm-ffi lifetime model), which would
+    # forbid setting attributes.
+    __slots__ = ("__dict__",)
+
     buffer: Buffer
     span: Span | None
 
@@ -433,6 +439,12 @@ class DeclBuffer(Stmt):
     span: Optional[Span]
         The location of this DeclBuffer in the source code.
     """
+
+    # Opt into a per-instance ``__dict__``: the legacy ``body`` is carried on the
+    # Python side only. The base ``Object`` metaclass otherwise injects
+    # ``__slots__ = ()`` (required by the tvm-ffi lifetime model), which would
+    # forbid setting attributes.
+    __slots__ = ("__dict__",)
 
     buffer: Buffer
     span: Span | None
