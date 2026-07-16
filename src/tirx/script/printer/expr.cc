@@ -74,14 +74,14 @@ Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d
       ExprDoc rhs = PrintVarCreation(var, var_p, d);
       opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
     } else {
-      LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
+      LOG(WARNING) << "Didn't find variable definition for: " << var->name;
     }
   }
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
   TVM_FFI_THROW(InternalError) << "IndexError: Variable is not defined in the environment: "
-                               << var->name_hint;
+                               << var->name;
   TVM_FFI_UNREACHABLE();
 }
 
@@ -93,7 +93,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
       if (!d->IsVarDefined(var)) {
         ExprDoc ann = d->AsDoc<ExprDoc>(var->ty, p->Attr("ty"));
         Frame f = d->frames.back();
-        ExprDoc lhs = d->Define(var, f, var->name_hint.empty() ? "v" : var->name_hint);
+        ExprDoc lhs = d->Define(var, f, var->name.empty() ? "v" : var->name);
         f->stmts.push_back(AssignDoc(lhs, std::nullopt, ann));
       }
       return d->GetVarDoc(var).value();

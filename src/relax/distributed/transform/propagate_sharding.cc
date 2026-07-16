@@ -285,8 +285,7 @@ class ShardingConflictHandler : public ExprVisitor {
 
       if (device_mesh.has_value()) {
         TVM_FFI_ICHECK(ffi::StructuralEqual()(device_mesh.value(), sharding_spec.first))
-            << "Sharding conflict detected for tensor " << var->name_hint
-            << ": Device Mesh mismatch"
+            << "Sharding conflict detected for tensor " << var->name << ": Device Mesh mismatch"
             << ". Conflict Handling logic will be added in the future.";
       } else {
         device_mesh = sharding_spec.first;
@@ -294,7 +293,7 @@ class ShardingConflictHandler : public ExprVisitor {
       if (i >= 0) {
         int sharding_dim = sharding_spec.second;
         TVM_FFI_ICHECK(sharded_mesh_dim.count(sharding_dim) == 0)
-            << "Sharding conflict detected for tensor " << var->name_hint
+            << "Sharding conflict detected for tensor " << var->name
             << ": Replicate sharding device mesh axis " << sharding_dim
             << ". Conflict Handling logic will be added in the future.";
         sharded_mesh_dim.insert(sharding_dim);
@@ -401,7 +400,7 @@ class DistributedIRBuilder : public ExprMutator {
     }
 
     if (const auto* var = tensor.as<VarNode>()) {
-      Var new_param(var->name_hint, new_ty);
+      Var new_param(var->name, new_ty);
       return new_param;
     } else if (const auto* constant = tensor.as<ConstantNode>()) {
       Constant new_constant(constant->data, new_ty);

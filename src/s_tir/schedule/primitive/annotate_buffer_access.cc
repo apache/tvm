@@ -134,7 +134,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
     std::ostringstream oss;
     auto print_expr = [&oss](const PrimExpr& expr) {
       if (auto var = expr.as<PrimVar>()) {
-        oss << var.value()->name_hint;
+        oss << var.value()->name;
       } else {
         oss << expr;
       }
@@ -142,7 +142,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
     oss << "lambda ";
     for (size_t i = 0; i < index_map->initial_indices.size(); ++i) {
       if (i != 0) oss << ", ";
-      oss << index_map->initial_indices[i]->name_hint;
+      oss << index_map->initial_indices[i]->name;
     }
     oss << ": [";
     for (size_t i = 0; i < index_map->final_indices.size(); i += 2) {

@@ -604,11 +604,11 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   // pointer.  Should be done alongside extensions to StmtExprMutator
   // to more easily handle buffer/buffer_var updates.
   TVM_FFI_ICHECK(!data->ty.IsMissing())
-      << "Variable " << data->name_hint << " is missing a type annotation.";
+      << "Variable " << data->name << " is missing a type annotation.";
   TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>())
-      << "Variable " << data->name_hint << " is not a pointer.";
+      << "Variable " << data->name << " is not a pointer.";
   TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
-      << "Variable " << data->name_hint << " does not point to a primitive.";
+      << "Variable " << data->name << " does not point to a primitive.";
 
   ValidateAxisSeparators(axis_separators, shape.size());
 

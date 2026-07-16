@@ -481,7 +481,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       return SeqStmt::Flatten(seq);
     } else {
       // insert a for loop
-      Var idx(var_->name_hint + ".s", var_->ty);
+      Var idx(var_->name + ".s", var_->ty);
       stmt = Substitute(stmt, ffi::Map<Var, Expr>{{var_, idx}});
       PrimType idx_dtype = idx->ty.as_or_throw<PrimType>();
       return For(idx.as_or_throw<PrimVar>(), IntImm(idx_dtype, 0),

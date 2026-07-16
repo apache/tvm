@@ -60,8 +60,12 @@ def test_var() -> None:
 
 
 def test_var_name_keyword_compatibility() -> None:
-    assert tvm.ir.Var(name="primary").name == "primary"
-    assert tvm.ir.Var(name_hint="legacy").name == "legacy"
+    primary = tvm.ir.Var(name="primary")
+    legacy = tvm.ir.Var(name_hint="legacy")
+    assert primary.name == "primary"
+    assert legacy.name == "legacy"
+    assert not hasattr(primary, "name_hint")
+    assert not hasattr(legacy, "name_hint")
     with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
         tvm.ir.Var(name="primary", name_hint="legacy")
 
@@ -102,8 +106,12 @@ def test_dataflow_var() -> None:
 
 
 def test_dataflow_var_name_keyword_compatibility() -> None:
-    assert rx.DataflowVar(name="primary").name == "primary"
-    assert rx.DataflowVar(name_hint="legacy").name == "legacy"
+    primary = rx.DataflowVar(name="primary")
+    legacy = rx.DataflowVar(name_hint="legacy")
+    assert primary.name == "primary"
+    assert legacy.name == "legacy"
+    assert not hasattr(primary, "name_hint")
+    assert not hasattr(legacy, "name_hint")
     with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
         rx.DataflowVar(name="primary", name_hint="legacy")
 

@@ -208,7 +208,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Bind>("", [](tirx::Bind stmt, AccessPath p, IRDocsifier d) -> Doc {
       // Step 1. Type annotation
       TVM_FFI_ICHECK(!stmt->var->ty.IsMissing())
-          << "Type annotation is required for variable: " << stmt->var->name_hint;
+          << "Type annotation is required for variable: " << stmt->var->name;
       ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->ty,  //
                                                           p->Attr("var")->Attr("ty"));
       if (const auto* tuple_type = stmt->var->ty.as<TupleTypeNode>()) {

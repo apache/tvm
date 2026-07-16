@@ -165,7 +165,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
   ffi::Map<Var, Var> var_map;
   for (size_t i = 0; i < info->loop_vars.size(); ++i) {
     Var original_var = info->loop_vars[i];
-    PrimVar loop_var(original_var->name_hint, original_var->ty.as_or_throw<PrimType>());
+    PrimVar loop_var(original_var->name, original_var->ty.as_or_throw<PrimType>());
     var_map.Set(original_var, loop_var);
     loop_vars.push_back(loop_var);
   }
@@ -174,7 +174,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
     PrimExpr original_iter_value = info->block_iter_values[i];
     IterVar block_var = IterVar(
         /*dom=*/original_block_var->dom,
-        /*var=*/PrimVar(original_block_var->var->name_hint, original_block_var->var.ty()),
+        /*var=*/PrimVar(original_block_var->var->name, original_block_var->var.ty()),
         /*IterVarType=*/kDataPar);
     var_map.Set(original_block_var->var, block_var->var);
     block_vars.push_back(block_var);
@@ -2039,7 +2039,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*old_buffer->data.get());
   const auto* ptr_type = TVM_TYPE_AS(old_buffer->data->ty, PointerTypeNode);
   new_var->ty = PointerType(ptr_type->element_type, storage_scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + storage_scope, new_var->ty);
+  new_buffer->data = Var(new_var->name + "_" + storage_scope, new_var->ty);
   new_buffer->name = old_buffer->name + "_" + storage_scope;
   new_buffer->shape = new_shape;
 

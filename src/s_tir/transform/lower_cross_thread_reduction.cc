@@ -444,7 +444,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
         IterVar new_iter_var{nullptr};
         {
           ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
-          Var v(iter_var->var->name_hint, iter_var->var->ty, iter_var->var->span);
+          Var v(iter_var->var->name, iter_var->var->ty, iter_var->var->span);
           n->var = v.as_or_throw<PrimVar>();
           new_iter_var = IterVar(n);
         }
@@ -670,7 +670,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
         TVM_FFI_CHECK(IsBoundToThreadIdx(reduction_loop), ValueError)
             << "Cross-thread reduction requires all the reduction-related loops that "
                "are bound to GPU thread axes to only be bound `threadIdx.x/y/z`. However, loop "
-            << reduction_loop->loop_var->name_hint << " violates the condition.";
+            << reduction_loop->loop_var->name << " violates the condition.";
       }
     }
 

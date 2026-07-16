@@ -931,7 +931,7 @@ class FusedTIRConstructor : public ExprVisitor {
         << "All tuple parameters should be expanded before this point in FuseTIR.  "
         << "However, parameter " << relax_param << " has type " << ty;
 
-    auto name_hint = relax_param->name_hint;
+    auto name_hint = relax_param->name;
 
     if (const auto* tensor = ty.as<TensorTypeNode>()) {
       // Case 1. The relax param is a Tensor, we directly create a tirx var and buffer

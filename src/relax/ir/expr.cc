@@ -138,9 +138,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-DataflowVar::DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
+DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
-  n->name_hint = std::move(name_hint);
+  n->name = std::move(name);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
@@ -151,8 +151,8 @@ DataflowVar::DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotatio
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.DataflowVar",
-                        [](ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
-                          return DataflowVar(name_hint, ty_annotation, span);
+                        [](ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
+                          return DataflowVar(name, ty_annotation, span);
                         });
 }
 

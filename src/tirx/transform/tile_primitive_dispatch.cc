@@ -643,7 +643,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     ScopeIdDefVerifier verifier;
     TVM_FFI_ICHECK(verifier.Verify(defs)) << "Inconsistent ScopeIdDef";
 
-    auto is_implicit = [](const Var& v) { return v->name_hint.empty(); };
+    auto is_implicit = [](const Var& v) { return v->name.empty(); };
     for (const auto& g : gathered) {
       ScopeIdDef def = g.def;
       // Deferred extents: resolved via closure into verifier.id_set.

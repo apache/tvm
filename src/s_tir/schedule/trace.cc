@@ -205,7 +205,7 @@ ffi::Array<Any> TranslateInputRVs(
       if (obj.as<IndexMapNode>()) {
         IndexMap index_map = obj.as_or_throw<IndexMap>();
         index_map = Substitute(index_map, [&named_rvs](const Var& var) -> ffi::Optional<PrimExpr> {
-          auto it = named_rvs.find(var->name_hint);
+          auto it = named_rvs.find(var->name);
           if (it != named_rvs.end()) {
             return it->second.as_or_throw<Var>().as_or_throw<PrimExpr>();
           }

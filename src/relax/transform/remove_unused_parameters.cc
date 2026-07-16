@@ -103,7 +103,7 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
     // Promote the free symbolic var via a 1-D shape param so the param actually
     // *defines* the var. A PrimType param only carries a dtype and defines no
     // TIR var, which leaves the var undefined under the strict tirx verifier.
-    Var relax_var("param_" + tir_var->name_hint, ShapeType({tir_var.as_or_throw<PrimExpr>()}));
+    Var relax_var("param_" + tir_var->name, ShapeType({tir_var.as_or_throw<PrimExpr>()}));
     params.push_back(relax_var);
   }
 

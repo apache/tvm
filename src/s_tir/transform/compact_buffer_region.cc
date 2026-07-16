@@ -362,7 +362,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         }
         auto dom_it = dom_map_.find(v);
         TVM_FFI_ICHECK(dom_it != dom_map_.end())
-            << "Could not find domain for loop variable " << v->name_hint;
+            << "Could not find domain for loop variable " << v->name;
         non_relaxed[i] = dom_it->second;
         dom_map_.erase(dom_it);
       }

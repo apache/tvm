@@ -43,7 +43,7 @@ Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
   Type new_type = PointerType(ptr_type->element_type, scope);
-  new_buffer->data = tirx::Var(buffer->data->name_hint + "_" + scope, new_type);
+  new_buffer->data = tirx::Var(buffer->data->name + "_" + scope, new_type);
   new_buffer->name = buffer->name + "_" + scope;
   return Buffer(new_buffer);
 }
@@ -52,8 +52,7 @@ Buffer WithDType(const Buffer& buffer, PrimType dtype) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   new_buffer->dtype = dtype;
   const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
-  new_buffer->data =
-      tirx::Var(buffer->data->name_hint, PointerType(dtype, ptr_type->storage_scope));
+  new_buffer->data = tirx::Var(buffer->data->name, PointerType(dtype, ptr_type->storage_scope));
   new_buffer->name = buffer->name;
   return Buffer(new_buffer);
 }

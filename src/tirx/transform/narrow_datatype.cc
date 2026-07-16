@@ -245,7 +245,7 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
 
   Expr VisitExpr_(const VarNode* op) final {
     if (auto it = visitor_.vmap.find(op); !var_remap_.count(op) && it != visitor_.vmap.end()) {
-      var_remap_[op] = Var(op->name_hint, it->second);
+      var_remap_[op] = Var(op->name, it->second);
     }
     return Parent::VisitExpr_(op);
   }

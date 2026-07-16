@@ -49,7 +49,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
 
   Expr VisitExpr_(const VarNode* var) final {
     TVM_FFI_ICHECK(!forbidden_iter_vars_.count(var))
-        << "Variable " << var->name_hint << " occurs in the predicate or iter_values of a block, "
+        << "Variable " << var->name << " occurs in the predicate or iter_values of a block, "
         << "but isn't defined until the body of the block";
 
     auto it = var_substitutes_.find(var);

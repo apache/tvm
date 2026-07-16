@@ -88,8 +88,8 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
       }
       spirv::Value arg_value = builder_->BufferArgument(builder_->GetSType(value_storage_type),
                                                         descriptor_set, i_buffer++);
-      builder_->SetName(arg_value, arg->name_hint);
-      storage_info_[arg.get()].SetContentType(value_storage_type, arg->name_hint);
+      builder_->SetName(arg_value, arg->name);
+      storage_info_[arg.get()].SetContentType(value_storage_type, arg->name);
       var_map_[arg.get()] = arg_value;
     } else {
       PrimType pod_type = arg->ty.as_or_throw<PrimType>();
@@ -207,7 +207,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
 
 spirv::Value CodeGenSPIRV::VisitExpr_(const VarNode* op) {
   auto it = var_map_.find(op);
-  TVM_FFI_ICHECK(it != var_map_.end()) << "cannot find variable " << op->name_hint;
+  TVM_FFI_ICHECK(it != var_map_.end()) << "cannot find variable " << op->name;
   return it->second;
 }
 
@@ -628,8 +628,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const BufferLoadNode* op) {
 
   } else {
     TVM_FFI_THROW(InternalError) << "Cannot perform buffer access of buffer variable '"
-                                 << buffer_var->name_hint << "' with element type "
-                                 << info.element_type << " using index of type " << prim_index.ty()
+                                 << buffer_var->name << "' with element type " << info.element_type
+                                 << " using index of type " << prim_index.ty()
                                  << " to produce output of type " << op->ty.as_or_throw<PrimType>();
     return spirv::Value();
   }
@@ -706,7 +706,7 @@ void CodeGenSPIRV::VisitStmt_(const BufferStoreNode* op) {
 
   } else {
     TVM_FFI_THROW(InternalError) << "Cannot store value of type " << value_type
-                                 << " into buffer variable '" << buffer_var->name_hint
+                                 << " into buffer variable '" << buffer_var->name
                                  << "' with element type " << info.element_type
                                  << " using index of type " << index_type;
   }

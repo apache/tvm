@@ -163,11 +163,11 @@ class FragmentChecker : public StmtExprVisitor {
   // A tool for checking shapes of two fragments
   bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
     TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer1))
-        << "Tensorecore fragment " << buffer1->name_hint
+        << "Tensorecore fragment " << buffer1->name
         << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
            "use.";
     TVM_FFI_ICHECK(fragment_getter.fragments.count(buffer2))
-        << "Tensorecore fragment " << buffer2->name_hint
+        << "Tensorecore fragment " << buffer2->name
         << " must be filled (with tvm_fill_fragment) or loaded (with tvm_load_matrix_sync) before "
            "use.";
     FragmentInfo info1 = fragment_getter.fragments.at(buffer1);

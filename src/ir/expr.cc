@@ -251,9 +251,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-Var::Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
+Var::Var(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
-  n->name_hint = std::move(name_hint);
+  n->name = std::move(name);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
@@ -265,12 +265,12 @@ Var Var::CopyWithName(const ffi::String& name) const {
   TVM_FFI_CHECK_EQ(type_index(), VarNode::RuntimeTypeIndex(), TypeError)
       << "Cannot copy a Var runtime subtype as an ordinary Var";
   ffi::ObjectPtr<VarNode> copy = ffi::make_object<VarNode>(*get());
-  copy->name_hint = name;
+  copy->name = name;
   return Var(std::move(copy));
 }
 
 Var Var::CopyWithSuffix(const ffi::String& suffix) const {
-  return CopyWithName(get()->name_hint + suffix);
+  return CopyWithName(get()->name + suffix);
 }
 
 Var Var::CopyWithDType(PrimType dtype) const {
@@ -305,8 +305,8 @@ Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("ir.Var", [](ffi::String name_hint, ffi::Optional<Type> ty_annotation,
-                        Span span) { return Var(name_hint, ty_annotation, span); })
+      .def("ir.Var", [](ffi::String name, ffi::Optional<Type> ty_annotation,
+                        Span span) { return Var(name, ty_annotation, span); })
       .def("ir.GlobalVar", [](ffi::String name) { return GlobalVar(name); })
       .def("ir.Call",
            [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,

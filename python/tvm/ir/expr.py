@@ -374,7 +374,7 @@ class Var(_ExprWithOp):
     Parameters
     ----------
     name : str
-        The API name of the variable.  It is stored internally as a name hint.
+        The name of the variable.
 
     ty : Optional[Type or str]
         The exact type of the variable.  A string denotes a primitive dtype.
@@ -384,7 +384,7 @@ class Var(_ExprWithOp):
 
     """
 
-    name_hint: str
+    name: str
     span: Span | None
 
     def __init__(
@@ -412,11 +412,6 @@ class Var(_ExprWithOp):
             if not isinstance(ty, Type):
                 raise TypeError("ty must be a Type or primitive dtype string")
         self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, span)
-
-    @property
-    def name(self) -> str:
-        """The user-facing variable name."""
-        return self.name_hint
 
 
 @tvm_ffi.register_object("ir.Range")

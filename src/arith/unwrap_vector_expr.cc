@@ -67,7 +67,7 @@ class Scalarizer : public ExprMutator {
     TVM_FFI_ICHECK(it == let_var_remap_.end()) << "Duplicate binding of variable " << op->var;
 
     PrimType var_ty = op->var.as_or_throw<PrimVar>().ty();
-    PrimVar new_var(op->var->name_hint + "_scalar", var_ty.WithLanes(1));
+    PrimVar new_var(op->var->name + "_scalar", var_ty.WithLanes(1));
     let_var_remap_[op->var.get()] = new_var;
 
     PrimExpr value = this->VisitPrimExpr(op->value);

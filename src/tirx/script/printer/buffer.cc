@@ -132,7 +132,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
               return d->AsDoc<ExprDoc>(buffer, buffer_p)
                   ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
             })) {
-          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name_hint, e_p));
+          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name, e_p));
           continue;
         }
       }

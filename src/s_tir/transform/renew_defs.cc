@@ -156,7 +156,7 @@ class RenewDefMutator : public StmtExprMutator {
 
  private:
   Var ReDefineVar(const Var& var) {
-    Var new_var(var->name_hint, var->ty, var->span);
+    Var new_var(var->name, var->ty, var->span);
     this->AddDefRemap(var, new_var);
     return new_var;
   }

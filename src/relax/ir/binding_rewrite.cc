@@ -55,7 +55,7 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   n->to_users_ = std::move(p.first);
   n->fn_outputs_ = std::move(p.second);
   n->name_supply_ = UniqueNameSupply(n->to_users_.begin(), n->to_users_.end(),
-                                     [](const auto& p) { return p.first->name_hint; });
+                                     [](const auto& p) { return p.first->name; });
 
   data_ = std::move(n);
 }

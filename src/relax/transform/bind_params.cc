@@ -39,7 +39,7 @@ ffi::Map<Var, Expr> NormalizeBindings(const Function& func,
   std::unordered_map<std::string, ffi::Array<tvm::Var>> string_lookup;
   std::unordered_set<const tvm::VarNode*> var_set;
   for (const auto& param : func->params) {
-    string_lookup[param->name_hint].push_back(param);
+    string_lookup[param->name].push_back(param);
     var_set.insert(param.get());
   }
 
@@ -52,7 +52,7 @@ ffi::Map<Var, Expr> NormalizeBindings(const Function& func,
       TVM_FFI_ICHECK(it != string_lookup.end())
           << "Function does not have parameter with name \"" << str << "\".  "
           << "Function parameters are named "
-          << func->params.Map([](const auto& param) { return param->name_hint; });
+          << func->params.Map([](const auto& param) { return param->name; });
       TVM_FFI_ICHECK_EQ(it->second.size(), 1)
           << "Function contains multiple parameters with name \"" << str << "\".  "
           << "The Relax variables " << it->second << " are all named \"" << str << "\"";

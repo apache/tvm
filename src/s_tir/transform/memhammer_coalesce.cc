@@ -37,7 +37,7 @@ Stmt FuseNestLoops(Stmt body) {
   std::string suffix;
   int n = loops.size();
   for (int i = 1; i < n; i++) {
-    suffix += "_" + loops[i]->loop_var->name_hint;
+    suffix += "_" + loops[i]->loop_var->name;
   }
   suffix += "_fused";
   PrimVar fused_var = loops[0]->loop_var.CopyWithSuffix(suffix);

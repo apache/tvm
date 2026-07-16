@@ -99,10 +99,10 @@ class LazyInputMutator : public ExprMutator {
         auto untyped = builder_->Emit(Call(Type::Missing(), plan_->fget_param,
                                            {
                                                PrimExpr(IntImm::Int64(it->second)),
-                                               StringImm(var->name_hint),
+                                               StringImm(var->name),
                                            }),
-                                      var->name_hint + "_untyped");
-        return builder_->EmitMatchCast(untyped, GetType(var), var->name_hint);
+                                      var->name + "_untyped");
+        return builder_->EmitMatchCast(untyped, GetType(var), var->name);
       }
     }
 
