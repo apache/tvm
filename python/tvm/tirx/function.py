@@ -60,6 +60,12 @@ class PrimFunc(BaseFunc, Scriptable):
         The location of this itervar in the source code.
     """
 
+    # Opt into a per-instance ``__dict__``: the TVMScript parser attaches
+    # ``__name__`` to the parsed function. The base ``Object`` metaclass
+    # otherwise injects ``__slots__ = ()`` (required by the tvm-ffi lifetime
+    # model), which would forbid setting attributes.
+    __slots__ = ("__dict__",)
+
     def __init__(self, params, body, ret_type=None, buffer_map=None, attrs=None, span=None):
         # Legacy compatibility: expand body-carrying leaf stmt wrappers
         # (e.g. DeclBuffer/AllocBuffer forms) into SeqStmt form.

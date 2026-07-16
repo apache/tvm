@@ -589,6 +589,12 @@ class SeqExpr(ExprWithOp):
 class Function(BaseFunc, Scriptable):
     """A Relax function."""
 
+    # Opt into a per-instance ``__dict__``: callers attach ``__name__`` to the
+    # function (e.g. DataflowBlockRewrite.mutated_root_fn). The base ``Object``
+    # metaclass otherwise injects ``__slots__ = ()`` (required by the tvm-ffi
+    # lifetime model), which would forbid setting attributes.
+    __slots__ = ("__dict__",)
+
     params: list[Var]
     body: Expr
     ret_ty: Type
