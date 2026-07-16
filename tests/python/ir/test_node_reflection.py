@@ -80,23 +80,37 @@ _LEGACY_TIRX_VAR_JSON = """{
 }"""
 
 
+def _make_pre_name_field_json(type_key):
+    graph = json.loads(_LEGACY_TIRX_VAR_JSON)
+    graph["root_index"] = 5
+    var = graph["nodes"][5]
+    var["type"] = type_key
+    var["data"]["name_hint"] = var["data"].pop("name")
+    return json.dumps(graph)
+
+
+_PRE_NAME_FIELD_IR_VAR_JSON = _make_pre_name_field_json("ir.Var")
+_PRE_NAME_FIELD_DATAFLOW_VAR_JSON = _make_pre_name_field_json("relax.expr.DataflowVar")
+
+
 @pytest.mark.parametrize(
-    ("legacy_json", "legacy_type", "var_index"),
+    ("legacy_json", "expected_type", "var_index"),
     [
-        (_LEGACY_RELAX_VAR_JSON, "relax.expr.Var", 7),
-        (_LEGACY_TIRX_VAR_JSON, "tirx.Var", 5),
+        (_LEGACY_RELAX_VAR_JSON, "ir.Var", 7),
+        (_LEGACY_TIRX_VAR_JSON, "ir.Var", 5),
+        (_PRE_NAME_FIELD_IR_VAR_JSON, "ir.Var", 5),
+        (_PRE_NAME_FIELD_DATAFLOW_VAR_JSON, "relax.expr.DataflowVar", 5),
     ],
 )
-def test_var_exact_base_legacy_json_graph_rewrite(legacy_json, legacy_type, var_index):
+def test_var_name_legacy_json_graph_rewrite(legacy_json, expected_type, var_index):
     from tvm.ir.json_compact import upgrade_json
 
     original = json.loads(legacy_json)
     expected = copy.deepcopy(original)
-    expected["nodes"][var_index]["type"] = "ir.Var"
-    if legacy_type == "tirx.Var":
-        expected["nodes"][var_index]["data"]["name_hint"] = expected["nodes"][var_index][
-            "data"
-        ].pop("name")
+    expected["nodes"][var_index]["type"] = expected_type
+    fields = expected["nodes"][var_index]["data"]
+    if "name_hint" in fields:
+        fields["name"] = fields.pop("name_hint")
 
     upgraded = json.loads(upgrade_json(legacy_json))
     assert upgraded == expected
@@ -104,8 +118,10 @@ def test_var_exact_base_legacy_json_graph_rewrite(legacy_json, legacy_type, var_
     assert len(upgraded["nodes"]) == len(original["nodes"])
 
 
-def _check_legacy_var(var, source_name, line, end_line, column, end_column):
-    assert type(var) is tvm.ir.Var
+def _check_legacy_var(
+    var, source_name, line, end_line, column, end_column, expected_type=tvm.ir.Var
+):
+    assert type(var) is expected_type
     assert var.name == "legacy"
     assert var.ty == tvm.ir.PrimType("int64")
     assert var.span.source_name.name == source_name
@@ -135,6 +151,22 @@ def test_var_exact_base_legacy_tirx_json_load():
     assert {node["type"] for node in json.loads(tvm.ir.save_json(restored))["nodes"]}.isdisjoint(
         {"relax.expr.Var", "tirx.Var"}
     )
+
+
+@pytest.mark.parametrize(
+    ("legacy_json", "expected_type"),
+    [
+        (_PRE_NAME_FIELD_IR_VAR_JSON, tvm.ir.Var),
+        (_PRE_NAME_FIELD_DATAFLOW_VAR_JSON, tvm.relax.DataflowVar),
+    ],
+)
+def test_var_name_legacy_json_load(legacy_json, expected_type):
+    restored = tvm.ir.load_json(legacy_json)
+    _check_legacy_var(restored, "legacy_tirx.py", 7, 9, 2, 14, expected_type)
+    graph = json.loads(tvm.ir.save_json(restored))
+    fields = graph["nodes"][graph["root_index"]]["data"]
+    assert "name" in fields
+    assert "name_hint" not in fields
 
 
 def test_dataflow_var_json_is_not_migrated_to_canonical_var():

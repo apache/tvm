@@ -91,7 +91,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     ffi::Array<ffi::String> param_names;
     for (Var param : func->params) {
-      param_names.push_back(param->name_hint);
+      param_names.push_back(param->name);
     }
 
     builder_->EmitFunction(gsymbol.value(), func->params.size(), param_names);

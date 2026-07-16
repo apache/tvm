@@ -62,7 +62,7 @@ Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
       TVM_FFI_ICHECK(f->is_func);
       f->func_vars->insert(n.get());
     }
-    IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
+    IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name.empty() ? "v" : n->name);
     var->source_paths.push_back(n_p);
     f->stmts.push_back(AssignDoc(var, PrintVarCreation(prim_var, n_p, d), std::nullopt));
   }

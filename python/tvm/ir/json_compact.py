@@ -86,14 +86,16 @@ def upgrade_json(json_str):
         raise ValueError("Legacy json graph format detected, we don't support it anymore.")
 
     # `ir.Var` is the sole runtime variable node.  Keep `tvm.ir.load_json`
-    # compatible with the exact pre-unification Relax and TIRx schemas.
-    # Rewriting nodes in place preserves node indices and shared references.
+    # compatible with the pre-unification Relax/TIRx schemas and with graphs
+    # written before the canonical Var field was renamed to `name`.  Rewriting
+    # nodes in place preserves node indices and shared references.
     for node in data.get("nodes", []):
         if node.get("type") == "relax.expr.Var":
             node["type"] = "ir.Var"
         elif node.get("type") == "tirx.Var":
             node["type"] = "ir.Var"
+        if node.get("type") in ("ir.Var", "relax.expr.DataflowVar"):
             fields = node.get("data", {})
-            if "name" in fields and "name_hint" not in fields:
-                fields["name_hint"] = fields.pop("name")
+            if "name_hint" in fields and "name" not in fields:
+                fields["name"] = fields.pop("name_hint")
     return json.dumps(data, indent=2)

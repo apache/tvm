@@ -119,7 +119,7 @@ class ModelParamBundler : public ExprMutator {
     for (const Var& var : prim_params) {
       auto it = var_to_expr_.find(var);
       TVM_FFI_ICHECK(it != var_to_expr_.end());
-      var_remap_[var] = builder_->Emit((*it).second, var->name_hint);
+      var_remap_[var] = builder_->Emit((*it).second, var->name);
     }
     BindingBlock prologue = builder_->EndBlock();
 
@@ -150,8 +150,8 @@ class ModelParamBundler : public ExprMutator {
       TVM_FFI_ICHECK(field_type != var_to_field_type_.end());
       Type rebound_type = VisitExprDepTypeField(GetType(var));
       Var replacement = (*field_type).second.same_as(rebound_type)
-                            ? builder_->Emit((*it).second, op->name_hint)
-                            : builder_->EmitMatchCast((*it).second, rebound_type, op->name_hint);
+                            ? builder_->Emit((*it).second, op->name)
+                            : builder_->EmitMatchCast((*it).second, rebound_type, op->name);
       return replacement;
     }
     return ExprMutator::VisitExpr_(op);

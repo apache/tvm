@@ -143,7 +143,7 @@ class HostDeviceSplitter : public StmtMutator {
             bool is_handle = var->ty.as<PointerTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
-                var->name_hint,
+                var->name,
             };
           };
           return sort_key(a) < sort_key(b);
@@ -330,7 +330,7 @@ class DeviceInfoCollector : public StmtVisitor {
         thread_tag = iv.value()->thread_tag;
         TVM_FFI_ICHECK_NE(thread_tag.length(), 0U);
       } else if (auto var = op->node.as<Var>()) {
-        thread_tag = var.value()->name_hint;
+        thread_tag = var.value()->name;
       } else {
         TVM_FFI_THROW(TypeError) << "thread_extent node must be an IterVar or Var, but was "
                                  << op->node.GetTypeKey();

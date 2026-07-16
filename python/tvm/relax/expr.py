@@ -423,7 +423,7 @@ class DataflowVar(Var):
     Parameters
     ----------
     name: str
-        The API name of the variable.  It is stored internally as a name hint.
+        The name of the variable.
 
     ty: Optional[Type]
         The type annotation of the variable.

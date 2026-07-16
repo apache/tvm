@@ -653,7 +653,7 @@ inline PrimExpr DynamicCanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimEx
   auto idx_var = index.as<tvm::tirx::PrimVar>();
   auto extent_var = extent.as<tvm::tirx::PrimVar>();
 
-  if (idx_var && extent_var && (*idx_var)->name_hint == (*extent_var)->name_hint) {
+  if (idx_var && extent_var && (*idx_var)->name == (*extent_var)->name) {
     return index;
   }
 

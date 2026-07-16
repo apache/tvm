@@ -889,7 +889,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
   void CreateAdditionalIter() final {
     // Create a new data parallel block iter for the rfactor loop.
     additional_iter_ =
-        IterVarFromLoop(rf_loop_, "v" + rf_loop_->loop_var->name_hint, IterVarType::kDataPar);
+        IterVarFromLoop(rf_loop_, "v" + rf_loop_->loop_var->name, IterVarType::kDataPar);
     loop_var2block_binding_[rf_loop_->loop_var.get()] = additional_iter_->var;
     iter_vars_.push_back(additional_iter_);
     iter_values_.push_back(rf_loop_->loop_var);
@@ -923,7 +923,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
         // We haven't created the new block iter for `var`. So here we create it, append it
         // and its binding to `rf_block_iter_vars` and `rf_block_iter_values` respectively.
         IterVar new_iter_var =
-            IterVarFromLoop(loop, "v" + loop->loop_var->name_hint, IterVarType::kCommReduce);
+            IterVarFromLoop(loop, "v" + loop->loop_var->name, IterVarType::kCommReduce);
         loop_var2block_binding_[var.get()] = new_iter_var->var;
         iter_vars_.push_back(new_iter_var);
         iter_values_.push_back(var.as_or_throw<PrimExpr>());
@@ -1017,7 +1017,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
   void CreateAdditionalIter() final {
     // Create a new reduction block iter for the rfactor loop.
     IterVar wb_new_block_iter =
-        IterVarFromLoop(rf_loop_, "v" + rf_loop_->loop_var->name_hint, kCommReduce);
+        IterVarFromLoop(rf_loop_, "v" + rf_loop_->loop_var->name, kCommReduce);
     iter_vars_.push_back(wb_new_block_iter);
     iter_values_.push_back(rf_loop_->loop_var);
     var_map_.Set(rf_additional_iter_->var, wb_new_block_iter->var);

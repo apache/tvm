@@ -928,7 +928,7 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
   // where we should produce a DataflowVar.
   if (!output->IsInstance<DataflowVarNode>()) {
     Var delegated_output = output;
-    output = DataflowVar(output->name_hint, GetType(output), output->span);
+    output = DataflowVar(output->name, GetType(output), output->span);
     var_remap_[delegated_output] = output;
   }
   return output;
@@ -940,7 +940,7 @@ Var ExprMutator::VisitVarDef_(const VarNode* var) {
     if (ty.same_as(var->ty)) {
       return ffi::GetRef<Var>(var);
     } else {
-      return Var(var->name_hint, ty, var->span);
+      return Var(var->name, ty, var->span);
     }
   } else {
     return ffi::GetRef<Var>(var);
@@ -1041,8 +1041,8 @@ Var ExprMutator::WithType(Var var, Type ty) {
     if (var->ty.same_as(ty) || ffi::StructuralEqual()(var->ty, ty)) {
       return var;
     } else {
-      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->name_hint, ty, var->span)
-                                              : Var(var->name_hint, ty, var->span);
+      Var new_var = var.as<DataflowVarNode>() ? DataflowVar(var->name, ty, var->span)
+                                              : Var(var->name, ty, var->span);
       return new_var;
     }
   } else {

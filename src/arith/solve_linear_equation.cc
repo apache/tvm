@@ -393,7 +393,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
       PrimExpr to_old = analyzer_problem->Simplify(V_inv_x[j]);
       std::string name_hint = "n" + std::to_string(new_vars.size());
       if (auto old_var = to_old.as<tirx::PrimVar>()) {
-        name_hint += "_" + (*old_var)->name_hint;
+        name_hint += "_" + (*old_var)->name;
       }
       PrimVar v(name_hint, V_inv_x[j].ty());
       solution_for_V_inv_x.push_back(v);

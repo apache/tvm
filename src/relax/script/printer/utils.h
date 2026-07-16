@@ -75,7 +75,7 @@ inline std::string ReprPrintRelax(const ffi::ObjectRef& obj, const PrinterConfig
 }
 
 inline IdDoc DefineRelaxVar(const tvm::Var& var, const Frame& frame, const IRDocsifier& d) {
-  return d->Define(var, frame, var->name_hint.empty() ? "v" : var->name_hint);
+  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
 }
 
 inline ffi::Optional<ExprDoc> TypeAsAnn(const tvm::Var& v, const AccessPath& v_p,

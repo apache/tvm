@@ -148,7 +148,7 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
+  TVM_DLL explicit DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
                                Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);

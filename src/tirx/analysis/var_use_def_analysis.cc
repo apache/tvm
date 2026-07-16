@@ -150,9 +150,9 @@ void VarUseDefAnalyzer::VisitBuffer(const Buffer& buffer) {
 void VarUseDefAnalyzer::HandleDef(const Var& var) {
   auto v = var.get();
   TVM_FFI_ICHECK(!def_count_.count(v))
-      << "variable " << v->name_hint << " has already been defined, the Stmt is not SSA";
+      << "variable " << v->name << " has already been defined, the Stmt is not SSA";
   TVM_FFI_ICHECK(!use_count_.count(v))
-      << "variable " << v->name_hint << " has been used before definition!";
+      << "variable " << v->name << " has been used before definition!";
   use_count_[v] = 0;
   def_count_[v] = 1;
 }

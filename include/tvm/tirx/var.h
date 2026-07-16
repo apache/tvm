@@ -46,13 +46,12 @@ using Var = tvm::Var;
 class PrimVar : public PrimExpr {
  public:
   /*! \brief Construct a scalar variable directly from a primitive type. */
-  explicit PrimVar(ffi::String name_hint, PrimType dtype = PrimType::Int(32), Span span = Span())
-      : PrimExpr(
-            Var(std::move(name_hint), std::move(dtype), std::move(span)).as_or_throw<PrimExpr>()) {}
+  explicit PrimVar(ffi::String name, PrimType dtype = PrimType::Int(32), Span span = Span())
+      : PrimExpr(Var(std::move(name), std::move(dtype), std::move(span)).as_or_throw<PrimExpr>()) {}
 
   /*! \brief Construct a scalar variable directly from a checked type annotation. */
-  explicit PrimVar(ffi::String name_hint, Type type_annotation, Span span = Span())
-      : PrimExpr(Var(std::move(name_hint), std::move(type_annotation), std::move(span))
+  explicit PrimVar(ffi::String name, Type type_annotation, Span span = Span())
+      : PrimExpr(Var(std::move(name), std::move(type_annotation), std::move(span))
                      .as_or_throw<PrimExpr>()) {}
 
   /*! \brief Safe widening to a general Var view over the same node. */

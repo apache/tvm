@@ -71,7 +71,7 @@ const SLayoutAxis& SLayoutAxis::Get(const char name) {
 }
 
 const SLayoutAxis& SLayoutAxis::Get(const IterVar& itvar) {
-  const std::string axis = itvar->var.get()->name_hint;
+  const std::string axis = itvar->var.get()->name;
   TVM_FFI_ICHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
   return SLayoutAxis::Get(axis[0]);
 }
@@ -99,12 +99,12 @@ SLayout::SLayout(const ffi::Array<IterVar>& axes) {
         TVM_FFI_ICHECK(!is_grouped)
             << "Only Subordinate Axes with extent is allowed within a packed dim";
       }
-      TVM_FFI_ICHECK_EQ(axis->var.get()->name_hint.size(), 1)
-          << "Invalid layout axis " << axis->var.get()->name_hint;
-      char c = axis->var.get()->name_hint.operator std::string()[0];
+      TVM_FFI_ICHECK_EQ(axis->var.get()->name.size(), 1)
+          << "Invalid layout axis " << axis->var.get()->name;
+      char c = axis->var.get()->name.operator std::string()[0];
       TVM_FFI_ICHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
           << "Invalid layout axis " << c;
-      repr << axis->var.get()->name_hint;
+      repr << axis->var.get()->name;
     }
     if (is_grouped) repr << "]";
   }
@@ -167,9 +167,9 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       int64_t extent = 1;
       for (auto& axis : unpacked_axes) {
         TVM_FFI_ICHECK(axis->dom->extent.as<IntImmNode>())
-            << "Invalid SLayout " << name << ": can't have variable sized node("
-            << axis->var->name_hint << ") within a packed axis";
-        auto axis_name = axis->var->name_hint.operator std::string();
+            << "Invalid SLayout " << name << ": can't have variable sized node(" << axis->var->name
+            << ") within a packed axis";
+        auto axis_name = axis->var->name.operator std::string();
         auto factor = axis->dom->extent.as<IntImm>().value();
         ss << axis_name;
         extent = extent * factor->value;
@@ -192,7 +192,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   std::vector<int> axis_cnt(256, 0);
   for (const IterVar& pv : node->axes) {
     for (const IterVar& v : UnpackIterVar(pv)) {
-      auto axis_str = v->var.get()->name_hint.operator std::string();
+      auto axis_str = v->var.get()->name.operator std::string();
       TVM_FFI_ICHECK_EQ(axis_str.size(), 1);
       char axis = axis_str[0];
       TVM_FFI_ICHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
@@ -201,7 +201,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   }
   for (const IterVar& pv : node->axes) {
     for (const IterVar& v : UnpackIterVar(pv)) {
-      char axis = v->var.get()->name_hint.operator std::string()[0];
+      char axis = v->var.get()->name.operator std::string()[0];
       if (axis >= 'a' && axis <= 'z') {
         TVM_FFI_ICHECK(axis_cnt[axis - 'a' + 'A'])
             << "Invalid layout " << name << ": missing axis " << std::toupper(axis);
@@ -231,7 +231,7 @@ ffi::Array<IterVar> SLayout::UnpackIterVar(IterVar packed_iter) {
   ffi::Array<IterVar> result;
   int64_t factor = 0, final_factor = 1;
 
-  std::string name(packed_iter->var->name_hint.c_str());
+  std::string name(packed_iter->var->name.c_str());
   PrimType index_ty = packed_iter->var.ty();
 
   for (auto ch : name) {
@@ -261,7 +261,7 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   for (auto itvar : iter_vars) {
     TVM_FFI_ICHECK(itvar->dom->extent.as<IntImm>())
         << "Packed Axis can contain only Subordinate Axes";
-    name << itvar->dom->extent.as<IntImm>().value() << itvar->var->name_hint;
+    name << itvar->dom->extent.as<IntImm>().value() << itvar->var->name;
     extent = extent * itvar->dom->extent.as<IntImm>().value()->value;
   }
 
@@ -594,7 +594,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.SLayoutGetItem",
            [](SLayout layout, int idx) -> std::string {
              const auto& axis = layout.PackedAxisAt(idx);
-             return axis->var->name_hint;
+             return axis->var->name;
            })
       .def("s_tir.SBijectiveLayout",
            [](SLayout src_layout, SLayout dst_layout) -> SBijectiveLayout {

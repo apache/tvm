@@ -368,9 +368,9 @@ class VDeviceTypeUpdater : ExprMutator {
         }();
 
         if (var->IsInstance<DataflowVarNode>()) {
-          var = DataflowVar(var->name_hint, new_ty, var->span);
+          var = DataflowVar(var->name, new_ty, var->span);
         } else {
-          var = Var(var->name_hint, new_ty, var->span);
+          var = Var(var->name, new_ty, var->span);
         }
       }
     }

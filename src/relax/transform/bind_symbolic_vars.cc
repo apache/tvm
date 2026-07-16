@@ -43,7 +43,7 @@ Function FunctionBindSymbolicVars(
   std::unordered_map<std::string, ffi::Array<tirx::Var>> string_lookup;
   std::unordered_set<const tirx::VarNode*> symbolic_var_set;
   for (const auto& var : old_symbolic_vars) {
-    string_lookup[var->name_hint].push_back(var);
+    string_lookup[var->name].push_back(var);
     symbolic_var_set.insert(var.get());
   }
 
@@ -107,7 +107,7 @@ IRModule ModuleBindSymbolicVars(
         std::unordered_set<std::string> var_names;
         std::unordered_set<const tirx::VarNode*> vars;
         for (const auto& var : DefinedSymbolicVars(func)) {
-          var_names.insert(var->name_hint);
+          var_names.insert(var->name);
           vars.insert(var.get());
         }
 

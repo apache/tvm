@@ -245,9 +245,9 @@ class SymbolicVarRenewMutator : public ExprMutator {
   static Var CopyVar(const VarNode* op, Type ty) {
     ffi::Optional<Type> ty_annotation = ty.IsMissing() ? std::nullopt : ffi::Optional<Type>(ty);
     if (op->IsInstance<DataflowVarNode>()) {
-      return DataflowVar(op->name_hint, std::move(ty_annotation), op->span);
+      return DataflowVar(op->name, std::move(ty_annotation), op->span);
     }
-    return Var(op->name_hint, std::move(ty_annotation), op->span);
+    return Var(op->name, std::move(ty_annotation), op->span);
   }
 
   Type RenewType(const VarNode* op) {

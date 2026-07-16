@@ -294,7 +294,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
       new_indices = inverse->initial_indices.Map([](PrimVar var) {
         std::stringstream ss;
-        ss << "v_" << var->name_hint;
+        ss << "v_" << var->name;
         return Var(ss.str(), var.ty());
       });
 
@@ -478,7 +478,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
-      Var block_var("v_" + loop_var->name_hint, loop_var.ty());
+      Var block_var("v_" + loop_var->name, loop_var.ty());
       IterVar iter_var(Range(0, dim), block_var.as_or_throw<PrimVar>(), kDataPar);
       loop_indices_to_block_indices.Set(loop_var, block_var);
       indices.push_back(iter_var->var);
@@ -573,7 +573,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
       const auto& loop_var = inverse->initial_indices[i];
       const auto& dim = new_buffer->shape[i];
-      Var block_var("v_" + loop_var->name_hint, loop_var.ty());
+      Var block_var("v_" + loop_var->name, loop_var.ty());
       IterVar iter_var(Range(0, dim), block_var.as_or_throw<PrimVar>(), kDataPar);
       indices.push_back(iter_var->var);
       iter_vars.push_back(iter_var);
@@ -1135,7 +1135,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
 
     DLDataType initial_dtype = initial_indices_orig[i].ty()->dtype;
     if (arg_dtype != initial_dtype) {
-      auto new_idx = Var(initial_indices_orig[i]->name_hint, args[i].ty());
+      auto new_idx = Var(initial_indices_orig[i]->name, args[i].ty());
       initial_indices.push_back(new_idx);
       var_map.Set(initial_indices_orig[i], new_idx.as_or_throw<PrimExpr>());
     } else {

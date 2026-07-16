@@ -59,14 +59,14 @@ TEST(Expr, VarCopyHelpers) {
 
   Var renamed = var.CopyWithName("y");
   EXPECT_FALSE(renamed.same_as(var));
-  EXPECT_EQ(renamed->name_hint, "y");
+  EXPECT_EQ(renamed->name, "y");
   EXPECT_TRUE(renamed->ty.same_as(pointer_type));
   EXPECT_TRUE(renamed->span.same_as(span));
 
   PrimType dtype = PrimType::Int(64);
   Var retyped = var.CopyWithDType(dtype);
   EXPECT_FALSE(retyped.same_as(var));
-  EXPECT_EQ(retyped->name_hint, "x");
+  EXPECT_EQ(retyped->name, "x");
   EXPECT_TRUE(retyped->ty.same_as(dtype));
   EXPECT_TRUE(retyped->span.same_as(span));
 
@@ -75,7 +75,7 @@ TEST(Expr, VarCopyHelpers) {
   PrimType prim_dtype = PrimType::Float(32);
   PrimVar retyped_prim_var = prim_var.CopyWithDType(prim_dtype);
   EXPECT_FALSE(retyped_prim_var.same_as(prim_var));
-  EXPECT_EQ(retyped_prim_var->name_hint, "i");
+  EXPECT_EQ(retyped_prim_var->name, "i");
   EXPECT_TRUE(retyped_prim_var.ty().same_as(prim_dtype));
   EXPECT_TRUE(retyped_prim_var->span.same_as(span));
 }

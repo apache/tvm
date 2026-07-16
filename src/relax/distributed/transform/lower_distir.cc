@@ -116,7 +116,7 @@ class DistIRSharder : public ExprMutator {
     Type old_ty = GetType(input);
     Type new_ty = ConvertType(old_ty, false);
     if (const auto* var = input.as<VarNode>()) {
-      Var new_param(var->name_hint, new_ty);
+      Var new_param(var->name, new_ty);
       return new_param;
     } else if (const auto* constant = input.as<ConstantNode>()) {
       for (const auto& spec : old_ty.as_or_throw<DTensorType>()->placement->dim_specs) {

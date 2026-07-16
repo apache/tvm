@@ -94,7 +94,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       }
       ffi::String name;
       if (args[i]->IsInstance<tvm::VarNode>()) {
-        name = args[i].as_or_throw<Var>()->name_hint;
+        name = args[i].as_or_throw<Var>()->name;
       } else {
         name = std::string({static_cast<char>('A' + i)});
       }

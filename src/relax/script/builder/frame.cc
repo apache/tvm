@@ -169,7 +169,7 @@ void BindingBlockFrameNode::ExitWithScope() {
     ffi::Array<tvm::Var> new_output_vars;
     std::unordered_map<tvm::Var, tvm::Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> var_remap;
     for (const auto& output_var : output_vars) {
-      tvm::Var new_output_var(output_var->name_hint, tvm::relax::GetType(output_var));
+      tvm::Var new_output_var(output_var->name, tvm::relax::GetType(output_var));
       new_output_vars.push_back(new_output_var);
       var_remap[output_var] = new_output_var;
     }

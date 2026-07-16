@@ -55,8 +55,8 @@ std::string CodeGenSourceBase::SSAGetID(std::string src, const Type& t) {
 }
 
 std::string CodeGenSourceBase::AllocVarID(const tirx::VarNode* v) {
-  TVM_FFI_ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name_hint;
-  std::string key = v->name_hint;
+  TVM_FFI_ICHECK(!var_idmap_.count(v)) << "Need input to be in SSA form dup " << v->name;
+  std::string key = v->name;
   std::string vid = name_supply_->FreshName(key);
   std::replace(vid.begin(), vid.end(), ':', '_');
   std::replace(vid.begin(), vid.end(), '-', '_');
@@ -67,7 +67,7 @@ std::string CodeGenSourceBase::AllocVarID(const tirx::VarNode* v) {
 
 std::string CodeGenSourceBase::GetVarID(const tirx::VarNode* v) const {
   auto it = var_idmap_.find(v);
-  TVM_FFI_ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
+  TVM_FFI_ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name;
   return it->second;
 }
 
