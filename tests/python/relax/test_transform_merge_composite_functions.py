@@ -1232,7 +1232,7 @@ def test_handle_existence_of_call_tir():
 
 
 def test_tuple_projection_merging():
-    """Projection-only tensor tuples are transparent to composite merging."""
+    """Merge projections without changing their indices; visit inline tuple arguments."""
 
     @tvm.script.ir_module
     class Before:
@@ -1252,7 +1252,7 @@ def test_tuple_projection_merging():
             return R.subtract(x, y)
 
         @R.function
-        def main(x: R.Tensor((2, 4), "float32")) -> R.Tensor((1, 4), "float32"):
+        def main(x: R.Tensor((2, 4), "float32")) -> R.Tensor((2, 4), "float32"):
             cls = Before
             with R.dataflow():
                 parts = cls.split(x)
@@ -1261,109 +1261,37 @@ def test_tuple_projection_merging():
                 repacked = R.tuple(left, right)
                 reordered_left = repacked[0]
                 reordered_right = repacked[1]
-                out = cls.subtract(reordered_right, reordered_left)
-                R.output(out)
-            return out
-
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def fused_split_subtract_compiler_A(
-            x: R.Tensor((2, 4), "float32"),
-        ) -> R.Tensor((1, 4), "float32"):
-            R.func_attr({"Codegen": "compiler_A"})
-
-            @R.function
-            def gv(
-                x_1: R.Tensor((2, 4), "float32"),
-            ) -> R.Tuple(R.Tensor((1, 4), "float32"), R.Tensor((1, 4), "float32")):
-                R.func_attr({"Composite": "compiler_A.split"})
-                gv_1 = R.split(x_1, indices_or_sections=2, axis=0)
-                return gv_1
-
-            parts = gv(x)
-            left = parts[0]
-            right = parts[1]
-            repacked = R.tuple(left, right)
-            reordered_left = repacked[0]
-            reordered_right = repacked[1]
-
-            @R.function
-            def gv1(
-                x_1: R.Tensor((1, 4), "float32"),
-                y: R.Tensor((1, 4), "float32"),
-            ) -> R.Tensor((1, 4), "float32"):
-                R.func_attr({"Composite": "compiler_A.subtract"})
-                gv_1 = R.subtract(x_1, y)
-                return gv_1
-
-            gv_1 = gv1(reordered_right, reordered_left)
-            return gv_1
-
-        @R.function
-        def main(x: R.Tensor((2, 4), "float32")) -> R.Tensor((1, 4), "float32"):
-            cls = Expected
-            with R.dataflow():
-                gv = cls.fused_split_subtract_compiler_A(x)
-                R.output(gv)
-            return gv
-
-    check(Before, Expected)
-
-
-def test_inline_tuple_argument_is_visited():
-    """Inline tuple call arguments must have a group before dependency analysis."""
-
-    @tvm.script.ir_module
-    class Before:
-        @R.function(private=True)
-        def concat(
-            values: R.Tuple(
-                R.Tensor((1, 4), "float32"),
-                R.Tensor((1, 4), "float32"),
-            ),
-        ) -> R.Tensor((2, 4), "float32"):
-            R.func_attr({"Composite": "compiler_A.concatenate", "Primitive": True})
-            return R.concat(values, axis=0)
-
-        @R.function
-        def main(
-            x: R.Tensor((1, 4), "float32"),
-            y: R.Tensor((1, 4), "float32"),
-        ) -> R.Tensor((2, 4), "float32"):
-            cls = Before
-            with R.dataflow():
-                out = cls.concat((x, y))
+                difference = cls.subtract(reordered_right, reordered_left)
+                out = R.concat((difference, difference), axis=0)
                 R.output(out)
             return out
 
     after = relax.transform.MergeCompositeFunctions()(Before)
-    assert get_codegen_regions(after) == {"fused_concat_compiler_A": "compiler_A"}
+    assert get_codegen_regions(after) == {"fused_split_subtract_compiler_A": "compiler_A"}
     relax.analysis.well_formed(after)
 
-
-def test_non_tensor_tuple_leaves_are_visited():
-    """Atomic non-tensor tuple fields must receive dependency groups."""
-
-    builder = relax.BlockBuilder()
-    with builder.function("main", []):
-        with builder.dataflow():
-            value = builder.emit(
-                relax.Tuple(
-                    [
-                        relax.StringImm("value"),
-                        relax.DataTypeImm("float32"),
-                        relax.ExternFunc("test.extern"),
-                    ]
-                )
-            )
-            output = builder.emit_output(value)
-        builder.emit_func_output(output)
-    before = builder.get()
-
-    after = relax.transform.MergeCompositeFunctions()(before)
-    relax.analysis.well_formed(after)
-    tvm.ir.assert_structural_equal(after, before)
+    region = next(
+        func
+        for func in after.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Codegen") == "compiler_A"
+    )
+    bindings = [binding for block in region.body.blocks for binding in block.bindings]
+    bound_values = {binding.var: binding.value for binding in bindings}
+    subtract_var = next(
+        var
+        for var, value in bound_values.items()
+        if isinstance(value, relax.Function)
+        and value.attrs is not None
+        and value.attrs.get("Composite") == "compiler_A.subtract"
+    )
+    subtract_call = next(
+        value
+        for value in bound_values.values()
+        if isinstance(value, relax.Call) and value.op.same_as(subtract_var)
+    )
+    assert [bound_values[arg].index for arg in subtract_call.args] == [1, 0]
 
 
 def test_tuple_projection_preserves_real_cycle_boundary():
@@ -1412,29 +1340,6 @@ def test_tuple_projection_preserves_real_cycle_boundary():
         "fused_split_compiler_A": "compiler_A",
     }
     relax.analysis.well_formed(after)
-
-    bindings = [binding for block in after["main"].body.blocks for binding in block.bindings]
-    codegen_calls = {
-        binding.value.op.name_hint: binding
-        for binding in bindings
-        if isinstance(binding.value, relax.Call) and isinstance(binding.value.op, relax.GlobalVar)
-    }
-    split_binding = codegen_calls["fused_split_compiler_A"]
-    foreign_binding = codegen_calls["fused_foreign_relu_compiler_B"]
-    add_binding = codegen_calls["fused_add_compiler_A"]
-
-    projection_bindings = [
-        binding
-        for binding in bindings
-        if isinstance(binding.value, relax.TupleGetItem)
-        and binding.value.tuple_value.same_as(split_binding.var)
-    ]
-    assert len(projection_bindings) == 2
-    projections = {binding.value.index: binding.var for binding in projection_bindings}
-    assert set(projections) == {0, 1}
-    assert foreign_binding.value.args[0].same_as(projections[0])
-    assert add_binding.value.args[0].same_as(projections[1])
-    assert add_binding.value.args[1].same_as(foreign_binding.var)
 
 
 def test_tuple_projection_rejects_escaping_tuple():

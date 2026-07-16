@@ -1422,22 +1422,6 @@ def test_concat():
     check(mod, [("x.concat", pat_clip)], Expected2)
 
 
-def _get_codegen_calls(mod):
-    """Return main-function codegen calls, keyed by backend name."""
-    calls = {}
-    for block in mod["main"].body.blocks:
-        for binding in block.bindings:
-            value = binding.value
-            if not isinstance(value, relax.Call) or not isinstance(value.op, relax.GlobalVar):
-                continue
-            callee = mod[value.op]
-            if not isinstance(callee, relax.Function) or callee.attrs is None:
-                continue
-            if codegen := callee.attrs.get("Codegen"):
-                calls[str(codegen)] = (binding.var, value)
-    return calls
-
-
 def test_unique_boundary_output_precedes_last_group_binding():
     """Export a sole boundary output even when a dead internal binding follows it."""
 
@@ -1462,7 +1446,16 @@ def test_unique_boundary_output_precedes_last_group_binding():
     relax.analysis.well_formed(after)
     assert not relax.analysis.free_vars(after["main"])
 
-    grouped_result, _ = _get_codegen_calls(after)["compiler_A"]
+    calls = [
+        binding
+        for block in after["main"].body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.Call)
+        and isinstance(binding.value.op, relax.GlobalVar)
+        and after[binding.value.op].attrs.get("Codegen") == "compiler_A"
+    ]
+    assert len(calls) == 1
+    grouped_result = calls[0].var
     assert not isinstance(grouped_result, relax.DataflowVar)
     assert after["main"].body.body.same_as(grouped_result)
 
@@ -1480,29 +1473,29 @@ def test_inline_bound_static_shape_argument():
                 R.output(out)
             return out
 
-    @I.ir_module
-    class Expected:
-        @R.function(private=True)
-        def fused_relax_reshape(
-            x: R.Tensor((4,), dtype="float32"),
-        ) -> R.Tensor((2, 2), dtype="float32"):
-            R.func_attr({"Composite": "compiler_A.reshape", "Primitive": True})
-            with R.dataflow():
-                gv: R.Tensor((2, 2), dtype="float32") = R.reshape(x, R.shape([2, 2]))
-                R.output(gv)
-            return gv
-
-        @R.function
-        def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((2, 2), dtype="float32"):
-            cls = Expected
-            shape: R.Shape([2, 2]) = R.shape([2, 2])
-            with R.dataflow():
-                gv: R.Tensor((2, 2), dtype="float32") = cls.fused_relax_reshape(x)
-                R.output(gv)
-            return gv
-
     pattern = is_op("relax.reshape")(wildcard(), wildcard())
-    check(Before, [("compiler_A.reshape", pattern)], Expected)
+    after = relax.transform.FuseOpsByPattern([("compiler_A.reshape", pattern)])(Before)
+    grouped = [
+        func
+        for func in after.functions.values()
+        if isinstance(func, relax.Function)
+        and func.attrs is not None
+        and func.attrs.get("Composite") == "compiler_A.reshape"
+    ]
+    assert len(grouped) == 1
+    assert len(grouped[0].params) == 1
+
+    reshape_calls = []
+    relax.analysis.post_order_visit(
+        grouped[0],
+        lambda expr: reshape_calls.append(expr)
+        if isinstance(expr, relax.Call)
+        and isinstance(expr.op, tvm.ir.Op)
+        and expr.op.name == "relax.reshape"
+        else None,
+    )
+    assert len(reshape_calls) == 1
+    assert isinstance(reshape_calls[0].args[1], relax.ShapeExpr)
 
 
 if __name__ == "__main__":

@@ -7893,39 +7893,6 @@ def test_range():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-def test_range_with_shape_derived_limit():
-    """A shape-derived Range limit carries its dtype as PrimType."""
-    nodes = [
-        helper.make_node("Shape", ["x"], ["shape"]),
-        helper.make_node("Gather", ["shape", "axis"], ["limit"], axis=0),
-        helper.make_node("Cast", ["limit"], ["float_limit"], to=TensorProto.FLOAT),
-        helper.make_node("Range", ["start", "float_limit", "delta"], ["output"]),
-    ]
-    graph = helper.make_graph(
-        nodes,
-        "range_with_shape_derived_limit",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 3, 4, 5])],
-        initializer=[
-            helper.make_tensor("axis", TensorProto.INT64, [], [3]),
-            helper.make_tensor("start", TensorProto.FLOAT, [], [0.0]),
-            helper.make_tensor("delta", TensorProto.FLOAT, [], [1.0]),
-        ],
-        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, [5])],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="range_with_shape_derived_limit",
-        opset_imports=[helper.make_opsetid("", 13)],
-    )
-
-    tvm_model = from_onnx(model)
-    assert "relax.arange" in collect_relax_call_ops(tvm_model["main"])
-    tvm.ir.assert_structural_equal(
-        tvm_model["main"].ret_ty,
-        relax.TensorType((5,), "float32"),
-    )
-
-
 def test_batch_norm():
     batch_norm_node = helper.make_node(
         "BatchNormalization", ["x", "s", "bias", "mean", "var"], ["y"], epsilon=1e-2

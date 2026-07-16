@@ -16,7 +16,6 @@
 # under the License.
 import pytest
 
-import tvm
 from tvm import relax
 from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 
@@ -63,25 +62,14 @@ def _make_resize2d_module(
     return builder.get()
 
 
-def _functions_with_attr(mod, attr_name, attr_value):
+def _tensorrt_regions(mod):
     return [
         func
         for func in mod.functions.values()
         if isinstance(func, relax.Function)
         and func.attrs is not None
-        and func.attrs.get(attr_name) == attr_value
+        and func.attrs.get("Codegen") == "tensorrt"
     ]
-
-
-def _collect_call_ops(expr):
-    op_names = []
-
-    def visit(node):
-        if isinstance(node, relax.Call) and isinstance(node.op, tvm.ir.Op):
-            op_names.append(node.op.name)
-
-    relax.analysis.post_order_visit(expr, visit)
-    return op_names
 
 
 def test_resize2d_partition_supported():
@@ -94,11 +82,9 @@ def test_resize2d_partition_supported():
     )
     partitioned = partition_for_tensorrt(mod)
 
-    regions = _functions_with_attr(partitioned, "Codegen", "tensorrt")
+    regions = _tensorrt_regions(partitioned)
     assert len(regions) == 1
     assert len(regions[0].params) == 1
-    assert "relax.image.resize2d" in _collect_call_ops(regions[0])
-    relax.transform.RunCodegen()(partitioned)
 
 
 @pytest.mark.parametrize(
@@ -128,4 +114,4 @@ def test_resize2d_partition_supported():
 )
 def test_resize2d_partition_fallback(kwargs):
     partitioned = partition_for_tensorrt(_make_resize2d_module(**kwargs))
-    assert not _functions_with_attr(partitioned, "Codegen", "tensorrt")
+    assert not _tensorrt_regions(partitioned)

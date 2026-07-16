@@ -60,7 +60,6 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/relax/utils.h>
 #include <tvm/tirx/function.h>
 
 #include "../../support/arena.h"
@@ -91,6 +90,13 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     for (const auto& param : func->params) {
       memo_[param] = arena_->make<Group>();
     }
+
+    PostOrderVisit(func, [this](const Expr& expr) {
+      if (expr->IsInstance<ConstantNode>() || expr->IsInstance<ShapeExprNode>() ||
+          (!expr->IsInstance<CallNode>() && !expr->IsInstance<VarNode>() && expr.as<PrimExpr>())) {
+        memo_[expr] = arena_->make<Group>();
+      }
+    });
 
     VisitExpr(func->body);
 
@@ -166,20 +172,14 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     return group;
   }
 
-  // Leaf expressions without explicit dependency semantics form singleton groups.
-  Group* VisitExprDefault_(const ffi::Object* op) final {
-    const auto* expr_node = static_cast<const ExprNode*>(op);
-    TVM_FFI_ICHECK(IsLeafOrTuple(ffi::GetRef<Expr>(expr_node)))
-        << "Unsupported expression in MergeCompositeFunctions: " << op->GetTypeKey();
-    return arena_->make<Group>();
-  }
-
   Group* VisitExpr_(const TupleNode* tuple) {
+    Expr tuple_expr = ffi::GetRef<Tuple>(tuple);
+    if (!IsFlatTensorTuple(tuple_expr)) return arena_->make<Group>();
+
     for (const Expr& field : tuple->fields) {
       EnsureVisited(field);
     }
-    Expr tuple_expr = ffi::GetRef<Tuple>(tuple);
-    if (IsFlatTensorTuple(tuple_expr) && HasOnlyTupleGetItemUsers(tuple_expr)) {
+    if (HasOnlyTupleGetItemUsers(tuple_expr)) {
       Group* tuple_group = nullptr;
       for (const Expr& field : tuple->fields) {
         auto it = memo_.find(field);
@@ -207,10 +207,11 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   Group* VisitExpr_(const TupleGetItemNode* tuple_get_item) {
+    if (!IsFlatTensorTuple(tuple_get_item->tuple)) return arena_->make<Group>();
+
     EnsureVisited(tuple_get_item->tuple);
     auto it = memo_.find(tuple_get_item->tuple);
-    if (it != memo_.end() && IsFlatTensorTuple(tuple_get_item->tuple) &&
-        HasOnlyTupleGetItemUsers(tuple_get_item->tuple)) {
+    if (it != memo_.end() && HasOnlyTupleGetItemUsers(tuple_get_item->tuple)) {
       Group* tuple_group = it->second->FindRoot();
       if (CanAbsorbTupleNodes(tuple_group)) {
         tuple_group->num_nodes += 1;

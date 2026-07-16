@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 from tvm.relax.dpl import is_op, make_fused_bias_activation_pattern, wildcard
 from tvm.script import relax as R
 from tvm.testing import env
@@ -128,13 +129,13 @@ def _offload_and_compare(mod, params_np, patterns, data_np, rtol=1e-2, atol=1e-2
     otherwise collapse repeated ops.
     """
     ref = build_and_run(mod, [data_np, *params_np.values()], "llvm", legalize=True)
-    partitioned = tvm.transform.Sequential(
-        [
-            relax.transform.BindParams("main", params_np),
-            relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(),
-        ]
-    )(mod)
+    mod = relax.transform.BindParams("main", params_np)(mod)
+    if patterns is None:
+        partitioned = partition_for_tensorrt(mod)
+    else:
+        partitioned = tvm.transform.Sequential(
+            [relax.transform.FuseOpsByPattern(patterns), relax.transform.MergeCompositeFunctions()]
+        )(mod)
     # Guard against a silent false pass: if no pattern matched, nothing is offloaded and the
     # comparison would trivially succeed via the TVM fallback without exercising the converter.
     assert any(
@@ -241,8 +242,7 @@ def test_tensorrt_subtract_constant_lhs():
 
     data = np.linspace(-2.0, 3.0, 24, dtype="float32").reshape(2, 3, 4)
     constant = np.linspace(4.0, 9.0, 24, dtype="float32").reshape(2, 3, 4)
-    patterns = [("tensorrt.subtract", is_op("relax.subtract")(wildcard(), wildcard()))]
-    _offload_and_compare(ConstantMinusTensor, {"constant": constant}, patterns, data)
+    _offload_and_compare(ConstantMinusTensor, {"constant": constant}, None, data)
 
 
 def test_tensorrt_tanh():
@@ -490,8 +490,6 @@ def test_tensorrt_strided_slice():
 def test_tensorrt_split():
     # Regression test: Relax split has no Relay-style "mode"; it is multi-output. The converter
     # derives per-output extents from the codegen-recorded output shapes.
-    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
-
     @tvm.script.ir_module
     class Split:
         @R.function
@@ -504,21 +502,7 @@ def test_tensorrt_split():
 
     data = np.ones((4, 8, 16), dtype="float32")
     data[:, 4:, :] = 5
-    ref = build_and_run(Split, [data], "llvm", legalize=True)
-    partitioned = partition_for_tensorrt(Split)
-    regions = [
-        func
-        for func in partitioned.functions.values()
-        if isinstance(func, relax.Function)
-        and func.attrs is not None
-        and func.attrs.get("Codegen") == "tensorrt"
-    ]
-    assert len(regions) == 1
-
-    offloaded = relax.transform.RunCodegen()(partitioned)
-    out = build_and_run(offloaded, [data], "cuda")
-    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
-    tvm.testing.assert_allclose(out, np.full_like(out, 4), rtol=1e-2, atol=1e-2)
+    _offload_and_compare(Split, {}, None, data)
 
 
 def test_tensorrt_layout_transform():
@@ -672,26 +656,17 @@ def test_partition_for_tensorrt():
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
-def _tensorrt_codegen_functions(mod):
-    return [
-        func
-        for func in mod.functions.values()
-        if isinstance(func, relax.Function)
-        and func.attrs is not None
-        and func.attrs.get("Codegen") == "tensorrt"
-    ]
-
-
 @pytest.mark.parametrize(
-    "out_hw, method, coordinate_transformation_mode, rounding_method",
+    "out_hw, method, coordinate_transformation_mode, rounding_method, cubic_alpha",
     [
-        ((13, 11), "nearest_neighbor", "asymmetric", "floor"),
-        ((13, 11), "linear", "half_pixel", "round"),
-        ((16, 16), "linear", "align_corners", "round"),
-        ((13, 11), "nearest_neighbor", "asymmetric", "round_prefer_floor"),
+        ((13, 11), "nearest_neighbor", "asymmetric", "floor", -0.75),
+        ((13, 11), "linear", "half_pixel", "round", -0.75),
+        ((16, 16), "cubic", "half_pixel", "round", -0.5),
     ],
 )
-def test_tensorrt_resize2d(out_hw, method, coordinate_transformation_mode, rounding_method):
+def test_tensorrt_resize2d(
+    out_hw, method, coordinate_transformation_mode, rounding_method, cubic_alpha
+):
     """Regression test for image.resize2d offload in #19887."""
 
     @tvm.script.ir_module
@@ -706,41 +681,17 @@ def test_tensorrt_resize2d(out_hw, method, coordinate_transformation_mode, round
                     method=method,
                     coordinate_transformation_mode=coordinate_transformation_mode,
                     rounding_method=rounding_method,
+                    cubic_alpha=cubic_alpha,
                 )
                 R.output(out)
             return out
 
     data = np.random.randn(1, 3, 8, 8).astype("float32")
-    patterns = [("tensorrt.image.resize2d", is_op("relax.image.resize2d")(wildcard(), wildcard()))]
-    _offload_and_compare(Resize2D, {}, patterns, data)
-
-
-def test_tensorrt_resize2d_cubic():
-    @tvm.script.ir_module
-    class Cubic:
-        @R.function
-        def main(data: R.Tensor((1, 3, 8, 8), "float32")):
-            with R.dataflow():
-                out = relax.op.image.resize2d(
-                    data,
-                    size=(16, 16),
-                    layout="NCHW",
-                    method="cubic",
-                    coordinate_transformation_mode="half_pixel",
-                    cubic_alpha=-0.5,
-                )
-                R.output(out)
-            return out
-
-    data = np.random.randn(1, 3, 8, 8).astype("float32")
-    patterns = [("tensorrt.image.resize2d", is_op("relax.image.resize2d")(wildcard(), wildcard()))]
-    _offload_and_compare(Cubic, {}, patterns, data)
+    _offload_and_compare(Resize2D, {}, None, data)
 
 
 def test_tensorrt_resize2d_pytorch_half_pixel_single_dimension():
     """pytorch_half_pixel selects source coordinate zero for each singleton output dimension."""
-
-    from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 
     @tvm.script.ir_module
     class ResizeSingleDimension:
@@ -759,15 +710,7 @@ def test_tensorrt_resize2d_pytorch_half_pixel_single_dimension():
 
     mod = ResizeSingleDimension
     data = np.arange(35, dtype="float32").reshape(1, 1, 5, 7)
-    expected = np.zeros((1, 1, 1, 1), dtype="float32")
-    ref = build_and_run(mod, [data], "llvm", legalize=True)
-    np.testing.assert_array_equal(ref, expected)
-
-    partitioned = partition_for_tensorrt(mod)
-    assert len(_tensorrt_codegen_functions(partitioned)) == 1
-    offloaded = relax.transform.RunCodegen()(partitioned)
-    out = build_and_run(offloaded, [data], "cuda")
-    np.testing.assert_array_equal(out, expected)
+    _offload_and_compare(mod, {}, None, data, rtol=0, atol=0)
 
 
 def test_tensorrt_silu():
@@ -783,8 +726,7 @@ def test_tensorrt_silu():
             return out
 
     data = np.random.randn(1, 16, 8, 8).astype("float32")
-    patterns = [("tensorrt.nn.silu", is_op("relax.nn.silu")(wildcard()))]
-    _offload_and_compare(Silu, {}, patterns, data)
+    _offload_and_compare(Silu, {}, None, data)
 
 
 if __name__ == "__main__":
