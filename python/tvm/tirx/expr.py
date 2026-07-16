@@ -86,6 +86,12 @@ def _is_scalar_operand(value):
 class ExprOp:
     """Operator overloading for Expr like expressions."""
 
+    # Empty slots so this mixin does not add ``__dict__``/``__weakref__`` to the
+    # FFI object subclasses that combine it with a slotted ``Object``/``Expr``.
+    # The tvm-ffi lifetime model rejects registering a wrapper whose instance
+    # layout is larger than the base wrapper already registered for the type.
+    __slots__ = ()
+
     # TODO(tkonolige): use inspect to add source information to these objects
 
     def expr_ty(self) -> ir.PrimType:
