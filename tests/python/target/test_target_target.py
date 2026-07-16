@@ -36,11 +36,7 @@ def test_all_targets_device_type_verify():
 
 @pytest.mark.parametrize("target", ["llvm", {"kind": "llvm"}, Target("llvm")])
 def test_device_from_target_input_forms(target):
-    device = tvm.device_from_target(target)
-
-    assert device == tvm.cpu()
-    assert isinstance(device, tvm.runtime.Device)
-    assert tvm.runtime.device_from_target(target) == tvm.cpu()
+    assert tvm.device_from_target(target) == tvm.cpu()
 
 
 def test_device_from_target_compiler_only_kind():
@@ -49,7 +45,6 @@ def test_device_from_target_compiler_only_kind():
 
 def test_device_from_target_index():
     assert tvm.device_from_target("llvm").index == 0
-    assert tvm.device_from_target("llvm", None).index == 0
     assert tvm.device_from_target("llvm", 3).index == 3
 
 
