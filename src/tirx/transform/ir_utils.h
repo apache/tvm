@@ -114,7 +114,7 @@ inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
 inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
-  Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name_hint, 0, 0, kDefault, {}, Span(),
+  Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name, 0, 0, kDefault, {}, Span(),
                    std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset_expr});
 
@@ -135,7 +135,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
-  Buffer dummy_buf(handle, dtype.WithLanes(1), shape, {}, 0, handle->name_hint, 0, 0, kDefault, {},
+  Buffer dummy_buf(handle, dtype.WithLanes(1), shape, {}, 0, handle->name, 0, 0, kDefault, {},
                    Span(), std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset});
 

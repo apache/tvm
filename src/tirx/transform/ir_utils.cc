@@ -455,7 +455,7 @@ class IRConvertSSA final : public StmtExprMutator {
           it != function_scope_var_remap_.end()) {
         var = it->second;
       } else if (defined_.count(var.get())) {
-        Var new_var(var->name_hint, var->ty);
+        Var new_var(var->name, var->ty);
 
         function_scope_var_remap_.insert({var.get(), new_var});
         var = new_var;
@@ -527,7 +527,7 @@ class IRConvertSSA final : public StmtExprMutator {
   };
 
   /*! \brief Create a new variable with the same name and type as the original. */
-  static Var MakeNewVar(const Var& old_var) { return Var(old_var->name_hint, old_var->ty); }
+  static Var MakeNewVar(const Var& old_var) { return Var(old_var->name, old_var->ty); }
 
   /*! \brief Push a variable remap to the current scope and the var_remap_ stack. */
   void PushVarRemap(const Var& old_var, const Var& new_var) {

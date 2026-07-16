@@ -87,7 +87,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     // input index as (X.outer, X.inner).
     std::string name;
     if (auto var = index.as<PrimVar>()) {
-      name = var.value()->name_hint;
+      name = var.value()->name;
     } else {
       name = "axis" + std::to_string(i);
     }
@@ -387,9 +387,8 @@ IndexMap IndexMap::RenameVariables(
       // The name of the variable is pre-defined.
       continue;
     }
-    ffi::String unique_name =
-        name_supply->FreshName(initial_index->name_hint, /*add_prefix=*/false);
-    if (unique_name != initial_index->name_hint) {
+    ffi::String unique_name = name_supply->FreshName(initial_index->name, /*add_prefix=*/false);
+    if (unique_name != initial_index->name) {
       var_remap.Set(initial_index, PrimVar(unique_name));
     }
   }
@@ -419,7 +418,7 @@ std::string IndexMap2PythonLambdaExpr(const ffi::Array<PrimVar>& initial_indices
   std::ostringstream oss;
   auto print_expr = [&oss](const PrimExpr& expr) {
     if (auto var = expr.as<PrimVar>()) {
-      oss << var.value()->name_hint;
+      oss << var.value()->name;
     } else {
       oss << expr;
     }
@@ -429,7 +428,7 @@ std::string IndexMap2PythonLambdaExpr(const ffi::Array<PrimVar>& initial_indices
     if (i != 0) {
       oss << ", ";
     }
-    oss << initial_indices[i]->name_hint;
+    oss << initial_indices[i]->name;
   }
   oss << ": (";
   for (size_t i = 0; i < final_indices.size(); ++i) {
