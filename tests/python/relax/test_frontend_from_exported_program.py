@@ -5507,7 +5507,7 @@ def test_slice_with_symbolic_end():
     verify_model(SliceStaticModel(), example_args_static, {}, ExpectedStatic)
 
 
-def test_chunk():
+def test_split():
     class Chunk(Module):
         def forward(self, input):
             return torch.chunk(input, 3, dim=1)
