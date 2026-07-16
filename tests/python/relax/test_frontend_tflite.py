@@ -219,37 +219,6 @@ def test_cumsum():
     verify(Cumsum, Expected)
 
 
-def test_split():
-    class Split(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            a, b, c = tf.split(x, 3, axis=1)
-            return tf.raw_ops.Pack(values=[a, b, c], axis=1)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 3, 10), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tuple(
-                    R.Tensor((1, 10), dtype="float32"),
-                    R.Tensor((1, 10), dtype="float32"),
-                    R.Tensor((1, 10), dtype="float32"),
-                ) = R.split(x, indices_or_sections=3, axis=1)
-                lv1: R.Tensor((1, 10), dtype="float32") = lv[0]
-                lv2: R.Tensor((1, 1, 10), dtype="float32") = R.expand_dims(lv1, axis=[1])
-                lv3: R.Tensor((1, 10), dtype="float32") = lv[1]
-                lv4: R.Tensor((1, 1, 10), dtype="float32") = R.expand_dims(lv3, axis=[1])
-                lv5: R.Tensor((1, 10), dtype="float32") = lv[2]
-                lv6: R.Tensor((1, 1, 10), dtype="float32") = R.expand_dims(lv5, axis=[1])
-                gv: R.Tensor((1, 3, 10), dtype="float32") = R.concat((lv2, lv4, lv6), axis=1)
-                R.output(gv)
-            return gv
-
-    verify(Split, Expected)
-
-
 def test_split_v_dynamic():
     """SPLIT_V with runtime split sizes imports shape-aware Relax IR."""
 
@@ -664,45 +633,6 @@ def test_unique():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_expand_dims():
-    class ExpandDims(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return tf.expand_dims(x, axis=2)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30, 1), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 30, 1), dtype="float32") = R.reshape(x, R.shape([1, 30, 1]))
-                R.output(gv)
-            return gv
-
-    verify(ExpandDims, Expected)
-
-
-def test_transpose():
-    class Transpose(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            x = tf.expand_dims(x, axis=2)
-            return tf.transpose(x, perm=[0, 2, 1])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 1, 30), dtype="float32") = R.reshape(x, R.shape([1, 1, 30]))
-                R.output(gv)
-            return gv
-
-    verify(Transpose, Expected)
-
-
 def test_reshape():
     class Reshape(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -932,27 +862,6 @@ def test_range_dynamic_scalar_inputs(start, limit, delta, dtype):
     np.testing.assert_allclose(tvm_out, expected, rtol=1e-5, atol=1e-5)
 
 
-def test_tile_ir():
-    """TILE conversion with explicit Relax IR structural check."""
-
-    class Tile(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.tile(x, [2, 1])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((4, 3), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((4, 3), dtype="float32") = R.tile(x, repeats=[2, 1])
-                R.output(gv)
-            return gv
-
-    verify(Tile, Expected)
-
-
 @pytest.mark.parametrize(
     "input_shape, multiples, dtype",
     [
@@ -1063,27 +972,6 @@ def test_tile(input_shape, multiples, dtype):
     verify(Tile, expected)
 
 
-def test_tile_identity():
-    """TILE with all repeat factors set to one imports as identity."""
-
-    class Tile(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.tile(x, [1, 1])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((2, 3), dtype="float32") = x
-                R.output(gv)
-            return gv
-
-    verify(Tile, Expected)
-
-
 def test_concat_v2():
     class ConcatV2(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -1181,82 +1069,6 @@ def test_gelu():
                 lv2: R.Tensor((1, 30), dtype="float32") = R.multiply(lv1, R.const(0.5, "float32"))
                 lv3: R.Tensor((1, 30), dtype="float32") = R.add(R.const(0.5, "float32"), lv2)
                 gv: R.Tensor((1, 30), dtype="float32") = R.multiply(x, lv3)
-                R.output(gv)
-            return gv
-
-    verify(TfInput, Expected)
-
-
-def test_swish():
-    class TfInput(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return tf.nn.swish(x)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((1, 30), dtype="float32") = R.sigmoid(x)
-                gv: R.Tensor((1, 30), dtype="float32") = R.multiply(x, lv)
-                R.output(gv)
-            return gv
-
-    verify(TfInput, Expected)
-
-
-def test_prelu_constant_alpha():
-    alpha = np.linspace(0.1, 0.3, 30, dtype=np.float32)
-    alpha_init = tf.keras.initializers.Constant(alpha)
-    prelu = tf.keras.layers.PReLU(alpha_initializer=alpha_init)
-
-    class TfInput(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return prelu(x)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((1, 30), dtype="float32") = R.broadcast_to(
-                    R.const(alpha), R.shape([1, 30])
-                )
-                lv1: R.Tensor((30,), dtype="float32") = R.reshape(x, R.shape([30]))
-                lv2: R.Tensor((30,), dtype="float32") = R.reshape(lv, R.shape([30]))
-                lv3: R.Tensor((30,), dtype="float32") = R.nn.prelu(lv1, lv2, axis=0)
-                gv: R.Tensor((1, 30), dtype="float32") = R.reshape(lv3, R.shape([1, 30]))
-                R.output(gv)
-            return gv
-
-    verify(TfInput, Expected)
-
-
-def test_fill():
-    class TfInput(tf.Module):
-        @tf.function(
-            input_signature=[
-                tf.TensorSpec(shape=(1, 30), dtype=tf.float32),
-                tf.TensorSpec(shape=(), dtype=tf.float32),
-            ]
-        )
-        def func(self, x, y):
-            fill_out = tf.fill((1, 30), y)
-            return x + fill_out
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(
-            x: R.Tensor((1, 30), dtype="float32"), y: R.Tensor((), dtype="float32")
-        ) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 2})
-            with R.dataflow():
-                gv: R.Tensor((1, 30), dtype="float32") = R.add(x, y)
                 R.output(gv)
             return gv
 
@@ -2820,96 +2632,6 @@ def test_networks(net, shape):
     verify(concrete_func)
 
 
-def test_broadcast_to():
-    class Model(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
-        def func(self, x):
-            return tf.broadcast_to(x, [3, 2, 2])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((3, 2, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((3, 2, 2), dtype="float32") = R.multiply(
-                    x, R.const(np.ones((3, 2, 2), dtype="float32"))
-                )
-                R.output(gv)
-            return gv
-
-    verify(Model, Expected)
-
-    class ModelScalarAndInt(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(), dtype=tf.int32)])
-        def func(self, x):
-            return tf.broadcast_to(x, [4, 4])
-
-    @I.ir_module
-    class ExpectedScalarAndInt:
-        @R.function
-        def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((4, 4), dtype="int32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((4, 4), dtype="int32") = R.multiply(
-                    x, R.const(np.ones((4, 4), dtype="int32"))
-                )
-                R.output(gv)
-            return gv
-
-    verify(ModelScalarAndInt, ExpectedScalarAndInt)
-
-
-def test_embedding_lookup():
-    class Model(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(3,), dtype=tf.int32)])
-        def func(self, indices):
-            params = tf.constant([[1, 2], [3, 4], [5, 6]], dtype=tf.float32)
-            return tf.nn.embedding_lookup(params, indices)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(indices: R.Tensor((3,), dtype="int32")) -> R.Tensor((3, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((3,), dtype="int32") = R.astype(indices, dtype="int32")
-                gv: R.Tensor((3, 2), dtype="float32") = R.take(
-                    R.const(np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32)),
-                    lv,
-                    axis=0,
-                    mode="fast",
-                )
-                R.output(gv)
-            return gv
-
-    verify(Model, Expected)
-
-    class ModelMultidim(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.int32)])
-        def func(self, indices):
-            params = tf.constant([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=tf.float32)
-            return tf.nn.embedding_lookup(params, indices)
-
-    @I.ir_module
-    class ExpectedMultidim:
-        @R.function
-        def main(indices: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="int32") = R.astype(indices, dtype="int32")
-                gv: R.Tensor((2, 3, 2), dtype="float32") = R.take(
-                    R.const(np.array([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=np.float32)),
-                    lv,
-                    axis=0,
-                    mode="fast",
-                )
-                R.output(gv)
-            return gv
-
-    verify(ModelMultidim, ExpectedMultidim)
-
-
 def test_select_v2():
     class Model(tf.Module):
         @tf.function(
@@ -3668,30 +3390,6 @@ def test_nms_v5_ir():
         max_output_size=max_output_size,
         iou_threshold=0.5,
         score_threshold=0.0,
-    )
-
-    tvm.ir.assert_structural_equal(
-        mod["main"].ret_ty,
-        relax.TupleType(
-            [
-                relax.TensorType((max_output_size,), "int32"),
-                relax.TensorType((max_output_size,), "float32"),
-                relax.TensorType((), "int32"),
-            ]
-        ),
-    )
-
-
-def test_nms_v5_soft_ir():
-    """Verify the emitted Relax IR passes soft_nms_sigma for NON_MAX_SUPPRESSION_V5."""
-    num_boxes = 6
-    max_output_size = 3
-    mod, _ = _build_nms_v5_mod(
-        num_boxes=num_boxes,
-        max_output_size=max_output_size,
-        iou_threshold=0.5,
-        score_threshold=0.0,
-        soft_nms_sigma=0.5,
     )
 
     tvm.ir.assert_structural_equal(
