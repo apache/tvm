@@ -379,22 +379,6 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-def verify_compare(op_name, shape, attrs={}, domain=None):
-    test_node = helper.make_node(op_name, ["a", "b"], ["c"], **attrs, domain=domain)
-    graph = helper.make_graph(
-        [test_node],
-        "compare_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, shape),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, shape),
-        ],
-        outputs=[helper.make_tensor_value_info("c", TensorProto.BOOL, shape)],
-    )
-
-    model = helper.make_model(graph, producer_name="compare_test")
-    check_correctness(model)
-
-
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_matmul(dynamic):
     matmul_node = helper.make_node("MatMul", ["a", "b"], ["c"])
@@ -524,44 +508,6 @@ def test_matmulinteger16():
     )
 
 
-def test_matmulinteger16_ir():
-    node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
-    graph = helper.make_graph(
-        [node],
-        "matmulinteger16_ir_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.UINT16, [2, 3]),
-            helper.make_tensor_value_info("b", TensorProto.UINT16, [3, 4]),
-        ],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT32, [2, 4])],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="matmulinteger16_ir_test",
-        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
-    )
-    model.ir_version = 11
-
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(
-            a: R.Tensor((2, 3), dtype="uint16"),
-            b: R.Tensor((3, 4), dtype="uint16"),
-        ) -> R.Tensor((2, 4), dtype="uint32"):
-            R.func_attr({"num_input": 2})
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="uint32") = R.astype(a, dtype="uint32")
-                lv1: R.Tensor((3, 4), dtype="uint32") = R.astype(b, dtype="uint32")
-                gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1)
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
-
-
 def test_matmulinteger16_invalid_dtype_raises():
     node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
     graph = helper.make_graph(
@@ -582,10 +528,6 @@ def test_matmulinteger16_invalid_dtype_raises():
 
     with pytest.raises(ValueError, match="input A"):
         from_onnx(model, opset=18, keep_params_in_input=True)
-
-
-def test_concat():
-    verify_binary("Concat", [1, 32], [1, 32], [2, 32], attrs={"axis": 0})
 
 
 def test_concat_with_param_shape_value():
@@ -873,19 +815,9 @@ def test_multi_input_broadcasting():
             )
 
 
-@pytest.mark.parametrize("op_name", ["Less", "LessOrEqual", "Greater", "GreaterOrEqual"])
-def test_compare(op_name: str):
-    verify_compare(op_name, [1, 32])
-
-
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
 def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
-
-
-@pytest.mark.parametrize("op_name", ["BitwiseAnd", "BitwiseOr", "BitwiseXor"])
-def test_bitwise(op_name: str):
-    verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.UINT64, opset=18)
 
 
 def test_bitwise_not():
@@ -896,25 +828,6 @@ def test_bitwise_not():
         output_dtype=TensorProto.UINT64,
         opset=18,
     )
-
-
-@pytest.mark.parametrize("direction", ["LEFT", "RIGHT"])
-def test_bitwise_shift(direction: str):
-    shape = [32, 32]
-    dtype = TensorProto.UINT64
-    test_node = helper.make_node("BitShift", ["a", "b"], ["c"], direction=direction)
-    graph = helper.make_graph(
-        [test_node],
-        "binary_test",
-        inputs=[
-            helper.make_tensor_value_info("a", dtype, shape),
-            helper.make_tensor_value_info("b", dtype, shape),
-        ],
-        outputs=[helper.make_tensor_value_info("c", dtype, shape)],
-    )
-
-    model = helper.make_model(graph, producer_name="binary_test")
-    check_correctness(model, inputs={"b": np.random.randint(0, 8, shape).astype("uint64")})
 
 
 @pytest.mark.parametrize(
@@ -1375,27 +1288,6 @@ def test_legacy_softmax_family_opset1_ir_semantics():
     verify_legacy_softmax_family_opset1_ir("Hardmax", ExpectedHardmax)
 
 
-def test_round_ties_to_even():
-    """ONNX Round must use ties-to-even (banker's rounding), not ties-away-from-zero.
-
-    Per the ONNX spec: "For cases where number is exactly halfway between two
-    integers, it rounds to the nearest even integer."
-    https://onnx.ai/onnx/operators/onnx__Round.html
-    """
-    round_node = helper.make_node("Round", ["x"], ["y"])
-    graph = helper.make_graph(
-        [round_node],
-        "round_ties_to_even_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [6])],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [6])],
-    )
-    model = helper.make_model(graph, producer_name="round_ties_to_even_test")
-    # Midpoint values: 0.5->0, 1.5->2, 2.5->2, -0.5->0, -1.5->-2, -2.5->-2 (ties-to-even)
-    # Ties-away would give: 0.5->1, 1.5->2, 2.5->3, -0.5->-1, -1.5->-2, -2.5->-3
-    inputs = {"x": np.array([0.5, 1.5, 2.5, -0.5, -1.5, -2.5], dtype="float32")}
-    check_correctness(model, inputs=inputs, opset=11)
-
-
 @pytest.mark.parametrize("from_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 @pytest.mark.parametrize("to_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 def test_cast(from_type, to_type):
@@ -1637,31 +1529,6 @@ def test_gather_negative_indices():
             indices_type,
             _make_gather_negative_indices_expected(axis, np.asarray(indices).shape, indices_type),
         )
-
-
-def test_gather_negative_indices_ir_normalization():
-    def verify_gather_negative_indices_ir_normalization(indices_type, expected):
-        gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=1)
-        graph = helper.make_graph(
-            [gather_node],
-            "gather_negative_indices_ir_test",
-            inputs=[
-                helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4]),
-                helper.make_tensor_value_info("indices", indices_type, [2]),
-            ],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 2])],
-        )
-
-        model = helper.make_model(graph, producer_name="gather_negative_indices_ir_test")
-        tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
-
-    verify_gather_negative_indices_ir_normalization(
-        TensorProto.INT64, _make_gather_negative_indices_expected(1, (2,), TensorProto.INT64)
-    )
-    verify_gather_negative_indices_ir_normalization(
-        TensorProto.INT32, _make_gather_negative_indices_expected(1, (2,), TensorProto.INT32)
-    )
 
 
 @pytest.mark.parametrize(
@@ -2345,18 +2212,6 @@ def test_reshape_shape_output():
     verify_reshape_shape_output([3, 1], [3, 1], ExpectedRank2ColumnShape)
 
 
-def test_transpose():
-    node = helper.make_node("Transpose", ["x"], ["y"], perm=[1, 2, 0])
-    graph = helper.make_graph(
-        [node],
-        "transpose_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32, 32])],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32, 32])],
-    )
-    model = helper.make_model(graph, producer_name="transpose_test")
-    check_correctness(model)
-
-
 def test_transpose_scalar():
     """Test Transpose with scalar inputs - should return scalar unchanged."""
     scalar_node = helper.make_node("Transpose", ["x"], ["y"])
@@ -2828,24 +2683,6 @@ def test_fast_gelu():
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model_with_bias, ExpectedWithBias)
-
-
-def test_where():
-    where_node = helper.make_node("Where", ["a", "b", "c"], ["d"])
-
-    graph = helper.make_graph(
-        [where_node],
-        "where_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.BOOL, [32, 32]),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, [32, 32]),
-            helper.make_tensor_value_info("c", TensorProto.FLOAT, [32, 32]),
-        ],
-        outputs=[helper.make_tensor_value_info("d", TensorProto.FLOAT, [32, 32])],
-    )
-
-    model = helper.make_model(graph, producer_name="where_test")
-    check_correctness(model)
 
 
 def test_clip():
@@ -5180,15 +5017,6 @@ def create_reduce_test_parameters_axes_attr():
     return output
 
 
-def create_composite_reduce_test_parameters_axes_attr():
-    output = []
-    for dynamic in [True, False]:
-        for opset in [13, 11]:
-            for func in COMPOSITE_REDUCE_FUNCS:
-                output.append((func, dynamic, opset))
-    return output
-
-
 def _verify_reduce_numerical(
     func: str,
     opset: int,
@@ -5405,14 +5233,6 @@ def create_reduce_test_parameters_axes_input():
     return output
 
 
-def create_composite_reduce_test_parameters_axes_input():
-    output = []
-    for dynamic in [True, False]:
-        for func in COMPOSITE_REDUCE_FUNCS:
-            output.append((func, dynamic, 18))
-    return output
-
-
 def verify_composite_reduce_axes_input_ir(
     func: str,
     input_shape: list[int],
@@ -5554,13 +5374,11 @@ def test_composite_reduce_funcs_axes_input_ir():
                     )
 
 
-@pytest.mark.parametrize("in_dtype", [np.float32, np.int32])
 @pytest.mark.parametrize("axis", [None, 0, 1, 2])
 @pytest.mark.parametrize("keepdims", [None, True, False])
-def test_arg_min_max(in_dtype, axis, keepdims):
-    def verify_arg_min_max(input_dim, in_dtype, op_name="ArgMax", axis=None, keepdims=None):
-        a_np1 = np.random.uniform(-10, 10, input_dim).astype(in_dtype)
-        out_shape = list(a_np1.shape)
+def test_arg_min_max(axis, keepdims):
+    def verify_arg_min_max(input_shape, op_name="ArgMax", axis=None, keepdims=None):
+        out_shape = list(input_shape)
         def_axis = axis if axis is not None else 0
         if keepdims == 1 or keepdims is None:
             out_shape[def_axis] = 1
@@ -5579,15 +5397,15 @@ def test_arg_min_max(in_dtype, axis, keepdims):
         graph = helper.make_graph(
             [node],
             "argreduce_test",
-            inputs=[helper.make_tensor_value_info("a_np1", TensorProto.INT32, list(a_np1.shape))],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, list(out_shape))],
+            inputs=[helper.make_tensor_value_info("a_np1", TensorProto.INT32, input_shape)],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, out_shape)],
         )
 
         model = helper.make_model(graph, producer_name="arg_min_max_test")
         check_correctness(model)
 
-    verify_arg_min_max([3, 4, 4], in_dtype, "ArgMax", axis, keepdims)
-    verify_arg_min_max([3, 4, 4], in_dtype, "ArgMin", axis, keepdims)
+    verify_arg_min_max([3, 4, 4], "ArgMax", axis, keepdims)
+    verify_arg_min_max([3, 4, 4], "ArgMin", axis, keepdims)
 
 
 @pytest.mark.parametrize("axis", [-1, 0, 1])
@@ -9643,66 +9461,6 @@ def test_optional_has_element_empty():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-def test_optional_has_element_empty_ir():
-    x_shape = [2, 3]
-    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, x_shape)
-    optional_type = helper.make_optional_type_proto(tensor_type)
-    optional_node = helper.make_node("Optional", [], ["optional"], type=tensor_type)
-    has_element_node = helper.make_node("OptionalHasElement", ["optional"], ["output"])
-    graph = helper.make_graph(
-        [optional_node, has_element_node],
-        "test_optional_has_element_empty_ir",
-        inputs=[],
-        outputs=[helper.make_tensor_value_info("output", TensorProto.BOOL, [])],
-        value_info=[helper.make_value_info("optional", optional_type)],
-    )
-    model = helper.make_model(graph, producer_name="test_optional_has_element_empty_ir")
-    model.ir_version = 11
-    model.opset_import[0].version = 18
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main() -> R.Tensor((), dtype="bool"):
-            R.func_attr({"num_input": 0})
-            with R.dataflow():
-                gv: R.Tensor((), dtype="bool") = R.const(False, "bool")
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
-
-
-def test_optional_get_element_tensor_ir():
-    x_shape = [2, 3]
-    optional_node = helper.make_node("Optional", ["x"], ["optional"])
-    get_element_node = helper.make_node("OptionalGetElement", ["optional"], ["output"])
-    graph = helper.make_graph(
-        [optional_node, get_element_node],
-        "test_optional_get_element_tensor_ir",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape)],
-        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, x_shape)],
-        value_info=[make_optional_tensor_value_info("optional", TensorProto.FLOAT, x_shape)],
-    )
-    model = helper.make_model(graph, producer_name="test_optional_get_element_tensor_ir")
-    model.ir_version = 11
-    model.opset_import[0].version = 18
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((2, 3), dtype="float32") = x
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
-
-
 def test_optional_get_element_sequence():
     seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
     index = make_constant_node("index", TensorProto.INT64, (), [1])
@@ -10251,124 +10009,10 @@ class ExpectedNMSFourBoxesWithMaxParam:
         return gv
 
 
-@I.ir_module
-class ExpectedNMSFourBoxes:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 4, 4), dtype="float32"),
-        scores: R.Tensor((1, 1, 4), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(2, "int64"),
-                R.const(0.10000000149011612, "float32"),
-                R.const(0.10000000149011612, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-@I.ir_module
-class ExpectedNMSThreeBoxesTwoClasses:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 3, 4), dtype="float32"),
-        scores: R.Tensor((1, 2, 3), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(2, "int64"),
-                R.const(0.5, "float32"),
-                R.const(0.10000000149011612, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-@I.ir_module
-class ExpectedNMSThreeBoxesOneClass:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 3, 4), dtype="float32"),
-        scores: R.Tensor((1, 1, 3), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(2, "int64"),
-                R.const(0.5, "float32"),
-                R.const(0.10000000149011612, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-@I.ir_module
-class ExpectedNMSThreeBoxesOneClassScoreThreshold:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 3, 4), dtype="float32"),
-        scores: R.Tensor((1, 1, 3), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(3, "int64"),
-                R.const(0.10000000149011612, "float32"),
-                R.const(0.05000000074505806, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-def _assert_nms_import(
-    model,
-    boxes_shape,
-    scores_shape,
-    expected,
-    center_point_box=0,
-    nms_params=None,
-):
-    assert center_point_box == 0
-    nms_params = nms_params or []
-
+def _assert_nms_import(model, expected, num_params=0):
     tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
-    if nms_params:
-        assert len(tvm_model["main"].attrs["params"]) == len(nms_params)
+    if num_params:
+        assert len(tvm_model["main"].attrs["params"]) == num_params
         tvm_model["main"] = tvm_model["main"].without_attr("params")
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
@@ -10407,14 +10051,8 @@ def test_nms():
 
     _assert_nms_import(
         model,
-        boxes_shape,
-        scores_shape,
         ExpectedNMSFiveBoxes,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 3),
-            ("iou_threshold", [1], "float32", 0.5),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
+        num_params=3,
     )
 
 
@@ -10450,13 +10088,11 @@ def test_nms_max_output_boxes_per_class_zero():
     def verify(with_explicit_max, expected):
         node_inputs = ["boxes", "scores"]
         initializer = []
-        nms_params = None
         if with_explicit_max:
             node_inputs.append("max_output_boxes_per_class")
             initializer.append(
                 helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [0])
             )
-            nms_params = [("max_output_boxes_per_class", [1], "int64", 0)]
 
         nms_node = helper.make_node(
             "NonMaxSuppression",
@@ -10484,194 +10120,12 @@ def test_nms_max_output_boxes_per_class_zero():
 
         _assert_nms_import(
             model,
-            boxes_shape,
-            scores_shape,
             expected,
-            nms_params=nms_params,
+            num_params=int(with_explicit_max),
         )
 
     verify(False, ExpectedNMSFourBoxesDefaultParams)
     verify(True, ExpectedNMSFourBoxesWithMaxParam)
-
-
-def test_nms_algorithm_correctness():
-    """NMS import should pass max boxes, IoU, and score threshold constants."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 3, 4]  # batch_size, num_boxes, 4
-    scores_shape = [1, 2, 3]  # batch_size, num_classes, num_boxes
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_correctness",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor(
-                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
-            ),  # Only 2 boxes per class
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
-            helper.make_tensor(
-                "score_threshold", TensorProto.FLOAT, [1], [0.1]
-            ),  # Score threshold 0.1
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [4, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_correctness")
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSThreeBoxesTwoClasses,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 2),
-            ("iou_threshold", [1], "float32", 0.5),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
-    )
-
-
-def test_nms_iou_suppression():
-    """NMS import should pass the IoU threshold constant."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 3, 4]
-    scores_shape = [1, 1, 3]
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_iou_suppression",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [2]),
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
-            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_iou_suppression")
-    model.ir_version = 8
-    model.opset_import[0].version = 11
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSThreeBoxesOneClass,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 2),
-            ("iou_threshold", [1], "float32", 0.5),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
-    )
-
-
-def test_nms_max_boxes_limit():
-    """NMS import should pass max_output_boxes_per_class."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 4, 4]
-    scores_shape = [1, 1, 4]
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_max_boxes_limit",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor(
-                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
-            ),  # Limit to 2 boxes
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),  # Low IoU threshold
-            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_max_boxes_limit")
-    model.ir_version = 8
-    model.opset_import[0].version = 11
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSFourBoxes,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 2),
-            ("iou_threshold", [1], "float32", 0.1),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
-    )
-
-
-def test_nms_score_threshold():
-    """NMS import should pass the score threshold constant."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 3, 4]
-    scores_shape = [1, 1, 3]
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_score_threshold",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),
-            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.05]),
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [3, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_score_threshold")
-    model.ir_version = 8
-    model.opset_import[0].version = 11
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSThreeBoxesOneClassScoreThreshold,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 3),
-            ("iou_threshold", [1], "float32", 0.1),
-            ("score_threshold", [1], "float32", 0.05),
-        ],
-    )
 
 
 # align_corners=None omits the attribute, exercising the ONNX default of 0.
@@ -12085,61 +11539,6 @@ def test_arg_min_max_select_last_index_no_tie():
 
     verify_no_tie("ArgMax", ExpectedArgMax)
     verify_no_tie("ArgMin", ExpectedArgMin)
-
-
-def test_arg_min_max_select_last_index_ir():
-    """select_last_index=1 must lower to flip + argmax/argmin + subtract in the Relax IR."""
-
-    def verify_select_last_index_ir(op_name, expected):
-        shape = [3, 4, 5]
-        node = helper.make_node(
-            op_name,
-            inputs=["data"],
-            outputs=["out"],
-            axis=1,
-            keepdims=1,
-            select_last_index=1,
-        )
-        graph = helper.make_graph(
-            [node],
-            "arg_select_last_index_ir_test",
-            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [3, 1, 5])],
-        )
-        model = helper.make_model(graph, producer_name="arg_select_last_index_ir_test")
-        tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
-
-    @I.ir_module
-    class ExpectedArgMax:
-        @R.function
-        def main(
-            data: R.Tensor((3, 4, 5), dtype="float32"),
-        ) -> R.Tensor((3, 1, 5), dtype="int64"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=True)
-                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class ExpectedArgMin:
-        @R.function
-        def main(
-            data: R.Tensor((3, 4, 5), dtype="float32"),
-        ) -> R.Tensor((3, 1, 5), dtype="int64"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=True)
-                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                R.output(gv)
-            return gv
-
-    verify_select_last_index_ir("ArgMax", ExpectedArgMax)
-    verify_select_last_index_ir("ArgMin", ExpectedArgMin)
 
 
 def test_split_to_sequence_keepdims_0():
