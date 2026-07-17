@@ -91,7 +91,7 @@ inline ExprDoc DefineVar(const tirx::Var& var, const Frame& frame, const IRDocsi
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
-  return d->Define(var, frame, var->name_hint.empty() ? "v" : var->name_hint);
+  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
 }
 
 /*!

@@ -162,7 +162,7 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
     shape_var.push_back(tirx::Var("x", PrimType::Int(64)).as_or_throw<PrimExpr>());
   }
   // bind symbolic variables to the shape tuple
-  relax::Var var("y", ShapeType(shape_var));
+  tvm::Var var("y", ShapeType(shape_var));
   builder->EmitNormalized(MatchCast(var, call, ShapeType(shape_var)));
   return ShapeExpr(shape_var);
 }

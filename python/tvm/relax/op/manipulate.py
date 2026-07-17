@@ -116,8 +116,6 @@ def layout_transform(
     x: Expr,
     index_map: Callable | IndexMap,
     pad_value: int | float | Expr | None = None,
-    axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
-    input_axis_separators: int | str | None = None,  # str for IndexMap.AXIS_SEPARATOR
 ):
     """Modifies the layout of a tensor.
 
@@ -132,9 +130,6 @@ def layout_transform(
     pad_value : Optional[int | float | Expr]
         The value used for padding if the transformation results in implicit padding.
         If not specified, any value can be used.
-
-    axis_separators : Optional[int | IndexMap.AXIS_SEPARATOR]
-        The axis_separators for index_map to create non flat buffers.
 
     Returns
     -------
@@ -160,15 +155,7 @@ def layout_transform(
             pad_value = FloatImm(x_dtype.dtype, float(pad_value))
         pad_value = prim_value(pad_value)
 
-    if axis_separators is None:
-        axis_separators = []
-
-    if input_axis_separators is None:
-        input_axis_separators = []
-
-    return _ffi_api.layout_transform(
-        x, index_map, pad_value, axis_separators, input_axis_separators
-    )
+    return _ffi_api.layout_transform(x, index_map, pad_value)
 
 
 def permute_dims(x: Expr, axes: list[int] | None = None) -> Expr:

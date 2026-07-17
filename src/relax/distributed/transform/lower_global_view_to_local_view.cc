@@ -321,8 +321,9 @@ class DistributedBufferCompactor : StmtExprMutator {
       if (!iter_var_shards_.count(iter_var->var)) {
         continue;
       }
-      TVM_FFI_ICHECK(iter_value.as<VarNode>());
-      loop_var_shards_[iter_value.as_or_throw<Var>()] = iter_var_shards_[iter_var->var];
+      auto loop_var = iter_value.as<PrimVar>();
+      TVM_FFI_ICHECK(loop_var);
+      loop_var_shards_[loop_var.value()] = iter_var_shards_[iter_var->var];
     }
     return realize;
   }
@@ -400,18 +401,30 @@ class LowerTIRToLocalView : public ExprMutator {
     }
     std::vector<ShardingSpec> sharding_specs;
     ffi::Array<Expr> args = val->args[1].as_or_throw<Tuple>()->fields;
-    for (const auto& arg : args) {
-      const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
-      TVM_FFI_ICHECK(ty);
-      sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
+    GlobalVar gvar = val->args[0].as_or_throw<GlobalVar>();
+    tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
+    TVM_FFI_ICHECK_LE(args.size(), prim_func->params.size());
+    for (size_t i = 0; i < args.size(); ++i) {
+      const Expr& arg = args[i];
+      const tirx::Var& param = prim_func->params[i];
+      if (prim_func->buffer_map.count(param)) {
+        const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
+        TVM_FFI_CHECK(ty, TypeError)
+            << "Expected buffer parameter " << param << " to receive a distributed tensor, but "
+            << arg << " has type " << GetType(arg);
+        sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
+      } else {
+        TVM_FFI_CHECK(arg.as<PrimExpr>(), TypeError)
+            << "Expected scalar parameter " << param
+            << " to receive an individual primitive expression, but " << arg << " has type "
+            << GetType(arg);
+      }
     }
     Var output_var = binding->var;
     ffi::Array<DTensorType> output_tys = ExtractDTensorType(output_var);
     for (const auto& ty : output_tys) {
       sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }
-    GlobalVar gvar = val->args[0].as_or_throw<GlobalVar>();
-    tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
     tirx::PrimFunc new_prim_func;
     std::string allreduce_kind;
     std::tie(new_prim_func, allreduce_kind) =

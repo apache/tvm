@@ -41,10 +41,9 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 /******** Buffer Related ********/
 Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
-  ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*buffer->data.get());
   const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
-  new_var->ty = PointerType(ptr_type->element_type, scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->ty);
+  Type new_type = PointerType(ptr_type->element_type, scope);
+  new_buffer->data = tirx::Var(buffer->data->name + "_" + scope, new_type);
   new_buffer->name = buffer->name + "_" + scope;
   return Buffer(new_buffer);
 }
@@ -53,7 +52,7 @@ Buffer WithDType(const Buffer& buffer, PrimType dtype) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   new_buffer->dtype = dtype;
   const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
-  new_buffer->data = Var(buffer->data->name_hint, PointerType(dtype, ptr_type->storage_scope));
+  new_buffer->data = tirx::Var(buffer->data->name, PointerType(dtype, ptr_type->storage_scope));
   new_buffer->name = buffer->name;
   return Buffer(new_buffer);
 }
@@ -523,13 +522,13 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
   for (const SBlockRV& block : leaf_blocks) {
     ffi::Array<IterVar> iters = sch->Get(block)->iter_vars;
     bool has_spatial_iter = false;
-    ffi::Array<Var> index_map_inputs;
+    ffi::Array<PrimVar> index_map_inputs;
     ffi::Array<PrimExpr> index_map_outputs;
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
-      Var var = iter->var.CopyWithSuffix("");
+      PrimVar var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
       if (!is_one(iter->dom->extent)) {
-        index_map_outputs.push_back(var.as_or_throw<PrimExpr>());
+        index_map_outputs.push_back(var);
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;
         }
@@ -539,9 +538,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
       index_map_outputs.insert(index_map_outputs.begin(), IntImm::Int64(0));
     }
     try {
-      sch->TransformBlockLayout(
-          block, IndexMap(index_map_inputs.Map([](Var var) { return var.as_or_throw<PrimVar>(); }),
-                          index_map_outputs));
+      sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
     } catch (tvm::ffi::Error& e) {
       // Skip layout transformation when not transformable.
     }

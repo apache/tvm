@@ -152,12 +152,14 @@ using OutputType = std::vector<Output>;
 class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
                        public relax::contrib::CodegenCBase {
  public:
+  using relax::MemoizedExprTranslator<OutputType>::VisitExpr_;
+
   CodegenCutlass(const std::string& id, const ffi::Map<Var, Expr>& bindings)
       : ext_func_id_(id), bindings_(bindings) {}
 
   void AddParm(Var param) {
     ext_func_args_.push_back(param);
-    auto v_name = name_sup_->FreshName(param->name_hint);
+    auto v_name = name_sup_->FreshName(param->name);
     var_name_map_[param.get()] = v_name;
   }
 
@@ -330,7 +332,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   /*!
    * \brief A mapping from a variable to its unique name.
    * We use this since sometimes different parameters to the same function end up having the same
-   * name_hint.
+   * name.
    */
   std::unordered_map<const VarNode*, std::string> var_name_map_;
   /*! \brief A unique name supply to generate a unique name for each parameter. */

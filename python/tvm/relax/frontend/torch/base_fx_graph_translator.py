@@ -557,7 +557,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return self.block_builder.emit(op(lhs, rhs))
 
             lhs, rhs = self.retrieve_args(node)
-            if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+
+            if (isinstance(lhs, tvm.ir.Var) and isinstance(lhs.ty, relax.TensorType)) or (
+                isinstance(rhs, tvm.ir.Var) and isinstance(rhs.ty, relax.TensorType)
+            ):
                 return call_binary_op(relax_op, lhs, rhs)
             elif isinstance(lhs, relax.expr.Constant) and not isinstance(rhs, relax.expr.Constant):
                 return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.ty.dtype))
@@ -2619,6 +2622,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         data_flat = self.block_builder.emit(relax.op.reshape(data, [-1]))
         mask_flat = self.block_builder.emit(relax.op.reshape(mask, [-1]))
         indices = self.block_builder.emit(relax.op.nonzero(mask_flat))
+        tensor_meta = node.meta.get("tensor_meta")
+        if tensor_meta is not None and len(tensor_meta.shape) == 1:
+            num_selected = tensor_meta.shape[0]
+            if not isinstance(num_selected, int):
+                num_selected = tvm.ir.Var(str(num_selected), "int64")
+        else:
+            num_selected = tvm.ir.Var(f"{node.name}_num_selected", "int64")
+        indices = self.block_builder.match_cast(
+            indices, relax.TensorType([1, num_selected], "int64")
+        )
         indices_1d = self.block_builder.emit(relax.op.squeeze(indices, axis=[0]))
 
         result = self.block_builder.emit(relax.op.take(data_flat, indices_1d, axis=0))
@@ -2704,7 +2717,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         if isinstance(x, list | tuple | relax.ShapeExpr | relax.Tuple):
             return x[node.args[1]]
-        elif isinstance(x, relax.Var):
+        elif isinstance(x, tvm.ir.Var) and isinstance(x.ty, relax.TupleType | relax.TensorType):
             if isinstance(x.ty, relax.TupleType):
                 return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
 

@@ -34,7 +34,7 @@ from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let, IterVar, CommReducer
 
-from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While
+from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue
 
 # Legacy alias: LetStmt was folded into Bind (which now accepts an optional body)
 LetStmt = Bind
@@ -50,7 +50,7 @@ from .function import PrimFunc, TensorIntrin, IndexMap
 
 from .op import call_packed_lowered, call_cpacked_lowered, call_tir
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
-from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
+from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value, trace
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef

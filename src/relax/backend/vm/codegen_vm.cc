@@ -91,7 +91,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
     ffi::Array<ffi::String> param_names;
     for (Var param : func->params) {
-      param_names.push_back(param->name_hint);
+      param_names.push_back(param->name);
     }
 
     builder_->EmitFunction(gsymbol.value(), func->params.size(), param_names);
@@ -217,6 +217,10 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return it->second;
   }
 
+  Instruction::Arg VisitExpr_(const DataflowVarNode* op) final {
+    return VisitExpr_(static_cast<const VarNode*>(op));
+  }
+
   Instruction::Arg VisitExpr_(const ConstantNode* op) final {
     auto arg = builder_->ConvertConstant(op->data);
 
@@ -242,18 +246,12 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     return builder_->ConvertConstant(ffi::Shape(shape));
   }
 
-  Instruction::Arg VisitExprFallback_(const ExprNode* op) final {
-    PrimExpr value = ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>();
-    if (auto* int_imm = value.as<IntImmNode>()) {
-      return builder_->ConvertConstant(int_imm->value);
-    } else if (auto* float_imm = value.as<FloatImmNode>()) {
-      return builder_->ConvertConstant(float_imm->value);
-    } else {
-      TVM_FFI_THROW(InternalError)
-          << "PrimExpr should only contain constant after  VMShapeLower, "
-          << "but received " << value << " with type " << value->GetTypeKey();
-      TVM_FFI_UNREACHABLE();
-    }
+  Instruction::Arg VisitExpr_(const IntImmNode* op) final {
+    return builder_->ConvertConstant(op->value);
+  }
+
+  Instruction::Arg VisitExpr_(const FloatImmNode* op) final {
+    return builder_->ConvertConstant(op->value);
   }
 
   Instruction::Arg VisitExpr_(const StringImmNode* op) final {

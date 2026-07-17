@@ -60,7 +60,7 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
         copy_extents = [dst_extent[i] for i in dst_indices]
 
         def _dst_coord(lvs):
-            if isinstance(lvs, tvm.tirx.Var):
+            if isinstance(lvs, tvm.ir.Var):
                 lvs = [lvs]
             coord = list(dst_st)
             for k, lv in enumerate(lvs):
@@ -68,7 +68,7 @@ def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFun
             return coord
 
         def _src_coord(lvs):
-            if isinstance(lvs, tvm.tirx.Var):
+            if isinstance(lvs, tvm.ir.Var):
                 lvs = [lvs]
             coord = list(src_st)
             for k, lv in enumerate(lvs):

@@ -421,6 +421,7 @@ def test_reject_non_warp_scope():
 
 
 @pytest.mark.parametrize("dtype", ["uint32", "float32"])
+@pytest.mark.gpu
 def test_shared_to_shared_uses_direct_ldst(dtype):
     """Compile-only: a shared->shared 32b transpose must take the direct
     base-ptr + byte-offset ``ld.shared`` / ``st.shared`` path.

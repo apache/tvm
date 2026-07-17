@@ -134,7 +134,6 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
       writer = flattened.CopyOnWrite();
       writer->shape = new_shape;
       writer->strides = {};
-      writer->axis_separators = {};
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
@@ -160,7 +159,6 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
         writer = flattened.CopyOnWrite();
         writer->shape = {ana->Simplify(mem_span)};
         writer->strides = {};
-        writer->axis_separators = {};
       } else {
         flattened = buf.GetFlattenedBuffer();
         writer = flattened.CopyOnWrite();

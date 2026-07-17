@@ -37,9 +37,9 @@ def test_bind_tensors():
             w0: R.Tensor(("m", "n"), dtype="float32"),
             w1: R.Tensor(("k", 10), dtype="float32"),
         ) -> R.Tensor(("batch", "k"), dtype="float32"):
-            batch = T.Var("batch", "int64")
-            n = T.Var("n", "int64")
-            k = T.Var("k", "int64")
+            batch = T.int64()
+            n = T.int64()
+            k = T.int64()
             with R.dataflow():
                 lv0 = R.call_dps_packed(
                     "test0", (x, w0), out_ty=R.Tensor((batch, n), dtype="float32")
@@ -85,9 +85,9 @@ def test_bind_shape():
             w0: R.Shape(("m", "n")),
             w1: R.Shape(("k", 10)),
         ) -> R.Shape(("batch", "k")):
-            batch = T.Var("batch", "int64")
-            n = T.Var("n", "int64")
-            k = T.Var("k", "int64")
+            batch = T.int64()
+            n = T.int64()
+            k = T.int64()
             with R.dataflow():
                 lv0 = R.call_dps_packed("test0", (x, w0), out_ty=R.Tensor((batch, n)))
                 out = R.call_dps_packed("test1", (lv0, w1), out_ty=R.Tensor((batch, k)))
@@ -125,10 +125,10 @@ def test_arith():
             w0: R.Tensor(("m", "n"), dtype="float32"),
             w1: R.Tensor(("k", 10), dtype="float32"),
         ) -> R.Tensor(("batch", "k*m"), dtype="float32"):
-            batch = T.Var("batch", "int64")
-            m = T.Var("m", "int64")
-            n = T.Var("n", "int64")
-            k = T.Var("k", "int64")
+            batch = T.int64()
+            m = T.int64()
+            n = T.int64()
+            k = T.int64()
             with R.dataflow():
                 lv0 = R.call_dps_packed(
                     "test0",

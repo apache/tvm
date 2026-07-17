@@ -50,7 +50,7 @@ def build_and_run(mod, inputs_np, target, legalize=True):
     with tvm.transform.PassContext():
         ex = tvm.compile(mod, target)
 
-    dev = tvm.device(target, 0)
+    dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
@@ -759,7 +759,7 @@ def test_reconstruct_from_cache():
     reconstruct_from_cache_func = tvm.get_global_func("tvm.contrib.vllm.reconstruct_from_cache")
 
     def run_and_check():
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         key = tvm.runtime.tensor(
             np.random.randn(num_tokens, num_heads, head_dim).astype("float16"), dev
         )

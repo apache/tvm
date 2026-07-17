@@ -212,6 +212,10 @@ void TIRVisitorWithPath::VisitStmt_(const WhileNode* op, AccessPath path) {
   bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
 }
 
+void TIRVisitorWithPath::VisitStmt_(const ReturnNode* op, AccessPath path) {
+  Visit(op->value, path->Attr("value"));
+}
+
 void TIRVisitorWithPath::VisitStmt_(const BreakNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::VisitStmt_(const ContinueNode* op, AccessPath path) {}

@@ -17,6 +17,7 @@
 # ruff: noqa: E501, E741
 import functools
 import itertools
+import json
 
 import pytest
 import torch
@@ -87,6 +88,8 @@ fattention_rotary = None
 fcopy_single_page = None
 fcompact_copy = None
 
+_COMPILED_KERNEL_CACHE = {}
+
 
 def set_global_func(head_dim, dtype, target):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
@@ -119,35 +122,57 @@ def set_global_func(head_dim, dtype, target):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    builts = []
-    for tir_func in [
-        _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
-        _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
-        _attention_prefill(
-            num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target
-        ),
-        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target),
-        _attention_prefill(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
-        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
-        _attention_prefill_ragged(
-            num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling, target
-        ),
-        tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
-        tree_attn_with_paged_kv_cache(
-            num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
-        ),
-        _merge_state_inplace(num_qo_heads, head_dim, dtype, target),
-        llama_rope_with_position_map(
-            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
-        ),
-        _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
-        _compact_kv_copy(num_kv_heads, head_dim, dtype, target),
-    ]:
-        mod = tvm.IRModule({"main": tir_func})
-        with target:
-            mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-        f = tvm.tirx.build(mod["main"], target=target)
-        builts.append(f.main)
+    cache_key = (
+        str(target),
+        num_layers,
+        num_qo_heads,
+        num_kv_heads,
+        head_dim,
+        page_size,
+        dtype,
+        rope_scale,
+        rope_theta,
+        json.dumps(rope_scaling, sort_keys=True),
+    )
+    builts = _COMPILED_KERNEL_CACHE.get(cache_key)
+    if builts is None:
+        builts = []
+        for tir_func in [
+            _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
+            _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
+            _attention_prefill(
+                num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target
+            ),
+            _attention_decode(
+                num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target
+            ),
+            _attention_prefill(
+                num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target
+            ),
+            _attention_decode(
+                num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target
+            ),
+            _attention_prefill_ragged(
+                num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling, target
+            ),
+            tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
+            tree_attn_with_paged_kv_cache(
+                num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
+            ),
+            _merge_state_inplace(num_qo_heads, head_dim, dtype, target),
+            llama_rope_with_position_map(
+                rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
+            ),
+            _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
+            _compact_kv_copy(num_kv_heads, head_dim, dtype, target),
+        ]:
+            mod = tvm.IRModule({"main": tir_func})
+            with target:
+                mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
+            f = tvm.tirx.build(mod["main"], target=target)
+            builts.append(f.main)
+        builts = tuple(builts)
+        _COMPILED_KERNEL_CACHE[cache_key] = builts
 
     (
         ftranspose_append,

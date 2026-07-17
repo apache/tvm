@@ -28,8 +28,7 @@
 
 namespace tvm {
 namespace relax {
-Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list,
-                     ffi::Optional<Expr> packed_ints) {
+Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list) {
   for (const distributed::DTensorType& ty : out_ty_list) {
     const auto* shape = ty->tensor_ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -46,14 +45,7 @@ Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType>
   }
 
   static const Op& op = Op::Get("relax.call_tir");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(Type::Missing(), op, {func, args}, {}, {out_ty});
-  } else {
-    call = Call(Type::Missing(), op, {func, args, packed_ints.value()}, {}, {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

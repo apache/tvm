@@ -1215,7 +1215,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
     np_A = np.random.random([32, 32]).astype("float32")
     np_B = np.random.random([32, 32]).astype("float32")
 
-    dev_llvm = tvm.device("llvm")
+    dev_llvm = tvm.cpu()
     vm_llvm = tvm.relax.VirtualMachine(built, device=dev_llvm)
     llvm_output = vm_llvm["func_llvm"](
         tvm.runtime.tensor(np_A, dev_llvm),
@@ -1227,7 +1227,7 @@ def test_relax_module_with_multiple_targets(exec_mode):
     tvm.testing.assert_allclose(llvm_output.numpy(), np_C)
 
     def run_and_check():
-        dev_cuda = tvm.device("cuda")
+        dev_cuda = tvm.cuda()
         vm_cuda = tvm.relax.VirtualMachine(built, device=dev_cuda)
         cuda_output = vm_cuda["func_cuda"](
             tvm.runtime.tensor(np_A, dev_cuda),

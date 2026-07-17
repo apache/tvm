@@ -447,6 +447,7 @@ def test_dispatch_rejects_bad_inputs(bad):
             tvm.compile(tvm.IRModule({"main": kernel}), target=target, tir_pipeline="tirx")
 
 
+@pytest.mark.gpu
 def test_multi_cp_encodes_descriptor_once_and_patches_addr():
     """Compile-only regression for the shared-descriptor cp path.
 

@@ -61,32 +61,18 @@ namespace {
  * expansion introduced by StrEscape.
  *
  * A raw newline violates the one-line expression-string contract. xsputn records its presence
- * while still escaping and forwarding the write, and the caller checks saw_newline() together
- * with the stream state before completing the literal. A destination short write is reported as
- * an input write failure so that the output stream records the error. On every exit path,
- * including exception unwinding, the noexcept destructor restores the original buffer and then
- * reapplies the child traversal's stream state, which rdbuf() would otherwise clear.
+ * while still escaping and forwarding the write, and the caller checks saw_newline() before
+ * completing the literal. On every exit path, including exception unwinding, the noexcept
+ * destructor restores the original buffer.
  */
 class ScopedExprStringEscapeBuf : public std::streambuf {
  public:
   explicit ScopedExprStringEscapeBuf(std::ostream* output)
       : output_(output), destination_(output->rdbuf()) {
-    TVM_FFI_ICHECK(output_->good()) << "Cannot escape into a failed output stream";
     output_->rdbuf(this);
   }
 
-  ~ScopedExprStringEscapeBuf() noexcept {
-    // Swapping rdbuf resets rdstate, so retain the child's state across restoration. setstate may
-    // throw under the stream's exception mask; suppress that throw so an in-flight exception is
-    // never replaced, while setstate still records the bits before throwing.
-    std::ios_base::iostate state = output_->rdstate();
-    output_->rdbuf(destination_);
-    try {
-      output_->setstate(state);
-    } catch (...) {
-      // Preserve the stream state without replacing an exception already in flight.
-    }
-  }
+  ~ScopedExprStringEscapeBuf() noexcept { output_->rdbuf(destination_); }
 
   ScopedExprStringEscapeBuf(const ScopedExprStringEscapeBuf&) = delete;
   ScopedExprStringEscapeBuf& operator=(const ScopedExprStringEscapeBuf&) = delete;
@@ -101,10 +87,8 @@ class ScopedExprStringEscapeBuf : public std::streambuf {
     // without retaining or copying the complete output. Report consumed input bytes, not the
     // potentially larger number of escaped bytes written to the destination.
     std::string escaped = support::StrEscape(data, static_cast<size_t>(count));
-    return destination_->sputn(escaped.data(), escaped.size()) ==
-                   static_cast<std::streamsize>(escaped.size())
-               ? count
-               : 0;
+    destination_->sputn(escaped.data(), escaped.size());
+    return count;
   }
 
   int_type overflow(int_type ch) final {
@@ -496,7 +480,6 @@ void PythonDocPrinter::PrintTypedDoc(const ExprStringDoc& doc) {
   {
     ScopedExprStringEscapeBuf escaping_scope(&this->output_);
     this->PrintDoc(doc->value);
-    TVM_FFI_ICHECK(this->output_.good()) << "Failed to render an expression string literal";
     TVM_FFI_ICHECK(!escaping_scope.saw_newline())
         << "An expression rendered inside a Python string literal must be one line";
   }

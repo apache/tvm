@@ -47,8 +47,13 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
+      - name: Detect environment variables
+        uses: ./.github/actions/detect-env-vars
+        id: env_vars
       - name: Build TVM wheel
         shell: bash -l {0}
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
           pip install scikit-build-core
           export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
@@ -93,8 +98,13 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
+      - name: Detect environment variables
+        uses: ./.github/actions/detect-env-vars
+        id: env_vars
       - name: Install TVM
         shell: cmd /C call {0}
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: ${{ steps.env_vars.outputs.cpu_count }}
         run: |
           pip install scikit-build-core
           set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF

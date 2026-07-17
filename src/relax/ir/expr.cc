@@ -31,7 +31,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TupleNode::RegisterReflection();
   TupleGetItemNode::RegisterReflection();
   ShapeExprNode::RegisterReflection();
-  VarNode::RegisterReflection();
   BindingNode::RegisterReflection();
   DataflowVarNode::RegisterReflection();
   ConstantNode::RegisterReflection();
@@ -139,25 +138,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-Var::Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
-  ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
-  n->name_hint = std::move(name_hint);
-  if (ty_annotation.has_value()) {
-    n->ty = ty_annotation.value();
-  }
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.Var", [](ffi::String name_hint, ffi::Optional<Type> ty_annotation,
-                                        Span span) { return Var(name_hint, ty_annotation, span); });
-}
-
-DataflowVar::DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
+DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
-  n->name_hint = std::move(name_hint);
+  n->name = std::move(name);
   if (ty_annotation.has_value()) {
     n->ty = ty_annotation.value();
   }
@@ -168,8 +151,8 @@ DataflowVar::DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotatio
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.DataflowVar",
-                        [](ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span) {
-                          return DataflowVar(name_hint, ty_annotation, span);
+                        [](ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
+                          return DataflowVar(name, ty_annotation, span);
                         });
 }
 
@@ -393,18 +376,17 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
     // for the function's return type.  When hoisting the body's type
     // to the function return type, symbolic variables may only be
     // used if they were defined by the function's parameters.
-    auto f_shape_var_map = [&] {
+    auto f_var_map = [&] {
       auto tir_vars = DefinableTIRVarsInType(TupleType(params.Map(GetType)));
       std::unordered_set<tirx::Var> lookup(tir_vars.begin(), tir_vars.end());
-      return [lookup = std::move(lookup)](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
-        if (lookup.count(var)) {
-          return var.as_or_throw<PrimExpr>();
-        } else {
-          return std::nullopt;
+      return [lookup = std::move(lookup)](const Var& var) -> ffi::Optional<Expr> {
+        if (auto prim_var = var.as<tirx::PrimVar>(); prim_var && lookup.count(prim_var.value())) {
+          return prim_var.value().as_or_throw<PrimExpr>();
         }
+        return std::nullopt;
       };
     }();
-    ret_ty = EraseToWellDefined(body_ty.value(), f_shape_var_map);
+    ret_ty = EraseToWellDefined(body_ty.value(), f_var_map);
   }
 
   FuncType func_ty(param_ty, ret_ty.value(), is_pure);

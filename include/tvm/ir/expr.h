@@ -259,6 +259,46 @@ TVM_DLL PrimExpr operator^(PrimExpr a, PrimExpr b);
  */
 TVM_DLL PrimExpr operator~(PrimExpr a);
 
+/*!
+ * \brief A local variable in the IR.
+ *
+ * Variables are uniquely identified by their object identity.  The name is a
+ * hint for printing and does not participate in structural equality or
+ * hashing.
+ */
+class VarNode : public ExprNode {
+ public:
+  /*! \brief The variable name. */
+  ffi::String name;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VarNode>().def_ro("name", &VarNode::name,
+                                      refl::AttachFieldFlag::SEqHashIgnore());
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
+  static constexpr const uint32_t _type_child_slots = 1;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Var", VarNode, ExprNode);
+};
+
+/*! \brief Managed reference to VarNode. */
+class Var : public Expr {
+ public:
+  TVM_DLL explicit Var(ffi::String name, ffi::Optional<Type> ty_annotation, Span span = Span());
+
+  /*! \brief Return a fresh ordinary Var with the same type and a new name. */
+  TVM_DLL Var CopyWithName(const ffi::String& name) const;
+
+  /*! \brief Return a fresh ordinary Var with a suffix appended to its name. */
+  TVM_DLL Var CopyWithSuffix(const ffi::String& suffix) const;
+
+  /*! \brief Return a fresh ordinary Var with a new primitive type. */
+  TVM_DLL Var CopyWithDType(PrimType dtype) const;
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
+};
+
 class GlobalVar;
 /*!
  * \brief Global variable that lives in the top-level module.
@@ -540,7 +580,7 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
 }  // namespace ffi
 }  // namespace tvm
 
-/* \brief Allow tvm.GLobalVar as key in STL tables
+/* \brief Allow tvm.Var and tvm.GlobalVar as keys in STL tables
  *
  * For most IR expressions, it would be ambiguous whether the
  * expression should follow reference equality or structural equality.
@@ -549,11 +589,23 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
  * tables.
  *
  * Providing `std::hash` and `std::equal_to` specializations for
- * `tvm::GlobalVar` allows it to be used as a key in STL tables.  For
+ * `tvm::Var` and `tvm::GlobalVar` allows them to be used as keys in STL tables.  For
  * other IR expressions, the user must specify the type of equality
  * used (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>`
  * or `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
  */
+template <>
+struct std::hash<tvm::Var> {
+  std::size_t operator()(const tvm::Var& var) const { return tvm::ffi::ObjectPtrHash()(var); }
+};
+
+template <>
+struct std::equal_to<tvm::Var> {
+  bool operator()(const tvm::Var& var_a, const tvm::Var& var_b) const {
+    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
+  }
+};
+
 template <>
 struct std::hash<tvm::GlobalVar> {
   std::size_t operator()(const tvm::GlobalVar& var) const { return tvm::ffi::ObjectPtrHash()(var); }

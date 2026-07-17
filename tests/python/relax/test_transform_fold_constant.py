@@ -585,5 +585,28 @@ def test_fold_large_op_with_tensor_input():
     tvm.ir.assert_structural_equal(after, expected)
 
 
+def test_call_tir_with_primitive_args_not_folded():
+    """call_tir with symbolic primitive arguments cannot be const-evaluated."""
+
+    @tvm.script.ir_module
+    class Module:
+        @T.prim_func(private=True, s_tir=True)
+        def shape_to_tensor(m: T.int64, out: T.Buffer((T.int64(1),), "int64")):
+            for i in range(T.int64(1)):
+                with T.sblock("out"):
+                    vi = T.axis.remap("S", [i])
+                    out[vi] = m
+
+        @R.function
+        def main(x: R.Tensor(("m",), "float32")):
+            m = T.int64()
+            cls = Module
+            gv = relax.call_tir(cls.shape_to_tensor, (m,), R.Tensor((1,), "int64"))
+            return gv
+
+    after = relax.transform.FoldConstant()(Module)
+    tvm.ir.assert_structural_equal(after, Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

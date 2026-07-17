@@ -57,12 +57,12 @@ void tvm_fp8_groupwise_scaled_group_gemm_sm100(Tensor a, Tensor b, Tensor scales
   TVM_FFI_ICHECK_EQ((n + block_size_0 - 1) / block_size_0, scales_b->shape[1]);
   TVM_FFI_ICHECK_EQ((k + block_size_1 - 1) / block_size_1, scales_b->shape[2]);
 
-  TVM_FFI_ICHECK_EQ(a->dtype, DLDataType{kDLFloat8_e4m3fn, 8, 1});
-  TVM_FFI_ICHECK_EQ(b->dtype, DLDataType{kDLFloat8_e4m3fn, 8, 1});
-  TVM_FFI_ICHECK_EQ(scales_a->dtype, DLDataType{kDLFloat, 32, 1});
-  TVM_FFI_ICHECK_EQ(scales_b->dtype, DLDataType{kDLFloat, 32, 1});
-  TVM_FFI_ICHECK_EQ(indptr->dtype, DLDataType{kDLInt, 64, 1});
-  TVM_FFI_ICHECK_EQ(workspace->dtype, DLDataType{kDLUInt, 8, 1});
+  TVM_FFI_ICHECK_EQ(a->dtype, (DLDataType{kDLFloat8_e4m3fn, 8, 1}));
+  TVM_FFI_ICHECK_EQ(b->dtype, (DLDataType{kDLFloat8_e4m3fn, 8, 1}));
+  TVM_FFI_ICHECK_EQ(scales_a->dtype, (DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK_EQ(scales_b->dtype, (DLDataType{kDLFloat, 32, 1}));
+  TVM_FFI_ICHECK_EQ(indptr->dtype, (DLDataType{kDLInt, 64, 1}));
+  TVM_FFI_ICHECK_EQ(workspace->dtype, (DLDataType{kDLUInt, 8, 1}));
 
   if (out->dtype == DLDataType{kDLFloat, 16, 1}) {
     using Dtype = cutlass::half_t;

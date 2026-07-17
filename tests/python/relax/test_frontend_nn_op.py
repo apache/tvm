@@ -638,18 +638,10 @@ def test_tensor_ir_op():
     @T.prim_func(private=True, s_tir=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
+        offset: T.int64,
         var_q: T.handle,
         var_k: T.handle,
         var_v: T.handle,
-        # Scalar arguments must be specified after tensor arguments,
-        # including the output tensor arguments
-        #
-        # TODO(Lunderberg): Update
-        # `tvm.relax.frontend.nn.op.tensor_ir_op` to use `Expr`
-        # instead of `tir_vars`, so that the order can be consistent
-        # between the function definition and the arguments in
-        # `op.tensor_ir_op`.
-        offset: T.int64,
     ):
         batch_size = T.int64()
         seq_len = T.int64()
@@ -677,7 +669,7 @@ def test_tensor_ir_op():
     @I.ir_module(s_tir=True)
     class Expected:
         @T.prim_func(private=True, s_tir=True)
-        def llama_fused_rope(var_qkv: T.handle, var_q: T.handle, var_k: T.handle, var_v: T.handle, offset: T.int64):
+        def llama_fused_rope(var_qkv: T.handle, offset: T.int64, var_q: T.handle, var_k: T.handle, var_v: T.handle):
             batch_size, seq_len = T.int64(), T.int64()
             qkv = T.match_buffer(var_qkv, (batch_size, seq_len, 24, 16), "float16")
             q = T.match_buffer(var_q, (batch_size, seq_len, 8, 16), "float16")
@@ -700,7 +692,7 @@ def test_tensor_ir_op():
             R.func_attr({"num_input": 3})
             cls = Expected
             with R.dataflow():
-                lv1 = R.call_tir(cls.llama_fused_rope, (qkv,), out_ty=[R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16")], tir_vars=R.shape([offset_1]))
+                lv1 = R.call_tir(cls.llama_fused_rope, (qkv, offset_1), out_ty=[R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16"), R.Tensor((1, 1, 8, 16), dtype="float16")])
                 llama_fused_rope_0: R.Tensor((1, 1, 8, 16), dtype="float16") = lv1[0]
                 llama_fused_rope_1: R.Tensor((1, 1, 8, 16), dtype="float16") = lv1[1]
                 llama_fused_rope_2: R.Tensor((1, 1, 8, 16), dtype="float16") = lv1[2]
@@ -798,10 +790,9 @@ def test_tensor_ir_inplace_op():
             with R.dataflow():
                 lv1 = R.call_tir_inplace(
                     cls.inplace_take,
-                    (embedding_table, input_ids, embedding_dst),
+                    (embedding_table, input_ids, embedding_dst, offset_1),
                     out_ty=R.Tensor((total_seq_len, hidden_size), dtype),
                     inplace_indices=[2],
-                    tir_vars=R.shape([offset_1]),
                 )
                 gv1: R.Tensor((total_seq_len, hidden_size), dtype) = lv1
                 R.output(gv1)
@@ -981,7 +972,7 @@ def test_multinomial_from_uniform():
         mod = relax.backend.DispatchSampling()(mod)
         mod = s_tir.transform.DefaultGPUSchedule()(mod)
     ex = tvm.compile(mod, target)
-    dev = tvm.device(target.kind.name, 0)
+    dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()

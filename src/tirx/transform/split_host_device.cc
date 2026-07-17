@@ -143,7 +143,7 @@ class HostDeviceSplitter : public StmtMutator {
             bool is_handle = var->ty.as<PointerTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
-                var->name_hint,
+                var->name,
             };
           };
           return sort_key(a) < sort_key(b);
@@ -172,7 +172,7 @@ class HostDeviceSplitter : public StmtMutator {
     Type kernel_ret_type = Type::Missing();
     if (can_propagate_errors) {
       kernel_ret_type = PrimType::Int(32);
-      body = SeqStmt::Flatten(body, Evaluate(ret(success)));
+      body = SeqStmt::Flatten(body, Return(success));
     } else {
       kernel_ret_type = VoidType();
     }
@@ -330,7 +330,7 @@ class DeviceInfoCollector : public StmtVisitor {
         thread_tag = iv.value()->thread_tag;
         TVM_FFI_ICHECK_NE(thread_tag.length(), 0U);
       } else if (auto var = op->node.as<Var>()) {
-        thread_tag = var.value()->name_hint;
+        thread_tag = var.value()->name;
       } else {
         TVM_FFI_THROW(TypeError) << "thread_extent node must be an IterVar or Var, but was "
                                  << op->node.GetTypeKey();
@@ -393,26 +393,11 @@ class ReturnRemover : public StmtExprMutator {
   }
 
  private:
-  using Parent = StmtExprMutator;
-  Stmt VisitStmt_(const EvaluateNode* op) override {
-    if (auto* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::ret())) {
-        TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-        auto as_int = call->args[0].as<IntImmNode>();
-        TVM_FFI_ICHECK(as_int && as_int->value == 0)
-            << "Device kernel may only contain successful return, T.ret(0)";
-        return Evaluate(0);
-      }
-    }
-    return Parent::VisitStmt_(op);
-  }
-
-  Expr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(builtin::ret())) {
-      TVM_FFI_THROW(InternalError)
-          << "Call to builtin::ret() should only appear within an Evaluate node";
-    }
-    return Parent::VisitExpr_(op);
+  Stmt VisitStmt_(const ReturnNode* op) override {
+    auto as_int = op->value.as<IntImmNode>();
+    TVM_FFI_ICHECK(as_int && as_int->value == 0)
+        << "Device kernel may only contain a successful return, return 0";
+    return Evaluate(0);
   }
 };
 

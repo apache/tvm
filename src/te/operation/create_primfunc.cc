@@ -24,6 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/function.h>
@@ -498,8 +499,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       bool first_times_define =
           std::find(axes_levels[i].begin(), axes_levels[i].end(), axis) != axes_levels[i].end();
       if (first_times_define) {
-        Var loop_var = Var(axis->var->name_hint, index_type);
-        Var block_var("v_" + axis->var->name_hint, index_type);
+        Var loop_var = Var(axis->var->name, index_type);
+        Var block_var("v_" + axis->var->name, index_type);
         PrimExpr min = axis->dom->min;
         PrimExpr extent = axis->dom->extent;
         if (i > 0) {
@@ -517,7 +518,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         TVM_FFI_ICHECK_GT(i, 0);
         TVM_FFI_ICHECK(scopes[i - 1].axes_remap.count(axis->var));
         PrimExpr prev_binding = scopes[i - 1].axes_remap.at(axis->var);
-        Var block_var("v_" + axis->var->name_hint, index_type);
+        Var block_var("v_" + axis->var->name, index_type);
         Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
         IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
                                axis->thread_tag, axis->span);
@@ -644,8 +645,8 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     Buffer output_buffer = placeholder;
     if (!info->IsArg(output_tensor)) {
       PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
-      if (const auto* offset_var = placeholder->elem_offset.as<VarNode>()) {
-        var_map[offset_var] = zero_offset;
+      if (auto offset_var = placeholder->elem_offset.as<PrimVar>()) {
+        var_map[offset_var.value().get()] = zero_offset;
       }
       output_buffer.CopyOnWrite()->elem_offset = zero_offset;
       input_buffer_map[placeholder.get()] = output_buffer;
@@ -823,7 +824,7 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
       Var param("var_" + tensor->GetNameHint(), PointerType::VoidPointerTy());
       parameters.push_back(param);
       buffer_map.Set(param, it->second);
-    } else if (auto var = arg.as<tirx::Var>()) {
+    } else if (auto var = arg.as<tirx::PrimVar>()) {
       parameters.push_back(var.value());
     }
   }

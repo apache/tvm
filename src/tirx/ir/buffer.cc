@@ -52,12 +52,10 @@ ffi::Array<PrimExpr> SimplifyArray(arith::AnalyzerObj* ana, ffi::Array<PrimExpr>
 }
 
 Buffer decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
-                   ffi::String storage_scope, ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                   Span span) {
+                   ffi::String storage_scope, Span span) {
   PrimType storage_type = (dtype == PrimType::Bool() ? PrimType::Int(8) : dtype);
   return Buffer(Var(name, PointerType(storage_type, storage_scope), span), dtype, shape,
-                ffi::Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault,
-                axis_separators.value_or(ffi::Array<IntImm>()), span, std::nullopt,
+                ffi::Array<PrimExpr>(), PrimExpr(), name, 0, 0, span, std::nullopt,
                 ffi::Array<PrimExpr>());
 }
 
@@ -272,33 +270,10 @@ ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices, 
         << "the index's dimensionality must match the dimensionality of the index given.";
   }
 
-  // TODO(Lunderberg): Better handling for cases where there is more
-  // than one output index.  Currently, this only allows elem_offset
-  // to be non-zero for flat memory allocations.
-  ffi::Array<PrimExpr> elem_offsets = {};
-  if (elem_offset.defined() && !is_zero(elem_offset) && !inner) {
-    elem_offsets = {elem_offset};
-  }
-
-  if (elem_offsets.size()) {
-    TVM_FFI_ICHECK_EQ(elem_offsets.size(), axis_separators.size() + 1)
-        << "If element offsets are defined, "
-        << "there must be one element offset for each output index.";
-  }
-
-  ffi::Array<PrimExpr> output_indices(axis_separators.size() + 1, 0);
-
-  size_t current_output_axis = 0;
-
+  PrimExpr output_index = 0;
   arith::Analyzer ana;
 
   for (size_t i = 0; i < input_indices.size(); i++) {
-    if ((current_output_axis < axis_separators.size()) &&
-        (i == size_t(axis_separators[current_output_axis]->value))) {
-      current_output_axis++;
-    }
-
-    PrimExpr output_index = output_indices[current_output_axis];
     if (strides.size()) {
       output_index = output_index + input_indices[i] * strides[i];
     } else {
@@ -308,17 +283,13 @@ ffi::Array<PrimExpr> BufferNode::ElemOffset(ffi::Array<PrimExpr> input_indices, 
     if (i > 0) {
       output_index = MergeMulMod(ana.get(), output_index);
     }
-
-    output_indices.Set(current_output_axis, output_index);
   }
 
-  if (elem_offsets.size()) {
-    for (size_t i = 0; i < output_indices.size(); i++) {
-      output_indices.Set(i, output_indices[i] + elem_offsets[i]);
-    }
+  if (elem_offset.defined() && !is_zero(elem_offset) && !inner) {
+    output_index = output_index + elem_offset;
   }
 
-  return SimplifyArray(ana.get(), output_indices);
+  return SimplifyArray(ana.get(), {output_index});
 }
 
 inline ffi::Array<PrimExpr> BufferOffset(const BufferNode* n, ffi::Array<PrimExpr> index,
@@ -342,69 +313,21 @@ inline ffi::Array<PrimExpr> BufferOffset(const BufferNode* n, ffi::Array<PrimExp
   return offsets;
 }
 
-static void ValidateAxisSeparators(const ffi::Array<IntImm>& axis_separators, size_t buffer_dim) {
-  // These checks ensure that all output axes contain at least one
-  // input axis.
-  for (size_t i = 0; (i + 1) < axis_separators.size(); i++) {
-    auto sep = axis_separators[i]->value;
-    auto next_sep = axis_separators[i + 1]->value;
-    TVM_FFI_CHECK_LE(sep, next_sep, ValueError)
-        << "ValueError: "
-        << "Axis separators must be in increasing order, "
-        << "but axis_separators[" << i << "] = " << sep
-        << " is greater than or equal to axis_separators[" << (i + 1) << "] = " << next_sep << ".";
-  }
-  if (axis_separators.size()) {
-    auto first_sep = axis_separators[0]->value;
-    TVM_FFI_CHECK_GE(first_sep, 0, ValueError) << "ValueError: "
-                                               << "All axis separators must be non-negative.  "
-                                               << "However, the axis_separators[0] = " << first_sep;
-    auto last_sep = axis_separators[axis_separators.size() - 1]->value;
-    TVM_FFI_CHECK_LE(last_sep, buffer_dim, ValueError)
-        << "ValueError: "
-        << "All axis separators must be within the range "
-        << "0 <= sep <= buffer_dim.  "
-        << "However, the last axis_separators[" << (axis_separators.size() - 1)
-        << "] = " << last_sep << " is greater than the buffer's dimensionality of " << buffer_dim;
-  }
-}
-
 Buffer Buffer::GetFlattenedBuffer() const {
   auto self = operator->();
 
-  ValidateAxisSeparators(self->axis_separators, self->shape.size());
-
-  ffi::Array<PrimExpr> output_shape;
+  ffi::Array<PrimExpr> output_shape{1};
   if (self->strides.size()) {
-    // If strides are defined, then the extent of each flattened
-    // buffer is the stride*size for the first input axis used for
-    // each output axis.
+    // If strides are defined, the flattened extent is the span of the
+    // outermost input axis.
     TVM_FFI_ICHECK_EQ(self->shape.size(), self->strides.size());
-    output_shape.push_back(self->strides[0] * self->shape[0]);
-    for (const auto& sep : self->axis_separators) {
-      output_shape.push_back(self->strides[sep->value] * self->shape[sep->value]);
-    }
-
+    output_shape.Set(0, self->strides[0] * self->shape[0]);
   } else {
-    // Otherwise, the extent of each flattened buffer is the product
-    // of the extents of each input axis used to generate that output
-    // axis.  This also "flattens" rank-0 tensors to a rank-1 buffer
-    // of shape [1].
-    output_shape = ffi::Array<PrimExpr>(self->axis_separators.size() + 1, 1);
-    size_t current_output_index = 0;
+    // Otherwise, the flattened extent is the product of the input extents.
+    // This also flattens rank-0 tensors to a rank-1 buffer of shape [1].
     for (size_t i = 0; i < self->shape.size(); i++) {
-      if ((current_output_index < self->axis_separators.size()) &&
-          (i == size_t(self->axis_separators[current_output_index]->value))) {
-        current_output_index += 1;
-      }
-      output_shape.Set(current_output_index, output_shape[current_output_index] * self->shape[i]);
+      output_shape.Set(0, output_shape[0] * self->shape[i]);
     }
-  }
-
-  // The axis_separators for the output buffer.
-  ffi::Array<IntImm> output_axis_separators;
-  for (size_t i = 0; i < self->axis_separators.size(); i++) {
-    output_axis_separators.push_back(IntImm(self->axis_separators[i].ty(), i + 1));
   }
 
   if (output_shape.size() == self->shape.size() && self->strides.empty()) {
@@ -413,7 +336,6 @@ Buffer Buffer::GetFlattenedBuffer() const {
     Buffer output = *this;
     auto writer = output.CopyOnWrite();
     writer->shape = output_shape;
-    writer->axis_separators = output_axis_separators;
     writer->strides = {};
     // Keep `layout` in sync with `shape`. The old layout describes the
     // pre-flatten N-D shape (e.g. `S[(16,16):(16,1)]`); after collapsing
@@ -531,18 +453,7 @@ Buffer Buffer::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> exten
     }
   }
   Buffer slice(n->data, n->dtype, extents, strides, elem_offset[0], n->name + "_slice",
-               n->data_alignment, 0, n->buffer_type);
-
-  // Buffer must be constructed with a singular element offset which means there is no
-  // support for n-dimensional buffers where n > 1.  Insert sentinel value for
-  // TVMFFIABIBuilder::BindBuffer to state that any usage of element offset is invalid
-  // in this case.  This allows for construction of a Buffer with multiple element offsets
-  // but disallows any usage of those element offsets.  See PR #10816 for discussion on
-  // supporting multiple element offsets in TIR Buffer.
-  // TODO(Lunderberg): Remove if/when TIR supports multiple element offsets in TIR Buffer
-  if (elem_offset.size() != 1) {
-    slice.CopyOnWrite()->elem_offset = PrimExpr();
-  }
+               n->data_alignment, 0);
   return slice;
 }
 
@@ -587,8 +498,7 @@ Expr Buffer::access_ptr(int access_mask, PointerType ptr_type, int content_lanes
 
 Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
                PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
-               BufferType buffer_type, ffi::Array<IntImm> axis_separators, Span span,
-               ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
+               Span span, ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
   DLDataType storage_dtype = dtype->dtype;
   // specially handle bool
   if (storage_dtype == DLDataType{kDLBool, 8, 1}) {
@@ -604,13 +514,11 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   // pointer.  Should be done alongside extensions to StmtExprMutator
   // to more easily handle buffer/buffer_var updates.
   TVM_FFI_ICHECK(!data->ty.IsMissing())
-      << "Variable " << data->name_hint << " is missing a type annotation.";
+      << "Variable " << data->name << " is missing a type annotation.";
   TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>())
-      << "Variable " << data->name_hint << " is not a pointer.";
+      << "Variable " << data->name << " is not a pointer.";
   TVM_FFI_ICHECK(data->ty.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
-      << "Variable " << data->name_hint << " does not point to a primitive.";
-
-  ValidateAxisSeparators(axis_separators, shape.size());
+      << "Variable " << data->name << " does not point to a primitive.";
 
   auto n = ffi::make_object<BufferNode>();
   n->data = std::move(data);
@@ -618,7 +526,6 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
 
   n->shape = std::move(shape);
   n->strides = std::move(strides);
-  n->axis_separators = std::move(axis_separators);
   n->name = std::move(name);
   if (!elem_offset.defined()) {
     elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
@@ -632,12 +539,6 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
   n->elem_offset = std::move(elem_offset);
   n->data_alignment = data_alignment;
   n->offset_factor = offset_factor;
-  n->buffer_type = buffer_type;
-  if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
-    for (size_t i = 0; i < n->shape.size(); ++i) {
-      n->strides.push_back(PrimVar("stride", n->shape[i].ty()));
-    }
-  }
   n->span = std::move(span);
   // `layout=nullopt` is a meaningful sentinel: it tells the printer that the
   // user opted out of layout sugar (e.g., the `local_scalar` shorthand keys
@@ -649,20 +550,10 @@ Buffer::Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<
 }
 
 tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype, std::string name,
-                                       int data_alignment, int offset_factor, bool compact,
+                                       int data_alignment, int offset_factor,
                                        std::string memory_scope) {
   PrimType storage_type = (dtype == PrimType::Bool() ? PrimType::Int(8) : dtype);
   auto data = tirx::Var(name, PointerType(storage_type, memory_scope));
-  bool has_any = false;
-  if (!compact) {
-    for (const auto& it : shape) {
-      if (it.as<tirx::VarNode>()) {
-        has_any = true;
-        break;
-      }
-    }
-  }
-  tirx::BufferType buffer_type = has_any ? tirx::kAutoBroadcast : tirx::kDefault;
 
   PrimExpr elem_offset;
   if (offset_factor != 0) {
@@ -672,7 +563,7 @@ tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtyp
   }
 
   return tirx::Buffer(data, dtype, shape, ffi::Array<PrimExpr>(), elem_offset, name, data_alignment,
-                      offset_factor, buffer_type);
+                      offset_factor);
 }
 
 Buffer Buffer::with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const {
@@ -704,10 +595,9 @@ PrimExpr Buffer::OffsetOf_p(const Array<PrimExpr>& indices) const {
 bool Buffer::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
   return (*this)->shape.size() == 1 && is_one((*this)->shape[0]) && (*this)->strides.size() == 0 &&
-         (*this)->axis_separators.size() == 0 &&
          (!alloc_or_decl || tirx::is_zero((*this)->elem_offset)) && (*this)->data_alignment == 64 &&
-         (*this)->offset_factor == 1 && (*this)->buffer_type == tirx::BufferType::kDefault &&
-         (*this)->allocated_addr.size() == 0 && (*this)->layout.has_value() &&
+         (*this)->offset_factor == 1 && (*this)->allocated_addr.size() == 0 &&
+         (*this)->layout.has_value() &&
          ffi::StructuralEqual()((*this)->layout.value(), TileLayoutNode::DefaultLayout({1}));
 }
 
@@ -716,9 +606,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_packed("tirx.Buffer",
                   [](ffi::PackedArgs args, ffi::Any* ret) {
-                    TVM_FFI_ICHECK_EQ(args.size(), 12);
-                    auto buffer_type = args[8].cast<ffi::String>();
-                    BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
+                    TVM_FFI_ICHECK_EQ(args.size(), 10);
                     auto data = args[0].cast<Var>();
                     auto dtype = args[1].cast<PrimType>();
                     auto shape = args[2].cast<ffi::Array<PrimExpr>>();
@@ -727,11 +615,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                     auto name = args[5].cast<ffi::String>();
                     auto data_alignment = args[6].cast<int>();
                     auto offset_factor = args[7].cast<int>();
-                    auto axis_separators = args[9].cast<ffi::Array<IntImm>>();
-                    auto span = args[10].cast<Span>();
-                    auto layout = args[11].cast<Layout>();
+                    auto span = args[8].cast<Span>();
+                    auto layout = args[9].cast<Layout>();
                     *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment,
-                                  offset_factor, type, axis_separators, span, layout);
+                                  offset_factor, span, layout);
                   })
       .def_method("tirx.BufferAccessPtr",
                   static_cast<Expr (Buffer::*)(int, PointerType, int, PrimExpr,

@@ -59,6 +59,8 @@ void StmtVisitor::VisitStmt_(const WhileNode* op) {
   this->VisitStmt(op->body);
 }
 
+void StmtVisitor::VisitStmt_(const ReturnNode* op) { this->VisitExpr(op->value); }
+
 void StmtVisitor::VisitStmt_(const BreakNode* op) {}
 
 void StmtVisitor::VisitStmt_(const ContinueNode* op) {}
@@ -340,6 +342,17 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
     n->body = std::move(body);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const ReturnNode* op) {
+  Expr value = this->VisitExpr(op->value);
+  if (value.same_as(op->value)) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->value = std::move(value);
     return Stmt(n);
   }
 }
@@ -791,11 +804,11 @@ class IRSubstitute : public StmtExprMutator {
     Buffer new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
     // Additionally handle data var substitution (base does not visit data).
     Expr new_data_expr = VisitExpr(new_buf->data);
-    TVM_FFI_ICHECK(new_data_expr->IsInstance<VarNode>())
-        << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
-        << ", which was substituted into the expression " << new_data_expr
-        << " and the backing allocation must be a tirx::Var";
-    Var data = new_data_expr.as_or_throw<Var>();
+    auto new_data = new_data_expr.as<Var>();
+    TVM_FFI_ICHECK(new_data) << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
+                             << ", which was substituted into the expression " << new_data_expr
+                             << " and the backing allocation must be a tirx::Var";
+    Var data = new_data.value();
     if (!data.same_as(new_buf->data)) {
       auto* n = new_buf.CopyOnWrite();
       n->data = std::move(data);

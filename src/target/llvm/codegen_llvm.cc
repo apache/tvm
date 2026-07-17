@@ -324,7 +324,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
     llvm::Argument* v = &(*arg_it);
     const Var& var = f->params[i];
     var_map_[var.get()] = v;
-    v->setName(std::string(var->name_hint));
+    v->setName(std::string(var->name));
     if (is_restricted_) {
       if (var->ty.as<PointerTypeNode>() && !alias_var_set_.count(var.get())) {
         // set non alias.
@@ -353,8 +353,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   EmitDebugLocation(f->span);
 
   if (IsVoidType(f->ret_type)) {
-    // All other return types are handled when encountering
-    // builtin::ret().
+    // All other return types are handled when encountering Return.
     builder_->CreateRetVoid();
   } else {
     builder_->CreateRet(ConstInt32(0));
@@ -875,7 +874,7 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
 void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
                                   const PrimVar& loop_var, const Stmt& body) {
   llvm::BasicBlock* pre_block = builder_->GetInsertBlock();
-  std::string loop_var_name = loop_var->name_hint;
+  std::string loop_var_name = loop_var->name;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   auto* for_begin = llvm::BasicBlock::Create(*ctx, "for_begin_" + loop_var_name, function_);
   auto* for_body = llvm::BasicBlock::Create(*ctx, "for_body_" + loop_var_name, function_);
@@ -1021,7 +1020,7 @@ CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(llvm::Value* buffer_ptr,
 
 llvm::Value* CodeGenLLVM::GetVarValue(const VarNode* v) const {
   auto it = var_map_.find(v);
-  TVM_FFI_ICHECK(it != var_map_.end()) << "cannot find variable " << v->name_hint;
+  TVM_FFI_ICHECK(it != var_map_.end()) << "cannot find variable " << v->name;
   return it->second;
 }
 
@@ -1463,19 +1462,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
-  } else if (op->op.same_as(builtin::ret())) {
-    auto const* val = args[0].as<IntImmNode>();
-    TVM_FFI_ICHECK(val) << "the tirx.ret should be transformed to return zero "
-                        << "before the llvm code generation.";
-    TVM_FFI_ICHECK_EQ(val->value, 0) << "the tirx.ret should be transformed to "
-                                     << "return zero before the llvm code generation.";
-    builder_->CreateRet(ConstInt32(0));
-    // LLVM allows exactly one terminator in a single basic block
-    // append a new dummy basic block to avoid error.
-    llvm::BasicBlock* ret_dummy =
-        llvm::BasicBlock::Create(*llvm_target_->GetContext(), "ret_dummy", function_);
-    builder_->SetInsertPoint(ret_dummy);
-    return ret_dummy;
   } else if (op->op.same_as(builtin::continue_loop())) {
     TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty())
         << "the tirx.continue_loop should be inserted under at least one For or While stmts.";
@@ -2070,6 +2056,21 @@ void CodeGenLLVM::VisitStmt_(const WhileNode* op) {
   builder_->SetInsertPoint(while_merge);
 }
 
+void CodeGenLLVM::VisitStmt_(const ReturnNode* op) {
+  EmitDebugLocation(op);
+  auto const* val = op->value.as<IntImmNode>();
+  TVM_FFI_ICHECK(val) << "Return should be transformed to return zero "
+                      << "before LLVM code generation.";
+  TVM_FFI_ICHECK_EQ(val->value, 0)
+      << "Return should be transformed to return zero before LLVM code generation.";
+  builder_->CreateRet(ConstInt32(0));
+  // LLVM allows exactly one terminator in a basic block. Append a dummy block
+  // so code generation can continue after the return statement.
+  llvm::BasicBlock* ret_dummy =
+      llvm::BasicBlock::Create(*llvm_target_->GetContext(), "ret_dummy", function_);
+  builder_->SetInsertPoint(ret_dummy);
+}
+
 void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
   EmitDebugLocation(op);
   llvm::Value* cond = MakeValue(op->condition);
@@ -2191,7 +2192,7 @@ void CodeGenLLVM::VisitStmt_(const BindNode* op) {
         << ", but is being bound to expression with type " << op->value->ty;
     auto* llvm_type = GetLLVMType(v->ty);
     if (llvm_type != value->getType()) {
-      value->setName((v->name_hint + "_void_ptr").c_str());
+      value->setName((v->name + "_void_ptr").c_str());
       value = builder_->CreatePointerCast(value, llvm_type);
     }
   }
@@ -2300,7 +2301,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm,
 
 void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_var,
                                       llvm::Instruction* insert_before) {
-  llvm_value->setName(tir_var->name_hint.c_str());
+  llvm_value->setName(tir_var->name.c_str());
 
   if (!di_subprogram_) return;
 
@@ -2308,7 +2309,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   // no invalid dtypes
   if (!dbg_dtype) return;
   auto local_var = dbg_info_->di_builder_->createAutoVariable(
-      di_subprogram_, std::string(tir_var->name_hint), dbg_info_->file_, 0, dbg_dtype);
+      di_subprogram_, std::string(tir_var->name), dbg_info_->file_, 0, dbg_dtype);
 
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 

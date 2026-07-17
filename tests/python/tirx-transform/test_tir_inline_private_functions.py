@@ -195,7 +195,7 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
             cos = T.cos(T.cast(i, "float32"))
             sin = T.sin(T.cast(i, "float32"))
             retval = cos * cos + sin * sin
-            T.ret(retval)
+            return retval
 
     @I.ir_module(s_tir=True)
     class Expected:

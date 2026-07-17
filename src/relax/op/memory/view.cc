@@ -152,9 +152,9 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
           << "Operator " << call->op
           << " expects the relative_byte_offset to be a 64-bit integer, but received "
           << arg_relative_byte_offset << ", which has type " << ty;
-      if (arg_relative_byte_offset.as<VarNode>()) {
-        // A scalar Relax variable has an unknown value.  Although it has a
-        // PrimType, it is not a TIRX expression that can be analyzed.
+      if (arg_relative_byte_offset.as<DataflowVarNode>()) {
+        // A primitive DataflowVar is a runtime value, not a symbolic value
+        // that can be analyzed.
         return std::nullopt;
       } else if (auto prim_value = arg_relative_byte_offset.as<PrimExpr>()) {
         // An offset of known value is applied.  The known value may

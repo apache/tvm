@@ -1595,8 +1595,8 @@ def test_decoder_layer_dynamic_shape():
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            var_rotary: T.handle,
             m: T.int64,
+            var_rotary: T.handle,
         ):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -1673,15 +1673,13 @@ def test_decoder_layer_dynamic_shape():
             )
             lv16 = R.call_tir(
                 cls.rotary_embedding,
-                (lv9, cos_cached, sin_cached),
+                (lv9, cos_cached, sin_cached, m),
                 out_ty=R.Tensor((1, n, 32, 128), dtype="float16"),
-                tir_vars=R.shape([m]),
             )
             lv17 = R.call_tir(
                 cls.rotary_embedding,
-                (lv12, cos_cached, sin_cached),
+                (lv12, cos_cached, sin_cached, m),
                 out_ty=R.Tensor((1, n, 32, 128), dtype="float16"),
-                tir_vars=R.shape([m]),
             )
             lv18: R.Tensor((n, 32, 128), dtype="float16") = R.reshape(lv17, R.shape([n, 32, 128]))
             lv19: R.Tensor((n, 32, 128), dtype="float16") = R.reshape(lv15, R.shape([n, 32, 128]))
@@ -1797,8 +1795,8 @@ def test_decoder_layer_dynamic_shape():
             var_A: T.handle,
             B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
             C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            var_rotary: T.handle,
             m: T.int64,
+            var_rotary: T.handle,
         ):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
@@ -1868,15 +1866,13 @@ def test_decoder_layer_dynamic_shape():
             )
             lv16 = R.dist.call_tir(
                 cls.rotary_embedding,
-                (lv9, cos_cached, sin_cached),
+                (lv9, cos_cached, sin_cached, m),
                 out_ty=R.DTensor((1, n, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([m]),
             )
             lv17 = R.dist.call_tir(
                 cls.rotary_embedding,
-                (lv12, cos_cached, sin_cached),
+                (lv12, cos_cached, sin_cached, m),
                 out_ty=R.DTensor((1, n, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([m]),
             )
             lv18: R.DTensor((n, 32, 128), "float16", "mesh[0]", "S[1]") = R.reshape(
                 lv17, R.shape([n, 32, 128])

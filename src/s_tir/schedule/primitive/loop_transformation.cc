@@ -81,7 +81,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
   explicit IterMapSimplifyBlockBinding(ffi::MapObj* opaque_blocks,
-                                       ffi::Map<Var, Range> loop_var2extent,
+                                       ffi::Map<PrimVar, Range> loop_var2extent,
                                        bool preserve_unit_iters)
       : opaque_blocks_(opaque_blocks),
         loop_var2extent_(loop_var2extent),
@@ -89,7 +89,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
 
   static For SimplifyBindings(Stmt stmt, const ffi::Array<StmtSRef>& loop_srefs,
                               ffi::MapObj* opaque_blocks, bool preserve_unit_iters) {
-    ffi::Map<Var, Range> loop_var2extent;
+    ffi::Map<PrimVar, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
@@ -139,7 +139,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   /*! \brief The reuse mapping */
   ffi::MapObj* opaque_blocks_;
   /*! \brief The range of loops */
-  ffi::Map<Var, Range> loop_var2extent_;
+  ffi::Map<PrimVar, Range> loop_var2extent_;
   /*! \brief Internal analyzer */
   arith::Analyzer analzyer_;
   /*! \brief Whether or not to simplify unit iterators */
@@ -424,7 +424,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).copy_with_dtype(dtype);
+    Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).CopyWithDType(dtype);
     substitute_value = substitute_value * factor + var.as_or_throw<PrimExpr>();
     analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
@@ -480,12 +480,12 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < store->indices.size(); i++) {
-      const VarNode* var_node = store->indices[i].as<VarNode>();
-      if (var_node == nullptr) {
+      auto var = store->indices[i].as<PrimVar>();
+      if (!var.has_value()) {
         check_ = true;
         break;
       }
-      indices.push_back(var_node->name_hint);
+      indices.push_back(var.value()->name);
     }
     if (buffer_indices_map.find(store->buffer->name) == buffer_indices_map.end() && !check_)
       buffer_indices_map.Set(store->buffer->name, indices);
@@ -496,12 +496,12 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < load->indices.size(); i++) {
-      const VarNode* var_node = load->indices[i].as<VarNode>();
-      if (var_node == nullptr) {
+      auto var = load->indices[i].as<PrimVar>();
+      if (!var.has_value()) {
         check_ = true;
         break;
       }
-      indices.push_back(var_node->name_hint);
+      indices.push_back(var.value()->name);
     }
     if (buffer_indices_map.find(load->buffer->name) == buffer_indices_map.end() && !check_)
       buffer_indices_map.Set(load->buffer->name, indices);
@@ -547,7 +547,7 @@ class BlockMutator : public StmtExprMutator {
     // If iter_vars.size() is 0, then the block most probably be an Opaque block
     if (new_block->iter_vars.size() == 0 || inner_iter_var_index == -1) {
       new_block.CopyOnWrite()->name_hint =
-          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name_hint;
+          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name;
       return new_block;
     }
 
@@ -558,7 +558,7 @@ class BlockMutator : public StmtExprMutator {
         MutateArray(new_block->iter_vars, [this, &iter_var_](const IterVar& iter) {
           auto dtype = iter->var.ty();
           // Create new Var instance for each IterVar
-          Var new_var = Var(iter->var->name_hint, iter->var.ty());
+          Var new_var = Var(iter->var->name, iter->var.ty());
           IterVar new_iter = iter;
           new_iter.CopyOnWrite()->var = new_var.as_or_throw<PrimVar>();
           // Change the domain of IterVar corresponding to partitioned loop_var
@@ -572,14 +572,14 @@ class BlockMutator : public StmtExprMutator {
     if (!new_block->iter_vars.same_as(new_iter_vars)) {
       new_block.CopyOnWrite()->iter_vars = std::move(new_iter_vars);
       new_block.CopyOnWrite()->name_hint =
-          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name_hint;
+          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name;
     }
 
     // Get the (iter_var, new Range) map
     ffi::Map<ffi::String, Range> index_range_map;
     for (size_t i = 0; i < new_block->iter_vars.size(); i++) {
       IterVar iter = new_block->iter_vars[i];
-      index_range_map.Set(iter->var->name_hint, iter->dom);
+      index_range_map.Set(iter->var->name, iter->dom);
     }
 
     // Get the (Buffer, indices) map
@@ -623,7 +623,7 @@ class BlockMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
-    Var new_var = Var(op->loop_var->name_hint, op->loop_var.ty());
+    Var new_var = Var(op->loop_var->name, op->loop_var.ty());
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
@@ -664,7 +664,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
     dtype = PrimType::Int(bits);
   }
 
-  ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name_hint;
+  ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name;
   int n = factors.size();
   PrimExpr min_value = loop->min;
   PrimExpr extent_value;
@@ -675,7 +675,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   // Iterate over each pair of factors and create partition
   for (int i = 0; i < n; i++) {
     extent_value = analyzer->Simplify(factors[i]);
-    Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).copy_with_dtype(dtype);
+    Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).CopyWithDType(dtype);
     Stmt loop_body = tirx::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
@@ -913,7 +913,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
       return false;
     };
     if (UsesVar(loop->extent, f_contain)) {
-      throw DependentLoopError(self->mod, ffi::GetRef<For>(loop), used_var->name_hint,
+      throw DependentLoopError(self->mod, ffi::GetRef<For>(loop), used_var->name,
                                DependentLoopError::PrimitiveKind::kFuse);
     }
     outer_loop_vars.insert(loop->loop_var.get());
@@ -924,12 +924,12 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   int n = loops.size();
   int bits = loops[0]->loop_var.ty().bits();
   for (int i = 1; i < n; i++) {
-    suffix += "_" + loops[i]->loop_var->name_hint;
+    suffix += "_" + loops[i]->loop_var->name;
     bits = std::max(bits, loops[i]->loop_var.ty().bits());
   }
   suffix += "_fused";
 
-  Var fused_var = loops[0]->loop_var.CopyWithSuffix(suffix).copy_with_dtype(PrimType::Int(bits));
+  Var fused_var = loops[0]->loop_var.CopyWithSuffix(suffix).CopyWithDType(PrimType::Int(bits));
   ffi::Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
@@ -1111,7 +1111,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
       return false;
     };
     if (UsesVar(copy->min, f_contain) || UsesVar(copy->extent, f_contain)) {
-      throw DependentLoopError(self->mod, ffi::GetRef<For>(copy), used_var->name_hint,
+      throw DependentLoopError(self->mod, ffi::GetRef<For>(copy), used_var->name,
                                DependentLoopError::PrimitiveKind::kReorder);
     }
     inner_vars.insert(copy->loop_var.get());

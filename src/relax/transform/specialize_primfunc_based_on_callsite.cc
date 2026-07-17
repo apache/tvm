@@ -93,8 +93,8 @@ class SpecializeTIRCallArgs : ExprMutator {
         scope = tensor_ty->vdevice.value()->memory_scope;
       }
       ffi::String name;
-      if (args[i]->IsInstance<relax::VarNode>()) {
-        name = args[i].as_or_throw<Var>()->name_hint;
+      if (args[i]->IsInstance<tvm::VarNode>()) {
+        name = args[i].as_or_throw<Var>()->name;
       } else {
         name = std::string({static_cast<char>('A' + i)});
       }

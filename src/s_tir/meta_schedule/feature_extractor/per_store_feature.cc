@@ -919,8 +919,8 @@ void Feature::SubFeature::SetReuse(const LoopNest& loop_nest, int64_t top_loop_t
   for (const MultiIndex& multi_index : this->multi_indices) {
     for (const PrimExpr& index : multi_index) {
       PostOrderVisit(index, [&region_vars](const ffi::ObjectRef& obj) -> void {
-        if (const auto* var = obj.as<VarNode>()) {
-          region_vars.insert(var);
+        if (auto var = obj.as<PrimVar>()) {
+          region_vars.insert(var.value().get());
         }
       });
     }

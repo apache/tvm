@@ -1561,7 +1561,6 @@ def reshape(buffer: Buffer, shape: list[Expr]):
             + " are not compatible"
         )
 
-    assert buffer.buffer_type == 1
     return decl_buffer(
         shape,
         buffer.dtype,
@@ -1572,8 +1571,6 @@ def reshape(buffer: Buffer, shape: list[Expr]):
         buffer.scope(),
         buffer.data_alignment,
         buffer.offset_factor,
-        "",
-        buffer.axis_separators,
         buffer.layout,
     )
 

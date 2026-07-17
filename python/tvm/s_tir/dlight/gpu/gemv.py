@@ -14,7 +14,7 @@
 # KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E741, F821
+# ruff: noqa: E741
 """A rule for GEMV and DecodeGEMV."""
 
 from functools import reduce
@@ -288,7 +288,7 @@ class GEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx)
                     sch.set_scope(block, 0, "shared")
                     _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
-                    _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
+                    _, tx = sch.split(sch.fuse(*s), factors=[None, TR])
                     sch.bind(tx, "threadIdx.x")
                 else:
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)

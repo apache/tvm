@@ -43,6 +43,9 @@ constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
  */
 constexpr const char* async_scope = "async_scope";
 
+/*! \brief Mark stores/loads with their bounds. */
+constexpr const char* buffer_bound = "buffer_bound";
+
 /*!
  * \brief Marks production of double buffer data
  */
@@ -222,15 +225,6 @@ constexpr const char* warp_execution = "warp_execution";
  * PrimFunc attributes for TIR.
  */
 constexpr const char* layout_transforms = "layout_transforms";
-
-/*!
- * \brief Marks the physical axis separators
- *
- * Only applies to a DataProducer, as it should be made part of the
- * Buffer definition in a PrimFunc.  See `BufferNode::axis_separators`
- * for more details.
- */
-constexpr const char* axis_separators = "axis_separators";
 
 /*!
  * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted

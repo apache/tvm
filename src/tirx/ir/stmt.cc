@@ -48,6 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfThenElseNode::RegisterReflection();
   ForNode::RegisterReflection();
   WhileNode::RegisterReflection();
+  ReturnNode::RegisterReflection();
   BreakNode::RegisterReflection();
   ContinueNode::RegisterReflection();
   BufferRegionNode::RegisterReflection();
@@ -239,6 +240,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.While", [](PrimExpr condition, Stmt body, Span span) {
     return While(condition, body, span);
   });
+}
+
+// Return
+Return::Return(Expr value, Span span) {
+  TVM_FFI_ICHECK(value.defined());
+
+  ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>();
+  node->value = std::move(value);
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tirx.Return", [](Expr value, Span span) { return Return(value, span); });
 }
 
 // Break
@@ -549,11 +565,6 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
       << " required alignment=" << buffer->data_alignment
       << ", provided alignment=" << source_buffer->data_alignment;
 
-  // Check BufferType. AutoBroadcast is not allowed for now.
-  TVM_FFI_ICHECK(buffer->buffer_type == BufferType::kDefault &&
-                 source_buffer->buffer_type == BufferType::kDefault)
-      << "AutoBroadcast is not allowed in MatchBuffer";
-
   // Validate shape
   TVM_FFI_ICHECK(source->region.size() >= buffer->shape.size())
       << "Dimension of source ffi::Array<Range> expected to be larger or equal than target buffer "
@@ -568,7 +579,7 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   for (size_t i = 0; i < buffer->shape.size(); ++i) {
     const Range& source_range = source->region[i + offset];
     const PrimExpr& buffer_shape = buffer->shape[i];
-    if (!buffer_shape->IsInstance<VarNode>()) {
+    if (!buffer_shape.as<PrimVar>()) {
       TVM_FFI_ICHECK(analyzer->CanProve(source_range->extent == buffer_shape))
           << "The dimension mismatched between source region and target buffer shape, got "
           << source_range->extent << " vs. " << buffer_shape << ".";

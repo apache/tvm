@@ -82,7 +82,7 @@ def test_run_target(mod=None, tgt_str=None, in_dtype="float16", out_dtype="float
     f = lib["main"]
 
     def run_and_check():
-        dev = tvm.device(tgt_str, 0)
+        dev = tvm.cuda(0)
         a = tvm.runtime.tensor(a_np, dev)
         b = tvm.runtime.tensor(b_np, dev)
         c = tvm.runtime.tensor(c_np, dev)

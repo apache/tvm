@@ -215,7 +215,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
     // For the data variable, only Var-to-Var remapping can be handled
     // in MutateBuffer.  See the DeclBuffer visitor for the handling
     // of Var-to-PrimExpr remapping.
-    Var data = VisitExpr(buffer->data).as<Var>().value_or(buffer->data);
+    Var data = buffer->data;
+    if (auto new_data = VisitExpr(buffer->data).as<Var>()) {
+      data = new_data.value();
+    }
 
     ffi::Array<PrimExpr> shape =
         buffer->shape.Map([this](const PrimExpr& e) { return VisitPrimExpr(e); });
@@ -360,10 +363,11 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
       return lhs.same_as(rhs);
     };
     if (!expr_equal(new_expr, old_expr)) {
-      TVM_FFI_CHECK(old_expr->IsInstance<VarNode>(), TypeError)
+      auto maybe_var = old_expr.as<Var>();
+      TVM_FFI_CHECK(maybe_var, TypeError)
           << "The signature of target buffer exprected an independent Var, but got " << old_expr
           << ".";
-      const Var& var = old_expr.as_or_throw<Var>();
+      const Var& var = maybe_var.value();
       auto it = var_map->find(var);
       if (it != var_map->end()) {
         TVM_FFI_CHECK(expr_equal(it->second, new_expr), ValueError)

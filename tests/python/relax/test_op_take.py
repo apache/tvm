@@ -36,7 +36,7 @@ def test_take_scalar_tensor_as_index(axis):
 
     """
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:
@@ -64,7 +64,7 @@ def test_take_1d_tensor_as_index(axis):
     `data.ndim + indices.ndim - 1`.
     """
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:
@@ -88,7 +88,7 @@ def test_take_1d_tensor_as_index(axis):
 def test_take_2d_tensor_as_index(axis):
     """The index of R.take may be a 2-d tensor"""
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:
@@ -117,7 +117,7 @@ def test_take_constant_prim_value_as_index(axis):
 
     """
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:
@@ -146,7 +146,7 @@ def test_take_dynamic_prim_value_as_index(axis):
 
     """
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:
@@ -173,7 +173,7 @@ def test_take_nan_mode_OOB_indices(axis):
     This test checks that out-of-bounds indices produce NaN values in the output tensor.
     """
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:
@@ -208,7 +208,7 @@ def test_take_wrap_mode_OOB_indices(axis):
     This test checks that out-of-bounds indices wrap around to the valid range.
     """
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:
@@ -234,7 +234,7 @@ def test_take_clip_mode_OOB_indices(axis):
     This test checks that out-of-bounds indices are clipped to the valid range.
     """
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module
     class Module:

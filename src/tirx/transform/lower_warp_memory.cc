@@ -170,7 +170,8 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
   }
 
   void UpdatePattern(const PrimExpr& index) {
-    ffi::Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
+    ffi::Array<PrimExpr> m =
+        arith::DetectLinearEquation(index, {warp_index_.as_or_throw<PrimVar>()});
     TVM_FFI_ICHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed. Could not simplify the store index `" << index
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
@@ -278,7 +279,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     alloc_size = warp_group_ * factor;
 
     Buffer new_buf(op->buffer->data, op->buffer->dtype, {IntImm::Int32(alloc_size / width_)}, {},
-                   PrimExpr(), op->buffer->data->name_hint, 0, 0, BufferType::kDefault);
+                   PrimExpr(), op->buffer->data->name, 0, 0);
     Stmt rewritten_body = this->VisitStmt(body);
     return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
   }

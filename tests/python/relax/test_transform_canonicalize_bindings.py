@@ -415,24 +415,29 @@ def test_fold_variables_from_match_cast():
             A: R.Tensor([16, 16], dtype="float32"),
             B: R.Tensor([16, 16], dtype="float32"),
         ):
-            # The function no longer depends on symbolic variables.
-            # Shape inference is now propagated using the
-            # statically-known shapes.
+            # Shape annotations use the inferred static values, but runtime
+            # primitive arguments remain symbolic.  Keep the match-casts that
+            # define the symbols used by those runtime arguments.
+            N1 = T.int64()
+            M = T.int64()
+            N2 = T.int64()
 
-            lhs: R.Tensor([32, 16], dtype="float32") = R.concat((A, B), axis=0)
+            lhs_A = R.match_cast(A, R.Tensor([N1, M], dtype="float32"))
+            lhs_B = R.match_cast(B, R.Tensor([N2, M], dtype="float32"))
+            lhs: R.Tensor([32, 16], dtype="float32") = R.concat((lhs_A, lhs_B), axis=0)
             proj_concat: R.Tensor([32], dtype="float32") = R.matmul(lhs, state)
             proj_A: R.Tensor([16], dtype="float32") = R.strided_slice(
                 proj_concat,
                 [R.prim_value(0)],
                 [R.prim_value(0)],
-                [R.prim_value(16)],
+                [R.prim_value(N1)],
                 assume_inbound=False,
             )
             proj_B: R.Tensor([16], dtype="float32") = R.strided_slice(
                 proj_concat,
                 [R.prim_value(0)],
-                [R.prim_value(16)],
-                [R.prim_value(32)],
+                [R.prim_value(N1)],
+                [R.prim_value(N1 + N2)],
                 assume_inbound=False,
             )
             return (proj_A, proj_B)
@@ -544,6 +549,9 @@ def test_match_cast_may_have_distinct_values_in_branches():
             if N == 16:
                 # Prior to the R.match_cast, the
                 weights: R.Tensor([M, 16], "float32") = A * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
                 # The scaled weights within the branch may perform
                 # shape inference knowing that N==16.
                 weights: R.Tensor([M, 16], "float32") = weights * scale
@@ -552,6 +560,9 @@ def test_match_cast_may_have_distinct_values_in_branches():
             else:
                 # Prior to the R.match_cast, the
                 weights: R.Tensor([M, 32], "float32") = B * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
                 # Within the else-branch, the R.match_cast implies
                 # that N==32.  While this conflicts with the earlier
                 # definition, the two occur in separate branches, so
@@ -1290,7 +1301,7 @@ def test_trivial_binding_of_replaced_non_dataflow_var():
     tvm.ir.assert_structural_equal(After, Expected)
 
     def _get_binding_names(mod):
-        return [binding.var.name_hint for binding in mod["main"].body.blocks[0].bindings]
+        return [binding.var.name for binding in mod["main"].body.blocks[0].bindings]
 
     expected_names = _get_binding_names(Expected)
     after_names = _get_binding_names(After)

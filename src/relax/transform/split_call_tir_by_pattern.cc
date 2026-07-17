@@ -98,17 +98,17 @@ class ForMatcher : public TensorizeComparator {
 
   bool VisitExpr(const Expr& expr, const PrimExpr& rhs) final {
     PrimExpr lhs = expr.as_or_throw<PrimExpr>();
-    if (const auto* op = rhs.as<VarNode>()) {
-      if (pattern_vars_.count(ffi::GetRef<Var>(op))) {
+    if (auto rhs_prim_var = rhs.as<PrimVar>()) {
+      Var rhs_var = rhs_prim_var.value();
+      if (pattern_vars_.count(rhs_var)) {
         // special case for pattern vars
-        const auto* lhs_ptr = lhs.as<VarNode>();
-        if (lhs_ptr == nullptr) {
+        if (!lhs.as<PrimVar>()) {
           if (lhs->IsInstance<tirx::IntImmNode>() || lhs->IsInstance<tirx::FloatImmNode>()) {
-            ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(ffi::GetRef<Var>(op));
+            ffi::Optional<PrimExpr> value = QueryEvaluatedSymbols(rhs_var);
             if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
             } else {
-              evaluated_symbols.back()[ffi::GetRef<Var>(op)] = lhs;
+              evaluated_symbols.back()[rhs_var] = lhs;
             }
             return true;
           } else {
@@ -119,9 +119,10 @@ class ForMatcher : public TensorizeComparator {
     }
     // pattern_var * expr
     if (const auto* rhs_ptr = rhs.as<MulNode>()) {
-      const auto* operand_a = rhs_ptr->a.as<VarNode>();
-      const auto* operand_b = rhs_ptr->b.as<VarNode>();
-      if (operand_a != nullptr && pattern_vars_.count(ffi::GetRef<Var>(operand_a))) {
+      auto operand_a = rhs_ptr->a.as<PrimVar>();
+      auto operand_b = rhs_ptr->b.as<PrimVar>();
+      if (operand_a && pattern_vars_.count(operand_a.value())) {
+        Var pattern_var = operand_a.value();
         // pattern var is on the left
         evaluated_symbols.push_back(SymbolMap());
         bool match = VisitExpr(lhs, rhs_ptr->b);
@@ -129,12 +130,12 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[ffi::GetRef<Var>(operand_a)] =
-              MakeConstScalar(rhs_ptr->b.ty(), 1);
+          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->b.ty(), 1);
           return true;
         }
       }
-      if (operand_b != nullptr && pattern_vars_.count(ffi::GetRef<Var>(operand_b))) {
+      if (operand_b && pattern_vars_.count(operand_b.value())) {
+        Var pattern_var = operand_b.value();
         // pattern var is on the right
         evaluated_symbols.push_back(SymbolMap());
         bool match = VisitExpr(lhs, rhs_ptr->a);
@@ -142,17 +143,17 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[ffi::GetRef<Var>(operand_b)] =
-              MakeConstScalar(rhs_ptr->a.ty(), 1);
+          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->a.ty(), 1);
           return true;
         }
       }
     }
     // pattern_Var + expr
     if (const auto* rhs_ptr = rhs.as<AddNode>()) {
-      const auto* operand_a = rhs_ptr->a.as<VarNode>();
-      const auto* operand_b = rhs_ptr->b.as<VarNode>();
-      if (operand_a != nullptr && pattern_vars_.count(ffi::GetRef<Var>(operand_a))) {
+      auto operand_a = rhs_ptr->a.as<PrimVar>();
+      auto operand_b = rhs_ptr->b.as<PrimVar>();
+      if (operand_a && pattern_vars_.count(operand_a.value())) {
+        Var pattern_var = operand_a.value();
         // pattern var is on the left
         evaluated_symbols.push_back(SymbolMap());
         bool match = VisitExpr(lhs, rhs_ptr->b);
@@ -160,12 +161,12 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[ffi::GetRef<Var>(operand_a)] =
-              MakeConstScalar(rhs_ptr->b.ty(), 0);
+          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->b.ty(), 0);
           return true;
         }
       }
-      if (operand_b != nullptr && pattern_vars_.count(ffi::GetRef<Var>(operand_b))) {
+      if (operand_b && pattern_vars_.count(operand_b.value())) {
+        Var pattern_var = operand_b.value();
         // pattern var is on the right
         evaluated_symbols.push_back(SymbolMap());
         bool match = VisitExpr(lhs, rhs_ptr->a);
@@ -173,8 +174,7 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[ffi::GetRef<Var>(operand_b)] =
-              MakeConstScalar(rhs_ptr->a.ty(), 0);
+          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->a.ty(), 0);
           return true;
         }
       }

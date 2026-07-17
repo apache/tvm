@@ -77,8 +77,8 @@ def test_emit_with_name():
     gv0 = bb.emit_output(rx.op.multiply(lv0, y), "multi")
     b0 = bb._end_block()
 
-    assert b0.bindings[0].var.name_hint == "add"
-    assert b0.bindings[1].var.name_hint == "multi"
+    assert b0.bindings[0].var.name == "add"
+    assert b0.bindings[1].var.name == "multi"
 
 
 def test_function_single_block():
@@ -91,11 +91,11 @@ def test_function_single_block():
     with bb.function("func", [x, y]):
         with bb.dataflow():
             lv0 = bb.emit(rx.op.add(x, y))
-            assert lv0.name_hint == "lv"
+            assert lv0.name == "lv"
             lv1 = bb.emit(rx.op.multiply(lv0, y))
-            assert lv1.name_hint == "lv1"
+            assert lv1.name == "lv1"
             gv0 = bb.emit_output(lv1)
-        assert gv0.name_hint == "gv"
+        assert gv0.name == "gv"
         bb.emit_func_output(gv0)
 
     func = bb.finalize()["func"]
@@ -117,14 +117,14 @@ def test_function_multi_blocks():
     with bb.function("func", [x, y]):
         with bb.dataflow():
             lv0 = bb.emit(rx.op.add(x, y))
-            assert lv0.name_hint == "lv"
+            assert lv0.name == "lv"
             gv0 = bb.emit_output(lv0)
-        assert gv0.name_hint == "gv"
+        assert gv0.name == "gv"
         gv1 = bb.emit(rx.op.add(gv0, gv0))
-        assert gv1.name_hint == "gv1"
+        assert gv1.name == "gv1"
         with bb.dataflow():
             lv1 = bb.emit(rx.op.add(gv1, gv1))
-            assert lv1.name_hint == "lv1"
+            assert lv1.name == "lv1"
             gv2 = bb.emit_output(gv1)
         bb.emit_func_output(gv2)
 
@@ -151,7 +151,7 @@ def test_multi_functions():
     with bb.function("func1", [x_1, y_1]):
         with bb.dataflow():
             lv0 = bb.emit(rx.op.add(x_1, y_1))
-            assert lv0.name_hint == "lv"
+            assert lv0.name == "lv"
             gv0 = bb.emit_output(lv0)
         bb.emit_func_output(gv0)
 
@@ -164,7 +164,7 @@ def test_multi_functions():
         with bb.dataflow():
             lv0 = bb.emit(rx.op.add(y_2, x_2))
             # TODO(@yuchen): enable block builder to reset local var unique name map
-            assert lv0.name_hint == "lv1"
+            assert lv0.name == "lv1"
             gv0 = bb.emit_output(lv0)
         bb.emit_func_output(gv0)
 
@@ -216,8 +216,8 @@ def test_binary_shape_type_deduction():
 
 
 def test_emit_match_cast():
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     x = rx.Var("tensor_value", rx.TensorType(dtype="float32", ndim=-1))
     y = rx.Var("shape_value", rx.ShapeType([16, 8]))
     bb = rx.BlockBuilder()
@@ -249,14 +249,14 @@ def test_emit_match_cast():
     assert b1.value == y
     assert b1.ty == rx.ShapeType([m, n])
     assert b1.var == lv1
-    assert b1.var.name_hint == "var_name"
+    assert b1.var.name == "var_name"
 
 
 def test_emit_match_cast_binding_in_dataflow_block():
     bb = rx.BlockBuilder()
 
     x = rx.Var("x", rx.TensorType(dtype="float32", ndim=-1))
-    m = tirx.Var("m", dtype="int64")
+    m = tirx.Var("m", ty="int64")
     gv = rx.Var("gv", rx.TensorType(dtype="float32", ndim=-1))
     match_cast = rx.MatchCast(gv, x, rx.TensorType((m,), "float32"))
 

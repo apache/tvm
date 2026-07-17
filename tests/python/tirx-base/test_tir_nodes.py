@@ -162,10 +162,11 @@ def test_any():
     except ValueError:
         pass
     assert str(tvm.tirx.any(x < y)) == f"{x.name} < {y.name}"
-    assert str(tvm.tirx.any(x < y, x > z)) == f"{x.name} < {y.name} or {x.name} > {z.name}"
+    assert str(tvm.tirx.any(x < y, x > z)) == (f"{x.name} < {y.name} or {x.name} > {z.name}")
     assert (
         str(tvm.tirx.any(x < y, y > z + 1, x < z * 2))
-        == f"{x.name} < {y.name} or {y.name} > {z.name} + 1 or {x.name} < {z.name} * 2"
+        == f"{x.name} < {y.name} or {y.name} > {z.name} + 1 or "
+        f"{x.name} < {z.name} * 2"
     )
 
 
@@ -184,10 +185,11 @@ def test_all():
     except ValueError:
         pass
     assert str(tvm.tirx.all(x < y)) == f"{x.name} < {y.name}"
-    assert str(tvm.tirx.all(x < y, x > z)) == f"{x.name} < {y.name} and {x.name} > {z.name}"
+    assert str(tvm.tirx.all(x < y, x > z)) == (f"{x.name} < {y.name} and {x.name} > {z.name}")
     assert (
         str(tvm.tirx.all(x < y, y > z + 1, x < z * 2))
-        == f"{x.name} < {y.name} and {y.name} > {z.name} + 1 and {x.name} < {z.name} * 2"
+        == f"{x.name} < {y.name} and {y.name} > {z.name} + 1 and "
+        f"{x.name} < {z.name} * 2"
     )
 
 

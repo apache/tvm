@@ -558,8 +558,74 @@ def test_alignment():
     assert has_call_to_assume()
 
 
+def _llvm_div_cases():
+    dividend_ranges = [
+        (-12, -12),
+        (-11, -1),
+        (-11, 0),
+        (0, 0),
+        (12, 12),
+        (1, 11),
+        (0, 11),
+        (-11, 11),
+    ]
+    divisor_ranges = [
+        (-11, -1),
+        (-11, 1),
+        (-4, -4),
+        (-2, -2),
+        (1, 11),
+        (0, 11),
+        (4, 4),
+        (2, 2),
+        (-11, 11),
+    ]
+
+    for start, end in dividend_ranges:
+        for dstart, dend in divisor_ranges:
+            for dtype in ["int32", "int8"]:
+                for floor_div in [False, True]:
+                    yield pytest.param(
+                        start,
+                        end,
+                        dstart,
+                        dend,
+                        dtype,
+                        floor_div,
+                        id=f"{dtype}-{'floor' if floor_div else 'trunc'}-{start}:{end}-{dstart}:{dend}",
+                    )
+            if start >= 0 and dstart >= 0:
+                for floor_div in [False, True]:
+                    yield pytest.param(
+                        start,
+                        end,
+                        dstart,
+                        dend,
+                        "uint32",
+                        floor_div,
+                        id=f"uint32-{'floor' if floor_div else 'trunc'}-{start}:{end}-{dstart}:{dend}",
+                    )
+
+    for dstart, dend in [(0, 11), (1, 11), (2, 2), (4, 4)]:
+        for start, end in [(123, 133), (0, 255)]:
+            for floor_div in [False, True]:
+                yield pytest.param(
+                    start,
+                    end,
+                    dstart,
+                    dend,
+                    "uint8",
+                    floor_div,
+                    id=f"uint8-{'floor' if floor_div else 'trunc'}-{start}:{end}-{dstart}:{dend}",
+                )
+
+
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-def test_llvm_div():
+@pytest.mark.parametrize(
+    "start,end,dstart,dend,dtype,floor_div",
+    list(_llvm_div_cases()),
+)
+def test_llvm_div(start, end, dstart, dend, dtype, floor_div):
     """Check that the semantics of div and mod is correct"""
 
     def check(start, end, dstart, dend, dtype, floor_div=False):
@@ -658,44 +724,7 @@ def test_llvm_div():
                         f"but should be {mref}"
                     )
 
-    # Try different ranges to cover different cases
-    for start, end in [
-        (-12, -12),
-        (-11, -1),
-        (-11, 0),
-        (0, 0),
-        (12, 12),
-        (1, 11),
-        (0, 11),
-        (-11, 11),
-    ]:
-        for dstart, dend in [
-            (-11, -1),
-            (-11, 1),
-            (-4, -4),
-            (-2, -2),
-            (1, 11),
-            (0, 11),
-            (4, 4),
-            (2, 2),
-            (-11, 11),
-        ]:
-            if end < start or dend < dstart or (dend == 0 and dstart == 0) or dend == 0:
-                continue
-            check(start, end, dstart, dend, "int32", floor_div=False)
-            check(start, end, dstart, dend, "int32", floor_div=True)
-            check(start, end, dstart, dend, "int8", floor_div=False)
-            check(start, end, dstart, dend, "int8", floor_div=True)
-            if start >= 0 and dstart >= 0:
-                check(start, end, dstart, dend, "uint32", floor_div=False)
-                check(start, end, dstart, dend, "uint32", floor_div=True)
-
-    # Additional tests for uint8
-    for dstart, dend in [(0, 11), (1, 11), (2, 2), (4, 4)]:
-        check(123, 133, dstart, dend, "uint8", floor_div=False)
-        check(123, 133, dstart, dend, "uint8", floor_div=True)
-        check(0, 255, dstart, dend, "uint8", floor_div=False)
-        check(0, 255, dstart, dend, "uint8", floor_div=True)
+    check(start, end, dstart, dend, dtype, floor_div)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
@@ -912,15 +941,15 @@ def test_llvm_order_functions():
     class Module:
         @T.prim_func(s_tir=True)
         def Danny(v: T.float32) -> T.float32:
-            T.ret(T.call_extern("float32", "Dave", v))
+            return T.call_extern("float32", "Dave", v)
 
         @T.prim_func(s_tir=True)
         def Sammy(v: T.float32) -> T.float32:
-            T.ret(T.call_extern("float32", "Eve", v))
+            return T.call_extern("float32", "Eve", v)
 
         @T.prim_func(s_tir=True)
         def Kirby(v: T.float32) -> T.float32:
-            T.ret(T.call_extern("float32", "Fred", v))
+            return T.call_extern("float32", "Fred", v)
 
     ir_text = tvm.tirx.build(Module, target="llvm").inspect_source("ll")
     # Skip functions whose names start with _.

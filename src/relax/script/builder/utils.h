@@ -99,7 +99,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   TVM_FFI_ICHECK(!last_binding->var->IsInstance<tvm::relax::DataflowVarNode>())
       << "A non-dataflow var is expected in the last binding of '" << method << "'.";
 
-  *var_name = last_binding->var->name_hint;
+  *var_name = last_binding->var->name;
 
   // Step 3. Re-collect binding blocks to replace the last binding.
   ffi::Array<tvm::relax::BindingBlock> new_blocks(frame->binding_blocks.begin(),
@@ -107,8 +107,8 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   ffi::Array<tvm::relax::Binding> last_block_bindings(last_block->bindings.begin(),
                                                       last_block->bindings.end() - 1);
 
-  tvm::relax::Var new_var =
-      tvm::relax::Var(last_binding->var->name_hint + output_var_suffix, GetType(last_binding->var));
+  tvm::Var new_var(last_binding->var->name + output_var_suffix,
+                   tvm::relax::GetType(last_binding->var));
   tvm::relax::Expr body;
 
   const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();

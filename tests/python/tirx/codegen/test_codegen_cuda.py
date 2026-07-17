@@ -24,10 +24,13 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def _get_source(func: tvm.tirx.PrimFunc) -> str:
-    target = tvm.target.Target("cuda")
+def _get_source(func: tvm.tirx.PrimFunc, target=None) -> tuple[str, tvm.IRModule]:
+    if target is None:
+        target = {"kind": "cuda", "arch": "sm_100a"}
+    target = tvm.target.Target(target)
     mod = tvm.IRModule({"main": func})
-    mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
+    with target:
+        mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
     src = mod.mod.imports[0].inspect_source()
     return src, mod
 
@@ -102,17 +105,18 @@ def test_cluster_cta_id_codegen_uses_coordinate_sregs():
     assert "cooperative_groups::cluster_group::block_index" not in src
 
 
+@pytest.mark.gpu
 def test_cuda_handle_uint64_reinterpret_codegen():
     @T.prim_func
     def main(A: T.Buffer((1,), "uint64")):
         T.device_entry()
         tx = T.thread_id([32])
         if tx == 0:
-            ptr = T.reinterpret("handle", A[0])
+            ptr: T.let = T.reinterpret("handle", A[0])
             A[0] = T.reinterpret("uint64", ptr)
 
     src, _ = _get_source(main)
-    assert "reinterpret_cast<void*>" in src
+    assert "(void*)A_ptr[0]" in src
     assert "reinterpret_cast<uint64_t>" in src
     assert "*(void* *)" not in src
 
@@ -135,7 +139,7 @@ def test_cuda_atomic_add():
     B_np = np.zeros(1, dtype="float32")
 
     def run_and_check():
-        dev = tvm.device("cuda")
+        dev = tvm.cuda()
         A_tvm = tvm.runtime.tensor(A_np, device=dev)
         B_tvm = tvm.runtime.tensor(B_np, device=dev)
         mod["main"](A_tvm, B_tvm)
@@ -166,6 +170,7 @@ def test_ptx_ld_acquire_and_volatile_codegen():
     assert "ld.volatile.global.u64" in src
 
 
+@pytest.mark.gpu
 def test_megamoe_extracted_intrinsics_codegen():
     @T.prim_func
     def main(
@@ -388,7 +393,7 @@ def test_tma_cache_policy_operand_codegen():
                     cache_policy=Cache[0],
                 )
 
-    src, _ = _get_source(main)
+    src, _ = _get_source(main, {"kind": "cuda", "arch": "sm_100a"})
     assert "ptx_cp_async_bulk_tensor_g2cluster_tile_2d_cache_hint" in src
     assert "ptx_cp_async_bulk_tensor_g2cluster_tile_2d_multicast_cache_hint" in src
     assert "g2cluster_unicast" not in src
@@ -474,7 +479,7 @@ __device__ int32_t add_one(int32_t a) {
         B = np.zeros((16, 16), dtype="int32")
 
         def run_and_check():
-            dev = tvm.device("cuda")
+            dev = tvm.cuda()
             A_tvm = tvm.runtime.tensor(A, device=dev)
             B_tvm = tvm.runtime.tensor(B, device=dev)
             mod["main"](A_tvm, B_tvm)
@@ -505,7 +510,7 @@ __device__ void print(int32_t a) {
         A = np.random.randint(0, 10, (16, 16)).astype("int32")
 
         def run_and_check():
-            dev = tvm.device("cuda")
+            dev = tvm.cuda()
             A_tvm = tvm.runtime.tensor(A, device=dev)
             mod["main"](A_tvm)
             dev.sync()
@@ -597,7 +602,7 @@ def test_ptx_cp_async(cp_size, cache_hint, prefetch_size, predicate, fill_mode):
             A_ref = np.ones(N, dtype="float16") * 6
 
     def run_and_check():
-        dev = tvm.device("cuda")
+        dev = tvm.cuda()
         A = tvm.runtime.tensor(A_np, device=dev)
         mod(A)
         np.testing.assert_allclose(A.numpy(), A_ref)
@@ -673,7 +678,7 @@ def test_ptx_ldmatrix(trans, num):
         B_ref[8:16, 8:16] = A_np[8:16, 8:16] if not trans else A_np[8:16, 8:16].T
 
     def run_and_check():
-        dev = tvm.device("cuda")
+        dev = tvm.cuda()
         A = tvm.runtime.tensor(A_np, device=dev)
         B = tvm.runtime.tensor(B_np, device=dev)
         mod(A, B)

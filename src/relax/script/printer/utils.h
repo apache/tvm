@@ -41,7 +41,7 @@ class RelaxFrameNode : public FrameNode {
  public:
   bool is_func = false;
   bool module_alias_printed = false;
-  std::unordered_set<const tirx::VarNode*>* func_vars = nullptr;
+  std::unordered_set<const VarNode*>* func_vars = nullptr;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -74,11 +74,11 @@ inline std::string ReprPrintRelax(const ffi::ObjectRef& obj, const PrinterConfig
   return Docsify(obj, d, *f, cfg);
 }
 
-inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsifier& d) {
-  return d->Define(var, frame, var->name_hint.empty() ? "v" : var->name_hint);
+inline IdDoc DefineRelaxVar(const tvm::Var& var, const Frame& frame, const IRDocsifier& d) {
+  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
 }
 
-inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v_p,
+inline ffi::Optional<ExprDoc> TypeAsAnn(const tvm::Var& v, const AccessPath& v_p,
                                         const IRDocsifier& d,
                                         const ffi::Optional<relax::Expr>& rhs) {
   if (v->ty.IsMissing()) {
@@ -121,7 +121,7 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v
         inferred_ty = ptr->fields[get_item->index];
       }
 
-    } else if (const auto* trivial_binding = rhs.as<relax::VarNode>()) {
+    } else if (const auto* trivial_binding = rhs.as<tvm::VarNode>()) {
       inferred_ty = trivial_binding->ty.as<tvm::Type>();
     }
 
@@ -134,6 +134,8 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const relax::Var& v, const AccessPath& v
 
 ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
                                  const IRDocsifier& d, bool use_ret);
+
+Doc PrintRelaxVar(tvm::Var n, AccessPath p, IRDocsifier d);
 
 ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d);
 

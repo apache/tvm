@@ -95,7 +95,7 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
   const size_t innermost_axis = block_node->writes[0]->region.size() - 1;
   const PrimExpr innermost_iter_value = block_realize->iter_values[innermost_axis];
 
-  if (!arith::Analyzer()->CanProve(loop->loop_var == innermost_iter_value)) {
+  if (!arith::Analyzer()->CanProve(static_cast<PrimExpr>(loop->loop_var) == innermost_iter_value)) {
     // If this is not the innermost spatial loop, split the loop in the normal way.
     return MultiLevelTilingNode::SplitLoop(sch, block_rv, loop_rv, n_tiles);
   } else {

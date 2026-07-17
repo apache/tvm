@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax.backend.contrib.tensorrt import partition_for_tensorrt
 from tvm.relax.dpl import is_op, make_fused_bias_activation_pattern, wildcard
 from tvm.script import relax as R
 from tvm.testing import env
@@ -69,7 +70,7 @@ def build_and_run(mod, inputs_np, target, legalize=False):
         ex = tvm.compile(mod, target)
 
     def run_and_check():
-        dev = tvm.device(target, 0)
+        dev = tvm.device_from_target(target, 0)
         vm = relax.VirtualMachine(ex, dev)
         f = vm["main"]
         inputs = [tvm.runtime.tensor(inp, dev) for inp in inputs_np]
@@ -128,13 +129,13 @@ def _offload_and_compare(mod, params_np, patterns, data_np, rtol=1e-2, atol=1e-2
     otherwise collapse repeated ops.
     """
     ref = build_and_run(mod, [data_np, *params_np.values()], "llvm", legalize=True)
-    partitioned = tvm.transform.Sequential(
-        [
-            relax.transform.BindParams("main", params_np),
-            relax.transform.FuseOpsByPattern(patterns),
-            relax.transform.MergeCompositeFunctions(),
-        ]
-    )(mod)
+    mod = relax.transform.BindParams("main", params_np)(mod)
+    if patterns is None:
+        partitioned = partition_for_tensorrt(mod)
+    else:
+        partitioned = tvm.transform.Sequential(
+            [relax.transform.FuseOpsByPattern(patterns), relax.transform.MergeCompositeFunctions()]
+        )(mod)
     # Guard against a silent false pass: if no pattern matched, nothing is offloaded and the
     # comparison would trivially succeed via the TVM fallback without exercising the converter.
     assert any(
@@ -222,6 +223,26 @@ def test_tensorrt_sigmoid():
     data = np.random.randn(2, 8, 16, 16).astype("float32")
     patterns = [("tensorrt.sigmoid", is_op("relax.sigmoid")(wildcard()))]
     _offload_and_compare(Sigmoid, {}, patterns, data)
+
+
+def test_tensorrt_subtract_constant_lhs():
+    """A bound constant on the left-hand side must remain the minuend."""
+
+    @tvm.script.ir_module
+    class ConstantMinusTensor:
+        @R.function
+        def main(
+            data: R.Tensor((2, 3, 4), "float32"),
+            constant: R.Tensor((2, 3, 4), "float32"),
+        ):
+            with R.dataflow():
+                out = relax.op.subtract(constant, data)
+                R.output(out)
+            return out
+
+    data = np.linspace(-2.0, 3.0, 24, dtype="float32").reshape(2, 3, 4)
+    constant = np.linspace(4.0, 9.0, 24, dtype="float32").reshape(2, 3, 4)
+    _offload_and_compare(ConstantMinusTensor, {"constant": constant}, None, data)
 
 
 def test_tensorrt_tanh():
@@ -318,7 +339,7 @@ def test_tensorrt_int8_calibration(monkeypatch):
     ex = tvm.compile(offloaded, "cuda")
 
     def run_and_check():
-        dev = tvm.device("cuda", 0)
+        dev = tvm.cuda(0)
         vm = relax.VirtualMachine(ex, dev)
         data_trt = tvm.runtime.tensor(data, dev)
         out = None
@@ -475,18 +496,13 @@ def test_tensorrt_split():
         def main(data: R.Tensor((4, 8, 16), "float32")):
             with R.dataflow():
                 parts = relax.op.split(data, 2, axis=1)
-                out = relax.op.add(parts[0], parts[1])
+                out = relax.op.subtract(parts[1], parts[0])
                 R.output(out)
             return out
 
-    data = np.random.randn(4, 8, 16).astype("float32")
-    # Offload the add too so both split outputs are consumed inside TensorRT (and nothing is left
-    # for the VM to legalize).
-    patterns = [
-        ("tensorrt.split", is_op("relax.split")(wildcard())),
-        ("tensorrt.add", is_op("relax.add")(wildcard(), wildcard())),
-    ]
-    _offload_and_compare(Split, {}, patterns, data)
+    data = np.ones((4, 8, 16), dtype="float32")
+    data[:, 4:, :] = 5
+    _offload_and_compare(Split, {}, None, data)
 
 
 def test_tensorrt_layout_transform():
@@ -638,6 +654,79 @@ def test_partition_for_tensorrt():
     mod = relax.transform.RunCodegen()(mod)
     out = build_and_run(mod, [data], "cuda")
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@pytest.mark.parametrize(
+    "out_hw, method, coordinate_transformation_mode, rounding_method, cubic_alpha",
+    [
+        ((13, 11), "nearest_neighbor", "asymmetric", "floor", -0.75),
+        ((13, 11), "linear", "half_pixel", "round", -0.75),
+        ((16, 16), "cubic", "half_pixel", "round", -0.5),
+    ],
+)
+def test_tensorrt_resize2d(
+    out_hw, method, coordinate_transformation_mode, rounding_method, cubic_alpha
+):
+    """Regression test for image.resize2d offload in #19887."""
+
+    @tvm.script.ir_module
+    class Resize2D:
+        @R.function
+        def main(data: R.Tensor((1, 3, 8, 8), "float32")):
+            with R.dataflow():
+                out = relax.op.image.resize2d(
+                    data,
+                    size=out_hw,
+                    layout="NCHW",
+                    method=method,
+                    coordinate_transformation_mode=coordinate_transformation_mode,
+                    rounding_method=rounding_method,
+                    cubic_alpha=cubic_alpha,
+                )
+                R.output(out)
+            return out
+
+    data = np.random.randn(1, 3, 8, 8).astype("float32")
+    _offload_and_compare(Resize2D, {}, None, data)
+
+
+def test_tensorrt_resize2d_pytorch_half_pixel_single_dimension():
+    """pytorch_half_pixel selects source coordinate zero for each singleton output dimension."""
+
+    @tvm.script.ir_module
+    class ResizeSingleDimension:
+        @R.function
+        def main(data: R.Tensor((1, 1, 5, 7), "float32")):
+            with R.dataflow():
+                out = relax.op.image.resize2d(
+                    data,
+                    size=(1, 1),
+                    method="nearest_neighbor",
+                    coordinate_transformation_mode="pytorch_half_pixel",
+                    rounding_method="floor",
+                )
+                R.output(out)
+            return out
+
+    mod = ResizeSingleDimension
+    data = np.arange(35, dtype="float32").reshape(1, 1, 5, 7)
+    _offload_and_compare(mod, {}, None, data, rtol=0, atol=0)
+
+
+def test_tensorrt_silu():
+    """YOLO's SiLU activation is lowered as x * sigmoid(x)."""
+
+    @tvm.script.ir_module
+    class Silu:
+        @R.function
+        def main(data: R.Tensor((1, 16, 8, 8), "float32")):
+            with R.dataflow():
+                out = relax.op.nn.silu(data)
+                R.output(out)
+            return out
+
+    data = np.random.randn(1, 16, 8, 8).astype("float32")
+    _offload_and_compare(Silu, {}, None, data)
 
 
 if __name__ == "__main__":

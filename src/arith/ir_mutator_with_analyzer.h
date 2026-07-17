@@ -31,6 +31,7 @@
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/stmt_functor.h>
 
+#include <unordered_set>
 #include <utility>
 
 namespace tvm {
@@ -91,7 +92,7 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
   // expensive and we only encourage doing them during
   // necessary cases like layout remapping
   /*! \brief Recorded loop iterators */
-  ffi::Map<Var, Range> iter_vars_;
+  ffi::Map<tirx::PrimVar, Range> iter_vars_;
   /*! \brief iterator predicates */
   ffi::Array<PrimExpr> iter_predicates_;
   /*!
@@ -101,8 +102,12 @@ class IRMutatorWithAnalyzer : public tirx::StmtExprMutator {
    */
   template <typename FLambda>
   void WithRecordIterPredicate(PrimExpr condition, FLambda callback) {
-    auto f_use_itervar = [this](const tirx::VarNode* v) {
-      return iter_vars_.count(ffi::GetRef<tirx::Var>(v));
+    std::unordered_set<const tirx::VarNode*> iter_var_nodes;
+    for (const auto& [var, _] : iter_vars_) {
+      iter_var_nodes.insert(var.get());
+    }
+    auto f_use_itervar = [&iter_var_nodes](const tirx::VarNode* v) {
+      return iter_var_nodes.count(v);
     };
     // simple heuristics for detecting predicate
     if (tirx::UsesVar(condition, f_use_itervar)) {

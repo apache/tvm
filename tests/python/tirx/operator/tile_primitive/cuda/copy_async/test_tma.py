@@ -1003,6 +1003,7 @@ TMA_CASES = [
 # fmt: on
 
 
+@pytest.mark.gpu
 @pytest.mark.parametrize("case", TMA_CASES)
 def test_copy_tma_codegen(case):
     """Unified structural-golden driver for every TMA unit test case.
@@ -1576,6 +1577,7 @@ def test_copy_tma_dynamic_cta_mask(dtype):
     assert "multicast" in src, "Expected multicast TMA instruction in generated code"
 
 
+@pytest.mark.gpu
 def test_copy_tma_uint32_shape_extent():
     BK = 64
     A_layout = mma_shared_layout("float16", 3, (128, BK))
@@ -1609,6 +1611,7 @@ def test_copy_tma_uint32_shape_extent():
         tvm.compile(tvm.IRModule({"main": tma_load}), target=target, tir_pipeline="tirx")
 
 
+@pytest.mark.gpu
 def test_copy_tma_uint32_slice_base():
     BK = 64
     A_layout = mma_shared_layout("float16", 3, (128, BK))

@@ -77,13 +77,13 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
         if (it->second == 0) {
           TVM_FFI_THROW(InternalError)
               << "Well-formedness check failed: "
-              << "Loop iterator var " << op->name_hint << " is defined outside of any block, "
+              << "Loop iterator var " << op->name << " is defined outside of any block, "
               << "but is used inside the non-opaque current block \""
               << block_stack_.back()->name_hint << "\".";
         } else {
           TVM_FFI_THROW(InternalError)
               << "Well-formedness check failed: "
-              << "Loop iterator var " << op->name_hint << " is defined in block \""
+              << "Loop iterator var " << op->name << " is defined in block \""
               << block_stack_[it->second - 1]->name_hint << "\", "
               << "but is used inside the non-opaque current block \""
               << block_stack_.back()->name_hint << "\".";
@@ -184,7 +184,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
       auto verify = Verify(it == currently_defined_.end() || redefine_is_allowed);
       verify << "ValueError: "
              << "TIR is ill-formed, "
-             << "due to multiple nested definitions of variable " << var << ".";
+             << "due to multiple nested definitions of variable " << var->name << ".";
       if (it != currently_defined_.end()) {
         verify << " It was first defined at " << it->second << ", and was re-defined at " << path;
       }
@@ -195,7 +195,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
       auto verify = Verify(it == previously_defined_.end() || redefine_is_allowed);
       verify << "ValueError: "
              << "TIR is ill-formed, "
-             << "due to multiple definitions of variable " << var << ".";
+             << "due to multiple definitions of variable " << var->name << ".";
       if (it != previously_defined_.end()) {
         verify << " It was first defined at " << it->second << ", and was later re-defined at "
                << path;
@@ -218,7 +218,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
     auto active_def = currently_defined_.find(var);
     auto verify = Verify(active_def != currently_defined_.end());
     verify << "ValueError: "
-           << "Invalid use of undefined variable " << var << " at " << path << ".";
+           << "Invalid use of undefined variable " << var->name << " at " << path << ".";
 
     // Check if there was a previous definition, and append the
     // location to the error message if there was.  This is to aid in
@@ -339,9 +339,9 @@ class SingleEnvThreadVerifier : public Verifier<SingleEnvThreadVerifier> {
             << "While multiple tirx::AttrStmt may define the same environment thread, "
             << "all definitions within a single PrimFunc must share the same tirx::Var.  "
             << "Binding of environment thread \"" << iter_var->thread_tag
-            << "\" to the TIR variable " << iter_var->var << " at " << path
-            << " conflicts with the previous binding to the TIR variable " << prev_var << " at "
-            << path;
+            << "\" to the TIR variable " << iter_var->var->name << " at " << path
+            << " conflicts with the previous binding to the TIR variable " << prev_var->name
+            << " at " << path;
       } else {
         env_thread_vars_.insert({iter_var->thread_tag, {iter_var->var, path}});
       }

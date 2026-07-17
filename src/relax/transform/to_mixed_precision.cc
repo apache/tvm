@@ -283,7 +283,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     if (it != var_remap_.end()) {
       return it->second;
     } else {
-      if (fp16_input_names_.count(var->name_hint)) {
+      if (fp16_input_names_.count(var->name)) {
         auto ty = GetType(var);
         if (auto tensor_ty = ty.as<TensorTypeNode>()) {
           VDevice vdev = VDevice();
@@ -291,7 +291,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
             vdev = tensor_ty->vdevice.value();
           }
           TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
-          Var fp16_var(var->name_hint, fp16_ty, var->span);
+          Var fp16_var(var->name, fp16_ty, var->span);
           var_remap_[var] = fp16_var;
           return fp16_var;
         }

@@ -132,7 +132,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
               return d->AsDoc<ExprDoc>(buffer, buffer_p)
                   ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
             })) {
-          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name_hint, e_p));
+          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name, e_p));
           continue;
         }
       }
@@ -175,16 +175,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     kwargs.Set("offset_factor",
                LiteralDoc::Int(buffer->offset_factor, buffer_p->Attr("offset_factor")));
   }
-  // Step 9. Handle `buffer.buffer_type`
-  if (buffer->buffer_type != tirx::BufferType::kDefault) {
-    kwargs.Set("buffer_type", LiteralDoc::Str("auto", buffer_p->Attr("buffer_type")));
-  }
-  // Step 10. Handle `buffer.axis_separator`
-  if (!buffer->axis_separators.empty()) {
-    kwargs.Set("axis_separators",
-               d->AsDoc<ExprDoc>(buffer->axis_separators, buffer_p->Attr("axis_separators")));
-  }
-  // Step 12. Handle `buffer.layout`. Track the enclosing PrimFunc's `s_tir`
+  // Step 9. Handle `buffer.layout`. Track the enclosing PrimFunc's `s_tir`
   // attr — in `s_tir=True` mode the parser fills `layout=None` by default,
   // in `s_tir=False` (tirx) mode it fills `DefaultLayout(shape)`. Mirror
   // that here so the implicit default is omitted and the non-default value
@@ -209,7 +200,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   } else if (!enclosing_s_tir) {
     kwargs.Set("layout", LiteralDoc::None(buffer_p->Attr("layout")));
   }
-  // Step 13. Handle `buffer.allocated_addr`
+  // Step 10. Handle `buffer.allocated_addr`
   if (!buffer->allocated_addr.empty()) {
     if (buffer->allocated_addr.size() == 1) {
       // Unwrap single-element array: DeclBuffer expects Optional<PrimExpr>, not Array.
@@ -262,7 +253,7 @@ ExprDoc BufferCall(const ExprDoc& prefix, const ffi::Map<ffi::String, ExprDoc>& 
     }
   }
   for (ffi::String s : {"data", "strides", "elem_offset", "scope", "align", "offset_factor",
-                        "buffer_type", "axis_separators", "layout", "allocated_addr"}) {
+                        "layout", "allocated_addr"}) {
     if (ffi::Optional<ExprDoc> doc = attrs.Get(s)) {
       kwargs_keys.push_back(s);
       kwargs_values.push_back(doc.value());

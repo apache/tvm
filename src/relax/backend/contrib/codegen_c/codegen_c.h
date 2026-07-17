@@ -282,7 +282,7 @@ class CodegenCBase {
 
     for (const auto& arg : args) {
       const auto& dtype_str = GetDtypeString(arg);
-      code_stream_ << dtype_str << "* " << arg->name_hint << ", ";
+      code_stream_ << dtype_str << "* " << arg->name << ", ";
     }
     for (size_t i = 0; i < outs.size() - 1; ++i) {
       code_stream_ << outs[i].dtype << "* out" << i << ", ";

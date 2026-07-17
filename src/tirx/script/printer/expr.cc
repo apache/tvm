@@ -74,20 +74,29 @@ Doc PrintVar(const tirx::Var& var, const AccessPath& var_p, const IRDocsifier& d
       ExprDoc rhs = PrintVarCreation(var, var_p, d);
       opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
     } else {
-      LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
+      LOG(WARNING) << "Didn't find variable definition for: " << var->name;
     }
   }
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
   TVM_FFI_THROW(InternalError) << "IndexError: Variable is not defined in the environment: "
-                               << var->name_hint;
+                               << var->name;
   TVM_FFI_UNREACHABLE();
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
     .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
-      return PrintVar(var, p, d);
+      if (var->ty.as<PrimTypeNode>() || var->ty.as<PointerTypeNode>()) {
+        return PrintVar(var, p, d);
+      }
+      if (!d->IsVarDefined(var)) {
+        ExprDoc ann = d->AsDoc<ExprDoc>(var->ty, p->Attr("ty"));
+        Frame f = d->frames.back();
+        ExprDoc lhs = d->Define(var, f, var->name.empty() ? "v" : var->name);
+        f->stmts.push_back(AssignDoc(lhs, std::nullopt, ann));
+      }
+      return d->GetVarDoc(var).value();
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -459,7 +468,6 @@ TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR
 #undef TVM_SCRIPT_PRINTER_DEF_BINARY
 
-TVM_SCRIPT_REPR(tirx::VarNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::IterVarNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::StringImmNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tirx::CastNode, ReprPrintTIR);

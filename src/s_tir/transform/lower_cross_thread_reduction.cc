@@ -154,8 +154,7 @@ ffi::Array<Buffer> MakeScratchpads(const ffi::Array<Buffer>& reduction_buffers,
                                  /*elem_offset=*/PrimExpr{nullptr},
                                  /*name=*/name,
                                  /*data_alignment=*/0,
-                                 /*offset_factor=*/0,
-                                 /*buffer_type=*/kDefault));
+                                 /*offset_factor=*/0));
   }
   return new_buffers;
 }
@@ -444,8 +443,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
         IterVar new_iter_var{nullptr};
         {
           ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
-          ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*iter_var->var.get());
-          n->var = Var(v).as_or_throw<PrimVar>();
+          Var v(iter_var->var->name, iter_var->var->ty, iter_var->var->span);
+          n->var = v.as_or_throw<PrimVar>();
           new_iter_var = IterVar(n);
         }
         iter_vars.push_back(new_iter_var);
@@ -507,7 +506,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     if (wb_buffers[0].scope() != "local") {
       for (const ForNode* loop : reduction_loops) {
         if (loop->thread_binding.has_value()) {
-          wb_predicate = wb_predicate && (loop->loop_var == IntImm(loop->loop_var.ty(), 0));
+          wb_predicate = wb_predicate &&
+                         (static_cast<PrimExpr>(loop->loop_var) == IntImm(loop->loop_var.ty(), 0));
         }
       }
     }
@@ -669,7 +669,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
         TVM_FFI_CHECK(IsBoundToThreadIdx(reduction_loop), ValueError)
             << "Cross-thread reduction requires all the reduction-related loops that "
                "are bound to GPU thread axes to only be bound `threadIdx.x/y/z`. However, loop "
-            << reduction_loop->loop_var->name_hint << " violates the condition.";
+            << reduction_loop->loop_var->name << " violates the condition.";
       }
     }
 

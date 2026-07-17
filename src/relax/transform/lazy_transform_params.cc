@@ -73,14 +73,13 @@ class LazyInputMutator : public ExprMutator {
     auto array_externally_visible_vars = DefinableTIRVarsInType(TupleType(new_params.Map(GetType)));
     std::unordered_set<tirx::Var> externally_visible_vars(array_externally_visible_vars.begin(),
                                                           array_externally_visible_vars.end());
-    Type new_ret_ty =
-        EraseToWellDefined(func->ret_ty, [&](const tirx::Var& var) -> ffi::Optional<PrimExpr> {
-          if (externally_visible_vars.count(var)) {
-            return var.as_or_throw<PrimExpr>();
-          } else {
-            return std::nullopt;
-          }
-        });
+    Type new_ret_ty = EraseToWellDefined(func->ret_ty, [&](const Var& var) -> ffi::Optional<Expr> {
+      if (auto prim_var = var.as<tirx::PrimVar>();
+          prim_var && externally_visible_vars.count(prim_var.value())) {
+        return prim_var.value().as_or_throw<PrimExpr>();
+      }
+      return std::nullopt;
+    });
 
     auto node = ffi::GetRef<Function>(func);
     node.CopyOnWrite()->params = new_params;
@@ -100,10 +99,10 @@ class LazyInputMutator : public ExprMutator {
         auto untyped = builder_->Emit(Call(Type::Missing(), plan_->fget_param,
                                            {
                                                PrimExpr(IntImm::Int64(it->second)),
-                                               StringImm(var->name_hint),
+                                               StringImm(var->name),
                                            }),
-                                      var->name_hint + "_untyped");
-        return builder_->EmitMatchCast(untyped, GetType(var), var->name_hint);
+                                      var->name + "_untyped");
+        return builder_->EmitMatchCast(untyped, GetType(var), var->name);
       }
     }
 

@@ -37,7 +37,7 @@ Stmt FuseNestLoops(Stmt body) {
   std::string suffix;
   int n = loops.size();
   for (int i = 1; i < n; i++) {
-    suffix += "_" + loops[i]->loop_var->name_hint;
+    suffix += "_" + loops[i]->loop_var->name;
   }
   suffix += "_fused";
   PrimVar fused_var = loops[0]->loop_var.CopyWithSuffix(suffix);
@@ -185,7 +185,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
 Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                              OutputSet* output) const {
   Stmt body = stmt;
-  ffi::Map<Var, Range> var_range;
+  ffi::Map<PrimVar, Range> var_range;
   ffi::Array<PrimExpr> loop_vars;
   // Step 1. Get index mapping
   ffi::Array<PrimExpr> mapping_pattern = GetMapping(stmt, constraints);

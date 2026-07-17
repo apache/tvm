@@ -864,23 +864,19 @@ def is_shape(shape: list[tvm.ir.Expr]) -> "PrimArrPattern":
 def _is_call_tir(
     func_pattern: DFPattern,
     args: list | tuple | TuplePattern = None,
-    tir_vars: DFPattern | None = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
     elif isinstance(args, list | tuple):
         args = TuplePattern(args)
 
-    if tir_vars is None:
-        return is_op("relax.call_tir")(func_pattern, args, add_constraint=False)
-    return is_op("relax.call_tir")(func_pattern, args, tir_vars, add_constraint=False)
+    return is_op("relax.call_tir")(func_pattern, args, add_constraint=False)
 
 
 # Todo(relax-team): Dataflow pattern for Type, and match out_ty
 def is_call_tir(
     func_name: str,
     args: list | tuple | TuplePattern = None,
-    tir_vars: DFPattern | None = None,
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
@@ -891,15 +887,13 @@ def is_call_tir(
         Name of the CPS function to call.
     args : Union[List[DFPattern], Tuple[DFPattern]], optional
         Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
-    tir_vars : Optional[DFPattern]
-        Pattern to match the tuple of integers that are unpacked when calling the tirx func.
     Returns
     -------
     CallPattern
         The resulting CallPattern
     """
     func_pattern = GlobalVarPattern(func_name)
-    return _is_call_tir(func_pattern, args, tir_vars)
+    return _is_call_tir(func_pattern, args)
 
 
 def _is_call_dps_packed(

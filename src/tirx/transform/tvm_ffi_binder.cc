@@ -66,19 +66,23 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
       for (size_t j = 0; j < buf->shape.size(); ++j) {
         if (j > 0) os << ", ";
         std::ostringstream shape_os;
-        shape_os << buf->shape[j];
+        if (auto var = buf->shape[j].as<PrimVar>()) {
+          shape_os << ((*var)->name.empty() ? "v" : (*var)->name.c_str());
+        } else {
+          shape_os << buf->shape[j];
+        }
         os << shape_os.str();
       }
       os << "], " << buf->dtype->dtype << ")";
       param_names_[static_cast<int>(i)] = buf_name;
     } else {
-      os << param->name_hint << ": ";
+      os << param->name << ": ";
       if (const auto* prim_type = param->ty.as<PrimTypeNode>()) {
         os << prim_type->dtype;
       } else {
         os << param->ty;
       }
-      param_names_[static_cast<int>(i)] = param->name_hint;
+      param_names_[static_cast<int>(i)] = param->name;
     }
   }
   os << ")";
@@ -271,7 +275,7 @@ bool TVMFFIABIBuilder::BindPointer(const Var& arg, const Expr& value,
  * names.
  *
  * Uses ExprFunctor for generic dispatch over all expression types.
- * The default TIR printer sanitizes Var name_hints (e.g. "B.shape[0]" -> "B_shape_0_")
+ * The default TIR printer sanitizes Var names (e.g. "B.shape[0]" -> "B_shape_0_")
  * and adds type annotations (e.g. T.int64(1)). This functor preserves original path
  * names and uses plain integer formatting for human-readable error messages.
  */
@@ -328,7 +332,7 @@ void TVMFFIABIBuilder::RenderPendingAsserts() {
       ffi::String path = RenderAccessPath(it->second.first_def_path);
       if (!path.empty()) return std::string(path);
     }
-    return std::string(v->name_hint);
+    return std::string(v->name);
   });
 
   for (auto& pending : pending_const_asserts_) {
@@ -545,7 +549,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   Var param = params_[param_index];
 
   // Extract type_index from packed_args
-  Var type_index(param->name_hint + ".type_index", PrimType::Int(32));
+  Var type_index(param->name + ".type_index", PrimType::Int(32));
   init_nest_.push_back(Bind(type_index, Call(PrimType::Int(32), builtin::tvm_struct_get(),
                                              {v_packed_args_, IntImm::Int32(param_index),
                                               IntImm::Int32(builtin::kTVMFFIAnyTypeIndex)})
@@ -599,8 +603,8 @@ void TVMFFIABIBuilder::DecodeAllParams() {
       ffi::reflection::AccessPath param_path = ffi::reflection::AccessPath::Root()
                                                    ->Extend(AccessStep::ArrayItem(i))
                                                    ->Attr(ffi::String(buffer->name));
-      DecodeParamDLTensor(buffer, device_type_, device_id_, param,
-                          func_name_ + "." + param->name_hint, param_path);
+      DecodeParamDLTensor(buffer, device_type_, device_id_, param, func_name_ + "." + param->name,
+                          param_path);
       decl_buffers_.push_back(DeclBuffer(buffer));
     }
   }
@@ -656,23 +660,6 @@ void TVMFFIABIBuilder::BindCompactStrides(const Buffer& buffer, const Var& strid
                                StringImm("`,\n  expected to be compact array")}));
     check = IfThenElse(Not(v_strides_is_null), check);
     asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
-  }
-}
-
-void TVMFFIABIBuilder::BindAutoBroadcastStrides(const Buffer& buffer, const Var& strides_ptr,
-                                                const PrimExpr& v_strides_is_null,
-                                                const ffi::reflection::AccessPath& param_path) {
-  PrimType stype(buffer->DefaultIndexType());
-  PrimExpr stride = IntImm(stype, 1);
-  for (size_t i = buffer->shape.size(); i != 0; --i) {
-    size_t k = i - 1;
-    PrimExpr value = cast(buffer->shape[k].ty(), LoadInt64ArrayElem(strides_ptr, k));
-    value = tvm::if_then_else(v_strides_is_null, stride, value);
-    value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
-    ffi::reflection::AccessPath strides_k_path =
-        param_path->Attr(ffi::String("strides"))->ArrayItem(k);
-    BindScalar(buffer->strides[k], value, strides_k_path, true);
-    stride = analyzer_->Simplify(stride * buffer->shape[k]);
   }
 }
 
@@ -757,8 +744,6 @@ void TVMFFIABIBuilder::DecodeParamDLTensor(const Buffer& buffer, const PrimExpr&
       Call(PrimType::Bool(), builtin::isnullptr(), {strides_ptr}).as_or_throw<PrimExpr>();
   if (buffer->strides.size() == 0) {
     BindCompactStrides(buffer, strides_ptr, v_strides_is_null, param_path);
-  } else if (buffer->buffer_type == kAutoBroadcast) {
-    BindAutoBroadcastStrides(buffer, strides_ptr, v_strides_is_null, param_path);
   } else {
     BindRegularStrides(buffer, strides_ptr, shape_ptr, v_strides_is_null, param_path);
   }

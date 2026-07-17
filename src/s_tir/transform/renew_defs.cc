@@ -58,9 +58,9 @@ class RenewDefMutator : public StmtExprMutator {
       if (it != func->buffer_map.end()) {
         const Buffer& buffer = (*it).second;
         for (const PrimExpr& e : buffer->shape) {
-          if (const auto* v = e.as<VarNode>()) {
-            if (generator.remap_.count(ffi::GetRef<Var>(v)) == 0) {
-              generator.ReDefineVar(ffi::GetRef<Var>(v));
+          if (auto var = e.as<PrimVar>()) {
+            if (generator.remap_.count(var.value()) == 0) {
+              generator.ReDefineVar(var.value());
             }
           }
         }
@@ -156,7 +156,7 @@ class RenewDefMutator : public StmtExprMutator {
 
  private:
   Var ReDefineVar(const Var& var) {
-    Var new_var = Var(ffi::make_object<VarNode>(*var.get()));
+    Var new_var(var->name, var->ty, var->span);
     this->AddDefRemap(var, new_var);
     return new_var;
   }

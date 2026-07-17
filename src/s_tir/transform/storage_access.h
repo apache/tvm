@@ -59,7 +59,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
     /*! \brief The thread index that access this entry */
     ffi::Array<IterVar> threads;
     /*! \brief The buffer variable, if any */
-    Var buffer = Var(ffi::ObjectPtr<VarNode>(nullptr));
+    Var buffer{ffi::UnsafeInit{}};
     /*! \brief The access data type */
     PrimType dtype = PrimType::Void();
     /*! \brief The touched access range

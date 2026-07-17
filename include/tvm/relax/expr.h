@@ -62,7 +62,7 @@ class Tuple : public Expr {
    * \brief Utility constructor to handle conversion to relax::Expr
    *
    * If the calling scope already has an array of a specific type of
-   * relax expression (e.g. `ffi::Array<relax::Var>`), it must be converted
+   * relax expression (e.g. `ffi::Array<Var>`), it must be converted
    * into an array of base type.  This constructor handles the
    * conversion to the base `ffi::Array<relax::Expr>`.
    *
@@ -132,33 +132,6 @@ class ShapeExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
-/*! \brief The variable class for all Relax bindings. */
-class VarNode : public ExprNode {
- public:
-  /*!
-   * \brief The hint to the variable name.
-   * \note Each variable is uniquely identified by its address.
-   */
-  ffi::String name_hint;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>().def_ro("name_hint", &VarNode::name_hint,
-                                      refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, ExprNode);
-};
-
-class Var : public Expr {
- public:
-  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
-                       Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
-};
-
 /*! \brief A sub-type of the variable node used to mark dataflow variables from
  * normal visible "function local" bindings.
  */
@@ -175,7 +148,7 @@ class DataflowVarNode : public VarNode {
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
+  TVM_DLL explicit DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
                                Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
@@ -669,33 +642,5 @@ TVM_DLL Expr GetShapeOf(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm
-
-/* \brief Allow relax.Var as key in STL tables
- *
- * For most Relax expressions, it would be ambiguous whether the
- * expression should follow reference equality or structural equality.
- * This is not the case for variables, which do not contain nested
- * internal structure, and are frequently used as keys in lookup
- * tables.
- *
- * Providing `std::hash` and `std::equal_to` specializations for
- * `relax::Var` allows it to be used as a key in STL tables.  For
- * `relax::Expr`, the user must specify the type of equality used
- * (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>` or
- * `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
- */
-template <>
-struct std::hash<tvm::relax::Var> {
-  std::size_t operator()(const tvm::relax::Var& var) const {
-    return tvm::ffi::ObjectPtrHash()(var);
-  }
-};
-
-template <>
-struct std::equal_to<tvm::relax::Var> {
-  bool operator()(const tvm::relax::Var& var_a, const tvm::relax::Var& var_b) const {
-    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
-  }
-};
 
 #endif  // TVM_RELAX_EXPR_H_

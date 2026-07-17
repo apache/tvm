@@ -111,6 +111,6 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 
       from tvm.ir.type import PointerType, PrimType
 
-      ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = \
+      ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = \
           T.reinterpret("handle", T.ptx.map_shared_rank(mbar.ptr_to([0]), 0))
       remote_mbar = T.decl_buffer([1], "uint64", data=ptr, scope="shared")

@@ -90,6 +90,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ReturnNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BreakNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ContinueNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -116,6 +117,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
     IR_STMT_FUNCTOR_DISPATCH(WhileNode);
+    IR_STMT_FUNCTOR_DISPATCH(ReturnNode);
     IR_STMT_FUNCTOR_DISPATCH(BreakNode);
     IR_STMT_FUNCTOR_DISPATCH(ContinueNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocBufferNode);
@@ -173,6 +175,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const ReturnNode* op) override;
   void VisitStmt_(const BreakNode* op) override;
   void VisitStmt_(const ContinueNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
@@ -293,6 +296,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
+  Stmt VisitStmt_(const ReturnNode* op) override;
   Stmt VisitStmt_(const BreakNode* op) override;
   Stmt VisitStmt_(const ContinueNode* op) override;
   Stmt VisitStmt_(const AllocBufferNode* op) override;
@@ -407,6 +411,17 @@ inline PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<Expr>(cons
 }
 
 /*!
+ * \brief Substitute the vars specified by vmap.
+ * \param range The array of Stmt/PrimExpr to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The modified Range.
+ */
+inline Range Substitute(const Range& range,
+                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
+  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
+}
+
+/*!
  * \brief Substitute the var specified by vmap.
  * \param arr The array of Stmt/PrimExpr to be substituted
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
@@ -416,17 +431,6 @@ template <typename T>
 ffi::Array<T> Substitute(const ffi::Array<T>& arr,
                          std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
   return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- * \param range The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The modified Range.
- */
-inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
-  return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
 }
 
 /*!

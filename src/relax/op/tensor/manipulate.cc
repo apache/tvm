@@ -699,14 +699,10 @@ TVM_REGISTER_OP("relax.index_tensor")
 
 /* relax.layout_transform */
 
-Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value,
-                      ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                      ffi::Optional<ffi::Array<IntImm>> input_axis_separators) {
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value) {
   ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
   attrs->index_map = std::move(index_map);
   attrs->pad_value = std::move(pad_value);
-  attrs->axis_separators = std::move(axis_separators);
-  attrs->input_axis_separators = std::move(input_axis_separators);
 
   static const Op& op = Op::Get("relax.layout_transform");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
@@ -918,8 +914,8 @@ Expr ConvertNewShapeToExpr(const Expr& data,
            "Array of PrimExprs. However, the given new shape is "
         << shape;
     PrimExpr len = prim_len.value();
-    TVM_FFI_CHECK(!len.as<VarNode>(), TypeError)
-        << "Reshape shape dimensions must be TIRX expressions, but received " << len;
+    TVM_FFI_CHECK(!len.as<DataflowVarNode>(), TypeError)
+        << "Reshape shape dimensions must be symbolic primitive expressions, but received " << len;
     TVM_FFI_ICHECK(len.ty().code() == DLDataTypeCode::kDLInt)
         << "Reshape requires the new shape values to be all "
            "integers. However, the give new shape is "

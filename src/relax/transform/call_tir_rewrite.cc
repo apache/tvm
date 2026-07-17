@@ -29,6 +29,8 @@
 #include <tvm/relax/type.h>
 #include <tvm/tirx/op.h>
 
+#include <algorithm>
+
 #include "utils.h"
 
 namespace tvm {
@@ -68,34 +70,17 @@ class CallTIRMutator : public ExprMutator {
     static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
-
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
         call->op.same_as(call_dps_packed_op)) {
       bool is_inplace = call->op.same_as(call_tir_inplace_op);
       const auto* inplace_attrs = call->attrs.as<CallTIRInplaceAttrs>();
       ffi::Array<Expr> outs;
+      ffi::Optional<TupleType> tuple_output_type;
       if (const auto& tensor_ty = MatchType<TensorType>(expr)) {
         // single output case
         const TensorType& output_ty = tensor_ty.value();
-        TVM_FFI_ICHECK(output_ty->shape.has_value())
-            << "the TensorType shape of call_tir has not populated";
-        int dev_index = 0;
-        ffi::String scope = "global";
-        if (output_ty->vdevice.has_value()) {
-          dev_index = GetDeviceIndex(mod_, output_ty->vdevice.value());
-          scope = output_ty->vdevice.value()->memory_scope;
-        } else {
-          dev_index = GetDeviceIndexByScope(mod_, scope);
-        }
-
         if (!is_inplace) {
-          outs.push_back(builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
-                                             {output_ty->shape.value().as_or_throw<ShapeExpr>(),
-                                              DataTypeImm(output_ty->dtype.value()->dtype),
-                                              IntImm::Int64(dev_index), StringImm(scope)},
-                                             Attrs(), {output_ty}),
-                                        "alloc"));
+          outs.push_back(AllocateOutputTensor(output_ty, alloc_tensor_op));
         } else {
           // if there is only one output, it must be an in-place argument, but check anyway
           TVM_FFI_ICHECK(inplace_attrs->inplace_indices[0] != -1)
@@ -107,35 +92,30 @@ class CallTIRMutator : public ExprMutator {
       } else if (const auto& tuple_ty = MatchType<TupleType>(expr)) {
         // multiple output case
         const TupleType& output_ty = tuple_ty.value();
-        for (size_t i = 0; i < output_ty->fields.size(); ++i) {
-          const auto& field = output_ty->fields[i];
+        tuple_output_type = output_ty;
+        bool has_nested_tuple =
+            std::any_of(output_ty->fields.begin(), output_ty->fields.end(),
+                        [](const Type& field) { return field->IsInstance<TupleTypeNode>(); });
 
-          TVM_FFI_ICHECK(field->IsInstance<TensorTypeNode>())
-              << "call_tir expects Tuple of TensorType, but got " << field
-              << " as an element of TupleType";
-          const auto& field_tensor = field.as_or_throw<TensorType>();
-          TVM_FFI_ICHECK(field_tensor->shape.has_value())
-              << "call_tir expects all TensorType has shape, but got " << field_tensor
-              << " as an element of TupleType";
+        if (has_nested_tuple) {
+          TVM_FFI_ICHECK(!is_inplace)
+              << "call_tir_inplace does not support nested tuple output types";
+          FlattenAndAllocateOutputs(output_ty, alloc_tensor_op, &outs);
+        } else {
+          for (size_t i = 0; i < output_ty->fields.size(); ++i) {
+            const auto& field = output_ty->fields[i];
 
-          int dev_index = 0;
-          ffi::String scope = "global";
-          if (field_tensor->vdevice.has_value()) {
-            dev_index = GetDeviceIndex(mod_, field_tensor->vdevice.value());
-            scope = field_tensor->vdevice.value()->memory_scope;
-          }
+            TVM_FFI_ICHECK(field->IsInstance<TensorTypeNode>())
+                << "call_tir expects Tuple of TensorType, but got " << field
+                << " as an element of TupleType";
+            const auto& field_tensor = field.as_or_throw<TensorType>();
 
-          if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
-            outs.push_back(
-                builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
-                                    {field_tensor->shape.value().as_or_throw<ShapeExpr>(),
-                                     DataTypeImm(field_tensor->dtype.value()->dtype),
-                                     IntImm::Int64(dev_index), StringImm(scope)},
-                                    Attrs(), {field_tensor}),
-                               "alloc"));
-          } else {
-            outs.push_back(
-                call->args[1].as_or_throw<Tuple>()->fields[inplace_attrs->inplace_indices[i]]);
+            if (!is_inplace || inplace_attrs->inplace_indices[i] == -1) {
+              outs.push_back(AllocateOutputTensor(field_tensor, alloc_tensor_op));
+            } else {
+              outs.push_back(
+                  call->args[1].as_or_throw<Tuple>()->fields[inplace_attrs->inplace_indices[i]]);
+            }
           }
         }
       } else {
@@ -157,14 +137,7 @@ class CallTIRMutator : public ExprMutator {
             }
           }
         }
-
-        if (call->args.size() == 2) {
-          builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
-        } else {
-          // unpack semantics
-          args.push_back(call->args[2]);
-          builder_->Emit(Call(Type::Missing(), call_tir_dyn_op, {call->args[0], Tuple(args)}), "_");
-        }
+        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
       } else {
         if (!is_inplace) {
           args = outs;
@@ -175,13 +148,73 @@ class CallTIRMutator : public ExprMutator {
         builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
       }
 
-      if (outs.size() == 1) {
-        return outs[0];
+      if (tuple_output_type.has_value()) {
+        size_t index = 0;
+        Expr output = RebuildOutputTuple(tuple_output_type.value(), outs, &index);
+        TVM_FFI_ICHECK_EQ(index, outs.size());
+        return output;
       }
+      if (outs.size() == 1) return outs[0];
       return std::move(Tuple(outs));
     }
 
     return ffi::GetRef<Expr>(call);
+  }
+
+  Expr AllocateOutputTensor(const TensorType& tensor_ty, const Op& alloc_tensor_op) {
+    TVM_FFI_ICHECK(tensor_ty->shape.has_value())
+        << "call_tir expects all TensorType has shape, but got " << tensor_ty;
+
+    int dev_index = 0;
+    ffi::String scope = "global";
+    if (tensor_ty->vdevice.has_value()) {
+      dev_index = GetDeviceIndex(mod_, tensor_ty->vdevice.value());
+      scope = tensor_ty->vdevice.value()->memory_scope;
+    } else {
+      dev_index = GetDeviceIndexByScope(mod_, scope);
+    }
+
+    return builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
+                               {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
+                                DataTypeImm(tensor_ty->dtype.value()->dtype),
+                                IntImm::Int64(dev_index), StringImm(scope)},
+                               Attrs(), {tensor_ty}),
+                          "alloc");
+  }
+
+  void FlattenAndAllocateOutputs(const Type& type, const Op& alloc_tensor_op,
+                                 ffi::Array<Expr>* outs) {
+    if (const auto* tensor_ty = type.as<TensorTypeNode>()) {
+      outs->push_back(AllocateOutputTensor(ffi::GetRef<TensorType>(tensor_ty), alloc_tensor_op));
+      return;
+    }
+    if (const auto* tuple_ty = type.as<TupleTypeNode>()) {
+      for (const Type& field : tuple_ty->fields) {
+        FlattenAndAllocateOutputs(field, alloc_tensor_op, outs);
+      }
+      return;
+    }
+    TVM_FFI_THROW(TypeError) << "call_tir expects nested tuple outputs to contain only "
+                                "TensorType, but got "
+                             << type;
+  }
+
+  Expr RebuildOutputTuple(const Type& type, const ffi::Array<Expr>& outs, size_t* index) {
+    if (type->IsInstance<TensorTypeNode>()) {
+      TVM_FFI_ICHECK_LT(*index, outs.size());
+      return outs[(*index)++];
+    }
+    if (const auto* tuple_ty = type.as<TupleTypeNode>()) {
+      ffi::Array<Expr> fields;
+      fields.reserve(tuple_ty->fields.size());
+      for (const Type& field : tuple_ty->fields) {
+        fields.push_back(RebuildOutputTuple(field, outs, index));
+      }
+      return Tuple(std::move(fields));
+    }
+    TVM_FFI_THROW(TypeError) << "call_tir expects nested tuple outputs to contain only "
+                                "TensorType, but got "
+                             << type;
   }
 
   /*! \brief The context IRModule. */

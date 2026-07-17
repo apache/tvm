@@ -1272,10 +1272,21 @@ def test_match_dynamic_shape():
         A: R.Tensor([16, 16], "float32"),
         B: R.Tensor([16, 16], "float32"),
     ):
-        concat_AB = R.concat([A, B])
-        proj_concat = R.matmul(concat_AB, state)
-        proj_A = R.strided_slice(proj_concat, axes=[0], begin=[0], end=[16])
-        proj_B = R.strided_slice(proj_concat, axes=[0], begin=[16], end=[32])
+        N1 = T.int64()
+        M = T.int64()
+        N2 = T.int64()
+        with R.dataflow():
+            lhs_A = R.match_cast(A, R.Tensor([N1, M], "float32"))
+            lhs_B = R.match_cast(B, R.Tensor([N2, M], "float32"))
+            R.output(lhs_A, lhs_B)
+        concat_AB: R.Tensor([32, 16], "float32") = R.concat([lhs_A, lhs_B])
+        proj_concat: R.Tensor([32], "float32") = R.matmul(concat_AB, state)
+        proj_A: R.Tensor([16], "float32") = R.strided_slice(
+            proj_concat, axes=[0], begin=[0], end=[N1]
+        )
+        proj_B: R.Tensor([16], "float32") = R.strided_slice(
+            proj_concat, axes=[0], begin=[N1], end=[N2 + N1]
+        )
         out = proj_A + proj_B
         return out
 

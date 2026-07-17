@@ -132,11 +132,11 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size());
       scope_[it->second.level].touched.push_back(buffer_var);
 
-      TVM_FFI_ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
           << "Buffer " << op->buffer->name << " is allocated with "
           << it->second.num_physical_dimensions
           << " physical dimensions, but is accessed as having "
-          << op->buffer->axis_separators.size() + 1 << " physical dimensions" << std::endl;
+          << "1 physical dimension" << std::endl;
     }
     StmtEntry e = scope_.back();
     scope_.pop_back();
@@ -159,11 +159,11 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
           << "Load memory in places other than store.";
       scope_[it->second.level].touched.push_back(buffer_var);
 
-      TVM_FFI_ICHECK_EQ(op->buffer->axis_separators.size() + 1, it->second.num_physical_dimensions)
+      TVM_FFI_ICHECK_EQ(1, it->second.num_physical_dimensions)
           << "Buffer " << op->buffer->name << " is allocated with "
           << it->second.num_physical_dimensions
           << " physical dimensions, but is accessed as having "
-          << op->buffer->axis_separators.size() + 1 << " physical dimensions" << std::endl;
+          << "1 physical dimension" << std::endl;
     }
   }
 
@@ -179,11 +179,22 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     }
   }
 
+  void VisitStmt_(const ReturnNode* op) final {
+    scope_.push_back(StmtEntry());
+    StmtExprVisitor::VisitStmt_(op);
+    StmtEntry e = scope_.back();
+    scope_.pop_back();
+    if (e.touched.size() != 0) {
+      e.stmt = op;
+      linear_seq_.push_back(e);
+    }
+  }
+
   void VisitExpr_(const VarNode* buf) final {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.alloc) {
-      TVM_FFI_ICHECK_LT(it->second.level, scope_.size()) << " buf=" << buf->name_hint;
+      TVM_FFI_ICHECK_LT(it->second.level, scope_.size()) << " buf=" << buf->name;
       scope_[it->second.level].touched.push_back(buf);
     }
   }
@@ -377,7 +388,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
         return;
       }
       TVM_FFI_ICHECK_EQ(store_->indices.size(), op->indices.size())
-          << "Store/Load occur to the same buffer " << buf->name_hint
+          << "Store/Load occur to the same buffer " << buf->name
           << " with differing number of indices";
       for (size_t i = 0; i < store_->indices.size(); i++) {
         if (!tirx::ExprDeepEqual()(store_->indices[i], op->indices[i])) {
@@ -461,15 +472,14 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (it != buffer_remap_.end()) {
       TVM_FFI_ICHECK_EQ(it->second->data.get(), new_backing_array.get())
           << "Cannot remap buffer " << buf->name << " to use backing array "
-          << new_backing_array->name_hint << ", previously used backing array "
-          << it->second->data->name_hint;
+          << new_backing_array->name << ", previously used backing array "
+          << it->second->data->name;
       return it->second;
     }
 
-    Buffer remapped =
-        Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides, buf->elem_offset,
-               new_backing_array->name_hint, buf->data_alignment, buf->offset_factor,
-               buf->buffer_type, buf->axis_separators, buf->span, buf->layout, buf->allocated_addr);
+    Buffer remapped = Buffer(new_backing_array, buf->dtype, buf->shape, buf->strides,
+                             buf->elem_offset, new_backing_array->name, buf->data_alignment,
+                             buf->offset_factor, buf->span, buf->layout, buf->allocated_addr);
     buffer_remap_[key] = remapped;
     return remapped;
   }
@@ -741,7 +751,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           PrimExpr combo_size;
           for (const AllocBufferNode* op : e->allocs) {
             TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
-                << "Buffer var " << op->buffer->data->name_hint
+                << "Buffer var " << op->buffer->data->name
                 << " was identified as a re-usable allocation, but has " << op->buffer->shape.size()
                 << " physical dimensions.  "
                 << "Currently, only flat 1-d memory spaces should be identified as re-usable "
@@ -774,8 +784,8 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + IntImm::Int32(1);
           }
           combo_size = analyzer_->Simplify(combo_size);
-          Buffer buf(e->alloc_var, alloc_type, {combo_size}, {}, PrimExpr(),
-                     e->alloc_var->name_hint, 0, 0, BufferType::kDefault);
+          Buffer buf(e->alloc_var, alloc_type, {combo_size}, {}, PrimExpr(), e->alloc_var->name, 0,
+                     0);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
@@ -812,8 +822,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
     PrimExpr alloc_size =
         MakeConst(e->allocs[0]->buffer->shape[0].ty(), (total_bits + type_bits - 1) / type_bits);
-    Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name_hint, 0,
-               0, BufferType::kDefault);
+    Buffer buf(e->alloc_var, e->elem_type, {alloc_size}, {}, PrimExpr(), e->alloc_var->name, 0, 0);
     bool any_volatile = e->is_volatile;
     for (StorageEntry* child : e->merged_children) {
       if (child->is_volatile) any_volatile = true;
@@ -1327,7 +1336,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void OnArrayDeclaration(Var buffer, PrimType element_dtype, PrimExpr extent,
                           BufferVarInfo::DeclarationLocation declaration_location) {
     TVM_FFI_ICHECK(info_map_.find(buffer.get()) == info_map_.end())
-        << "Array declaration of " << buffer->name_hint << " occurred multiple times.";
+        << "Array declaration of " << buffer->name << " occurred multiple times.";
 
     if (element_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
       element_dtype = PrimType::Int(8, element_dtype.lanes());
@@ -1350,7 +1359,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void OnArrayAccess(PrimType value_dtype, const VarNode* buffer,
                      const ffi::Array<PrimExpr>& indices, bool is_buffer_load) {
     auto it = info_map_.find(buffer);
-    TVM_FFI_ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name_hint << " ("
+    TVM_FFI_ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name << " ("
                                           << buffer << ") occurred before its declaration.";
 
     if (value_dtype.IsScalableVector()) {
@@ -1367,8 +1376,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
 
     if (var_info.element_dtype.IsVoid()) {
       TVM_FFI_ICHECK(allow_untyped_pointers_)
-          << "Variable " << buffer->name_hint
-          << " was missing a type annotation in its declaration";
+          << "Variable " << buffer->name << " was missing a type annotation in its declaration";
       var_info.element_dtype = value_dtype.WithLanes(1);
     }
 
@@ -1516,7 +1524,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       PrimType preferred = var_info.get_preferred_dtype();
       if (preferred != var_info.element_dtype && (rewrite_mask & var_info.declaration_location)) {
         Var old_buffer_var = var_info.var;
-        Var new_buffer_var(old_buffer_var->name_hint,
+        Var new_buffer_var(old_buffer_var->name,
                            PointerType(preferred, GetPtrStorageScope(old_buffer_var)),
                            old_buffer_var->span);
 

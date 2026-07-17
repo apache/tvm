@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -48,7 +49,7 @@ def test_metal_inf_nan():
         fun = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.metal(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -115,7 +116,7 @@ def test_metal_erf():
         fun = tvm.compile(Module, target=target)
 
         def run_and_check():
-            dev = tvm.device(target, 0)
+            dev = tvm.metal(0)
             a = tvm.runtime.empty((n,), dtype, dev)
             c = tvm.runtime.empty((n,), dtype, dev)
             fun(a, c)
@@ -228,6 +229,97 @@ def test_func_with_trailing_pod_params():
     src: str = f.imports[0].inspect_source()
     occurrences = src.count("struct func_kernel_args_t")
     assert occurrences == 1, occurrences
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
+def test_metal_compile_callback_source_passthrough():
+    n = 1024
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
+                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                    with T.sblock("B"):
+                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
+                        T.reads(A[v_i])
+                        T.writes(B[v_i])
+                        B[v_i] = A[v_i] + 1.0
+
+    seen = {}
+
+    def inspect_callback(src, target):
+        # Pure inspection callback: capture the source, return it untouched and
+        # declare it is still textual MSL so it is compiled at load time.
+        seen["src"] = src
+        return (src, "metal")
+
+    tvm.register_global_func("tvm_callback_metal_compile", inspect_callback, override=True)
+    try:
+        f = tvm.compile(Module, target="metal")
+        dev = tvm.metal()
+        a = np.random.rand(n).astype("float32")
+        a_nd = tvm.runtime.tensor(a, dev)
+        b_nd = tvm.runtime.empty((n,), "float32", dev)
+        f(a_nd, b_nd)
+        dev.sync()
+    finally:
+        tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
+
+    assert "src" in seen and len(seen["src"]) > 0
+    tvm.testing.assert_allclose(b_nd.numpy(), a + 1.0, atol=1e-5, rtol=1e-5)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
+def test_metal_compile_callback_mixed_formats_rejected():
+    n = 1024
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((n,), "float32"),
+            B: T.Buffer((n,), "float32"),
+            C: T.Buffer((n,), "float32"),
+        ):
+            T.func_attr({"tirx.noalias": True})
+            # Two independent thread-bound regions -> two device kernels, so the
+            # compile callback is invoked twice within one module.
+            for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
+                for i_1 in T.thread_binding(32, thread="threadIdx.x"):
+                    with T.sblock("B"):
+                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
+                        T.reads(A[v_i])
+                        T.writes(B[v_i])
+                        B[v_i] = A[v_i] + 1.0
+            for j_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
+                for j_1 in T.thread_binding(32, thread="threadIdx.x"):
+                    with T.sblock("C"):
+                        v_j = T.axis.spatial(n, j_0 * 32 + j_1)
+                        T.reads(A[v_j])
+                        T.writes(C[v_j])
+                        C[v_j] = A[v_j] + 2.0
+
+    calls = {"n": 0}
+
+    def mixed_callback(src, target):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # Treated as a compiled metallib payload.
+            return src
+        # Second kernel declares textual MSL, contradicting the metallib above.
+        return (src, "metal")
+
+    tvm.register_global_func("tvm_callback_metal_compile", mixed_callback, override=True)
+    try:
+        with pytest.raises(Exception, match="inconsistent formats"):
+            tvm.compile(Module, target="metal")
+    finally:
+        tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
 
 
 @pytest.mark.gpu

@@ -42,7 +42,7 @@ def test_from_dlpack_shape_one():
 
     fadd = tvm.compile(te.create_prim_func([A, B, C]), target=tgt)
 
-    dev = tvm.device(tgt.kind.name, 0)
+    dev = tvm.cpu()
 
     b = tvm.runtime.tensor(np.random.uniform(size=(rows, 16)).astype(B.dtype), dev)
     c = tvm.runtime.tensor(np.zeros((rows, 16), dtype=C.dtype), dev)

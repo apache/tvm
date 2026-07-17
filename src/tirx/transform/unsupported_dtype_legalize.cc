@@ -119,7 +119,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
       if (auto* ptr_type = op->buffer->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
-      Var buffer_var = Var(op->buffer->data->name_hint, PointerType(dtype, storage_scope));
+      Var buffer_var = Var(op->buffer->data->name, PointerType(dtype, storage_scope));
       (*var_remap_)[op->buffer->data] = buffer_var;
     }
     return StmtExprVisitor::VisitStmt_(op);
@@ -145,8 +145,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
     Buffer new_buffer(var_it->second, promote_dtype_.WithLanes(buf->dtype.lanes()), buf->shape,
                       buf->strides, buf->elem_offset, buf->name, buf->data_alignment,
-                      buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span,
-                      buf->layout, buf->allocated_addr);
+                      buf->offset_factor, buf->span, buf->layout, buf->allocated_addr);
     (*buffer_remap_)[buf] = new_buffer;
   }
 
@@ -309,7 +308,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr value = PromoteToTarget(op->value);
     Var var = op->var;
     if (value.ty() != op->value.ty()) {
-      var = op->var.copy_with_dtype(op->value.ty());
+      var = op->var.CopyWithDType(op->value.ty());
       var_remap_[op->var] = var;
     }
 
@@ -343,7 +342,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr value = PromoteToTarget(prim_value.value());
     Var var = op->var;
     if (value.ty() != prim_value.value().ty()) {
-      var = op->var.copy_with_dtype(prim_value.value().ty());
+      var = op->var.CopyWithDType(prim_value.value().ty());
       var_remap_[op->var] = var;
     }
 
@@ -407,11 +406,11 @@ class ComputeLegalizer : public StmtExprMutator {
       for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
         Var lhs_var = reducer->lhs[i];
         if (lhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
+          var_remap_[lhs_var] = lhs_var.CopyWithDType(legalized_identity_elements[i].ty());
         }
         Var rhs_var = reducer->rhs[i];
         if (rhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].ty());
+          var_remap_[rhs_var] = rhs_var.CopyWithDType(legalized_identity_elements[i].ty());
         }
       }
 
@@ -583,11 +582,11 @@ class StorageLegalizer : public StmtExprMutator {
       if (auto* ptr_type = buf->data->ty.as<PointerTypeNode>()) {
         storage_scope = ptr_type->storage_scope;
       }
-      Var new_data = Var(buf->data->name_hint, PointerType(new_dtype, storage_scope));
+      Var new_data = Var(buf->data->name, PointerType(new_dtype, storage_scope));
       var_remap_[buf->data] = new_data;
       buf = Buffer(new_data, new_dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
-                   buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
-                   buf->span, buf->layout, buf->allocated_addr);
+                   buf->data_alignment, buf->offset_factor, buf->span, buf->layout,
+                   buf->allocated_addr);
       buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
@@ -606,9 +605,8 @@ class StorageLegalizer : public StmtExprMutator {
     // force remap here
     if (MatchType(buf->dtype)) {
       buf = Buffer(buf->data, GetStorageUIntDType(buf->dtype), buf->shape, buf->strides,
-                   buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor,
-                   buf->buffer_type, buf->axis_separators, buf->span, buf->layout,
-                   buf->allocated_addr);
+                   buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor, buf->span,
+                   buf->layout, buf->allocated_addr);
       buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
@@ -747,8 +745,8 @@ class StorageLegalizer : public StmtExprMutator {
       if (auto* elem_type = ptr_type->element_type.as<PrimTypeNode>()) {
         PrimType elem_prim_type = ffi::GetRef<PrimType>(elem_type);
         if (MatchType(elem_prim_type)) {
-          Var new_var = Var(var->name_hint, PointerType(GetStorageUIntDType(elem_prim_type),
-                                                        ptr_type->storage_scope));
+          Var new_var = Var(
+              var->name, PointerType(GetStorageUIntDType(elem_prim_type), ptr_type->storage_scope));
           var_remap_[var] = new_var;
           return new_var;
         }
@@ -767,8 +765,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (var_it != var_remap_.end()) {
       PrimType dtype = MatchType(buf->dtype) ? GetStorageUIntDType(buf->dtype) : buf->dtype;
       new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
-                       buf->data_alignment, buf->offset_factor, buf->buffer_type,
-                       buf->axis_separators, buf->span, buf->layout, buf->allocated_addr);
+                       buf->data_alignment, buf->offset_factor, buf->span, buf->layout,
+                       buf->allocated_addr);
     } else {
       TVM_FFI_ICHECK(!MatchType(buf->dtype)) << "Cannot find var remap for " << buf;
     }

@@ -650,10 +650,10 @@ inline ffi::Array<Tensor> split_indices_array(const Tensor& x, ffi::Array<PrimEx
 }
 
 inline PrimExpr DynamicCanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
-  auto idx_var = index.as<tvm::tirx::VarNode>();
-  auto extent_var = extent.as<tvm::tirx::VarNode>();
+  auto idx_var = index.as<tvm::tirx::PrimVar>();
+  auto extent_var = extent.as<tvm::tirx::PrimVar>();
 
-  if (idx_var && extent_var && idx_var->name_hint == extent_var->name_hint) {
+  if (idx_var && extent_var && (*idx_var)->name == (*extent_var)->name) {
     return index;
   }
 

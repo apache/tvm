@@ -25,6 +25,11 @@ import tvm
 from tvm import relax, tirx
 
 
+def _is_tensor_var(value) -> bool:
+    """Whether ``value`` belongs to Relax's tensor domain."""
+    return isinstance(value, tvm.ir.Var) and isinstance(value.ty, relax.TensorType)
+
+
 class StableHLOImporter:
     """An importer from StableHLO to Relax."""
 
@@ -156,7 +161,7 @@ class StableHLOImporter:
 
     def _add(self, node: mlir.ir.Operation) -> relax.Expr:
         lhs, rhs = self.retrieve_operands(node)
-        if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+        if _is_tensor_var(lhs) or _is_tensor_var(rhs):
             return self._call_binary_op(relax.op.add, lhs, rhs)
         return lhs + rhs
 
@@ -170,19 +175,19 @@ class StableHLOImporter:
 
     def _divide(self, node: mlir.ir.Operation) -> relax.Expr:
         lhs, rhs = self.retrieve_operands(node)
-        if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+        if _is_tensor_var(lhs) or _is_tensor_var(rhs):
             return self._call_binary_op(relax.op.divide, lhs, rhs)
         return lhs / rhs
 
     def _multiply(self, node: mlir.ir.Operation) -> relax.Expr:
         lhs, rhs = self.retrieve_operands(node)
-        if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+        if _is_tensor_var(lhs) or _is_tensor_var(rhs):
             return self._call_binary_op(relax.op.multiply, lhs, rhs)
         return lhs * rhs
 
     def _subtract(self, node: mlir.ir.Operation) -> relax.Expr:
         lhs, rhs = self.retrieve_operands(node)
-        if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+        if _is_tensor_var(lhs) or _is_tensor_var(rhs):
             return self._call_binary_op(relax.op.subtract, lhs, rhs)
         return lhs - rhs
 
