@@ -145,8 +145,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
     Buffer new_buffer(var_it->second, promote_dtype_.WithLanes(buf->dtype.lanes()), buf->shape,
                       buf->strides, buf->elem_offset, buf->name, buf->data_alignment,
-                      buf->offset_factor, buf->buffer_type, buf->axis_separators, buf->span,
-                      buf->layout, buf->allocated_addr);
+                      buf->offset_factor, buf->span, buf->layout, buf->allocated_addr);
     (*buffer_remap_)[buf] = new_buffer;
   }
 
@@ -586,8 +585,8 @@ class StorageLegalizer : public StmtExprMutator {
       Var new_data = Var(buf->data->name, PointerType(new_dtype, storage_scope));
       var_remap_[buf->data] = new_data;
       buf = Buffer(new_data, new_dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
-                   buf->data_alignment, buf->offset_factor, buf->buffer_type, buf->axis_separators,
-                   buf->span, buf->layout, buf->allocated_addr);
+                   buf->data_alignment, buf->offset_factor, buf->span, buf->layout,
+                   buf->allocated_addr);
       buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
@@ -606,9 +605,8 @@ class StorageLegalizer : public StmtExprMutator {
     // force remap here
     if (MatchType(buf->dtype)) {
       buf = Buffer(buf->data, GetStorageUIntDType(buf->dtype), buf->shape, buf->strides,
-                   buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor,
-                   buf->buffer_type, buf->axis_separators, buf->span, buf->layout,
-                   buf->allocated_addr);
+                   buf->elem_offset, buf->name, buf->data_alignment, buf->offset_factor, buf->span,
+                   buf->layout, buf->allocated_addr);
       buffer_remap_[op->buffer] = buf;
     }
     if (buf.same_as(op->buffer)) {
@@ -767,8 +765,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (var_it != var_remap_.end()) {
       PrimType dtype = MatchType(buf->dtype) ? GetStorageUIntDType(buf->dtype) : buf->dtype;
       new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
-                       buf->data_alignment, buf->offset_factor, buf->buffer_type,
-                       buf->axis_separators, buf->span, buf->layout, buf->allocated_addr);
+                       buf->data_alignment, buf->offset_factor, buf->span, buf->layout,
+                       buf->allocated_addr);
     } else {
       TVM_FFI_ICHECK(!MatchType(buf->dtype)) << "Cannot find var remap for " << buf;
     }

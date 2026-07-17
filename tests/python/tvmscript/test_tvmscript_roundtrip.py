@@ -2416,25 +2416,6 @@ def pointer_type():
     return func_with_ptr_type_annotations
 
 
-def buffer_axis_separator():
-    @T.prim_func(s_tir=True)
-    def element_wise(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128), "float32", axis_separators=[1])
-        C = T.match_buffer(c, (128, 128), "float32")
-        B = T.sblock_alloc_buffer((128, 128), "float32", axis_separators=[1])
-
-        for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                B[vi, vj] = A[vi, vj] * T.float32(2)
-        for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                C[vi, vj] = B[vi, vj] + T.float32(1)
-
-    return element_wise
-
-
 def buffer_ramp_access_as_slice_index():
     @T.prim_func(s_tir=True)
     def buffer_ramp_access(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -2767,75 +2748,6 @@ def bind_var():
         T.evaluate(0)
 
     return func
-
-
-def string_stride():
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int32()
-        A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
-        B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
-        blockIdx_x = T.launch_thread("blockIdx.x", (n + 63) // 64)
-        threadIdx_x = T.launch_thread("threadIdx.x", 64)
-        if T.likely(blockIdx_x * 64 + threadIdx_x < n):
-            B2 = T.decl_buffer((B.strides[0] * n,), data=B.data)
-            A2 = T.decl_buffer((A.strides[0] * n,), data=A.data)
-            B2[(blockIdx_x * 64 + threadIdx_x) * B.strides[0]] = A2[
-                (blockIdx_x * 64 + threadIdx_x) * A.strides[0]
-            ] * T.float32(2)
-
-    return main
-
-
-def string_stride_int64():
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
-        A_s0 = T.int64()
-        B_s0 = T.int64()
-        A = T.match_buffer(a, (n,), strides=(A_s0,), buffer_type="auto")
-        B = T.match_buffer(b, (n,), strides=(B_s0,), buffer_type="auto")
-        for i in range(n):
-            B[i] = A[i]
-
-    return main
-
-
-def merge_shape_var_def():
-    # uninitialized vars
-    @T.prim_func(check_well_formed=False, s_tir=True)
-    def main(A: T.handle, B: T.handle):
-        # fmt: off
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        m, n = T.int32(), T.int32()
-        A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
-        B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
-        for i_outer, j_outer, i_inner in T.grid((m + 9) // 10, (n + 4) // 5, 10):
-            if T.likely(i_outer * 10 + i_inner < m):
-                for j_inner in range(5):
-                    if T.likely(j_outer * 5 + j_inner < n):
-                        cse_v2: T.let[T.int32] = j_outer * 5 + j_inner
-                        cse_v1: T.let[T.int32] = i_outer * 10 + i_inner
-                        B_2 = T.decl_buffer(
-                            (B_1.strides[0] * m,),
-                            data=B_1.data,
-                            strides=("B_2_s0",),
-                            buffer_type="auto",
-                        )
-                        A_2 = T.decl_buffer(
-                            (A_1.strides[0] * m,),
-                            data=A_1.data,
-                            strides=("A_2_s0",),
-                            buffer_type="auto",
-                        )
-                        B_2[cse_v1 * B_1.strides[0] + cse_v2 * B_1.strides[1]] = A_2[
-                            cse_v1 * A_1.strides[0] + cse_v2 * A_1.strides[1]
-                        ]
-        # fmt: on
-
-    return main
 
 
 def if_then_else_var():
@@ -3335,7 +3247,6 @@ ir_generator = tvm.testing.parameter(
     int64_support,
     string_annotation_escaping,
     pointer_type,
-    buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     ramp_int64,
     scalable_vectors,
@@ -3361,9 +3272,6 @@ ir_generator = tvm.testing.parameter(
     multi_env_threads,
     intrinsic_pow,
     bind_var,
-    string_stride,
-    string_stride_int64,
-    merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
     make_packed_api_result,

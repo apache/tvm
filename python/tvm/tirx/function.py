@@ -250,11 +250,6 @@ class IndexMap(Object):
     initial_indices: list[Var]
     final_indices: list[Expr]
 
-    # Sentinel value used to indicate which groups of pre-flattening axes
-    # should be used to post-flattening axes axes.  See
-    # Stage.transform_layout for more details.
-    AXIS_SEPARATOR = "axis_separator"
-
     def __init__(self, initial_indices, final_indices, inverse_index_map):
         if isinstance(inverse_index_map, Callable):
             inverse_index_map = IndexMap.from_func(inverse_index_map)
@@ -297,74 +292,14 @@ class IndexMap(Object):
             It is the user's responsibility to ensure the correctness of the pre-defined inverse
             index map.
 
-        Returns
-        -------
-        index_map: IndexMap
-
-            Returns an IndexMap representing the `mapping_function`.
-
-        """
-        index_map, axis_separators = IndexMap.from_func_with_separators(
-            mapping_function,
-            ndim,
-            inverse_index_map,
-            index_dtype=index_dtype,
-        )
-        assert not axis_separators, (
-            "The mapping_function provided to IndexMap.from_func "
-            "may not return IndexMap.AXIS_SEPARATOR.  "
-            "If required, please use IndexMap.from_func_with_separators instead."
-        )
-        return index_map
-
-    @staticmethod
-    def from_func_with_separators(
-        mapping_function: Callable,
-        ndim: int | None = None,
-        inverse_index_map: Callable | Optional["IndexMap"] = None,
-        *,
-        index_dtype: str = "int64",
-    ):
-        """Create an index map from a function
-
-        Parameters
-        ----------
-        mapping_function : Callable
-
-            The function to map from source indices to target indices.
-            The function should accept tirx.Var parameters and return
-            either a `tirx.Expr` or a list.  Each element of the
-            returned list should be either a `tirx.Expr` or the
-            object `IndexMap.AXIS_SEPARATOR`.  Returning a
-            `tirx.Expr` is equivalent to returning a list of length
-            1 containing that `tirx.Expr`.
-
-        ndim: Optional[int]
-
-            The dimensionality of the buffer to which this
-            transformation should be applied.  If mapping_function uses
-            variadic argument `*args`, ndim must be specified.  If
-            mapping_function does not use variadic arguments, ndim is
-            optional.
-
-        inverse_index_map : Union[Callable, Optional[IndexMap]]
-            The optional pre-defined inverse index map.
-            When this is defined, IndexMap::Inverse will return the pre-defined inverse index map.
-            Otherwise, the inverse index map will be computed on the fly.
-            It is the user's responsibility to ensure the correctness of the pre-defined inverse
-            index map.
-
         index_dtype : str
             The default index dtype to use for input iters in the mapping function.
 
         Returns
         -------
-        ret: Tuple[IndexMap, List[int]]
+        index_map: IndexMap
 
-            Returns a tuple whose first element is an IndexMap
-            representing the `mapping_function`, and whose second index
-            is a list of indices at which `IndexMap.AXIS_SEPARATOR`
-            occurred.
+            Returns an IndexMap representing the `mapping_function`.
 
         """
         params = inspect.signature(mapping_function).parameters
@@ -403,7 +338,6 @@ class IndexMap(Object):
         initial_indices = args + list(kwargs.values())
 
         final_indices = []
-        axis_separators = []
 
         if tvm.ir.is_prim_expr(mapping):
             is_iterable = False
@@ -418,18 +352,16 @@ class IndexMap(Object):
             for val in mapping:
                 if tvm.ir.is_prim_expr(val):
                     final_indices.append(val)
-                elif val is IndexMap.AXIS_SEPARATOR:
-                    axis_separators.append(len(final_indices))
                 else:
                     raise TypeError(
-                        "Expected mapping function to return list of "
-                        "either tvm.ir.Expr or IndexMap.AXIS_SEPARATOR.  "
+                        "Expected mapping function to return tvm.ir.Expr "
+                        "or a list of tvm.ir.Expr.  "
                         f"Instead received {val} of type {type(val)}."
                     )
         else:
             final_indices.append(mapping)
 
-        return IndexMap(initial_indices, final_indices, inverse_index_map), axis_separators
+        return IndexMap(initial_indices, final_indices, inverse_index_map)
 
     def is_equivalent_to(self, other_map: "IndexMap", analyzer=None) -> bool:
         """Return if the index maps are equivalent.
