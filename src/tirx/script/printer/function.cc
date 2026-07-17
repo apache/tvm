@@ -62,8 +62,7 @@ bool IsSimpleBuffer(const tirx::Buffer& buf, bool s_tir) {
     return false;
   }
   return buf.scope() == "global" && buf->data_alignment == runtime::kAllocAlignment &&
-         buf->offset_factor == 1 && buf->buffer_type == tirx::BufferType::kDefault &&
-         !buf->axis_separators.size();
+         buf->offset_factor == 1;
 }
 
 int CountVarOccurrence(const tirx::PrimFunc& f, const tirx::Var& v) {

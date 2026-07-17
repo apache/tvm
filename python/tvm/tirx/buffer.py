@@ -350,8 +350,6 @@ class Buffer(Object, Scriptable):
                 self.scope(),
                 self.data_alignment,
                 self.offset_factor,
-                "",
-                self.axis_separators,
                 layout,
             )
         else:
@@ -383,8 +381,6 @@ class Buffer(Object, Scriptable):
                 self.scope(),
                 self.data_alignment,
                 self.offset_factor,
-                "",
-                self.axis_separators,
                 self.layout if layout is None else layout,
             )
 
@@ -425,8 +421,6 @@ class Buffer(Object, Scriptable):
             self.scope(),
             self.data_alignment,
             self.offset_factor,
-            "",
-            self.axis_separators,
             self.layout.storage() if layout is None else layout,
         )
 
@@ -463,8 +457,6 @@ class Buffer(Object, Scriptable):
             self.scope(),
             self.data_alignment,
             self.offset_factor,
-            "",
-            self.axis_separators,
             new_layout,
         )
 
@@ -529,8 +521,6 @@ def decl_buffer(
     scope="",
     data_alignment=-1,
     offset_factor=0,
-    buffer_type="",
-    axis_separators=None,
     span=None,
     layout="default",
 ):
@@ -541,9 +531,6 @@ def decl_buffer(
     shape = (shape,) if tvm.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
-
-    if axis_separators is None:
-        axis_separators = []
 
     if layout == "default":
         layout = TileLayout(S[tuple(shape)]) if shape else None
@@ -565,8 +552,6 @@ def decl_buffer(
         name,
         data_alignment,
         offset_factor,
-        buffer_type,
-        axis_separators,
         span,
         layout,
     )

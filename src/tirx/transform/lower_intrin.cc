@@ -76,8 +76,7 @@ static Expr LowerAccessPtr(const CallNode* call) {
     offset = offset * IntImm(offset_ty, dtype.lanes());
     offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
-  Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name, 0, 0,
-                   kDefault);
+  Buffer dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name, 0, 0);
   BufferLoad buf_load(dummy_buf, {offset});
   return Call(call->ty, builtin::address_of(), {buf_load});
 }

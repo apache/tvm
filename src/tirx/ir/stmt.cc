@@ -565,11 +565,6 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
       << " required alignment=" << buffer->data_alignment
       << ", provided alignment=" << source_buffer->data_alignment;
 
-  // Check BufferType. AutoBroadcast is not allowed for now.
-  TVM_FFI_ICHECK(buffer->buffer_type == BufferType::kDefault &&
-                 source_buffer->buffer_type == BufferType::kDefault)
-      << "AutoBroadcast is not allowed in MatchBuffer";
-
   // Validate shape
   TVM_FFI_ICHECK(source->region.size() >= buffer->shape.size())
       << "Dimension of source ffi::Array<Range> expected to be larger or equal than target buffer "

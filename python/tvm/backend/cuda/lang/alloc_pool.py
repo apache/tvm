@@ -448,8 +448,6 @@ class SMEMPool:
         strides=None,
         scope="shared.dyn",
         align=0,
-        buffer_type="",
-        axis_separators=None,
         layout="default",
     ):
         ir = _get_ir()
@@ -463,8 +461,6 @@ class SMEMPool:
             byte_offset=self.offset,
             scope=scope,
             align=align,
-            buffer_type=buffer_type,
-            axis_separators=axis_separators,
             layout=layout,
         )
         # Advance in bits then round up to bytes so sub-byte dtypes (e.g.
