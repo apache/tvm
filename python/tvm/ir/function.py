@@ -62,17 +62,19 @@ class BaseFunc(Expr):
         func : BaseFunc
             A new copy of the function
         """
-        # make sure we first copy so that we can safely do copy on write
-        # for multiple updates.
-        res = _ffi_api.BaseFuncCopy(self)
+        # Pass an lvalue so that the RValueRef argument takes its own strong
+        # reference.  tvm-ffi ties a C++ object to one canonical Python wrapper,
+        # so BaseFuncCopy(self) may return self; moving that wrapper would also
+        # invalidate the caller's original function.
+        res = self
 
         if isinstance(attr_key_or_dict, dict):
             for key, val in attr_key_or_dict.items():
-                res = _ffi_api.BaseFuncWithAttr(res._move(), key, tvm.runtime.convert(val))
+                res = _ffi_api.BaseFuncWithAttr(res, key, tvm.runtime.convert(val))
             return res
 
         return _ffi_api.BaseFuncWithAttr(
-            res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value)
+            res, attr_key_or_dict, tvm.runtime.convert(attr_value)
         )
 
     def with_attrs(self, attr_map: DictAttrs | dict[str, Object]) -> "BaseFunc":
