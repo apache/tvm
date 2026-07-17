@@ -154,7 +154,7 @@ TEST(IRF, StmtVisitor) {
     Stmt eval_body = Evaluate(z);
     PrimType dtype = PrimType::Float(32);
     tirx::Var data_var("b", PointerType(dtype));
-    Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
+    Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0);
     // AllocBuffer is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({AllocBuffer(buf), eval_body});
   };
@@ -208,7 +208,7 @@ TEST(IRF, StmtMutator) {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
     tirx::Var data_var("b", PointerType(dtype));
-    Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
+    Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0);
     return AllocBuffer(buf);
   };
 
@@ -342,8 +342,7 @@ TEST(IRF, Substitute) {
                   /*elem_offset=*/PrimExpr(),
                   /*name=*/"buf",
                   /*data_alignment=*/1,
-                  /*offset_factor=*/1,
-                  /*buffer_type=*/BufferType::kDefault};
+                  /*offset_factor=*/1};
   };
 
   {

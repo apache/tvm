@@ -1752,46 +1752,6 @@ def test_layout_transform_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_layout_transform_with_pad_axis_sep():
-    transformation = lambda a, b, c: (a, c, b // 3, b % 3)
-    pad_value = 2
-    axis_separator = [3]
-
-    # fmt: off
-    @I.ir_module(s_tir=True)
-    class LayoutTransform:
-        @R.function
-        def main(x: R.Tensor((10, 20, 30), "float32")):
-            gv = R.layout_transform(
-                x, index_map=transformation, pad_value=pad_value, axis_separators=axis_separator,
-            )
-            return gv
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @T.prim_func(private=True, s_tir=True)
-        def te_layout_transform_with_pad_axis_separator(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), var_te_layout_transform_with_pad_axis_separator: T.handle):
-            T.func_attr({"tirx.noalias": True})
-            te_layout_transform_with_pad_axis_separator_1 = T.match_buffer(var_te_layout_transform_with_pad_axis_separator, (T.int64(10), T.int64(30), T.int64(7), T.int64(3)), axis_separators=[3])
-            # with T.sblock("root"):
-            for axis0, axis1, axis2, axis3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
-                with T.sblock("te_layout_transform_with_pad_axis_separator"):
-                    v_axis0, v_axis1, v_axis2, v_axis3 = T.axis.remap("SSSS", [axis0, axis1, axis2, axis3])
-                    T.reads(A[v_axis0, v_axis2 * T.int64(3) + v_axis3, v_axis1])
-                    T.writes(te_layout_transform_with_pad_axis_separator_1[v_axis0, v_axis1, v_axis2, v_axis3])
-                    te_layout_transform_with_pad_axis_separator_1[v_axis0, v_axis1, v_axis2, v_axis3] = T.if_then_else(v_axis2 == T.int64(6) and v_axis3 == T.int64(2), T.float32(2), A[v_axis0, v_axis2 * T.int64(3) + v_axis3, v_axis1])
-
-        @R.function
-        def main(x: R.Tensor((10, 20, 30), dtype="float32")) -> R.Tensor((10, 30, 7, 3), dtype="float32"):
-            cls = Expected
-            gv = R.call_tir(cls.te_layout_transform_with_pad_axis_separator, (x,), out_ty=R.Tensor((10, 30, 7, 3), dtype="float32"))
-            return gv
-    # fmt: on
-
-    mod = LegalizeOps()(LayoutTransform)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
 def test_func_ty_of_legalized_layout_transform():
     """PrimFunc shape information must be correct
 

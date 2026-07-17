@@ -30,7 +30,7 @@ from tvm.tirx import comm_reducer, min, max, sum
 from .tensor import TensorSlice, Tensor
 from .tag import tag_scope
 from .operation import placeholder, compute, scan, extern, var, const
-from .operation import thread_axis, reduce_axis, AXIS_SEPARATOR
+from .operation import thread_axis, reduce_axis
 from .operation import create_prim_func
 from .operation import extern_primfunc
 

@@ -81,18 +81,12 @@ bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
  */
 class AlterOpImplMutator : public ExprMutator {
  public:
-  AlterOpImplMutator(
-      const IRModule& mod, const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
-      const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_,
-      const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>& axis_separators_,
-      const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
-          input_axis_separators_)
+  AlterOpImplMutator(const IRModule& mod, const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+                     const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_)
       : ExprMutator(mod),
         mod_(mod),
         op_impl_map_(op_impl_map),
-        op_buffer_transforms__(op_buffer_transforms_),
-        op_buffer_axis_separators__(axis_separators_),
-        op_buffer_input_axis_separators__(input_axis_separators_) {}
+        op_buffer_transforms__(op_buffer_transforms_) {}
 
   IRModule Run() {
     for (const auto& gv : mod_->GetGlobalVars()) {
@@ -132,13 +126,7 @@ class AlterOpImplMutator : public ExprMutator {
     const auto& replacement_func = op_impl_map_[op_kind];
 
     ffi::Array<IndexMap> buffer_transforms;
-    ffi::Optional<ffi::Array<ffi::Array<IntImm>>> axis_separators;
-    ffi::Optional<ffi::Array<ffi::Array<IntImm>>> input_axis_separators;
     if (op_buffer_transforms__.count(op_kind)) buffer_transforms = op_buffer_transforms__[op_kind];
-    if (op_buffer_axis_separators__.count(op_kind))
-      axis_separators = op_buffer_axis_separators__[op_kind];
-    if (op_buffer_input_axis_separators__.count(op_kind))
-      input_axis_separators = op_buffer_input_axis_separators__[op_kind];
 
     TVM_FFI_ICHECK(buffer_transforms.empty() ||
                    buffer_transforms.size() == replacement_func->params.size())
@@ -150,8 +138,7 @@ class AlterOpImplMutator : public ExprMutator {
     GlobalVar replacement_gv = GetOrCreateGlobalVarForFunc(replacement_func, op_kind);
 
     auto call_tir_inputs_tuple = ffi::GetRef<Tuple>(call->args[1].as<TupleNode>());
-    Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, buffer_transforms, axis_separators,
-                                        input_axis_separators);
+    Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, buffer_transforms);
 
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1) << "call_tir ty_args.size() is expected to be 1";
     Type updated_ret_ty = UpdateOutputType(call->ty_args[0], buffer_transforms);
@@ -160,8 +147,7 @@ class AlterOpImplMutator : public ExprMutator {
                                  call->attrs, {updated_ret_ty}));
 
     // Now transform each of the outputs to previous layout.
-    return TransformOutputs(updated_call, buffer_transforms, call->ty_args[0], axis_separators,
-                            input_axis_separators);
+    return TransformOutputs(updated_call, buffer_transforms, call->ty_args[0]);
   }
 
   ffi::Array<TensorType> GetTensorTypePerOutput(const Type& output_ty) {
@@ -187,9 +173,7 @@ class AlterOpImplMutator : public ExprMutator {
     return false;
   }
 
-  Expr TransformLayout(const Expr& expr, const IndexMap& index_map,
-                       const ffi::Array<IntImm>& axis_separators,
-                       const ffi::Array<IntImm>& input_axis_separators) {
+  Expr TransformLayout(const Expr& expr, const IndexMap& index_map) {
     if (IsScalarConstant(expr) || index_map.get() == nullptr) {
       return expr;
     }
@@ -198,8 +182,6 @@ class AlterOpImplMutator : public ExprMutator {
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
     // so would confuse the structural equality check.
     attrs->index_map = DeepCopyIndexMap(index_map);
-    attrs->axis_separators = std::move(axis_separators);
-    attrs->input_axis_separators = std::move(input_axis_separators);
     return Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
   }
 
@@ -246,9 +228,7 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   Expr TransformLayoutInverse(const Expr& expr, const IndexMap& index_map,
-                              const TensorType& old_tensor_ty,
-                              const ffi::Array<IntImm>& axis_separator,
-                              const ffi::Array<IntImm>& input_axis_separator) {
+                              const TensorType& old_tensor_ty) {
     if (IsScalarConstant(expr) || index_map.get() == nullptr) {
       return expr;
     }
@@ -259,10 +239,9 @@ class AlterOpImplMutator : public ExprMutator {
         index_map.NonSurjectiveInverse(initial_ranges, analyzer);
 
     if (tirx::is_zero(padding_predicate)) {
-      return TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator);
+      return TransformLayout(expr, inverse_index_map);
     } else {
-      auto padded_expr = builder_->Normalize(
-          TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator));
+      auto padded_expr = builder_->Normalize(TransformLayout(expr, inverse_index_map));
       const auto& tensor_ty = padded_expr->ty.as_or_throw<TensorType>();
 
       GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype.value()->dtype);
@@ -294,27 +273,14 @@ class AlterOpImplMutator : public ExprMutator {
   /*!
    * \brief Updates call inputs with layout transformed inputs
    */
-  Tuple UpdateInputs(const Tuple& inputs, const ffi::Array<IndexMap>& transforms,
-                     const ffi::Optional<ffi::Array<ffi::Array<IntImm>>>& axis_separators,
-                     const ffi::Optional<ffi::Array<ffi::Array<IntImm>>>& input_axis_separators) {
+  Tuple UpdateInputs(const Tuple& inputs, const ffi::Array<IndexMap>& transforms) {
     if (transforms.empty()) return inputs;
 
     ffi::Array<Expr> updated_inputs;
     int index = 0;
     for (const auto& input : inputs->fields) {
-      ffi::Array<IntImm> axis_separator;
-      ffi::Array<IntImm> input_axis_separator;
-      if (axis_separators.has_value()) {
-        ffi::Array<ffi::Array<IntImm>> axis_separators_value = axis_separators.value();
-        axis_separator = axis_separators_value[index];
-      }
-      if (input_axis_separators.has_value()) {
-        ffi::Array<ffi::Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
-        input_axis_separator = input_axis_separators_value[index];
-      }
       auto transform = transforms[index++];
-      updated_inputs.push_back(
-          TransformLayout(input, transform, axis_separator, input_axis_separator));
+      updated_inputs.push_back(TransformLayout(input, transform));
     }
     return Tuple(updated_inputs);
   }
@@ -359,15 +325,12 @@ class AlterOpImplMutator : public ExprMutator {
     return TensorType(ShapeExpr(new_shape), tensor_ty->dtype);
   }
 
-  Expr TransformOutputs(
-      const Expr& expr, const ffi::Array<IndexMap>& buffer_transforms, const Type& old_ty,
-      const ffi::Optional<ffi::Array<ffi::Array<IntImm>>>& axis_separators,
-      const ffi::Optional<ffi::Array<ffi::Array<IntImm>>>& input_axis_separators) {
+  Expr TransformOutputs(const Expr& expr, const ffi::Array<IndexMap>& buffer_transforms,
+                        const Type& old_ty) {
     if (buffer_transforms.empty()) return expr;
 
     ffi::Array<TensorType> old_output_ty = GetTensorTypePerOutput(old_ty);
 
-    ffi::Array<IntImm> axis_sep, input_axis_sep;
     size_t num_outputs = old_output_ty.size();
     if (num_outputs == 0) return expr;
 
@@ -375,15 +338,7 @@ class AlterOpImplMutator : public ExprMutator {
     // If there is a single output, return the transformed output.
     if (num_outputs == 1) {
       IndexMap output_map = buffer_transforms[first_output_index];
-      if (axis_separators.has_value()) {
-        ffi::Array<ffi::Array<IntImm>> axis_separators_value = axis_separators.value();
-        axis_sep = axis_separators_value[first_output_index];
-      }
-      if (input_axis_separators.has_value()) {
-        ffi::Array<ffi::Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
-        input_axis_sep = input_axis_separators_value[first_output_index];
-      }
-      return TransformLayoutInverse(expr, output_map, old_output_ty[0], axis_sep, input_axis_sep);
+      return TransformLayoutInverse(expr, output_map, old_output_ty[0]);
     }
 
     // In case of more than one output, we would have to get each item of the output tuple,
@@ -391,17 +346,8 @@ class AlterOpImplMutator : public ExprMutator {
     ffi::Array<Expr> transformed_outputs;
     for (size_t i = 0; i + first_output_index < buffer_transforms.size(); ++i) {
       const auto& output_map = buffer_transforms[i + first_output_index];
-      if (axis_separators.has_value()) {
-        ffi::Array<ffi::Array<IntImm>> axis_separators_value = axis_separators.value();
-        axis_sep = axis_separators_value[i + first_output_index];
-      }
-      if (input_axis_separators.has_value()) {
-        ffi::Array<ffi::Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
-        input_axis_sep = input_axis_separators_value[i + first_output_index];
-      }
       auto output = builder_->Normalize(TupleGetItem(expr, static_cast<int>(i)));
-      transformed_outputs.push_back(
-          TransformLayoutInverse(output, output_map, old_output_ty[i], axis_sep, input_axis_sep));
+      transformed_outputs.push_back(TransformLayoutInverse(output, output_map, old_output_ty[i]));
     }
     return Tuple(transformed_outputs);
   }
@@ -417,12 +363,6 @@ class AlterOpImplMutator : public ExprMutator {
   const ffi::Map<ffi::String, PrimFunc>& op_impl_map_;
   /*! \brief Map from kOperatorName attribute to the layout transforms on i/o buffers */
   const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms__;
-  /*! \brief Map from kOperatorName attribute to the axis separatos on i/o buffers */
-  const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
-      op_buffer_axis_separators__;
-  /*! \brief Map from kOperatorName attribute to the input axis separatos */
-  const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
-      op_buffer_input_axis_separators__;
 
   const Op& call_tir_op_ = Op::Get("relax.call_tir");
   const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
@@ -430,16 +370,10 @@ class AlterOpImplMutator : public ExprMutator {
 
 namespace transform {
 
-Pass AlterOpImpl(
-    const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
-    const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_,
-    const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>& axis_separators_,
-    const ffi::Map<ffi::String, ffi::Optional<ffi::Array<ffi::Array<IntImm>>>>&
-        input_axis_separators_) {
+Pass AlterOpImpl(const ffi::Map<ffi::String, tirx::PrimFunc>& op_impl_map,
+                 const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms_) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
-    return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_, axis_separators_,
-                              input_axis_separators_)
-        .Run();
+    return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_).Run();
   };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //

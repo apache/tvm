@@ -699,14 +699,10 @@ TVM_REGISTER_OP("relax.index_tensor")
 
 /* relax.layout_transform */
 
-Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value,
-                      ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                      ffi::Optional<ffi::Array<IntImm>> input_axis_separators) {
+Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> pad_value) {
   ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
   attrs->index_map = std::move(index_map);
   attrs->pad_value = std::move(pad_value);
-  attrs->axis_separators = std::move(axis_separators);
-  attrs->input_axis_separators = std::move(input_axis_separators);
 
   static const Op& op = Op::Get("relax.layout_transform");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});

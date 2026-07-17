@@ -269,8 +269,8 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       buffer_shape.push_back(
           arith::EvalSet(info->var_binding.at(it), arith::AsIntSet(info->range_map)).max() + 1);
     }
-    info->cache_buffer.push_back(Buffer(index_buffer_var, data_ty, buffer_shape, {1}, {0},
-                                        index_buffer_var->name, 0, 0, kDefault));
+    info->cache_buffer.push_back(
+        Buffer(index_buffer_var, data_ty, buffer_shape, {1}, {0}, index_buffer_var->name, 0, 0));
 
     // Create loop vars and block vars' binding_value
     std::vector<PrimVar> loop_vars;

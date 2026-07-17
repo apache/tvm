@@ -279,7 +279,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     alloc_size = warp_group_ * factor;
 
     Buffer new_buf(op->buffer->data, op->buffer->dtype, {IntImm::Int32(alloc_size / width_)}, {},
-                   PrimExpr(), op->buffer->data->name, 0, 0, BufferType::kDefault);
+                   PrimExpr(), op->buffer->data->name, 0, 0);
     Stmt rewritten_body = this->VisitStmt(body);
     return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
   }

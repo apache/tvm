@@ -326,18 +326,6 @@ class TVMFFIABIBuilder {
                           const ffi::reflection::AccessPath& param_path);
 
   /*!
-   * \brief Bind strides for auto-broadcast buffers: stride=0 for shape==1 dims.
-   *
-   * \param buffer The expected buffer definition.
-   * \param strides_ptr The strides pointer variable.
-   * \param v_strides_is_null Expression checking if strides pointer is NULL.
-   * \param param_path ffi::reflection::AccessPath for the tensor parameter.
-   */
-  void BindAutoBroadcastStrides(const Buffer& buffer, const Var& strides_ptr,
-                                const PrimExpr& v_strides_is_null,
-                                const ffi::reflection::AccessPath& param_path);
-
-  /*!
    * \brief Bind strides with C-contiguous fallback when strides pointer is NULL.
    *
    * \param buffer The expected buffer definition.

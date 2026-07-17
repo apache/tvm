@@ -286,8 +286,6 @@ def buffer(
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
-    buffer_type: str = "",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
     allocated_addr: int | tuple[int, ...] | None = None,
     buffer_name: str = "",
@@ -320,12 +318,6 @@ def buffer(
     offset_factor : int
         The factor of elem_offset field.
 
-    buffer_type : str
-        The buffer type.
-
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     buffer_name : str
         The name of the buffer.
 
@@ -353,8 +345,6 @@ def buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -467,8 +457,6 @@ def match_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    buffer_type: str = "default",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
 ) -> Buffer:
     """The buffer match function.
@@ -518,12 +506,6 @@ def match_buffer(
     offset_factor : int
         The factor of elem_offset field.
 
-    buffer_type : str
-        The buffer type.
-
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     layout: Optional[Union[str, Layout]]
         The layout of the buffer.
 
@@ -554,8 +536,6 @@ def match_buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
     )
 
@@ -810,8 +790,6 @@ def alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    buffer_type: str = "default",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
@@ -845,10 +823,6 @@ def alloc_buffer(
         Alignment requirement in bytes.
     offset_factor : int
         Offset factor.
-    buffer_type : str
-        Buffer type.
-    axis_separators : Optional[List[int]]
-        Optional axis separators.
     layout : Optional[Union[str, Layout]]
         Optional layout.
     allocated_addr : Optional[Union[int, Tuple[int, ...]]]
@@ -872,8 +846,6 @@ def alloc_buffer(
         scope=scope,
         align=align,
         offset_factor=offset_factor,
-        buffer_type=buffer_type,
-        axis_separators=axis_separators,
         layout=layout,
         allocated_addr=allocated_addr,
         buffer_name="",
@@ -930,8 +902,6 @@ def sblock_alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    buffer_type: str = "default",
-    axis_separators: list[int] | None = None,
     layout: str | Layout | None = "default",
     allocated_addr: int | tuple[int, ...] | None = None,
 ) -> Buffer:
@@ -955,11 +925,6 @@ def sblock_alloc_buffer(
         The alignment requirement of data pointer in bytes.
     offset_factor : int
         The factor of elem_offset field.
-    buffer_type : str
-        The buffer type.
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     layout: Optional[Union[str, Layout]]
         The layout of the buffer.
 
@@ -979,8 +944,6 @@ def sblock_alloc_buffer(
         strides = [Var(s, "int32") if isinstance(s, str) else s for s in strides]
     else:
         strides = []
-    if axis_separators is None:
-        axis_separators = []
     if allocated_addr is None:
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
@@ -994,8 +957,6 @@ def sblock_alloc_buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -1766,8 +1727,6 @@ def decl_buffer(
     scope="global",
     align=0,
     offset_factor=0,
-    buffer_type="",
-    axis_separators=None,
     layout="default",
     allocated_addr=None,
 ) -> Buffer:
@@ -1805,12 +1764,6 @@ def decl_buffer(
     offset_factor : int
         The factor of elem_offset field.
 
-    buffer_type : str
-        The buffer type.
-
-    axis_separators : List[int]
-        The separators between input axes when generating flattened output axes.
-
     layout : Layout
         The layout of the buffer.
 
@@ -1835,8 +1788,6 @@ def decl_buffer(
         scope,
         align,
         offset_factor,
-        buffer_type,
-        axis_separators,
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
@@ -2057,8 +2008,6 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Buffe
         strides=None,
         align=-1,
         offset_factor=0,
-        buffer_type="default",
-        axis_separators=None,
         layout=TileLayout(S[1]),
     )
     assert isinstance(buf, Buffer)

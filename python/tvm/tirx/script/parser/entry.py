@@ -447,8 +447,6 @@ class BufferProxy:
         scope="global",
         align=0,
         offset_factor=0,
-        buffer_type="",
-        axis_separators=None,
         layout="default",
     ) -> Buffer:
         return buffer(
@@ -461,8 +459,6 @@ class BufferProxy:
             scope=scope,
             align=align,
             offset_factor=offset_factor,
-            buffer_type=buffer_type,
-            axis_separators=axis_separators,
             layout=layout,
         )
 

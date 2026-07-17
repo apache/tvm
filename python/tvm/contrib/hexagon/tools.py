@@ -19,7 +19,6 @@
 """Tools/compilers/linkers for Hexagon"""
 
 import io
-import itertools
 import os
 import pathlib
 import re
@@ -401,13 +400,8 @@ def export_module(module, out_dir, binary_name="test_binary.so"):
     return binary_path
 
 
-def allocate_hexagon_array(
-    dev, tensor_shape=None, dtype=None, data=None, axis_separators=None, mem_scope=None
-):
-    """
-    Allocate a hexagon array which could be a 2D array
-    on physical memory defined by axis_separators
-    """
+def allocate_hexagon_array(dev, tensor_shape=None, dtype=None, data=None, mem_scope=None):
+    """Allocate a Hexagon array backed by flat physical memory."""
     if tensor_shape is None:
         assert data is not None, "Must provide either tensor shape or numpy data array"
         tensor_shape = data.shape
@@ -422,13 +416,7 @@ def allocate_hexagon_array(
     elif data is not None:
         assert dtype == data.dtype, "Mismatch between provided dtype and numpy data array dtype"
 
-    if axis_separators is None:
-        axis_separators = []
-
-    boundaries = [0, *axis_separators, len(tensor_shape)]
-    physical_shape = [
-        numpy.prod(tensor_shape[dim_i:dim_f]) for dim_i, dim_f in itertools.pairwise(boundaries)
-    ]
+    physical_shape = [numpy.prod(tensor_shape)]
 
     arr = tvm.runtime.empty(physical_shape, dtype=dtype, device=dev, mem_scope=mem_scope)
 
