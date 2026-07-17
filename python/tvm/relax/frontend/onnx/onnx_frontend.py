@@ -1333,18 +1333,18 @@ class Gather(OnnxOpConverter):
             output = _np.take(data.data.numpy(), indices.data.numpy(), axis=axis)
             return relax.const(output, output.dtype)
 
-        # If input is a shape expression, take a value from that shape. A single
-        # constant index resolves to one dimension that we return as a PrimValue to
-        # keep shape-specialized handling in downstream shape-construction patterns.
-        # Any other index (dynamic, or a constant selecting multiple dimensions)
-        # materializes the shape as an int64 tensor and gathers from it at runtime,
-        # reusing the negative-index normalization below.
+        # If input is a shape expression, take a value from that shape. A 0-D
+        # scalar constant index resolves to one dimension that we return as a
+        # PrimValue to keep shape-specialized handling in downstream
+        # shape-construction patterns. Any other index materializes the shape as
+        # an int64 tensor and gathers from it at runtime, reusing the
+        # negative-index normalization below. ONNX Gather defines the output rank
+        # as q + r - 1 (q = rank of indices); since the shape is rank 1, a
+        # non-scalar index such as (1,) must keep its rank, so only a true
+        # 0-D index collapses to a scalar.
         if isinstance(data, relax.ShapeExpr):
-            if isinstance(indices, relax.Constant) and indices.data.numpy().size == 1:
-                np_index = indices.data.numpy()
-                if len(np_index.shape) == 1:
-                    np_index = np_index[0]
-                np_index = int(np_index)
+            if isinstance(indices, relax.Constant) and indices.data.numpy().ndim == 0:
+                np_index = int(indices.data.numpy().item())
                 shape_val = data[np_index]
                 return relax.prim_value(shape_val)
 
