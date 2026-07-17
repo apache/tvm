@@ -1327,6 +1327,48 @@ def test_binary(tf_op, relax_op):
     verify(Binary, Expected)
 
 
+def test_static_broadcast_lowered_to_multiply():
+    """Static TensorFlow broadcasts become TFLite MUL with a constant operand."""
+
+    class RankExpansion(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+        def func(self, x):
+            return tf.broadcast_to(x, [3, 2, 2])
+
+    @I.ir_module
+    class ExpectedRankExpansion:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((3, 2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 2, 2), dtype="float32") = R.multiply(
+                    x, R.const(np.ones((3, 2, 2), dtype="float32"))
+                )
+                R.output(gv)
+            return gv
+
+    verify(RankExpansion, ExpectedRankExpansion)
+
+    class ScalarInt(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(), dtype=tf.int32)])
+        def func(self, x):
+            return tf.broadcast_to(x, [4, 4])
+
+    @I.ir_module
+    class ExpectedScalarInt:
+        @R.function
+        def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((4, 4), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 4), dtype="int32") = R.multiply(
+                    x, R.const(np.ones((4, 4), dtype="int32"))
+                )
+                R.output(gv)
+            return gv
+
+    verify(ScalarInt, ExpectedScalarInt)
+
+
 def test_pow():
     class TfInput(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -2055,6 +2097,33 @@ def test_gather():
             return gv
 
     verify(Gather, Expected)
+
+    # TensorFlow lowers embedding lookup to TFLite GATHER.  Keep a case with
+    # constant params and multidimensional int32 indices, since the case above
+    # uses runtime params and one-dimensional int64 indices along axis 1.
+    class GatherConstantParams(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.int32)])
+        def func(self, indices):
+            params = tf.constant([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=tf.float32)
+            return tf.gather(params, indices, axis=0)
+
+    @I.ir_module
+    class ExpectedConstantParams:
+        @R.function
+        def main(indices: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="int32") = R.astype(indices, dtype="int32")
+                gv: R.Tensor((2, 3, 2), dtype="float32") = R.take(
+                    R.const(np.array([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=np.float32)),
+                    lv,
+                    axis=0,
+                    mode="fast",
+                )
+                R.output(gv)
+            return gv
+
+    verify(GatherConstantParams, ExpectedConstantParams)
 
 
 def test_gather_nd():
