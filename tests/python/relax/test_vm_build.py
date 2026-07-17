@@ -1238,5 +1238,43 @@ def test_relax_module_with_multiple_targets(exec_mode):
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+@pytest.mark.parametrize("shape", [[1, 4, 6, 3], [1, 4, 8, 3], [1, 4, 6, 2], [1, 3, 6, 3]])
+def test_avg_pool2d_llvm_codegen_regression(shape):
+    """Regression for issue #20015.
+
+    ``avg_pool2d`` with shape ``[N, C=4, H(even>=6), W=3]`` used to hard-crash in
+    LLVM codegen verification ("Instruction does not dominate all uses") because
+    LLVM's own O2 vectorizer miscompiles the (valid) IR TVM emits. The backend
+    now falls back to the verified unoptimized module instead of crashing, so the
+    build must succeed and produce numerically correct results.
+    """
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor(shape, "float32"))
+    with bb.function("main", [x]):
+        out = bb.emit(
+            relax.op.nn.avg_pool2d(x, pool_size=[2, 2], strides=[1, 1], padding=[0, 0])
+        )
+        bb.emit_func_output(out)
+    mod = bb.get()
+
+    # Default llvm target uses an aggressive opt-level, which is what triggers
+    # the LLVM optimizer bug for the affected shapes.
+    ex = relax.build(mod, target="llvm")
+    vm = relax.VirtualMachine(ex, tvm.cpu())
+
+    np_x = np.random.rand(*shape).astype("float32")
+    out = vm["main"](tvm.runtime.tensor(np_x)).numpy()
+
+    # NumPy reference: 2x2 average pool, stride 1, no padding (NCHW).
+    n, c, h, w = shape
+    oh, ow = h - 1, w - 1
+    ref = np.empty((n, c, oh, ow), dtype="float32")
+    for i in range(oh):
+        for j in range(ow):
+            ref[:, :, i, j] = np_x[:, :, i : i + 2, j : j + 2].mean(axis=(2, 3))
+
+    tvm.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
