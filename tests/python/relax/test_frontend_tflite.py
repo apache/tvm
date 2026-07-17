@@ -3719,6 +3719,12 @@ def _make_resize_expected(
             "half_pixel",
         ),
         (
+            (1, 8, 8, 3),
+            [4, 4],
+            lambda x: tf.image.resize(x, [4, 4], method="bilinear"),
+            "half_pixel",
+        ),
+        (
             (1, 4, 4, 1),
             [7, 7],
             lambda x: tf.compat.v1.image.resize_bilinear(x, [7, 7], align_corners=True),
@@ -3728,6 +3734,24 @@ def _make_resize_expected(
             (1, 4, 4, 2),
             [8, 8],
             lambda x: tf.compat.v1.image.resize_bilinear(x, [8, 8], half_pixel_centers=True),
+            "half_pixel",
+        ),
+        (
+            (2, 6, 6, 16),
+            [12, 12],
+            lambda x: tf.image.resize(x, [12, 12], method="bilinear"),
+            "half_pixel",
+        ),
+        (
+            (1, 5, 5, 3),
+            [5, 5],
+            lambda x: tf.image.resize(x, [5, 5], method="bilinear"),
+            "half_pixel",
+        ),
+        (
+            (1, 4, 8, 1),
+            [8, 16],
+            lambda x: tf.image.resize(x, [8, 16], method="bilinear"),
             "half_pixel",
         ),
     ],
@@ -3755,11 +3779,39 @@ def test_resize_bilinear(input_shape, output_size, tf_op, coordinate_transformat
             "round_prefer_ceil",
         ),
         (
+            (1, 8, 8, 3),
+            [4, 4],
+            lambda x: tf.image.resize(x, [4, 4], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
+        (
             (1, 4, 4, 1),
             [7, 7],
             lambda x: tf.compat.v1.image.resize_nearest_neighbor(x, [7, 7], align_corners=True),
             "align_corners",
             "",
+        ),
+        (
+            (4, 3, 3, 8),
+            [6, 6],
+            lambda x: tf.image.resize(x, [6, 6], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
+        (
+            (1, 4, 8, 1),
+            [8, 16],
+            lambda x: tf.image.resize(x, [8, 16], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
+        ),
+        (
+            (1, 3, 3, 2),
+            [3, 3],
+            lambda x: tf.image.resize(x, [3, 3], method="nearest"),
+            "half_pixel",
+            "round_prefer_ceil",
         ),
     ],
 )
@@ -3796,20 +3848,28 @@ def _make_reduce_expected(relax_op, input_shape, axes, keepdims, dtype):
 
 
 @pytest.mark.parametrize(
-    "tf_op, relax_op, input_shape, axes, keepdims, dtype",
+    "tf_op, relax_op",
     [
-        (tf.reduce_sum, relax.op.sum, (1, 8, 8, 3), 1, True, tf.float32),
-        (tf.reduce_sum, relax.op.sum, (30,), 0, False, tf.int32),
-        (tf.reduce_mean, relax.op.mean, (1, 8, 8, 3), [1, 2], False, tf.float32),
-        (tf.reduce_mean, relax.op.mean, (2, 5, 2), -1, True, tf.int32),
-        (tf.reduce_max, relax.op.max, (1, 8, 8, 3), None, True, tf.float32),
-        (tf.reduce_max, relax.op.max, (2, 5, 2), [0, 2], False, tf.int32),
-        (tf.reduce_min, relax.op.min, (30,), 0, False, tf.float32),
-        (tf.reduce_min, relax.op.min, (1, 8, 8, 3), -1, True, tf.int32),
-        (tf.reduce_prod, relax.op.prod, (2, 5, 2), [0, 2], True, tf.float32),
-        (tf.reduce_prod, relax.op.prod, (1, 8, 8, 3), None, False, tf.int32),
+        (tf.reduce_sum, relax.op.sum),
+        (tf.reduce_mean, relax.op.mean),
+        (tf.reduce_max, relax.op.max),
+        (tf.reduce_min, relax.op.min),
+        (tf.reduce_prod, relax.op.prod),
     ],
 )
+@pytest.mark.parametrize(
+    "input_shape, axes",
+    [
+        ((1, 8, 8, 3), 1),
+        ((1, 8, 8, 3), [1, 2]),
+        ((1, 8, 8, 3), -1),
+        ((1, 8, 8, 3), None),
+        ((30,), 0),
+        ((2, 5, 2), [0, 2]),
+    ],
+)
+@pytest.mark.parametrize("keepdims", [True, False])
+@pytest.mark.parametrize("dtype", [tf.float32, tf.int32])
 def test_reduction_ops(tf_op, relax_op, input_shape, axes, keepdims, dtype):
     class ReduceModule(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=dtype)])
@@ -3838,16 +3898,24 @@ def _make_reduce_bool_expected(relax_op, input_shape, axes, keepdims):
 
 
 @pytest.mark.parametrize(
-    "tf_op, relax_op, input_shape, axes, keepdims",
+    "tf_op, relax_op",
     [
-        (tf.reduce_any, relax.op.max, (1, 8, 8, 3), 1, True),
-        (tf.reduce_any, relax.op.max, (2, 5, 2), [0, 2], False),
-        (tf.reduce_any, relax.op.max, (30,), None, False),
-        (tf.reduce_all, relax.op.min, (1, 8, 8, 3), -1, False),
-        (tf.reduce_all, relax.op.min, (2, 5, 2), [0, 2], True),
-        (tf.reduce_all, relax.op.min, (30,), None, True),
+        (tf.reduce_any, relax.op.max),
+        (tf.reduce_all, relax.op.min),
     ],
 )
+@pytest.mark.parametrize(
+    "input_shape, axes",
+    [
+        ((1, 8, 8, 3), 1),
+        ((1, 8, 8, 3), [1, 2]),
+        ((1, 8, 8, 3), -1),
+        ((1, 8, 8, 3), None),
+        ((30,), 0),
+        ((2, 5, 2), [0, 2]),
+    ],
+)
+@pytest.mark.parametrize("keepdims", [True, False])
 def test_reduction_bool_ops(tf_op, relax_op, input_shape, axes, keepdims):
     class ReduceBoolModule(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=input_shape, dtype=tf.bool)])

@@ -3516,6 +3516,7 @@ def _make_conv_transpose_model(
 CONV_TRANSPOSE_IMPORT_CONFIGS = [
     ("NOTSET", 1, 1, 0, 0),
     ("NOTSET", 2, 2, 2, 1),
+    ("SAME_UPPER", 1, 1, 0, 0),
     ("SAME_UPPER", 2, 1, 0, 0),
     ("SAME_LOWER", 2, 1, 0, 0),
     ("VALID", 1, 2, 0, 0),
@@ -3573,12 +3574,21 @@ def test_conv_transpose_import(bias, nd, groups):
 @pytest.mark.parametrize(
     "nd, groups, auto_pad, stride, dilation, pad, bias, output_pad",
     [
+        # Broad attribute coverage, including dilation and output padding.
         (1, 1, "NOTSET", 2, 2, 2, False, 1),
-        (1, 2, "SAME_UPPER", 2, 1, 0, True, 0),
-        (2, 1, "SAME_LOWER", 2, 1, 0, False, 0),
         (2, 2, "VALID", 1, 2, 0, True, 0),
         (3, 1, "NOTSET", 1, 1, 0, True, 0),
         (3, 2, "VALID", 2, 1, 0, False, 1),
+        # Each rank uses a distinct Relax op and legalizer.  Exercise both
+        # directions of asymmetric SAME padding numerically for every rank.
+        (1, 2, "SAME_UPPER", 2, 1, 0, True, 0),
+        (1, 1, "SAME_LOWER", 2, 1, 0, False, 0),
+        (2, 2, "SAME_UPPER", 2, 1, 0, True, 0),
+        (2, 1, "SAME_LOWER", 2, 1, 0, False, 0),
+        (3, 1, "SAME_UPPER", 2, 1, 0, False, 0),
+        (3, 2, "SAME_LOWER", 2, 1, 0, True, 0),
+        # Preserve the 2-D output_padding regression through LLVM execution.
+        (2, 1, "NOTSET", 2, 1, 2, True, 1),
     ],
 )
 def test_conv_transpose_numerical(nd, groups, auto_pad, stride, dilation, pad, bias, output_pad):
