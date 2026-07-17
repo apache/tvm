@@ -77,6 +77,7 @@
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
+#include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
@@ -376,9 +377,38 @@ std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
         << "Failed to link modules";
   }
   link_modules_.clear();
+
+  // Verify the freshly generated (pre-optimization) module. This is TVM's own
+  // codegen output; if it fails to verify that is a genuine TVM bug, so keep
+  // throwing here.
   this->Verify();
+
+  // LLVM's optimizer has been observed to miscompile perfectly valid IR into a
+  // structurally-invalid module for certain shapes -- e.g. avg_pool2d with
+  // C == 4 and W == 3 sends LLVM's vectorizer down a buggy path that emits a
+  // shufflevector whose definition does not dominate its use (TVM issue #20015;
+  // reproducible with stock `opt -passes='default<O2>'`, an upstream LLVM bug).
+  // To avoid hard-crashing the whole build on such backend-optimizer bugs, keep
+  // a verified copy of the pre-optimization module and fall back to it if
+  // optimization produces an invalid module. The result is correct (just
+  // unoptimized for the affected module) rather than a crash, and we never emit
+  // the broken module.
+  std::unique_ptr<llvm::Module> pre_opt_module = llvm::CloneModule(*module_);
+
   this->Optimize();
-  this->Verify();
+
+  std::string verify_errors_storage;
+  llvm::raw_string_ostream verify_errors(verify_errors_storage);
+  if (llvm::verifyModule(*module_, &verify_errors)) {
+    LOG(WARNING) << "LLVM " << (TVM_LLVM_VERSION / 10) << "." << (TVM_LLVM_VERSION % 10)
+                 << " optimization produced an invalid module; this is a known LLVM "
+                    "optimizer bug on valid IR (see TVM issue #20015). Falling back to the "
+                    "unoptimized module so the build can proceed with correct results.\n"
+                 << "Verifier errors:\n"
+                 << verify_errors.str();
+    module_ = std::move(pre_opt_module);
+  }
+
   return std::move(module_);
 }
 
