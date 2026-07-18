@@ -123,6 +123,7 @@ def test_spirv_15_storage_buffer_entry_point_interfaces(tmp_path):
 
     executable = tvm.tirx.build(Module, target=target)
     assembly = executable.imports[0].inspect_source()
+    assert "; Version: 1.5" in assembly
     assembly_path = tmp_path / "storage_buffer.spvasm"
     binary_path = tmp_path / "storage_buffer.spv"
     assembly_path.write_text(assembly, encoding="utf-8")
@@ -142,12 +143,6 @@ def test_spirv_15_storage_buffer_entry_point_interfaces(tmp_path):
         capture_output=True,
         text=True,
     )
-    if validation.returncode != 0:
-        assert "is used by entry point" in validation.stderr
-        assert "not listed as an interface" in validation.stderr
-        pytest.xfail(
-            "TVM omits SPIR-V 1.4+ storage-buffer variables from OpEntryPoint interfaces"
-        )
     assert validation.returncode == 0, validation.stderr
 
 
