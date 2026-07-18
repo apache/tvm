@@ -190,7 +190,7 @@ void TIRVisitorWithPath::VisitStmt_(const AttrStmtNode* op, AccessPath path) {
     // tirx::Var they annotate.
     context.push_back(WithDef(iter_var.value(), path->Attr("node")));
 
-  } else if (auto expr = op->node.as<PrimExpr>()) {
+  } else if (auto expr = op->node.as<PrimExpr>(); expr && expr.value().defined()) {
     Visit(expr.value(), path->Attr("node"));
   }
   bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
