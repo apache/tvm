@@ -17,6 +17,8 @@
 # ruff: noqa: E501, F841
 
 import re
+import shutil
+import subprocess
 
 import numpy as np
 import pytest
@@ -84,6 +86,69 @@ def test_vector_comparison(dtype):
     assert len(matches) == 1
     matches = re.findall("OpSelect %v4.*", assembly)
     assert len(matches) == 1
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(
+    not tvm.testing.device_enabled(
+        {
+            "kind": "vulkan",
+            "supports_storage_buffer_storage_class": 1,
+        }
+    ),
+    reason="vulkan not enabled",
+)
+def test_spirv_15_storage_buffer_entry_point_interfaces(tmp_path):
+    """Validate a minimal storage-buffer kernel as SPIR-V 1.5 for Vulkan 1.2."""
+    spirv_as = shutil.which("spirv-as")
+    spirv_val = shutil.which("spirv-val")
+    if spirv_as is None or spirv_val is None:
+        pytest.skip("spirv-as and spirv-val are required")
+
+    target = tvm.target.Target(
+        {
+            "kind": "vulkan",
+            "vulkan_api_version": (1 << 22) | (2 << 12),
+            "max_spirv_version": 0x10500,
+            "supports_storage_buffer_storage_class": 1,
+        }
+    )
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((1,), "float32"), B: T.Buffer((1,), "float32")):
+            for i in T.thread_binding(1, thread="threadIdx.x"):
+                B[i] = A[i] + T.float32(1)
+
+    executable = tvm.tirx.build(Module, target=target)
+    assembly = executable.imports[0].inspect_source()
+    assembly_path = tmp_path / "storage_buffer.spvasm"
+    binary_path = tmp_path / "storage_buffer.spv"
+    assembly_path.write_text(assembly, encoding="utf-8")
+
+    # TVM currently emits a SPIR-V 1.0 header even when the target supports
+    # SPIR-V 1.5.  Reassembling the generated instructions for SPIR-V 1.5
+    # makes spirv-val enforce the Vulkan 1.2 entry-point interface rules.
+    subprocess.run(
+        [spirv_as, "--target-env", "spv1.5", str(assembly_path), "-o", str(binary_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    validation = subprocess.run(
+        [spirv_val, "--target-env", "vulkan1.2", str(binary_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if validation.returncode != 0:
+        assert "is used by entry point" in validation.stderr
+        assert "not listed as an interface" in validation.stderr
+        pytest.xfail(
+            "TVM omits SPIR-V 1.4+ storage-buffer variables from OpEntryPoint interfaces"
+        )
+    assert validation.returncode == 0, validation.stderr
 
 
 @pytest.mark.parametrize(
