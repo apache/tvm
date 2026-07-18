@@ -1582,7 +1582,7 @@ def attr(
         with T.attr(node, key, value):
             ...
 
-    Usage 2 — dict sugar (node defaults to ``T.int32(0)``)::
+    Usage 2 — dict sugar (node defaults to ``0``)::
 
         with T.attr({"key1": value1, "key2": value2}):
             ...
@@ -1591,7 +1591,7 @@ def attr(
     ----------
     node_or_dict : Any
         If a dict, each key-value pair becomes an AttrStmt with
-        ``node=T.int32(0)``.  Otherwise the node to annotate.
+        ``node=0``.  Otherwise the node to annotate.
 
     attr_key : str, optional
         Attribute type key (required when ``node_or_dict`` is not a dict).
@@ -1609,11 +1609,7 @@ def attr(
         for k, v in node_or_dict.items():
             if isinstance(v, bool):
                 v = IntImm("bool", v)
-            frames.append(
-                _ffi_api.Attr(  # type: ignore[attr-defined]
-                    convert(IntImm("int32", 0)), k, convert(v)
-                )
-            )
+            frames.append(_ffi_api.Attr(0, k, convert(v)))  # type: ignore[attr-defined]
         if len(frames) == 1:
             return frames[0]
         return utils._FrameScope(frames)

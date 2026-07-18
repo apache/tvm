@@ -796,10 +796,10 @@ ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& a
       });
 }
 
-/*! \brief Check whether an AttrStmt has node=IntImm(int32, 0) (the dict-attr pattern). */
+/*! \brief Check whether an AttrStmt has node=0 (the dict-attr pattern). */
 static bool IsDictAttrPattern(const tirx::AttrStmt& stmt) {
-  if (auto int_imm = stmt->node.as<IntImmNode>()) {
-    return int_imm->ty.as_or_throw<PrimType>() == PrimType::Int(32) && int_imm->value == 0;
+  if (auto int_value = stmt->node.as<int64_t>()) {
+    return int_value.value() == 0;
   }
   return false;
 }

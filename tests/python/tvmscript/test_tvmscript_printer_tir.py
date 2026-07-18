@@ -302,6 +302,22 @@ with T.attr("pragma", "unroll", 1):
     )
 
 
+def test_attr_stmt_integer_node():
+    with IRBuilder() as ib:
+        with T.attr(0, "pragma", 1):
+            T.evaluate(0)
+    obj = ib.get()
+    assert type(obj.node) is int
+    assert obj.node == 0
+    _assert_print(
+        obj,
+        """
+with T.attr({"pragma": 1}):
+    T.evaluate(0)
+""",
+    )
+
+
 def test_assert_stmt():
     with IRBuilder() as ib:
         with T.Assert(True, "assertion"):

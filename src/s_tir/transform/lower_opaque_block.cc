@@ -80,7 +80,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
     HandleAnnotations(new_block->annotations, &pragma_attrs, /*is_block=*/true);
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      body = AttrStmt(IntImm::Int32(0), it->first, it->second, std::move(body));
+      body = AttrStmt(0, it->first, it->second, std::move(body));
     }
     return body;
   }
