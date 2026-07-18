@@ -1430,6 +1430,99 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], ExpectedRank2Axis1, 1)
 
 
+@pytest.mark.parametrize("index", [0, 2, 3, -1, -4])
+def test_gather_shape_dynamic_index(index):
+    """Gather a dimension out of a Shape result using a non-constant index.
+
+    Detection post-processing graphs (e.g. FasterRCNN) feed a runtime-computed
+    index into a Gather whose data is a Shape output. The index is not a
+    constant, so the importer must materialize the shape as a tensor and gather
+    from it at runtime rather than resolving the dimension at compile time.
+    """
+    data_shape = [3, 4, 5, 6]
+    shape_node = helper.make_node("Shape", ["data"], ["shape"])
+    gather_node = helper.make_node("Gather", ["shape", "index"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, gather_node],
+        "gather_shape_dynamic_index_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("index", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [])],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_shape_dynamic_index_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "index": np.array(index).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
+@pytest.mark.parametrize(
+    "indices",
+    [
+        np.array(2, dtype="int64"),  # 0-D scalar -> PrimValue fast path
+        np.array([2], dtype="int64"),  # (1,) -> must stay rank 1
+        np.array([[2]], dtype="int64"),  # (1, 1) -> must stay rank 2
+        np.array([1, 3], dtype="int64"),  # (2,) -> multiple dims
+        np.array([-1], dtype="int64"),  # (1,) negative index
+    ],
+)
+def test_gather_shape_constant_index(indices):
+    """Gather from a Shape result using a constant index of varying rank.
+
+    ONNX Gather defines the output rank as q + r - 1 where q is the rank of the
+    indices. Since a Shape output is rank 1, only a true 0-D scalar index should
+    collapse to a scalar; a (1,) index must produce a rank-1 result rather than
+    being folded into a PrimValue.
+    """
+    data_shape = [3, 4, 5, 6]
+    shape_node = helper.make_node("Shape", ["data"], ["shape"])
+    # Emit the indices through a Constant node: an initializer would become a
+    # function parameter under keep_params_in_input=True and bypass the
+    # constant fast path in the Gather converter.
+    const_node = helper.make_node(
+        "Constant",
+        [],
+        ["indices"],
+        value=helper.make_tensor(
+            "value",
+            TensorProto.INT64,
+            indices.shape,
+            indices.flatten().tolist(),
+        ),
+    )
+    gather_node = helper.make_node("Gather", ["shape", "indices"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, const_node, gather_node],
+        "gather_shape_constant_index_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, list(indices.shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_shape_constant_index_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+    }
+    check_correctness(model, inputs=input_values)
+
+    # check_correctness broadcasts a scalar against a one-element tensor, so
+    # assert the rank explicitly: only a 0-D index may collapse to a scalar.
+    tvm_out = run_in_tvm(model, inputs=input_values)
+    if isinstance(tvm_out, tvm.runtime.Tensor):
+        out_shape = tuple(tvm_out.numpy().shape)
+    else:
+        # PrimValue fast-path outputs come back as plain Python scalars.
+        out_shape = ()
+    assert out_shape == indices.shape
+
+
 def _make_gather_negative_indices_expected(axis: int, indices_shape, indices_type):
     indices_shape = tuple(indices_shape)
     indices_dtype = "int64" if indices_type == TensorProto.INT64 else "int32"
