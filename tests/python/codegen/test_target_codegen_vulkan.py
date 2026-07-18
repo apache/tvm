@@ -128,8 +128,7 @@ def test_spirv_15_storage_buffer_entry_point_interfaces(tmp_path):
     binary_path = tmp_path / "storage_buffer.spv"
     assembly_path.write_text(assembly, encoding="utf-8")
 
-    # TVM currently emits a SPIR-V 1.0 header even when the target supports
-    # SPIR-V 1.5.  Reassembling the generated instructions for SPIR-V 1.5
+    # Reassembling the generated instructions for SPIR-V 1.5
     # makes spirv-val enforce the Vulkan 1.2 entry-point interface rules.
     subprocess.run(
         [spirv_as, "--target-env", "spv1.5", str(assembly_path), "-o", str(binary_path)],

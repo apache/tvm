@@ -37,8 +37,7 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
       << "Unsupported device type for SPIRV codegen:" << device_type;
 
   vulkan_api_version = target->GetAttr<int64_t>("vulkan_api_version").value_or(vulkan_api_version);
-  max_spirv_version =
-      target->GetAttr<int64_t>("max_spirv_version").value_or(max_spirv_version);
+  max_spirv_version = target->GetAttr<int64_t>("max_spirv_version").value_or(max_spirv_version);
   supported_subgroup_operations = target->GetAttr<int64_t>("supported_subgroup_operations")
                                       .value_or(supported_subgroup_operations);
   max_push_constants_size =
