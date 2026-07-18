@@ -2241,17 +2241,36 @@ def test_binary1(op, relax_op):
         def forward(self, lhs):
             return self.op(lhs, 1.0)
 
-    @tvm.script.ir_module
-    class expected_binary2:
-        @R.function
-        def main(
-            lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
+    if op is operator.pow:
+
+        @tvm.script.ir_module
+        class expected_power:
+            @R.function
+            def main(
+                lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+                with R.dataflow():
+                    gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lhs
+                    R.output(gv)
+                return gv
+
+        expected_binary2 = expected_power
+
+    else:
+
+        @tvm.script.ir_module
+        class expected_other_binary:
+            @R.function
+            def main(
+                lhs: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+                with R.dataflow():
+                    lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(lhs, R.const(1.0))
+                    gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                    R.output(gv)
+                return gv
+
+        expected_binary2 = expected_other_binary
 
     verify_model(Binary1(op), input_info1, {}, expected_binary1)
     verify_model(Binary2(op), input_info2, {}, expected_binary2)
@@ -3578,9 +3597,73 @@ def test_pow_integer():
         def main(inp_0: R.Tensor((4,), dtype="int64")) -> R.Tensor((4,), dtype="int64"):
             with R.dataflow():
                 lv: R.Tensor((4,), dtype="int64") = R.multiply(inp_0, inp_0)
-                lv1: R.Tensor((4,), dtype="int64") = R.multiply(lv, inp_0)
-                lv2: R.Tensor((4,), dtype="int64") = R.multiply(lv1, inp_0)
-                gv: R.Tensor((4,), dtype="int64") = lv2
+                lv1: R.Tensor((4,), dtype="int64") = R.multiply(lv, lv)
+                gv: R.Tensor((4,), dtype="int64") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Pow(), input_info, {}, expected)
+
+
+@pytest.mark.parametrize("exponent", [3, 3.0])
+def test_pow_float_integer_exponent(exponent):
+    input_info = [([4], "float32")]
+
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(exponent)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(inp_0: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="float32") = R.multiply(inp_0, inp_0)
+                lv1: R.Tensor((4,), dtype="float32") = R.multiply(inp_0, lv)
+                gv: R.Tensor((4,), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Pow(), input_info, {}, expected)
+
+
+def test_pow_integer_base_float_exponent():
+    input_info = [([4], "int32")]
+
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(3.0)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(inp_0: R.Tensor((4,), dtype="int32")) -> R.Tensor((4,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="float32") = R.astype(inp_0, dtype="float32")
+                lv1: R.Tensor((4,), dtype="float32") = R.multiply(lv, lv)
+                lv2: R.Tensor((4,), dtype="float32") = R.multiply(lv, lv1)
+                gv: R.Tensor((4,), dtype="float32") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(Pow(), input_info, {}, expected)
+
+
+def test_pow_integer_base_fractional_exponent():
+    input_info = [([4], "int32")]
+
+    class Pow(Module):
+        def forward(self, input):
+            return input.pow(0.5)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(inp_0: R.Tensor((4,), dtype="int32")) -> R.Tensor((4,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="float32") = R.astype(inp_0, dtype="float32")
+                lv1: R.Tensor((4,), dtype="float32") = R.power(lv, R.const(0.5, "float32"))
+                gv: R.Tensor((4,), dtype="float32") = lv1
                 R.output(gv)
             return gv
 
