@@ -1732,6 +1732,43 @@ def test_view():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_builtin_reshape_preserves_storage_liveness():
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def copy(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(x: R.Tensor((16,), "float32")) -> R.Tensor((16,), "float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            alloc = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
+            cls.copy(x, alloc)
+            reshaped = R.call_packed(
+                "vm.builtin.reshape",
+                alloc,
+                R.shape([16]),
+                ty_args=R.Tensor((16,), "float32"),
+            )
+            alloc1 = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
+            cls.copy(reshaped, alloc1)
+            alloc2 = R.builtin.alloc_tensor(R.shape([16]), "float32", 0)
+            cls.copy(alloc1, alloc2)
+            return alloc2
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    alloc_storage_op = tvm.ir.Op.get("relax.memory.alloc_storage")
+    storage_allocations = []
+
+    def collect_storage_allocations(expr):
+        if isinstance(expr, relax.Call) and expr.op.same_as(alloc_storage_op):
+            storage_allocations.append(expr)
+
+    relax.analysis.post_order_visit(after["main"], collect_storage_allocations)
+    assert len(storage_allocations) == 2
+
+
 def test_with_dataflow():
     @I.ir_module
     class Before:
