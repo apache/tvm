@@ -3687,6 +3687,42 @@ def test_squeeze():
     verify_squeeze(None, ExpectedSqueezeAll)
 
 
+def test_squeeze_axes_attribute():
+    # Prior to opset 13, ONNX Squeeze takes `axes` as an attribute rather than an input.
+    squeeze_node = helper.make_node("Squeeze", ["x"], ["y"], axes=[0, 2])
+    shape = [1, 32, 1, 32]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_axes_attribute_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="squeeze_axes_attribute_test",
+        opset_imports=[helper.make_opsetid("", 11)],
+    )
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 32, 1, 32), dtype="float32")) -> R.Tensor(
+            (32, 32), dtype="float32"
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=[0, 2])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 def test_squeeze_constant():
     def verify_squeeze_constant(axis, expected):
         shape = [1, 2, 1, 3]

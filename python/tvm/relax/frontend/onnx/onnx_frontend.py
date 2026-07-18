@@ -2088,12 +2088,21 @@ class Squeeze(OnnxOpConverter):
     """Converts an onnx Squeeze node into an equivalent Relax expression."""
 
     @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        # Prior to opset 13, axes is provided as an attribute rather than an input.
+        axes = attr.get("axes", None)
+        return cls._squeeze(bb, inputs[0], axes)
+
+    @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         axis = get_constant(inputs[1], params)
         if isinstance(axis, relax.Constant):
             axis = tuple([int(x) for x in axis.data.numpy()])
+        return cls._squeeze(bb, data, axis)
 
+    @classmethod
+    def _squeeze(cls, bb, data, axis):
         # If data is constant, perform computation directly.
         if isinstance(data, relax.Constant):
             if isinstance(axis, tuple | type(None)):
