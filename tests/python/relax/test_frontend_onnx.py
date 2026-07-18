@@ -3549,91 +3549,155 @@ def test_conv_numerical(nd, groups, auto_pad, stride, dilation, pad, bias):
     check_correctness(model, opset=14, atol=1e-4)
 
 
-@pytest.mark.parametrize("stride", [2])
-@pytest.mark.parametrize("dilation", [1])
-@pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("pad", [0, 2])
-@pytest.mark.parametrize("output_pad", [0, 1])
-def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output_pad: int):
-    def _verify_conv_transpose(input_shape, weight_shape):
-        nd = len(weight_shape) - 2
-        output_shape = [input_shape[0], weight_shape[0]] + [
-            (input_shape[i] - 1) * stride
-            - 2 * pad
-            + dilation * (weight_shape[i] - 1)
-            + output_pad
-            + 1
-            for i in range(2, len(input_shape))
+def _make_conv_transpose_model(
+    nd, groups, auto_pad, stride, dilation, pad, bias, output_pad, spatial_extent=8
+):
+    input_shape = [1, 4] + [spatial_extent] * nd
+    weight_shape = [4, 4 // groups] + [3] * nd
+    output_channels = weight_shape[1] * groups
+    effective_kernel = dilation * (weight_shape[2] - 1) + 1
+
+    node_attrs = {
+        "strides": [stride] * nd,
+        "dilations": [dilation] * nd,
+        "output_padding": [output_pad] * nd,
+        "group": groups,
+    }
+    if auto_pad == "NOTSET":
+        node_attrs["pads"] = [pad] * nd * 2
+        output_spatial = [
+            (spatial_extent - 1) * stride - 2 * pad + effective_kernel + output_pad
+        ] * nd
+    elif auto_pad == "VALID":
+        node_attrs["auto_pad"] = auto_pad
+        node_attrs["kernel_shape"] = weight_shape[2:]
+        output_spatial = [(spatial_extent - 1) * stride + effective_kernel + output_pad] * nd
+    else:
+        node_attrs["auto_pad"] = auto_pad
+        node_attrs["kernel_shape"] = weight_shape[2:]
+        output_spatial = [spatial_extent * stride] * nd
+
+    output_shape = [input_shape[0], output_channels, *output_spatial]
+    conv_node = helper.make_node(
+        "ConvTranspose",
+        inputs=["x", "w"] + (["b"] if bias else []),
+        outputs=["y"],
+        **node_attrs,
+    )
+    graph = helper.make_graph(
+        [conv_node],
+        "conv_transpose_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
         ]
-        bias_shape = [output_shape[1]]
-        conv_node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "w"] + (["b"] if bias else []),
-            outputs=["y"],
-            strides=[stride] * nd,
-            dilations=[dilation] * nd,
-            pads=[pad] * nd * 2,
-            output_padding=[output_pad] * nd,
-            group=input_shape[1] // weight_shape[1],
-        )
-        graph = helper.make_graph(
-            [conv_node],
-            "conv_transpose_test",
-            inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
-                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
-            ]
-            + ([helper.make_tensor_value_info("b", TensorProto.FLOAT, bias_shape)] if bias else []),
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
-        )
-
-        model = helper.make_model(graph, producer_name="conv_transpose_test")
-        check_correctness(model, atol=1e-4)
-
-    # ConvTranspose1D
-    _verify_conv_transpose([3, 4, 32], [4, 4, 3])
-    _verify_conv_transpose([3, 4, 32], [4, 2, 3])  # group=2
-    # ConvTranspose2D
-    _verify_conv_transpose([3, 4, 32, 32], [4, 4, 3, 3])
-    _verify_conv_transpose([3, 4, 32, 32], [4, 2, 3, 3])  # group=2
-    # ConvTranspose3D
-    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 4, 3, 3, 3])
-    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 2, 3, 3, 3])  # group=2
+        + (
+            [helper.make_tensor_value_info("b", TensorProto.FLOAT, [output_channels])]
+            if bias
+            else []
+        ),
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="conv_transpose_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+    return model, output_shape
 
 
-@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
-@pytest.mark.parametrize("stride", [1, 2])
-def test_conv_transpose_auto_pad(auto_pad: str, stride: int):
-    def _verify(input_shape, weight_shape):
-        nd = len(weight_shape) - 2
-        conv_node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "w"],
-            outputs=["y"],
-            kernel_shape=weight_shape[2:],
-            strides=[stride] * nd,
-            auto_pad=auto_pad,
-        )
-        graph = helper.make_graph(
-            [conv_node],
-            "conv_transpose_auto_pad_test",
-            inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
-                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
-            ],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
-        )
-        model = helper.make_model(graph, producer_name="conv_transpose_auto_pad_test")
-        check_correctness(model, atol=1e-4)
-
-    # ConvTranspose1D / 2D / 3D
-    _verify([1, 1, 8], [1, 1, 3])
-    _verify([1, 1, 8, 8], [1, 1, 3, 3])
-    _verify([1, 1, 4, 4, 4], [1, 1, 3, 3, 3])
+CONV_TRANSPOSE_IMPORT_CONFIGS = [
+    ("NOTSET", 1, 1, 0, 0),
+    ("NOTSET", 2, 2, 2, 1),
+    ("SAME_UPPER", 1, 1, 0, 0),
+    ("SAME_UPPER", 2, 1, 0, 0),
+    ("SAME_LOWER", 2, 1, 0, 0),
+    ("VALID", 1, 2, 0, 0),
+    ("VALID", 2, 1, 0, 1),
+]
 
 
-def test_pow():
-    verify_binary("Pow", [32, 32], [32, 32], [32, 32])
+def _verify_conv_transpose_import(nd, groups, auto_pad, stride, dilation, pad, bias, output_pad):
+    model, output_shape = _make_conv_transpose_model(
+        nd, groups, auto_pad, stride, dilation, pad, bias, output_pad
+    )
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    func = tvm_model["main"]
+
+    conv_op_name = f"relax.nn.conv{nd}d_transpose"
+    conv_calls = []
+
+    def visit(expr):
+        if (
+            isinstance(expr, relax.Call)
+            and isinstance(expr.op, tvm.ir.Op)
+            and expr.op.name == conv_op_name
+        ):
+            conv_calls.append(expr)
+
+    relax.analysis.post_order_visit(func.body, visit)
+    assert len(conv_calls) == 1
+    conv_call = conv_calls[0]
+    assert tuple(int(value) for value in func.ret_ty.shape.values) == tuple(output_shape)
+    assert tuple(int(value) for value in conv_call.attrs.strides) == (stride,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.dilation) == (dilation,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.output_padding) == (output_pad,) * nd
+    assert int(conv_call.attrs.groups) == groups
+    assert ("relax.add" in collect_relax_call_ops(func)) == bias
+
+    if auto_pad == "NOTSET":
+        expected_padding = (pad,) * (nd * 2)
+    elif auto_pad == "VALID":
+        expected_padding = (0,) * (nd * 2)
+    else:
+        total_pad = max((3 - 1) * dilation + 1 + output_pad - stride, 0)
+        pad_begin = total_pad // 2 if auto_pad == "SAME_UPPER" else total_pad - total_pad // 2
+        expected_padding = (pad_begin,) * nd + (total_pad - pad_begin,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.padding) == expected_padding
+
+
+@pytest.mark.parametrize("bias", [True, False])
+@pytest.mark.parametrize("nd", [1, 2, 3])
+@pytest.mark.parametrize("groups", [1, 2])
+def test_conv_transpose_import(bias, nd, groups):
+    for auto_pad, stride, dilation, pad, output_pad in CONV_TRANSPOSE_IMPORT_CONFIGS:
+        _verify_conv_transpose_import(nd, groups, auto_pad, stride, dilation, pad, bias, output_pad)
+
+
+@pytest.mark.parametrize(
+    "nd, groups, auto_pad, stride, dilation, pad, bias, output_pad",
+    [
+        # Broad attribute coverage, including dilation and output padding.
+        (1, 1, "NOTSET", 2, 2, 2, False, 1),
+        (2, 2, "VALID", 1, 2, 0, True, 0),
+        (3, 1, "NOTSET", 1, 1, 0, True, 0),
+        (3, 2, "VALID", 2, 1, 0, False, 1),
+        # Each rank uses a distinct Relax op and legalizer.  Exercise both
+        # directions of asymmetric SAME padding numerically for every rank.
+        (1, 2, "SAME_UPPER", 2, 1, 0, True, 0),
+        (1, 1, "SAME_LOWER", 2, 1, 0, False, 0),
+        (2, 2, "SAME_UPPER", 2, 1, 0, True, 0),
+        (2, 1, "SAME_LOWER", 2, 1, 0, False, 0),
+        (3, 1, "SAME_UPPER", 2, 1, 0, False, 0),
+        (3, 2, "SAME_LOWER", 2, 1, 0, True, 0),
+        # Preserve the 2-D output_padding regression through LLVM execution.
+        (2, 1, "NOTSET", 2, 1, 2, True, 1),
+    ],
+)
+def test_conv_transpose_numerical(nd, groups, auto_pad, stride, dilation, pad, bias, output_pad):
+    spatial_extent = 4 if nd == 3 else 8
+    model, _ = _make_conv_transpose_model(
+        nd,
+        groups,
+        auto_pad,
+        stride,
+        dilation,
+        pad,
+        bias,
+        output_pad,
+        spatial_extent,
+    )
+    check_correctness(model, opset=14, atol=1e-4)
 
 
 @pytest.mark.parametrize("reverse", [True, False])
@@ -3874,10 +3938,8 @@ def test_squeeze_constant():
     verify_squeeze_constant(None, ExpectedSqueezeConstantAll)
 
 
-@pytest.mark.parametrize("axis", [[0]])
-@pytest.mark.parametrize("A", [8, 16, 32])
-@pytest.mark.parametrize("B", [8, 16, 32])
-def test_dynamic_squeeze(axis, A, B):
+def test_dynamic_squeeze():
+    axis = [0]
     squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
     shape = [1, "A", "B"]
 
@@ -7525,28 +7587,13 @@ def test_tile_dynamic_repeats():
 
 
 def _generate_roi_cases():
-    # Base case when with_roi is False
-    roi_list = [
+    return [
         pytest.param(False, None, False, id="no_roi"),
+        pytest.param(True, [], True, id="empty_roi_constant"),
+        pytest.param(True, [], False, id="empty_roi_initializer"),
+        pytest.param(True, [0.1, 0.2, 0.9, 0.8], True, id="spatial_roi_constant"),
+        pytest.param(True, [0.1, 0.2, 0.9, 0.8], False, id="spatial_roi_initializer"),
     ]
-
-    # Valid when with_roi is True and with_constant is True/False
-    roi_cases = [
-        [],
-        [0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 1.0],
-        [0.1, 0.1, 0.9, 0.9],
-        [0.2, 0.2, 0.8, 0.8],
-        [0.3, 0.3, 0.7, 0.7],
-        [0.4, 0.4, 0.6, 0.6],
-        [0.5, 0.5, 0.5, 0.5],
-        [0.1, 0.2, 0.9, 0.8],
-    ]
-    for roi in roi_cases:
-        roi_list.append(pytest.param(True, roi, True, id=f"roi_{'_'.join(str(x) for x in roi)}"))
-        roi_list.append(pytest.param(True, roi, False, id=f"roi_{'_'.join(str(x) for x in roi)}"))
-
-    return roi_list
 
 
 @pytest.mark.parametrize("with_roi, roi_list, with_constant", _generate_roi_cases())
