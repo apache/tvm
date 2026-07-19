@@ -249,7 +249,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                       ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ReturnRewriter(v_result)(func_ptr->body);
-  body = AttrStmt(IntImm::Int32(0), attr::compute_scope, StringImm(name_hint + "_compute_"), body);
+  body = AttrStmt(0, attr::compute_scope, StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (need_set_device) {
     ffi::Any node = ffi::String("default");

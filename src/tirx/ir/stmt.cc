@@ -91,11 +91,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.AttrStmt",
                         [](Any node, ffi::String attr_key, PrimExpr value, Stmt body, Span span) {
-                          // when node is a POD data type like int or bool, first convert to
-                          // primexpr.
-                          if (node.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
-                            return AttrStmt(node.cast<PrimExpr>(), attr_key, value, body, span);
-                          }
                           return AttrStmt(node, attr_key, value, body, span);
                         });
 }
