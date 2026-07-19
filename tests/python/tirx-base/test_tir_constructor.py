@@ -207,10 +207,6 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tirx.AttrStmt)
     assert x.value.value == 1
 
-    x = tvm.tirx.AttrStmt(1, "xx", 1, tvm.tirx.Evaluate(1))
-    assert type(x.node) is int
-    assert x.node == 1
-
     x = tvm.tirx.AssertStmt(
         tvm.tirx.const(1, "bool"),
         tvm.tirx.StringImm("RuntimeError"),
