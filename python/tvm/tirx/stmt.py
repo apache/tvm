@@ -491,7 +491,7 @@ class AttrStmt(Stmt):
 
     Parameters
     ----------
-    node : Object
+    node : Any
         The node to annotate the attribute
 
     attr_key : str
@@ -507,14 +507,14 @@ class AttrStmt(Stmt):
         The location of the stmt in the source code.
     """
 
-    node: Object
+    node: Any
     attr_key: str
     value: Expr
     body: Stmt
     span: Span | None
 
     def __init__(
-        self, node: Object, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
+        self, node: Any, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
     ) -> None:
         body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(
