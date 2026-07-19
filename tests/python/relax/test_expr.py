@@ -243,11 +243,16 @@ def test_func():
     seqe = rx.SeqExpr(blocks, x)
     ret_ty = R.Tensor(dtype="float32", ndim=-1)
     func = rx.Function([x], seqe, ret_ty)
-    func = func.with_attr("global_symbol", "func")
-    assert func.params[0] == x
-    assert func.body == seqe
-    assert func.ret_ty == ret_ty
-    assert func.attrs["global_symbol"] == "func"
+    with_attr = func.with_attr("global_symbol", "func")
+    with_attrs = func.with_attr({"global_symbol": "func", "num_input": 1})
+
+    assert "global_symbol" not in func.attrs
+    assert with_attr.params[0] == x
+    assert with_attr.body == seqe
+    assert with_attr.ret_ty == ret_ty
+    assert with_attr.attrs["global_symbol"] == "func"
+    assert with_attrs.attrs["global_symbol"] == "func"
+    assert with_attrs.attrs["num_input"] == 1
 
 
 def test_shape_of():
