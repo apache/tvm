@@ -644,10 +644,6 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
 }
 
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, PrimExpr value) {
-  // convert POD value to PrimExpr
-  if (node.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
-    node = node.cast<PrimExpr>();
-  }
   ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>();
   n->node = std::move(node);
   n->attr_key = attr_key;
@@ -664,8 +660,7 @@ AttrFrame DeviceEntry() {
   // enclosing PrimFuncFrame: ``IRBuilderFrameNode::ExitWithScope`` runs
   // callbacks before popping itself, so the AttrFrame is closed and its
   // emitted ``AttrStmt`` lands in the PrimFunc's body sequence.
-  AttrFrame frame =
-      Attr(IntImm::Int32(0), ffi::String(tvm::tirx::attr::kDeviceEntry), IntImm::Bool(true));
+  AttrFrame frame = Attr(0, ffi::String(tvm::tirx::attr::kDeviceEntry), IntImm::Bool(true));
   IRBuilder builder = IRBuilder::Current();
   ffi::Optional<PrimFuncFrame> pf_frame = builder->FindFrame<PrimFuncFrame>();
   TVM_FFI_ICHECK(pf_frame.has_value())

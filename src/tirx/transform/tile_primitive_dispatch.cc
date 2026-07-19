@@ -592,8 +592,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // dispatched impls too.
   void PrepareLaunchParams(const AttrStmtNode* entry_node, Stmt body,
                            std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
-    Stmt gather_target =
-        AttrStmt(IntImm::Int32(0), tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     Array<ScopeIdDef> defs;
     defs.reserve(gathered.size());
@@ -624,8 +623,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                             std::vector<std::pair<Var, const StmtNode*>>* implicit_scope_id_evals) {
     // Gather from a temporary stmt synthesized as the device-entry marker
     // so direct ScopeIdDefStmt children are attributed back to entry_node.
-    Stmt gather_target =
-        AttrStmt(IntImm::Int32(0), tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     // Remap the synthetic source pointer back to the real entry_node so the
     // injector matches against the actual node present in the post-processed
