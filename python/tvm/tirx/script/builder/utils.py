@@ -108,7 +108,7 @@ def seq_scope():
                     T.evaluate(j)
             result = ib.get()
     """
-    return T.attr(tirx.const(0, "int32"), "pragma_scope", tirx.StringImm("seq"))
+    return T.attr(0, "pragma_scope", tirx.StringImm("seq"))
 
 
 def _unravel_index(index, shape):
