@@ -29,6 +29,13 @@ def check_json_roundtrip(node):
     tvm.ir.assert_structural_equal(back, node, map_free_vars=True)
 
 
+def test_missing_type():
+    missing = tvm.ir.Type.missing()
+
+    assert isinstance(missing, tvm.ir.Type)
+    assert missing.is_missing()
+
+
 def test_prim_type():
     x = tvm.ir.PrimType("int32")
     assert isinstance(x, tvm.ir.PrimType)
