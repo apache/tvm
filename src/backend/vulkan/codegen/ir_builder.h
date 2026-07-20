@@ -695,6 +695,12 @@ class IRBuilder {
    */
   std::unordered_map<spv::BuiltIn, Value> built_in_tbl_;
 
+  /*! \brief Module-scope variables used by the entry point.
+   *
+   * SPIR-V 1.4 and later require all used global variables in OpEntryPoint.
+   */
+  std::vector<Value> entry_point_interface_;
+
   /*! \brief The cached values for built-in values
    *
    *  Maps from a tuple of (spv::BuiltIn enum, index) to the value
