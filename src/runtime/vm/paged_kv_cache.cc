@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <limits>
+#include <locale>
 #include <numeric>
 #include <sstream>
 #include <unordered_map>
@@ -1925,6 +1926,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       TVM_FFI_ICHECK(attn_kind == AttnKind::kMHA)
           << "PagedAttentionKVCache checkpointing only supports full-context MHA/GQA layers.";
     }
+    TVM_FFI_ICHECK_EQ(qk_head_dim_, v_head_dim_)
+        << "PagedAttentionKVCache checkpointing requires qk_head_dim to equal v_head_dim.";
     TVM_FFI_ICHECK(!support_sliding_window_ && !support_layer_sliding_window_)
         << "PagedAttentionKVCache checkpointing does not support sliding-window cache layouts.";
     TVM_FFI_ICHECK(!f_transfer_kv_.has_value() && !f_transfer_kv_page_to_page_.has_value())
@@ -2198,6 +2201,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   std::string GetLayoutDescriptor() const {
     std::ostringstream os;
+    os.imbue(std::locale::classic());
+    os << std::setprecision(std::numeric_limits<double>::max_digits10);
     os << "cacheType=" << kPagedKVCacheCheckpointRuntime << ";";
     os << "pageSize=" << page_size_ << ";";
     os << "numLayers=" << num_layers_ << ";";

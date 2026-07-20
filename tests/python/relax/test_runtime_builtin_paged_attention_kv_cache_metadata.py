@@ -46,6 +46,7 @@ def create_kv_cache(
     *,
     dtype="float16",
     head_dim_value=head_dim,
+    v_head_dim_value=None,
     page_size_value=page_size,
     num_layers_value=num_layers,
     rope_mode=RopeMode.NORMAL,
@@ -68,7 +69,7 @@ def create_kv_cache(
         num_qo_heads,
         num_kv_heads,
         head_dim_value,
-        head_dim_value,
+        head_dim_value if v_head_dim_value is None else v_head_dim_value,
         tvm_ffi.Shape([int(attn_kind) for _ in range(num_layers_value)]),
         False,  # enable_kv_transfer
         int(rope_mode),
@@ -191,6 +192,7 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
     sliding_cache = create_kv_cache(support_sliding_window=True)
     append_tokens(sliding_cache)
     mla_cache = create_kv_cache(attn_kind=AttnKind.MLA)
+    asymmetric_cache = create_kv_cache(v_head_dim_value=head_dim // 2)
     dst = tvm.runtime.empty((1, 1, 2, num_kv_heads, page_size, head_dim), "float16", device=device)
 
     with pytest.raises(InternalError, match="sliding-window"):
@@ -205,6 +207,8 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
         fget_layout_hash(mla_cache)
     with pytest.raises(InternalError, match="full-context MHA/GQA"):
         fexport_page_group(mla_cache, 0, 0, dst)
+    with pytest.raises(InternalError, match="qk_head_dim to equal v_head_dim"):
+        fget_layout_hash(asymmetric_cache)
 
     tree_cache = create_kv_cache()
     tvm.get_global_func("vm.builtin.kv_state_add_sequence")(tree_cache, 0)
