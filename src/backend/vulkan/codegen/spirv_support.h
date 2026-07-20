@@ -51,6 +51,12 @@ struct SPIRVSupport {
    */
   uint32_t vulkan_api_version{VK_MAKE_VERSION(1, 0, 0)};
 
+  /*! \brief The maximum SPIR-V version requested by the target.
+   *
+   * Encoded using the SPIR-V header version word (for example, 0x00010500).
+   */
+  uint32_t max_spirv_version{0x00010000};
+
   /*!
    * \brief The supported subgroup operations
    *
