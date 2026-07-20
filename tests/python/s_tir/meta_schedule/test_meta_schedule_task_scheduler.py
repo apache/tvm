@@ -149,6 +149,14 @@ class MyTaskScheduler(ms.task_scheduler.PyTaskScheduler):
 
 
 def test_meta_schedule_task_scheduler_single():
+    device_types: list[str] = []
+
+    @derived_object
+    class RecordingRunner(ms.runner.PyRunner):
+        def run(self, runner_inputs: list[ms.runner.RunnerInput]) -> list[ms.runner.RunnerFuture]:
+            device_types.extend(str(runner_input.device_type) for runner_input in runner_inputs)
+            return DummyRunner().run(runner_inputs)
+
     num_trials_per_iter = 3
     max_trials_per_task = 10
     database = ms.database.MemoryDatabase()
@@ -170,12 +178,13 @@ def test_meta_schedule_task_scheduler_single():
         max_trials_per_task=max_trials_per_task,
         num_trials_per_iter=64,
         builder=DummyBuilder(),
-        runner=DummyRunner(),
+        runner=RecordingRunner(),
         database=database,
         measure_callbacks=[ms.measure_callback.AddToDatabase()],
         cost_model=None,
     )
     assert len(database) == max_trials_per_task
+    assert device_types == ["cpu"] * max_trials_per_task
 
 
 def test_meta_schedule_task_scheduler_multiple():

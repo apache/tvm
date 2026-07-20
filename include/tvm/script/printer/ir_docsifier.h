@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
+#include <tvm/ffi/device.h>
 #include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
