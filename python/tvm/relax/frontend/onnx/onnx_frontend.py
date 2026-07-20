@@ -3113,6 +3113,7 @@ def _emit_resize_topi_dynamic_roi(
     cubic_coeff_a: float,
     exclude_outside: int,
     extrapolation_value: float,
+    scales: list | None,
 ) -> relax.Expr:
     """Lower Resize with runtime ROI via TOPI, which supports Expr ROI."""
     if rank == 3:
@@ -3129,6 +3130,7 @@ def _emit_resize_topi_dynamic_roi(
                 cubic_coeff_a,
                 exclude_outside,
                 extrapolation_value,
+                scales=scales,
             )
 
         return bb.emit_te(resize1d_dyn, data, roi_spatial_vec, sizes_spatial[0])
@@ -3147,12 +3149,14 @@ def _emit_resize_topi_dynamic_roi(
                 bicubic_alpha=cubic_coeff_a,
                 bicubic_exclude=exclude_outside,
                 extrapolation_value=extrapolation_value,
+                scales=scales,
             )
 
         return bb.emit_te(resize2d_dyn, data, roi_spatial_vec, sizes_spatial[0], sizes_spatial[1])
 
     def resize3d_dyn(d, r, s0, s1, s2):
         # r is ONNX order (D,H,W) x2; TOPI expects (W,H,D) x2.
+        # NOTE: scales order must stay ONNX (D,H,W), unlike r which is reordered
         return topi.image.resize3d(
             d,
             (r[2], r[1], r[0], r[5], r[4], r[3]),
@@ -3164,6 +3168,7 @@ def _emit_resize_topi_dynamic_roi(
             bicubic_alpha=cubic_coeff_a,
             bicubic_exclude=exclude_outside,
             extrapolation_value=extrapolation_value,
+            scales=scales,
         )
 
     return bb.emit_te(
@@ -3268,6 +3273,7 @@ class Resize(OnnxOpConverter):
                 cubic_coeff_a,
                 exclude_outside,
                 extrapolation_value,
+                original_spatial_scales,
             )
 
         if ndims == 3:

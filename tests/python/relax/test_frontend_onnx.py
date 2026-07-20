@@ -4042,9 +4042,7 @@ def test_resize_noninteger_scales_2d(coord_mode, method):
         [resize_node],
         "resize_noninteger_2d",
         inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3])],
-        initializer=[
-            helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.5, 2.5])
-        ],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.5, 2.5])],
         outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7, 7])],
     )
     check_correctness(helper.make_model(graph), opset=18)
@@ -4081,13 +4079,64 @@ def test_resize_noninteger_scales_3d():
     graph = helper.make_graph(
         [resize_node],
         "resize_noninteger_3d",
-        inputs=[
-            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3, 3])
-        ],
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3, 3, 3])],
         initializer=[
             helper.make_tensor("scales", TensorProto.FLOAT, [5], [1.0, 1.0, 1.5, 1.5, 1.5])
         ],
         outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4, 4])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_asymmetric_nearest_noninteger_scales_2d():
+    """Asymmetric+nearest+floor optimization must not ignore scale override.
+
+    When coordinate_transformation_mode="asymmetric", method="nearest_neighbor",
+    rounding_method="floor", and scales is non-integer, the integer-division optimization
+    must not be applied, The bug: can_convert_multiply_to_intdiv checks only derived ratio
+    (ignoring scale override), causing wrong pixel mapping.
+
+    Example: input 2x2, scale 2.4, output 4x4. Derived ratio 4/2=2.0 triggers optimization,
+    but floor(2*0.4167) != floor(2/2) at same coordinates.
+    """
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_asymmetric_nearest_noninteger_scales_2d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 2, 2])],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.4, 2.4])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
+def test_resize_asymmetric_nearest_integer_scales_baseline():
+    """Baseline: asymmetric+nearest+floor with integer scale should work correctly.
+
+    This ensures the guarded optimization (when scale_override is None) still produces
+    correct results for integer scales and doesn't regress existing behavior.
+    """
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "", "scales"],
+        ["Y"],
+        mode="nearest",
+        coordinate_transformation_mode="asymmetric",
+        nearest_mode="floor",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_asymmetric_nearest_integer_scales_2d",
+        inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 2, 2])],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 4, 4])],
     )
     check_correctness(helper.make_model(graph), opset=18)
 
@@ -4112,9 +4161,7 @@ def test_resize_integer_scales_regression(input_shape, scales, output_shape):
         [resize_node],
         "resize_integer_scales",
         inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, input_shape)],
-        initializer=[
-            helper.make_tensor("scales", TensorProto.FLOAT, [len(scales)], scales)
-        ],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [len(scales)], scales)],
         outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, output_shape)],
     )
     check_correctness(helper.make_model(graph), opset=18)
