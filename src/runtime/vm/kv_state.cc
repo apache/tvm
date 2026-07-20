@@ -70,6 +70,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   &AttentionKVCacheObj::GetNumAvailablePages)
       .def_method("vm.builtin.attention_kv_cache_get_total_sequence_length",
                   &AttentionKVCacheObj::GetTotalSequenceLength)
+      .def_method("vm.builtin.attention_kv_cache_get_checkpoint_metadata",
+                  &AttentionKVCacheObj::GetCheckpointMetadata)
+      .def_method("vm.builtin.attention_kv_cache_get_layout_hash",
+                  &AttentionKVCacheObj::GetLayoutHash)
+      .def_method("vm.builtin.attention_kv_cache_export_page_group",
+                  &AttentionKVCacheObj::ExportPageGroup)
+      .def_method("vm.builtin.attention_kv_cache_prepare_import",
+                  &AttentionKVCacheObj::PrepareImport)
+      .def_method("vm.builtin.attention_kv_cache_import_page_group",
+                  &AttentionKVCacheObj::ImportPageGroup)
+      .def_method("vm.builtin.attention_kv_cache_get_sequence_length",
+                  &AttentionKVCacheObj::GetSequenceLength)
       .def_method("vm.builtin.attention_kv_cache_get_query_positions",
                   &AttentionKVCacheObj::GetQueryPositions)
       .def_method("vm.builtin.attention_kv_cache_debug_get_kv", &AttentionKVCacheObj::DebugGetKV)
