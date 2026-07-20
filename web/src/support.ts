@@ -80,24 +80,26 @@ export function wasmPath(): string {
  * Linear congruential generator for random number generating that can be seeded.
  *
  * Follows the implementation of `include/tvm/support/random_engine.h`, which follows the
- * sepcification in https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine.
+ * specification in https://en.cppreference.com/w/cpp/numeric/random/linear_congruential_engine.
  *
  * Note `Number.MAX_SAFE_INTEGER = 2^53 - 1`, and our intermediates are strictly less than 2^48.
  */
+
+export type RNGState = number;
 
 export class LinearCongruentialGenerator {
   readonly modulus: number;
   readonly multiplier: number;
   readonly increment: number;
-  // Always within the range (0, 2^32 - 1) non-inclusive; if 0, will forever generate 0.
+  // Always within the range (0, modulus) non-inclusive; if 0, will forever generate 0.
   private rand_state: number;
 
   /**
    * Set modulus, multiplier, and increment. Initialize `rand_state` according to `Date.now()`.
    */
   constructor() {
-    this.modulus = 2147483647;  // 2^32 - 1
-    this.multiplier = 48271;  // between 2^15 and 2^16
+    this.modulus = 2147483647; // 2^31 - 1
+    this.multiplier = 48271; // between 2^15 and 2^16
     this.increment = 0;
     this.setSeed(Date.now());
   }
@@ -116,6 +118,29 @@ export class LinearCongruentialGenerator {
     if (this.rand_state == 0) {
       this.rand_state = 1;
     }
+    this.checkRandState();
+  }
+
+  /**
+   * Get the current generator state for deterministic restoration.
+   */
+  getState(): RNGState {
+    return this.rand_state;
+  }
+
+  /**
+   * Restore a state returned by `getState()`.
+   */
+  setState(state: RNGState): void {
+    if (!Number.isInteger(state)) {
+      throw new Error("RNG state should be an integer.");
+    }
+    if (state <= 0 || state >= this.modulus) {
+      throw new Error(
+        `RNG state should be an integer in (0, ${this.modulus}).`,
+      );
+    }
+    this.rand_state = state;
     this.checkRandState();
   }
 

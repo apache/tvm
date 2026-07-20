@@ -18,6 +18,23 @@
  */
 const tvmjs = require("../../dist");
 
+function createRNGOnlyInstance() {
+  const tvm = Object.create(tvmjs.Instance.prototype);
+  tvm.rng = new tvmjs.LinearCongruentialGenerator();
+  tvm.empty = function () {
+    return {
+      copyFrom(input) {
+        return {
+          toArray() {
+            return input;
+          },
+        };
+      },
+    };
+  };
+  return tvm;
+}
+
 test("Test coverage of [0,100] inclusive", () => {
   const covered = Array(100);
   const rng = new tvmjs.LinearCongruentialGenerator();
@@ -44,6 +61,40 @@ test("Test whether the same seed make two RNGs generate same results", () => {
   }
 });
 
+test("Restoring RNG state reproduces next random floats", () => {
+  const rng1 = new tvmjs.LinearCongruentialGenerator();
+  const rng2 = new tvmjs.LinearCongruentialGenerator();
+  rng1.setSeed(42);
+  for (let i = 0; i < 8; i++) {
+    rng1.randomFloat();
+  }
+
+  const state = rng1.getState();
+  const expected = [];
+  for (let i = 0; i < 16; i++) {
+    expected.push(rng1.randomFloat());
+  }
+
+  rng2.setState(state);
+  const restored = [];
+  for (let i = 0; i < expected.length; i++) {
+    restored.push(rng2.randomFloat());
+  }
+  expect(restored).toEqual(expected);
+});
+
+test("Instance RNG state reproduces next uniform samples", () => {
+  const tvm = createRNGOnlyInstance();
+  tvm.setSeed(123);
+  const state = tvm.getRNGState();
+  const expected = Array.from(tvm.uniform([16], -1.0, 1.0, {}).toArray());
+
+  tvm.uniform([16], -1.0, 1.0, {});
+  tvm.setRNGState(state);
+  const restored = Array.from(tvm.uniform([16], -1.0, 1.0, {}).toArray());
+  expect(restored).toEqual(expected);
+});
+
 test("Test two RNGs with different seeds generate different results", () => {
   const rng1 = new tvmjs.LinearCongruentialGenerator();
   const rng2 = new tvmjs.LinearCongruentialGenerator();
@@ -66,4 +117,24 @@ test('Illegal argument to `setSeed()`', () => {
     const rng1 = new tvmjs.LinearCongruentialGenerator();
     rng1.setSeed(42.5);
   }).toThrow("Seed should be an integer.");
+});
+
+test("Illegal argument to `setState()`", () => {
+  const rng = new tvmjs.LinearCongruentialGenerator();
+
+  expect(() => {
+    rng.setState(undefined);
+  }).toThrow("RNG state should be an integer.");
+  expect(() => {
+    rng.setState({});
+  }).toThrow("RNG state should be an integer.");
+  expect(() => {
+    rng.setState(0);
+  }).toThrow("RNG state should be an integer in");
+  expect(() => {
+    rng.setState(rng.modulus);
+  }).toThrow("RNG state should be an integer in");
+  expect(() => {
+    rng.setState(1.5);
+  }).toThrow("RNG state should be an integer.");
 });
