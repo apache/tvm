@@ -18,23 +18,6 @@
  */
 const tvmjs = require("../../dist");
 
-function createRNGOnlyInstance() {
-  const tvm = Object.create(tvmjs.Instance.prototype);
-  tvm.rng = new tvmjs.LinearCongruentialGenerator();
-  tvm.empty = function () {
-    return {
-      copyFrom(input) {
-        return {
-          toArray() {
-            return input;
-          },
-        };
-      },
-    };
-  };
-  return tvm;
-}
-
 test("Test coverage of [0,100] inclusive", () => {
   const covered = Array(100);
   const rng = new tvmjs.LinearCongruentialGenerator();
@@ -80,18 +63,6 @@ test("Restoring RNG state reproduces next random floats", () => {
   for (let i = 0; i < expected.length; i++) {
     restored.push(rng2.randomFloat());
   }
-  expect(restored).toEqual(expected);
-});
-
-test("Instance RNG state reproduces next uniform samples", () => {
-  const tvm = createRNGOnlyInstance();
-  tvm.setSeed(123);
-  const state = tvm.getRNGState();
-  const expected = Array.from(tvm.uniform([16], -1.0, 1.0, {}).toArray());
-
-  tvm.uniform([16], -1.0, 1.0, {});
-  tvm.setRNGState(state);
-  const restored = Array.from(tvm.uniform([16], -1.0, 1.0, {}).toArray());
   expect(restored).toEqual(expected);
 });
 

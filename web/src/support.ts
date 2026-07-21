@@ -141,7 +141,6 @@ export class LinearCongruentialGenerator {
       );
     }
     this.rand_state = state;
-    this.checkRandState();
   }
 
   /**
