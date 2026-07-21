@@ -859,8 +859,10 @@ def conv(
     if auto_scheduler_rewritten_layout:
         raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
-    assert in_channel % groups == 0, "input channels must divide group size"
-    assert num_filter % groups == 0, "output channels must divide group size"
+    if isinstance(in_channel, int):
+        assert in_channel % groups == 0, "input channels must divide group size"
+    if isinstance(num_filter, int):
+        assert num_filter % groups == 0, "output channels must divide group size"
 
     dilated_kernel_dimensions = [(k - 1) * dil + 1 for k, dil in zip(kernel_dimensions, dilations)]
     pad_begin, pad_end = get_pad_tuple_generic(padding, dilated_kernel_dimensions)
