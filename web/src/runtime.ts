@@ -23,7 +23,12 @@
 import { Pointer, PtrOffset, SizeOf, TypeIndex } from "./ctypes";
 import { Disposable } from "./types";
 import { Memory, CachedCallStack } from "./memory";
-import { assert, StringToUint8Array, LinearCongruentialGenerator } from "./support";
+import {
+  assert,
+  StringToUint8Array,
+  LinearCongruentialGenerator,
+  RNGState,
+} from "./support";
 import { Environment } from "./environment";
 import { AsyncifyHandler } from "./asyncify";
 import { FunctionInfo, WebGPUContext } from "./webgpu";
@@ -1540,6 +1545,20 @@ export class Instance implements Disposable {
    */
   setSeed(seed: number): void {
     this.rng.setSeed(seed);
+  }
+
+  /**
+   * Get the state of the internal LinearCongruentialGenerator.
+   */
+  getRNGState(): RNGState {
+    return this.rng.getState();
+  }
+
+  /**
+   * Restore the state of the internal LinearCongruentialGenerator.
+   */
+  setRNGState(state: RNGState): void {
+    this.rng.setState(state);
   }
 
   /**
