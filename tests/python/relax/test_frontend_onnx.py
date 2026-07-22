@@ -4088,6 +4088,27 @@ def test_resize_noninteger_scales_3d():
     check_correctness(helper.make_model(graph), opset=18)
 
 
+def test_resize_dynamic_roi_noninteger_scales_1d():
+    resize_node = helper.make_node(
+        "Resize",
+        ["X", "roi", "scales"],
+        ["Y"],
+        mode="linear",
+        coordinate_transformation_mode="half_pixel",
+    )
+    graph = helper.make_graph(
+        [resize_node],
+        "resize_dynamic_roi_noninteger_1d",
+        inputs=[
+            helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 1, 3]),
+            helper.make_tensor_value_info("roi", TensorProto.FLOAT, [6]),
+        ],
+        initializer=[helper.make_tensor("scales", TensorProto.FLOAT, [3], [1.0, 1.0, 2.5])],
+        outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 7])],
+    )
+    check_correctness(helper.make_model(graph), opset=18)
+
+
 def test_resize_asymmetric_nearest_noninteger_scales_2d():
     """Asymmetric+nearest+floor optimization must not ignore scale override.
 
