@@ -784,18 +784,27 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                    << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                                    << "`, indexing lanes: " << index_lanes;
     }
+    value = tvm::cast(lhs_dtype, value);
+  }
+  tvm::tirx::BufferStore store(buffer, value, indices, predicate);
+  if (lhs_dtype != rhs_dtype) {
     if (lhs_dtype.code() != rhs_dtype.code()) {
       if ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&
           (rhs_dtype.code() == DLDataTypeCode::kDLFloat ||
            rhs_dtype.code() == DLDataTypeCode::kDLBfloat)) {
+        ffi::String kernel_name = "<unknown>";
+        if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+          kernel_name = frame.value()->name.value_or("<anonymous>");
+        }
         LOG(WARNING) << "Casting in BufferStore may lose precision"
                      << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
-                     << "`, indexing lanes: " << index_lanes;
+                     << "`, indexing lanes: " << index_lanes << ", kernel: `" << kernel_name << "`"
+                     << "\nBufferStore:\n"
+                     << store;
       }
     }
-    value = tvm::cast(lhs_dtype, value);
   }
-  AddToParent(tvm::tirx::BufferStore(buffer, value, indices, predicate));
+  AddToParent(store);
 }
 
 DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
