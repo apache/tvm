@@ -18,7 +18,6 @@
 
 import tvm
 from tvm import te
-from tvm.tirx import if_then_else
 
 from .. import tag
 from ..utils import equal_const_int
@@ -211,15 +210,12 @@ def reflect_pad(data, pad_before, pad_after=None, name="ReflectPadInput"):
 
             orig_idx = idx - before
 
-            reflected_idx = if_then_else(
-                orig_idx < 0,
-                -orig_idx,  # reflect from start (no repeat)
-                if_then_else(
-                    orig_idx >= size,
-                    (2 * size - 2) - orig_idx,  # reflect from end
-                    orig_idx,
-                ),
-            )
+            # Branchless reflect-101 boundary index. This is bit-identical to the
+            # nested if_then_else form (-orig_idx below 0, (2*size-2)-orig_idx at or
+            # above size, orig_idx otherwise) over the valid reflect-pad domain, but
+            # lowers to plain integer arithmetic instead of per-element branches.
+            m = size - 1
+            reflected_idx = m - tvm.tirx.abs(m - tvm.tirx.abs(orig_idx))
             index_tuple.append(reflected_idx)
         return data(*index_tuple)
 
@@ -260,15 +256,10 @@ def replicate_pad(data, pad_before, pad_after=None, name="ReplicatePadInput"):
             before = pad_before[i]
 
             orig_idx = idx - before
-            clamped_idx = if_then_else(
-                orig_idx < 0,
-                tvm.tirx.const(0, "int32"),  # replicate first element
-                if_then_else(
-                    orig_idx >= size,
-                    size - 1,  # replicate last element
-                    orig_idx,
-                ),
-            )
+            # Branchless edge clamp. This is bit-identical to the nested
+            # if_then_else form (0 below 0, size-1 at or above size, orig_idx
+            # otherwise) but lowers to min/max instead of per-element branches.
+            clamped_idx = tvm.tirx.max(tvm.tirx.const(0, "int32"), tvm.tirx.min(size - 1, orig_idx))
             index_tuple.append(clamped_idx)
         return data(*index_tuple)
 

@@ -119,32 +119,16 @@ class TestAutopad:
                             x[
                                 T.int64(0),
                                 T.int64(0),
-                                T.int64(0) : T.int64(4),
-                                T.int64(0) : T.int64(4),
+                                T.max(T.int64(0), T.min(T.int64(3), v_i2)),
+                                T.max(T.int64(0), T.min(T.int64(3), v_i3)),
                             ]
                         )
                         T.writes(ReplicatePadInput[v_i0, v_i1, v_i2, v_i3])
                         ReplicatePadInput[v_i0, v_i1, v_i2, v_i3] = x[
-                            T.if_then_else(
-                                v_i0 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(1) <= v_i0, T.int64(0), v_i0),
-                            ),
-                            T.if_then_else(
-                                v_i1 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(1) <= v_i1, T.int64(0), v_i1),
-                            ),
-                            T.if_then_else(
-                                v_i2 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(4) <= v_i2, T.int64(3), v_i2),
-                            ),
-                            T.if_then_else(
-                                v_i3 < T.int64(0),
-                                T.int64(0),
-                                T.if_then_else(T.int64(4) <= v_i3, T.int64(3), v_i3),
-                            ),
+                            T.int64(0),
+                            T.int64(0),
+                            T.max(T.int64(0), T.min(T.int64(3), v_i2)),
+                            T.max(T.int64(0), T.min(T.int64(3), v_i3)),
                         ]
 
             @R.function
