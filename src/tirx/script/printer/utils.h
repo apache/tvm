@@ -91,7 +91,7 @@ inline ExprDoc DefineVar(const tirx::Var& var, const Frame& frame, const IRDocsi
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
-  return d->Define(var, frame, var->name_hint.empty() ? "v" : var->name_hint);
+  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
 }
 
 /*!
@@ -137,13 +137,13 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
         bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
-                              !store->predicate.defined() && store->indices.size() == 1 &&
+                              !store->predicate.has_value() && store->indices.size() == 1 &&
                               tirx::is_zero(store->indices[0]) &&
                               !value_refs_buffer(store->value, alloc->buffer);
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);
           if (const auto* assign = alloc_doc.as<AssignDocNode>()) {
-            if (assign->annotation.defined() && !assign->rhs.defined()) {
+            if (assign->annotation.has_value() && !assign->rhs.has_value()) {
               ExprDoc init_rhs =
                   d->AsDoc<ExprDoc>(store->value, p->Attr("seq")->ArrayItem(i + 1)->Attr("value"));
               auto fused = AssignDoc(assign->lhs, init_rhs, assign->annotation);
@@ -266,6 +266,8 @@ inline std::string ReprPrintTIR(const ffi::ObjectRef& obj, const PrinterConfig& 
   return Docsify(obj, d, *f, cfg);
 }
 
+Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d);
+
 /* \brief Specify which variables are defined along with the buffer
  *
  * Depending on the context, defining a buffer may define additional
@@ -332,6 +334,8 @@ class OccurrenceCounter : public tirx::StmtExprVisitor {
   int count = 0;
   /*! \brief The Var to count occurrence */
   const tirx::VarNode* v = nullptr;
+
+  void VisitVar(const tirx::Var& var) { VisitExpr(static_cast<const Expr&>(var)); }
 
   void VisitExpr_(const tirx::VarNode* op) final {
     if (op == v) {

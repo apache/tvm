@@ -40,7 +40,7 @@ ffi::Array<PrimExpr> GetStrides(const Buffer& buffer) {
     return {};
   }
   ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
-  PrimExpr stride = MakeConst(PrimType(buffer->DefaultIndexType()), 1);
+  PrimExpr stride = IntImm(PrimType(buffer->DefaultIndexType()), 1);
   for (int i = ndim - 1; i >= 0; --i) {
     strides.Set(i, stride);
     stride = stride * buffer->shape[i];
@@ -60,7 +60,7 @@ class SplitExprCollector {
    */
   struct SplitExpr {
     /*! \brief The source variable */
-    Var source;
+    PrimVar source;
     /*! \brief The lower factor of the split expression */
     int64_t lower_factor;
     /*! \brief The extent of the split expression */
@@ -77,9 +77,9 @@ class SplitExprCollector {
    * \return The collected split expressions
    */
   static std::vector<SplitExpr> Collect(const PrimExpr& index,
-                                        const ffi::Map<Var, Range>& input_iters,  //
-                                        const PrimExpr& predicate,                //
-                                        arith::IterMapLevel check_level,          //
+                                        const ffi::Map<PrimVar, Range>& input_iters,  //
+                                        const PrimExpr& predicate,                    //
+                                        arith::IterMapLevel check_level,              //
                                         arith::AnalyzerObj* analyzer) {
     arith::Analyzer analyzer_ref = ffi::GetRef<arith::Analyzer>(analyzer);
     arith::IterMapResult res = arith::DetectIterMap({analyzer->Simplify(index)}, input_iters,
@@ -102,14 +102,14 @@ class SplitExprCollector {
 
  private:
   void Visit(const arith::IterSplitExpr& expr) {
-    if (const auto* var = expr->source->source.as<tirx::VarNode>()) {
+    if (auto var = expr->source->source.as<PrimVar>()) {
       const int64_t* lower_factor = as_const_int(expr->lower_factor);
       const int64_t* extent = as_const_int(expr->extent);
       if (lower_factor == nullptr || extent == nullptr) {
         failed_ = true;
         return;
       }
-      exprs_.push_back(SplitExpr{ffi::GetRef<Var>(var), *lower_factor, *extent});
+      exprs_.push_back(SplitExpr{var.value(), *lower_factor, *extent});
     } else if (auto iter_sum_expr = expr->source->source.as<arith::IterSumExpr>()) {
       Visit(iter_sum_expr.value());
     } else {
@@ -135,7 +135,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
   int ndim = buffer->shape.size();
   int n_loops = loops.size();
   // Step 1. Collect the domains and indices of loop variables
-  ffi::Map<Var, Range> input_iters;
+  ffi::Map<PrimVar, Range> input_iters;
   std::unordered_map<const VarNode*, int> var2id;
   var2id.reserve(n_loops);
   for (int i = 0; i < n_loops; ++i) {
@@ -188,7 +188,8 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
       analyzer->Bind(indices[i], Range::FromMinExtent(0, shape[i]));
     }
     // Step 5.1: Fuse all indices into a flattened one
-    PrimExpr index = f_flatten_index({indices.begin(), indices.end()});
+    PrimExpr index =
+        f_flatten_index(indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); }));
     int ndim = split_exprs.size();
     // Step 5.2. Split the flattened index according to `split_exprs`
     std::vector<PrimExpr> split;
@@ -223,10 +224,11 @@ ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<P
     }
 
     // Step 6.2: Fuse all the indices. This is the inverse of Step 5.2.
-    PrimExpr flattened_index = IntImm(indices[0].ty(), 0);
+    PrimExpr flattened_index = IntImm(indices[0]->ty.as_or_throw<PrimType>(), 0);
     int64_t stride = 1;
     for (int i = static_cast<int>(split_exprs.size()) - 1; i >= 0; --i) {
-      flattened_index = inv_permuted_indices[i] * IntImm::Int32(stride) + flattened_index;
+      flattened_index =
+          inv_permuted_indices[i].as_or_throw<PrimExpr>() * IntImm::Int32(stride) + flattened_index;
       stride *= split_exprs[i].extent;
     }
     // Step 6.3: Split the flattened index into multiple indices. This is the inverse of Step 5.1.

@@ -242,11 +242,11 @@ def test_match_buffer_input_requires_shape_arg():
 
 
 def test_bind_bufferload_without_type_annotation():
-    # Variable assignment of PrimExpr types uses the dtype of the
-    # PrimExpr to determine the variable's dtype.  Parsing of
+    # Variable assignment of Expr types uses the dtype of the
+    # Expr to determine the variable's dtype.  Parsing of
     # buf[indices] is done by generating a BufferSlice object, which
     # handles both store and load cases.  BufferSlice is not a
-    # PrimExpr, and implements BufferSlice.dtype explicitly.
+    # Expr, and implements BufferSlice.dtype explicitly.
 
     # Failure occurred during parsing of the tvmscript.
     @T.prim_func(s_tir=True)
@@ -506,11 +506,11 @@ def test_foldable_boolean_in_assert():
 
 
 def test_return_statement():
-    """A python `return` statement uses `T.ret`"""
+    """A Python `return` statement creates a first-class Return node."""
 
     @T.prim_func(s_tir=True)
     def explicit():
-        T.evaluate(T.ret(5))
+        T.Return(T.int32(5))
 
     @T.prim_func(s_tir=True)
     def implicit():

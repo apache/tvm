@@ -49,16 +49,15 @@ class BlockPredicateAppender : public StmtMutator {
 /*! \brief Substitute vars and collect the reuse mapping of opaque blocks */
 class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
  public:
-  explicit SubstituteVarAndCollectOpaqueBlock(
-      std::function<ffi::Optional<PrimExpr>(const Var&)> vmap,
-      ffi::Map<SBlock, SBlock>* opaque_blocks)
+  explicit SubstituteVarAndCollectOpaqueBlock(std::function<ffi::Optional<Expr>(const Var&)> vmap,
+                                              ffi::Map<SBlock, SBlock>* opaque_blocks)
       : vmap_(vmap), opaque_blocks_(opaque_blocks) {}
 
  private:
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
-    if (ffi::Optional<PrimExpr> ret = vmap_(var)) {
-      return tvm::cast(var.ty(), ret.value());
+    if (ffi::Optional<Expr> ret = vmap_(var)) {
+      return tvm::cast(var->ty.as_or_throw<PrimType>(), ret.value().as_or_throw<PrimExpr>());
     } else {
       return var;
     }
@@ -73,7 +72,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
   }
 
   /*! \brief The substitute function */
-  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
   /*! \brief The reuse mapping of opaque blocks */
   ffi::Map<SBlock, SBlock>* opaque_blocks_;
 };
@@ -82,7 +81,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
   explicit IterMapSimplifyBlockBinding(ffi::MapObj* opaque_blocks,
-                                       ffi::Map<Var, Range> loop_var2extent,
+                                       ffi::Map<PrimVar, Range> loop_var2extent,
                                        bool preserve_unit_iters)
       : opaque_blocks_(opaque_blocks),
         loop_var2extent_(loop_var2extent),
@@ -90,7 +89,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
 
   static For SimplifyBindings(Stmt stmt, const ffi::Array<StmtSRef>& loop_srefs,
                               ffi::MapObj* opaque_blocks, bool preserve_unit_iters) {
-    ffi::Map<Var, Range> loop_var2extent;
+    ffi::Map<PrimVar, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
       loop_var2extent.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
@@ -140,7 +139,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   /*! \brief The reuse mapping */
   ffi::MapObj* opaque_blocks_;
   /*! \brief The range of loops */
-  ffi::Map<Var, Range> loop_var2extent_;
+  ffi::Map<PrimVar, Range> loop_var2extent_;
   /*! \brief Internal analyzer */
   arith::Analyzer analzyer_;
   /*! \brief Whether or not to simplify unit iterators */
@@ -351,7 +350,7 @@ class LoopsNotAChainError : public ScheduleError {
     if (kind_ == ProblemKind::kNotUnderAScope) {
       return {};
     } else {
-      TVM_FFI_ICHECK(problematic_loop_.defined());
+      TVM_FFI_ICHECK(problematic_loop_.has_value());
       return {problematic_loop_.value()};
     }
   }
@@ -403,7 +402,7 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   // order with before.
   // Step 1. Check correctness
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+  if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
     throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
   }
   // Currently, loops not starting with 0 are not supported
@@ -425,15 +424,15 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   new_loop_vars.reserve(n);
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i)).copy_with_dtype(dtype);
-    substitute_value = substitute_value * factor + var;
+    Var var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i)).CopyWithDType(dtype);
+    substitute_value = substitute_value * factor + var.as_or_throw<PrimExpr>();
     analyzer->Bind(var, Range::FromMinExtent(IntImm(dtype, 0), tvm::cast(dtype, factor)));
     new_loop_vars.emplace_back(std::move(var));
   }
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
   Stmt new_stmt = loop->body;
   new_stmt = SubstituteVarAndCollectOpaqueBlock(
-      [&](const Var& v) -> ffi::Optional<PrimExpr> {
+      [&](const Var& v) -> ffi::Optional<Expr> {
         if (v.same_as(loop->loop_var)) {
           return substitute_value;
         } else {
@@ -449,7 +448,8 @@ ffi::Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   }
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
   for (int i = n - 1; i >= 0; i--) {
-    new_stmt = For(new_loop_vars[i], 0, factors[i], ForKind::kSerial, new_stmt);
+    new_stmt =
+        For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kSerial, new_stmt);
   }
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(std::move(new_stmt), GetLoops(loop_sref),
                                                            opaque_block_reuse.CopyOnWrite(),
@@ -480,12 +480,12 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < store->indices.size(); i++) {
-      const VarNode* var_node = store->indices[i].as<VarNode>();
-      if (var_node == nullptr) {
+      auto var = store->indices[i].as<PrimVar>();
+      if (!var.has_value()) {
         check_ = true;
         break;
       }
-      indices.push_back(var_node->name_hint);
+      indices.push_back(var.value()->name);
     }
     if (buffer_indices_map.find(store->buffer->name) == buffer_indices_map.end() && !check_)
       buffer_indices_map.Set(store->buffer->name, indices);
@@ -496,12 +496,12 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
     ffi::Array<ffi::String> indices;
     bool check_ = false;
     for (size_t i = 0; i < load->indices.size(); i++) {
-      const VarNode* var_node = load->indices[i].as<VarNode>();
-      if (var_node == nullptr) {
+      auto var = load->indices[i].as<PrimVar>();
+      if (!var.has_value()) {
         check_ = true;
         break;
       }
-      indices.push_back(var_node->name_hint);
+      indices.push_back(var.value()->name);
     }
     if (buffer_indices_map.find(load->buffer->name) == buffer_indices_map.end() && !check_)
       buffer_indices_map.Set(load->buffer->name, indices);
@@ -547,7 +547,7 @@ class BlockMutator : public StmtExprMutator {
     // If iter_vars.size() is 0, then the block most probably be an Opaque block
     if (new_block->iter_vars.size() == 0 || inner_iter_var_index == -1) {
       new_block.CopyOnWrite()->name_hint =
-          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name_hint;
+          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name;
       return new_block;
     }
 
@@ -558,9 +558,9 @@ class BlockMutator : public StmtExprMutator {
         MutateArray(new_block->iter_vars, [this, &iter_var_](const IterVar& iter) {
           auto dtype = iter->var.ty();
           // Create new Var instance for each IterVar
-          Var new_var = Var(iter->var->name_hint, iter->var.ty());
+          Var new_var = Var(iter->var->name, iter->var.ty());
           IterVar new_iter = iter;
-          new_iter.CopyOnWrite()->var = new_var;
+          new_iter.CopyOnWrite()->var = new_var.as_or_throw<PrimVar>();
           // Change the domain of IterVar corresponding to partitioned loop_var
           if (iter_var_.same_as(iter->var)) {
             new_iter.CopyOnWrite()->dom = Range(tvm::cast(dtype, min_), tvm::cast(dtype, extent_));
@@ -572,14 +572,14 @@ class BlockMutator : public StmtExprMutator {
     if (!new_block->iter_vars.same_as(new_iter_vars)) {
       new_block.CopyOnWrite()->iter_vars = std::move(new_iter_vars);
       new_block.CopyOnWrite()->name_hint =
-          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name_hint;
+          new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name;
     }
 
     // Get the (iter_var, new Range) map
     ffi::Map<ffi::String, Range> index_range_map;
     for (size_t i = 0; i < new_block->iter_vars.size(); i++) {
       IterVar iter = new_block->iter_vars[i];
-      index_range_map.Set(iter->var->name_hint, iter->dom);
+      index_range_map.Set(iter->var->name, iter->dom);
     }
 
     // Get the (Buffer, indices) map
@@ -623,12 +623,12 @@ class BlockMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const ForNode* op) final {
     For res = StmtMutator::VisitStmt_(op).as_or_throw<For>();
-    Var new_var = Var(op->loop_var->name_hint, op->loop_var.ty());
+    Var new_var = Var(op->loop_var->name, op->loop_var.ty());
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
       res.CopyOnWrite()->body = tirx::Substitute(res->body, {{op->loop_var, new_var}});
-      res.CopyOnWrite()->loop_var = new_var;
+      res.CopyOnWrite()->loop_var = new_var.as_or_throw<PrimVar>();
     }
     return res;
   }
@@ -649,7 +649,7 @@ const ffi::String get_sblock_name(Stmt loop_body) {
 ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref,
                                    const ffi::Array<PrimExpr>& factors, bool preserve_unit_iters) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+  if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
     throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
   }
 
@@ -664,7 +664,7 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
     dtype = PrimType::Int(bits);
   }
 
-  ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name_hint;
+  ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name;
   int n = factors.size();
   PrimExpr min_value = loop->min;
   PrimExpr extent_value;
@@ -675,14 +675,14 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   // Iterate over each pair of factors and create partition
   for (int i = 0; i < n; i++) {
     extent_value = analyzer->Simplify(factors[i]);
-    Var new_loop_var = loop->loop_var.copy_with_suffix(std::to_string(i)).copy_with_dtype(dtype);
+    Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).CopyWithDType(dtype);
     Stmt loop_body = tirx::Substitute(loop->body, {{loop->loop_var, new_loop_var}});
 
     // Create new block with new reference to each variable/stmt/expr in the existing block
     loop_body = BlockMutator(new_loop_var, min_value, extent_value)(std::move(loop_body));
     // Create new for loop with appropriate range
-    auto for_node =
-        For(new_loop_var, min_value, extent_value - min_value, ForKind::kSerial, loop_body);
+    auto for_node = For(new_loop_var.as_or_throw<PrimVar>(), min_value, extent_value - min_value,
+                        ForKind::kSerial, loop_body);
 
     const auto& partition_block_name = block_name + std::to_string(i) + "_partition";
     // Create partition_block for the partitioned for loop
@@ -735,23 +735,24 @@ class LoopReconstructor : private StmtMutator {
       ffi::Map<Var, PrimExpr> var_map;
       for (size_t j = 0; j < loops_[i].size(); j++) {
         if (i == 0) {
-          Var merged_var = loops_[i][j]->loop_var.copy_with_suffix("_m");
+          Var merged_var = loops_[i][j]->loop_var.CopyWithSuffix("_m");
           new_loop_vars.push_back(merged_var);
           new_loop_extents.push_back(loops_[i][j]->extent);
         }
-        var_map.Set(loops_[i][j]->loop_var, new_loop_vars[j]);
+        var_map.Set(loops_[i][j]->loop_var, new_loop_vars[j].as_or_throw<PrimExpr>());
       }
       auto new_stmt = Substitute(loops_[i][0]->body, var_map);
       new_stmts.push_back(new_stmt);
       this->need_remove_loop_.push_back(loops_[i].back());
     }
-    auto new_loop = For(new_loop_vars[0], IntImm::Int32(0), new_loop_extents[0], ForKind::kSerial,
-                        SeqStmt(std::move(new_stmts)));
+    auto new_loop = For(new_loop_vars[0].as_or_throw<PrimVar>(), IntImm::Int32(0),
+                        new_loop_extents[0], ForKind::kSerial, SeqStmt(std::move(new_stmts)));
     this->new_inner_loop_ = new_loop;
     for (size_t i = 1; i < new_loop_vars.size(); ++i) {
       const Var& loop_var = new_loop_vars[i];
       const PrimExpr& loop_extent = new_loop_extents[i];
-      new_loop = For(loop_var, IntImm::Int32(0), loop_extent, ForKind::kSerial, new_loop);
+      new_loop = For(loop_var.as_or_throw<PrimVar>(), IntImm::Int32(0), loop_extent,
+                     ForKind::kSerial, new_loop);
     }
     this->new_outer_loop_ = new_loop;
   }
@@ -824,7 +825,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
     std::vector<For> nest_loop_i_loops;
     for (auto p = sref.get(); p != lca.get(); p = p->parent) {
       if (auto loop = p->StmtAs<ForNode>()) {
-        if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+        if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
           throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
         }
         CheckLoopStartsWithZero(self, ffi::GetRef<StmtSRef>(p), analyzer.get());
@@ -889,7 +890,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   // Step 1. check correctness
   for (const StmtSRef& sref : loop_srefs) {
     const ForNode* loop = TVM_SREF_TO_FOR(sref);
-    if (!loop->annotations.empty() || loop->thread_binding.defined()) {
+    if (!loop->annotations.empty() || loop->thread_binding.has_value()) {
       throw HasAnnotationOrThreadBindingError(self->mod, ffi::GetRef<For>(loop));
     }
     if (outer_loop_sref.defined()) {
@@ -912,7 +913,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
       return false;
     };
     if (UsesVar(loop->extent, f_contain)) {
-      throw DependentLoopError(self->mod, ffi::GetRef<For>(loop), used_var->name_hint,
+      throw DependentLoopError(self->mod, ffi::GetRef<For>(loop), used_var->name,
                                DependentLoopError::PrimitiveKind::kFuse);
     }
     outer_loop_vars.insert(loop->loop_var.get());
@@ -923,25 +924,29 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   int n = loops.size();
   int bits = loops[0]->loop_var.ty().bits();
   for (int i = 1; i < n; i++) {
-    suffix += "_" + loops[i]->loop_var->name_hint;
+    suffix += "_" + loops[i]->loop_var->name;
     bits = std::max(bits, loops[i]->loop_var.ty().bits());
   }
   suffix += "_fused";
 
-  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix).copy_with_dtype(PrimType::Int(bits));
+  Var fused_var = loops[0]->loop_var.CopyWithSuffix(suffix).CopyWithDType(PrimType::Int(bits));
   ffi::Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
   PrimExpr lower = 1;
   for (int i = static_cast<int>(loops.size()) - 1; i > 0; i--) {
     PrimExpr next_lower = analyzer->canonical_simplify(loops[i]->extent * lower);
     substitute_value.Set(
-        i, is_one(loops[i]->extent) ? 0 : floordiv(floormod(fused_var, next_lower), lower));
+        i, is_one(loops[i]->extent)
+               ? PrimExpr(0)
+               : floordiv(floormod(fused_var.as_or_throw<PrimExpr>(), next_lower), lower));
     lower = next_lower;
   }
-  substitute_value.Set(0, is_one(loops[0]->extent) ? 0 : floordiv(fused_var, lower));
+  substitute_value.Set(0, is_one(loops[0]->extent)
+                              ? PrimExpr(0)
+                              : floordiv(fused_var.as_or_throw<PrimExpr>(), lower));
   Stmt new_stmt = loops.back()->body;
   ffi::Map<SBlock, SBlock> opaque_block_reuse;
-  auto f_substitute = [&](const Var& v) -> ffi::Optional<PrimExpr> {
+  auto f_substitute = [&](const Var& v) -> ffi::Optional<Expr> {
     for (int i = 0; i < n; i++) {
       if (v.same_as(loops[i]->loop_var)) {
         return substitute_value[i];
@@ -957,7 +962,7 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
     fused_extent *= loops[i]->extent;
   }
   fused_extent = analyzer->Simplify(fused_extent);
-  new_stmt = For(fused_var, 0, fused_extent, ForKind::kSerial, new_stmt);
+  new_stmt = For(fused_var.as_or_throw<PrimVar>(), 0, fused_extent, ForKind::kSerial, new_stmt);
   new_stmt = IterMapSimplifyBlockBinding::SimplifyBindings(
       std::move(new_stmt), GetLoops(loop_srefs[0]), opaque_block_reuse.CopyOnWrite(),
       preserve_unit_iters);
@@ -1106,7 +1111,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
       return false;
     };
     if (UsesVar(copy->min, f_contain) || UsesVar(copy->extent, f_contain)) {
-      throw DependentLoopError(self->mod, ffi::GetRef<For>(copy), used_var->name_hint,
+      throw DependentLoopError(self->mod, ffi::GetRef<For>(copy), used_var->name,
                                DependentLoopError::PrimitiveKind::kReorder);
     }
     inner_vars.insert(copy->loop_var.get());
@@ -1144,7 +1149,7 @@ void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs)
 StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
   if (sref->stmt->IsInstance<ForNode>()) {
     For new_loop =
-        For(Var("u", PrimType::Int(32)), 0, 1, ForKind::kSerial, ffi::GetRef<Stmt>(sref->stmt));
+        For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial, ffi::GetRef<Stmt>(sref->stmt));
     self->Replace(sref, new_loop, {});
     return self->stmt2ref.at(new_loop.get());
   }
@@ -1154,7 +1159,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
 
     Stmt VisitStmt_(const SBlockRealizeNode* realize) final {
       if (realize->block.get() == src_block_) {
-        new_loop_ = For(Var("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
+        new_loop_ = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
                         ffi::GetRef<SBlockRealize>(realize));
         return new_loop_;
       }

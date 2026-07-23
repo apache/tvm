@@ -671,14 +671,14 @@ def BindParams(
 
 
 def BindSymbolicVars(
-    binding_map: Mapping[str | tvm.tirx.Var, tvm.tirx.PrimExpr],
+    binding_map: Mapping[str | tvm.tirx.Var, tvm.tirx.Expr],
     func_name: str | None = None,
 ) -> tvm.ir.transform.Pass:
     """Bind params of function of the module to constant tensors.
 
     Parameters
     ----------
-    binding_map : Mapping[Union[str, tvm.tirx.Var], tvm.tirx.PrimExpr]
+    binding_map : Mapping[Union[str, tvm.tirx.Var], tvm.tirx.Expr]
         The map from symbolic varname to integer.
 
     func_name : Optional[str]
@@ -1304,8 +1304,6 @@ def DecomposeOpsForTraining(func_name: str | None = None) -> tvm.ir.transform.Pa
 def AlterOpImpl(
     op_impl_map: dict[str, PrimFunc],
     op_buffer_transforms: dict[str, list[IndexMap | Callable]],
-    op_buffer_axis_separators: dict[str, list[str | Callable]],  # str=IndexMap.AXIS_SEPARATOR
-    op_buffer_input_axis_separators: dict[str, list[str | Callable]],  # str=IndexMap.AXIS_SEPARATOR
 ):
     """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
     PrimFunc that could possibly have different layouts on i/o buffers. The layout
@@ -1319,11 +1317,6 @@ def AlterOpImpl(
         op_kind to PrimFunc map
     op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]
         op_kind to layout transformation map for each of the buffers
-    op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
-        op_kind to axis_separator for each index_map
-    op_buffer_input_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
-        op_kind to axis_separator for input index_map
-
     Returns
     -------
     ret: tvm.ir.transform.Pass
@@ -1333,18 +1326,13 @@ def AlterOpImpl(
         for transform in transform_list:
             # Extract the index_map
             if isinstance(transform, Callable):
-                transform = IndexMap.from_func_with_separators(transform)[0]
+                transform = IndexMap.from_func(transform)
             elif isinstance(transform, Array | tuple) and isinstance(transform[0], IndexMap):
                 transform = transform[0]
             l.append(transform)
         op_buffer_transforms[operator_name] = l
 
-    return _ffi_api.AlterOpImpl(
-        op_impl_map,
-        op_buffer_transforms,
-        op_buffer_axis_separators,
-        op_buffer_input_axis_separators,
-    )  # type: ignore
+    return _ffi_api.AlterOpImpl(op_impl_map, op_buffer_transforms)  # type: ignore
 
 
 def ConvertLayout(

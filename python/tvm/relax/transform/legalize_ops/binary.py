@@ -18,9 +18,10 @@
 """Default legalization function for binary operators."""
 
 from tvm import topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import (
     LegalizeFunc,
     TEFunc,

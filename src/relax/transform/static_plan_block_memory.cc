@@ -145,7 +145,7 @@ class StorageToken : public ffi::ObjectRef {
     PrimExpr size = IntImm::Int64(1);
     bool size_computed = false;
 
-    if (vdevice.defined()) {
+    if (vdevice.has_value()) {
       VDevice vdev = vdevice.value();
       std::string dev_kind = vdev->target->kind->name;
 
@@ -442,8 +442,8 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
   }
   ffi::Array<tirx::Var> var_in_signature = TIRVarsInType(GetType(func));
   for (const tirx::Var& tir_var : var_in_signature) {
-    auto it_upper = var_upper_bound_attr.find(tir_var->name_hint);
-    auto it_lower = var_lower_bound_attr.find(tir_var->name_hint);
+    auto it_upper = var_upper_bound_attr.find(tir_var->name);
+    auto it_lower = var_lower_bound_attr.find(tir_var->name);
 
     // Only bind the variable to a range if an upper bound is explicitly provided.
     // Without an upper bound, memory planning cannot determine the required storage size,
@@ -456,9 +456,9 @@ void SetTIRVarRangeConstraints(Function func, arith::AnalyzerObj* ana,
       ana->Bind(tir_var, range);
       dom_map->Set(tir_var, arith::IntSet::FromRange(range));
     } else if (it_lower != var_lower_bound_attr.end() && it_lower->second->value >= 0) {
-      ana->MarkGlobalNonNegValue(tir_var);
-    } else if (non_negative_var_attr.count(tir_var->name_hint)) {
-      ana->MarkGlobalNonNegValue(tir_var);
+      ana->MarkGlobalNonNegValue(tir_var.as_or_throw<PrimExpr>());
+    } else if (non_negative_var_attr.count(tir_var->name)) {
+      ana->MarkGlobalNonNegValue(tir_var.as_or_throw<PrimExpr>());
     }
   }
 }
@@ -553,7 +553,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
-    if (call->op == alloc_tensor_op) {
+    if (call->op.same_as(alloc_tensor_op)) {
       // Create a storage token for builtin alloc_tensor.
       this->CreateToken(call);
       return;
@@ -570,9 +570,10 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     // - Otherwise, discard the tokens used by the arguments, as there might be
     // potential external reference.
     if (IsPrimFuncGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>() ||
-        call->op == call_tir_dyn_op) {
-      ffi::Array<Expr> args =
-          call->op == call_tir_dyn_op ? call->args[1].as_or_throw<Tuple>()->fields : call->args;
+        call->op.same_as(call_tir_dyn_op)) {
+      ffi::Array<Expr> args = call->op.same_as(call_tir_dyn_op)
+                                  ? call->args[1].as_or_throw<Tuple>()->fields
+                                  : call->args;
       TVM_FFI_ICHECK(!block_stack_.empty());
       for (const Expr& arg : call->args) {
         Tokens tokens = GetTokensWithAllocSiteCheck(arg, block_stack_.back());
@@ -652,8 +653,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     StringImm storage_scope = call->args[3].as_or_throw<StringImm>();
 
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call->args[2].as<PrimExprNode>()) {
-      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+    if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
+      vdevice_index = int_imm->value;
     }
     ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
@@ -795,7 +796,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    if (call->op == alloc_tensor_op) {
+    if (call->op.same_as(alloc_tensor_op)) {
       auto it = token_map_.find(call);
       TVM_FFI_ICHECK(it != token_map_.end());
 
@@ -848,7 +849,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   /*! \brief Request a storage reuse, or allocate storage if no appropriate storage is reusable. */
   StorageToken RequestReuseOrAlloc(StorageToken prototype) {
     ffi::Optional<StorageToken> token = allocator_.RequestReuse(prototype);
-    if (!token.defined()) {
+    if (!token.has_value()) {
       return allocator_.Alloc(prototype, this->n_storage_++);
     } else {
       return token.value();
@@ -929,7 +930,7 @@ class StorageAllocationRewriter : public ExprMutator {
     auto it = alloc_tensor2token_.find(call);
     if (it != alloc_tensor2token_.end()) {
       // Case 1. This `alloc_tensor` is planned for memory reuse.
-      TVM_FFI_ICHECK_EQ(call->op, alloc_tensor_op);
+      TVM_FFI_ICHECK(call->op.same_as(alloc_tensor_op));
       const auto* ty = call->ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK_NOTNULL(ty);
       TVM_FFI_ICHECK_NOTNULL(ty->shape.as<ShapeExprNode>());
@@ -944,7 +945,7 @@ class StorageAllocationRewriter : public ExprMutator {
         ShapeExpr size({token->bytes});
         PrimExpr virtual_device_index = runtime_device_index;
         DLDataType dtype = token->dtype;
-        Call alloc_storage(mem_alloc_storage,
+        Call alloc_storage(Type::Missing(), mem_alloc_storage,
                            {std::move(size), virtual_device_index, StringImm(token->storage_scope),
                             DataTypeImm(dtype)},
                            Attrs());
@@ -957,10 +958,10 @@ class StorageAllocationRewriter : public ExprMutator {
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimExpr offset = IntImm::Int64(0);
       DLDataType dtype = ty->dtype.value()->dtype;
-      return Call(mem_alloc_tensor,
+      return Call(Type::Missing(), mem_alloc_tensor,
                   {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
                   Attrs());
-    } else if (plan_dynamic_output_ && call->op == alloc_tensor_op) {
+    } else if (plan_dynamic_output_ && call->op.same_as(alloc_tensor_op)) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
       // we would still like to allocate **static** memory for the tensor.
       // So in case the tensor shape is dynamic but has an upper bound
@@ -986,17 +987,18 @@ class StorageAllocationRewriter : public ExprMutator {
         TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
             << "Cannot statically plan storage size for scalable vector dtype " << dtype_ty;
         bytes *= IntImm::Int64(static_cast<int64_t>(dtype_ty.StorageBytes()));
-        Call alloc_storage(mem_alloc_storage,
+        Call alloc_storage(Type::Missing(), mem_alloc_storage,
                            {/*size=*/ShapeExpr({bytes}),
                             /*virtual_device_index=*/call->args[2].as_or_throw<PrimExpr>(),
                             /*storage_scope=*/call->args[3].as_or_throw<StringImm>(),  //
                             /*dtype=*/DataTypeImm(dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
-        return Call(mem_alloc_tensor, {storage,  //
-                                       /*offset=*/IntImm::Int64(0),
-                                       /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                                       /*dtype=*/DataTypeImm(dtype),
-                                       /*vdevice_index=*/call->args[2]});
+        return Call(Type::Missing(), mem_alloc_tensor,
+                    {storage,  //
+                     /*offset=*/IntImm::Int64(0),
+                     /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
+                     /*dtype=*/DataTypeImm(dtype),
+                     /*vdevice_index=*/call->args[2]});
       }
     }
 

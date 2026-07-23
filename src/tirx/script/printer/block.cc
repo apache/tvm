@@ -26,9 +26,9 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
                ffi::Optional<tirx::SBlockRealize> opt_realize,
                ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
-  TVM_FFI_ICHECK_EQ(opt_realize.defined(), opt_realize_p.defined());
+  TVM_FFI_ICHECK_EQ(opt_realize.has_value(), opt_realize_p.has_value());
   const tirx::SBlockRealizeNode* realize =
-      opt_realize.defined() ? opt_realize.value().get() : nullptr;
+      opt_realize.has_value() ? opt_realize.value().get() : nullptr;
   AccessPath realize_p = *opt_realize_p;
 
   // Step 1. Handle block var and block bindings
@@ -53,9 +53,9 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
       PrimExpr value = realize->iter_values[i];
       if (iter_var->iter_type == tirx::IterVarType::kDataPar ||
           iter_var->iter_type == tirx::IterVarType::kCommReduce) {
-        if (const auto* var = value.as<tirx::VarNode>()) {
-          if (loop_vars.count(var)) {
-            tirx::For for_loop = loop_vars.at(var);
+        if (auto var = value.as<tirx::PrimVar>()) {
+          if (loop_vars.count(var.value().get())) {
+            tirx::For for_loop = loop_vars.at(var.value().get());
             if (expr_equal(for_loop->min, iter_var->dom->min) &&
                 expr_equal(for_loop->extent, iter_var->dom->extent)) {
               remap_vars_indices.push_back(i);
@@ -194,7 +194,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
     (*frame)->stmts.push_back(doc);
   }
   // Step 7. Handle init block
-  if (block->init.defined()) {
+  if (block->init.has_value()) {
     tirx::Stmt init = block->init.value();
     With<TIRFrame> init_frame(d, init);
     AsDocBody(init, block_p->Attr("init"), init_frame->get(), d);
@@ -252,7 +252,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
           ffi::Array<ffi::String> kwarg_keys;
           ffi::Array<ExprDoc> kwarg_vals;
-          if (def->preferred_extents.defined()) {
+          if (def->preferred_extents.has_value()) {
             kwarg_keys.push_back("preferred");
             kwarg_vals.push_back(d->AsDoc<ExprDoc>(def->preferred_extents.value(),
                                                    def_p->Attr("preferred_extents")));

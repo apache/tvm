@@ -77,43 +77,43 @@ def assert_fields(nodename: str, fields: dict[str, str], target: str) -> None:
 def test_var() -> None:
     v0 = rx.Var("v0")
     v0_str = dump_ast(v0)
-    assert v0_str == 'Var(name_hint="v0")'
+    assert v0_str == 'Var(name="v0")'
 
     v1 = rx.Var("v1", R.Tensor([54, 96], "float32"))
     v1_no_annos = dump_ast(v1, include_ty_annotations=False)
-    assert v1_no_annos == 'Var(name_hint="v1")'
+    assert v1_no_annos == 'Var(name="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
-    assert "PrimExpr" in v1_annos
+    assert "Expr" in v1_annos
     assert "ty" in v1_annos
 
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
     v0_str = dump_ast(v0)
-    assert v0_str == 'DataflowVar(name_hint="v0")'
+    assert v0_str == 'DataflowVar(name="v0")'
 
     v1 = rx.DataflowVar("v1", R.Tensor([54, 96], "float16"))
     v1_no_annos = dump_ast(v1, include_ty_annotations=False)
-    assert v1_no_annos == 'DataflowVar(name_hint="v1")'
+    assert v1_no_annos == 'DataflowVar(name="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
-    assert "PrimExpr" in v1_annos
+    assert "Expr" in v1_annos
     assert "ty" in v1_annos
 
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchCast(")
     assert "Constant" in b0_str
-    assert "PrimExpr(value=`m" in b0_str
-    assert "PrimExpr(value=`n" in b0_str
+    assert "Expr(value=`m" in b0_str
+    assert "Expr(value=`n" in b0_str
     assert "16" in b0_str
     assert "8" in b0_str
 
@@ -124,8 +124,8 @@ def test_match_cast() -> None:
     b1 = rx.MatchCast(var, value, R.Tensor([m, n], "float32"))
     b1_str = dump_ast(b1)
     assert b1_str.startswith("MatchCast(")
-    assert "PrimExpr(value=`m" in b1_str
-    assert "PrimExpr(value=`n" in b1_str
+    assert "Expr(value=`m" in b1_str
+    assert "Expr(value=`n" in b1_str
     assert b1_str != dump_ast(b1, include_ty_annotations=False)
 
 
@@ -135,14 +135,14 @@ def test_var_binding() -> None:
     b0 = rx.VarBinding(v0, val)
     b0_str = dump_ast(b0, include_ty_annotations=False)
     assert b0_str.startswith("VarBinding(")
-    assert 'var=Var(name_hint="v0")' in b0_str
+    assert 'var=Var(name="v0")' in b0_str
     assert "value=" in b0_str
     assert "Constant(" in b0_str
 
 
 def test_binding_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -160,8 +160,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -189,20 +189,20 @@ def test_seq_expr() -> None:
     assert "BindingBlock(" in seqe_str
     assert "VarBinding(" in seqe_str
     assert "Constant(" in seqe_str
-    assert 'var=Var(name_hint="foo")' in seqe_str
+    assert 'var=Var(name="foo")' in seqe_str
     assert "value=Constant(data" in strip_whitespace(seqe_str)
     assert "body=" in seqe_str
 
 
 def test_shape_expr() -> None:
-    m = tirx.Var("m", dtype="int32")
-    n = tirx.Var("n", dtype="int32")
+    m = tirx.Var("m", ty="int32")
+    n = tirx.Var("n", ty="int32")
     s = rx.ShapeExpr([m, n])
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
     assert "values=" in s_str
-    assert "PrimExpr(value=`m: int32`)" in s_str
-    assert "PrimExpr(value=`n: int32`)" in s_str
+    assert "Expr(value=`m: int32`)" in s_str
+    assert "Expr(value=`n: int32`)" in s_str
 
 
 def test_func():
@@ -233,15 +233,15 @@ def test_shape_of():
     assert s0_str.startswith("Call(")
     assert 'op=Op(name="relax.shape_of")' in s0_str
     assert "args=" in s0_str
-    assert 'name_hint="v0"' in s0_str
+    assert 'name="v0"' in s0_str
 
     v1 = rx.Var("v1", R.Tensor([96, 54]))
     s1 = rx.get_shape_of(v1)
     s1_str = dump_ast(s1)
     assert s1_str.startswith("ShapeExpr("), s1_str
     assert "values=" in s1_str
-    assert "PrimExpr(value=`T.int64(96)`)" in s1_str
-    assert "PrimExpr(value=`T.int64(54)`)" in s1_str
+    assert "Expr(value=`T.int64(96)`)" in s1_str
+    assert "Expr(value=`T.int64(54)`)" in s1_str
 
 
 def test_shape_expr():
@@ -249,8 +249,8 @@ def test_shape_expr():
     shape_expr_str = dump_ast(shape_expr)
     assert shape_expr_str.startswith("ShapeExpr(")
     assert "values" in shape_expr_str
-    assert "PrimExpr(value=`T.int64(10)`)" in shape_expr_str
-    assert "PrimExpr(value=`T.int64(20)`)" in shape_expr_str
+    assert "Expr(value=`T.int64(10)`)" in shape_expr_str
+    assert "Expr(value=`T.int64(20)`)" in shape_expr_str
 
 
 def test_types():
@@ -302,8 +302,8 @@ def test_ty():
         ShapeType(
             ndim=2,
             values=[
-                PrimExpr(value=`T.int64(1)`),
-                PrimExpr(value=`T.int64(2)`)
+                Expr(value=`T.int64(1)`),
+                Expr(value=`T.int64(2)`)
             ]
         )
         """
@@ -321,7 +321,7 @@ def test_ty():
         TensorType(
             dtype=int32,
             shape=Var(
-                name_hint="x",
+                name="x",
                 ty=ShapeType(ndim=0, values=[])
             )
         )
@@ -392,7 +392,7 @@ def test_call_packed():
         "Call",
         {
             "op": 'ExternFunc(global_symbol="contrib.tensor_array_stack")',
-            "args": '[Var(name_hint="x"), Var(name_hint="y")]',
+            "args": '[Var(name="x"), Var(name="y")]',
             "ty_args": "[AnyType()]",
             "attrs": '{"test_attr": True}',
         },
@@ -411,7 +411,7 @@ def test_call_packed():
         "Call",
         {
             "op": 'Op(name="relax.multiply")',
-            "args": '[Var(name_hint="x"), Var(name_hint="y")]',
+            "args": '[Var(name="x"), Var(name="y")]',
         },
         op_call_text,
     )
@@ -467,7 +467,7 @@ def test_call_tir():
             include_call_attrs=False,
         )
     )
-    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
+    assert foo_str.startswith('Function(params=[Var(name="x")]')
 
     # call_tir is an op in Relax and it takes an extern func as an argument
     assert isinstance(foo.body, rx.SeqExpr)
@@ -483,15 +483,15 @@ def test_call_tir():
             "op": 'Op(name="relax.call_tir")',
             "args": """[
                 GlobalVar(name_hint="addone"),
-                Tuple(fields=[Var(name_hint="x")])
+                Tuple(fields=[Var(name="x")])
             ]""",
             "ty_args": """[
                 TensorType(
                     dtype=float32,
                     shape=ShapeExpr(
                         values=[
-                            PrimExpr(value=`m`),
-                            PrimExpr(value=`n`)
+                            Expr(value=`m`),
+                            Expr(value=`n`)
                         ]
                     )
                 )
@@ -516,7 +516,7 @@ def test_call_dps_packed():
             include_call_attrs=False,
         )
     )
-    assert foo_str.startswith('Function(params=[Var(name_hint="x")]')
+    assert foo_str.startswith('Function(params=[Var(name="x")]')
 
     # call_dps_packed is an op in Relax and it takes an extern func as an argument
     assert isinstance(foo.body, rx.SeqExpr)
@@ -532,15 +532,15 @@ def test_call_dps_packed():
             "op": 'Op(name="relax.call_dps_packed")',
             "args": """[
                 ExternFunc(global_symbol="test.op.identity"),
-                Tuple(fields=[Var(name_hint="x")])
+                Tuple(fields=[Var(name="x")])
             ]""",
             "ty_args": """[
                 TensorType(
                     dtype=float32,
                     shape=ShapeExpr(
                         values=[
-                            PrimExpr(value=`m`),
-                            PrimExpr(value=`n`)
+                            Expr(value=`m`),
+                            Expr(value=`n`)
                         ]
                     )
                 )
@@ -563,10 +563,10 @@ def test_operators():
         )
     )
     assert 'Op(name="relax.unique")' in foo_str
-    # the sorted argument is true, so it will be a boolean PrimExpr
-    assert "PrimExpr(value=`T.bool(True)`)" in foo_str
+    # the sorted argument is true, so it will be a boolean Expr
+    assert "Expr(value=`T.bool(True)`)" in foo_str
     # axis is -1
-    assert "PrimExpr(value=`T.int64(-1)`)" in foo_str
+    assert "Expr(value=`T.int64(-1)`)" in foo_str
 
     @R.function(pure=False)
     def bar(x: R.Tensor):
@@ -595,10 +595,10 @@ def test_print_ty_annotation_non_var():
         ty=TensorType(
             dtype=int32,
             shape=ShapeExpr(
-                values=[PrimExpr(value=`T.int64(2)`)],
+                values=[Expr(value=`T.int64(2)`)],
                 ty=ShapeType(
                     ndim=1,
-                    values=[PrimExpr(value=`T.int64(2)`)]
+                    values=[Expr(value=`T.int64(2)`)]
                 )
             )
         )
@@ -646,7 +646,7 @@ def test_tuple_get_item():
     body_str = strip_whitespace(dump_ast(body))
 
     assert "TupleGetItem" in body_str
-    assert 'tuple_value=Var(name_hint="x"' in body_str
+    assert 'tuple_value=Var(name="x"' in body_str
     assert "index=0" in body_str
 
 
@@ -655,7 +655,7 @@ def test_prim_value():
     prim_str = strip_whitespace(dump_ast(prim_value))
     assert prim_str == strip_whitespace(
         """
-        PrimExpr(value=`T.int64(1)`)
+        Expr(value=`T.int64(1)`)
     """
     )
 

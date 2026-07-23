@@ -155,14 +155,20 @@ def _run_in_fresh_process(target, *args):
     body must run in its own process. The 'spawn' start method avoids
     inheriting CUDA state from this process.
     """
-    proc = multiprocessing.get_context("spawn").Process(target=target, args=args)
-    proc.start()
-    proc.join(timeout=_SUBPROCESS_TIMEOUT_SEC)
-    if proc.is_alive():
-        proc.kill()
-        proc.join()
-        pytest.fail(f"{target.__name__}{args} timed out after {_SUBPROCESS_TIMEOUT_SEC} seconds")
-    assert proc.exitcode == 0, f"{target.__name__}{args} failed with exit code {proc.exitcode}"
+
+    def run_and_check():
+        proc = multiprocessing.get_context("spawn").Process(target=target, args=args)
+        proc.start()
+        proc.join(timeout=_SUBPROCESS_TIMEOUT_SEC)
+        if proc.is_alive():
+            proc.kill()
+            proc.join()
+            pytest.fail(
+                f"{target.__name__}{args} timed out after {_SUBPROCESS_TIMEOUT_SEC} seconds"
+            )
+        assert proc.exitcode == 0, f"{target.__name__}{args} failed with exit code {proc.exitcode}"
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def _require_cuda_devices(num_workers):

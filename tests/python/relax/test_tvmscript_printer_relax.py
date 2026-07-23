@@ -17,10 +17,12 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, F841
 
+from tvm_ffi.access_path import AccessPath
 
 import tvm
 import tvm.testing
 from tvm import IRModule, relax, tirx
+from tvm.runtime.script_printer import PrinterConfig, _script
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -51,6 +53,54 @@ def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
     R.func_attr({"some_attr": 1})
     return a""",
     )
+
+
+def test_function_dependent_shape_escaped_source_spans():
+    n = tirx.Var("n", "int64")
+    cast = tirx.Cast("int64", n)
+    x = relax.Var("x", relax.TensorType([cast], "float32"))
+    ret_ty = relax.TensorType(dtype="float32", ndim=1)
+    func = relax.Function([x], x, ret_ty=ret_ty).with_attr("global_symbol", "main")
+    cast_path = (
+        AccessPath.root()
+        .attr("params")
+        .array_item(0)
+        .attr("ty")
+        .attr("shape")
+        .attr("values")
+        .array_item(0)
+    )
+
+    def render(path):
+        config = PrinterConfig(
+            verbose_expr=True,
+            num_context_lines=0,
+            path_to_underline=[path],
+            extra_config={"render_invisible_path_info": True},
+        )
+        first = _script(func, config)
+        assert first.count("Access path:") == 1
+        lines = first.splitlines()
+        definition_index = next(i for i, line in enumerate(lines) if "def main" in line)
+        assert "Access path:" not in lines[definition_index]
+        return lines[definition_index], lines[definition_index + 1]
+
+    expression = r'"T.Cast(\"int64\", n)"'
+    definition, underline = render(cast_path)
+    expression_start = definition.index(expression)
+    assert underline[expression_start : expression_start + len(expression)] == "^" * len(expression)
+    assert underline.strip() == "^" * len(expression)
+
+    escaped_dtype = r"\"int64\""
+    definition, underline = render(cast_path.attr("dtype"))
+    dtype_start = definition.index(escaped_dtype)
+    assert underline[dtype_start : dtype_start + len(escaped_dtype)] == "^" * len(escaped_dtype)
+    assert underline.strip() == "^" * len(escaped_dtype)
+
+    definition, underline = render(cast_path.attr("value"))
+    variable_start = definition.index(expression) + expression.rindex("n")
+    assert underline[variable_start] == "^"
+    assert underline.strip() == "^"
 
 
 def test_lone_private_function():
@@ -332,6 +382,21 @@ def func() -> T.int64:
     tvm.ir.assert_structural_equal(tvm.script.from_source(float_script), float_func)
 
 
+def test_primitive_bindings_roundtrip_without_prim_value_marker():
+    @R.function
+    def func(n: R.Prim("int64")) -> R.Prim("int64"):
+        plus_one = n + 1
+        alias = R.prim_value(plus_one)
+        return alias
+
+    for show_all_ty in [False, True]:
+        source = func.script(show_all_ty=show_all_ty)
+        assert "R.prim_value" not in source
+        assert "plus_one: T.int64" in source
+        assert "alias: T.int64" in source
+        tvm.ir.assert_structural_equal(tvm.script.from_source(source), func)
+
+
 def test_string_imm():
     obj = relax.StringImm("hello")
     _assert_print(obj, 'R.str("hello")')
@@ -419,14 +484,14 @@ def test_shape_expr():
 def test_call():
     x = tirx.Var("x", "int64")
     a = relax.Var("a", relax.TensorType([1, x, 3], "float32"))
-    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=a, out_ty=a.ty, tir_vars=[x])
+    o0 = relax.call_tir(relax.GlobalVar("tir_func"), args=(a, x), out_ty=a.ty)
     o1 = relax.call_dps_packed("my_dps_func", args=a, out_ty=a.ty)
     _assert_print(
         o0,
         """
 x = T.int64()
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_tir(tir_func, (a,), out_ty=R.Tensor((1, x, 3), dtype="float32"), tir_vars=R.shape([x]))
+R.call_tir(tir_func, (a, x), out_ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
     )
     _assert_print(
@@ -463,16 +528,16 @@ R.call_tir_with_grad(tir_func, (v0,), out_ty=R.Tensor((54, 96), dtype="float32")
 def test_call_tir_inplace():
     x = relax.Var("x", R.Tensor((32, 32), dtype="int32"))
     y = relax.Var("y", R.Tensor((32, 32), dtype="int32"))
-    t = tirx.Var("t", dtype="int64")
+    t = tirx.Var("t", ty="int64")
     call = relax.call_tir_inplace(
         relax.GlobalVar("tir_func"),
         (
             x,
             y,
+            t,
         ),
         inplace_indices=[-1, 0],
         out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")],
-        tir_vars=[t],
     )
     _assert_print(
         call,
@@ -480,7 +545,7 @@ def test_call_tir_inplace():
 x: R.Tensor((32, 32), dtype="int32")
 y: R.Tensor((32, 32), dtype="int32")
 t = T.int64()
-R.call_tir_inplace(tir_func, (x, y), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0], tir_vars=R.shape([t]))
+R.call_tir_inplace(tir_func, (x, y, t), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0])
         """,
     )
 

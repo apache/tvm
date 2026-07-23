@@ -19,9 +19,10 @@
 """Default legalization function for ccl operators."""
 
 from tvm import arith, tirx, topi
+from tvm.ir import Call
 
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr, ShapeExpr
+from ...expr import Expr, ShapeExpr
 from ...op import call_dps_packed
 from ...type import ShapeType, TensorType
 from .common import register_legalize

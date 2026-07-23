@@ -64,7 +64,7 @@ TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
   // Avoid PrimExpr::ty() ObjectRef materialization in expression constructor hot paths.
   const auto* node = expr.get();
   TVM_FFI_DCHECK(node != nullptr);
-  TVM_FFI_DCHECK(node->ExprNode::ty.defined());
+  TVM_FFI_DCHECK(!node->ExprNode::ty.IsMissing());
   const auto* prim_ty = node->ExprNode::ty.as<PrimTypeNode>();
   TVM_FFI_DCHECK(prim_ty != nullptr);
   return prim_ty;
@@ -72,8 +72,6 @@ TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  VarNode::RegisterReflection();
-  SizeVarNode::RegisterReflection();
   IterVarNode::RegisterReflection();
   StringImmNode::RegisterReflection();
   CastNode::RegisterReflection();
@@ -101,7 +99,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RampNode::RegisterReflection();
   BroadcastNode::RegisterReflection();
   LetNode::RegisterReflection();
-  CallNode::RegisterReflection();
   ShuffleNode::RegisterReflection();
   CommReducerNode::RegisterReflection();
   ReduceNode::RegisterReflection();
@@ -119,7 +116,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.convert",
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
-  // Note: kRepr for VarNode/SizeVarNode is registered via TVM_REGISTER_SCRIPT_AS_REPR in
+  // Note: kRepr for VarNode is registered via TVM_REGISTER_SCRIPT_AS_REPR in
   // src/script/printer/tirx/expr.cc (-> ReprPrintTIR which delegates to TVMScriptPrinter).
 }
 
@@ -157,96 +154,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     data_ = std::move(node);                                                      \
   }
 
-// Var
-Var::Var(ffi::String name_hint, PrimType dtype, Span span) {
-  auto n = ffi::make_object<VarNode>();
-  n->name_hint = std::move(name_hint);
-  n->type_annotation = dtype;
-  n->ExprNode::ty = dtype;
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-Var::Var(ffi::String name_hint, Type type_annotation, Span span) {
-  auto n = ffi::make_object<VarNode>();
-  n->name_hint = std::move(name_hint);
-  n->type_annotation = std::move(type_annotation);
-  if (n->type_annotation.as<PrimTypeNode>()) {
-    n->ExprNode::ty = n->type_annotation;
-  } else {
-    n->ExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
-  }
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-Var Var::copy_with_name(const ffi::String& name) const {
-  const VarNode* node = get();
-  ffi::ObjectPtr<VarNode> new_ptr;
-  if (auto* ptr = this->as<SizeVarNode>()) {
-    new_ptr = ffi::make_object<SizeVarNode>(*ptr);
-  } else {
-    new_ptr = ffi::make_object<VarNode>(*node);
-  }
-  new_ptr->name_hint = name;
-  return Var(new_ptr);
-}
-
-Var Var::copy_with_suffix(const ffi::String& suffix) const {
-  return this->copy_with_name(get()->name_hint + suffix);
-}
-
-Var Var::copy_with_dtype(PrimType dtype) const {
-  const VarNode* node = get();
-  ffi::ObjectPtr<VarNode> new_ptr;
-  if (auto* ptr = this->as<SizeVarNode>()) {
-    new_ptr = ffi::make_object<SizeVarNode>(*ptr);
-  } else {
-    new_ptr = ffi::make_object<VarNode>(*node);
-  }
-  new_ptr->type_annotation = dtype;
-  new_ptr->ExprNode::ty = dtype;
-  return Var(new_ptr);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Var", [](ffi::String name_hint, ffi::AnyView type, Span span) {
-    if (type.as<Type>()) {
-      return Var(name_hint, type.cast<Type>(), span);
-    } else {
-      return Var(name_hint, type.cast<PrimType>(), span);
-    }
-  });
-}
-
-// SizeVar
-SizeVar::SizeVar(ffi::String name_hint, PrimType dtype, Span span) {
-  auto n = ffi::make_object<SizeVarNode>();
-  n->name_hint = std::move(name_hint);
-  n->type_annotation = dtype;
-  n->ExprNode::ty = n->type_annotation;
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-SizeVar::SizeVar(ffi::String name_hint, Type type_annotation, Span span) {
-  auto n = ffi::make_object<SizeVarNode>();
-  n->name_hint = std::move(name_hint);
-  n->type_annotation = std::move(type_annotation);
-  n->ExprNode::ty = PrimType(GetRuntimeDLDataType(n->type_annotation));
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.SizeVar",
-                        [](ffi::String s, PrimType t, Span span) { return SizeVar(s, t, span); });
-}
-
 // IterVar
-IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span span) {
+IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>();
   if (dom.defined() && dom->extent.defined()) {
     PrimType extent_ty = dom->extent.ty();
@@ -270,7 +179,7 @@ IterVar::IterVar(Range dom, Var var, IterVarType t, ffi::String thread_tag, Span
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.IterVar", [](Range dom, Var var, int iter_type, ffi::String thread_tag, Span span) {
+      "tirx.IterVar", [](Range dom, PrimVar var, int iter_type, ffi::String thread_tag, Span span) {
         return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
       });
 }
@@ -278,7 +187,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // StringImm
 StringImm::StringImm(ffi::String value, Span span) {
   ffi::ObjectPtr<StringImmNode> node = ffi::make_object<StringImmNode>();
-  node->ExprNode::ty = PrimType::Handle();
+  node->ExprNode::ty = PrimType::Void();
   node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -568,7 +477,8 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
 
     node->ExprNode::ty =
         PrimType::ScalableVector(base_ty.code(), base_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}), vscale_factor.value());
+    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+                vscale_factor.value());
     node->lanes = lanes;
   }
   node->base = base;
@@ -604,7 +514,8 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
 
     node->ExprNode::ty =
         PrimType::ScalableVector(value_ty.code(), value_ty.bits(), vscale_factor.value());
-    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}), vscale_factor.value());
+    lanes = Mul(Call(PrimType::Int(32), tirx::builtin::vscale(), {}).as_or_throw<PrimExpr>(),
+                vscale_factor.value());
     node->lanes = lanes;
   }
   node->value = std::move(value);
@@ -623,7 +534,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(body.defined());
-  TVM_FFI_ICHECK(value.ty() == var.ty());
+  TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
 
   ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>();
   node->ExprNode::ty = body.ty();
@@ -639,73 +550,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.Let", [](Var var, PrimExpr value, PrimExpr body, Span span) {
     return Let(var, value, body, span);
   });
-}
-
-// Call
-using CallArg = ffi::Variant<ffi::String, DLDataType, PrimType, IterVar, BufferRegion, PrimExpr>;
-
-static ffi::Array<PrimExpr> ConvertCallArgs(ffi::Array<CallArg> args) {
-  ffi::Array<PrimExpr> prim_expr_args;
-  for (const auto& it : args) {
-    if (auto opt_str = it.as<ffi::String>()) {
-      prim_expr_args.push_back(StringImm(opt_str.value()));
-    } else if (auto opt_dtype = it.as<DLDataType>()) {
-      prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
-    } else if (const auto* prim_ty = it.as<PrimTypeNode>()) {
-      prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(prim_ty->dtype)));
-    } else if (const auto* iter_var = it.as<IterVarNode>()) {
-      prim_expr_args.push_back(iter_var->var);
-    } else if (const auto* br = it.as<BufferRegionNode>()) {
-      ffi::Array<PrimExpr> indices;
-      for (Range r : br->region) {
-        if (is_one(r->extent)) {
-          indices.push_back(r->min);
-        } else if (r->extent.as<IntImmNode>()) {
-          indices.push_back(tirx::Ramp(r->min, MakeConst(r->min.ty(), 1), r->extent));
-        } else {
-          TVM_FFI_THROW(ValueError)
-              << "Cannot convert to BufferLoad: " << ffi::GetRef<BufferRegion>(br);
-        }
-      }
-      prim_expr_args.push_back(BufferLoad(br->buffer, indices));
-    } else {
-      prim_expr_args.push_back(it.get<PrimExpr>());
-    }
-  }
-  return prim_expr_args;
-}
-
-Call::Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Attrs attrs, Span span) {
-  for (size_t i = 0; i < args.size(); ++i) {
-    TVM_FFI_ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
-  }
-
-  ffi::ObjectPtr<CallNode> node = ffi::make_object<CallNode>();
-  node->ExprNode::ty = std::move(ret_ty);
-  node->op = std::move(op);
-  node->args = std::move(args);
-  node->attrs = std::move(attrs);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-Call::Call(PrimType ret_ty, tvm::Expr op, ffi::Array<PrimExpr> args, Span span)
-    : Call(std::move(ret_ty), std::move(op), std::move(args), Attrs(), std::move(span)) {}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.Call",
-           [](ffi::Optional<PrimType> dtype, tvm::Expr op, ffi::Array<CallArg> args, Span span) {
-             return Call(dtype.value_or(PrimType::Void()), op, ConvertCallArgs(args), Attrs(),
-                         span);
-           })
-      .def("tirx.CallWithAttrs",
-           [](ffi::Optional<PrimType> dtype, tvm::Expr op, ffi::Array<CallArg> args,
-              ffi::Optional<Attrs> attrs, Span span) {
-             return Call(dtype.value_or(PrimType::Void()), op, ConvertCallArgs(args),
-                         attrs.value_or(Attrs()), span);
-           });
 }
 
 // Shuffle
@@ -759,8 +603,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // CommReducer
-CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
-                         ffi::Array<PrimExpr> identity_element, Span span) {
+CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
+                         ffi::Array<PrimExpr> result, ffi::Array<PrimExpr> identity_element,
+                         Span span) {
   size_t n_group = result.size();
   TVM_FFI_CHECK_EQ(lhs.size(), n_group, ValueError)
       << "The number of vars in `lhs` must equal to the "
@@ -778,8 +623,8 @@ CommReducer::CommReducer(ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<Pr
   var_map.reserve(n_group * 2);
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
     PrimType dtype = identity_element[i].ty();
-    Var l = lhs[i].copy_with_dtype(dtype);
-    Var r = rhs[i].copy_with_dtype(dtype);
+    PrimVar l = lhs[i].CopyWithDType(dtype);
+    PrimVar r = rhs[i].CopyWithDType(dtype);
     var_map[lhs[i].get()] = l;
     var_map[rhs[i].get()] = r;
 
@@ -818,7 +663,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.CommReducer",
-           [](ffi::Array<Var> lhs, ffi::Array<Var> rhs, ffi::Array<PrimExpr> result,
+           [](ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs, ffi::Array<PrimExpr> result,
               ffi::Array<PrimExpr> identity_element,
               Span span) { return CommReducer(lhs, rhs, result, identity_element, span); })
       .def_method("tirx.CommReducerCombine", &tirx::CommReducerNode::operator());
@@ -907,7 +752,7 @@ BufferLoad::BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
-  if (predicate.defined()) {
+  if (predicate.has_value()) {
     PrimType predicate_ty = predicate.value().ty();
     bool is_index_scalable = indices.empty() ? false : indices.back().ty().IsScalableVector();
     bool is_predicate_scalable = predicate_ty.IsScalableVector();

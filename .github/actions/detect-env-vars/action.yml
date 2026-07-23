@@ -15,30 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Update a branch for nightly test results
-name: Update nightly branch
+name: Detect Environment Variables
+description: Detects environment variables such as CPU count and sets them as outputs.
+runs:
+  using: "composite"
+  steps:
+    - name: Run Python to detect environment variables
+      shell: python
+      id: detect
+      run: |
+        import multiprocessing, os
 
-on:
-  schedule:
-    # 9 PM PST
-    - cron: "0 5 * * *"
-  workflow_dispatch:
+        output_file = open(os.environ.get("GITHUB_OUTPUT"), "a")
 
-concurrency:
-  group: update-nightly-branch
-  cancel-in-progress: true
+        def write_env_var(name, value):
+            output_file.write(f"{name}={value}\n")
+            print(f"Detected environment variable: {name}={value}")
 
-jobs:
-  update-nightly-branch:
-    if: github.repository == 'apache/tvm'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - name: Update nightly branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eux
-          git checkout -B nightly
-          git log -5
-          git push origin --force nightly
+        write_env_var("cpu_count", multiprocessing.cpu_count())
+
+outputs:
+  cpu_count:
+    description: "The number of CPU cores"
+    value: ${{ steps.detect.outputs.cpu_count }}

@@ -123,7 +123,14 @@ class CUDACaptureStream {
     TVM_FFI_CHECK_CUDA_ERROR(cudaStreamBeginCapture(capture_stream_, cudaStreamCaptureModeGlobal));
   }
   ~CUDACaptureStream() noexcept(false) {
-    cudaStreamEndCapture(capture_stream_, output_graph_);
+    cudaError_t capture_error = cudaStreamEndCapture(capture_stream_, output_graph_);
+    if (capture_error != cudaSuccess) {
+      // The capture may have been invalidated by the exception that is
+      // currently unwinding the stack.  Do not throw a second exception from
+      // this destructor, but clear CUDA's thread-local error so that it is not
+      // reported by an unrelated CUDA call later in the same host thread.
+      cudaGetLastError();
+    }
     TVM_FFI_CHECK_SAFE_CALL(TVMFFIEnvSetStream(kDLCUDA, device_id_, prev_default_stream_, nullptr));
   }
 

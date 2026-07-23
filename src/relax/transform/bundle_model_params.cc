@@ -30,6 +30,8 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 
+#include <unordered_set>
+
 #include "utils.h"
 
 namespace tvm {
@@ -57,9 +59,34 @@ class ModelParamBundler : public ExprMutator {
       params.push_back(func->params[i]);
     }
 
+    std::unordered_set<const VarNode*> signature_vars;
+    for (const tirx::Var& var : DefinableTIRVarsInType(TupleType(params.Map(GetType)))) {
+      signature_vars.insert(var.get());
+    }
+
+    std::unordered_set<const VarNode*> bundled_prim_params;
+    ffi::Array<Var> bundled_prim_params_in_order;
+    for (size_t i = num_input; i < func->params.size(); i++) {
+      if (func->params[i].as<tirx::PrimVar>()) {
+        bundled_prim_params.insert(func->params[i].get());
+        bundled_prim_params_in_order.push_back(func->params[i]);
+      }
+    }
+
+    auto erase_removed_prim_params = [&](const Type& type) {
+      return EraseToWellDefined(type, [&](const Var& var) -> ffi::Optional<Expr> {
+        if (bundled_prim_params.count(var.get()) && !signature_vars.count(var.get())) {
+          return std::nullopt;
+        }
+        return var;
+      });
+    };
+
     ffi::Array<Type> param_tuple;
     for (size_t i = num_input; i < func->params.size(); i++) {
-      param_tuple.push_back(GetType(func->params[i]));
+      Type field_type = erase_removed_prim_params(GetType(func->params[i]));
+      param_tuple.push_back(field_type);
+      var_to_field_type_.Set(func->params[i], field_type);
     }
 
     Var var_param_tuple(param_tuple_name_.value_or("model_params"), TupleType(param_tuple));
@@ -69,23 +96,73 @@ class ModelParamBundler : public ExprMutator {
       var_to_expr_.Set(func->params[i], TupleGetItem(var_param_tuple, i - num_input));
     }
 
-    func.CopyOnWrite()->params = params;
+    Type ret_ty = erase_removed_prim_params(func->ret_ty);
+    bool previous_rewrite_model_params = rewrite_model_params_;
+    ffi::Array<Var> previous_pending_prim_params = std::move(pending_prim_params_);
+    rewrite_model_params_ = true;
+    pending_prim_params_ = std::move(bundled_prim_params_in_order);
+    Expr body = VisitWithNewScope(func->body, params);
+    rewrite_model_params_ = previous_rewrite_model_params;
+    pending_prim_params_ = std::move(previous_pending_prim_params);
+    return Function(params, body, ret_ty, func->is_pure, func->attrs);
+  }
 
-    return ExprMutator::VisitExpr_(func.get());
+  Expr VisitExpr_(const SeqExprNode* op) override {
+    if (pending_prim_params_.empty()) {
+      return ExprMutator::VisitExpr_(op);
+    }
+
+    ffi::Array<Var> prim_params = std::move(pending_prim_params_);
+    pending_prim_params_.clear();
+
+    builder_->BeginBindingBlock();
+    for (const Var& var : prim_params) {
+      auto it = var_to_expr_.find(var);
+      TVM_FFI_ICHECK(it != var_to_expr_.end());
+      var_remap_[var] = builder_->Emit((*it).second, var->name);
+    }
+    BindingBlock prologue = builder_->EndBlock();
+
+    SeqExpr body = ExprMutator::VisitExpr_(op).as_or_throw<SeqExpr>();
+    ffi::Array<BindingBlock> blocks;
+    blocks.push_back(prologue);
+    for (const BindingBlock& block : body->blocks) {
+      blocks.push_back(block);
+    }
+    return SeqExpr(blocks, body->body);
   }
 
   Expr VisitExpr_(const VarNode* op) override {
     auto var = ffi::GetRef<Var>(op);
-    if (auto it = var_to_expr_.find(var); it != var_to_expr_.end()) {
-      return builder_->Emit((*it).second, op->name_hint());
-    } else {
+    if (!rewrite_model_params_) {
       return ExprMutator::VisitExpr_(op);
     }
+    if (auto it = var_to_expr_.find(var); it != var_to_expr_.end()) {
+      bool is_prim_param = var.as<tirx::PrimVar>().has_value();
+      if (is_prim_param) {
+        if (auto cached = var_remap_.find(var); cached != var_remap_.end()) {
+          return cached->second;
+        }
+        TVM_FFI_THROW(InternalError)
+            << "Bundled primitive parameters must be materialized in the function prologue";
+      }
+      auto field_type = var_to_field_type_.find(var);
+      TVM_FFI_ICHECK(field_type != var_to_field_type_.end());
+      Type rebound_type = VisitExprDepTypeField(GetType(var));
+      Var replacement = (*field_type).second.same_as(rebound_type)
+                            ? builder_->Emit((*it).second, op->name)
+                            : builder_->EmitMatchCast((*it).second, rebound_type, op->name);
+      return replacement;
+    }
+    return ExprMutator::VisitExpr_(op);
   }
 
  private:
   ffi::Optional<ffi::String> param_tuple_name_;
   ffi::Map<Var, Expr> var_to_expr_;
+  ffi::Map<Var, Type> var_to_field_type_;
+  ffi::Array<Var> pending_prim_params_;
+  bool rewrite_model_params_{false};
 };
 
 Function BundleModelParams(const Function& func, ffi::Optional<ffi::String> param_tuple_name) {

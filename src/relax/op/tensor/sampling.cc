@@ -44,8 +44,9 @@ Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indice
   attrs->dtype = dtype;
 
   static const Op& op = Op::Get("relax.multinomial_from_uniform");
-  return Call(op, {std::move(prob), std::move(uniform_sample), std::move(sample_indices)},
-              Attrs(attrs), {});
+  return Call(Type::Missing(), op,
+              {std::move(prob), std::move(uniform_sample), std::move(sample_indices)}, Attrs(attrs),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

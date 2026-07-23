@@ -18,10 +18,10 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring
 
 import tvm
-from tvm.ir import Op
+from tvm.ir import Call, Op
 from tvm.ir.module import IRModule
 
-from ..expr import Call, Expr, Function, ShapeExpr
+from ..expr import Expr, Function, ShapeExpr
 from ..expr_functor import PyExprVisitor, visitor
 
 

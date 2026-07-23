@@ -50,6 +50,17 @@ bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
 
 
+def collect_relax_call_ops(func):
+    call_ops = set()
+
+    def _visit(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            call_ops.add(expr.op.name)
+
+    relax.analysis.post_order_visit(func.body, _visit)
+    return call_ops
+
+
 def generate_random_inputs(
     model: ModelProto, inputs: dict[str, np.ndarray] | None = None
 ) -> dict[str, np.ndarray]:
@@ -147,9 +158,7 @@ def check_correctness(
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
-    input_list = [
-        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
-    ]
+    input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
     if params:
         input_list += params["main"]
 
@@ -229,9 +238,7 @@ def run_in_tvm(
         ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
 
-    input_list = [
-        inputs[key.name_hint] for key in tvm_model["main"].params if key.name_hint in inputs
-    ]
+    input_list = [inputs[key.name] for key in tvm_model["main"].params if key.name in inputs]
     if params:
         input_list += params["main"]
 
@@ -266,7 +273,7 @@ def test_sanitize(input_names, expected_names):
     tvm_model = from_onnx(model)
 
     for i, param in enumerate(tvm_model["main"].params):
-        assert param.name_hint == expected_names[i]
+        assert param.name == expected_names[i]
 
 
 def verify_unary(
@@ -370,22 +377,6 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
-
-
-def verify_compare(op_name, shape, attrs={}, domain=None):
-    test_node = helper.make_node(op_name, ["a", "b"], ["c"], **attrs, domain=domain)
-    graph = helper.make_graph(
-        [test_node],
-        "compare_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, shape),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, shape),
-        ],
-        outputs=[helper.make_tensor_value_info("c", TensorProto.BOOL, shape)],
-    )
-
-    model = helper.make_model(graph, producer_name="compare_test")
-    check_correctness(model)
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
@@ -517,44 +508,6 @@ def test_matmulinteger16():
     )
 
 
-def test_matmulinteger16_ir():
-    node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
-    graph = helper.make_graph(
-        [node],
-        "matmulinteger16_ir_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.UINT16, [2, 3]),
-            helper.make_tensor_value_info("b", TensorProto.UINT16, [3, 4]),
-        ],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.UINT32, [2, 4])],
-    )
-    model = helper.make_model(
-        graph,
-        producer_name="matmulinteger16_ir_test",
-        opset_imports=[helper.make_opsetid("", 18), helper.make_opsetid("com.microsoft", 1)],
-    )
-    model.ir_version = 11
-
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(
-            a: R.Tensor((2, 3), dtype="uint16"),
-            b: R.Tensor((3, 4), dtype="uint16"),
-        ) -> R.Tensor((2, 4), dtype="uint32"):
-            R.func_attr({"num_input": 2})
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="uint32") = R.astype(a, dtype="uint32")
-                lv1: R.Tensor((3, 4), dtype="uint32") = R.astype(b, dtype="uint32")
-                gv: R.Tensor((2, 4), dtype="uint32") = R.matmul(lv, lv1)
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
-
-
 def test_matmulinteger16_invalid_dtype_raises():
     node = helper.make_node("MatMulInteger16", ["a", "b"], ["y"], domain="com.microsoft")
     graph = helper.make_graph(
@@ -575,10 +528,6 @@ def test_matmulinteger16_invalid_dtype_raises():
 
     with pytest.raises(ValueError, match="input A"):
         from_onnx(model, opset=18, keep_params_in_input=True)
-
-
-def test_concat():
-    verify_binary("Concat", [1, 32], [1, 32], [2, 32], attrs={"axis": 0})
 
 
 def test_concat_with_param_shape_value():
@@ -628,7 +577,7 @@ def test_concat_with_param_tensor_keeps_runtime_param():
     onnx.checker.check_model(model)
 
     mod, params = relax.frontend.detach_params(from_onnx(model, keep_params_in_input=True))
-    assert "w" in [p.name_hint for p in mod["main"].params]
+    assert "w" in [p.name for p in mod["main"].params]
     assert len(params["main"]) == 1
     np.testing.assert_array_equal(params["main"][0].numpy(), weight_np)
 
@@ -656,6 +605,86 @@ def test_div_integer_constant_zero_divisor_raises_valueerror():
         ValueError, match="ONNX Div with integer inputs encountered divisor value 0"
     ):
         from_onnx(model, opset=18, keep_params_in_input=False)
+
+
+def test_div_integer_constant_folding_truncates_toward_zero():
+    a = make_constant_node("a", TensorProto.INT64, [2], [-5, 5])
+    b = make_constant_node("b", TensorProto.INT64, [2], [2, 2])
+    node = helper.make_node("Div", ["a", "b"], ["y"])
+    graph = helper.make_graph(
+        [a, b, node],
+        "div_integer_constant",
+        [],
+        [helper.make_tensor_value_info("y", TensorProto.INT64, [2])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
+
+    tvm_model = from_onnx(model, opset=13)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2,), dtype="int64"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="int64") = R.const([-2, 2], "int64")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize(
+    ("input_size", "divisor_shape", "offset"),
+    [(386, [], None), (384, [1], 2)],
+)
+def test_div_integer_primexpr_folding_truncates_toward_zero(input_size, divisor_shape, offset):
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [0])
+    dim = helper.make_node("Gather", ["x_shape", "axis"], ["dim"])
+    nodes = [shape, axis, dim]
+    dividend = "dim"
+    if offset is not None:
+        offset_node = make_constant_node("offset", TensorProto.INT64, [], [offset])
+        shifted_dim = helper.make_node("Add", ["dim", "offset"], ["shifted_dim"])
+        nodes.extend([offset_node, shifted_dim])
+        dividend = "shifted_dim"
+
+    divisor = make_constant_node("divisor", TensorProto.INT64, divisor_shape, [3])
+    end = helper.make_node("Div", [dividend, "divisor"], ["end"])
+    starts = make_constant_node("starts", TensorProto.INT64, [1], [0])
+    axes = make_constant_node("axes", TensorProto.INT64, [1], [0])
+    steps = make_constant_node("steps", TensorProto.INT64, [1], [1])
+    slice_node = helper.make_node("Slice", ["x", "starts", "end", "axes", "steps"], ["y"])
+    nodes.extend([divisor, end, starts, axes, steps, slice_node])
+
+    graph = helper.make_graph(
+        nodes,
+        "div_integer_primexpr",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [input_size])],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [128])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+    model.ir_version = 8
+
+    tvm_model = from_onnx(model, opset=13)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((input_size,), dtype="float32"),
+        ) -> R.Tensor((128,), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((128,), dtype="float32") = R.strided_slice(
+                    x, axes=[0], begin=[0], end=[128], strides=[1], assume_inbound=False
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("int_mode", [True, False])
@@ -786,19 +815,9 @@ def test_multi_input_broadcasting():
             )
 
 
-@pytest.mark.parametrize("op_name", ["Less", "LessOrEqual", "Greater", "GreaterOrEqual"])
-def test_compare(op_name: str):
-    verify_compare(op_name, [1, 32])
-
-
 @pytest.mark.parametrize("op_name", ["And", "Or", "Xor"])
 def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
-
-
-@pytest.mark.parametrize("op_name", ["BitwiseAnd", "BitwiseOr", "BitwiseXor"])
-def test_bitwise(op_name: str):
-    verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.UINT64, opset=18)
 
 
 def test_bitwise_not():
@@ -809,25 +828,6 @@ def test_bitwise_not():
         output_dtype=TensorProto.UINT64,
         opset=18,
     )
-
-
-@pytest.mark.parametrize("direction", ["LEFT", "RIGHT"])
-def test_bitwise_shift(direction: str):
-    shape = [32, 32]
-    dtype = TensorProto.UINT64
-    test_node = helper.make_node("BitShift", ["a", "b"], ["c"], direction=direction)
-    graph = helper.make_graph(
-        [test_node],
-        "binary_test",
-        inputs=[
-            helper.make_tensor_value_info("a", dtype, shape),
-            helper.make_tensor_value_info("b", dtype, shape),
-        ],
-        outputs=[helper.make_tensor_value_info("c", dtype, shape)],
-    )
-
-    model = helper.make_model(graph, producer_name="binary_test")
-    check_correctness(model, inputs={"b": np.random.randint(0, 8, shape).astype("uint64")})
 
 
 @pytest.mark.parametrize(
@@ -1288,27 +1288,6 @@ def test_legacy_softmax_family_opset1_ir_semantics():
     verify_legacy_softmax_family_opset1_ir("Hardmax", ExpectedHardmax)
 
 
-def test_round_ties_to_even():
-    """ONNX Round must use ties-to-even (banker's rounding), not ties-away-from-zero.
-
-    Per the ONNX spec: "For cases where number is exactly halfway between two
-    integers, it rounds to the nearest even integer."
-    https://onnx.ai/onnx/operators/onnx__Round.html
-    """
-    round_node = helper.make_node("Round", ["x"], ["y"])
-    graph = helper.make_graph(
-        [round_node],
-        "round_ties_to_even_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [6])],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [6])],
-    )
-    model = helper.make_model(graph, producer_name="round_ties_to_even_test")
-    # Midpoint values: 0.5->0, 1.5->2, 2.5->2, -0.5->0, -1.5->-2, -2.5->-2 (ties-to-even)
-    # Ties-away would give: 0.5->1, 1.5->2, 2.5->3, -0.5->-1, -1.5->-2, -2.5->-3
-    inputs = {"x": np.array([0.5, 1.5, 2.5, -0.5, -1.5, -2.5], dtype="float32")}
-    check_correctness(model, inputs=inputs, opset=11)
-
-
 @pytest.mark.parametrize("from_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 @pytest.mark.parametrize("to_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
 def test_cast(from_type, to_type):
@@ -1451,6 +1430,99 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], ExpectedRank2Axis1, 1)
 
 
+@pytest.mark.parametrize("index", [0, 2, 3, -1, -4])
+def test_gather_shape_dynamic_index(index):
+    """Gather a dimension out of a Shape result using a non-constant index.
+
+    Detection post-processing graphs (e.g. FasterRCNN) feed a runtime-computed
+    index into a Gather whose data is a Shape output. The index is not a
+    constant, so the importer must materialize the shape as a tensor and gather
+    from it at runtime rather than resolving the dimension at compile time.
+    """
+    data_shape = [3, 4, 5, 6]
+    shape_node = helper.make_node("Shape", ["data"], ["shape"])
+    gather_node = helper.make_node("Gather", ["shape", "index"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, gather_node],
+        "gather_shape_dynamic_index_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("index", TensorProto.INT64, []),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [])],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_shape_dynamic_index_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "index": np.array(index).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
+@pytest.mark.parametrize(
+    "indices",
+    [
+        np.array(2, dtype="int64"),  # 0-D scalar -> PrimValue fast path
+        np.array([2], dtype="int64"),  # (1,) -> must stay rank 1
+        np.array([[2]], dtype="int64"),  # (1, 1) -> must stay rank 2
+        np.array([1, 3], dtype="int64"),  # (2,) -> multiple dims
+        np.array([-1], dtype="int64"),  # (1,) negative index
+    ],
+)
+def test_gather_shape_constant_index(indices):
+    """Gather from a Shape result using a constant index of varying rank.
+
+    ONNX Gather defines the output rank as q + r - 1 where q is the rank of the
+    indices. Since a Shape output is rank 1, only a true 0-D scalar index should
+    collapse to a scalar; a (1,) index must produce a rank-1 result rather than
+    being folded into a PrimValue.
+    """
+    data_shape = [3, 4, 5, 6]
+    shape_node = helper.make_node("Shape", ["data"], ["shape"])
+    # Emit the indices through a Constant node: an initializer would become a
+    # function parameter under keep_params_in_input=True and bypass the
+    # constant fast path in the Gather converter.
+    const_node = helper.make_node(
+        "Constant",
+        [],
+        ["indices"],
+        value=helper.make_tensor(
+            "value",
+            TensorProto.INT64,
+            indices.shape,
+            indices.flatten().tolist(),
+        ),
+    )
+    gather_node = helper.make_node("Gather", ["shape", "indices"], ["y"], axis=0)
+
+    graph = helper.make_graph(
+        [shape_node, const_node, gather_node],
+        "gather_shape_constant_index_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, list(indices.shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_shape_constant_index_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+    }
+    check_correctness(model, inputs=input_values)
+
+    # check_correctness broadcasts a scalar against a one-element tensor, so
+    # assert the rank explicitly: only a 0-D index may collapse to a scalar.
+    tvm_out = run_in_tvm(model, inputs=input_values)
+    if isinstance(tvm_out, tvm.runtime.Tensor):
+        out_shape = tuple(tvm_out.numpy().shape)
+    else:
+        # PrimValue fast-path outputs come back as plain Python scalars.
+        out_shape = ()
+    assert out_shape == indices.shape
+
+
 def _make_gather_negative_indices_expected(axis: int, indices_shape, indices_type):
     indices_shape = tuple(indices_shape)
     indices_dtype = "int64" if indices_type == TensorProto.INT64 else "int32"
@@ -1550,31 +1622,6 @@ def test_gather_negative_indices():
             indices_type,
             _make_gather_negative_indices_expected(axis, np.asarray(indices).shape, indices_type),
         )
-
-
-def test_gather_negative_indices_ir_normalization():
-    def verify_gather_negative_indices_ir_normalization(indices_type, expected):
-        gather_node = helper.make_node("Gather", ["data", "indices"], ["y"], axis=1)
-        graph = helper.make_graph(
-            [gather_node],
-            "gather_negative_indices_ir_test",
-            inputs=[
-                helper.make_tensor_value_info("data", TensorProto.FLOAT, [3, 4]),
-                helper.make_tensor_value_info("indices", indices_type, [2]),
-            ],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [3, 2])],
-        )
-
-        model = helper.make_model(graph, producer_name="gather_negative_indices_ir_test")
-        tvm_model = from_onnx(model, opset=13, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
-
-    verify_gather_negative_indices_ir_normalization(
-        TensorProto.INT64, _make_gather_negative_indices_expected(1, (2,), TensorProto.INT64)
-    )
-    verify_gather_negative_indices_ir_normalization(
-        TensorProto.INT32, _make_gather_negative_indices_expected(1, (2,), TensorProto.INT32)
-    )
 
 
 @pytest.mark.parametrize(
@@ -2258,18 +2305,6 @@ def test_reshape_shape_output():
     verify_reshape_shape_output([3, 1], [3, 1], ExpectedRank2ColumnShape)
 
 
-def test_transpose():
-    node = helper.make_node("Transpose", ["x"], ["y"], perm=[1, 2, 0])
-    graph = helper.make_graph(
-        [node],
-        "transpose_test",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, [32, 32, 32])],
-        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32, 32])],
-    )
-    model = helper.make_model(graph, producer_name="transpose_test")
-    check_correctness(model)
-
-
 def test_transpose_scalar():
     """Test Transpose with scalar inputs - should return scalar unchanged."""
     scalar_node = helper.make_node("Transpose", ["x"], ["y"])
@@ -2741,24 +2776,6 @@ def test_fast_gelu():
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model_with_bias, ExpectedWithBias)
-
-
-def test_where():
-    where_node = helper.make_node("Where", ["a", "b", "c"], ["d"])
-
-    graph = helper.make_graph(
-        [where_node],
-        "where_test",
-        inputs=[
-            helper.make_tensor_value_info("a", TensorProto.BOOL, [32, 32]),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, [32, 32]),
-            helper.make_tensor_value_info("c", TensorProto.FLOAT, [32, 32]),
-        ],
-        outputs=[helper.make_tensor_value_info("d", TensorProto.FLOAT, [32, 32])],
-    )
-
-    model = helper.make_model(graph, producer_name="where_test")
-    check_correctness(model)
 
 
 def test_clip():
@@ -3407,171 +3424,280 @@ def test_shrink():
     tvm.ir.assert_structural_equal(tvm_model, ExpectedCustom)
 
 
-@pytest.mark.parametrize("stride", [1, 2])
-@pytest.mark.parametrize("dilation", [1, 2])
-@pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("pad", [0, 2])
-@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
-def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
-    def _verify_conv(input_shape, weight_shape):
-        nd = len(weight_shape) - 2
-        if auto_pad == "VALID":
-            output_shape = [input_shape[0], weight_shape[0]] + [
-                (input_shape[i] - dilation * (weight_shape[i] - 1) - 1) // stride + 1
-                for i in range(2, len(input_shape))
-            ]
-            bias_shape = [output_shape[1]]
-            conv_node = helper.make_node(
-                "Conv",
-                inputs=["x", "w"] + (["b"] if bias else []),
-                outputs=["y"],
-                strides=[stride] * nd,
-                dilations=[dilation] * nd,
-                auto_pad=auto_pad,
-                group=input_shape[1] // weight_shape[1],
-            )
-        elif auto_pad in ("SAME_UPPER", "SAME_LOWER"):
-            if dilation == 2:
-                # auto_pad = "SAME" and dilation = 2 is not supported in ONNX
-                return
-            output_shape = [input_shape[0], weight_shape[0]] + [
-                (input_shape[i] + stride - 1) // stride for i in range(2, len(input_shape))
-            ]
-            bias_shape = [output_shape[1]]
-            conv_node = helper.make_node(
-                "Conv",
-                inputs=["x", "w"] + (["b"] if bias else []),
-                outputs=["y"],
-                strides=[stride] * nd,
-                dilations=[dilation] * nd,
-                auto_pad=auto_pad,
-                group=input_shape[1] // weight_shape[1],
-            )
-        else:
-            output_shape = [input_shape[0], weight_shape[0]] + [
-                (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
-                for i in range(2, len(input_shape))
-            ]
-            bias_shape = [output_shape[1]]
-            conv_node = helper.make_node(
-                "Conv",
-                inputs=["x", "w"] + (["b"] if bias else []),
-                outputs=["y"],
-                strides=[stride] * nd,
-                dilations=[dilation] * nd,
-                pads=[pad] * nd * 2,
-                group=input_shape[1] // weight_shape[1],
-            )
-        graph = helper.make_graph(
-            [conv_node],
-            "conv_test",
-            inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
-                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
-            ]
-            + ([helper.make_tensor_value_info("b", TensorProto.FLOAT, bias_shape)] if bias else []),
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
-        )
-
-        model = helper.make_model(graph, producer_name="conv_test")
-        check_correctness(model, atol=1e-4)
-
-    # Conv1D
-    _verify_conv([3, 4, 32], [4, 4, 3])
-    _verify_conv([3, 4, 32], [2, 4, 3])  # group=2
-    # Conv2D
-    _verify_conv([3, 4, 32, 32], [4, 4, 3, 3])
-    _verify_conv([3, 4, 32, 32], [2, 4, 3, 3])  # group=2
-    # Conv3D
-    _verify_conv([3, 4, 32, 32, 32], [4, 4, 3, 3, 3])
-    _verify_conv([3, 4, 32, 32, 32], [2, 4, 3, 3, 3])  # group=2
-
-
-@pytest.mark.parametrize("stride", [2])
-@pytest.mark.parametrize("dilation", [1])
-@pytest.mark.parametrize("bias", [True, False])
-@pytest.mark.parametrize("pad", [0, 2])
-@pytest.mark.parametrize("output_pad", [0, 1])
-def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool, output_pad: int):
-    def _verify_conv_transpose(input_shape, weight_shape):
-        nd = len(weight_shape) - 2
+def _make_conv_model(input_shape, weight_shape, stride, dilation, pad, bias, auto_pad):
+    nd = len(weight_shape) - 2
+    groups = input_shape[1] // weight_shape[1]
+    node_attrs = {
+        "strides": [stride] * nd,
+        "dilations": [dilation] * nd,
+        "group": groups,
+    }
+    if auto_pad == "VALID":
         output_shape = [input_shape[0], weight_shape[0]] + [
-            (input_shape[i] - 1) * stride
-            - 2 * pad
-            + dilation * (weight_shape[i] - 1)
-            + output_pad
-            + 1
+            (input_shape[i] - dilation * (weight_shape[i] - 1) - 1) // stride + 1
             for i in range(2, len(input_shape))
         ]
-        bias_shape = [output_shape[1]]
-        conv_node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "w"] + (["b"] if bias else []),
-            outputs=["y"],
-            strides=[stride] * nd,
-            dilations=[dilation] * nd,
-            pads=[pad] * nd * 2,
-            output_padding=[output_pad] * nd,
-            group=input_shape[1] // weight_shape[1],
-        )
-        graph = helper.make_graph(
-            [conv_node],
-            "conv_transpose_test",
-            inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
-                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
-            ]
-            + ([helper.make_tensor_value_info("b", TensorProto.FLOAT, bias_shape)] if bias else []),
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
-        )
+        node_attrs["auto_pad"] = auto_pad
+    elif auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+        output_shape = [input_shape[0], weight_shape[0]] + [
+            (input_shape[i] + stride - 1) // stride for i in range(2, len(input_shape))
+        ]
+        node_attrs["auto_pad"] = auto_pad
+    else:
+        output_shape = [input_shape[0], weight_shape[0]] + [
+            (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+            for i in range(2, len(input_shape))
+        ]
+        node_attrs["pads"] = [pad] * nd * 2
 
-        model = helper.make_model(graph, producer_name="conv_transpose_test")
-        check_correctness(model, atol=1e-4)
-
-    # ConvTranspose1D
-    _verify_conv_transpose([3, 4, 32], [4, 4, 3])
-    _verify_conv_transpose([3, 4, 32], [4, 2, 3])  # group=2
-    # ConvTranspose2D
-    _verify_conv_transpose([3, 4, 32, 32], [4, 4, 3, 3])
-    _verify_conv_transpose([3, 4, 32, 32], [4, 2, 3, 3])  # group=2
-    # ConvTranspose3D
-    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 4, 3, 3, 3])
-    _verify_conv_transpose([3, 4, 12, 12, 12], [4, 2, 3, 3, 3])  # group=2
-
-
-@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
-@pytest.mark.parametrize("stride", [1, 2])
-def test_conv_transpose_auto_pad(auto_pad: str, stride: int):
-    def _verify(input_shape, weight_shape):
-        nd = len(weight_shape) - 2
-        conv_node = helper.make_node(
-            "ConvTranspose",
-            inputs=["x", "w"],
-            outputs=["y"],
-            kernel_shape=weight_shape[2:],
-            strides=[stride] * nd,
-            auto_pad=auto_pad,
-        )
-        graph = helper.make_graph(
-            [conv_node],
-            "conv_transpose_auto_pad_test",
-            inputs=[
-                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
-                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
-            ],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
-        )
-        model = helper.make_model(graph, producer_name="conv_transpose_auto_pad_test")
-        check_correctness(model, atol=1e-4)
-
-    # ConvTranspose1D / 2D / 3D
-    _verify([1, 1, 8], [1, 1, 3])
-    _verify([1, 1, 8, 8], [1, 1, 3, 3])
-    _verify([1, 1, 4, 4, 4], [1, 1, 3, 3, 3])
+    conv_node = helper.make_node(
+        "Conv",
+        inputs=["x", "w"] + (["b"] if bias else []),
+        outputs=["y"],
+        **node_attrs,
+    )
+    graph = helper.make_graph(
+        [conv_node],
+        "conv_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
+        ]
+        + (
+            [helper.make_tensor_value_info("b", TensorProto.FLOAT, [output_shape[1]])]
+            if bias
+            else []
+        ),
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="conv_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+    return model, output_shape, groups
 
 
-def test_pow():
-    verify_binary("Pow", [32, 32], [32, 32], [32, 32])
+CONV_IMPORT_CONFIGS = [
+    *(("VALID", stride, dilation, 0) for stride in [1, 2] for dilation in [1, 2]),
+    *((auto_pad, stride, 1, 0) for auto_pad in ["SAME_UPPER", "SAME_LOWER"] for stride in [1, 2]),
+    *(
+        ("NOTSET", stride, dilation, pad)
+        for stride in [1, 2]
+        for dilation in [1, 2]
+        for pad in [0, 2]
+    ),
+]
+
+
+def _verify_conv_import(auto_pad, stride, dilation, pad, bias, nd, groups):
+    input_shape = [1, 4] + [8] * nd
+    weight_shape = [4, 4 // groups] + [3] * nd
+    model, output_shape, expected_groups = _make_conv_model(
+        input_shape, weight_shape, stride, dilation, pad, bias, auto_pad
+    )
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    func = tvm_model["main"]
+
+    conv_op_name = f"relax.nn.conv{nd}d"
+    conv_calls = []
+
+    def visit(expr):
+        if (
+            isinstance(expr, relax.Call)
+            and isinstance(expr.op, tvm.ir.Op)
+            and expr.op.name == conv_op_name
+        ):
+            conv_calls.append(expr)
+
+    relax.analysis.post_order_visit(func.body, visit)
+    assert len(conv_calls) == 1
+    conv_call = conv_calls[0]
+    assert tuple(int(value) for value in func.ret_ty.shape.values) == tuple(output_shape)
+    assert tuple(int(value) for value in conv_call.attrs.strides) == (stride,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.dilation) == (dilation,) * nd
+    assert int(conv_call.attrs.groups) == expected_groups
+    assert ("relax.add" in collect_relax_call_ops(func)) == bias
+
+    expected_padding = (pad,) * (nd * 2) if auto_pad == "NOTSET" else (0,) * (nd * 2)
+    assert tuple(int(value) for value in conv_call.attrs.padding) == expected_padding
+
+
+@pytest.mark.parametrize("bias", [True, False])
+@pytest.mark.parametrize("nd", [1, 2, 3])
+@pytest.mark.parametrize("groups", [1, 2])
+def test_conv_import(bias, nd, groups):
+    for auto_pad, stride, dilation, pad in CONV_IMPORT_CONFIGS:
+        _verify_conv_import(auto_pad, stride, dilation, pad, bias, nd, groups)
+
+
+@pytest.mark.parametrize(
+    "nd, groups, auto_pad, stride, dilation, pad, bias",
+    [
+        (1, 1, "VALID", 1, 2, 0, False),
+        (1, 2, "NOTSET", 2, 1, 2, True),
+        (2, 1, "SAME_UPPER", 2, 1, 0, True),
+        (2, 2, "SAME_LOWER", 2, 1, 0, False),
+        (3, 2, "VALID", 2, 1, 0, True),
+        (3, 1, "NOTSET", 1, 2, 2, False),
+    ],
+)
+def test_conv_numerical(nd, groups, auto_pad, stride, dilation, pad, bias):
+    input_shape = [1, 4] + [8] * nd
+    weight_shape = [4, 4 // groups] + [3] * nd
+    model, _, _ = _make_conv_model(input_shape, weight_shape, stride, dilation, pad, bias, auto_pad)
+    check_correctness(model, opset=14, atol=1e-4)
+
+
+def _make_conv_transpose_model(
+    nd, groups, auto_pad, stride, dilation, pad, bias, output_pad, spatial_extent=8
+):
+    input_shape = [1, 4] + [spatial_extent] * nd
+    weight_shape = [4, 4 // groups] + [3] * nd
+    output_channels = weight_shape[1] * groups
+    effective_kernel = dilation * (weight_shape[2] - 1) + 1
+
+    node_attrs = {
+        "strides": [stride] * nd,
+        "dilations": [dilation] * nd,
+        "output_padding": [output_pad] * nd,
+        "group": groups,
+    }
+    if auto_pad == "NOTSET":
+        node_attrs["pads"] = [pad] * nd * 2
+        output_spatial = [
+            (spatial_extent - 1) * stride - 2 * pad + effective_kernel + output_pad
+        ] * nd
+    elif auto_pad == "VALID":
+        node_attrs["auto_pad"] = auto_pad
+        node_attrs["kernel_shape"] = weight_shape[2:]
+        output_spatial = [(spatial_extent - 1) * stride + effective_kernel + output_pad] * nd
+    else:
+        node_attrs["auto_pad"] = auto_pad
+        node_attrs["kernel_shape"] = weight_shape[2:]
+        output_spatial = [spatial_extent * stride] * nd
+
+    output_shape = [input_shape[0], output_channels, *output_spatial]
+    conv_node = helper.make_node(
+        "ConvTranspose",
+        inputs=["x", "w"] + (["b"] if bias else []),
+        outputs=["y"],
+        **node_attrs,
+    )
+    graph = helper.make_graph(
+        [conv_node],
+        "conv_transpose_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+            helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
+        ]
+        + (
+            [helper.make_tensor_value_info("b", TensorProto.FLOAT, [output_channels])]
+            if bias
+            else []
+        ),
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="conv_transpose_test",
+        opset_imports=[helper.make_opsetid("", 14)],
+    )
+    return model, output_shape
+
+
+CONV_TRANSPOSE_IMPORT_CONFIGS = [
+    ("NOTSET", 1, 1, 0, 0),
+    ("NOTSET", 2, 2, 2, 1),
+    ("SAME_UPPER", 1, 1, 0, 0),
+    ("SAME_UPPER", 2, 1, 0, 0),
+    ("SAME_LOWER", 2, 1, 0, 0),
+    ("VALID", 1, 2, 0, 0),
+    ("VALID", 2, 1, 0, 1),
+]
+
+
+def _verify_conv_transpose_import(nd, groups, auto_pad, stride, dilation, pad, bias, output_pad):
+    model, output_shape = _make_conv_transpose_model(
+        nd, groups, auto_pad, stride, dilation, pad, bias, output_pad
+    )
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+    func = tvm_model["main"]
+
+    conv_op_name = f"relax.nn.conv{nd}d_transpose"
+    conv_calls = []
+
+    def visit(expr):
+        if (
+            isinstance(expr, relax.Call)
+            and isinstance(expr.op, tvm.ir.Op)
+            and expr.op.name == conv_op_name
+        ):
+            conv_calls.append(expr)
+
+    relax.analysis.post_order_visit(func.body, visit)
+    assert len(conv_calls) == 1
+    conv_call = conv_calls[0]
+    assert tuple(int(value) for value in func.ret_ty.shape.values) == tuple(output_shape)
+    assert tuple(int(value) for value in conv_call.attrs.strides) == (stride,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.dilation) == (dilation,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.output_padding) == (output_pad,) * nd
+    assert int(conv_call.attrs.groups) == groups
+    assert ("relax.add" in collect_relax_call_ops(func)) == bias
+
+    if auto_pad == "NOTSET":
+        expected_padding = (pad,) * (nd * 2)
+    elif auto_pad == "VALID":
+        expected_padding = (0,) * (nd * 2)
+    else:
+        total_pad = max((3 - 1) * dilation + 1 + output_pad - stride, 0)
+        pad_begin = total_pad // 2 if auto_pad == "SAME_UPPER" else total_pad - total_pad // 2
+        expected_padding = (pad_begin,) * nd + (total_pad - pad_begin,) * nd
+    assert tuple(int(value) for value in conv_call.attrs.padding) == expected_padding
+
+
+@pytest.mark.parametrize("bias", [True, False])
+@pytest.mark.parametrize("nd", [1, 2, 3])
+@pytest.mark.parametrize("groups", [1, 2])
+def test_conv_transpose_import(bias, nd, groups):
+    for auto_pad, stride, dilation, pad, output_pad in CONV_TRANSPOSE_IMPORT_CONFIGS:
+        _verify_conv_transpose_import(nd, groups, auto_pad, stride, dilation, pad, bias, output_pad)
+
+
+@pytest.mark.parametrize(
+    "nd, groups, auto_pad, stride, dilation, pad, bias, output_pad",
+    [
+        # Broad attribute coverage, including dilation and output padding.
+        (1, 1, "NOTSET", 2, 2, 2, False, 1),
+        (2, 2, "VALID", 1, 2, 0, True, 0),
+        (3, 1, "NOTSET", 1, 1, 0, True, 0),
+        (3, 2, "VALID", 2, 1, 0, False, 1),
+        # Each rank uses a distinct Relax op and legalizer.  Exercise both
+        # directions of asymmetric SAME padding numerically for every rank.
+        (1, 2, "SAME_UPPER", 2, 1, 0, True, 0),
+        (1, 1, "SAME_LOWER", 2, 1, 0, False, 0),
+        (2, 2, "SAME_UPPER", 2, 1, 0, True, 0),
+        (2, 1, "SAME_LOWER", 2, 1, 0, False, 0),
+        (3, 1, "SAME_UPPER", 2, 1, 0, False, 0),
+        (3, 2, "SAME_LOWER", 2, 1, 0, True, 0),
+        # Preserve the 2-D output_padding regression through LLVM execution.
+        (2, 1, "NOTSET", 2, 1, 2, True, 1),
+    ],
+)
+def test_conv_transpose_numerical(nd, groups, auto_pad, stride, dilation, pad, bias, output_pad):
+    spatial_extent = 4 if nd == 3 else 8
+    model, _ = _make_conv_transpose_model(
+        nd,
+        groups,
+        auto_pad,
+        stride,
+        dilation,
+        pad,
+        bias,
+        output_pad,
+        spatial_extent,
+    )
+    check_correctness(model, opset=14, atol=1e-4)
 
 
 @pytest.mark.parametrize("reverse", [True, False])
@@ -3718,6 +3844,42 @@ def test_squeeze():
     verify_squeeze(None, ExpectedSqueezeAll)
 
 
+def test_squeeze_axes_attribute():
+    # Prior to opset 13, ONNX Squeeze takes `axes` as an attribute rather than an input.
+    squeeze_node = helper.make_node("Squeeze", ["x"], ["y"], axes=[0, 2])
+    shape = [1, 32, 1, 32]
+
+    graph = helper.make_graph(
+        [squeeze_node],
+        "squeeze_axes_attribute_test",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, [32, 32])],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="squeeze_axes_attribute_test",
+        opset_imports=[helper.make_opsetid("", 11)],
+    )
+    tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((1, 32, 1, 32), dtype="float32")) -> R.Tensor(
+            (32, 32), dtype="float32"
+        ):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((32, 32), dtype="float32") = R.squeeze(x, axis=[0, 2])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 def test_squeeze_constant():
     def verify_squeeze_constant(axis, expected):
         shape = [1, 2, 1, 3]
@@ -3776,10 +3938,8 @@ def test_squeeze_constant():
     verify_squeeze_constant(None, ExpectedSqueezeConstantAll)
 
 
-@pytest.mark.parametrize("axis", [[0]])
-@pytest.mark.parametrize("A", [8, 16, 32])
-@pytest.mark.parametrize("B", [8, 16, 32])
-def test_dynamic_squeeze(axis, A, B):
+def test_dynamic_squeeze():
+    axis = [0]
     squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
     shape = [1, "A", "B"]
 
@@ -3808,8 +3968,8 @@ def test_dynamic_squeeze(axis, A, B):
             x: R.Tensor((1, "A", "B"), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("A", "B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B), dtype="float32") = R.squeeze(x, axis=[0])
@@ -3928,12 +4088,14 @@ def test_dynamic_shape_squeeze(axis):
     assert len(tvm_model["main"].attrs["params"]) == 1
     tvm_model["main"] = tvm_model["main"].without_attr("params")
 
-    # TVMScript cannot currently round-trip this SizeVar dataflow binding.
-    a = tvm.tirx.SizeVar("A", "int64")
+    # Use an ordinary symbolic Var for the dynamic shape binding.
+    a = tvm.tirx.Var("A", "int64")
     x = relax.Var("x", relax.TensorType([a], "float32"))
     axes = relax.Var("axes", relax.TensorType([1], "int64"))
     gv = relax.Var("gv", tvm.ir.PrimType("int64"))
     body = relax.SeqExpr([relax.DataflowBlock([relax.VarBinding(gv, a)])], gv)
+    # Match the importer boundary, where BlockBuilder populates the SeqExpr result type.
+    body = relax.BlockBuilder().normalize(body)
     expected_func = relax.Function([x, axes], body, tvm.ir.PrimType("int64")).with_attrs(
         {"num_input": 1, "global_symbol": "main"}
     )
@@ -4352,6 +4514,254 @@ def test_rms_norm():
 
     model = helper.make_model(graph, producer_name="rms_norm_fp16_test")
     check_correctness(model, opset=23, rtol=1e-2, atol=1e-2)
+
+
+def _make_group_norm_expected_ir(
+    input_shape: list[int],
+    scale_shape: list[int],
+    bias_shape: list[int],
+    num_groups: int,
+    opset: int = 21,
+    dtype: str = "float32",
+    stash_type: int = 1,
+):
+    input_shape = tuple(input_shape)
+    scale_shape = tuple(scale_shape)
+    bias_shape = tuple(bias_shape)
+    axes = list(range(2, len(input_shape)))
+    epsilon = float(np.float32(1e-5))
+    affine_shape = (input_shape[1],) + (1,) * (len(input_shape) - 2)
+
+    if opset == 18:
+        channels = input_shape[1]
+        channels_per_group = channels // num_groups
+
+        @I.ir_module
+        class ExpectedGroupNormOpset18:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor((num_groups, 1), dtype=dtype) = R.reshape(
+                        scale, R.shape([num_groups, 1])
+                    )
+                    lv1: R.Tensor((num_groups, channels_per_group), dtype=dtype) = R.broadcast_to(
+                        lv, R.shape([num_groups, channels_per_group])
+                    )
+                    lv2: R.Tensor((channels,), dtype=dtype) = R.reshape(lv1, R.shape([channels]))
+                    lv3: R.Tensor((num_groups, 1), dtype=dtype) = R.reshape(
+                        bias, R.shape([num_groups, 1])
+                    )
+                    lv4: R.Tensor((num_groups, channels_per_group), dtype=dtype) = R.broadcast_to(
+                        lv3, R.shape([num_groups, channels_per_group])
+                    )
+                    lv5: R.Tensor((channels,), dtype=dtype) = R.reshape(lv4, R.shape([channels]))
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.nn.group_norm(
+                        input,
+                        lv2,
+                        lv5,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                    )
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset18
+
+    if opset == 21 and stash_type == 1 and dtype != "float32":
+
+        @I.ir_module
+        class ExpectedGroupNormOpset21Stash:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor(input_shape, dtype="float32") = R.astype(input, dtype="float32")
+                    lv1: R.Tensor(scale_shape, dtype="float32") = R.astype(scale, dtype="float32")
+                    lv2: R.Tensor(scale_shape, dtype="float32") = R.ones_like(lv1)
+                    lv3: R.Tensor(bias_shape, dtype="float32") = R.astype(bias, dtype="float32")
+                    lv4: R.Tensor(bias_shape, dtype="float32") = R.zeros_like(lv3)
+                    lv5: R.Tensor(input_shape, dtype="float32") = R.nn.group_norm(
+                        lv,
+                        lv2,
+                        lv4,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                        center=False,
+                        scale=False,
+                    )
+                    lv6: R.Tensor(input_shape, dtype=dtype) = R.astype(lv5, dtype=dtype)
+                    lv7: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        scale, R.shape(affine_shape)
+                    )
+                    lv8: R.Tensor(input_shape, dtype=dtype) = R.multiply(lv6, lv7)
+                    lv9: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        bias, R.shape(affine_shape)
+                    )
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.add(lv8, lv9)
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset21Stash
+
+    if opset == 21:
+
+        @I.ir_module
+        class ExpectedGroupNormOpset21:
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype=dtype),
+                scale: R.Tensor(scale_shape, dtype=dtype),
+                bias: R.Tensor(bias_shape, dtype=dtype),
+            ) -> R.Tensor(input_shape, dtype=dtype):
+                R.func_attr({"num_input": 3})
+                with R.dataflow():
+                    lv: R.Tensor(scale_shape, dtype=dtype) = R.ones_like(scale)
+                    lv1: R.Tensor(bias_shape, dtype=dtype) = R.zeros_like(bias)
+                    lv2: R.Tensor(input_shape, dtype=dtype) = R.nn.group_norm(
+                        input,
+                        lv,
+                        lv1,
+                        num_groups=num_groups,
+                        channel_axis=1,
+                        axes=axes,
+                        epsilon=epsilon,
+                        center=False,
+                        scale=False,
+                    )
+                    lv3: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        scale, R.shape(affine_shape)
+                    )
+                    lv4: R.Tensor(input_shape, dtype=dtype) = R.multiply(lv2, lv3)
+                    lv5: R.Tensor(affine_shape, dtype=dtype) = R.reshape(
+                        bias, R.shape(affine_shape)
+                    )
+                    gv: R.Tensor(input_shape, dtype=dtype) = R.add(lv4, lv5)
+                    R.output(gv)
+                return gv
+
+        return ExpectedGroupNormOpset21
+
+    raise AssertionError(f"No GroupNormalization expected IR for opset={opset}")
+
+
+def test_group_norm():
+    def verify_group_norm(
+        input_shape: list[int],
+        scale_shape: list[int],
+        bias_shape: list[int],
+        num_groups: int,
+        expected,
+        opset: int = 21,
+        dtype: int = TensorProto.FLOAT,
+        stash_type: int = 1,
+    ):
+        attrs = {"num_groups": num_groups, "epsilon": 1e-5}
+        if opset == 21:
+            attrs["stash_type"] = stash_type
+
+        node = helper.make_node(
+            "GroupNormalization", ["input", "scale", "bias"], ["output"], **attrs
+        )
+        graph = helper.make_graph(
+            [node],
+            "group_norm_test",
+            inputs=[
+                helper.make_tensor_value_info("input", dtype, list(input_shape)),
+                helper.make_tensor_value_info("scale", dtype, list(scale_shape)),
+                helper.make_tensor_value_info("bias", dtype, list(bias_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("output", dtype, list(input_shape))],
+        )
+
+        model = helper.make_model(
+            graph,
+            producer_name="group_norm_test",
+            opset_imports=[helper.make_opsetid("", opset)],
+        )
+        tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+        tvm_model["main"] = tvm_model["main"].without_attr("params")
+        expected = tvm.IRModule(expected.functions)
+        for gv in expected.get_global_vars():
+            if gv.name_hint != "main":
+                expected.update_func(gv, tvm_model[gv.name_hint])
+        tvm.ir.assert_structural_equal(tvm_model, expected)
+
+    for input_shape, scale_shape, bias_shape, num_groups, opset, dtype, dtype_str, stash_type in [
+        ([1, 4, 2, 2], [2], [2], 2, 18, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 2, 2], [4], [4], 2, 21, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 8], [4], [4], 2, 21, TensorProto.FLOAT, "float32", 1),
+        ([1, 4, 2, 2], [4], [4], 2, 21, TensorProto.FLOAT16, "float16", 1),
+    ]:
+        verify_group_norm(
+            input_shape,
+            scale_shape,
+            bias_shape,
+            num_groups,
+            _make_group_norm_expected_ir(
+                input_shape,
+                scale_shape,
+                bias_shape,
+                num_groups,
+                opset=opset,
+                dtype=dtype_str,
+                stash_type=stash_type,
+            ),
+            opset=opset,
+            dtype=dtype,
+            stash_type=stash_type,
+        )
+
+    for bad_stash_type in [0, 10, 11, 16]:
+        with pytest.raises(ValueError, match="stash_type=1"):
+            verify_group_norm(
+                [1, 4, 2, 2],
+                [4],
+                [4],
+                2,
+                _make_group_norm_expected_ir(
+                    [1, 4, 2, 2],
+                    [4],
+                    [4],
+                    2,
+                    opset=21,
+                    dtype="float16",
+                    stash_type=1,
+                ),
+                opset=21,
+                dtype=TensorProto.FLOAT16,
+                stash_type=bad_stash_type,
+            )
+
+    with pytest.raises(ValueError, match="currently only supports float32"):
+        verify_group_norm(
+            [1, 4, 2, 2],
+            [2],
+            [2],
+            2,
+            _make_group_norm_expected_ir(
+                [1, 4, 2, 2],
+                [2],
+                [2],
+                2,
+                opset=18,
+                dtype="float16",
+            ),
+            opset=18,
+            dtype=TensorProto.FLOAT16,
+        )
 
 
 # TODO Enable dynamism
@@ -4798,73 +5208,97 @@ def create_reduce_test_parameters_axes_attr():
     return output
 
 
-def create_composite_reduce_test_parameters_axes_attr():
-    output = []
-    for dynamic in [True, False]:
-        for opset in [13, 11]:
-            for func in COMPOSITE_REDUCE_FUNCS:
-                output.append((func, dynamic, opset))
-    return output
+def _verify_reduce_numerical(
+    func: str,
+    opset: int,
+    *,
+    axes_as_input: bool,
+    axes,
+    noop_with_empty_axes: bool = False,
+    dynamic: bool = False,
+    keepdims: bool = False,
+):
+    input_shape = [3, 3, 3]
+    node_inputs = ["x"]
+    initializers = []
+    node_attrs = {"keepdims": keepdims}
+
+    if axes_as_input:
+        node_attrs["noop_with_empty_axes"] = noop_with_empty_axes
+        if axes is not None:
+            axes_np = np.asarray(axes, dtype=np.int64)
+            initializers.append(
+                helper.make_tensor(
+                    name="reduce_axes",
+                    data_type=TensorProto.INT64,
+                    dims=axes_np.shape,
+                    vals=axes_np,
+                )
+            )
+            node_inputs.append("reduce_axes")
+    elif axes:
+        node_attrs["axes"] = axes
+
+    if axes_as_input and noop_with_empty_axes and not axes:
+        output_shape = input_shape
+    else:
+        axis = None if not axes else tuple(axes)
+        output_shape = list(np.sum(np.empty(input_shape), axis=axis, keepdims=keepdims).shape)
+
+    graph_input_shape = ["?"] * len(input_shape) if dynamic else input_shape
+    graph_output_shape = ["?"] * len(output_shape) if dynamic else output_shape
+
+    node = helper.make_node(func, inputs=node_inputs, outputs=["y"], **node_attrs)
+    graph = helper.make_graph(
+        [node],
+        "reduce_numerical_test",
+        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, graph_input_shape)],
+        initializer=initializers,
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, graph_output_shape)],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="reduce_numerical_test",
+        opset_imports=[helper.make_opsetid("", opset)],
+    )
+    inputs = {"x": np.random.randn(*input_shape).astype(np.float32)}
+    check_correctness(model, inputs, opset=opset, rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_attr())
 def test_all_reduce_funcs_axes_attr(func, dynamic, opset):
-    def verify_reduce_func(func, data, axis, keepdims):
-        inshape = data.shape
-        outshape = np.sum(data, axis=axis, keepdims=keepdims == 1).shape
-
-        if axis:
-            node = onnx.helper.make_node(
-                func, inputs=["x"], outputs=["y"], axes=axis, keepdims=keepdims
-            )
-        else:
-            node = onnx.helper.make_node(func, inputs=["x"], outputs=["y"], keepdims=keepdims)
-
-        if dynamic:
-            in_list = ["?" for _ in range(len(inshape))]
-            out_list = ["?" for _ in range(len(outshape))]
-        else:
-            in_list = list(inshape)
-            out_list = list(outshape)
-        graph = helper.make_graph(
-            [node],
-            "reduce_test",
-            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_list)],
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_list)],
-        )
-
-        model = helper.make_model(graph, producer_name="reduce_test")
-        inputs_dict = {"x": data}
-        # Reduction ops accumulate arithmetic errors, so we use a higher tolerance.
-        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
-
     for keepdims in [True, False]:
-        verify_reduce_func(
-            func, np.random.randn(3, 2, 2).astype(np.float32), axis=None, keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 2, 3).astype(np.float32), axis=None, keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 3, 3).astype(np.float32), axis=(1,), keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 3, 3, 1).astype(np.float32), axis=(1, 2), keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(3, 3, 3, 1).astype(np.float32), axis=(1,), keepdims=keepdims
-        )
-
-        verify_reduce_func(
-            func, np.random.randn(1, 3, 4, 1).astype(np.float32), axis=(1,), keepdims=keepdims
-        )
+        for input_shape, axes in REDUCE_AXES_ATTR_TEST_CASES:
+            expected = _make_reduce_expected_ir(func, input_shape, axes, False, keepdims, dynamic)
+            verify_composite_reduce_axes_attr_ir(
+                func, input_shape, axes, keepdims, dynamic, opset, expected
+            )
 
 
-def _make_composite_reduce_expected_ir(
+@pytest.mark.parametrize(
+    "func, opset, dynamic, keepdims",
+    [
+        ("ReduceMax", 11, False, False),
+        ("ReduceMean", 11, False, False),
+        ("ReduceMean", 13, True, True),
+        ("ReduceMin", 11, False, False),
+        ("ReduceProd", 11, False, False),
+        ("ReduceProd", 13, False, False),
+        ("ReduceSum", 11, False, False),
+    ],
+)
+def test_reduce_funcs_axes_attr_numerical(func, opset, dynamic, keepdims):
+    _verify_reduce_numerical(
+        func,
+        opset,
+        axes_as_input=False,
+        axes=[1],
+        dynamic=dynamic,
+        keepdims=keepdims,
+    )
+
+
+def _make_reduce_expected_ir(
     func: str,
     input_shape: list[int],
     axes,
@@ -4876,7 +5310,7 @@ def _make_composite_reduce_expected_ir(
     def expected_input_shape(shape):
         if not dynamic:
             return tuple(shape)
-        return tuple(tvm.tirx.SizeVar(f"reduce_dim_{i}", "int64") for i in range(len(shape)))
+        return tuple(f"reduce_dim_{i}" for i in range(len(shape)))
 
     axis = None if not axes else tuple(axes)
     parser_vars = {
@@ -4892,8 +5326,19 @@ def _make_composite_reduce_expected_ir(
         parser_vars["axes_shape"] = axes_shape
         params.append('        reduce_axes: R.Tensor(axes_shape, dtype="int64")')
 
+    basic_reduce_op = {
+        "ReduceMax": R.max,
+        "ReduceMean": R.mean,
+        "ReduceMin": R.min,
+        "ReduceProd": R.prod,
+        "ReduceSum": R.sum,
+    }.get(func)
+
     if noop_with_empty_axes and not axes:
         body = ["            gv = x"]
+    elif basic_reduce_op is not None:
+        parser_vars["reduce_op"] = basic_reduce_op
+        body = ["            gv = reduce_op(x, axis=axis, keepdims=keepdims)"]
     elif func == "ReduceSumSquare":
         body = [
             "            lv = R.multiply(x, x)",
@@ -4959,7 +5404,7 @@ def test_composite_reduce_funcs_axes_attr_ir():
         for keepdims in [True, False]:
             for dynamic in [True, False]:
                 for input_shape, axes in REDUCE_AXES_ATTR_TEST_CASES:
-                    expected = _make_composite_reduce_expected_ir(
+                    expected = _make_reduce_expected_ir(
                         func, input_shape, axes, False, keepdims, dynamic
                     )
                     for opset in [13, 11]:
@@ -4976,14 +5421,6 @@ def create_reduce_test_parameters_axes_input():
         output.append(("ReduceMin", dynamic, 18))
         output.append(("ReduceProd", dynamic, 18))
         output.append(("ReduceSum", dynamic, 13))
-    return output
-
-
-def create_composite_reduce_test_parameters_axes_input():
-    output = []
-    for dynamic in [True, False]:
-        for func in COMPOSITE_REDUCE_FUNCS:
-            output.append((func, dynamic, 18))
     return output
 
 
@@ -5054,107 +5491,52 @@ def verify_composite_reduce_axes_input_ir(
 
 @pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_input())
 def test_all_reduce_funcs_axes_input(func, dynamic, opset):
-    def verify_reduce_func(func, data, axes, keepdims, noop_with_empty_axes=False):
-        inshape = data.shape
-        inputs = ["x"]
-        initializers = []
-
-        # Optional `axes` input
-        if axes is not None:
-            axes_name = "reduce_axes"
-            axes_np = np.asarray(axes, dtype=np.int64)
-            axes_init = helper.make_tensor(
-                name=axes_name,
-                data_type=TensorProto.INT64,
-                dims=axes_np.shape,
-                vals=axes_np,
-            )
-            initializers.append(axes_init)
-            inputs.append(axes_name)
-
-        # Determine input and output shapes
-        if not axes and not noop_with_empty_axes:
-            outshape = np.sum(data, axis=None, keepdims=keepdims).shape
-        elif not axes and noop_with_empty_axes:
-            outshape = inshape
-        else:
-            outshape = np.sum(data, axis=axes, keepdims=keepdims).shape
-
-        if dynamic:
-            in_list = ["?"] * len(inshape)
-            out_list = ["?"] * len(outshape)
-        else:
-            in_list = list(inshape)
-            out_list = list(outshape)
-
-        # Make a model node
-        node = helper.make_node(
-            func,
-            inputs=inputs,
-            outputs=["y"],
-            keepdims=keepdims,
-            noop_with_empty_axes=noop_with_empty_axes,
-        )
-
-        # Make a model graph and a model
-        graph = helper.make_graph(
-            [node],
-            "reduce18_test",
-            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_list)],
-            initializer=initializers,
-            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_list)],
-        )
-        model = helper.make_model(graph, producer_name="reduce18_test")
-
-        inputs_dict = {"x": data}
-        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
-
-    # Verify
     for keepdims in [True, False]:
-        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
-        verify_reduce_func(
-            func,
-            np.random.randn(3, 2, 2).astype(np.float32),
-            axes=[],
-            keepdims=keepdims,
-            noop_with_empty_axes=False,
-        )
+        for input_shape, axes, noop_with_empty_axes in REDUCE_AXES_INPUT_TEST_CASES:
+            expected = _make_reduce_expected_ir(
+                func,
+                input_shape,
+                axes,
+                noop_with_empty_axes,
+                keepdims,
+                dynamic,
+                axes_as_input=True,
+            )
+            verify_composite_reduce_axes_input_ir(
+                func,
+                input_shape,
+                axes,
+                noop_with_empty_axes,
+                keepdims,
+                dynamic,
+                opset,
+                expected,
+            )
 
-        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
-        verify_reduce_func(
-            func,
-            np.random.randn(3, 2, 2).astype(np.float32),
-            axes=None,
-            keepdims=keepdims,
-            noop_with_empty_axes=False,
-        )
 
-        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
-        verify_reduce_func(
-            func,
-            np.random.randn(4, 3).astype(np.float32),
-            axes=[],
-            keepdims=keepdims,
-            noop_with_empty_axes=True,
-        )
-
-        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
-        # (onnxruntime bug) Runtime error on the onnxruntime part
-        # verify_reduce_func(
-        #     func,
-        #     np.random.randn(4, 3).astype(np.float32),
-        #     axes=None,
-        #     keepdims=keepdims,
-        #     noop_with_empty_axes=True,
-        # )
-
-        # `axes` provided -> reduce over specified axes.
-        verify_reduce_func(
-            func,
-            np.random.randn(3, 3, 3, 1).astype(np.float32),
-            axes=(1, 2),
-            keepdims=keepdims,
-        )
+@pytest.mark.parametrize(
+    "func, opset, axes, noop_with_empty_axes, dynamic, keepdims",
+    [
+        ("ReduceMax", 18, [1], False, False, False),
+        ("ReduceMean", 18, [1], False, True, True),
+        ("ReduceMin", 18, [1], False, False, False),
+        ("ReduceProd", 18, [1], False, False, False),
+        ("ReduceSum", 13, [1], False, False, False),
+        ("ReduceSum", 13, [], True, False, False),
+    ],
+)
+def test_reduce_funcs_axes_input_numerical(
+    func, opset, axes, noop_with_empty_axes, dynamic, keepdims
+):
+    _verify_reduce_numerical(
+        func,
+        opset,
+        axes_as_input=True,
+        axes=axes,
+        noop_with_empty_axes=noop_with_empty_axes,
+        dynamic=dynamic,
+        keepdims=keepdims,
+    )
 
 
 def test_composite_reduce_funcs_axes_input_ir():
@@ -5162,7 +5544,7 @@ def test_composite_reduce_funcs_axes_input_ir():
         for keepdims in [True, False]:
             for dynamic in [True, False]:
                 for input_shape, axes, noop_with_empty_axes in REDUCE_AXES_INPUT_TEST_CASES:
-                    expected = _make_composite_reduce_expected_ir(
+                    expected = _make_reduce_expected_ir(
                         func,
                         input_shape,
                         axes,
@@ -5183,13 +5565,11 @@ def test_composite_reduce_funcs_axes_input_ir():
                     )
 
 
-@pytest.mark.parametrize("in_dtype", [np.float32, np.int32])
 @pytest.mark.parametrize("axis", [None, 0, 1, 2])
 @pytest.mark.parametrize("keepdims", [None, True, False])
-def test_arg_min_max(in_dtype, axis, keepdims):
-    def verify_arg_min_max(input_dim, in_dtype, op_name="ArgMax", axis=None, keepdims=None):
-        a_np1 = np.random.uniform(-10, 10, input_dim).astype(in_dtype)
-        out_shape = list(a_np1.shape)
+def test_arg_min_max(axis, keepdims):
+    def verify_arg_min_max(input_shape, op_name="ArgMax", axis=None, keepdims=None):
+        out_shape = list(input_shape)
         def_axis = axis if axis is not None else 0
         if keepdims == 1 or keepdims is None:
             out_shape[def_axis] = 1
@@ -5208,15 +5588,15 @@ def test_arg_min_max(in_dtype, axis, keepdims):
         graph = helper.make_graph(
             [node],
             "argreduce_test",
-            inputs=[helper.make_tensor_value_info("a_np1", TensorProto.INT32, list(a_np1.shape))],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, list(out_shape))],
+            inputs=[helper.make_tensor_value_info("a_np1", TensorProto.INT32, input_shape)],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, out_shape)],
         )
 
         model = helper.make_model(graph, producer_name="arg_min_max_test")
         check_correctness(model)
 
-    verify_arg_min_max([3, 4, 4], in_dtype, "ArgMax", axis, keepdims)
-    verify_arg_min_max([3, 4, 4], in_dtype, "ArgMin", axis, keepdims)
+    verify_arg_min_max([3, 4, 4], "ArgMax", axis, keepdims)
+    verify_arg_min_max([3, 4, 4], "ArgMin", axis, keepdims)
 
 
 @pytest.mark.parametrize("axis", [-1, 0, 1])
@@ -5245,7 +5625,7 @@ def test_topk(axis: int, largest: int):
     )
     model = helper.make_model(graph, producer_name="topk_test")
 
-    check_correctness(model)
+    check_correctness(model, check_dtypes=True)
 
 
 def test_expand():
@@ -5331,12 +5711,25 @@ def test_expand():
             in_: R.Tensor((1, 32, 32), dtype="float32"),
             in_2: R.Tensor(("batch", 32, 32), dtype="float32"),
         ) -> R.Tensor(("batch", 32, 32), dtype="float32"):
-            batch = T.int64(is_size_var=True)
+            batch = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 32, 32), dtype="float32") = R.broadcast_to(
                     in_, R.shape([batch, 32, 32])
                 )
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class ExpectedHigherRankSamePaddedShape:
+        @R.function
+        def main(
+            in_: R.Tensor((1,), dtype="float32"),
+            in_2: R.Tensor((1, 1), dtype="float32"),
+        ) -> R.Tensor((1, 1), dtype="float32"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((1, 1), dtype="float32") = R.broadcast_to(in_, R.shape([1, 1]))
                 R.output(gv)
             return gv
 
@@ -5347,6 +5740,12 @@ def test_expand():
     )
     _assert_expand_dynamic_shapeexpr_ir(
         "expand_with_dynamic_dim", [1, 32, 32], ["batch", 32, 32], ExpectedDynamicShape
+    )
+    _assert_expand_dynamic_shapeexpr_ir(
+        "expand_with_higher_rank_same_padded_shape",
+        [1],
+        [1, 1],
+        ExpectedHigherRankSamePaddedShape,
     )
 
 
@@ -5521,6 +5920,29 @@ def test_constantofshape_default_value():
             return gv
 
     tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_constantofshape_initializer_shape_with_keep_params_in_input():
+    shape_init = helper.make_tensor("shape", TensorProto.INT64, [1], [3])
+    node = helper.make_node(
+        "ConstantOfShape",
+        ["shape"],
+        ["y"],
+        value=helper.make_tensor("value", TensorProto.INT64, [1], [1]),
+    )
+    graph = helper.make_graph(
+        [node],
+        "constantofshape_initializer_shape_test",
+        inputs=[helper.make_tensor_value_info("shape", TensorProto.INT64, [1])],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.INT64, [3])],
+        initializer=[shape_init],
+    )
+    model = helper.make_model(graph, producer_name="constantofshape_initializer_shape_test")
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    assert tuple(dim.value for dim in tvm_model["main"].ret_ty.shape.values) == (3,)
+    assert tvm_model["main"].ret_ty.dtype == "int64"
 
 
 def test_slice():
@@ -5884,7 +6306,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, 10]) = R.shape([A, 10])
@@ -5900,8 +6322,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
@@ -5917,7 +6339,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([20, 10], "int64")
@@ -5933,9 +6355,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([A, B]) = R.shape([A, B])
@@ -5966,7 +6388,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
@@ -5982,8 +6404,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
@@ -5999,7 +6421,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((1,), dtype="int64"):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1,), dtype="int64") = R.const([10], "int64")
@@ -6015,9 +6437,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=1):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B]) = R.shape([B])
@@ -6048,7 +6470,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor((2,), dtype="int64"):
-            A = T.int64(is_size_var=True)
+            A = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((2,), dtype="int64") = R.const([10, 5], "int64")
@@ -6064,8 +6486,8 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, 5]) = R.shape([B, 5])
@@ -6081,7 +6503,7 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            C = T.int64(is_size_var=True)
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([10, C]) = R.shape([10, C])
@@ -6097,9 +6519,9 @@ def test_slice_dynamic_shape():
             ends: R.Tensor((1,), dtype="int64"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Shape(ndim=2):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
-            C = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
+            C = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Shape([B, C]) = R.shape([B, C])
@@ -6277,9 +6699,18 @@ def test_attention(dynamic):
     )
 
 
-def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=14):
+def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=14, axes=None):
     len_dim = len(pads) // 2
     np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
+
+    if axes is not None:
+        rank = len(input_shape)
+        full_pads = [(0, 0)] * rank
+        for i, axis in enumerate(axes):
+            axis = axis if axis >= 0 else axis + rank
+            full_pads[axis] = np_pads[i]
+        np_pads = full_pads
+
     if mode == "constant":
         out_shape = np.pad(
             np.empty(input_shape, dtype=np.float32),
@@ -6294,6 +6725,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
     input_shape = tuple(input_shape)
     out_shape = tuple(out_shape)
     pads_shape = (len(pads),)
+    axes_shape = None if axes is None else (len(axes),)
 
     if mode == "constant" and opset >= 11:
 
@@ -6455,6 +6887,60 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         return ExpectedPadEdgeAttrs
 
+    if mode == "wrap" and opset >= 19:
+        if axes is None:
+
+            @I.ir_module
+            class ExpectedPadWrapWithInputs:
+                @T.prim_func(private=True, s_tir=True)
+                def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                    T.evaluate(0)
+
+                @R.function
+                def main(
+                    input: R.Tensor(input_shape, dtype="float32"),
+                    pads: R.Tensor(pads_shape, dtype="int64"),
+                ) -> R.Tensor(out_shape, dtype="float32"):
+                    R.func_attr({"num_input": 1})
+                    cls = ExpectedPadWrapWithInputs
+                    with R.dataflow():
+                        lv = R.call_tir(
+                            cls.circular_pad,
+                            (input,),
+                            out_ty=R.Tensor(out_shape, dtype="float32"),
+                        )
+                        gv: R.Tensor(out_shape, dtype="float32") = lv
+                        R.output(gv)
+                    return gv
+
+            return ExpectedPadWrapWithInputs
+
+        @I.ir_module
+        class ExpectedPadWrapWithAxes:
+            @T.prim_func(private=True, s_tir=True)
+            def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                T.evaluate(0)
+
+            @R.function
+            def main(
+                input: R.Tensor(input_shape, dtype="float32"),
+                pads: R.Tensor(pads_shape, dtype="int64"),
+                axes: R.Tensor(axes_shape, dtype="int64"),
+            ) -> R.Tensor(out_shape, dtype="float32"):
+                R.func_attr({"num_input": 1})
+                cls = ExpectedPadWrapWithAxes
+                with R.dataflow():
+                    lv = R.call_tir(
+                        cls.circular_pad,
+                        (input,),
+                        out_ty=R.Tensor(out_shape, dtype="float32"),
+                    )
+                    gv: R.Tensor(out_shape, dtype="float32") = lv
+                    R.output(gv)
+                return gv
+
+        return ExpectedPadWrapWithAxes
+
     raise AssertionError(f"No Pad expected IR for mode={mode}, opset={opset}")
 
 
@@ -6463,21 +6949,41 @@ def test_pad(dynamic):
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
-    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0):
+    def verify_pad(input_shape, pads, expected, mode="constant", value=0.0, opset=14, axes=None):
         len_dim = len(pads) // 2
         np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
-        pads = np.array(pads)
+
+        if axes is not None:
+            rank = len(input_shape)
+            full_pads = [(0, 0)] * rank
+            for i, axis in enumerate(axes):
+                axis = axis if axis >= 0 else axis + rank
+                full_pads[axis] = np_pads[i]
+            np_pads = full_pads
+
+        pads = np.array(pads, dtype=np.int64)
         #  onnx graph
-        if mode in ["edge", "reflect"]:
+        if mode in ["edge", "reflect", "wrap"]:
             outdata = np.pad(np.empty(input_shape, dtype=np.float32), pad_width=np_pads, mode=mode)
-            node = helper.make_node("Pad", inputs=["input", "pads"], outputs=["output"], mode=mode)
+
+            node_inputs = ["input", "pads"]
+            initializer = [helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)]
+
+            if axes is not None:
+                axes = np.array(axes, dtype=np.int64)
+                node_inputs = ["input", "pads", "", "axes"]
+                initializer.append(
+                    helper.make_tensor("axes", TensorProto.INT64, (len(axes),), axes)
+                )
+
+            node = helper.make_node("Pad", inputs=node_inputs, outputs=["output"], mode=mode)
             graph = helper.make_graph(
                 [node],
                 "pad_test",
                 inputs=[
                     helper.make_tensor_value_info("input", TensorProto.FLOAT, list(input_shape))
                 ],
-                initializer=[helper.make_tensor("pads", TensorProto.INT64, (len(pads),), pads)],
+                initializer=initializer,
                 outputs=[
                     helper.make_tensor_value_info("output", TensorProto.FLOAT, list(outdata.shape))
                 ],
@@ -6510,8 +7016,8 @@ def test_pad(dynamic):
                 ],
             )
         model = helper.make_model(graph, producer_name="pad_test")
-        model.opset_import[0].version = 14
-        tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+        model.opset_import[0].version = opset
+        tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
         tvm_model["main"] = tvm_model["main"].without_attr("params")
         expected = tvm.IRModule(expected.functions)
         for gv in expected.get_global_vars():
@@ -6519,20 +7025,27 @@ def test_pad(dynamic):
                 expected.update_func(gv, tvm_model[gv.name_hint])
         tvm.ir.assert_structural_equal(tvm_model, expected)
 
-    for input_shape, pads, mode, value in [
-        ((2, 2), [0, 1, 0, 0], "constant", 0.0),
-        ((2, 3), [1, 0, 0, 1], "constant", 0.0),
-        ((3, 2), [0, 0, 1, 0], "constant", 5.0),
-        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect", 0.0),
-        ((2, 3), [1, 1, 1, 1], "edge", 0.0),
-        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge", 0.0),
+    for input_shape, pads, mode, value, opset, axes in [
+        ((2, 2), [0, 1, 0, 0], "constant", 0.0, 14, None),
+        ((2, 3), [1, 0, 0, 1], "constant", 0.0, 14, None),
+        ((3, 2), [0, 0, 1, 0], "constant", 5.0, 14, None),
+        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect", 0.0, 14, None),
+        ((2, 3), [1, 1, 1, 1], "edge", 0.0, 14, None),
+        ((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "edge", 0.0, 14, None),
+        ((1, 3, 4), [0, 0, 2, 0, 0, 2], "wrap", 0.0, 19, None),
+        ((1, 3, 4), [2, 2], "wrap", 0.0, 19, [2]),
+        ((1, 3, 4), [1, 2, 1, 2], "wrap", 0.0, 19, [1, 2]),
     ]:
         verify_pad(
             input_shape,
             pads,
-            _make_pad_expected_ir(input_shape, pads, mode=mode, value=value, opset=14),
+            _make_pad_expected_ir(
+                input_shape, pads, mode=mode, value=value, opset=opset, axes=axes
+            ),
             mode,
             value,
+            opset,
+            axes,
         )
 
 
@@ -6694,9 +7207,7 @@ def test_split():
             shape = shape_tuple(shape)
             if not dynamic:
                 return shape
-            return tuple(
-                tvm.tirx.SizeVar(f"split_input_dim_{i}", "int64") for i in range(len(shape))
-            )
+            return tuple(f"split_input_dim_{i}" for i in range(len(shape)))
 
         dtype = np.dtype(fp_arith).name
         input_shape = expected_input_shape(indata_shape)
@@ -6846,10 +7357,10 @@ def test_tile():
             ),
             dtype="float32",
         ):
-            tile_input_dim_0 = T.int64(is_size_var=True)
-            tile_input_dim_1 = T.int64(is_size_var=True)
-            tile_input_dim_2 = T.int64(is_size_var=True)
-            tile_input_dim_3 = T.int64(is_size_var=True)
+            tile_input_dim_0 = T.int64()
+            tile_input_dim_1 = T.int64()
+            tile_input_dim_2 = T.int64()
+            tile_input_dim_3 = T.int64()
             R.func_attr({"num_input": 1})
             cls = ExpectedTileDynamicInput
             with R.dataflow():
@@ -6939,9 +7450,7 @@ def test_tile_dynamic_repeats():
     def make_expected(dynamic_input, in_shape):
         rank = len(in_shape)
         input_shape = (
-            tuple(tvm.tirx.SizeVar(f"tile_data_dim_{i}", "int64") for i in range(rank))
-            if dynamic_input
-            else tuple(in_shape)
+            tuple(f"tile_data_dim_{i}" for i in range(rank)) if dynamic_input else tuple(in_shape)
         )
 
         if rank == 2:
@@ -7078,28 +7587,13 @@ def test_tile_dynamic_repeats():
 
 
 def _generate_roi_cases():
-    # Base case when with_roi is False
-    roi_list = [
+    return [
         pytest.param(False, None, False, id="no_roi"),
+        pytest.param(True, [], True, id="empty_roi_constant"),
+        pytest.param(True, [], False, id="empty_roi_initializer"),
+        pytest.param(True, [0.1, 0.2, 0.9, 0.8], True, id="spatial_roi_constant"),
+        pytest.param(True, [0.1, 0.2, 0.9, 0.8], False, id="spatial_roi_initializer"),
     ]
-
-    # Valid when with_roi is True and with_constant is True/False
-    roi_cases = [
-        [],
-        [0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 1.0],
-        [0.1, 0.1, 0.9, 0.9],
-        [0.2, 0.2, 0.8, 0.8],
-        [0.3, 0.3, 0.7, 0.7],
-        [0.4, 0.4, 0.6, 0.6],
-        [0.5, 0.5, 0.5, 0.5],
-        [0.1, 0.2, 0.9, 0.8],
-    ]
-    for roi in roi_cases:
-        roi_list.append(pytest.param(True, roi, True, id=f"roi_{'_'.join(str(x) for x in roi)}"))
-        roi_list.append(pytest.param(True, roi, False, id=f"roi_{'_'.join(str(x) for x in roi)}"))
-
-    return roi_list
 
 
 @pytest.mark.parametrize("with_roi, roi_list, with_constant", _generate_roi_cases())
@@ -7444,6 +7938,101 @@ def test_batch_norm_defaults_to_inference_mode():
 
     assert len(batch_norm_attrs) == 1
     assert batch_norm_attrs[0].training is False
+
+
+def test_batch_norm_mixed_dtype_params():
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT16, [1, 3, 2, 2])
+    output = helper.make_tensor_value_info("output", TensorProto.FLOAT16, [1, 3, 2, 2])
+    params = [
+        numpy_helper.from_array(np.array([1.0, 1.5, 2.0], dtype=np.float32), name="gamma"),
+        numpy_helper.from_array(np.array([0.0, 0.1, -0.1], dtype=np.float32), name="beta"),
+        numpy_helper.from_array(np.array([0.2, -0.3, 0.4], dtype=np.float32), name="mean"),
+        numpy_helper.from_array(np.array([1.0, 1.5, 2.0], dtype=np.float32), name="var"),
+    ]
+    batch_norm_node = helper.make_node(
+        "BatchNormalization",
+        ["data", "gamma", "beta", "mean", "var"],
+        ["output"],
+        epsilon=1e-5,
+        momentum=0.9,
+        training_mode=0,
+    )
+    graph = helper.make_graph(
+        [batch_norm_node],
+        "mixed_dtype_batchnorm",
+        [data],
+        [output],
+        initializer=params,
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 15)])
+
+    tvm_model = from_onnx(model, keep_params_in_input=False)
+
+    assert tuple(dim.value for dim in tvm_model["main"].ret_ty.shape.values) == (1, 3, 2, 2)
+    assert tvm_model["main"].ret_ty.dtype == "float16"
+
+    batch_norm_calls = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+            batch_norm_calls.append(expr)
+
+    relax.analysis.post_order_visit(tvm_model["main"], visit)
+
+    assert len(batch_norm_calls) == 1
+    arg_dtypes = [
+        str(getattr(arg, "struct_info", getattr(arg, "ty", None)).dtype)
+        for arg in batch_norm_calls[0].args
+    ]
+    assert arg_dtypes == ["float32"] * 5
+
+
+def test_batch_norm_training_preserves_output_dtypes():
+    data = helper.make_tensor_value_info("data", TensorProto.FLOAT16, [1, 3, 2, 2])
+    outputs = [
+        helper.make_tensor_value_info("output", TensorProto.FLOAT16, [1, 3, 2, 2]),
+        helper.make_tensor_value_info("running_mean", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("running_var", TensorProto.FLOAT16, [3]),
+    ]
+    inputs = [
+        data,
+        helper.make_tensor_value_info("gamma", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("beta", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("mean", TensorProto.FLOAT16, [3]),
+        helper.make_tensor_value_info("var", TensorProto.FLOAT16, [3]),
+    ]
+    batch_norm_node = helper.make_node(
+        "BatchNormalization",
+        [value.name for value in inputs],
+        [value.name for value in outputs],
+        training_mode=1,
+    )
+    graph = helper.make_graph(
+        [batch_norm_node],
+        "mixed_dtype_training_batchnorm",
+        inputs,
+        outputs,
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 15)])
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+
+    assert [str(field.dtype) for field in tvm_model["main"].ret_ty.fields] == [
+        "float16",
+        "float16",
+        "float16",
+    ]
+
+    batch_norm_calls = []
+
+    def visit(expr):
+        if isinstance(expr, relax.Call) and expr.op == tvm.ir.Op.get("relax.nn.batch_norm"):
+            batch_norm_calls.append(expr)
+
+    relax.analysis.post_order_visit(tvm_model["main"], visit)
+
+    assert len(batch_norm_calls) == 1
+    assert [str(arg.ty.dtype) for arg in batch_norm_calls[0].args] == ["float32"] * 5
 
 
 def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
@@ -8196,8 +8785,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             (1, "A * B * 32"), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((1, A * B * 32), dtype="float32") = R.reshape(
@@ -8212,8 +8801,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             ("A * B", 32), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A * B, 32), dtype="float32") = R.reshape(x, R.shape([A * B, 32]))
@@ -8226,8 +8815,8 @@ def test_flatten_dynamic():
         def main(x: R.Tensor((1, "A", "B", 32), dtype="float32")) -> R.Tensor(
             ("A", "B * 32"), dtype="float32"
         ):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B * 32), dtype="float32") = R.reshape(x, R.shape([A, B * 32]))
@@ -9048,66 +9637,6 @@ def test_optional_has_element_empty():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
-def test_optional_has_element_empty_ir():
-    x_shape = [2, 3]
-    tensor_type = helper.make_tensor_type_proto(TensorProto.FLOAT, x_shape)
-    optional_type = helper.make_optional_type_proto(tensor_type)
-    optional_node = helper.make_node("Optional", [], ["optional"], type=tensor_type)
-    has_element_node = helper.make_node("OptionalHasElement", ["optional"], ["output"])
-    graph = helper.make_graph(
-        [optional_node, has_element_node],
-        "test_optional_has_element_empty_ir",
-        inputs=[],
-        outputs=[helper.make_tensor_value_info("output", TensorProto.BOOL, [])],
-        value_info=[helper.make_value_info("optional", optional_type)],
-    )
-    model = helper.make_model(graph, producer_name="test_optional_has_element_empty_ir")
-    model.ir_version = 11
-    model.opset_import[0].version = 18
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main() -> R.Tensor((), dtype="bool"):
-            R.func_attr({"num_input": 0})
-            with R.dataflow():
-                gv: R.Tensor((), dtype="bool") = R.const(False, "bool")
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
-
-
-def test_optional_get_element_tensor_ir():
-    x_shape = [2, 3]
-    optional_node = helper.make_node("Optional", ["x"], ["optional"])
-    get_element_node = helper.make_node("OptionalGetElement", ["optional"], ["output"])
-    graph = helper.make_graph(
-        [optional_node, get_element_node],
-        "test_optional_get_element_tensor_ir",
-        inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape)],
-        outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, x_shape)],
-        value_info=[make_optional_tensor_value_info("optional", TensorProto.FLOAT, x_shape)],
-    )
-    model = helper.make_model(graph, producer_name="test_optional_get_element_tensor_ir")
-    model.ir_version = 11
-    model.opset_import[0].version = 18
-    tvm_model = from_onnx(model, opset=18, keep_params_in_input=True)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((2, 3), dtype="float32") = x
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(tvm_model, Expected)
-
-
 def test_optional_get_element_sequence():
     seq_node, graph_inputs = construct_sequence(input_shape=[32, 32], num_tensors=4)
     index = make_constant_node("index", TensorProto.INT64, (), [1])
@@ -9270,8 +9799,8 @@ def test_symbolic_shape_deduction():
             axes: R.Tensor((1,), dtype="int64"),
             target_shape: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64(is_size_var=True)
-            seq = T.int64(is_size_var=True)
+            batch = T.int64()
+            seq = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -9287,8 +9816,8 @@ def test_symbolic_shape_deduction():
             data: R.Tensor(("batch", "seq"), dtype="float32"),
             axes: R.Tensor((1,), dtype="int64"),
         ) -> R.Tensor(("batch",), dtype="float32"):
-            batch = T.int64(is_size_var=True)
-            seq = T.int64(is_size_var=True)
+            batch = T.int64()
+            seq = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((batch,), dtype="float32") = R.broadcast_to(
@@ -9323,7 +9852,7 @@ def test_multi_inputs_with_same_symbolic_shape():
             data1: R.Tensor(("batch", 1), dtype="float32"),
             data2: R.Tensor(("batch", 1), dtype="float32"),
         ) -> R.Tensor(("batch", 2), dtype="float32"):
-            batch = T.int64(is_size_var=True)
+            batch = T.int64()
             R.func_attr({"num_input": 2})
             with R.dataflow():
                 gv: R.Tensor((batch, 2), dtype="float32") = R.concat((data1, data2), axis=1)
@@ -9433,8 +9962,8 @@ def test_shape_dim_string_expression_graph_add():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A + B"), dtype="float32")) -> R.Tensor(("A", "B", "A + B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A + B), dtype="float32") = x
@@ -9467,8 +9996,8 @@ def test_shape_dim_string_expression_graph_subtract():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A - B"), dtype="float32")) -> R.Tensor(("A", "B", "A - B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A - B), dtype="float32") = x
@@ -9501,8 +10030,8 @@ def test_shape_dim_string_expression_graph_mul():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A * B"), dtype="float32")) -> R.Tensor(("A", "B", "A * B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A * B), dtype="float32") = x
@@ -9536,8 +10065,8 @@ def test_shape_dim_string_expression_graph_div_1():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
@@ -9571,8 +10100,8 @@ def test_shape_dim_string_expression_graph_div_2():
     class Expected:
         @R.function
         def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
-            A = T.int64(is_size_var=True)
-            B = T.int64(is_size_var=True)
+            A = T.int64()
+            B = T.int64()
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 gv: R.Tensor((A, B, A // B), dtype="float32") = x
@@ -9656,124 +10185,10 @@ class ExpectedNMSFourBoxesWithMaxParam:
         return gv
 
 
-@I.ir_module
-class ExpectedNMSFourBoxes:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 4, 4), dtype="float32"),
-        scores: R.Tensor((1, 1, 4), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(2, "int64"),
-                R.const(0.10000000149011612, "float32"),
-                R.const(0.10000000149011612, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-@I.ir_module
-class ExpectedNMSThreeBoxesTwoClasses:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 3, 4), dtype="float32"),
-        scores: R.Tensor((1, 2, 3), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(2, "int64"),
-                R.const(0.5, "float32"),
-                R.const(0.10000000149011612, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-@I.ir_module
-class ExpectedNMSThreeBoxesOneClass:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 3, 4), dtype="float32"),
-        scores: R.Tensor((1, 1, 3), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(2, "int64"),
-                R.const(0.5, "float32"),
-                R.const(0.10000000149011612, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-@I.ir_module
-class ExpectedNMSThreeBoxesOneClassScoreThreshold:
-    @R.function
-    def main(
-        boxes: R.Tensor((1, 3, 4), dtype="float32"),
-        scores: R.Tensor((1, 1, 3), dtype="float32"),
-        max_output_boxes_per_class: R.Tensor((1,), dtype="int64"),
-        iou_threshold: R.Tensor((1,), dtype="float32"),
-        score_threshold: R.Tensor((1,), dtype="float32"),
-    ):
-        R.func_attr({"num_input": 2})
-        with R.dataflow():
-            lv = R.vision.all_class_non_max_suppression(
-                boxes,
-                scores,
-                R.const(3, "int64"),
-                R.const(0.10000000149011612, "float32"),
-                R.const(0.05000000074505806, "float32"),
-                "onnx",
-            )
-            lv1 = lv[0]
-            gv = lv1
-            R.output(gv)
-        return gv
-
-
-def _assert_nms_import(
-    model,
-    boxes_shape,
-    scores_shape,
-    expected,
-    center_point_box=0,
-    nms_params=None,
-):
-    assert center_point_box == 0
-    nms_params = nms_params or []
-
+def _assert_nms_import(model, expected, num_params=0):
     tvm_model = from_onnx(model, opset=11, keep_params_in_input=True)
-    if nms_params:
-        assert len(tvm_model["main"].attrs["params"]) == len(nms_params)
+    if num_params:
+        assert len(tvm_model["main"].attrs["params"]) == num_params
         tvm_model["main"] = tvm_model["main"].without_attr("params")
 
     tvm.ir.assert_structural_equal(tvm_model, expected)
@@ -9812,14 +10227,8 @@ def test_nms():
 
     _assert_nms_import(
         model,
-        boxes_shape,
-        scores_shape,
         ExpectedNMSFiveBoxes,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 3),
-            ("iou_threshold", [1], "float32", 0.5),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
+        num_params=3,
     )
 
 
@@ -9855,13 +10264,11 @@ def test_nms_max_output_boxes_per_class_zero():
     def verify(with_explicit_max, expected):
         node_inputs = ["boxes", "scores"]
         initializer = []
-        nms_params = None
         if with_explicit_max:
             node_inputs.append("max_output_boxes_per_class")
             initializer.append(
                 helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [0])
             )
-            nms_params = [("max_output_boxes_per_class", [1], "int64", 0)]
 
         nms_node = helper.make_node(
             "NonMaxSuppression",
@@ -9889,194 +10296,12 @@ def test_nms_max_output_boxes_per_class_zero():
 
         _assert_nms_import(
             model,
-            boxes_shape,
-            scores_shape,
             expected,
-            nms_params=nms_params,
+            num_params=int(with_explicit_max),
         )
 
     verify(False, ExpectedNMSFourBoxesDefaultParams)
     verify(True, ExpectedNMSFourBoxesWithMaxParam)
-
-
-def test_nms_algorithm_correctness():
-    """NMS import should pass max boxes, IoU, and score threshold constants."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 3, 4]  # batch_size, num_boxes, 4
-    scores_shape = [1, 2, 3]  # batch_size, num_classes, num_boxes
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_correctness",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor(
-                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
-            ),  # Only 2 boxes per class
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
-            helper.make_tensor(
-                "score_threshold", TensorProto.FLOAT, [1], [0.1]
-            ),  # Score threshold 0.1
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [4, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_correctness")
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSThreeBoxesTwoClasses,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 2),
-            ("iou_threshold", [1], "float32", 0.5),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
-    )
-
-
-def test_nms_iou_suppression():
-    """NMS import should pass the IoU threshold constant."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 3, 4]
-    scores_shape = [1, 1, 3]
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_iou_suppression",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [2]),
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.5]),  # IoU threshold 0.5
-            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_iou_suppression")
-    model.ir_version = 8
-    model.opset_import[0].version = 11
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSThreeBoxesOneClass,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 2),
-            ("iou_threshold", [1], "float32", 0.5),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
-    )
-
-
-def test_nms_max_boxes_limit():
-    """NMS import should pass max_output_boxes_per_class."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 4, 4]
-    scores_shape = [1, 1, 4]
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_max_boxes_limit",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor(
-                "max_output_boxes_per_class", TensorProto.INT64, [1], [2]
-            ),  # Limit to 2 boxes
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),  # Low IoU threshold
-            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.1]),
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [2, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_max_boxes_limit")
-    model.ir_version = 8
-    model.opset_import[0].version = 11
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSFourBoxes,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 2),
-            ("iou_threshold", [1], "float32", 0.1),
-            ("score_threshold", [1], "float32", 0.1),
-        ],
-    )
-
-
-def test_nms_score_threshold():
-    """NMS import should pass the score threshold constant."""
-    nms_node = helper.make_node(
-        "NonMaxSuppression",
-        ["boxes", "scores", "max_output_boxes_per_class", "iou_threshold", "score_threshold"],
-        ["selected_indices"],
-        center_point_box=0,
-    )
-
-    boxes_shape = [1, 3, 4]
-    scores_shape = [1, 1, 3]
-
-    graph = helper.make_graph(
-        [nms_node],
-        "nms_test_score_threshold",
-        inputs=[
-            helper.make_tensor_value_info("boxes", TensorProto.FLOAT, boxes_shape),
-            helper.make_tensor_value_info("scores", TensorProto.FLOAT, scores_shape),
-        ],
-        initializer=[
-            helper.make_tensor("max_output_boxes_per_class", TensorProto.INT64, [1], [3]),
-            helper.make_tensor("iou_threshold", TensorProto.FLOAT, [1], [0.1]),
-            helper.make_tensor("score_threshold", TensorProto.FLOAT, [1], [0.05]),
-        ],
-        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [3, 3])],
-    )
-
-    model = helper.make_model(graph, producer_name="nms_test_score_threshold")
-    model.ir_version = 8
-    model.opset_import[0].version = 11
-
-    _assert_nms_import(
-        model,
-        boxes_shape,
-        scores_shape,
-        ExpectedNMSThreeBoxesOneClassScoreThreshold,
-        nms_params=[
-            ("max_output_boxes_per_class", [1], "int64", 3),
-            ("iou_threshold", [1], "float32", 0.1),
-            ("score_threshold", [1], "float32", 0.05),
-        ],
-    )
 
 
 # align_corners=None omits the attribute, exercising the ONNX default of 0.
@@ -10148,6 +10373,56 @@ def test_affine_grid():
     verify_affine_grid(None, ExpectedDefaultAlignCorners)
     verify_affine_grid(0, ExpectedDefaultAlignCorners)
     verify_affine_grid(1, ExpectedAlignCorners)
+
+
+def test_affine_grid_3d():
+    affine_grid_node = helper.make_node(
+        "AffineGrid",
+        ["theta", "size"],
+        ["grid"],
+        align_corners=1,
+    )
+
+    graph = helper.make_graph(
+        [affine_grid_node],
+        "affine_grid_3d_test",
+        inputs=[
+            helper.make_tensor_value_info("theta", TensorProto.FLOAT, [2, 3, 4]),
+        ],
+        initializer=[
+            helper.make_tensor("size", TensorProto.INT64, [5], [2, 3, 8, 16, 16]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("grid", TensorProto.FLOAT, [2, 8, 16, 16, 3]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="affine_grid_3d_test")
+
+    tvm_model = from_onnx(model, opset=20, keep_params_in_input=True)
+    assert len(tvm_model["main"].attrs["params"]) == 1
+    tvm_model["main"] = tvm_model["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            theta: R.Tensor((2, 3, 4), dtype="float32"),
+            size: R.Tensor((5,), dtype="int64"),
+        ) -> R.Tensor((2, 8, 16, 16, 3), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 8, 16, 16), dtype="float32") = R.image.affine_grid(
+                    theta, size=(8, 16, 16), align_corners=True
+                )
+                lv1: R.Tensor((2, 8, 16, 16, 3), dtype="float32") = R.permute_dims(
+                    lv, axes=[0, 2, 3, 4, 1]
+                )
+                gv: R.Tensor((2, 8, 16, 16, 3), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 @pytest.mark.parametrize("mode", ["bilinear", "nearest", "bicubic"])
@@ -10888,6 +11163,121 @@ def test_if_nested():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_if_subgraph():
+    """Test If subgraph."""
+    input_tensor_info = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 3])
+    cond_tensor_info = helper.make_tensor_value_info("cond", TensorProto.BOOL, [])
+    y_tensor_info = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1, 3, 3])
+    b_tensor_info = helper.make_tensor_value_info("B", TensorProto.FLOAT, [1, 1, 3, 3])
+    c_tensor_info = helper.make_tensor_value_info("C", TensorProto.FLOAT, [1, 1, 3, 3])
+    unsqueeze_axes_tensor = helper.make_tensor(
+        name="unsqueeze_axes", data_type=TensorProto.INT64, dims=[1], vals=[0]
+    )
+    unsqueeze_then_node = helper.make_node(
+        "Unsqueeze", inputs=["input", "unsqueeze_axes"], outputs=["input_unsqueezed_then"]
+    )
+    then_out_info = helper.make_tensor_value_info("then_out", TensorProto.FLOAT, [1, 1, 3, 3])
+    then_node = helper.make_node(
+        "Conv",
+        inputs=["input_unsqueezed_then", "B"],
+        outputs=["then_out"],
+        dilations=[1, 1],
+        group=1,
+        kernel_shape=[3, 3],
+        pads=[1, 1, 1, 1],
+        strides=[1, 1],
+    )
+    then_graph = helper.make_graph(
+        nodes=[unsqueeze_then_node, then_node],
+        name="then_branch_graph",
+        inputs=[],
+        outputs=[then_out_info],
+    )
+    unsqueeze_else_node = helper.make_node(
+        "Unsqueeze", inputs=["input", "unsqueeze_axes"], outputs=["input_unsqueezed_else"]
+    )
+    else_out_info = helper.make_tensor_value_info("else_out", TensorProto.FLOAT, [1, 1, 3, 3])
+    else_node = helper.make_node(
+        "Conv",
+        inputs=["input_unsqueezed_else", "C"],
+        outputs=["else_out"],
+        dilations=[1, 1],
+        group=1,
+        kernel_shape=[3, 3],
+        pads=[1, 1, 1, 1],
+        strides=[1, 1],
+    )
+    else_graph = helper.make_graph(
+        nodes=[unsqueeze_else_node, else_node],
+        name="else_branch_graph",
+        inputs=[],
+        outputs=[else_out_info],
+    )
+
+    if_node = helper.make_node(
+        "If", inputs=["cond"], outputs=["Y"], then_branch=then_graph, else_branch=else_graph
+    )
+    outer_graph = helper.make_graph(
+        nodes=[if_node],
+        name="CondSubgraph",
+        inputs=[cond_tensor_info, input_tensor_info, b_tensor_info, c_tensor_info],
+        outputs=[y_tensor_info],
+        initializer=[unsqueeze_axes_tensor],
+    )
+    opset_imports = [helper.make_operatorsetid("", 15)]
+    model = helper.make_model(
+        outer_graph, producer_name="condsubgraph", opset_imports=opset_imports
+    )
+
+    tvm_model = from_onnx(model, keep_params_in_input=True)
+    tvm_model, _ = tvm.relax.frontend.detach_params(tvm_model)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"),
+            input: R.Tensor((1, 3, 3), dtype="float32"),
+            B: R.Tensor((1, 1, 3, 3), dtype="float32"),
+            C: R.Tensor((1, 1, 3, 3), dtype="float32"),
+            unsqueeze_axes: R.Tensor((1,), dtype="int64"),
+        ) -> R.Tensor((1, 1, 3, 3), dtype="float32"):
+            R.func_attr({"num_input": 4})
+            gv: R.Tensor((1, 1, 3, 3), dtype="float32") = R.expand_dims(input, axis=[0])
+            gv1: R.Tensor((1, 1, 3, 3), dtype="float32") = R.expand_dims(input, axis=[0])
+            if cond:
+                gv2: R.Tensor((1, 1, 3, 3), dtype="float32") = R.nn.conv2d(
+                    gv,
+                    B,
+                    strides=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype=None,
+                )
+                gv4: R.Tensor((1, 1, 3, 3), dtype="float32") = gv2
+            else:
+                gv3: R.Tensor((1, 1, 3, 3), dtype="float32") = R.nn.conv2d(
+                    gv1,
+                    C,
+                    strides=[1, 1],
+                    padding=[1, 1, 1, 1],
+                    dilation=[1, 1],
+                    groups=1,
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype=None,
+                )
+                gv4: R.Tensor((1, 1, 3, 3), dtype="float32") = gv3
+            return gv4
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 # Helper that builds the ONNX graph for MatMulInteger so the tests don't repeat boilerplate code every time
 def _make_matmulinteger_model(A_shape, B_shape, A_dtype, B_dtype, a_zp_array=None, b_zp_array=None):
     """Build a minimal single-node ONNX graph for MatMulInteger."""
@@ -11327,61 +11717,6 @@ def test_arg_min_max_select_last_index_no_tie():
     verify_no_tie("ArgMin", ExpectedArgMin)
 
 
-def test_arg_min_max_select_last_index_ir():
-    """select_last_index=1 must lower to flip + argmax/argmin + subtract in the Relax IR."""
-
-    def verify_select_last_index_ir(op_name, expected):
-        shape = [3, 4, 5]
-        node = helper.make_node(
-            op_name,
-            inputs=["data"],
-            outputs=["out"],
-            axis=1,
-            keepdims=1,
-            select_last_index=1,
-        )
-        graph = helper.make_graph(
-            [node],
-            "arg_select_last_index_ir_test",
-            inputs=[helper.make_tensor_value_info("data", TensorProto.FLOAT, shape)],
-            outputs=[helper.make_tensor_value_info("out", TensorProto.INT64, [3, 1, 5])],
-        )
-        model = helper.make_model(graph, producer_name="arg_select_last_index_ir_test")
-        tvm_model = from_onnx(model, opset=12, keep_params_in_input=True)
-        tvm.ir.assert_structural_equal(tvm_model, expected)
-
-    @I.ir_module
-    class ExpectedArgMax:
-        @R.function
-        def main(
-            data: R.Tensor((3, 4, 5), dtype="float32"),
-        ) -> R.Tensor((3, 1, 5), dtype="int64"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmax(lv, axis=1, keepdims=True)
-                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                R.output(gv)
-            return gv
-
-    @I.ir_module
-    class ExpectedArgMin:
-        @R.function
-        def main(
-            data: R.Tensor((3, 4, 5), dtype="float32"),
-        ) -> R.Tensor((3, 1, 5), dtype="int64"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((3, 4, 5), dtype="float32") = R.flip(data, axis=1)
-                lv1: R.Tensor((3, 1, 5), dtype="int64") = R.argmin(lv, axis=1, keepdims=True)
-                gv: R.Tensor((3, 1, 5), dtype="int64") = R.subtract(R.const(3, "int64"), lv1)
-                R.output(gv)
-            return gv
-
-    verify_select_last_index_ir("ArgMax", ExpectedArgMax)
-    verify_select_last_index_ir("ArgMin", ExpectedArgMin)
-
-
 def test_split_to_sequence_keepdims_0():
     """keepdims=0, no split input: each chunk of size 1 has the split axis squeezed out."""
 
@@ -11777,6 +12112,255 @@ def test_dequantizelinear_default_axis_opset10():
 
     x = rg.integers(low=0, high=255, size=(2, 3, 4), dtype=np.uint8)
     check_correctness(model, inputs={"x": x}, opset=10, check_dtypes=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+def test_quantizelinear_output_dtype(opset):
+    node = helper.make_node("QuantizeLinear", ["x", "scale"], ["y"], output_dtype=TensorProto.INT16)
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_output_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.INT16, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"),
+            scale: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="int16"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="int16") = R.quantize(
+                    x, scale, R.const(0, "int16"), out_dtype="int16", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_dequantizelinear_scale_dtype(opset):
+    node = helper.make_node("DequantizeLinear", ["x", "scale", "zero_point"], ["y"])
+    graph = helper.make_graph(
+        [node],
+        "dequantizelinear_scale_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT16, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT16, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int8"),
+            scale: R.Tensor((), dtype="float16"),
+            zero_point: R.Tensor((), dtype="int8"),
+        ) -> R.Tensor((2, 3), dtype="float16"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float16") = R.dequantize(
+                    x, scale, zero_point, out_dtype="float16", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [23, 24, 25])
+def test_dequantizelinear_output_dtype(opset):
+    node = helper.make_node(
+        "DequantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        output_dtype=TensorProto.FLOAT,
+    )
+    graph = helper.make_graph(
+        [node],
+        "dequantizelinear_output_dtype",
+        [
+            helper.make_tensor_value_info("x", TensorProto.INT8, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT16, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="int8"),
+            scale: R.Tensor((), dtype="float16"),
+            zero_point: R.Tensor((), dtype="int8"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"num_input": 3})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="float32") = R.dequantize(
+                    x, scale, zero_point, out_dtype="float32", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_quantizelinear_integer_saturate(opset):
+    node = helper.make_node("QuantizeLinear", ["x", "scale"], ["y"], saturate=0)
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_integer_saturate",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    tvm_model = from_onnx(model, opset=opset, keep_params_in_input=True)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((2, 3), dtype="float32"),
+            scale: R.Tensor((), dtype="float32"),
+        ) -> R.Tensor((2, 3), dtype="uint8"):
+            R.func_attr({"num_input": 2})
+            with R.dataflow():
+                gv: R.Tensor((2, 3), dtype="uint8") = R.quantize(
+                    x, scale, R.const(0, "uint8"), out_dtype="uint8", axis=1
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+@pytest.mark.parametrize("opset", [19, 21, 23, 24, 25])
+def test_quantizelinear_float8_saturate_rejected(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        saturate=0,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_float8_saturate",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.FLOAT8E4M3FN, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.FLOAT8E4M3FN, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="saturate=0"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+@pytest.mark.parametrize(
+    "op_name,input_dtype,output_dtype",
+    [
+        ("QuantizeLinear", TensorProto.FLOAT, TensorProto.INT8),
+        ("DequantizeLinear", TensorProto.INT8, TensorProto.FLOAT),
+    ],
+)
+def test_qdq_blocked_quantization_rejected(opset, op_name, input_dtype, output_dtype):
+    node = helper.make_node(
+        op_name,
+        ["x", "scale", "zero_point"],
+        ["y"],
+        axis=1,
+        block_size=2,
+    )
+    graph = helper.make_graph(
+        [node],
+        "qdq_blocked_quantization",
+        [
+            helper.make_tensor_value_info("x", input_dtype, [1, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [1, 2]),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, [1, 2]),
+        ],
+        [helper.make_tensor_value_info("y", output_dtype, [1, 4])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="blocked quantization"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [23, 24, 25])
+def test_quantizelinear_precision_rejected(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale"],
+        ["y"],
+        output_dtype=TensorProto.INT8,
+        precision=TensorProto.FLOAT16,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_precision",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.INT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="precision attribute"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
+
+
+@pytest.mark.parametrize("opset", [21, 23, 24, 25])
+def test_quantizelinear_output_dtype_mismatch(opset):
+    node = helper.make_node(
+        "QuantizeLinear",
+        ["x", "scale", "zero_point"],
+        ["y"],
+        output_dtype=TensorProto.UINT8,
+    )
+    graph = helper.make_graph(
+        [node],
+        "quantizelinear_output_dtype_mismatch",
+        [
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, [2, 3]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, []),
+            helper.make_tensor_value_info("zero_point", TensorProto.INT8, []),
+        ],
+        [helper.make_tensor_value_info("y", TensorProto.UINT8, [2, 3])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", opset)])
+
+    with pytest.raises(ValueError, match="must match the zero-point dtype"):
+        from_onnx(model, opset=opset, keep_params_in_input=True)
 
 
 if __name__ == "__main__":

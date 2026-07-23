@@ -44,19 +44,17 @@ def test_tir_ptr_proxy():
     ptr_0 = T.handle("int32", "global")
     assert (
         isinstance(ptr_0, tirx.Var)
-        and ptr_0.ty.dtype == "handle"
-        and isinstance(ptr_0.type_annotation, ir.PointerType)
-        and ptr_0.type_annotation.element_type == ir.PrimType("int32")
-        and ptr_0.type_annotation.storage_scope == "global"
+        and isinstance(ptr_0.ty, ir.PointerType)
+        and ptr_0.ty.element_type == ir.PrimType("int32")
+        and ptr_0.ty.storage_scope == "global"
     )
 
     ptr_1 = T.handle("float32", "shared")
     assert (
         isinstance(ptr_1, tirx.Var)
-        and ptr_1.ty.dtype == "handle"
-        and isinstance(ptr_1.type_annotation, ir.PointerType)
-        and ptr_1.type_annotation.element_type == ir.PrimType("float32")
-        and ptr_1.type_annotation.storage_scope == "shared"
+        and isinstance(ptr_1.ty, ir.PointerType)
+        and ptr_1.ty.element_type == ir.PrimType("float32")
+        and ptr_1.ty.storage_scope == "shared"
     )
 
 
@@ -409,7 +407,7 @@ def test_inferred_ty_with_prim_args():
 
     @T.prim_func(s_tir=True)
     def func(M: T.int32, N: T.int32) -> T.int32:
-        T.ret(M * N)
+        return M * N
 
     expected = tvm.relax.FuncType(
         [
@@ -427,7 +425,7 @@ def test_inferred_ty_with_buffer_args():
 
     @T.prim_func(s_tir=True)
     def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
-        T.ret(T.float32(42.0))
+        return T.float32(42.0)
 
     expected = tvm.relax.FuncType(
         [
@@ -454,7 +452,7 @@ def test_inferred_ty_with_internal_allocation():
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]
 
-        T.ret(Sum[()])
+        return Sum[()]
 
     expected = tvm.relax.FuncType(
         [

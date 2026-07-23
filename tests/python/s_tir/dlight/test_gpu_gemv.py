@@ -1087,5 +1087,48 @@ def test_gemv_cuda_target_without_max_shared_memory_per_block():
     assert mod["main"].attrs["tirx.is_scheduled"] == 1
 
 
+def test_gemv_broadcast_epilogue():
+    # fmt: off
+    @T.prim_func(private=True, s_tir=True)
+    def before(
+        A: T.Buffer((1, 32, 1, 128), "float16"),
+        p_B: T.handle,
+        p_C: T.handle,
+    ):
+        T.func_attr({"tirx.noalias": True})
+        n = T.int32()
+        B = T.match_buffer(p_B, (1, 32, n, 128), "float16")
+        C = T.match_buffer(p_C, (1, 32, 2, 3, n), "float32")
+        C_temp = T.sblock_alloc_buffer((1, 32, 1, n), "float16")
+        for i0, i1, i2, i3, k in T.grid(1, 32, 1, n, 128):
+            with T.sblock("NT_matmul"):
+                v_i0, v_i1, v_i2, v_i3, v_k = T.axis.remap("SSSSR", [i0, i1, i2, i3, k])
+                T.reads(A[v_i0, v_i1, v_i2, v_k], B[v_i0, v_i1, v_i3, v_k])
+                T.writes(C_temp[v_i0, v_i1, v_i2, v_i3])
+                with T.init():
+                    C_temp[v_i0, v_i1, v_i2, v_i3] = T.float16(0)
+                C_temp[v_i0, v_i1, v_i2, v_i3] = C_temp[
+                    v_i0, v_i1, v_i2, v_i3
+                ] + A[v_i0, v_i1, v_i2, v_k] * B[v_i0, v_i1, v_i3, v_k]
+        for i0, i1, i2, i3, i4 in T.grid(1, 32, 2, 3, n):
+            with T.sblock("broadcast_epilogue"):
+                v_i0, v_i1, v_i2, v_i3, v_i4 = T.axis.remap(
+                    "SSSSS", [i0, i1, i2, i3, i4]
+                )
+                T.reads(C_temp[v_i0, v_i1, 0, v_i4])
+                T.writes(C[v_i0, v_i1, v_i2, v_i3, v_i4])
+                C[v_i0, v_i1, v_i2, v_i3, v_i4] = T.Cast(
+                    "float32", C_temp[v_i0, v_i1, 0, v_i4]
+                )
+
+    # fmt: on
+
+    mod = tvm.IRModule({"main": before})
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+
+    assert mod["main"].attrs["tirx.is_scheduled"] == 1
+
+
 if __name__ == "__main__":
     tvm.testing.main()

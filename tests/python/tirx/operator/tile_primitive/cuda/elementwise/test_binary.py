@@ -40,7 +40,7 @@ from tvm.tirx.layout import S, TileLayout, wg_local_layout
             (32, 32),  # extent_b
             (32, 32),  # extent_res
             64,  # thread_cnt
-            tvm.cuda(0),  # dev
+            0,  # device_id
         ),
         ######### offset test #########
         (
@@ -52,7 +52,7 @@ from tvm.tirx.layout import S, TileLayout, wg_local_layout
             (5, 6, 7),  # extent_b
             (5, 6, 7),  # extent_res
             64,  # thread_cnt
-            tvm.cuda(0),  # dev
+            0,  # device_id
         ),
         ######### broadcast test #########
         (
@@ -64,7 +64,7 @@ from tvm.tirx.layout import S, TileLayout, wg_local_layout
             (1, 6, 1),  # extent_b
             (5, 6, 7),  # extent_res
             64,  # thread_cnt
-            tvm.cuda(0),  # dev
+            0,  # device_id
         ),
     ],
 )
@@ -78,7 +78,7 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
     if op_type in ["sub", "fdiv"] and operands_type == "const_region":
         return
 
-    g_shape, st_a, st_b, st_res, ext_a, ext_b, ext_res, thread_cnt, dev = input
+    g_shape, st_a, st_b, st_res, ext_a, ext_b, ext_res, thread_cnt, device_id = input
     g_layout = s_layout = TileLayout(S[g_shape])
 
     copy_slice = list(slice(None) for i in range(len(g_shape)))
@@ -187,17 +187,20 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         np.random.seed(0)
         A_np = np.random.rand(*g_shape).astype(dtype)
         B_np = np.random.rand(*g_shape).astype(dtype)
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-
         mod = tvm.IRModule({"main": get_prim_func(operands_type)})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
-        mod(A, B)
-
         A_ref = get_ref(A_np, B_np)
         atol = 1e-3
-        tvm.testing.assert_allclose(A_ref, A.numpy(), atol=atol)
+
+        def run_and_check():
+            dev = tvm.cuda(device_id)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(A_ref, A.numpy(), atol=atol)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("op_type", ["sub", "fdiv"])
@@ -235,7 +238,6 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
     dtype = "float16"
     n_warps = 4 if exec_scope == "warpgroup" else 1
     g_shape = (n_warps * 32, 8)
-    dev = tvm.cuda(0)
     tx_op = {
         ("warp", "add"): Tx.warp.add,
         ("warp", "mul"): Tx.warp.mul,
@@ -271,14 +273,19 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
         np.random.seed(0)
         A_np = np.random.rand(*g_shape).astype(dtype)
         B_np = np.random.rand(*g_shape).astype(dtype)
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
         mod = tvm.IRModule({"main": kernel})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
-        mod(A, B)
         np_op = {"add": np.add, "mul": np.multiply}[op_type]
         A_ref = np_op(A_np, B_np).astype(dtype)
-        tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -296,7 +303,6 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
     b_shape = (n_threads, m, n if rhs_kind == "region" else 1)
     c_shape = a_shape
     const = T.float16(1.25)
-    dev = tvm.cuda(0)
     tx_op = {"add": Tx.add, "sub": Tx.sub, "mul": Tx.mul, "fdiv": Tx.fdiv}[op_type]
     tid_in_scope_fn = {"cta": T.thread_id, "warpgroup": T.thread_id_in_wg, "warp": T.lane_id}[
         exec_scope
@@ -358,15 +364,9 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
         C_np = np.zeros(c_shape, dtype=dtype)
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        C = tvm.runtime.tensor(C_np, dev)
-
         mod = tvm.IRModule({"main": kernel})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
-        mod(A, B, C)
-
         np_op = {"add": np.add, "sub": np.subtract, "mul": np.multiply, "fdiv": np.divide}[op_type]
         if rhs_kind == "region":
             C_ref = np_op(A_np, B_np)
@@ -375,7 +375,16 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         else:
             C_ref = np_op(A_np, const.value)
         atol = 1e-2 if op_type == "fdiv" else 1e-3
-        tvm.testing.assert_allclose(C_ref, C.numpy(), atol=atol)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            C = tvm.runtime.tensor(C_np, dev)
+            mod(A, B, C)
+            tvm.testing.assert_allclose(C_ref, C.numpy(), atol=atol)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize(
@@ -387,7 +396,7 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
             (64, 32),  # b_shape
             (64, 32),  # res_shape
             64,  # thread_cnt
-            tvm.cuda(0),  # dev
+            0,  # device_id
         ),
         ######### broadcast test #########
         (
@@ -395,7 +404,7 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
             (32, 1, 4),  # b_shape
             (32, 5, 4),  # res_shape
             32,  # thread_cnt (≥ warp size so sctx.intra at cta scope models cleanly)
-            tvm.cuda(0),  # dev
+            0,  # device_id
         ),
     ],
 )
@@ -406,7 +415,7 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
 @pytest.mark.parametrize("op_type", ["add", "sub", "mul", "fdiv"])
 @pytest.mark.parametrize("dtype", ["float16"])
 def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
-    a_shape, b_shape, res_shape, thread_cnt, dev = input
+    a_shape, b_shape, res_shape, thread_cnt, device_id = input
     tx_op = {"add": Tx.add, "sub": Tx.sub, "mul": Tx.mul, "fdiv": Tx.fdiv}[op_type]
 
     # fmt: off
@@ -490,18 +499,21 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         np.random.seed(0)
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-
         mod = tvm.IRModule({"main": get_prim_func()})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
-        mod(A, B)
-
         np_op = {"add": np.add, "sub": np.subtract, "mul": np.multiply, "fdiv": np.divide}[op_type]
         A_ref = np_op(A_np, B_np)
         atol = 1e-2 if op_type == "fdiv" else 1e-3
-        tvm.testing.assert_allclose(A_ref, A.numpy(), atol=atol)
+
+        def run_and_check():
+            dev = tvm.cuda(device_id)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(A_ref, A.numpy(), atol=atol)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -521,7 +533,6 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
 
     a_shape, b_shape = (64, 32), (64, 32)
     dtype = "float32"
-    dev = tvm.cuda(0)
 
     @T.prim_func
     def test_func(A_ptr: T.handle, B_ptr: T.handle) -> None:
@@ -551,9 +562,6 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
         np.random.seed(0)
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-
         mod = tvm.IRModule({"main": test_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         src = mod.mod.imports[0].inspect_source()
@@ -568,15 +576,21 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
             "mul": r"tvm_builtin_ptx_mul_packed_",
         }[op_type]
         assert re.search(ptx_pat, src) or re.search(builtin_pat, src), src
-        mod(A, B)
-
         if op_type == "add":
             A_ref = A_np + B_np
         elif op_type == "sub":
             A_ref = A_np - B_np
         elif op_type == "mul":
             A_ref = A_np * B_np
-        tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            tvm.testing.assert_allclose(A_ref, A.numpy(), atol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -585,7 +599,6 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
 def test_binary_op_warpgroup_wg_local_layout(op_name):
     dtype = "float32"
     rows, cols = 128, 16
-    dev = tvm.cuda(0)
     target = tvm.target.Target("cuda")
 
     @T.prim_func
@@ -625,21 +638,24 @@ def test_binary_op_warpgroup_wg_local_layout(op_name):
         B_np = np.random.rand(rows, cols).astype(dtype)
         C_np = np.zeros((rows, cols), dtype=dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        C = tvm.runtime.tensor(C_np, dev)
-
         mod = tvm.IRModule({"main": test_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
-        mod(A, B, C)
-
         if op_name == "add":
             C_ref = A_np + B_np
         elif op_name == "sub":
             C_ref = A_np - B_np
         else:
             C_ref = A_np * B_np
-        tvm.testing.assert_allclose(C_ref, C.numpy(), atol=1e-5)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            C = tvm.runtime.tensor(C_np, dev)
+            mod(A, B, C)
+            tvm.testing.assert_allclose(C_ref, C.numpy(), atol=1e-5)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.parametrize("op_name,ptx_op", [("add", "add"), ("sub", "sub"), ("mul", "mul")])
@@ -779,6 +795,45 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
     assert re.search(r"add\.[a-z]+\.ftz\.f32x2", src) or re.search(
         r"tvm_builtin_ptx_add_packed_", src
     ), f"expected packed add_f32x2; got:\n{src[:2000]}"
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_binary_maximum_reg():
+    N = 128
+
+    @T.prim_func
+    def relu_max(a_ptr: T.handle, b_ptr: T.handle, c_ptr: T.handle) -> None:
+        A = T.match_buffer(a_ptr, (N,), "float32")
+        B = T.match_buffer(b_ptr, (N,), "float32")
+        C = T.match_buffer(c_ptr, (N,), "float32")
+        T.device_entry()
+        T.warp_id([4])
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([N])
+        a_reg = T.alloc_local((1,), "float32")
+        b_reg = T.alloc_local((1,), "float32")
+        Tx.copy(a_reg[:], A[tid : tid + 1])
+        Tx.copy(b_reg[:], B[tid : tid + 1])
+        Tx.maximum(a_reg[:], a_reg[:], b_reg[:])
+        Tx.copy(C[tid : tid + 1], a_reg[:])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": relu_max}), target=target, tir_pipeline="tirx")
+    np.random.seed(0)
+    a = np.random.randn(N).astype("float32")
+    b = np.random.randn(N).astype("float32")
+    c = np.zeros(N, dtype="float32")
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        a_t, b_t, c_t = (tvm.runtime.tensor(x, dev) for x in (a, b, c))
+        mod["main"](a_t, b_t, c_t)
+        np.testing.assert_allclose(c_t.numpy(), np.maximum(a, b), atol=0, rtol=0)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_binary_add_f16_scalar_fallback_dispatch():

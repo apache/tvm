@@ -46,7 +46,7 @@ ffi::Map<ffi::String, IntImm> ExtractArgIdx(ffi::String pattern_name, Function f
 
   auto find_index = [](const ffi::Array<Var>& params, Var v) -> std::optional<size_t> {
     for (size_t i = 0; i < params.size(); ++i) {
-      if (params[i] == v) {
+      if (params[i].same_as(v)) {
         return i;
       }
     }

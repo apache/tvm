@@ -211,11 +211,13 @@ class PVar : public Pattern<PVar<T>> {
     }
   }
 
-  template <typename NodeRefType,
-            typename = typename std::enable_if<std::is_base_of<NodeRefType, T>::value>::type>
+  template <typename NodeRefType, typename = typename std::enable_if<
+                                      !std::is_same<NodeRefType, T>::value &&
+                                      std::is_base_of<ffi::ObjectRef, NodeRefType>::value &&
+                                      std::is_base_of<ffi::ObjectRef, T>::value>::type>
   bool Match_(const NodeRefType& value) const {
-    if (const auto* ptr = value.template as<typename T::ContainerType>()) {
-      return Match_(ffi::GetRef<T>(ptr));
+    if (auto typed_value = value.template as<T>()) {
+      return Match_(*typed_value);
     } else {
       return false;
     }
@@ -257,8 +259,8 @@ class PVarWithCheck : public arith::Pattern<PVarWithCheck<Derived, T>> {
   template <typename NodeRefType,
             typename = typename std::enable_if<std::is_base_of<NodeRefType, T>::value>::type>
   bool Match_(const NodeRefType& value) const {
-    if (const auto* ptr = value.template as<typename T::ContainerType>()) {
-      return Match_(ffi::GetRef<T>(ptr));
+    if (auto typed_value = value.template as<T>()) {
+      return Match_(*typed_value);
     } else {
       return false;
     }
@@ -540,7 +542,7 @@ class PCastExpr : public Pattern<PCastExpr<DType, TA>> {
 
   bool Match_(const ffi::ObjectRef& node) const {
     if (const tirx::CastNode* ptr = node.as<tirx::CastNode>()) {
-      if (!dtype_.Match_(ptr->ty()->dtype)) return false;
+      if (!dtype_.Match_(ptr->ty.as_or_throw<PrimType>()->dtype)) return false;
       if (!value_.Match_(ptr->value)) return false;
       return true;
     } else {
@@ -716,10 +718,10 @@ struct PCallExprInitMatchFunctor {
 };
 
 struct PCallExprMatchFunctor {
-  const tirx::CallNode* call_;
+  const CallNode* call_;
   bool matched_{true};
 
-  explicit PCallExprMatchFunctor(const tirx::CallNode* call) : call_(call) {}
+  explicit PCallExprMatchFunctor(const CallNode* call) : call_(call) {}
 
   template <typename T>
   void operator()(size_t i, const T& pattern) {
@@ -755,7 +757,7 @@ class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
   }
 
   bool Match_(const ffi::ObjectRef& node) const {
-    if (const tirx::CallNode* ptr = node.as<tirx::CallNode>()) {
+    if (const CallNode* ptr = node.as<CallNode>()) {
       if (ptr->args.size() != sizeof...(TArgs)) return false;
       if (!ptr->op.same_as(Op::GetOp())) return false;
       detail::PCallExprMatchFunctor fmatch(ptr);
@@ -780,7 +782,7 @@ class PCallExpr : public Pattern<PCallExpr<Op, TArgs...>> {
 #define TVM_PATTERN_BINARY_INTRIN(FuncName, OpName, IntrinOpName)                         \
   struct OpName {                                                                         \
     static PrimExpr Eval(ffi::Array<PrimExpr> args) {                                     \
-      return tirx::Call(args[0].ty(), GetOp(), args);                                     \
+      return Call(args[0].ty(), GetOp(), args).as_or_throw<PrimExpr>();                   \
     }                                                                                     \
     static const Op& GetOp() { return tirx::builtin::IntrinOpName(); }                    \
   };                                                                                      \
@@ -796,16 +798,16 @@ TVM_PATTERN_BINARY_INTRIN(operator|, PBitwiseOrOp, bitwise_or);
 TVM_PATTERN_BINARY_INTRIN(operator^, PBitwiseXorOp, bitwise_xor);
 
 // unary intrinsics
-#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinOpName)       \
-  struct OpName {                                                      \
-    static PrimExpr Eval(ffi::Array<PrimExpr> args) {                  \
-      return tirx::Call(args[0].ty(), GetOp(), args);                  \
-    }                                                                  \
-    static const Op& GetOp() { return tirx::builtin::IntrinOpName(); } \
-  };                                                                   \
-  template <typename TA>                                               \
-  inline PCallExpr<OpName, TA> FuncName(const Pattern<TA>& a) {        \
-    return PCallExpr<OpName, TA>(a.derived());                         \
+#define TVM_PATTERN_UNARY_INTRIN(FuncName, OpName, IntrinOpName)        \
+  struct OpName {                                                       \
+    static PrimExpr Eval(ffi::Array<PrimExpr> args) {                   \
+      return Call(args[0].ty(), GetOp(), args).as_or_throw<PrimExpr>(); \
+    }                                                                   \
+    static const Op& GetOp() { return tirx::builtin::IntrinOpName(); }  \
+  };                                                                    \
+  template <typename TA>                                                \
+  inline PCallExpr<OpName, TA> FuncName(const Pattern<TA>& a) {         \
+    return PCallExpr<OpName, TA>(a.derived());                          \
   }
 
 TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, bitwise_not);
@@ -813,7 +815,7 @@ TVM_PATTERN_UNARY_INTRIN(operator~, PBitwiseNotOp, bitwise_not);
 // if_then_else
 struct PIfThenElseOp {
   static PrimExpr Eval(ffi::Array<PrimExpr> args) {
-    return tirx::Call(args[1].ty(), GetOp(), args);
+    return Call(args[1].ty(), GetOp(), args).as_or_throw<PrimExpr>();
   }
   static const Op& GetOp() { return tirx::builtin::if_then_else(); }
 };
@@ -841,7 +843,7 @@ inline PCallExpr<PIfThenElseOp, TCond, TA, TB> if_then_else(const Pattern<TCond>
 
 // vscale
 struct PVscaleOp {
-  static PrimExpr Eval() { return tirx::Call(PrimType::Int(32), GetOp(), {}); }
+  static PrimExpr Eval() { return Call(PrimType::Int(32), GetOp(), {}).as_or_throw<PrimExpr>(); }
   static const Op& GetOp() { return tirx::builtin::vscale(); }
 };
 

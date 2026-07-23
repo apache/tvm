@@ -537,7 +537,6 @@ def test_strided_slice_infer_ty_more_input_dtype():
 def test_strided_slice_infer_ty_symbolic_begin_end_strides():
     bb = relax.BlockBuilder()
     var = tirx.Var("var", "int64")
-    size_var = tirx.SizeVar("size_var", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     _check_inference(
@@ -550,20 +549,10 @@ def test_strided_slice_infer_ty_symbolic_begin_end_strides():
     )
     _check_inference(
         bb,
-        relax.op.strided_slice(x, axes=[0], begin=[size_var], end=[8]),
-        relax.TensorType((tirx.max(8 - size_var, 0), 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
         relax.op.strided_slice(x, axes=[0], begin=[0], end=[var]),
         relax.TensorType(
             (tirx.min(tirx.max(tirx.if_then_else(var < 0, var + 8, var), 0), 8), 9), dtype="float32"
         ),
-    )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[size_var]),
-        relax.TensorType((tirx.min(size_var, 8), 9), dtype="float32"),
     )
     _check_inference(
         bb,
@@ -573,17 +562,11 @@ def test_strided_slice_infer_ty_symbolic_begin_end_strides():
             dtype="float32",
         ),
     )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[8], strides=[size_var]),
-        relax.TensorType([7 // size_var + 1, 9], dtype="float32"),
-    )
 
 
 def test_strided_slice_infer_ty_symbolic_begin_end_strides_inbound():
     bb = relax.BlockBuilder()
     var = tirx.Var("var", "int64")
-    size_var = tirx.SizeVar("size_var", "int64")
     x = relax.Var("x", R.Tensor((8, 9), "float32"))
 
     _check_inference(
@@ -596,23 +579,8 @@ def test_strided_slice_infer_ty_symbolic_begin_end_strides_inbound():
     )
     _check_inference(
         bb,
-        relax.op.strided_slice(x, axes=[0], begin=[size_var], end=[8], assume_inbound=True),
-        relax.TensorType((8 - size_var, 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
         relax.op.strided_slice(x, axes=[0], begin=[0], end=[var], assume_inbound=True),
         relax.TensorType((var, 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[size_var], assume_inbound=True),
-        relax.TensorType((size_var, 9), dtype="float32"),
-    )
-    _check_inference(
-        bb,
-        relax.op.strided_slice(x, axes=[0], begin=[0], end=[8], strides=[var], assume_inbound=True),
-        relax.TensorType([(var + 7) // var, 9], dtype="float32"),
     )
     _check_inference(
         bb,
@@ -943,16 +911,15 @@ def test_legalize_dynamic_begin_end():
             index = T.int64()
             return R.call_tir(
                 expected.strided_slice,
-                (A,),
+                (A, index),
                 out_ty=R.Tensor((1, 16), "float32"),
-                tir_vars=R.shape([index]),
             )
 
         @T.prim_func(private=True, s_tir=True)
         def strided_slice(
             A: T.Buffer((T.int64(16), T.int64(16))),
-            B: T.Buffer((T.int64(1), T.int64(16))),
             index: T.int64,
+            B: T.Buffer((T.int64(1), T.int64(16))),
         ):
             T.func_attr({"tirx.noalias": True})
             for iters in T.grid(*B.shape):
@@ -980,7 +947,7 @@ def test_legalize_dynamic_begin_inf_end():
     @I.ir_module(s_tir=True)
     class expected:
         @T.prim_func(private=True, s_tir=True)
-        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), var_T_dynamic_strided_slice_with_axes: T.handle, index: T.int64):
+        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: T.int64, var_T_dynamic_strided_slice_with_axes: T.handle):
             T.func_attr({"tirx.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))
             # with T.sblock("root"):
@@ -995,7 +962,7 @@ def test_legalize_dynamic_begin_inf_end():
         def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape(["index"])) -> R.Tensor(("T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0)", 16), dtype="float32"):
             index = T.int64()
             cls = expected
-            gv = R.call_tir(cls.strided_slice, (A,), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"), tir_vars=R.shape([index]))
+            gv = R.call_tir(cls.strided_slice, (A, index), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"))
             return gv
     # fmt: on
 

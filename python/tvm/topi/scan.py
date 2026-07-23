@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """Scan (cumulative binary) operators"""
 
+import operator
 from collections.abc import Callable
 
 import tvm
@@ -24,7 +25,7 @@ from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
 
 from ..te import extern
-from ..tirx import decl_buffer, generic
+from ..tirx import decl_buffer
 from . import utils
 from .math import cast
 
@@ -186,7 +187,7 @@ def cumsum(
     """
     return scanop(
         data=data,
-        binop=generic.add,
+        binop=operator.add,
         identity_value=0,
         op_name="cumsum_generic",
         axis=axis,
@@ -230,7 +231,7 @@ def cumprod(
     """
     return scanop(
         data=data,
-        binop=generic.multiply,
+        binop=operator.mul,
         identity_value=1,
         op_name="cumprod_generic",
         axis=axis,

@@ -96,7 +96,7 @@ class LambdaNameCollector : ExprVisitor {
       lifted_with_global_symbol_.insert({func, public_name});
     }
 
-    name_stack_.push_back(binding->var->name_hint());
+    name_stack_.push_back(binding->var->name);
     lambda_location_.insert({func, name_stack_});
     ExprVisitor::VisitBinding_(binding, func);
     name_stack_.pop_back();
@@ -274,7 +274,7 @@ class LambdaLifter : public ExprMutator {
     bool is_recursive = false;
     bool is_closure = false;
     for (const auto& var : FreeVars(func)) {
-      if (var.same_as(current_lambda_var_)) {
+      if (current_lambda_var_.same_as(var)) {
         is_recursive = true;
       } else {
         is_closure = true;
@@ -285,7 +285,7 @@ class LambdaLifter : public ExprMutator {
     ffi::Array<Var> typed_captured_vars;
     ffi::Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      Var var = Var(free_var->name_hint(), GetType(free_var), free_var->span);
+      Var var = Var(free_var->name, GetType(free_var), free_var->span);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -310,9 +310,9 @@ class LambdaLifter : public ExprMutator {
     // Defining the rewrite rule prior to visiting the body, so that
     // recursive closures can be updated.
     if (is_recursive && is_closure) {
-      nested_closure_map_.emplace(
-          current_lambda_var_.value(),
-          Call(gvar_lifted_func, captured_vars.Map([](Var var) -> Expr { return var; })));
+      nested_closure_map_.emplace(current_lambda_var_.value(),
+                                  Call(Type::Missing(), gvar_lifted_func,
+                                       captured_vars.Map([](Var var) -> Expr { return var; })));
     }
 
     if (!is_closure) {
@@ -350,7 +350,8 @@ class LambdaLifter : public ExprMutator {
       // we pass the variables in its environment here.
       Tuple arg_tuple(captured_vars.Map([](Var var) -> Expr { return var; }));
       // Call make_closure intrinsic
-      callable_value = Call(make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
+      callable_value =
+          Call(Type::Missing(), make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
     }
 
     return callable_value;
@@ -366,9 +367,10 @@ class LambdaLifter : public ExprMutator {
 
       // Call "relax.invoke_closure" to invoke closure
 
-      if (IsClosure(var) && builder_->LookupBinding(var).as<CallNode>()) {
+      auto bound_value = LookupBinding(var);
+      if (IsClosure(var) && bound_value.as<CallNode>()) {
         // if the original op was pure, we should use invoke_pure_closure
-        Call orig_call = builder_->LookupBinding(var).as_or_throw<Call>();
+        Call orig_call = bound_value.value().as_or_throw<Call>();
         bool is_pure = [&]() -> bool {
           if (auto op = orig_call->op.as<Op>()) {
             static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
@@ -385,7 +387,7 @@ class LambdaLifter : public ExprMutator {
         }();
 
         auto prev = call;
-        call = Call(is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
+        call = Call(Type::Missing(), is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
                     {var, Tuple(call->args)}, {}, {orig_ty});
       }
     }
@@ -401,7 +403,7 @@ class LambdaLifter : public ExprMutator {
         }
 
         auto prev = call;
-        call = Call(nested_call->op, new_args, call->attrs, call->ty_args);
+        call = Call(Type::Missing(), nested_call->op, new_args, call->attrs, call->ty_args);
       }
     }
 
@@ -421,12 +423,12 @@ class LambdaLifter : public ExprMutator {
       if (closures_.count(opt_var.value())) {
         return true;
       }
-      if (auto bound_value = builder_->LookupBinding(opt_var.value())) {
+      if (auto bound_value = LookupBinding(opt_var.value())) {
         val = bound_value.value();
       }
     }
 
-    if (const auto* call_node = val.as<relax::CallNode>()) {
+    if (const auto* call_node = val.as<tvm::CallNode>()) {
       // recursive call
       auto op = call_node->op;
       if (auto local_var = op.as<Var>()) {
@@ -434,7 +436,7 @@ class LambdaLifter : public ExprMutator {
       } else if (auto global_var = op.as<GlobalVar>()) {
         return IsClosure(global_var.value());
       } else {
-        return make_closure_op_ == op;
+        return make_closure_op_.same_as(op);
       }
 
     } else if (const auto* global_var = val.as<GlobalVarNode>()) {

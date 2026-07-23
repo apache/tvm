@@ -262,7 +262,7 @@ TEST(TargetCreation, RoundTripCanonicalizerFeaturesNestedHost) {
 
   // The nested host must reconstruct successfully with feature.* preserved
   ffi::Optional<Target> reconstructed_host = reconstructed->GetHost();
-  ASSERT_TRUE(reconstructed_host.defined());
+  ASSERT_TRUE(reconstructed_host.has_value());
   ASSERT_EQ(reconstructed_host.value()->GetAttr<bool>("feature.test").value(), true);
   ASSERT_TRUE(reconstructed_host.value()->GetAttr<ffi::String>("mcpu").has_value());
 }

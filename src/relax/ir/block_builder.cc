@@ -32,6 +32,7 @@
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/type_functor.h>
+#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/function.h>
 
@@ -87,8 +88,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
       GlobalVar gvar(func_name);
 
-      Type finfo;
-      if (func->ty.defined()) {
+      Type finfo = Type::Missing();
+      if (!func->ty.IsMissing()) {
         finfo = GetType(func);
       } else if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
         // NOTE: use a slightly different type than checked type
@@ -152,7 +153,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   // Scope management
   //-------------------------------
   ffi::Optional<Expr> LookupBinding(const Var& var) final {
-    auto it = binding_table_.find(var->vid);
+    auto it = binding_table_.find(var);
     if (it == binding_table_.end()) return std::nullopt;
     return it->second;
   }
@@ -170,7 +171,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // TODO(relax-team): Add support for relax Var in type annotations.
 
     scope_stack_.emplace_back(ScopeFrame());
-    if (params.defined()) {
+    if (params.has_value()) {
       for (const auto& param : params.value()) {
         AddDefinitionToScope(param);
       }
@@ -196,9 +197,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // defined in parameter type annotations. The implementation
     // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
     // but can be further improved.
-    ffi::Map<tirx::Var, PrimExpr> var_map = TypeVarCollector::Collect(GetType(var));
+    ffi::Map<tirx::PrimVar, PrimExpr> var_map = TypeVarCollector::Collect(GetType(var));
     for (const auto& kv : var_map) {
-      const tirx::Var& shape_var = kv.first;
+      const tirx::PrimVar& shape_var = kv.first;
       const PrimExpr& shape_expr = kv.second;
       auto it = shape_var_map.find(shape_var);
       if (it == shape_var_map.end()) {
@@ -273,18 +274,18 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(var_binding->var->ty.defined());
-      TVM_FFI_ICHECK(var_binding->value->ty.defined());
+      TVM_FFI_ICHECK(!var_binding->var->ty.IsMissing());
+      TVM_FFI_ICHECK(!var_binding->value->ty.IsMissing());
       cur_frame->bindings.push_back(binding);
-      binding_table_[var_binding->var->vid] = var_binding->value;
+      binding_table_[var_binding->var] = var_binding->value;
     } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
       if (!cur_frame->is_dataflow) {
         TVM_FFI_ICHECK(!match_cast->var.as<DataflowVarNode>())
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(match_cast->var->ty.defined());
-      TVM_FFI_ICHECK(match_cast->value->ty.defined());
+      TVM_FFI_ICHECK(!match_cast->var->ty.IsMissing());
+      TVM_FFI_ICHECK(!match_cast->value->ty.IsMissing());
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
@@ -332,7 +333,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     //
     // TODO(relax-team) tracks the var defined also through match-cast.
     /*! \brief set of defined symbolic vars, value as themself. */
-    ffi::Map<tirx::Var, PrimExpr> shape_var_map;
+    ffi::Map<tirx::PrimVar, PrimExpr> shape_var_map;
   };
 
   /*! \brief A stack to store block frames. */
@@ -342,7 +343,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   std::vector<ScopeFrame> scope_stack_;
 
   /*! \brief A binding table that maps var to value. */
-  std::unordered_map<Id, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> binding_table_;
+  std::unordered_map<Var, Expr, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> binding_table_;
 
   /*! \brief A unique name supply to get unique names for IR construction. */
   UniqueNameSupply name_supply_;
@@ -393,7 +394,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
     // update the binding table
-    binding_table_[var->vid] = expr;
+    binding_table_[var] = expr;
 
     return var;
   }
@@ -408,9 +409,9 @@ class BlockBuilderImpl : public BlockBuilderNode {
     if (name_hint.empty()) {
       name_hint = is_dataflow ? "lv" : "gv";
     }
-    Id vid = Id(GetUniqueName(name_hint));
-    return is_dataflow ? DataflowVar(vid, /*ty_annotation=*/std::nullopt)
-                       : Var(vid, /*ty_annotation=*/std::nullopt);
+    name_hint = GetUniqueName(name_hint);
+    return is_dataflow ? DataflowVar(name_hint, /*ty_annotation=*/std::nullopt)
+                       : Var(name_hint, /*ty_annotation=*/std::nullopt);
   }
 
  private:
@@ -471,7 +472,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   // shape vars as defined when calling BeginScope(params)
   class TypeVarCollector : public TypeVisitor {
    public:
-    static ffi::Map<tirx::Var, PrimExpr> Collect(const Type& ty) {
+    static ffi::Map<tirx::PrimVar, PrimExpr> Collect(const Type& ty) {
       TypeVarCollector collector;
       collector(ty);
       return collector.shape_var_map_;
@@ -482,8 +483,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       if (const auto* shape_expr = op->shape.as<ShapeExprNode>()) {
         for (const PrimExpr& s : shape_expr->values) {
           // Only collect single var defined shape. Ignore something like `R.Tensor((m + 1, n + 1))
-          if (const auto* var = s.as<tirx::VarNode>()) {
-            shape_var_map_.Set(ffi::GetRef<tirx::Var>(var), s);
+          if (auto var = s.as<tirx::PrimVar>()) {
+            shape_var_map_.Set(var.value(), s);
           }
         }
       }
@@ -492,14 +493,14 @@ class BlockBuilderImpl : public BlockBuilderNode {
     void VisitType_(const ShapeTypeNode* op) final {
       for (const PrimExpr& s : op->values.value_or(ffi::Array<PrimExpr>())) {
         // Only collect single var defined shape. Ignore something like `R.Shape((m + 1, n + 1))
-        if (const auto* var = s.as<tirx::VarNode>()) {
-          shape_var_map_.Set(ffi::GetRef<tirx::Var>(var), s);
+        if (auto var = s.as<tirx::PrimVar>()) {
+          shape_var_map_.Set(var.value(), s);
         }
       }
     }
 
    private:
-    ffi::Map<tirx::Var, PrimExpr> shape_var_map_;
+    ffi::Map<tirx::PrimVar, PrimExpr> shape_var_map_;
   };
 };
 
@@ -530,9 +531,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     // After Normalize: an Expr always have
     // ty (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
-      TVM_FFI_ICHECK(normalized->ty.defined())
+      TVM_FFI_ICHECK(!normalized->ty.IsMissing())
           << "The ty of an Expr except OpNode after "
-             "normalization must not be nullptr. However, this Expr does not have ty: "
+             "normalization must not be missing. However, this Expr does not have ty: "
           << normalized;
     }
 
@@ -575,15 +576,20 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   RELAX_EXPR_NORMALIZER_LEAF(OpNode);
   RELAX_EXPR_NORMALIZER_LEAF(ConstantNode);
   RELAX_EXPR_NORMALIZER_LEAF(ShapeExprNode);
-  RELAX_EXPR_NORMALIZER_LEAF(PrimExprNode);
   RELAX_EXPR_NORMALIZER_LEAF(StringImmNode);
   RELAX_EXPR_NORMALIZER_LEAF(DataTypeImmNode);
+
+  Expr VisitExprDefault_(const ffi::Object* op) final {
+    Expr expr = ffi::GetRef<Expr>(static_cast<const ExprNode*>(op));
+    if (expr.as<PrimExpr>()) return expr;
+    return ExprFunctor::VisitExprDefault_(op);
+  }
 
   template <typename T>
   Expr VisitVar_(const typename T::ContainerType* var) {
     // Parameters and free-vars must be present with type
     // Other vars must have already been normalized through binding
-    TVM_FFI_ICHECK(var->ty.defined()) << "Var " << var->name_hint() << " does not have type.";
+    TVM_FFI_ICHECK(!var->ty.IsMissing()) << "Var " << var->name << " does not have type.";
     return ffi::GetRef<Var>(var);
   }
 
@@ -622,7 +628,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
     // Update tuple fields.
-    if (!tuple->ty.defined()) {
+    if (tuple->ty.IsMissing()) {
       ffi::Array<Type> tuple_ty;
       for (Expr field : tuple->fields) {
         tuple_ty.push_back(GetType(field));
@@ -652,10 +658,10 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
       call = ffi::GetRef<Call>(op);
     } else {
-      call = Call(new_op, new_args, op->attrs, op->ty_args);
+      call = Call(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
     }
 
-    if (!call->ty.defined()) {
+    if (call->ty.IsMissing()) {
       auto inferred_ty = InferType(call);
       UpdateType(call, inferred_ty);
     }
@@ -718,7 +724,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }
 
     // only do shape/type inference if the SeqExpr does not have shape/type
-    if (!seq_expr->ty.defined()) {
+    if (seq_expr->ty.IsMissing()) {
       UpdateType(seq_expr, EraseToWellDefinedInScope(GetType(seq_expr->body)));
     }
     return seq_expr;
@@ -736,7 +742,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     } else {
       if_node = If(new_cond, new_true, new_false, op->span);
     }
-    if (!if_node->ty.defined()) {
+    if (if_node->ty.IsMissing()) {
       auto true_info = EraseToWellDefinedInScope(GetType(new_true));
       auto false_info = EraseToWellDefinedInScope(GetType(new_false));
       UpdateType(if_node, TypeLCA(true_info, false_info));
@@ -750,7 +756,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     TupleGetItem node = new_tuple.same_as(op->tuple) ? ffi::GetRef<TupleGetItem>(op)
                                                      : TupleGetItem(new_tuple, op->index);
 
-    if (!node->ty.defined()) {
+    if (node->ty.IsMissing()) {
       auto opt = MatchType<TupleType>(node->tuple);
       TVM_FFI_ICHECK(opt) << "The type of Tuple must be TupleType, "
                           << "but expression " << node->tuple << " has type " << node->tuple->ty;
@@ -775,7 +781,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!new_value.same_as(binding->value)) {
       binding = VarBinding(binding->var, new_value, binding->span);
     }
-    if (!binding->var->ty.defined()) {
+    if (binding->var->ty.IsMissing()) {
       UpdateType(binding->var, GetType(new_value));
     }
     return binding;
@@ -786,7 +792,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!new_value.same_as(binding->value)) {
       binding = MatchCast(binding->var, new_value, binding->ty, binding->span);
     }
-    if (!binding->var->ty.defined()) {
+    if (binding->var->ty.IsMissing()) {
       UpdateType(binding->var, binding->ty);
     }
     return binding;
@@ -841,7 +847,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return op_map_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
-      TVM_FFI_ICHECK(call->op->ty.defined());
+      TVM_FFI_ICHECK(!call->op->ty.IsMissing());
       auto opt = MatchType<FuncType>(call->op);
       TVM_FFI_ICHECK(opt) << "Call->op must contains a function type";
       FuncType finfo = opt.value();
@@ -857,16 +863,18 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return info;
     }
     auto* curr_scope = CurrentScopeFrame();
-    auto f_shape_var_map = [curr_scope](tirx::Var var) -> ffi::Optional<PrimExpr> {
-      auto it = curr_scope->shape_var_map.find(var);
+    auto f_var_map = [curr_scope](const Var& var) -> ffi::Optional<Expr> {
+      auto prim_var = var.as<tirx::PrimVar>();
+      if (!prim_var) return std::nullopt;
+      auto it = curr_scope->shape_var_map.find(prim_var.value());
       if (it != curr_scope->shape_var_map.end()) return (*it).second;
       return std::nullopt;
     };
-    return EraseToWellDefined(info, f_shape_var_map);
+    return EraseToWellDefined(info, f_var_map);
   }
 
   Expr VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params = std::nullopt) {
-    if (params.defined()) {
+    if (params.has_value()) {
       this->BeginScope(params.value());
     } else {
       this->BeginInnerScope();

@@ -28,6 +28,20 @@ from .base import Node
 class Type(Node, Scriptable):
     """The base class of all types."""
 
+    @staticmethod
+    def missing():
+        """Return the sentinel for missing type information."""
+        return _ffi_api.TypeMissing()
+
+    @staticmethod
+    def Missing():
+        """Return the sentinel for missing type information."""
+        return _ffi_api.TypeMissing()
+
+    def is_missing(self):
+        """Return whether this is the missing-type sentinel."""
+        return _ffi_api.TypeIsMissing(self)
+
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
         return bool(tvm_ffi.structural_equal(self, other))
@@ -37,7 +51,7 @@ class Type(Node, Scriptable):
 
     def same_as(self, other):
         """Compares two TVM types by referential equality."""
-        return super().__eq__(other)
+        return self.is_(other)
 
 
 @tvm_ffi.register_object("ir.PrimType")

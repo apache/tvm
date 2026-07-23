@@ -100,7 +100,10 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
   }
 
   for (const auto& tir_var : free_tir_vars) {
-    Var relax_var("param_" + tir_var->name_hint, PrimType(tir_var.ty()));
+    // Promote the free symbolic var via a 1-D shape param so the param actually
+    // *defines* the var. A PrimType param only carries a dtype and defines no
+    // TIR var, which leaves the var undefined under the strict tirx verifier.
+    Var relax_var("param_" + tir_var->name, ShapeType({tir_var.as_or_throw<PrimExpr>()}));
     params.push_back(relax_var);
   }
 
@@ -129,7 +132,9 @@ std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
       auto tir_binding = InferSymbolicVarMap(old_binding, analyzer);
 
       for (const auto& tir_var : free_tir_vars) {
-        new_args.push_back(PrimExpr(tir_binding.at(tir_var)));
+        // Pass the symbolic var value as a 1-D shape, matching the ShapeType
+        // param that now defines the var in the callee.
+        new_args.push_back(ShapeExpr({tir_binding.at(tir_var).as_or_throw<PrimExpr>()}));
       }
     }
 

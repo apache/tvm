@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/analysis.h>
@@ -30,22 +31,78 @@ namespace relax {
 
 namespace {
 
+bool HasRelaxCallCapabilities(const CallNode* call) {
+  auto op = call->op.as<Op>();
+  if (!op) return true;
+  static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+  static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+  return infer_type_map.count(op.value()) || legalize_map.count(op.value());
+}
+
 class PrimExprComputeInjector : public ExprMutator {
  public:
   IRModule Finalize() const { return builder_->Finalize(); }
 
+ private:
   using ExprMutator::VisitExpr_;
 
-  Expr VisitExpr_(const PrimExprNode* op) override {
-    auto node = ExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  Expr VisitExpr_(const CallNode* op) final {
+    Call call = ffi::GetRef<Call>(op);
+    if (auto prim_expr = call.as<PrimExpr>()) {
+      if (call->op.as<Op>() && !HasRelaxCallCapabilities(op)) {
+        return LiftPrimValue(prim_expr.value());
+      }
+    }
+    return ExprMutator::VisitExpr_(op);
+  }
 
-    if (node->IsInstance<tirx::IntImmNode>() || node->IsInstance<tirx::VarNode>()) {
+#define RELAX_LIFT_PRIM_EXPR(OP)                                         \
+  Expr VisitExpr_(const OP* op) final {                                  \
+    return LiftPrimValue(ffi::GetRef<Expr>(op).as_or_throw<PrimExpr>()); \
+  }
+
+  RELAX_LIFT_PRIM_EXPR(tirx::BufferLoadNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::AddNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::SubNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::MulNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::DivNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::ModNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::FloorDivNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::FloorModNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::MinNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::MaxNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::EQNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::NENode);
+  RELAX_LIFT_PRIM_EXPR(tirx::LTNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::LENode);
+  RELAX_LIFT_PRIM_EXPR(tirx::GTNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::GENode);
+  RELAX_LIFT_PRIM_EXPR(tirx::AndNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::OrNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::CastNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::NotNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::SelectNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::RampNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::BroadcastNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::ShuffleNode);
+  RELAX_LIFT_PRIM_EXPR(tvm::IntImmNode);
+  RELAX_LIFT_PRIM_EXPR(tvm::FloatImmNode);
+  RELAX_LIFT_PRIM_EXPR(tirx::StringImmNode);
+
+#undef RELAX_LIFT_PRIM_EXPR
+
+  Expr VisitExpr_(const ShapeExprNode* op) final { return ffi::GetRef<Expr>(op); }
+
+  PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final { return expr; }
+
+  Expr LiftPrimValue(const PrimExpr& node) {
+    if (node->IsInstance<tirx::IntImmNode>() || node->IsInstance<VarNode>()) {
       return node;
     }
 
     tvm::PrimType ret_ty = node.ty();
     auto param_vars = tirx::UndefinedVars(node);
-    tirx::Stmt body = tirx::Evaluate(tirx::Call(node.ty(), tirx::builtin::ret(), {node}));
+    tirx::Stmt body = tirx::Return(node);
 
     tirx::PrimFunc func(param_vars, body, ret_ty, {},
                         DictAttrs({{tirx::attr::kIsHostFunc, true}, {tvm::attr::kSTir, true}}));
@@ -53,8 +110,8 @@ class PrimExprComputeInjector : public ExprMutator {
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
 
-    return relax::Call(callee, param_vars.Map([](const tirx::Var& tir_var) -> relax::Expr {
-      return PrimExpr(tir_var);
+    return Call(ret_ty, callee, param_vars.Map([](const tirx::Var& tir_var) -> relax::Expr {
+      return tir_var.as_or_throw<PrimExpr>();
     }));
   }
 };

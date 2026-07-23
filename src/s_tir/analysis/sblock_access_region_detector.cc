@@ -191,7 +191,9 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {
-  let_bindings_[op->var.get()] = op->value;
+  if (auto value = op->value.as<PrimExpr>()) {
+    let_bindings_[op->var.get()] = value.value();
+  }
   StmtVisitor::VisitStmt_(op);
 }
 
@@ -225,16 +227,17 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     return;
   }
   if (op->op.same_as(builtin::if_then_else())) {
-    VisitExpr(op->args[0]);
+    PrimExpr condition = op->args[0].as_or_throw<PrimExpr>();
+    VisitExpr(condition);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
-      StmtExprVisitor::VisitExpr(op->args[1]);
+      With<ConditionalBoundsContext> ctx(condition, &dom_map_, &hint_map_, &pending_conditions_);
+      StmtExprVisitor::VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(!op->args[0], &dom_map_, &hint_map_, &pending_conditions_);
-      StmtExprVisitor::VisitExpr(op->args[2]);
+      With<ConditionalBoundsContext> ctx(!condition, &dom_map_, &hint_map_, &pending_conditions_);
+      StmtExprVisitor::VisitExpr(op->args[2].as_or_throw<PrimExpr>());
     }
     return;
   }
@@ -380,7 +383,7 @@ ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
   ffi::Array<BufferRegion> writes = detector.CollectWrites();
   std::unordered_set<const BufferNode*> excluded_buffers;
   // exclude write buffers from read regions for reductions if init block is defined.
-  if (block->init.defined()) {
+  if (block->init.has_value()) {
     for (const BufferRegion& write_access : writes) {
       excluded_buffers.insert(write_access->buffer.get());
     }
@@ -400,7 +403,7 @@ ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
     excluded_buffers.insert(opaque_access->buffer.get());
   }
   ffi::Array<BufferRegion> writes = detector.CollectWrites(&excluded_buffers);
-  if (block->init.defined()) {
+  if (block->init.has_value()) {
     for (const BufferRegion& write_access : writes) {
       excluded_buffers.insert(write_access->buffer.get());
     }

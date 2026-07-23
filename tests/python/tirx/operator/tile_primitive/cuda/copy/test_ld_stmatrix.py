@@ -331,13 +331,17 @@ def test_ldstmatrix(scope, trans, direction, num):
     expected = f"{inst}.sync.aligned.m8n8.x{num}{trans_inst}.shared.b16"
     assert expected in src, f"{expected} not emitted; src=\n{src}"
 
-    DEV = tvm.cuda(0)
     A_np = np.arange(M * N, dtype="float16").reshape(M, N)
     B_np = np.zeros((M, N), dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
@@ -362,13 +366,17 @@ def test_ldstmatrix_swizzle(scope, trans, direction, num):
     expected = f"{inst}.sync.aligned.m8n8.x{num}{trans_inst}.shared.b16"
     assert expected in src, f"{expected} not emitted; src=\n{src}"
 
-    DEV = tvm.cuda(0)
     A_np = np.arange(M * N, dtype="float16").reshape(M, N)
     B_np = np.zeros((M, N), dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ---------------------------------------------------------------------------
@@ -445,16 +453,60 @@ def test_ldstmatrix_swizzle_multi_iter_pow2():
     bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
     assert bitsel, "fast-path bit-select pattern '& 1) * v_<n>[' missing"
 
-    DEV = tvm.cuda(0)
     n_elem = 1
     for e in shape:
         n_elem *= e
     A_np = np.arange(n_elem, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
+    """Regression: a warpgroup ``.16x256b`` tcgen05 register atom loaded from a
+    128B-swizzled SMEM tile must dispatch to ``ldmatrix.x4``.
+
+    The atom's laneid is split across two shard iters (stride 4 and stride 1)
+    plus ``wid_in_wg`` — it only fuses to a single ``tid_in_wg`` thread axis
+    after the slice. With the redundant pre-slice ``canonicalize()`` removed,
+    Step 2 relies on ``TileLayout.Slice``'s built-in global pre-canonicalize, so
+    the slice no longer leaves an ill-formed split-laneid sub-layout that
+    ``GetScope`` would reject (which silently fell back to a scalar reg path).
+    Compile-only (no GPU): asserts the instruction appears in generated source.
+    """
+    from tvm.tirx.cuda.operator.tile_primitive.tma_utils import mma_shared_layout
+    from tvm.tirx.layout import tcgen05_atom_layout
+
+    m, k = 64, 64
+    # bf16 payload carrying the *fp32* atom layout (mirrors the tf32-prenorm
+    # cast warp's ``a_bf16``: one element per 32-bit slot).
+    reg_layout = tcgen05_atom_layout("16x256b", (m, k), "float32")
+    smem_layout = mma_shared_layout("bfloat16", 3, (m, k))
+
+    @T.prim_func
+    def kernel(s_ptr: T.handle) -> None:
+        smem = T.match_buffer(s_ptr, (m, k), "bfloat16", scope="shared", layout=smem_layout)
+        T.device_entry()
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        T.warp_id_in_wg([4])
+        T.lane_id([32])
+        T.thread_id_in_wg([128])
+        a_reg = T.alloc_buffer((m, k), "bfloat16", scope="local", layout=reg_layout)
+        Tx.wg.copy(a_reg, smem)
+
+    _, src = _compile_src(kernel)
+    assert "ldmatrix.sync.aligned.m8n8.x4.shared.b16" in src, (
+        f"warpgroup tcgen05 atom did not emit ldmatrix.x4; src=\n{src}"
+    )
 
 
 @pytest.mark.gpu
@@ -477,13 +529,17 @@ def test_ldstmatrix_swizzle_multi_iter_linear():
     bitsel = re.findall(r"& 1\) \* v_\d+\[", src)
     assert bitsel, "fast-path bit-select pattern missing"
 
-    DEV = tvm.cuda(0)
     n_elem = 1
     for e in shape:
         n_elem *= e
     A_np = np.arange(n_elem, dtype="float16").reshape(shape)
     B_np = np.zeros(shape, dtype="float16")
-    A = tvm.runtime.tensor(A_np, device=DEV)
-    B = tvm.runtime.tensor(B_np, device=DEV)
-    compiled(A, B)
-    np.testing.assert_allclose(B.numpy(), A_np)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, device=dev)
+        B = tvm.runtime.tensor(B_np, device=dev)
+        compiled(A, B)
+        np.testing.assert_allclose(B.numpy(), A_np)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)

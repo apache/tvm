@@ -30,7 +30,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
              const ffi::Array<MeasureCandidate>& measure_candidates,
              const ffi::Array<BuilderResult>& builder_results,
              const ffi::Array<RunnerResult>& runner_results) final {
-    if (!task_scheduler->database_.defined()) {
+    if (!task_scheduler->database_.has_value()) {
       return;
     }
     auto _ = Profiler::TimedScope("MeasureCallback/AddToDatabase");
@@ -44,7 +44,7 @@ class AddToDatabaseNode : public MeasureCallbackNode {
       RunnerResult result = runner_results[i];
       MeasureCandidate candidate = measure_candidates[i];
       ffi::Array<FloatImm> run_secs{nullptr};
-      if (result->run_secs.defined()) {
+      if (result->run_secs.has_value()) {
         run_secs = result->run_secs.value();
       } else {
         run_secs = ffi::Array<FloatImm>{FloatImm(PrimType::Float(32), 1e10)};

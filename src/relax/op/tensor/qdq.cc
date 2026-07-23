@@ -44,7 +44,8 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_d
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.quantize");
-  return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -125,7 +126,7 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
 
   auto is_scalar_or_singleton_vector = [&](const TensorType& param_ty) {
     if (IsScalarTensor(param_ty)) return true;
-    if (param_ty->shape.defined() && param_ty->shape->IsInstance<ShapeExprNode>()) {
+    if (param_ty->shape.has_value() && param_ty->shape.value()->IsInstance<ShapeExprNode>()) {
       const auto& values = param_ty->shape.as<ShapeExprNode>()->values;
       if (!values.empty()) {
         return std::all_of(values.begin(), values.end(), [&](const PrimExpr& dim) {
@@ -161,7 +162,8 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("relax.dequantize");
-  return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
+  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
+              Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -237,7 +239,7 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
 
   auto is_scalar_or_singleton_vector = [&](const TensorType& param_ty) {
     if (IsScalarTensor(param_ty)) return true;
-    if (param_ty->shape.defined() && param_ty->shape->IsInstance<ShapeExprNode>()) {
+    if (param_ty->shape.has_value() && param_ty->shape.value()->IsInstance<ShapeExprNode>()) {
       const auto& values = param_ty->shape.as<ShapeExprNode>()->values;
       if (!values.empty()) {
         return std::all_of(values.begin(), values.end(), [&](const PrimExpr& dim) {

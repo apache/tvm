@@ -85,16 +85,3 @@ kernel):
    * - ``flashinfer``
      - ``nvfp4_gemm``
      - optional — quantization and the baseline
-
-Build from source
------------------
-
-To develop TIRx or build the docs, build TVM from source and make it importable.
-See :doc:`/install/from_source` for the full instructions; in short:
-
-.. code-block:: bash
-
-   export TVM_HOME=/path/to/tvm
-   export TVM_LIBRARY_PATH=$TVM_HOME/build
-   export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
-   python -c "import tvm, tvm.tirx; print(tvm.__file__)"

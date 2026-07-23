@@ -70,7 +70,7 @@ class PaddingPatternMatchError : public ScheduleError {
 class PaddingInfoAnalyzer {
  public:
   static PaddingSBlockInfo CheckAndGetPaddingInfo(IRModule mod, const SBlockRealizeNode* realize,
-                                                  const ffi::Map<Var, Range>& dom_map,
+                                                  const ffi::Map<PrimVar, Range>& dom_map,
                                                   arith::AnalyzerObj* analyzer) {
     PaddingInfoAnalyzer padding_analyzer(analyzer);
     if (!padding_analyzer.MatchPadding(realize, dom_map)) {
@@ -83,7 +83,7 @@ class PaddingInfoAnalyzer {
   explicit PaddingInfoAnalyzer(arith::AnalyzerObj* analyzer) : analyzer_(analyzer) {}
 
   /*! \brief Detect padding pattern and update result. */
-  bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<Var, Range>& dom_map) {
+  bool MatchPadding(const SBlockRealizeNode* realize, const ffi::Map<PrimVar, Range>& dom_map) {
     // Step 1. Check match padding computation pattern.
     // A[...] = T.if_then_else(predicate, B[...], imm)
     SBlock block = realize->block;
@@ -102,16 +102,16 @@ class PaddingInfoAnalyzer {
       SetError("Value of BufferStore expect to be constrained by a padding predicate");
       return false;
     }
-    PrimExpr pad_predicate = Substitute(if_then_else->args[0], iter_values);
-    PrimExpr in_bound_value = if_then_else->args[1];
-    PrimExpr pad_value = if_then_else->args[2];
+    PrimExpr pad_predicate = Substitute(if_then_else->args[0].as_or_throw<PrimExpr>(), iter_values);
+    PrimExpr in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
+    PrimExpr pad_value = if_then_else->args[2].as_or_throw<PrimExpr>();
     if (!is_const_number(pad_value)) {
       SetError("Pad value should be constant");
       return false;
     }
 
     // Step 2. Check in-bound computation to be effectiveless.
-    if (SideEffect(if_then_else->args[1]) > CallEffectKind::kReadState) {
+    if (SideEffect(if_then_else->args[1].as_or_throw<PrimExpr>()) > CallEffectKind::kReadState) {
       SetError("Inbound computation should not have side-effect");
       return false;
     }
@@ -130,7 +130,7 @@ class PaddingInfoAnalyzer {
     }
 
     // Step 4. Update result information.
-    info_.in_bound_value = if_then_else->args[1];
+    info_.in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
     info_.in_bound_region = in_bound_region;
     info_.in_bound_predicate = in_bound_predicate;
     info_.pad_value = pad_value;
@@ -148,7 +148,7 @@ class PaddingInfoAnalyzer {
       } else {
         if (const CallNode* call = e.as<CallNode>()) {
           if (call->op.same_as(builtin::likely())) {
-            e = call->args[0];
+            e = call->args[0].as_or_throw<PrimExpr>();
           }
         }
         res = res && e;
@@ -160,7 +160,7 @@ class PaddingInfoAnalyzer {
 
   /*! \brief Return iteration region of block vars where the padding predicate evals to true. */
   ffi::Array<Range> EstimateInBoundRegion(const ffi::Array<PrimExpr>& iter_values,
-                                          const ffi::Map<Var, Range>& dom_map,
+                                          const ffi::Map<PrimVar, Range>& dom_map,
                                           const PrimExpr& in_bound_predicate) {
     ffi::Array<Range> region;
 
@@ -209,7 +209,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new block itervars
   for (size_t i = 0; i < block->iter_vars.size(); ++i) {
     const IterVar& origin_iter = block->iter_vars[i];
-    Var new_var = origin_iter->var.copy_with_suffix("");
+    PrimVar new_var = origin_iter->var.CopyWithSuffix("");
     new_iter_vars.push_back(IterVar(origin_iter->dom, new_var, IterVarType::kDataPar));
     repl_dict.Set(origin_iter->var, new_var);
   }
@@ -236,9 +236,9 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new loop vars
   ffi::Array<Var> new_loop_vars;
   for (const For& loop : loops) {
-    Var new_var = loop->loop_var.copy_with_suffix("");
+    Var new_var = loop->loop_var.CopyWithSuffix("");
     new_loop_vars.push_back(new_var);
-    repl_dict.Set(loop->loop_var, new_var);
+    repl_dict.Set(loop->loop_var, new_var.as_or_throw<PrimExpr>());
     if (loop.same_as(highest_pos_inclusive)) {
       break;
     }
@@ -257,8 +257,8 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   Stmt nest_stmt_root = new_realize;
   for (size_t i = 0; i < new_loop_vars.size(); ++i) {
     For loop = loops[i];
-    nest_stmt_root =
-        For(new_loop_vars[i], loop->min, loop->extent, ForKind::kSerial, nest_stmt_root);
+    nest_stmt_root = For(new_loop_vars[i].as_or_throw<PrimVar>(), loop->min, loop->extent,
+                         ForKind::kSerial, nest_stmt_root);
   }
 
   return {nest_stmt_root, new_realize};
@@ -289,7 +289,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   for (size_t i = 0; i < info.in_bound_region.size(); ++i) {
     // add new block itervar
     const IterVar& origin_itervar = block->iter_vars[i];
-    Var new_var = origin_itervar->var.copy_with_suffix("");
+    PrimVar new_var = origin_itervar->var.CopyWithSuffix("");
     Range new_range =
         Range::FromMinExtent(IntImm(new_var.ty(), 0), info.in_bound_region[i]->extent);
     new_iter_vars.push_back(IterVar(new_range, new_var, IterVarType::kDataPar));
@@ -302,7 +302,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
       auto loop_var = opt.value();
       new_loop_ranges.Set(loop_var, new_range);
       new_iter_binding.push_back(realize->iter_values[i]);
-      repl_dict.Set(loop_var, loop_var + info.in_bound_region[i]->min);
+      repl_dict.Set(loop_var, loop_var.as_or_throw<PrimExpr>() + info.in_bound_region[i]->min);
       analyzer->Bind(loop_var, new_range, /*allow_override=*/true);
     } else {
       new_iter_binding.push_back(
@@ -416,7 +416,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   // Condition Checks and Information Collection
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   const SBlockRealizeNode* realize = GetSBlockRealize(self, block_sref).get();
-  ffi::Map<Var, Range> dom_map;
+  ffi::Map<PrimVar, Range> dom_map;
   arith::Analyzer analyzer;
 
   // Check 1. check the block is complete.

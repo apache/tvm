@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/s_tir/analysis.h>
 
 #include "../utils.h"
@@ -38,10 +39,10 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
   n->task_weight = task_weight;
   n->flop = 1.0;
   auto _ = Profiler::TimedScope("InitializeTask");
-  TVM_FFI_CHECK(ctx->mod.defined(), ValueError) << "Require `context.mod`, but it is not defined";
-  TVM_FFI_CHECK(ctx->space_generator.defined(), ValueError)
+  TVM_FFI_CHECK(ctx->mod.has_value(), ValueError) << "Require `context.mod`, but it is not defined";
+  TVM_FFI_CHECK(ctx->space_generator.has_value(), ValueError)
       << "Require `context.space_generator`, but it is not defined";
-  TVM_FFI_CHECK(ctx->search_strategy.defined(), ValueError)
+  TVM_FFI_CHECK(ctx->search_strategy.has_value(), ValueError)
       << "Require `context.search_strategy`, but it is not defined";
   TVM_PY_LOG(INFO, ctx->logger) << "\n" << ctx->mod;
   ctx->Initialize();
@@ -78,9 +79,10 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
       ++n_build_errors;
       continue;
     }
-    inputs.push_back(RunnerInput(/*artifact_path=*/builder_result->artifact_path.value(),
-                                 /*device_type=*/target->kind->name,
-                                 /*args_info=*/candidate->args_info));
+    inputs.push_back(
+        RunnerInput(/*artifact_path=*/builder_result->artifact_path.value(),
+                    /*device_type=*/runtime::DLDeviceType2Str(target->GetTargetDeviceType()),
+                    /*args_info=*/candidate->args_info));
   }
   ffi::Array<RunnerFuture> futures = runner->Run(inputs);
   if (n_build_errors == 0) {
@@ -194,7 +196,7 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
         << "TaskScheduler picks Task #" << task_id << ": " << tasks_[task_id]->ctx->task_name;
     TaskRecordNode* task = tasks_[task_id].get();
     TVM_FFI_ICHECK(!task->is_terminated);
-    TVM_FFI_ICHECK(!task->runner_futures.defined());
+    TVM_FFI_ICHECK(!task->runner_futures.has_value());
     if (static_cast<int>(task->latency_ms.size()) >= max_trials_per_task) {
       TerminateTask(task_id);
       continue;
@@ -223,7 +225,7 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
   for (int task_id = 0; task_id < n_tasks; ++task_id) {
     TaskRecordNode* task = this->tasks_[task_id].get();
     if (!task->is_terminated) {
-      if (task->runner_futures.defined()) {
+      if (task->runner_futures.has_value()) {
         JoinRunningTask(task_id);
       }
       TerminateTask(task_id);
@@ -234,7 +236,7 @@ void TaskSchedulerNode::Tune(ffi::Array<TuneContext> ctxs, ffi::Array<FloatImm> 
 
 ffi::Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
   TaskRecordNode* task = this->tasks_[task_id].get();
-  TVM_FFI_ICHECK(task->runner_futures.defined());
+  TVM_FFI_ICHECK(task->runner_futures.has_value());
   ffi::Array<RunnerResult> results;
   {
     auto _ = Profiler::TimedScope("JoinRunnerFutures");
@@ -244,10 +246,10 @@ ffi::Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
       results.push_back(future->Result());
     }
   }
-  TVM_FFI_ICHECK(task->measure_candidates.defined());
+  TVM_FFI_ICHECK(task->measure_candidates.has_value());
   task->ctx->search_strategy.value()->NotifyRunnerResults(task->measure_candidates.value(),
                                                           results);
-  TVM_FFI_ICHECK(task->builder_results.defined());
+  TVM_FFI_ICHECK(task->builder_results.has_value());
   TVM_FFI_ICHECK_EQ(results.size(), task->measure_candidates.value().size());
   TVM_FFI_ICHECK_EQ(results.size(), task->builder_results.value().size());
   for (const MeasureCallback& callback : this->measure_callbacks_) {
@@ -263,7 +265,7 @@ ffi::Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
 
 void TaskSchedulerNode::TouchTask(int task_id) {
   TaskRecordNode* task = this->tasks_[task_id].get();
-  if (!task->is_terminated && task->runner_futures.defined()) {
+  if (!task->is_terminated && task->runner_futures.has_value()) {
     for (const RunnerFuture future : task->runner_futures.value()) {
       if (!future->Done()) {
         return;

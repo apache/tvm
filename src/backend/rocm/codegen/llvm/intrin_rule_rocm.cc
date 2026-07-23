@@ -50,14 +50,15 @@ inline PrimExpr DispatchPureExternOCML(const PrimExpr& e) {
   TVM_FFI_ICHECK_EQ(name.substr(0, 5), "tirx.");
 
   std::ostringstream intrinsic_name;
-  intrinsic_name << "__ocml_" << name.substr(5) << "_f" << call->ty().bits();
+  PrimType call_ty = call->ty.as_or_throw<PrimType>();
+  intrinsic_name << "__ocml_" << name.substr(5) << "_f" << call_ty.bits();
 
   ffi::Array<PrimExpr> new_args = {StringImm(intrinsic_name.str())};
-  for (auto arg : call->args) {
+  for (PrimExpr arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
     new_args.push_back(arg);
   }
 
-  return Call(call->ty(), builtin::call_pure_extern(), new_args);
+  return Call(call_ty, builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
 }
 
 inline PrimExpr DispatchShuffle(const PrimExpr& e) {
@@ -65,7 +66,8 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
-  PrimExpr var = call->args[1];
+  ffi::Array<PrimExpr> args = call->args.as_or_throw<ffi::Array<PrimExpr>>();
+  PrimExpr var = args[1];
   PrimType var_ty = var.ty();
   TVM_FFI_ICHECK_EQ(var_ty.bits(), 32);
 
@@ -74,31 +76,35 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
   PrimExpr zero = IntImm::Int32(0);
   PrimType i32_ty = PrimType::Int(32);
   PrimExpr lo = Call(i32_ty, builtin::call_pure_extern(),
-                     {StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero});
-  PrimExpr self =
-      Call(i32_ty, builtin::call_pure_extern(), {StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo});
+                     ffi::Array<PrimExpr>{StringImm("llvm.amdgcn.mbcnt.lo"), minus_one, zero})
+                    .as_or_throw<PrimExpr>();
+  PrimExpr self = Call(i32_ty, builtin::call_pure_extern(),
+                       ffi::Array<PrimExpr>{StringImm("llvm.amdgcn.mbcnt.hi"), minus_one, lo})
+                      .as_or_throw<PrimExpr>();
 
   // compute lane to get from
-  PrimExpr width = call->args[3];
+  PrimExpr width = args[3];
   PrimExpr index;
   if (call->op.same_as(builtin::tvm_warp_shuffle())) {
-    PrimExpr src_lane = call->args[2];
+    PrimExpr src_lane = args[2];
     index = src_lane + (self & ~(width - 1));
   } else if (call->op.same_as(builtin::tvm_warp_shuffle_up())) {
-    PrimExpr delta = call->args[2];
+    PrimExpr delta = args[2];
     index = self - delta;
     index = Select(index < (self & ~(width - 1)), self, index);
   } else {
     TVM_FFI_ICHECK(call->op.same_as(builtin::tvm_warp_shuffle_down()));
-    PrimExpr delta = call->args[2];
+    PrimExpr delta = args[2];
     index = self + delta;
     index = Select((self & (width - 1)) + delta >= width, self, index);
   }
   // reinterprete var as int32
   bool is_int32 = var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 32);
   PrimExpr source = is_int32 ? var : reinterpret(PrimType::Int(32), var);
-  PrimExpr res = Call(i32_ty, builtin::call_pure_extern(),
-                      {StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source});
+  PrimExpr res =
+      Call(i32_ty, builtin::call_pure_extern(),
+           ffi::Array<PrimExpr>{StringImm("llvm.amdgcn.ds.bpermute"), index << 2, source})
+          .as_or_throw<PrimExpr>();
   if (!is_int32) {
     res = reinterpret(var_ty, res);
   }

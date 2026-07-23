@@ -36,7 +36,7 @@ namespace relax {
 
 TensorType MatchTensorType(Expr data) {
   auto _ty = MatchType<TensorType>(data);
-  TVM_FFI_ICHECK(_ty.defined()) << "Expect data to be a tensor, but get " << GetType(data);
+  TVM_FFI_ICHECK(_ty.has_value()) << "Expect data to be a tensor, but get " << GetType(data);
   return _ty.value();
 }
 
@@ -143,26 +143,26 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  TVM_FFI_ICHECK(call_node->ty.defined());
+  TVM_FFI_ICHECK(!call_node->ty.IsMissing());
   Expr expr = call_node->args[0];
   const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
   TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
   static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
-  Var call =
-      builder->Emit(Call(call_pure_packed_op, {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
-                         {ffi::GetRef<ShapeType>(ty)}));
+  Var call = builder->Emit(Call(Type::Missing(), call_pure_packed_op,
+                                {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
+                                {ffi::GetRef<ShapeType>(ty)}));
 
   // Operators like reshape take the output of `TensorToShape` as their output shape.
   // Because TOPI expects to have such output shape in symbolic shape at least (i.e.,
   // ffi::Array<PrimExpr>), we define symbolic variables and returns them as a ShapeExpr.
   ffi::Array<PrimExpr> shape_var;
   for (int i = 0; i < ty->ndim; i++) {
-    shape_var.push_back(tirx::Var("x", PrimType::Int(64)));
+    shape_var.push_back(tirx::Var("x", PrimType::Int(64)).as_or_throw<PrimExpr>());
   }
   // bind symbolic variables to the shape tuple
-  relax::Var var("y", ShapeType(shape_var));
+  tvm::Var var("y", ShapeType(shape_var));
   builder->EmitNormalized(MatchCast(var, call, ShapeType(shape_var)));
   return ShapeExpr(shape_var);
 }
@@ -178,9 +178,9 @@ class TrainingOperatorMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
-    if (call->op == batch_norm_op_) {
+    if (call->op.same_as(batch_norm_op_)) {
       return MutateBatchNormForTraining(call);
-    } else if (call->op == layer_norm_op_) {
+    } else if (call->op.same_as(layer_norm_op_)) {
       // Here we only decompose LayerNorm in training because it is more efficient as a single op.
       // In the future maybe we can also remove this decomposition during training.
       return DecomposeLayerNorm(call);
@@ -200,9 +200,9 @@ class OpDecomposer : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) final {
     Call call = VisitExprPostOrder_(call_node).as_or_throw<Call>();
-    if (call->op == batch_norm_op_) {
+    if (call->op.same_as(batch_norm_op_)) {
       return DecomposeBatchNorm(call);
-    } else if (call->op == tensor_to_shape_op_) {
+    } else if (call->op.same_as(tensor_to_shape_op_)) {
       return TensorToShape(call, builder_);
     }
     return call;

@@ -306,7 +306,6 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     x,
                     index_map=T.index_map(lambda i: (i % 16,)),
                     pad_value=None,
-                    axis_separators=[],
                 )
                 lv1 = R.call_tir(
                     Before.relax_relu_replacement,
@@ -317,7 +316,6 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     lv1,
                     index_map=T.index_map(lambda axis0: (axis0,)),
                     pad_value=None,
-                    axis_separators=[],
                 )
                 lv_1 = R.call_tir(
                     Before.remove_pad, (lv2,), out_ty=R.Tensor((14,), dtype="float32")
@@ -326,7 +324,6 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     lv_1,
                     index_map=T.index_map(lambda i: (i % 16,)),
                     pad_value=None,
-                    axis_separators=[],
                 )
                 lv4 = R.call_tir(
                     Before.relax_relu_replacement,
@@ -337,7 +334,6 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     lv4,
                     index_map=T.index_map(lambda axis0: (axis0,)),
                     pad_value=None,
-                    axis_separators=[],
                 )
                 lv_2 = R.call_tir(
                     Before.remove_pad, (lv5,), out_ty=R.Tensor((14,), dtype="float32")
@@ -383,7 +379,6 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     x,
                     index_map=T.index_map(lambda i: (i % 16,)),
                     pad_value=None,
-                    axis_separators=[],
                 )
                 lv1 = R.call_tir(
                     Expected.relax_relu_replacement,
@@ -399,7 +394,6 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     lv4,
                     index_map=T.index_map(lambda axis0: (axis0,)),
                     pad_value=None,
-                    axis_separators=[],
                 )
                 gv = R.call_tir(
                     Expected.remove_pad, (lv5,), out_ty=R.Tensor((14,), dtype="float32")

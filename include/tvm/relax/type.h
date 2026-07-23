@@ -42,7 +42,6 @@ using Expr = tvm::Expr;
 using ExprNode = tvm::ExprNode;
 
 class BlockBuilder;
-class Call;
 
 /*! \brief Indicates the number of dimensions of a tensor is unknown at compile time. */
 static constexpr int kUnknownNDim = -1;
@@ -190,13 +189,13 @@ class TensorTypeNode : public TypeNode {
   bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
   /*! \return Whether the type contains unknown dtype. */
-  bool IsUnknownDtype() const { return !dtype.defined(); }
+  bool IsUnknownDtype() const { return !dtype.has_value(); }
 
   /*! \return Shape if it is known. */
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
-    if (!shape.defined()) return {};
+    if (!shape.has_value()) return {};
     const Expr& shape_expr = this->shape.value();
-    if (!shape_expr->ty.defined()) return {};
+    if (shape_expr->ty.IsMissing()) return {};
     if (const auto* shape_ty = shape_expr->ty.as<ShapeTypeNode>()) {
       return shape_ty->values;
     }
@@ -275,7 +274,7 @@ class FuncTypeNode : public TypeNode {
   /*!
    * \brief The type of the function's return value.
    */
-  Type ret;
+  Type ret = Type::Missing();
   /*!
    * \brief Derivation function of opaque functions that may take any number of parameters.
    * \note When derive_func is not empty, then params should be std::nullopt,
@@ -293,7 +292,7 @@ class FuncTypeNode : public TypeNode {
    * \return Whether the func type is opaque.
    * \note We define a function as opaque we have no constraints on params.
    */
-  bool IsOpaque() const { return !params.defined(); }
+  bool IsOpaque() const { return !params.has_value(); }
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -323,7 +322,7 @@ class FuncType : public Type {
    * \param purity The purity of the function (true by default).
    * \param span The span of the AST.
    *
-   * \note If the ret contains variables(tirx::Var and relax::Var), they must be deducible from
+   * \note If the ret contains canonical tvm::Var values, they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
   TVM_DLL FuncType(ffi::Array<Type> params, Type ret, bool purity = true, Span span = Span());
@@ -387,7 +386,7 @@ inline ffi::Optional<T> MatchType(const Expr& expr) {
  */
 template <typename T>
 inline const T* GetTypeAs(const Expr& expr) {
-  TVM_FFI_ICHECK(expr->ty.defined())
+  TVM_FFI_ICHECK(!expr->ty.IsMissing())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty.as<T>();
 }
@@ -399,7 +398,7 @@ inline const T* GetTypeAs(const Expr& expr) {
  * \return underlying Relax type.
  */
 inline Type GetType(const Expr& expr) {
-  TVM_FFI_ICHECK(expr->ty.defined())
+  TVM_FFI_ICHECK(!expr->ty.IsMissing())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty;
 }

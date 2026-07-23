@@ -121,6 +121,7 @@ class ElectSyncFinder : public StmtExprVisitor {
   }
 
  private:
+  using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
   void VisitExpr_(const CallNode* op) final {
@@ -140,28 +141,28 @@ class ElectSyncFinder : public StmtExprVisitor {
 
 class ScopeIdVarFinder : public StmtExprVisitor {
  public:
-  static bool Contains(const PrimExpr& expr, const std::vector<Var>& vars) {
+  static bool Contains(const PrimExpr& expr, const std::vector<PrimVar>& vars) {
     ScopeIdVarFinder finder(vars);
     finder(expr);
     return finder.found_;
   }
 
  private:
-  explicit ScopeIdVarFinder(const std::vector<Var>& vars) : vars_(vars) {}
+  explicit ScopeIdVarFinder(const std::vector<PrimVar>& vars) : vars_(vars) {}
 
+  using StmtExprVisitor::VisitExpr_;
   using StmtExprVisitor::VisitStmt_;
 
   void VisitExpr_(const VarNode* op) final {
-    Var var = ffi::GetRef<Var>(op);
-    for (const auto& candidate : vars_) {
-      if (candidate.same_as(var)) {
+    for (const PrimVar& candidate : vars_) {
+      if (candidate.get() == op) {
         found_ = true;
         return;
       }
     }
   }
 
-  const std::vector<Var>& vars_;
+  const std::vector<PrimVar>& vars_;
   bool found_{false};
 };
 
@@ -515,12 +516,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     Stmt then_case = VisitStmt(op->then_case);
     while (pushed_ctx-- > 0) ctx_stack_.pop_back();
     ffi::Optional<Stmt> else_case;
-    if (op->else_case.defined()) {
+    if (op->else_case.has_value()) {
       else_case = VisitStmt(op->else_case.value());
     }
     bool unchanged = new_cond.same_as(op->condition) && then_case.same_as(op->then_case) &&
-                     ((!op->else_case.defined() && !else_case.defined()) ||
-                      (op->else_case.defined() && else_case.defined() &&
+                     ((!op->else_case.has_value() && !else_case.has_value()) ||
+                      (op->else_case.has_value() && else_case.has_value() &&
                        else_case.value().same_as(op->else_case.value())));
     if (unchanged) return ffi::GetRef<Stmt>(op);
     return IfThenElse(new_cond, then_case, else_case);
@@ -591,8 +592,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // dispatched impls too.
   void PrepareLaunchParams(const AttrStmtNode* entry_node, Stmt body,
                            std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
-    Stmt gather_target =
-        AttrStmt(IntImm::Int32(0), tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     Array<ScopeIdDef> defs;
     defs.reserve(gathered.size());
@@ -607,8 +607,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       PrimExpr shuffled = ScopeIdResolve::ComputeWarpIdInCta(launch_params_);
       Var warp_id_in_cta_var("warp_id_in_cta", shuffled.ty());
       scope_binds->push_back({warp_id_in_cta_var, shuffled});
-      IterVar warp_iv(Range::FromMinExtent(0, 1), warp_id_in_cta_var, kThreadIndex,
-                      "warp_id_in_cta");
+      IterVar warp_iv(Range::FromMinExtent(0, 1), warp_id_in_cta_var.as_or_throw<PrimVar>(),
+                      kThreadIndex, "warp_id_in_cta");
       launch_params_.insert({"warp_id_in_cta", warp_iv});
     }
   }
@@ -623,8 +623,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
                             std::vector<std::pair<Var, const StmtNode*>>* implicit_scope_id_evals) {
     // Gather from a temporary stmt synthesized as the device-entry marker
     // so direct ScopeIdDefStmt children are attributed back to entry_node.
-    Stmt gather_target =
-        AttrStmt(IntImm::Int32(0), tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     // Remap the synthetic source pointer back to the real entry_node so the
     // injector matches against the actual node present in the post-processed
@@ -642,7 +641,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     ScopeIdDefVerifier verifier;
     TVM_FFI_ICHECK(verifier.Verify(defs)) << "Inconsistent ScopeIdDef";
 
-    auto is_implicit = [](const Var& v) { return v->name_hint.empty(); };
+    auto is_implicit = [](const Var& v) { return v->name.empty(); };
     for (const auto& g : gathered) {
       ScopeIdDef def = g.def;
       // Deferred extents: resolved via closure into verifier.id_set.
@@ -664,8 +663,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         // to map Vars back to their ScopeBinding.
         Var bind_var = def->def_ids[i];
         PrimExpr value = resolved[i];
-        if (bind_var.ty() != value.ty()) {
-          value = Cast(bind_var.ty(), value);
+        PrimType bind_var_ty = bind_var->ty.as_or_throw<PrimType>();
+        if (bind_var_ty != value.ty()) {
+          value = Cast(bind_var_ty, value);
         }
         scope_binds->push_back({bind_var, value});
         if (is_implicit(bind_var)) {
@@ -687,8 +687,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       TVM_FFI_ICHECK_LE(extents.size(), 3) << "ValueError: Only up to 3 extents are supported";
       for (size_t i = 0; i < extents.size(); i++) {
         std::string thread_tag = prefix + static_cast<char>('x' + i);
-        IterVar iv(Range::FromMinExtent(0, extents[i]), Var(thread_tag), IterVarType::kThreadIndex,
-                   thread_tag);
+        IterVar iv(Range::FromMinExtent(0, extents[i]), PrimVar(thread_tag),
+                   IterVarType::kThreadIndex, thread_tag);
         launch_params_.insert({ffi::String(thread_tag), iv});
       }
     };
@@ -705,11 +705,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       add_launch_param(ScopeBinding::kClusterCta, "clusterCtaIdx.");
       // Preferred cluster size (CUDA 12.8+)
       const auto& cta_def = (*cluster_cta_it).second;
-      if (cta_def->preferred_extents.defined()) {
+      if (cta_def->preferred_extents.has_value()) {
         const auto& pref = cta_def->preferred_extents.value();
         for (size_t i = 0; i < pref.size(); i++) {
           std::string tag = "preferredClusterCtaIdx." + std::string(1, 'x' + i);
-          IterVar iv(Range::FromMinExtent(0, pref[i]), Var(tag), IterVarType::kThreadIndex, tag);
+          IterVar iv(Range::FromMinExtent(0, pref[i]), PrimVar(tag), IterVarType::kThreadIndex,
+                     tag);
           launch_params_.insert({ffi::String(tag), iv});
         }
       }
@@ -949,8 +950,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return false;
   }
 
-  std::vector<std::pair<Var, ScopeIdTarget>> ScopeIdTargets() const {
-    std::vector<std::pair<Var, ScopeIdTarget>> out;
+  std::vector<std::pair<PrimVar, ScopeIdTarget>> ScopeIdTargets() const {
+    std::vector<std::pair<PrimVar, ScopeIdTarget>> out;
     for (auto it = scope_id_defs_at_level_.rbegin(); it != scope_id_defs_at_level_.rend(); ++it) {
       for (const auto& def : *it) {
         for (size_t i = 0; i < def->def_ids.size(); ++i) {
@@ -962,8 +963,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return out;
   }
 
-  std::vector<Var> ScopeIdVars() const {
-    std::vector<Var> vars;
+  std::vector<PrimVar> ScopeIdVars() const {
+    std::vector<PrimVar> vars;
     for (const auto& [var, _] : ScopeIdTargets()) {
       vars.push_back(var);
     }
@@ -1144,8 +1145,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
     if (const auto* call = pred.as<CallNode>()) {
       if (IsBitwiseAndCall(call)) {
-        FlattenConjuncts(call->args[0], out);
-        FlattenConjuncts(call->args[1], out);
+        FlattenConjuncts(call->args[0].as_or_throw<PrimExpr>(), out);
+        FlattenConjuncts(call->args[1].as_or_throw<PrimExpr>(), out);
         return;
       }
     }
@@ -1155,14 +1156,16 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   int PushFilterPredicateCtx(const CallNode* call) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
         << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
-    auto target = ResolveScopeIdTarget(call->args[0]);
-    if (target && ElectSyncFinder::Contains(call->args[1])) {
+    PrimExpr var = call->args[0].as_or_throw<PrimExpr>();
+    PrimExpr cond = call->args[1].as_or_throw<PrimExpr>();
+    auto target = ResolveScopeIdTarget(var);
+    if (target && ElectSyncFinder::Contains(cond)) {
       PrimExpr selector =
-          tirx::Call(call->args[0].ty(), tirx::builtin::selector(), {call->args[0], call->args[1]});
+          Call(var.ty(), tirx::builtin::selector(), {var, cond}).as_or_throw<PrimExpr>();
       int pushed = TryPushSelectorForTarget(*target, selector) ? 1 : 0;
-      return pushed + PushPredicateCtx(call->args[1]);
+      return pushed + PushPredicateCtx(cond);
     }
-    return PushPredicateCtx(call->args[1]);
+    return PushPredicateCtx(cond);
   }
 
   int PushConjunctivePredicateCtx(const PrimExpr& pred) {
@@ -1257,7 +1260,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   int TryPushCanonicalCtx(const PrimExpr& cond) {
     if (ctx_stack_.empty()) return -1;
     ScopeIdPredicate is_scope_id = [this](const Var& v) {
-      return ResolveScopeIdTarget(v).has_value();
+      return ResolveScopeIdTarget(v.as_or_throw<PrimExpr>()).has_value();
     };
     auto canonical = TryClassifyCanonical(cond, is_scope_id);
     if (!canonical) {
@@ -1269,7 +1272,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         auto lane = FindLaneScopeVar();
         if (!lane) return -1;
         ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-        PrimExpr selector = tirx::Call(lane->ty(), tirx::builtin::selector(), {*lane, cond});
+        PrimExpr selector =
+            Call((*lane)->ty, tirx::builtin::selector(), ffi::Array<Expr>{*lane, cond})
+                .as_or_throw<PrimExpr>();
         return TryPushSelectorForTarget(target, selector) ? 1 : 0;
       }
       return -1;
@@ -1287,7 +1292,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         elect_atoms.push_back(&atom);
         continue;
       }
-      auto target = ResolveScopeIdTarget(atom.scopeid_var);
+      auto target = ResolveScopeIdTarget(atom.scopeid_var.as_or_throw<PrimExpr>());
       if (!target) continue;  // atom recognized but target not in scope
       bool merged = false;
       for (auto& g : groups) {
@@ -1337,11 +1342,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
     PrimExpr selector =
-        tirx::Call(lane->ty(), tirx::builtin::selector(), {*lane, atom.elect_sync_call});
+        Call((*lane)->ty, tirx::builtin::selector(), ffi::Array<Expr>{*lane, atom.elect_sync_call})
+            .as_or_throw<PrimExpr>();
     return TryPushSelectorForTarget(target, selector);
   }
 
-  std::optional<Var> FindLaneScopeVar() const {
+  std::optional<PrimVar> FindLaneScopeVar() const {
     // Walk innermost-first; the first single-axis kWarpThread def wins.
     for (auto it = scope_id_defs_at_level_.rbegin(); it != scope_id_defs_at_level_.rend(); ++it) {
       for (const auto& def : *it) {
@@ -1374,7 +1380,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   PrimExpr RewriteFilterCall(const CallNode* call) const {
     TVM_FFI_ICHECK_EQ(call->args.size(), 2)
         << "TIRxError: tirx.filter expects (var, cond); got " << call->args.size() << " args";
-    return AsBool(call->args[1]);
+    return AsBool(call->args[1].as_or_throw<PrimExpr>());
   }
 
   PrimExpr RewriteFilterCalls(const PrimExpr& pred) const {
@@ -1391,15 +1397,18 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         return RewriteFilterCalls(RewriteFilterCall(call));
       }
       bool changed = false;
-      ffi::Array<PrimExpr> args;
+      ffi::Array<Expr> args;
       args.reserve(call->args.size());
-      for (const auto& arg : call->args) {
-        PrimExpr new_arg = RewriteFilterCalls(arg);
+      for (const Expr& arg : call->args) {
+        Expr new_arg = arg;
+        if (auto prim_arg = arg.as<PrimExpr>()) {
+          new_arg = RewriteFilterCalls(prim_arg.value());
+        }
         changed = changed || !new_arg.same_as(arg);
         args.push_back(new_arg);
       }
       if (changed) {
-        return tirx::Call(call->ty(), call->op, args, call->attrs, call->span);
+        return Call(call->ty, call->op, args, call->attrs, {}, call->span).as_or_throw<PrimExpr>();
       }
     }
     return pred;
@@ -1463,7 +1472,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 namespace {
 Target ResolveTarget(const PrimFunc& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-  if (!target.defined()) {
+  if (!target.has_value()) {
     target = Target::Current(false);
   }
   return target.value();

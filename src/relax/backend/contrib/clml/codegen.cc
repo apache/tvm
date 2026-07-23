@@ -266,7 +266,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<OpenCLMLCompilerConfig>("relax.ext.clml.options");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = transform::PassConfigWithDefaults<OpenCLMLCompilerConfig>();
     }
     node->SetAttr("clml_version", static_cast<int64_t>(cfg.value()->clml_version->value));

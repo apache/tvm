@@ -90,7 +90,7 @@ class RewriteUnboundBlockNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
-    TVM_FFI_CHECK(context->target.defined(), ValueError) << "target is not defined";
+    TVM_FFI_CHECK(context->target.has_value(), ValueError) << "target is not defined";
     ffi::Optional<int64_t> max_threads_per_block =
         context->target.value()->GetAttr<int64_t>("max_threads_per_block");
     TVM_FFI_CHECK(max_threads_per_block.has_value(), ValueError)

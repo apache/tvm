@@ -103,7 +103,7 @@ namespace detail {
 /*! \brief Implementation helper for GetArgType */
 template <typename ArgType>
 ArgType GetArgTypeByIndex(const Call& call, const Op& op, const BlockBuilder& ctx, size_t index) {
-  if (!call->args[index]->ty.defined()) {
+  if (call->args[index]->ty.IsMissing()) {
     TVM_FFI_VISIT_THROW(InternalError, call)
         << op << " op should have arguments with defined Type.  "
         << "However, args[" << index << "] has undefined type.";
@@ -179,7 +179,7 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
 #define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                       \
   Expr OpName(Expr x) {                                                   \
     static const Op& op = Op::Get("relax." OpRegName);                    \
-    return Call(op, {std::move(x)}, Attrs(), {});                         \
+    return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});        \
   }                                                                       \
   TVM_FFI_STATIC_INIT_BLOCK() {                                           \
     tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); \
@@ -212,7 +212,7 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
     auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
     TVM_FFI_ICHECK(defined_ty);
     auto shape = output_ty->GetShape();
-    TVM_FFI_ICHECK(shape.defined());
+    TVM_FFI_ICHECK(shape.has_value());
     TVM_FFI_ICHECK(defined_ty->vdevice.has_value());
     return TensorType(ShapeExpr(shape.value()), output_ty->dtype, defined_ty->vdevice.value());
   } else {
@@ -278,7 +278,7 @@ inline std::optional<PrimType> GetElementDType(const Type& ty) {
   if (const auto* prim = ty.as<PrimTypeNode>()) {
     return ffi::GetRef<PrimType>(prim);
   } else if (const auto* tensor = ty.as<TensorTypeNode>()) {
-    if (tensor->dtype.defined()) {
+    if (tensor->dtype.has_value()) {
       return tensor->dtype.value();
     } else {
       return std::nullopt;
@@ -370,10 +370,10 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
   auto lhs_vdevice = get_vdevice(lhs_ty);
   auto rhs_vdevice = get_vdevice(rhs_ty);
 
-  if (!lhs_vdevice.defined() || !lhs_vdevice.value()->target.defined()) {
+  if (!lhs_vdevice.has_value() || !lhs_vdevice.value()->target.defined()) {
     return rhs_vdevice;
   }
-  if (!rhs_vdevice.defined() || !rhs_vdevice.value()->target.defined()) {
+  if (!rhs_vdevice.has_value() || !rhs_vdevice.value()->target.defined()) {
     return lhs_vdevice;
   }
 

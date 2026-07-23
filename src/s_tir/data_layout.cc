@@ -71,7 +71,7 @@ const SLayoutAxis& SLayoutAxis::Get(const char name) {
 }
 
 const SLayoutAxis& SLayoutAxis::Get(const IterVar& itvar) {
-  const std::string axis = itvar->var.get()->name_hint;
+  const std::string axis = itvar->var.get()->name;
   TVM_FFI_ICHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
   return SLayoutAxis::Get(axis[0]);
 }
@@ -99,12 +99,12 @@ SLayout::SLayout(const ffi::Array<IterVar>& axes) {
         TVM_FFI_ICHECK(!is_grouped)
             << "Only Subordinate Axes with extent is allowed within a packed dim";
       }
-      TVM_FFI_ICHECK_EQ(axis->var.get()->name_hint.size(), 1)
-          << "Invalid layout axis " << axis->var.get()->name_hint;
-      char c = axis->var.get()->name_hint.operator std::string()[0];
+      TVM_FFI_ICHECK_EQ(axis->var.get()->name.size(), 1)
+          << "Invalid layout axis " << axis->var.get()->name;
+      char c = axis->var.get()->name.operator std::string()[0];
       TVM_FFI_ICHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
           << "Invalid layout axis " << c;
-      repr << axis->var.get()->name_hint;
+      repr << axis->var.get()->name;
     }
     if (is_grouped) repr << "]";
   }
@@ -132,8 +132,8 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
     if (c >= 'A' && c <= 'Z') {
       TVM_FFI_ICHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                                    << factor << " before dimension " << c;
-      IterVar axis(Range(IntImm(index_ty, 0), Var(std::string(1, c), index_ty)),
-                   Var(std::string(1, c), index_ty), tirx::kDataPar);
+      PrimVar axis_var(std::string(1, c), index_ty);
+      IterVar axis(Range(IntImm(index_ty, 0), axis_var), axis_var, tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -144,8 +144,8 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
                                    << factor << " for dimension " << c;
       std::stringstream name;
       name << factor << c;
-      IterVar axis(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)), Var(name.str(), index_ty),
-                   tirx::kDataPar);
+      IterVar axis(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)),
+                   PrimVar(name.str(), index_ty), tirx::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -167,16 +167,16 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       int64_t extent = 1;
       for (auto& axis : unpacked_axes) {
         TVM_FFI_ICHECK(axis->dom->extent.as<IntImmNode>())
-            << "Invalid SLayout " << name << ": can't have variable sized node("
-            << axis->var->name_hint << ") within a packed axis";
-        auto axis_name = axis->var->name_hint.operator std::string();
+            << "Invalid SLayout " << name << ": can't have variable sized node(" << axis->var->name
+            << ") within a packed axis";
+        auto axis_name = axis->var->name.operator std::string();
         auto factor = axis->dom->extent.as<IntImm>().value();
         ss << axis_name;
         extent = extent * factor->value;
       }
       std::string grouped_name = ss.str();
       IterVar grouped_axis(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
-                           Var(grouped_name, index_ty), tirx::kDataPar);
+                           PrimVar(grouped_name, index_ty), tirx::kDataPar);
       node->axes.push_back(grouped_axis);
 
       in_packing = false;
@@ -192,7 +192,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   std::vector<int> axis_cnt(256, 0);
   for (const IterVar& pv : node->axes) {
     for (const IterVar& v : UnpackIterVar(pv)) {
-      auto axis_str = v->var.get()->name_hint.operator std::string();
+      auto axis_str = v->var.get()->name.operator std::string();
       TVM_FFI_ICHECK_EQ(axis_str.size(), 1);
       char axis = axis_str[0];
       TVM_FFI_ICHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
@@ -201,7 +201,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
   }
   for (const IterVar& pv : node->axes) {
     for (const IterVar& v : UnpackIterVar(pv)) {
-      char axis = v->var.get()->name_hint.operator std::string()[0];
+      char axis = v->var.get()->name.operator std::string()[0];
       if (axis >= 'a' && axis <= 'z') {
         TVM_FFI_ICHECK(axis_cnt[axis - 'a' + 'A'])
             << "Invalid layout " << name << ": missing axis " << std::toupper(axis);
@@ -231,7 +231,7 @@ ffi::Array<IterVar> SLayout::UnpackIterVar(IterVar packed_iter) {
   ffi::Array<IterVar> result;
   int64_t factor = 0, final_factor = 1;
 
-  std::string name(packed_iter->var->name_hint.c_str());
+  std::string name(packed_iter->var->name.c_str());
   PrimType index_ty = packed_iter->var.ty();
 
   for (auto ch : name) {
@@ -240,13 +240,13 @@ ffi::Array<IterVar> SLayout::UnpackIterVar(IterVar packed_iter) {
     } else if (ch >= 'a' && ch <= 'z') {
       TVM_FFI_ICHECK(factor != 0) << "Invalid Factor Size";
       result.push_back(IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)),
-                               Var(std::string(1, ch), index_ty), tirx::kDataPar));
+                               PrimVar(std::string(1, ch), index_ty), tirx::kDataPar));
       final_factor *= factor;
       factor = 0;
     } else if (ch >= 'A' && ch <= 'Z') {
       TVM_FFI_ICHECK(factor == 0) << "Can't have non-zero factors for primal axis";
-      result.push_back(IterVar(Range(IntImm(index_ty, 0), Var(std::string(1, ch), index_ty)),
-                               Var(std::string(1, ch), index_ty), tirx::kDataPar));
+      PrimVar axis_var(std::string(1, ch), index_ty);
+      result.push_back(IterVar(Range(IntImm(index_ty, 0), axis_var), axis_var, tirx::kDataPar));
     }
   }
 
@@ -261,12 +261,12 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   for (auto itvar : iter_vars) {
     TVM_FFI_ICHECK(itvar->dom->extent.as<IntImm>())
         << "Packed Axis can contain only Subordinate Axes";
-    name << itvar->dom->extent.as<IntImm>().value() << itvar->var->name_hint;
+    name << itvar->dom->extent.as<IntImm>().value() << itvar->var->name;
     extent = extent * itvar->dom->extent.as<IntImm>().value()->value;
   }
 
-  return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)), Var(name.str(), index_ty),
-                 tirx::kDataPar);
+  return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
+                 PrimVar(name.str(), index_ty), tirx::kDataPar);
 }
 
 int32_t SLayout::FactorOf(const SLayoutAxis& axis) const {
@@ -356,10 +356,8 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
           for (; l < inter_unpacked_axes.size(); l++) {
             const SLayoutAxis& axis = SLayoutAxis::Get(inter_unpacked_axes[l]);
             if (axis == sub_axis) {
-              const auto* sub_extent = inter_unpacked_axes[l]->dom->extent.as<IntImmNode>();
-              TVM_FFI_ICHECK(sub_extent) << "Expected Integer Extents for Offset Calculation";
-              factor_ij =
-                  factor_ij * IntImm(ffi::GetRef<PrimExpr>(sub_extent).ty(), sub_extent->value);
+              IntImm sub_extent = inter_unpacked_axes[l]->dom->extent.as_or_throw<IntImm>();
+              factor_ij = factor_ij * IntImm(sub_extent.ty(), sub_extent->value);
             }
           }
         }
@@ -596,7 +594,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("s_tir.SLayoutGetItem",
            [](SLayout layout, int idx) -> std::string {
              const auto& axis = layout.PackedAxisAt(idx);
-             return axis->var->name_hint;
+             return axis->var->name;
            })
       .def("s_tir.SBijectiveLayout",
            [](SLayout src_layout, SLayout dst_layout) -> SBijectiveLayout {

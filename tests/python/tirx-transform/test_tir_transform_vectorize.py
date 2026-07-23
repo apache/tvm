@@ -496,11 +496,11 @@ def test_illegal_extent():
     class Mod:
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer((25,), "int32")):
-            n = T.Var("n", dtype="int32")
+            n = T.Var("n", ty="int32")
             for j in T.vectorized(n):
                 A[j] = 3
 
-    error_msg = "Failed to vectorize loop with extent n for target None"
+    error_msg = r"Failed to vectorize loop with extent n for target None"
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tirx.transform.VectorizeLoop()(Mod)
 

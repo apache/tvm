@@ -33,23 +33,21 @@
  *       attribute, the name of the GlobalVar must equal the value of the
  *       `global_symbol` attribute value.
  *    4. Any variable cannot used as different function parameters in the same IRModule.
- *    5. Any symbolic var cannot present across different functions in the same IRModule.
- *    6. Vars are defined before use.
- *    7. Vars are defined exactly once.
- *    8. Symbolic Vars are defined before use.
- *    9. DataflowVars cannot be defined inside BindingBlock.
- *    10. Vars defined in IfNode, except the return Var, are invisible
+ *    5. Vars, including those introduced in definitional type positions, are defined before use.
+ *    6. Vars are defined exactly once.
+ *    7. DataflowVars cannot be defined inside BindingBlock.
+ *    8. Vars defined in IfNode, except the return Var, are invisible
  *       out of the If body.(May change for new AST designs)
- *    11. SeqExpr only serves as function body, or in the true and
+ *    9. SeqExpr only serves as function body, or in the true and
  *       false branches in IfNode.
- *    12. The IR is in ANF:
+ *    10. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
  *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr,
  *           Op, Tuple (we call these "leaf" expressions).
  *       (b) The right-hand side of a binding may contain a non-leaf expression
  *           (where all expressions nested in it are leaf expressions),
- *           other than SeqExprs (see rule 6)
+ *           other than SeqExprs (see rule 9)
  *       (c) Exceptions: The body of a Function node and the true branch
  *           and false branch of If nodes *must* be SeqExprs.
  *       (d) Places where non-leaf expressions cannot appear:
@@ -57,13 +55,13 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    13. Expr always has ty (with the exception of Op).
- *    14. DataflowBlocks may not contain If nodes.
- *    15. DataflowBlocks may not contain calls to impure functions or operators
+ *    11. Expr always has ty (with the exception of Op).
+ *    12. DataflowBlocks may not contain If nodes.
+ *    13. DataflowBlocks may not contain calls to impure functions or operators
  *        (only checked if check_ty is true).
- *    16. If a function has is_pure set to true and the kForcePure attribute is not set,
+ *    14. If a function has is_pure set to true and the kForcePure attribute is not set,
  *        the body may not contain any impure call (only checked if check_ty is true).
- *    17. If the kForcePure attribute is set for a function,
+ *    15. If the kForcePure attribute is set for a function,
  *        that function's is_pure field must be true.
  */
 #include <tvm/ffi/cast.h>
@@ -90,9 +88,7 @@ namespace relax {
 // Scope Frame to store manage the var context.
 //
 /*! \brief Helper to implement well formed check.*/
-class WellFormedChecker : public relax::ExprVisitor,
-                          public relax::TypeVisitor,
-                          public tirx::ExprVisitor {
+class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
  public:
   // Throws ffi::Error on the first well-formedness violation, seeded with the
   // offending node so the caller can resolve an access path. Returns normally
@@ -123,8 +119,6 @@ class WellFormedChecker : public relax::ExprVisitor,
       : mod_(std::move(mod)), check_ty(check_ty), cur_visited_func_(nullptr) {}
 
   using relax::ExprVisitor::VisitExpr_;
-  using tirx::ExprVisitor::VisitExpr;
-  using tirx::ExprVisitor::VisitExpr_;
 
   // Possible mode of visitor
   enum class VisitMode {
@@ -137,6 +131,16 @@ class WellFormedChecker : public relax::ExprVisitor,
      * Do not check the well-defined property of composite expr.
      */
     kMatchVarDef
+  };
+
+  class PrimitiveExprChecker : public tirx::ExprVisitor {
+   public:
+    explicit PrimitiveExprChecker(WellFormedChecker* parent) : parent_(parent) {}
+
+   private:
+    void VisitExpr_(const tvm::VarNode* op) final { parent_->VisitExpr(ffi::GetRef<Expr>(op)); }
+
+    WellFormedChecker* parent_;
   };
 
   /*! \brief Get the name of a function for use in error messages. */
@@ -162,15 +166,15 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && !expr->ty.defined()) {
-      TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is nullptr.";
+    if (!expr.as<OpNode>() && expr->ty.IsMissing()) {
+      TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is missing.";
     }
     relax::ExprVisitor::VisitExpr(expr);
   }
 
   void VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = ffi::GetRef<GlobalVar>(op);
-    if (mod_.defined()) {
+    if (mod_.has_value()) {
       if (!(mod_.value()->ContainGlobalVar(var->name_hint) &&
             mod_.value()->GetGlobalVar(var->name_hint).same_as(var))) {
         TVM_FFI_VISIT_THROW(ValueError, var)
@@ -178,7 +182,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (op->ty.defined()) {
+    if (!op->ty.IsMissing()) {
       if (!op->ty->IsInstance<FuncTypeNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
             << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncType.";
@@ -246,19 +250,8 @@ class WellFormedChecker : public relax::ExprVisitor,
     // save the var_set_ for local function
     auto prev_var_set = var_set_;
     auto prev_dataflow_var_set = dataflow_var_set_;
-    auto prev_symbolic_var_set = symbolic_var_set_;
     bool old_dataflow_state = is_dataflow_;
-    // symbolic var is not captured across function boundaries
-    symbolic_var_set_.clear();
     is_dataflow_ = false;
-
-    // first populate defs in params
-    WithMode(VisitMode::kMatchVarDef, [&]() {
-      TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
-      for (Var param : op->params) {
-        relax::TypeVisitor::VisitType(GetType(param));
-      }
-    });
 
     // ensure the purity attributes are valid
     if (op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && !op->is_pure) {
@@ -268,20 +261,39 @@ class WellFormedChecker : public relax::ExprVisitor,
           << " should be true only if is_pure is also true.";
     }
 
-    // check all expr are well defined.
+    // Bare symbolic occurrences in parameter types are signature definitions,
+    // including when a later parameter type defines a symbol used by an
+    // earlier compound expression.
+    WithMode(VisitMode::kMatchVarDef, [&]() {
+      for (Var param : op->params) {
+        relax::TypeVisitor::VisitType(GetType(param));
+      }
+    });
     for (Var param : op->params) {
-      this->VisitVarDef(param);
+      if (!prev_var_set.count(param)) {
+        var_set_.erase(param);
+      }
+    }
+
+    // Runtime parameters themselves are definitions only in source order.
+    for (Var param : op->params) {
+      if (auto* dataflow_var = param.as<DataflowVarNode>()) {
+        TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(dataflow_var))
+            << "DataflowVar " << param << " is defined outside DataflowBlock.";
+      }
+      RegisterVarDefinition(param);
 
       auto it = param_var_func_map_.find(param);
-      if (it != param_var_func_map_.end()) {
+      if (it != param_var_func_map_.end() && it->second != cur_visited_func_) {
         TVM_FFI_VISIT_THROW(ValueError, param->span)
             << "Relax variable " << param << " is used as a parameter in both function "
             << FuncName(it->second) << " and function " << FuncName(cur_visited_func_) << ".";
       }
       param_var_func_map_.insert({param, cur_visited_func_});
+      CheckType(param.get());
     }
     // check function ret_ty
-    if (op->ret_ty.defined()) {
+    if (!op->ret_ty.IsMissing()) {
       this->VisitType(op->ret_ty);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op)) << "Function must have defined ret_ty";
@@ -304,7 +316,6 @@ class WellFormedChecker : public relax::ExprVisitor,
     is_dataflow_ = old_dataflow_state;
     dataflow_var_set_ = prev_dataflow_var_set;
     var_set_ = prev_var_set;
-    symbolic_var_set_ = prev_symbolic_var_set;
 
     if (cur_visited_func_ == op) {
       cur_visited_func_ = nullptr;
@@ -316,7 +327,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     TVM_FFI_VISIT_BEGIN();
     if (IsLeafOrTuple(call->op)) {
       const FunctionNode* prev_visited_func = cur_visited_func_;
-      cur_visited_func_ = nullptr;  // close the symbolic var dup check
+      cur_visited_func_ = nullptr;  // do not attribute the callee to its caller
       this->VisitExpr(call->op);
       cur_visited_func_ = prev_visited_func;
     } else {
@@ -363,7 +374,7 @@ class WellFormedChecker : public relax::ExprVisitor,
             << "However, normalization of " << before_normalize << " resulted in the error: \n"
             << err.what();
       }
-      if (after_normalize && !before_normalize.same_as(after_normalize)) {
+      if (after_normalize && !after_normalize.same_as(before_normalize)) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
             << "If an operator defines an operator-specific normalization function (FNormalize), "
             << "calls to that operator must be normalized with it.  "
@@ -383,12 +394,16 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (check_ty && call->ty.defined()) {
+    bool has_infer_type = true;
+    if (auto op = call->op.as<Op>()) {
+      has_infer_type = op_map_infer_type_.count(op.value());
+    }
+    if (check_ty && !call->ty.IsMissing() && (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
       // The `InferType` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
       // an expression that does not yet have `Type`.
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
-      Call copied(call->op, call->args, call->attrs, call->ty_args);
+      Call copied(Type::Missing(), call->op, call->args, call->attrs, call->ty_args);
       ffi::Optional<Expr> normalized = std::nullopt;
       try {
         normalized = dummy_builder->Normalize(copied);
@@ -399,7 +414,7 @@ class WellFormedChecker : public relax::ExprVisitor,
             << " resulted in the error: \n"
             << err.what();
       }
-      if (normalized.defined()) {
+      if (normalized.has_value()) {
         auto inferred_ty = GetType(normalized.value());
         auto current_ty = call->ty.as_or_throw<Type>();
 
@@ -441,13 +456,10 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     std::unordered_set<Var> previous_var_set = var_set_;
-    std::unordered_set<tirx::Var> previous_symbolic_var_set = symbolic_var_set_;
     this->VisitSeqExpr(op->true_branch.get());
     var_set_ = previous_var_set;
-    symbolic_var_set_ = previous_symbolic_var_set;
     this->VisitSeqExpr(op->false_branch.get());
     var_set_ = previous_var_set;
-    symbolic_var_set_ = previous_symbolic_var_set;
 
     CheckType(op);
     TVM_FFI_VISIT_END(ffi::GetRef<Expr>(op));
@@ -456,7 +468,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   void VisitExpr_(const ShapeExprNode* op) final {
     for (PrimExpr expr : op->values) {
       // check if the symbolic vars in the expr are defined, e.g, 2 * m
-      tirx::ExprVisitor::VisitExpr(expr);
+      VisitPrimitiveExpr(expr);
       if (expr.ty().code() != DLDataTypeCode::kDLInt) {
         TVM_FFI_VISIT_THROW(TypeError, expr)
             << "Shape expressions must be of integer type, but got " << expr.ty()->dtype;
@@ -502,7 +514,7 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     this->VisitVarDef(binding->var);
 
-    if (check_ty && binding->var->ty.defined() && binding->value->ty.defined()) {
+    if (check_ty && !binding->var->ty.IsMissing() && !binding->value->ty.IsMissing()) {
       auto expr_ty = GetType(binding->value);
       auto var_ty = GetType(binding->var);
       if (!IsBaseOf(var_ty, expr_ty)) {
@@ -552,38 +564,22 @@ class WellFormedChecker : public relax::ExprVisitor,
 
   void VisitVarDef_(const VarNode* var) final {
     Var gv = ffi::GetRef<Var>(var);
-    if (var_set_.count(gv) == 1) {
-      TVM_FFI_VISIT_THROW(ValueError, gv) << "Var " << gv << " is defined more than once.";
-    }
-    // register Var
-    var_set_.insert(gv);
+    RegisterVarDefinition(gv);
     CheckType(var);
   }
 
-  void VisitExpr_(const tirx::VarNode* op) final {
-    tirx::Var var = ffi::GetRef<tirx::Var>(op);
-    // default mode, check defined.
-    if (symbolic_var_set_.count(var) == 0) {
-      TVM_FFI_VISIT_THROW(ValueError, var) << "Symbolic Var " << var << " is not defined.";
+  void RegisterVarDefinition(const Var& var) {
+    if (var_set_.count(var) == 1) {
+      TVM_FFI_VISIT_THROW(ValueError, var) << "Var " << var << " is defined more than once.";
     }
-
-    // don't perform the check
-    if (cur_visited_func_ == nullptr) {
-      return;
-    }
-
-    // check across functions presence
-    auto it = symbolic_var_func_map_.find(var);
-    if (it != symbolic_var_func_map_.end() && it->second != cur_visited_func_) {
-      TVM_FFI_VISIT_THROW(ValueError, var->span)
-          << "Symbolic Var " << var << " is present in both function " << FuncName(it->second)
-          << " and function " << FuncName(cur_visited_func_) << " in the same Module.";
-    }
-    symbolic_var_func_map_.insert({var, cur_visited_func_});
+    var_set_.insert(var);
   }
 
   void VisitType_(const FuncTypeNode* op) final {
-    if (op->params.defined()) {
+    auto prev_var_set = var_set_;
+    const FunctionNode* prev_visited_func = cur_visited_func_;
+    cur_visited_func_ = nullptr;
+    if (op->params.has_value()) {
       WithMode(VisitMode::kMatchVarDef, [&]() {
         TVM_FFI_ICHECK(mode_ == VisitMode::kMatchVarDef);
         for (Type param : op->params.value()) {
@@ -592,16 +588,19 @@ class WellFormedChecker : public relax::ExprVisitor,
       });
     }
     this->VisitType(op->ret);
+    cur_visited_func_ = prev_visited_func;
+    var_set_ = prev_var_set;
   }
 
   void VisitTypeExprField(const Expr& expr) final {
+    if (auto* op = expr.as<DataflowVarNode>()) {
+      TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(op))
+          << "DataflowVar cannot be used as a dependent type expression.";
+    }
     if (mode_ == VisitMode::kMatchVarDef) {
-      // populate symbolic var in first occurrence
-      if (auto* op = expr.as<relax::VarNode>()) {
-        auto var = ffi::GetRef<relax::Var>(op);
-        if (var_set_.count(var) == 0) {
-          var_set_.insert(var);
-        }
+      // Populate a canonical Var definition on first occurrence.
+      if (auto* op = expr.as<VarNode>()) {
+        MarkTypeVarDefinition(ffi::GetRef<Var>(op));
       }
       if (auto* shape = expr.as<relax::ShapeExprNode>()) {
         for (auto val : shape->values) {
@@ -614,17 +613,36 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitTypeExprField(const PrimExpr& expr) final {
+    if (auto* op = expr.as<DataflowVarNode>()) {
+      TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(op))
+          << "DataflowVar cannot be used as a dependent type expression.";
+    }
     if (mode_ == VisitMode::kMatchVarDef) {
-      // populate symbolic var in first occurrence
-      if (auto* op = expr.as<tirx::VarNode>()) {
-        auto var = ffi::GetRef<tirx::Var>(op);
-        if (symbolic_var_set_.count(var) == 0) {
-          symbolic_var_set_.insert(var);
-        }
+      // A primitive Var is the same canonical Var as a Relax binding.  A
+      // first occurrence in a definitional type position enters the one
+      // lexical definition set used by all Var occurrences.
+      if (auto* op = expr.as<VarNode>()) {
+        MarkTypeVarDefinition(ffi::GetRef<Var>(op));
       }
     } else {
-      tirx::ExprVisitor::VisitExpr(expr);
+      VisitPrimitiveExpr(expr);
     }
+  }
+
+  void VisitPrimitiveExpr(const PrimExpr& expr) { PrimitiveExprChecker(this)(expr); }
+
+  void MarkTypeVarDefinition(const Var& var) {
+    var_set_.insert(var);
+    if (cur_visited_func_ == nullptr) {
+      return;
+    }
+    auto it = param_var_func_map_.find(var);
+    if (it != param_var_func_map_.end() && it->second != cur_visited_func_) {
+      TVM_FFI_VISIT_THROW(ValueError, var->span)
+          << "Var " << var << " is defined in both function " << FuncName(it->second)
+          << " and function " << FuncName(cur_visited_func_) << ".";
+    }
+    param_var_func_map_.insert({var, cur_visited_func_});
   }
 
   void CheckType(const ExprNode* op) {
@@ -662,12 +680,11 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_set<Var> var_set_;
   std::unordered_set<Var> recur_vars_;
   std::unordered_set<DataflowVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> dataflow_var_set_;
-  std::unordered_set<tirx::Var> symbolic_var_set_;
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
-  std::unordered_map<tirx::Var, const FunctionNode*> symbolic_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
   tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
+  tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
 };
 
 void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {

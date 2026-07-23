@@ -47,7 +47,8 @@ Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip
   attrs->keep_background = keep_background;
 
   static const Op& op = Op::Get("relax.vision.multibox_transform_loc");
-  return Call(op, {std::move(cls_pred), std::move(loc_pred), std::move(anchor)}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
+              Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

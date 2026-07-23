@@ -41,10 +41,9 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
 /******** Buffer Related ********/
 Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
-  ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
-  new_var->type_annotation = PointerType(ptr_type->element_type, scope);
-  new_buffer->data = Var(new_var->name_hint + "_" + scope, new_var->type_annotation);
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
+  Type new_type = PointerType(ptr_type->element_type, scope);
+  new_buffer->data = tirx::Var(buffer->data->name + "_" + scope, new_type);
   new_buffer->name = buffer->name + "_" + scope;
   return Buffer(new_buffer);
 }
@@ -52,8 +51,8 @@ Buffer WithScope(const Buffer& buffer, const ffi::String& scope) {
 Buffer WithDType(const Buffer& buffer, PrimType dtype) {
   ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
   new_buffer->dtype = dtype;
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data->type_annotation, PointerTypeNode);
-  new_buffer->data = Var(buffer->data->name_hint, PointerType(dtype, ptr_type->storage_scope));
+  const auto* ptr_type = TVM_TYPE_AS(buffer->data->ty, PointerTypeNode);
+  new_buffer->data = tirx::Var(buffer->data->name, PointerType(dtype, ptr_type->storage_scope));
   new_buffer->name = buffer->name;
   return Buffer(new_buffer);
 }
@@ -142,7 +141,7 @@ ReplaceBufferMutator::ReplaceBufferMutator(const ffi::Map<Buffer, Buffer>& buffe
   }
 }
 
-PrimExpr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
+Expr ReplaceBufferMutator::VisitExpr_(const VarNode* var) {
   auto it = buffer_var_map_.find(var);
   return it != buffer_var_map_.end() ? it->second->data : ffi::GetRef<Var>(var);
 }
@@ -152,7 +151,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BufferStoreNode* op) {
   return VisitBufferAccess(std::move(node));
 }
 
-PrimExpr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
+Expr ReplaceBufferMutator::VisitExpr_(const BufferLoadNode* op) {
   auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
   return VisitBufferAccess(std::move(node));
 }
@@ -178,8 +177,8 @@ Stmt ReplaceBufferMutator::VisitStmt_(const SBlockNode* block) {
   };
   auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
     auto region = MutateArray(buffer_region->region, [this](const Range& range) {
-      PrimExpr min = VisitExpr(range->min);
-      PrimExpr extent = VisitExpr(range->extent);
+      PrimExpr min = VisitPrimExpr(range->min);
+      PrimExpr extent = VisitPrimExpr(range->extent);
       if (min.same_as(range->min) && extent.same_as(range->extent)) {
         return range;
       } else {
@@ -315,7 +314,7 @@ ffi::Optional<LoopRV> TileWithTensorIntrin(const s_tir::Schedule& sch,
                               tirx::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
   if (!opt_tensorize_info) return std::nullopt;
   const TensorizeInfoNode* info = opt_tensorize_info.value().get();
-  if (info->block_iter_paddings.defined()) {
+  if (info->block_iter_paddings.has_value()) {
     // We have to track whether each producer or consumer is padded.
     // To do so, we first record all the Block's.
     std::unordered_set<const StmtSRefNode*> original_producers, original_consumers;
@@ -475,7 +474,7 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
   return node;
 }
 
-PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
+Expr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
   BufferLoad node = arith::IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
@@ -523,10 +522,10 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
   for (const SBlockRV& block : leaf_blocks) {
     ffi::Array<IterVar> iters = sch->Get(block)->iter_vars;
     bool has_spatial_iter = false;
-    ffi::Array<Var> index_map_inputs;
+    ffi::Array<PrimVar> index_map_inputs;
     ffi::Array<PrimExpr> index_map_outputs;
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
-      Var var = iter->var.copy_with_suffix("");
+      PrimVar var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
       if (!is_one(iter->dom->extent)) {
         index_map_outputs.push_back(var);

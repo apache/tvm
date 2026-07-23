@@ -371,7 +371,7 @@ def test_strided_slice_symbolic_bound():
     class StridedSlice:
         @R.function
         def main(x: R.Tensor((10, "n"), "float32")) -> R.Tensor((3, "n"), "float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0, 1], begin=[1, 0], end=[8, n], strides=[3, 1])
             return gv
 
@@ -379,7 +379,7 @@ def test_strided_slice_symbolic_bound():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
             return gv
 
@@ -403,7 +403,7 @@ def test_strided_slice_non_unit_stride():
     class StridedSlice:
         @R.function
         def main(x: R.Tensor((10, "n"), "float32")) -> R.Tensor((3, "n"), "float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0, 1], begin=[1, 0], end=[8, n], strides=[3, 1])
             return gv
 
@@ -411,7 +411,7 @@ def test_strided_slice_non_unit_stride():
     class Expected:
         @R.function
         def main(x: R.Tensor((10, "n"), dtype="float32")) -> R.Tensor((3, "n"), dtype="float32"):
-            n = T.int64(is_size_var=True)
+            n = T.int64()
             gv = R.call_tir(Expected.strided_slice, (x,), R.Tensor((3, n), dtype="float32"))
             return gv
 

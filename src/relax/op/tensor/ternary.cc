@@ -69,7 +69,7 @@ Type InferTypeEwiseFMA(const Call& call, const BlockBuilder& ctx) {
 
   VDevice vdev = VDevice();
   for (int i = 0; i < 3; ++i) {
-    if (input_ty[i]->vdevice.defined()) {
+    if (input_ty[i]->vdevice.has_value()) {
       if (!vdev.defined()) {
         vdev = input_ty[i]->vdevice.value();
       } else if (input_ty[i]->vdevice.value()->target.defined()) {
@@ -103,7 +103,8 @@ Type InferTypeEwiseFMA(const Call& call, const BlockBuilder& ctx) {
       return TensorType(ShapeExpr(output_shape), output_dtype, vdev);
     }
     return TensorType(ShapeExpr(output_shape), output_dtype);
-  } else if (t1->shape.defined() && t1->shape.same_as(t2->shape) && t1->shape.same_as(t3->shape)) {
+  } else if (t1->shape.has_value() && t1->shape.same_as(t2->shape) &&
+             t1->shape.same_as(t3->shape)) {
     if (vdev.defined()) {
       return TensorType(t1->shape.value(), output_dtype, vdev);
     }
@@ -142,7 +143,7 @@ TVM_REGISTER_OP("relax.ewise_fma")
 
 Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
   static const Op& op = Op::Get("relax.ewise_fma");
-  return Call(op, {x1, x2, x3}, Attrs(), {});
+  return Call(Type::Missing(), op, {x1, x2, x3}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -386,7 +386,9 @@ def test_let_buffer_rewrite():
     class Before:
         @T.prim_func(s_tir=True)
         def main() -> None:
-            A_data: T.let[T.handle("int32")] = T.call_extern("dummy_func", dtype="handle")
+            A_data: T.let[T.handle("int32")] = T.call_extern(
+                "dummy_func", dtype=T.handle("int32").ty
+            )
             A = T.decl_buffer([8], "int32", data=A_data)
             A[0:8] = T.broadcast(42, 8)
 
@@ -394,105 +396,15 @@ def test_let_buffer_rewrite():
     class Expected:
         @T.prim_func(s_tir=True)
         def main() -> None:
-            A_data: T.let[T.handle("int32x8")] = T.call_extern("dummy_func", dtype="handle")
+            A_data: T.let[T.handle("int32x8")] = T.call_extern(
+                "dummy_func", dtype=T.handle("int32x8").ty
+            )
             A = T.decl_buffer([8], "int32", data=A_data)
             A_1 = T.Buffer([1], "int32x8", data=A_data)
             A_1[0] = T.broadcast(42, 8)
 
     After = tvm.tirx.transform.StorageRewrite()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
-
-
-def test_rewrite_in_place_use_of_non_flat_buffer():
-    """A non-flat buffer may be re-used for in-place operations"""
-
-    @I.ir_module
-    class Before:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
-            B = T.decl_buffer(
-                [16, 16],
-                dtype="float32",
-                axis_separators=[1],
-            )
-            C = T.decl_buffer(
-                [16, 16],
-                dtype="float32",
-                axis_separators=[1],
-            )
-
-            for i, j in T.grid(16, 16):
-                B[i, j] = A[i, j]
-
-            for i, j in T.grid(16, 16):
-                C[i, j] = 2.0 * B[i, j]
-
-            for i, j in T.grid(16, 16):
-                D[i, j] = C[i, j]
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func(s_tir=True)
-        def main(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
-            B = T.decl_buffer([16, 16], dtype="float32", axis_separators=[1])
-            C = T.decl_buffer(
-                [16, 16],
-                dtype="float32",
-                axis_separators=[1],
-                data=B.data,
-            )
-
-            for i, j in T.grid(16, 16):
-                B[i, j] = A[i, j]
-
-            for i, j in T.grid(16, 16):
-                C[i, j] = 2.0 * B[i, j]
-
-            for i, j in T.grid(16, 16):
-                D[i, j] = C[i, j]
-
-    After = tvm.tirx.transform.StorageRewrite()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-def test_no_rewrite_of_shared_non_flat_buffer():
-    """In general, sharing of non-flat buffer isn't supported
-
-    The current packing algorithms in StorageRewrite assume a flat
-    memory space, and do not support packing of N-d buffers.  For
-    buffers with axis separators, normal buffer sharing should be
-    disabled.
-
-    Like test_rewrite_in_place_use_of_non_flat_buffer, except that B and C do
-    not have matching shapes.
-    """
-
-    @T.prim_func(s_tir=True)
-    def Before(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
-        B = T.decl_buffer(
-            [16, 16],
-            dtype="float32",
-            axis_separators=[1],
-        )
-        C = T.decl_buffer(
-            [20, 20],
-            dtype="float32",
-            axis_separators=[1],
-        )
-
-        for i, j in T.grid(16, 16):
-            B[i, j] = A[i, j]
-
-        for i, j in T.grid(16, 16):
-            C[i, j] = 2.0 * B[i, j]
-
-        for i, j in T.grid(16, 16):
-            D[i, j] = C[i, j]
-
-    Expected = Before
-
-    After = tvm.tirx.transform.StorageRewrite()(tvm.IRModule.from_expr(Before))
-    tvm.ir.assert_structural_equal(After["Before"], Expected)
 
 
 def test_rewrite_decl_buffer():

@@ -99,7 +99,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
             sample_id_local = T.sblock_alloc_buffer((), "int64", scope="local")
             step_iter = T.sblock_alloc_buffer((), "int32", scope="local")
             for bx in T.thread_binding(batch_size, thread="blockIdx.x"):
-                row_idx: T.let[T.int64] = row_indices[bx, 0]
+                row_idx: T.let[T.int64] = T.Cast("int64", row_indices[bx, 0])
                 for ty in T.thread_binding(T.int64(4), thread="threadIdx.y"):
                     for tx in T.thread_binding(T.int64(32), thread="threadIdx.x"):
                         u: T.let[T.float32] = uniform_samples[bx, 0]

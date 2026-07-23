@@ -71,7 +71,7 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
   const auto* op_node = call->op.as<OpNode>();
   if (!op_node) return false;
   Op op = ffi::GetRef<Op>(op_node);
-  return op == Op::Get(op_name);
+  return op.same_as(Op::Get(op_name));
 }
 
 /*!

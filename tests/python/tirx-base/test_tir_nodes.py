@@ -103,12 +103,8 @@ def test_cast():
     assert z.lanes == 4
 
     s = tvm.tirx.StringImm("s")
-    with pytest.raises(RuntimeError):
-        try:
-            s.astype("int")
-        except Exception as e:
-            assert "Can't cast a handle to other types" in str(e)
-            raise
+    with pytest.raises(TypeError, match="Cannot cast an expression with the void sentinel type"):
+        s.astype("int")
 
 
 def test_attr():
@@ -166,10 +162,11 @@ def test_any():
     except ValueError:
         pass
     assert str(tvm.tirx.any(x < y)) == f"{x.name} < {y.name}"
-    assert str(tvm.tirx.any(x < y, x > z)) == f"{x.name} < {y.name} or {x.name} > {z.name}"
+    assert str(tvm.tirx.any(x < y, x > z)) == (f"{x.name} < {y.name} or {x.name} > {z.name}")
     assert (
         str(tvm.tirx.any(x < y, y > z + 1, x < z * 2))
-        == f"{x.name} < {y.name} or {y.name} > {z.name} + 1 or {x.name} < {z.name} * 2"
+        == f"{x.name} < {y.name} or {y.name} > {z.name} + 1 or "
+        f"{x.name} < {z.name} * 2"
     )
 
 
@@ -188,10 +185,11 @@ def test_all():
     except ValueError:
         pass
     assert str(tvm.tirx.all(x < y)) == f"{x.name} < {y.name}"
-    assert str(tvm.tirx.all(x < y, x > z)) == f"{x.name} < {y.name} and {x.name} > {z.name}"
+    assert str(tvm.tirx.all(x < y, x > z)) == (f"{x.name} < {y.name} and {x.name} > {z.name}")
     assert (
         str(tvm.tirx.all(x < y, y > z + 1, x < z * 2))
-        == f"{x.name} < {y.name} and {y.name} > {z.name} + 1 and {x.name} < {z.name} * 2"
+        == f"{x.name} < {y.name} and {y.name} > {z.name} + 1 and "
+        f"{x.name} < {z.name} * 2"
     )
 
 
@@ -323,8 +321,7 @@ def test_vars():
     assert x.ty.dtype == "int8"
     ptype = tvm.ir.PointerType(tvm.ir.PrimType("float"))
     x = tvm.tirx.Var("xyz", ptype)
-    assert x.ty.dtype == "handle"
-    assert x.type_annotation == ptype
+    assert x.ty == ptype
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
@@ -333,9 +330,8 @@ def test_scoped_storage_vars():
     storage_scope = "global.texture"
     ptype = tvm.ir.PointerType(tvm.ir.PrimType(dtype), storage_scope)
     x = tvm.tirx.Var("xyz", ptype)
-    assert x.ty.dtype == "handle"
-    assert x.type_annotation == ptype
-    assert x.type_annotation.storage_scope == storage_scope
+    assert x.ty == ptype
+    assert x.ty.storage_scope == storage_scope
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 

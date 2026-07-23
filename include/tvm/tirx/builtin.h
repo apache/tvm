@@ -42,10 +42,6 @@ namespace tirx {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
- * \brief Return value.
- */
-TVM_DLL const Op& ret();
-/*!
  * \brief Return from a GPU thread.
  */
 TVM_DLL const Op& thread_return();
@@ -300,7 +296,7 @@ TVM_DLL const Op& tvm_context_id();
  *  It is used to represent tuple structure in value field of AttrStmt,
  *  for the sake of giving hint to optimization.
  *
- *  Handle tvm_tuple(value0, value1, ..., value_n);
+ *  void tvm_tuple(value0, value1, ..., value_n);
  */
 TVM_DLL const Op& tvm_tuple();
 

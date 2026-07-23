@@ -85,12 +85,12 @@ class Mutator : public ExprMutator {
       ShapeExpr size({nbytes});
 
       int64_t vdevice_index = -1;
-      if (auto* prim_value_node = op->args[2].as<PrimExprNode>()) {
-        vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+      if (const auto* int_imm = op->args[2].as<IntImmNode>()) {
+        vdevice_index = int_imm->value;
       }
       ffi::Optional<VDevice> vdevice = GetGlobalVDevice(ctx_mod_, vdevice_index);
 
-      if (vdevice.defined()) {
+      if (vdevice.has_value()) {
         std::string dev_kind = vdevice.value()->target->kind->name;
         PrimExpr dev_size = IntImm::Int64(1);
         if (vdevice.value()->memory_scope != "global") {
@@ -114,11 +114,12 @@ class Mutator : public ExprMutator {
 
       auto offset = IntImm::Int64(0);
 
-      Expr storage = relax::Call(mem_alloc_storage_op, {size, runtime_device_index, storage_scope,
-                                                        DataTypeImm((DLDataType{kDLUInt, 8, 1}))});
+      Expr storage = Call(
+          Type::Missing(), mem_alloc_storage_op,
+          {size, runtime_device_index, storage_scope, DataTypeImm((DLDataType{kDLUInt, 8, 1}))});
       storage = builder_->Emit(storage, "storage");
-      Expr tensor =
-          relax::Call(mem_alloc_tensor_op, {storage, offset, shape_arg, dtype, op->args[2]});
+      Expr tensor = Call(Type::Missing(), mem_alloc_tensor_op,
+                         {storage, offset, shape_arg, dtype, op->args[2]});
       return tensor;
     } else {
       return ExprMutator::VisitExpr_(op);

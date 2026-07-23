@@ -119,7 +119,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // DTensor
 DTensorType::DTensorType(TensorType tensor_ty, DeviceMesh device_mesh, Placement placement,
-                         Span span) {
+                         Span span)
+    : Type(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(device_mesh.defined(), ValueError) << "device_mesh must be defined";
   TVM_FFI_CHECK(placement.defined(), ValueError) << "placement must be defined";
   TVM_FFI_CHECK_EQ(device_mesh->shape.size(), placement->dim_specs.size(), ValueError)

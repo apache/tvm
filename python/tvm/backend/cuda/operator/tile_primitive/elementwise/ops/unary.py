@@ -25,11 +25,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir import is_prim_expr
 from tvm.script import tirx as T
 from tvm.tirx import BufferRegion, TilePrimitiveCall
 from tvm.tirx.expr import FloatImm
 
+from .._common import scalar_dtype
 from . import OpSpec, Plan, SrcSpec
 
 
@@ -43,7 +44,7 @@ def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
     srcs: list[SrcSpec] = []
     if isinstance(_src, BufferRegion):
         srcs.append(SrcSpec(buf_region=_src))
-    elif isinstance(_src, PrimExpr):
+    elif is_prim_expr(_src):
         srcs.append(SrcSpec(scalar=_src))
     else:
         return None, f"unsupported src type {type(_src).__name__}"
@@ -62,11 +63,14 @@ def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
 
 def _check_unary_extras(extras: dict, compute_dtype: str) -> tuple[bool, str | None]:
     scale = extras.get("scale")
-    if scale is not None and scale.dtype != compute_dtype:
-        return False, f"scale dtype {scale.dtype} != compute dtype {compute_dtype}"
+    if scale is not None and scalar_dtype(scale) != compute_dtype:
+        return False, f"scale dtype {scalar_dtype(scale)} != compute dtype {compute_dtype}"
     bias_const = extras.get("bias_const")
-    if bias_const is not None and bias_const.dtype != compute_dtype:
-        return False, f"bias_const dtype {bias_const.dtype} != compute dtype {compute_dtype}"
+    if bias_const is not None and scalar_dtype(bias_const) != compute_dtype:
+        return (
+            False,
+            f"bias_const dtype {scalar_dtype(bias_const)} != compute dtype {compute_dtype}",
+        )
     return True, None
 
 

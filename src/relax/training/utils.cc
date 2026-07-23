@@ -167,7 +167,7 @@ class AppendLossMutator : private ExprMutator {
           << " while the corresponding type of parameter of loss function is " << loss_param_ty
           << ", which is different.";
 
-      this->var_remap_[loss_param->vid] = backbone_ret;
+      this->var_remap_[loss_param] = backbone_ret;
     }
   }
 
@@ -178,8 +178,10 @@ class AppendLossMutator : private ExprMutator {
    *
    * 1. Is used in prediction_outputs of the backbone function,
    * 2. Is not used in other_outputs of the backbone function.
+   * 3. Does not have PrimType.
    *
-   * Because such Vars are no longer the outputs of the new function.
+   * Because such Vars are no longer the outputs of the new function. Primitive Vars remain
+   * ordinary bindings because they may define dependent types in the appended loss function.
    */
   void CheckAndRemapBackboneReturn() {
     TVM_FFI_ICHECK(static_cast<int>(backbone_return_arr_.size()) >= num_backbone_outputs_)
@@ -189,9 +191,9 @@ class AppendLossMutator : private ExprMutator {
         backbone_return_arr_.begin() + num_backbone_outputs_, backbone_return_arr_.end());
     for (int i = 0; i < num_backbone_outputs_; ++i) {
       auto var = backbone_return_arr_[i];
-      if (other_outputs_var.count(var) == 0) {
-        auto new_var = DataflowVar(var->vid, GetType(var), var->span);
-        this->var_remap_[var->vid] = new_var;
+      if (other_outputs_var.count(var) == 0 && !var->ty.as<PrimTypeNode>()) {
+        auto new_var = DataflowVar(var->name, GetType(var), var->span);
+        this->var_remap_[var] = new_var;
         backbone_return_arr_.Set(i, new_var);
       }
     }

@@ -111,6 +111,7 @@ interface CrossOriginStorageHandle {
 
 interface CrossOriginStorageRequestFileHandleOptions {
   create?: boolean;
+  origins?: string[] | string | undefined;
 }
 
 interface CrossOriginStorageWritable {
@@ -188,7 +189,7 @@ class CrossOriginStorage {
     if (!api) {
       throw new Error("Cross-origin storage API unavailable.");
     }
-    const handle = await api.requestFileHandle(hash, { create: true });
+    const handle = await api.requestFileHandle(hash, { create: true, origins: "*" /* All origins */ });
     if (!handle) {
       throw new Error("Cross-origin storage API returned no handle.");
     }

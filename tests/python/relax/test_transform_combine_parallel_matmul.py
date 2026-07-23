@@ -56,7 +56,7 @@ def get_parallel_matmul(
 
                 for i, r in enumerate(rhs):
                     result = R.emit(R.matmul(x, r, out_dtype=dtype))
-                    if bias[i]:
+                    if bias[i] is not None:
                         result = R.emit(result + bias[i])
                     if activation and activation[i]:
                         result = R.emit(activation_map[activation[i]](result))

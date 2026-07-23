@@ -61,8 +61,8 @@ namespace relax {
  *  The result of visit is memoized.
  */
 template <typename OutputType>
-class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const Expr&)> {
-  using BaseFunctor = ::tvm::relax::ExprFunctor<OutputType(const Expr&)>;
+class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
+  using BaseFunctor = ExprFunctor<OutputType(const Expr&)>;
 
  public:
   /*! \brief virtual destructor */
@@ -87,6 +87,10 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
   virtual OutputType VisitExpr_(const VarNode* vn) {
     TVM_FFI_ICHECK(memo_.count(ffi::GetRef<Expr>(vn)));
     return memo_[ffi::GetRef<Expr>(vn)];
+  }
+
+  virtual OutputType VisitExpr_(const DataflowVarNode* vn) {
+    return VisitExpr_(static_cast<const VarNode*>(vn));
   }
 
   virtual OutputType VisitBinding_(const VarBindingNode* binding) {
@@ -199,7 +203,7 @@ bool IsNestedTensor(const Expr& expr);
 // TODO(@bohan): implements some postorder function accepts a visitor closure
 class VarReplacer : public ExprMutator {
  public:
-  using VarMap = std::unordered_map<Id, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
+  using VarMap = std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
   explicit VarReplacer(const VarMap& var_remap) : var_remap_(var_remap) {}
 
@@ -211,7 +215,7 @@ class VarReplacer : public ExprMutator {
  private:
   Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
-    auto it = var_remap_.find(var->vid);
+    auto it = var_remap_.find(var);
     return it == var_remap_.end() ? var : it->second;
   }
 
@@ -219,48 +223,96 @@ class VarReplacer : public ExprMutator {
 };
 
 /*!
- * \brief Renew the definition of symbolic vars in Relax.
- * \details This mutator is used to prevent the same symbolic var from being used in different
- *          functions, which is malformed.
+ * \brief Renew the definition of dependent primitive vars in Relax.
+ * \details This mutator is used to prevent the same primitive Var object from being defined in
+ *          different functions, which is malformed.
  */
-class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
+class SymbolicVarRenewMutator : public ExprMutator {
  public:
   static Function Renew(const Function& function) {
     SymbolicVarRenewMutator mutator;
     return mutator.VisitExpr(function).as_or_throw<Function>();
   }
-  SymbolicVarRenewMutator() = default;
+  SymbolicVarRenewMutator() : SymbolicVarRenewMutator(false) {}
 
  protected:
+  explicit SymbolicVarRenewMutator(bool renew_all_var_definitions)
+      : renew_all_var_definitions_(renew_all_var_definitions) {}
+
   using relax::ExprMutator::VisitExpr;
   using relax::ExprMutator::VisitExpr_;
-  using tirx::ExprMutator::VisitExpr_;
 
-  PrimExpr VisitPrimExpr(const PrimExpr& expr) final { return tirx::ExprMutator::VisitExpr(expr); }
-
-  // TODO(Siyuan): enhance the method to the following steps:
-  // 1. Visit and replace all tirx::Vars at the definition point
-  // 2. Revisit the function again and update the use side.
-  PrimExpr VisitExpr_(const tirx::VarNode* op) final {
-    auto it = var_map_.find(ffi::GetRef<tirx::Var>(op));
-    if (it != var_map_.end()) {
-      return (*it).second;
-    } else {
-      auto n = ffi::make_object<tirx::VarNode>(*op);
-      tirx::Var v(n);
-      var_map_.Set(ffi::GetRef<tirx::Var>(op), v);
-      return v;
+  static Var CopyVar(const VarNode* op, Type ty) {
+    ffi::Optional<Type> ty_annotation = ty.IsMissing() ? std::nullopt : ffi::Optional<Type>(ty);
+    if (op->IsInstance<DataflowVarNode>()) {
+      return DataflowVar(op->name, std::move(ty_annotation), op->span);
     }
+    return Var(op->name, std::move(ty_annotation), op->span);
   }
 
-  Expr VisitExpr_(const FunctionNode* op) {
+  Type RenewType(const VarNode* op) {
+    return op->ty.IsMissing() ? op->ty : this->VisitExprDepTypeField(op->ty);
+  }
+
+  Var RenewVarDefinition(const VarNode* op) {
+    Var old_var = ffi::GetRef<Var>(op);
+    if (auto it = var_remap_.find(old_var); it != var_remap_.end()) {
+      return it->second;
+    }
+
+    Type new_ty = RenewType(op);
+    bool is_dataflow = op->IsInstance<DataflowVarNode>();
+    bool renew = renew_all_var_definitions_ || (!is_dataflow && op->ty.as<PrimTypeNode>()) ||
+                 !new_ty.same_as(op->ty);
+    if (!renew) {
+      return old_var;
+    }
+
+    Var renewed = CopyVar(op, std::move(new_ty));
+    var_remap_[old_var] = renewed;
+    return renewed;
+  }
+
+  Expr VisitExpr_(const VarNode* op) final {
+    Var old_var = ffi::GetRef<Var>(op);
+    if (auto it = var_remap_.find(old_var); it != var_remap_.end()) {
+      return it->second;
+    }
+    if (!op->ty.as<PrimTypeNode>()) {
+      return ExprMutator::VisitExpr_(op);
+    }
+
+    Var renewed = CopyVar(op, op->ty);
+    var_remap_[old_var] = renewed;
+    return renewed;
+  }
+
+  Expr VisitExpr_(const DataflowVarNode* op) final {
+    Var old_var = ffi::GetRef<Var>(op);
+    if (auto it = var_remap_.find(old_var); it != var_remap_.end()) {
+      return it->second;
+    }
+    if (!renew_all_var_definitions_) {
+      return old_var;
+    }
+
+    Var renewed = CopyVar(op, op->ty);
+    var_remap_[old_var] = renewed;
+    return renewed;
+  }
+
+  Var VisitVarDef_(const VarNode* op) override { return RenewVarDefinition(op); }
+
+  Var VisitVarDef_(const DataflowVarNode* op) override { return RenewVarDefinition(op); }
+
+  Expr VisitExpr_(const FunctionNode* op) final {
     tvm::ffi::Array<Var> params;
     bool all_params_unchanged = true;
     for (Var param : op->params) {
       Var new_param = this->VisitVarDef(param);
       params.push_back(new_param);
       if (!param.same_as(new_param)) {
-        var_remap_[param->vid] = new_param;
+        var_remap_[param] = new_param;
         all_params_unchanged = false;
       }
     }
@@ -275,40 +327,25 @@ class SymbolicVarRenewMutator : public ExprMutator, tirx::ExprMutator {
     }
   }
 
-  ffi::Map<tirx::Var, tirx::Var> var_map_;
+  bool renew_all_var_definitions_{false};
 };
 
 /*!
- * \brief Copy a function while renewing the relax Vars and the tirx Vars.
+ * \brief Copy a function while renewing every Var object, including dependent primitive uses.
  * \details All variables that are bound inside the original function would be copied to satisfy
  * the restriction in the well-formed check: Variables in Relax must be bound exactly once.
  */
 class FunctionCopier : public SymbolicVarRenewMutator {
  public:
-  FunctionCopier() = default;
+  FunctionCopier() : SymbolicVarRenewMutator(true) {}
   Function Copy(Function func) { return VisitExpr(func).as_or_throw<Function>(); }
-  ffi::Map<Var, Var> GetVarMap() { return relax_var_map_; }
-
- private:
-  using relax::ExprMutator::VisitExpr;
-
-  Var VisitVarDef_(const DataflowVarNode* var) override {
-    Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = DataflowVar(new_var->name_hint(), GetType(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
-    relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
-    return copied_var;
+  ffi::Map<Var, Var> GetVarMap() {
+    ffi::Map<Var, Var> result;
+    for (const auto& [old_var, new_var] : var_remap_) {
+      result.Set(old_var, new_var);
+    }
+    return result;
   }
-
-  Var VisitVarDef_(const VarNode* var) override {
-    Var new_var = SymbolicVarRenewMutator::VisitVarDef_(var);
-    Var copied_var = Var(new_var->name_hint(), GetType(new_var), new_var->span);
-    var_remap_[var->vid] = copied_var;
-    relax_var_map_.Set(ffi::GetRef<Var>(var), copied_var);
-    return copied_var;
-  }
-
-  ffi::Map<Var, Var> relax_var_map_;
 };
 
 /*!

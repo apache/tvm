@@ -51,8 +51,9 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   TVM_FFI_ICHECK(call != nullptr);
   TVM_FFI_ICHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
-  ffi::Array<PrimExpr> metal_args{{call->args[1], call->args[2]}};
-  return Call(e.ty(), T()(e.ty(), call->op.as_or_throw<Op>()), metal_args);
+  ffi::Array<PrimExpr> metal_args{call->args[1].as_or_throw<PrimExpr>(),
+                                  call->args[2].as_or_throw<PrimExpr>()};
+  return Call(e.ty(), T()(e.ty(), call->op.as_or_throw<Op>()), metal_args).as_or_throw<PrimExpr>();
 }
 
 void RegisterMetalIntrinRules() {
@@ -75,13 +76,13 @@ TVM_REGISTER_OP("tirx.fabs")
 TVM_REGISTER_OP("tirx.round")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
       // Metal's rint() uses ties-to-even, matching constant-folding semantics.
-      const tirx::CallNode* call = e.as<tirx::CallNode>();
+      const CallNode* call = e.as<CallNode>();
       TVM_FFI_ICHECK(call != nullptr);
       ffi::Array<PrimExpr> new_args = {tirx::StringImm("rint")};
-      for (auto arg : call->args) {
+      for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
         new_args.push_back(arg);
       }
-      return tirx::Call(e.ty(), tirx::builtin::call_pure_extern(), new_args);
+      return Call(e.ty(), tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
     });
 
 TVM_REGISTER_OP("tirx.nearbyint")

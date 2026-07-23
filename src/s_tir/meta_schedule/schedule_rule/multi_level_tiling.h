@@ -259,8 +259,8 @@ ffi::ObjectPtr<NodeType> MultiLevelTilingInitCommon(
     for (int64_t v : arr) r.push_back(static_cast<int>(v));
     return r;
   }();
-  n->reuse_read_ = reuse_read.defined() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
-  n->reuse_write_ = reuse_write.defined() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
+  n->reuse_read_ = reuse_read.has_value() ? ReuseConfig(reuse_read.value()) : ReuseConfig();
+  n->reuse_write_ = reuse_write.has_value() ? ReuseConfig(reuse_write.value()) : ReuseConfig();
   for (int i = 0, len = structure.size(); i < len; ++i) {
     char c = structure.data()[i];
     if (c == 'S') {

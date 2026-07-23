@@ -1167,10 +1167,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # tensor's own dimension size (common with dynamic shapes).
         if isinstance(start, int) and start == 0 and isinstance(step, int) and step == 1:
             in_shape = self.shape_of(x)
-            if in_shape is not None and isinstance(end_val, tvm.tirx.PrimExpr):
+            if in_shape is not None and tvm.ir.is_prim_expr(end_val):
                 actual_dim = dim if dim >= 0 else len(in_shape) + dim
                 dim_expr = in_shape[actual_dim]
-                if isinstance(dim_expr, tvm.tirx.PrimExpr):
+                if tvm.ir.is_prim_expr(dim_expr):
                     if tvm.tirx.analysis.expr_deep_equal(end_val, dim_expr):
                         return x
 
@@ -1615,10 +1615,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             for ph, operand in zip(placeholders, operands):
                 if hasattr(operand, "ty") and isinstance(operand.ty, relax.TensorType):
                     orig_si = operand.ty
-                    # Create fresh SizeVars to avoid sharing with the caller function.
+                    # Create fresh symbolic variables to avoid sharing with the caller function.
                     if orig_si.shape is not None:
                         new_shape = [
-                            tvm.tirx.SizeVar(s.name, s.ty) if isinstance(s, tvm.tirx.SizeVar) else s
+                            tvm.ir.Var(s.name, s.ty) if tvm.ir.is_prim_var(s) else s
                             for s in orig_si.shape
                         ]
                         si = relax.TensorType(new_shape, orig_si.dtype)
@@ -2044,7 +2044,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _process_derived_symbol(
         self, symbol, torch_symbol_to_relax_var: dict[str, tvm.tirx.Var]
-    ) -> tuple[str, tvm.tirx.PrimExpr | None]:
+    ) -> tuple[str, tvm.tirx.Expr | None]:
         """Process a sympy symbol to generate a descriptive name and TIR expression."""
         import sympy
 
@@ -2060,7 +2060,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 term = tvm.tirx.IntImm("int64", int(arg))
             elif isinstance(arg, sympy.Symbol):
                 term = torch_symbol_to_relax_var.setdefault(
-                    str(arg), tvm.tirx.SizeVar(str(arg), "int64")
+                    str(arg), tvm.tirx.Var(str(arg), "int64")
                 )
             else:
                 _, term = self._process_derived_symbol(arg, torch_symbol_to_relax_var)
@@ -2077,12 +2077,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         if isinstance(tir_expr, tvm.tirx.Add):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
+                if isinstance(const, tvm.tirx.IntImm) and tvm.ir.is_prim_var(var):
                     return f"{var.name}___{const.value}", tir_expr
 
         if isinstance(tir_expr, tvm.tirx.Mul):
             for const, var in [(tir_expr.a, tir_expr.b), (tir_expr.b, tir_expr.a)]:
-                if isinstance(const, tvm.tirx.IntImm) and isinstance(var, tvm.tirx.Var):
+                if isinstance(const, tvm.tirx.IntImm) and tvm.ir.is_prim_var(var):
                     return f"{var.name}_{const.value}", tir_expr
 
         return str(symbol), tir_expr
@@ -2145,10 +2145,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         sympy_node, torch_symbol_to_relax_var
                     )
 
-                    size_var = torch_symbol_to_relax_var.setdefault(
-                        symbol_name, tvm.tirx.SizeVar(symbol_name, "int64")
+                    shape_var = torch_symbol_to_relax_var.setdefault(
+                        symbol_name, tvm.tirx.Var(symbol_name, "int64")
                     )
-                    relax_shape.append(size_var)
+                    relax_shape.append(shape_var)
                 else:
                     relax_shape.append(s)
             dtype = self._convert_data_type(torch_dtype)

@@ -75,7 +75,7 @@ Type InferTypeShapeOf(const Call& call, const BlockBuilder& ctx) {
     return ShapeType(kUnknownNDim);
   }
   // if the tensor shape is a Relax var or omitted, do not try to construct a shape expr from it
-  if (!tensor_ty->shape.defined() || tensor_ty->shape.as<VarNode>()) {
+  if (!tensor_ty->shape.has_value() || tensor_ty->shape.as<VarNode>()) {
     return ShapeType(tensor_ty->ndim);
   }
   // otherwise, copy over the values from the tensor shape
@@ -103,7 +103,7 @@ Type InferTypeCallPurePacked(const Call& call, const BlockBuilder& ctx) {
       << " is not opaque";
 
   // same logic as from DeriveCallRetType for ordinary calls
-  if (finfo->derive_func.defined()) {
+  if (finfo->derive_func.has_value()) {
     // derive using custom derivation function.
     return finfo->derive_func.value()(call, ctx);
   } else {
@@ -127,7 +127,7 @@ Expr MakeCallPurePacked(const Expr& callee, ffi::Array<Expr> args, const Attrs& 
   for (auto arg : args) {
     call_args.push_back(arg);
   }
-  return Call(op, call_args, attrs, ty_args);
+  return Call(Type::Missing(), op, call_args, attrs, ty_args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -180,8 +180,8 @@ Type InferTypeCallInplacePacked(const Call& call, const BlockBuilder& ctx) {
   }
 
   // same logic as from DeriveCallRetType for ordinary calls
-  Type ret;
-  if (finfo->derive_func.defined()) {
+  Type ret = Type::Missing();
+  if (finfo->derive_func.has_value()) {
     // derive using custom derivation function.
     ret = finfo->derive_func.value()(call, ctx);
   } else {
@@ -244,7 +244,7 @@ Expr MakeCallInplacePacked(Expr func, ffi::Array<Expr> args, ffi::Array<int64_t>
   static const Op& op = Op::Get("relax.call_inplace_packed");
   ffi::Array<Expr> call_args = {func};
   call_args.insert(call_args.end(), args.begin(), args.end());
-  return Call(op, call_args, Attrs(attrs), ty_args);
+  return Call(Type::Missing(), op, call_args, Attrs(attrs), ty_args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -274,8 +274,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * \param func_ty The Type of the TIR callee.
  * \param arg_ty The Type of the argument tuple.
- * \param packed_ints_ty The Type of the ffi::Shape argument,
- *     if present.
  * \param opt_inplace_indices For `R.call_tir_inplace`, an array of
  *     indices indicating which outputs are constructed from in-place
  *     mutation of the inputs.  See
@@ -285,15 +283,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *     Otherwise, std::nullopt.
  */
 static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
-    Type func_ty, Type arg_ty, ffi::Optional<Type> packed_ints_ty,
-    ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
+    Type func_ty, Type arg_ty, ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
   auto opt_callee_ty = func_ty.as<FuncType>();
   TVM_FFI_CHECK(opt_callee_ty, TypeError)
       << "The first argument to `R.call_tir` must be a function, "
       << "but instead received argument of type " << func_ty;
   auto callee_ty = opt_callee_ty.value();
 
-  TVM_FFI_CHECK(callee_ty->params.defined(), ValueError)
+  TVM_FFI_CHECK(callee_ty->params.has_value(), ValueError)
       << "The first argument to `R.call_tir` must be a function "
       << "with known argument types.  "
       << "However, the first argument was of type " << callee_ty;
@@ -303,34 +300,18 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   TVM_FFI_CHECK(args, TypeError) << "The second argument to `R.call_tir` must be a tuple, "
                                  << "but instead received expression of type " << arg_ty;
 
-  // R.call_tir expects the PrimFunc to have three groups of arguments.
+  // R.call_tir expects the PrimFunc to have two groups of arguments.
   //
   // 1. Input arguments that are explicitly provided as Relax arguments.
   // 2. Output tensor arguments.
-  // 3. Shape arguments, represented as `T.int64` in the PrimFunc, and
-  //    as an optional ShapeExpr argument in the `relax::Call` node.
   //
   // In order to determine the return type of `R.call_tir`, we must
   // identify the PrimFunc arguments that will be in group (2).
   size_t num_input_arguments = args->fields.size();
-  size_t num_trailing_int_arguments = 0;
-  const ShapeTypeNode* packed_tuple_ty = nullptr;
-  if (packed_ints_ty) {
-    auto packed_ty = packed_ints_ty.value();
-    packed_tuple_ty = packed_ty.as<ShapeTypeNode>();
-    TVM_FFI_CHECK(packed_tuple_ty && !packed_tuple_ty->IsUnknownNdim(), TypeError)
-        << "The third argument to `R.call_tir`, if present, "
-        << "must be a ffi::Shape with known dimensionality.  "
-        << "However, the argument received was of type " << packed_ty;
-    num_trailing_int_arguments = packed_tuple_ty->ndim;
-  } else {
-    num_trailing_int_arguments = 0;
-  }
 
-  TVM_FFI_CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size(),
-                   ValueError)
-      << "R.call_tir attempted to call a function using " << num_input_arguments
-      << " input arguments and " << num_trailing_int_arguments << " trailing integer arguments.  "
+  TVM_FFI_CHECK_LE(args->fields.size(), callee_params.size(), ValueError)
+      << "R.call_tir attempted to call a function using " << args->fields.size()
+      << " explicit arguments.  "
       << "However, the callee only accepts " << callee_params.size() << " arguments in total.";
 
   // While Relax can specify a distributed tensor, TIR cannot.  The
@@ -366,14 +347,7 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   auto dummy_callee_ty = [&]() -> FuncType {
     ffi::Array<Type> dummy_params(callee_params.begin(),
                                   callee_params.begin() + num_input_arguments);
-
-    for (size_t i = callee_params.size() - num_trailing_int_arguments; i < callee_params.size();
-         i++) {
-      dummy_params.push_back(callee_params[i]);
-    }
-
-    ffi::Array<Type> dummy_ret(callee_params.begin() + num_input_arguments,
-                               callee_params.end() - num_trailing_int_arguments);
+    ffi::Array<Type> dummy_ret(callee_params.begin() + num_input_arguments, callee_params.end());
 
     if (opt_inplace_indices) {
       // For R.call_tir_inplace, the `inplace_indices` are used to
@@ -401,28 +375,15 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
     return FuncType(dummy_params, dummy_out_ty);
   }();
 
-  auto dummy_args = [&]() -> ffi::Array<Expr> {
-    ffi::Array<Expr> dummy_args =
-        args->fields.Map([](const Type& ty) -> Expr { return Var("dummy_leading_arg", ty); });
+  ffi::Array<Expr> dummy_args =
+      args->fields.Map([](const Type& ty) -> Expr { return Var("dummy_arg", ty); });
 
-    for (size_t i = 0; i < num_trailing_int_arguments; i++) {
-      TVM_FFI_ICHECK(packed_tuple_ty);
-      PrimType dummy_arg_ty = [&]() {
-        if (packed_tuple_ty->values) {
-          return PrimType(packed_tuple_ty->values.value()[i].ty());
-        } else {
-          return PrimType::Int(64);
-        }
-      }();
-      dummy_args.push_back(Var("dummy_trailing_arg", dummy_arg_ty));
-    }
-
-    return dummy_args;
-  }();
-
-  auto derived_ret_ty =
-      DeriveCallRetType(dummy_callee_ty, Call(Var("dummy_callee", dummy_callee_ty), dummy_args),
-                        BlockBuilder::Create(std::nullopt));
+  Type derived_ret_ty = DeriveCallRetType(
+      dummy_callee_ty, Call(Type::Missing(), Var("dummy_callee", dummy_callee_ty), dummy_args),
+      BlockBuilder::Create(std::nullopt));
+  if (derived_ret_ty.IsMissing()) {
+    return std::nullopt;
+  }
 
   return derived_ret_ty;
 }
@@ -447,9 +408,8 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
   // `relax.call_tir_inplace`.  Therefore, all error messages should
   // be written in terms of `call->op`, and should not explicitly
   // reference the `relax.call_tir` operator.`
-  TVM_FFI_ICHECK(call->args.size() == 2 || call->args.size() == 3)
-      << "Operation " << call->op << " expects either two arguments [callee, arg_tuple], "
-      << "or three arguments [callee, arg_tuple, tir_args], "
+  TVM_FFI_ICHECK_EQ(call->args.size(), 2)
+      << "Operation " << call->op << " expects two arguments [callee, arg_tuple], "
       << "but " << call << " has " << call->args.size() << " arguments.";
 
   auto callee = call->args[0];
@@ -468,14 +428,6 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
       << "However, " << call << " has arguments " << arg_tuple
       << ", which is neither an in-line tuple, "
       << "nor a variable binding that may be normalized to an in-line tuple.";
-
-  if (call->args.size() > 2) {
-    Expr packed_ints = call->args[2];
-    TVM_FFI_ICHECK(packed_ints->ty.as<ShapeTypeNode>())
-        << "Operation " << call->op << " expects the optional third argument, "
-        << "if present, to be a ffi::Shape.  "
-        << "However, the third argument " << packed_ints << " has type " << packed_ints->ty;
-  }
 
   TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1)
       << "R.call_tir should have exactly one `ty_args` parameter, "
@@ -539,14 +491,6 @@ void ValidateCallTIR(Call call) {
   auto callee = call->args[0];
   Expr arg_tuple = call->args[1];
 
-  auto packed_int_ty = [&]() -> ffi::Optional<Type> {
-    if (call->args.size() <= 2) {
-      return std::nullopt;
-    } else {
-      return GetType(call->args[2]);
-    }
-  }();
-
   auto opt_inplace_indices = [&]() -> ffi::Optional<ffi::Array<int64_t>> {
     if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
       return attrs->inplace_indices;
@@ -556,9 +500,9 @@ void ValidateCallTIR(Call call) {
   }();
 
   Type explicit_ty = call->ty_args[0];
-  auto inferred_ty = InferCallTIROutputTypeFromArguments(GetType(callee), GetType(arg_tuple),
-                                                         packed_int_ty, opt_inplace_indices);
-  if (inferred_ty.defined()) {
+  auto inferred_ty =
+      InferCallTIROutputTypeFromArguments(GetType(callee), GetType(arg_tuple), opt_inplace_indices);
+  if (inferred_ty.has_value()) {
     TVM_FFI_CHECK(IsBaseOf(inferred_ty.value(), explicit_ty), TypeError)
         << "The `out_ty` argument for R.call_tir must be compatible with the PrimFunc.  "
         << "However, the PrimFunc's signature implies that the output should be " << inferred_ty
@@ -567,19 +511,15 @@ void ValidateCallTIR(Call call) {
 }
 
 TVM_REGISTER_OP("relax.call_tir")
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferType>("FInferType", InferTypeCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<bool>("FPurity", true);
 
-Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
-                 ffi::Optional<Expr> packed_ints) {
+Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -588,7 +528,7 @@ Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
         << ty;
   }
 
-  Type out_ty{nullptr};
+  Type out_ty = Type::Missing();
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
@@ -596,14 +536,7 @@ Expr MakeCallTIR(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
   }
 
   static const Op& op = Op::Get("relax.call_tir");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(op, {func, args}, {}, {out_ty});
-  } else {
-    call = Call(op, {func, args, packed_ints.value()}, {}, {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -614,21 +547,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // call_tir_with_grad
 
 TVM_REGISTER_OP("relax.call_tir_with_grad")
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .set_attrs_type<CallTIRWithGradAttrs>()
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferType>("FInferType", InferTypeCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list,
-                         ffi::String te_grad_name, ffi::Map<ffi::String, ffi::Any> te_grad_kwargs,
-                         ffi::Optional<Expr> packed_ints) {
+                         ffi::String te_grad_name, ffi::Map<ffi::String, ffi::Any> te_grad_kwargs) {
   for (const TensorType& ty : out_ty_list) {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -637,7 +566,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_li
         << ty;
   }
 
-  Type out_ty{nullptr};
+  Type out_ty = Type::Missing();
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
@@ -649,14 +578,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, ffi::Array<TensorType> out_ty_li
   attrs->te_grad_kwargs = te_grad_kwargs;
 
   static const Op& op = Op::Get("relax.call_tir_with_grad");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(op, {func, args}, Attrs(attrs), {out_ty});
-  } else {
-    call = Call(op, {func, args, packed_ints.value()}, Attrs(attrs), {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, Attrs(attrs), {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -726,7 +648,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
     auto ty_output = ty_outputs[i_output];
     auto tinfo_output = ty_output.as<TensorTypeNode>();
 
-    if (!tinfo_output || !tinfo_output->shape.defined() || tinfo_output->IsUnknownDtype()) {
+    if (!tinfo_output || !tinfo_output->shape.has_value() || tinfo_output->IsUnknownDtype()) {
       TVM_FFI_VISIT_THROW(ValueError, call)
           << "The output type for an in-place mutation must be a tensor "
           << "with a defined shape and dtype, "
@@ -738,7 +660,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 
     if (!tinfo_input ||
         (tinfo_output->IsUnknownDtype() || tinfo_output->dtype != tinfo_input->dtype) ||
-        (!tinfo_input->shape.defined() ||
+        (!tinfo_input->shape.has_value() ||
          !CanProveShapeEqual(tinfo_input->shape.value(), tinfo_output->shape.value(),
                              ctx->GetAnalyzer()))) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -754,13 +676,10 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 }
 
 TVM_REGISTER_OP("relax.call_tir_inplace")
-    .set_num_inputs(3)
+    .set_num_inputs(2)
     .set_attrs_type<CallTIRInplaceAttrs>()
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
-    .add_argument("packed_ints", "Expr",
-                  "ShapeExpr representing a tuple of ints to unpack during runtime. Omitted from "
-                  "args if unused")
     .set_attr<FInferType>("FInferType", InferTypeCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIRInPlace)
     .set_attr<FValidate>("FValidate", ValidateCallTIR)
@@ -770,7 +689,7 @@ TVM_REGISTER_OP("relax.call_tir_inplace")
     .set_attr<bool>("FPurity", true);
 
 Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indices,
-                        ffi::Array<TensorType> out_ty_list, ffi::Optional<Expr> packed_ints) {
+                        ffi::Array<TensorType> out_ty_list) {
   for (const TensorType& ty : out_ty_list) {
     const auto* shape = ty->shape.as<ShapeExprNode>();
     TVM_FFI_ICHECK(shape != nullptr)
@@ -782,7 +701,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indic
   ffi::ObjectPtr<CallTIRInplaceAttrs> attrs = ffi::make_object<CallTIRInplaceAttrs>();
   attrs->inplace_indices = ffi::Array<int64_t>(inplace_indices.begin(), inplace_indices.end());
 
-  Type out_ty{nullptr};
+  Type out_ty = Type::Missing();
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
@@ -790,14 +709,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, ffi::Array<int64_t> inplace_indic
   }
 
   static const Op& op = Op::Get("relax.call_tir_inplace");
-  Call call;
-  if (!packed_ints) {
-    // don't use additional optional argument
-    call = Call(op, {func, args}, Attrs(attrs), {out_ty});
-  } else {
-    call = Call(op, {func, args, packed_ints.value()}, Attrs(attrs), {out_ty});
-  }
-  return call;
+  return Call(Type::Missing(), op, {func, args}, Attrs(attrs), {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -832,7 +744,7 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list
         << ty;
   }
 
-  Type out_ty{nullptr};
+  Type out_ty = Type::Missing();
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
@@ -840,7 +752,7 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, ffi::Array<TensorType> out_ty_list
   }
 
   static const Op& op = Op::Get("relax.call_dps_packed");
-  return Call(op, {func, args}, {}, {out_ty});
+  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -895,7 +807,7 @@ Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorType> out_
         << ty;
   }
 
-  Type out_ty{nullptr};
+  Type out_ty = Type::Missing();
   if (out_ty_list.size() == 1) {
     out_ty = out_ty_list[0];
   } else {
@@ -903,7 +815,7 @@ Expr MakeCallPyFunc(StringImm func_name, Tuple args, ffi::Array<TensorType> out_
   }
 
   static const Op& op = Op::Get("relax.call_py_func");
-  return Call(op, {func_name, args}, {}, {out_ty});
+  return Call(Type::Missing(), op, {func_name, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -932,7 +844,7 @@ TVM_REGISTER_OP("relax.call_builtin_with_ctx")
 
 Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, ffi::Array<Type> ty_args) {
   static const Op& op = Op::Get("relax.call_builtin_with_ctx");
-  return Call(op, {func, args}, Attrs(), ty_args);
+  return Call(Type::Missing(), op, {func, args}, Attrs(), ty_args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -947,7 +859,7 @@ TVM_REGISTER_OP("relax.null_value")
 
 Expr MakeCallNullValue() {
   static const Op& op = Op::Get("relax.null_value");
-  return Call(op, {}, {}, {});
+  return Call(Type::Missing(), op, {}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -973,7 +885,7 @@ Expr MakePrint(ffi::Array<Expr> vals, StringImm format) {
     params.push_back(val);
   }
   static const Op& op = Op::Get("relax.print");
-  return Call(op, params);
+  return Call(Type::Missing(), op, params);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1018,7 +930,7 @@ Expr MakeAssertOp(Expr condition, ffi::Array<Expr> vals, StringImm format) {
   for (auto val : vals) {
     args.push_back(val);
   }
-  return Call(op, args);
+  return Call(Type::Missing(), op, args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1037,7 +949,7 @@ TVM_REGISTER_OP("relax.make_closure")
 
 Expr MakeClosure(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.make_closure");
-  return Call(op, {func, args}, {}, {});
+  return Call(Type::Missing(), op, {func, args}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1067,7 +979,7 @@ TVM_REGISTER_OP("relax.invoke_closure")
 
 Expr InvokeClosure(Expr closure, Tuple args, ffi::Array<Type> ty_args) {
   static const Op& op = Op::Get("relax.invoke_closure");
-  return Call(op, {closure, args}, {}, ty_args);
+  return Call(Type::Missing(), op, {closure, args}, {}, ty_args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1086,7 +998,7 @@ TVM_REGISTER_OP("relax.invoke_pure_closure")
 
 Expr InvokePureClosure(Expr closure, Tuple args, ffi::Array<Type> ty_args) {
   static const Op& op = Op::Get("relax.invoke_pure_closure");
-  return Call(op, {closure, args}, {}, ty_args);
+  return Call(Type::Missing(), op, {closure, args}, {}, ty_args);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1104,7 +1016,7 @@ TVM_REGISTER_OP("relax.shape_of")
 
 Expr MakeShapeOf(Expr expr) {
   static const Op& op = Op::Get("relax.shape_of");
-  return Call(op, {expr}, {}, {});
+  return Call(Type::Missing(), op, {expr}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1130,7 +1042,7 @@ TVM_REGISTER_OP("relax.size")
 
 Expr MakeSize(Expr expr) {
   static const Op& op = Op::Get("relax.size");
-  return Call(op, {expr}, {}, {});
+  return Call(Type::Missing(), op, {expr}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1142,14 +1054,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type ReturnTensorToShapeType(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->ty.defined());
+  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty);
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 1)
       << "relax.tensor_to_shape expected argument to be 1-d, "
       << "but " << call << " has argument " << call->args[0] << " with type " << call->args[0]->ty;
 
-  if (tensor_ty->shape.defined()) {
+  if (tensor_ty->shape.has_value()) {
     ShapeExpr shape_expr = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
     const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
     if (ndim) {
@@ -1167,7 +1079,7 @@ TVM_REGISTER_OP("relax.tensor_to_shape")
 
 Expr MakeTensorToShape(Expr expr) {
   static const Op& op = Op::Get("relax.tensor_to_shape");
-  return Call(op, {expr}, {}, {});
+  return Call(Type::Missing(), op, {expr}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1178,7 +1090,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // shape_to_tensor
 Type ReturnShapeToTensorType(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->ty.defined());
+  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   const auto* ty = GetTypeAs<ShapeTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(ty);
   int32_t ndim = ty->ndim;
@@ -1194,7 +1106,7 @@ TVM_REGISTER_OP("relax.shape_to_tensor")
 
 Expr MakeShapeToTensor(Expr expr) {
   static const Op& op = Op::Get("relax.shape_to_tensor");
-  return Call(op, {expr}, {}, {});
+  return Call(Type::Missing(), op, {expr}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1215,12 +1127,12 @@ Type InferTypeAllocateTensor(const Call& call, const BlockBuilder& ctx) {
     out_dtype = PrimType(dtype_imm->value);
   }
   int64_t vdevice_index = -1;
-  if (auto* prim_value_node = call->args[2].as<PrimExprNode>()) {
-    vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+  if (const auto* int_imm = call->args[2].as<IntImmNode>()) {
+    vdevice_index = int_imm->value;
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
 
-  if (vdevice.defined()) {
+  if (vdevice.has_value()) {
     return TensorType(call->args[0], out_dtype, vdevice.value());
   }
   return TensorType(call->args[0], out_dtype);
@@ -1243,7 +1155,8 @@ TVM_REGISTER_OP("relax.builtin.alloc_tensor")
 Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimExpr runtime_device_index,
                      StringImm storage_scope) {
   static const Op& op = Op::Get("relax.builtin.alloc_tensor");
-  return Call(op, {shape, dtype, runtime_device_index, storage_scope}, Attrs(), {});
+  return Call(Type::Missing(), op, {shape, dtype, runtime_device_index, storage_scope}, Attrs(),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1271,7 +1184,7 @@ TVM_REGISTER_OP("relax.memory.alloc_storage")
 Expr MakeAllocStorage(Expr size, PrimExpr virtual_device_index, StringImm storage_scope,
                       DataTypeImm dtype) {
   static const Op& op = Op::Get("relax.memory.alloc_storage");
-  return Call(op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {});
+  return Call(Type::Missing(), op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1292,11 +1205,11 @@ Type InferTypeMemAllocTensor(const Call& call, const BlockBuilder& ctx) {
 
   if (call->args.size() == 5) {
     int64_t vdevice_index = -1;
-    if (auto* prim_value_node = call->args[4].as<PrimExprNode>()) {
-      vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+    if (const auto* int_imm = call->args[4].as<IntImmNode>()) {
+      vdevice_index = int_imm->value;
     }
     auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
-    if (vdevice.defined()) {
+    if (vdevice.has_value()) {
       return TensorType(call->args[2], out_dtype, vdevice.value());
     }
   }
@@ -1321,7 +1234,8 @@ TVM_REGISTER_OP("relax.memory.alloc_tensor")
 Expr MakeMemAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
                         PrimExpr virtual_device_index) {
   static const Op& op = Op::Get("relax.memory.alloc_tensor");
-  return Call(op, {storage, offset, shape, dtype, virtual_device_index}, Attrs(), {});
+  return Call(Type::Missing(), op, {storage, offset, shape, dtype, virtual_device_index}, Attrs(),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1351,7 +1265,7 @@ TVM_REGISTER_OP("relax.memory.kill_storage")
 
 Expr MakeMemKillStorage(Expr storage) {
   static const Op& op = Op::Get("relax.memory.kill_storage");
-  return Call(op, {storage}, {}, {});
+  return Call(Type::Missing(), op, {storage}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1370,7 +1284,7 @@ TVM_REGISTER_OP("relax.memory.kill_tensor")
 
 Expr MakeMemKillTensor(Expr tensor) {
   static const Op& op = Op::Get("relax.memory.kill_tensor");
-  return Call(op, {tensor}, {}, {});
+  return Call(Type::Missing(), op, {tensor}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1397,7 +1311,7 @@ TVM_REGISTER_OP("relax.vm.alloc_storage")
 Expr MakeVMAllocStorage(Expr size, PrimExpr runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope) {
   static const Op& op = Op::Get("relax.vm.alloc_storage");
-  return Call(op, {size, runtime_device_index, dtype, storage_scope}, Attrs(), {});
+  return Call(Type::Missing(), op, {size, runtime_device_index, dtype, storage_scope}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1414,15 +1328,15 @@ Type InferTypeVMAllocTensor(const Call& call, const BlockBuilder& ctx) {
     out_dtype = PrimType(dtype_imm->value);
   }
   int64_t vdevice_index = -1;
-  if (auto* prim_value_node = call->args[4].as<PrimExprNode>()) {
-    vdevice_index = ffi::GetRef<PrimExpr>(prim_value_node).as<IntImmNode>()->value;
+  if (const auto* int_imm = call->args[4].as<IntImmNode>()) {
+    vdevice_index = int_imm->value;
   }
   auto vdevice = GetGlobalVDevice(ctx->GetContextIRModule(), vdevice_index);
 
   if (const auto* output_shape = call->args[2].as<ShapeExprNode>()) {
     return TensorType(ffi::GetRef<Expr>(output_shape), out_dtype, vdevice);
   } else if (const auto* shape_ty = GetTypeAs<ShapeTypeNode>(call->args[2])) {
-    if (shape_ty->values.defined()) {
+    if (shape_ty->values.has_value()) {
       return TensorType(ShapeExpr(shape_ty->values.value()), out_dtype, vdevice);
     } else {
       return TensorType(out_dtype, shape_ty->ndim, vdevice);
@@ -1448,7 +1362,8 @@ TVM_REGISTER_OP("relax.vm.alloc_tensor")
 Expr MakeVMAllocTensor(Expr storage, PrimExpr offset, Expr shape, DataTypeImm dtype,
                        PrimExpr runtime_device_index) {
   static const Op& op = Op::Get("relax.vm.alloc_tensor");
-  return Call(op, {storage, offset, shape, dtype, runtime_device_index}, Attrs(), {});
+  return Call(Type::Missing(), op, {storage, offset, shape, dtype, runtime_device_index}, Attrs(),
+              {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1474,7 +1389,7 @@ TVM_REGISTER_OP("relax.vm.kill_object")
 
 Expr MakeVMKillObject(Expr obj) {
   static const Op& op = Op::Get("relax.vm.kill_object");
-  return Call(op, {std::move(obj)}, Attrs(), {});
+  return Call(Type::Missing(), op, {std::move(obj)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1495,7 +1410,7 @@ TVM_REGISTER_OP("relax.vm.call_tir_dyn")
 
 Expr MakeCallTIRDyn(Expr func, Tuple args) {
   static const Op& op = Op::Get("relax.vm.call_tir_dyn");
-  return Call(op, {func, args}, Attrs(), {});
+  return Call(Type::Missing(), op, {func, args}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1516,7 +1431,7 @@ TVM_REGISTER_OP("relax.builtin.stop_lift_params")
 
 Expr MakeStopLiftParams(Expr x) {
   static const Op& op = Op::Get("relax.builtin.stop_lift_params");
-  return Call(op, {x}, Attrs(), {});
+  return Call(Type::Missing(), op, {x}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1528,11 +1443,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferToVDeviceType(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->ty.defined());
+  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->span);
   }
   return TensorType(data_ty->dtype, data_ty->ndim, vdev, data_ty->span);
@@ -1549,7 +1464,7 @@ Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   static const Op& op = Op::Get("relax.to_vdevice");
   ffi::ObjectPtr<ToVDeviceAttrs> attrs = ffi::make_object<ToVDeviceAttrs>();
   attrs->dst_vdevice = dst_vdev;
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1561,7 +1476,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Type InferHintOnDeviceType(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(call->args[0]->ty.defined());
+  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   TensorType data_ty = GetUnaryInputTensorType(call, ctx);
   return data_ty;
 }
@@ -1579,7 +1494,7 @@ Expr MakeHintOnDevice(Expr data, Device device, ffi::String memory_scope = "glob
   attrs->device_type = static_cast<int32_t>(device.device_type);
   attrs->index = device.device_id;
   attrs->memory_scope = memory_scope;
-  return Call(op, {data}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

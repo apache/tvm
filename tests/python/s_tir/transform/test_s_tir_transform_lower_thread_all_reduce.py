@@ -54,7 +54,7 @@ def test_basic():
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -93,7 +93,7 @@ def test_basic_with_decl_buffer():
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -140,7 +140,7 @@ def test_reduce_summation():
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -173,7 +173,7 @@ def test_multi_group_reduction():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((1024,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -208,7 +208,7 @@ def test_multi_group_mask1():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -243,7 +243,7 @@ def test_multi_warp_reduce1():
                 with T.attr(
                     T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     A_1 = T.decl_buffer((16384,), data=A.data)
                     T.tvm_thread_allreduce(
@@ -278,7 +278,7 @@ def test_multi_warp_reduce2():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((1024,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -310,7 +310,7 @@ def test_multi_group_multi_warp_reduction():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((512,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -352,7 +352,7 @@ def test_multi_group_multi_warp_predicated_reduction():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 T.tvm_thread_allreduce(
                     T.uint32(1), in_thread_B_1[0], T.bool(True), cross_thread_B_1[0], threadIdx_x
@@ -396,7 +396,7 @@ def test_metal_no_mask():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(
@@ -447,7 +447,7 @@ def test_webgpu_warp_reduce():
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                     "reduce_scope",
-                    T.reinterpret("handle", T.uint64(0)),
+                    T.int32(0),
                 ):
                     T.tvm_thread_allreduce(
                         T.uint32(1),
@@ -496,7 +496,7 @@ def test_webgpu_multi_warp_reduce():
             with T.attr(
                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                 "reduce_scope",
-                T.reinterpret("handle", T.uint64(0)),
+                T.int32(0),
             ):
                 A_1 = T.decl_buffer((256,), data=A.data)
                 T.tvm_thread_allreduce(

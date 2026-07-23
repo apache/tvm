@@ -53,9 +53,9 @@ class Int32DTypeNarrower : public IndexDataTypeNormalizer {
   explicit Int32DTypeNarrower(PrimFunc func)
       : IndexDataTypeNormalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
-  PrimExpr VisitExpr_(const IntImmNode* op) final {
+  Expr VisitExpr_(const IntImmNode* op) final {
     // ignore the enabled condition and always rewrite i64
-    if (op->ty() == PrimType::Int(64)) {
+    if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
       TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
       return IntImm::Int32(op->value);
     }

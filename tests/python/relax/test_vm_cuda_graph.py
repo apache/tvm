@@ -16,6 +16,9 @@
 # under the License.
 # ruff: noqa: E501
 
+import ctypes
+import ctypes.util
+
 import numpy as np
 import pytest
 
@@ -101,13 +104,17 @@ def test_vm_run():
     mod = Module
     target = tvm.target.Target("cuda", host="llvm")
     ex = codegen(mod, target)
-    dev = tvm.cuda(0)
-    vm = relax.VirtualMachine(ex, dev)
     x_np = np.random.uniform(size=(16, 16)).astype("float32")
-    x = tvm.runtime.tensor(x_np, dev)
-    y = vm["main"](x)
     y_np = x_np + 1.0 + 1.0 + 1.0 + 1.0
-    tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        vm = relax.VirtualMachine(ex, dev)
+        x = tvm.runtime.tensor(x_np, dev)
+        y = vm["main"](x)
+        tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -131,16 +138,6 @@ def test_capture_error_is_recoverable():
     """
 
     target = tvm.target.Target("cuda")
-    dev = tvm.cuda()
-
-    @tvm.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
-    def invalid_impl_for_cudagraph(arg_tensor):
-        # Memory allocation/deallocation may not be performed while
-        # capturing a cudaGraph.  This passes the warm-up run
-        # performed by "vm.builtin.cuda_graph.run_or_capture", but
-        # throws an exception when the cudaGraph is being captured.
-        _dummy_workspace = tvm.runtime.empty([16], "float16", dev)
-        return arg_tensor
 
     @I.ir_module(s_tir=True)
     class Module:
@@ -173,12 +170,39 @@ def test_capture_error_is_recoverable():
     )
 
     built = tvm.compile(Module, target=target)
-    vm = tvm.relax.VirtualMachine(built, dev)
 
-    arg = tvm.runtime.tensor(np.arange(16).astype("float16"), dev)
+    def run_and_check():
+        dev = tvm.cuda()
+        cudart_path = ctypes.util.find_library("cudart")
+        assert cudart_path is not None, "Unable to locate the CUDA runtime library"
+        cudart = ctypes.CDLL(cudart_path)
+        cudart.cudaGetLastError.argtypes = []
+        cudart.cudaGetLastError.restype = ctypes.c_int
+        cudart.cudaGetLastError()
 
-    with pytest.raises(RuntimeError):
-        vm["main"](arg)
+        @tvm.register_global_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
+        def invalid_impl_for_cudagraph(arg_tensor):
+            # Memory allocation/deallocation may not be performed while
+            # capturing a cudaGraph.  This passes the warm-up run
+            # performed by "vm.builtin.cuda_graph.run_or_capture", but
+            # throws an exception when the cudaGraph is being captured.
+            _dummy_workspace = tvm.runtime.empty([16], "float16", dev)
+            return arg_tensor
+
+        vm = tvm.relax.VirtualMachine(built, dev)
+        arg = tvm.runtime.tensor(np.arange(16).astype("float16"), dev)
+
+        with pytest.raises(RuntimeError):
+            vm["main"](arg)
+
+        # cudaGetLastError is host-thread-local, so query it in the same
+        # callback that triggered the invalid capture.
+        cuda_error = cudart.cudaGetLastError()
+        assert cuda_error == 0, (
+            f"CUDA error state was not cleared after failed graph capture: {cuda_error}"
+        )
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

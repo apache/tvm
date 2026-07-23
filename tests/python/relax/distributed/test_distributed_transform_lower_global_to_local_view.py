@@ -715,13 +715,11 @@ def test_llama_attention():
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
                 out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([256]),
             )
             lv17 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
                 out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([256]),
             )
             lv18 = R.dist.call_tir(
                 cls.reshape1,
@@ -1406,7 +1404,6 @@ def test_llama_attention():
                     cls.rotary_embedding1,
                     (lv9, cos_cached, sin_cached),
                     out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                    tir_vars=R.shape([256]),
                 )
             )
             lv17: R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]") = (
@@ -1414,7 +1411,6 @@ def test_llama_attention():
                     cls.rotary_embedding1,
                     (lv12, cos_cached, sin_cached),
                     out_ty=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                    tir_vars=R.shape([256]),
                 )
             )
             lv18: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = (

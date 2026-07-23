@@ -227,8 +227,8 @@ def test_basic(consume_params):
         after = relax.transform.LiftTransformParams()(mod)
     tvm.ir.assert_structural_equal(after, expected)
 
-    names_after = [param.name_hint for param in after["main"].params]
-    names_expected = [param.name_hint for param in expected["main"].params]
+    names_after = [param.name for param in after["main"].params]
+    names_expected = [param.name for param in expected["main"].params]
     assert names_after == names_expected
 
 
@@ -1505,14 +1505,12 @@ def test_symbolic_var_from_shape():
             with R.dataflow():
                 B_slice = R.call_tir(
                     cls.slice,
-                    [B],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [B, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 A_slice = R.call_tir(
                     cls.slice,
-                    [A],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [A, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 A_scale = R.multiply(A_slice, B_slice)
@@ -1522,8 +1520,8 @@ def test_symbolic_var_from_shape():
         @T.prim_func(private=True, s_tir=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
+            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):
@@ -1545,8 +1543,7 @@ def test_symbolic_var_from_shape():
             with R.dataflow():
                 A_slice = R.call_tir(
                     cls.slice,
-                    [A],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [A, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 A_scale = R.multiply(A_slice, B_slice)
@@ -1565,8 +1562,7 @@ def test_symbolic_var_from_shape():
                 # extra_symbolic_vars = params[1]
                 B_slice = R.call_tir(
                     cls.slice,
-                    [B],
-                    tir_vars=R.ShapeExpr([slice_index]),
+                    [B, slice_index],
                     out_ty=R.Tensor([16], dtype="int32"),
                 )
                 output = (R.ShapeExpr([slice_index]), B_slice)
@@ -1576,8 +1572,8 @@ def test_symbolic_var_from_shape():
         @T.prim_func(private=True, s_tir=True)
         def slice(
             Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
+            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):
@@ -1684,8 +1680,8 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
 
     In order to be a source of definition, a symbolic variable in the
     parameters must occur as a distinct parameter, as a tensor shape
-    `R.Tensor(["var"])`, an explicit `R.Shape(["var"])`, or as a
-    `R.Prim(value="var")`.  A variable that is part of a larger
+    `R.Tensor(["var"])` or an explicit `R.Shape(["var"])`.  A variable
+    that is part of a larger
     expression, such as `R.Tensor(["m * n"])`, are variable usages,
     not variable definitions.
     """
@@ -1862,6 +1858,53 @@ def test_lift_transform_when_one_already_exists():
     tvm.ir.assert_structural_equal(
         after_lift_without_previous_identity_function,
         after_lift_with_previous_identity_function,
+    )
+
+
+def test_lift_transform_with_primitive_param_used_by_model_tensor():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor(dtype="float32", ndim=1),
+            extent: R.Prim("int64"),
+            weight: R.Tensor(["extent"], "float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            transformed = R.multiply(weight, weight)
+            out = R.add(x, transformed)
+            return out
+
+    old_extent = Before["main"].params[1]
+    after = relax.transform.LiftTransformParams(shared_transform=False)(Before)
+    relax.analysis.well_formed(after)
+
+    transform = after["main_transform_params"]
+    bundled_ty = transform.params[0].ty
+    assert isinstance(bundled_ty, relax.TupleType)
+    assert isinstance(bundled_ty.fields[0], tvm.ir.PrimType)
+    assert isinstance(bundled_ty.fields[1], relax.TensorType)
+    assert bundled_ty.fields[1].shape is None
+    assert bundled_ty.fields[1].ndim == 1
+
+    bindings = [binding for block in transform.body.blocks for binding in block.bindings]
+    extent_index = next(
+        i
+        for i, binding in enumerate(bindings)
+        if isinstance(binding, relax.VarBinding) and tvm.ir.is_prim_var(binding.var)
+    )
+    match_cast_index = next(
+        i for i, binding in enumerate(bindings) if isinstance(binding, relax.MatchCast)
+    )
+    extent = bindings[extent_index].var
+    weight = bindings[match_cast_index]
+    assert extent_index < match_cast_index
+    assert weight.ty.shape[0].same_as(extent)
+
+    signature_types = [param.ty for param in transform.params] + [transform.ret_ty]
+    assert all(
+        all(not var.same_as(old_extent) for var in relax.analysis.tir_vars_in_type(ty))
+        for ty in signature_types
     )
 
 

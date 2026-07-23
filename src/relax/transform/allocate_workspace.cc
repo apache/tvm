@@ -81,14 +81,15 @@ class ExternFunctionRewriter : ExprMutator {
     auto new_op = VisitExpr(call_node->op);
     if (auto var = new_op.as<Var>()) {
       if (auto callee = builder_->LookupBinding(var.value());
-          callee && callee->IsInstance<FunctionNode>() &&
+          callee && callee.value()->IsInstance<FunctionNode>() &&
           callee.value().as_or_throw<Function>()->GetAttr<ffi::String>(attr::kComposite)) {
         // Append the workspace argument to this call. The callee should have been updated to accept
         // a workspace as the last parameter.
         auto new_args = call_node->args;
         TVM_FFI_ICHECK(workspace_var_param_.defined());
         new_args.push_back(workspace_var_param_);
-        return Call(new_op, new_args, call_node->attrs, call_node->ty_args, call_node->span);
+        return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
+                    call_node->span);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
@@ -174,7 +175,8 @@ class WorkspaceProvider : ExprMutator {
         auto new_args = call_node->args;
         TVM_FFI_ICHECK(workspace_var_main_.defined());
         new_args.push_back(workspace_var_main_);
-        return Call(new_op, new_args, call_node->attrs, call_node->ty_args, call_node->span);
+        return Call(Type::Missing(), new_op, new_args, call_node->attrs, call_node->ty_args,
+                    call_node->span);
       }
     }
 

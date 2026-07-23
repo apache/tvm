@@ -14,31 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Hardware requirements for CUDA tile-primitive tests."""
 
-# GH actions.
-# We use it to cover windows and mac builds
-# Jenkins is still the primary CI
+from pathlib import Path
 
-name: Update last-successful branch
+import pytest
 
-on:
-  schedule:
-    - cron: "0/15 * * * *"
-  workflow_dispatch:
+from tvm.testing import env
 
-concurrency:
-  group: update-last-successful-branch
-  cancel-in-progress: true
 
-jobs:
-  update-last-successful-branch:
-    if: github.repository == 'apache/tvm'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6.0.2
-      - name: Update last-successful branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -eux
-          python ci/scripts/github/update_branch.py || echo step failed
+def pytest_collection_modifyitems(items):
+    if env.has_cuda_compute(10):
+        return
+    suite_root = Path(__file__).resolve().parent
+    skip = pytest.mark.skip(reason="requires a CUDA compute capability 10.0 device")
+    for item in items:
+        if Path(item.path).resolve().is_relative_to(suite_root):
+            item.add_marker(skip)

@@ -1709,7 +1709,7 @@ class OperatorConverter:
 
         Mirrors the ``tensor_to_shape`` + ``match_cast`` bridge used by
         ``_get_shape_expr_from_tensor`` so a data-dependent scalar can be used as
-        a ``PrimExpr`` (e.g. an output length). The scalar is cast to int64 first.
+        a ``Expr`` (e.g. an output length). The scalar is cast to int64 first.
         """
         expr = self.bb.normalize(relax.op.astype(expr, "int64"))
         expr = self.bb.normalize(relax.op.reshape(expr, (1,)))
@@ -1722,7 +1722,7 @@ class OperatorConverter:
     def _convert_dynamic_range(self, start, limit, delta, out_type):
         """RANGE with dynamic (runtime) scalar bounds, for int and float dtypes.
 
-        ``relax.op.arange`` only accepts compile-time ``PrimExpr`` bounds, and its
+        ``relax.op.arange`` only accepts compile-time ``Expr`` bounds, and its
         struct-info length formula lacks a negative-step branch, so feeding
         symbolic bounds directly would mis-declare descending ranges. Instead the
         element count ``max(0, ceil((limit - start) / delta))`` is computed
@@ -3135,7 +3135,7 @@ class OperatorConverter:
 
         StableHLO clamp(min, operand, max) → R.minimum(R.maximum(operand, min), max).
         """
-        # NOTE: R.clip is not used here because it only accepts scalar PrimExpr
+        # NOTE: R.clip is not used here because it only accepts scalar Expr
         # min/max, not tensor inputs.
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 3, "input tensors length should be 3"
@@ -5180,7 +5180,7 @@ class OperatorConverter:
         if self.has_expr(shape_tensor.tensor_idx):
             shape_expr = self.get_expr(shape_tensor.tensor_idx)
             shape_expr = self.bb.normalize(relax.op.astype(shape_expr, "int64"))
-            shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
+            shape = self.bb.emit_output(relax.op.tensor_to_shape(shape_expr))
         else:
             shape = to_int_list(self.get_tensor_value(shape_tensor))
 
@@ -5627,9 +5627,9 @@ class OperatorConverter:
                     "TFLite avg_pool2dreshape requires input and output scale"
                     "and zero points to be equal"
                 )
-                out = relax.op.cast(in_expr, dtype="int32")
+                out = relax.op.astype(in_expr, "int32")
                 out = relax.op.nn.avg_pool2d(out, **params)
-                out = relax.op.cast(out, dtype=output_tensor_type_str)
+                out = relax.op.astype(out, output_tensor_type_str)
             else:
                 out = relax.op.nn.avg_pool2d(in_expr, **params)
         elif pool_type == "max":
@@ -6780,7 +6780,7 @@ class OperatorConverter:
         shape_tensor = input_tensors[1]
         if self.has_expr(shape_tensor.tensor_idx):
             shape_expr = self.get_expr(shape_tensor.tensor_idx)
-            shape = self.bb.emit(relax.op.tensor_to_shape(shape_expr))
+            shape = self.bb.emit_output(relax.op.tensor_to_shape(shape_expr))
         else:
             shape = to_int_list(self.get_tensor_value(shape_tensor))
         return relax.op.broadcast_to(data, shape)
@@ -7327,7 +7327,7 @@ class OperatorConverter:
             in_expr = self.exp_tab.new_const(
                 input_value, dtype=dtype, source_name=input_tensor.tensor.Name()
             )
-            out = relax.cast(in_expr, dtype="float32")
+            out = relax.op.astype(in_expr, "float32")
             return out
 
         in_expr = self.get_expr(input_tensor.tensor_idx)
@@ -7838,7 +7838,7 @@ class OperatorConverter:
         one_hot_options.Init(op_options.Bytes, op_options.Pos)
         axis = one_hot_options.Axis()
 
-        # Extract scalar values for on_value and off_value as PrimExpr
+        # Extract scalar values for on_value and off_value as Expr
         dtype = self.get_tensor_type_str(on_value.tensor.Type())
         on_val = self.get_tensor_value(on_value).item()
         off_val = self.get_tensor_value(off_value).item()
@@ -9006,7 +9006,7 @@ def from_tflite(
                         "(e.g. runtime string queries)"
                     )
                 input_var = relax.Var(
-                    name_hint=model_input_name,
+                    name=model_input_name,
                     ty=relax.TensorType(shape=shape, dtype=dtype),
                 )
                 exp_tab.set_expr(model_input_name, input_var)

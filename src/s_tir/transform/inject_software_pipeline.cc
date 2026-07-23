@@ -104,7 +104,7 @@ class PipelineOpaqueAccessRewriter {
         pipeline_loop_(pipeline_loop),
         fragment_info_(fragment_info) {}
 
-  PrimExpr Rewrite(const Call& call) {
+  Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
     static const auto& access_ptr = builtin::tvm_access_ptr();
@@ -117,16 +117,17 @@ class PipelineOpaqueAccessRewriter {
       const Buffer& buffer = buffer_data_to_buffer_.at(call->args[0].as_or_throw<Var>());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
-        ffi::Array<PrimExpr> new_args = call->args;
+        ffi::Array<Expr> new_args = call->args;
         const Buffer& new_buffer = (*it).second;
-        new_args.Set(4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4]));
-        return Call(call.ty(), call->op, new_args, call->attrs, call->span);
+        new_args.Set(
+            4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4].as_or_throw<PrimExpr>()));
+        return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
       }
     } else if (call->op.same_as(mma_sync)) {
-      ffi::Array<PrimExpr> new_args = call->args;
+      ffi::Array<Expr> new_args = call->args;
       for (int i = 0; i < 4; i++) {
         const Var& buffer_var = call->args[i * 2].as_or_throw<Var>();
-        const PrimExpr& index = call->args[i * 2 + 1];
+        PrimExpr index = call->args[i * 2 + 1].as_or_throw<PrimExpr>();
         const Buffer& buffer = buffer_data_to_buffer_.at(buffer_var);
         auto it = buffer_remap_.find(buffer);
         if (it != buffer_remap_.end()) {
@@ -134,7 +135,7 @@ class PipelineOpaqueAccessRewriter {
           new_args.Set(i * 2 + 1, new_index);
         }
       }
-      return Call(call.ty(), call->op, new_args, call->attrs, call->span);
+      return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
     } else if (call->op.same_as(access_ptr)) {
       return RewriteBufferAccess(call, {1});
     } else if (call->op.same_as(ptx_mma_legacy)) {
@@ -167,18 +168,18 @@ class PipelineOpaqueAccessRewriter {
     return new_buffer_offset;
   }
 
-  PrimExpr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
+  Expr RewriteBufferAccess(const Call& call, const std::vector<int> arg_indices) {
     auto product = [](const ffi::Array<PrimExpr>& input) {
       return foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
                    IntImm::Int32(1), input);
     };
-    ffi::Array<PrimExpr> new_args = call->args;
+    ffi::Array<Expr> new_args = call->args;
     for (int i : arg_indices) {
       const Buffer& buffer = buffer_data_to_buffer_.at(call->args[i].as_or_throw<Var>());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
         const Buffer& new_buffer = (*it).second;
-        const PrimExpr& old_index = call->args[i + 1];
+        PrimExpr old_index = call->args[i + 1].as_or_throw<PrimExpr>();
         PrimExpr offset;
         if (new_buffer->strides.empty()) {
           offset = product(buffer->shape);
@@ -197,7 +198,7 @@ class PipelineOpaqueAccessRewriter {
         new_args.Set(i + 1, new_index);
       }
     }
-    return Call(call.ty(), call->op, new_args, call->attrs, call->span);
+    return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
   }
 
   const ffi::Map<Var, Buffer>& buffer_data_to_buffer_;
@@ -287,7 +288,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto it = buffer_remap_.find(load->buffer);
     if (it == buffer_remap_.end()) {
@@ -302,7 +303,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return load;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     Call call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
     return opaque_access_rewriter_.Rewrite(call);
   }
@@ -757,18 +758,19 @@ class PipelineRewriter : public StmtExprMutator {
         auto attach_wait_scope = [&new_blocks](int i, int stage_id, PrimExpr wait_count) {
           auto& block = new_blocks[i].block;
           SBlockNode* n = block.CopyOnWrite();
-          auto zero = IntImm::Int32(0);
           n->body =
-              AttrStmt(zero, s_tir::attr::async_wait_queue_scope, stage_id,
-                       AttrStmt(zero, s_tir::attr::async_wait_inflight_count, wait_count, n->body));
+              AttrStmt(0, s_tir::attr::async_wait_queue_scope, stage_id,
+                       AttrStmt(0, s_tir::attr::async_wait_inflight_count, wait_count, n->body));
         };
 
         if (state.predicate && !ana_normalized->CanProve(state.predicate.value())) {
           // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
-          auto wait_count = Call(PrimType::Int(32), builtin::if_then_else(),
-                                 {state.predicate.value(), state.pending_wait.wait_count, 0});
+          auto wait_count =
+              Call(PrimType::Int(32), builtin::if_then_else(),
+                   ffi::Array<PrimExpr>{state.predicate.value(), state.pending_wait.wait_count, 0})
+                  .as_or_throw<PrimExpr>();
           attach_wait_scope(state.pending_wait.insert_before, stage_id, wait_count);
         } else {
           attach_wait_scope(state.pending_wait.insert_before, stage_id,
@@ -802,7 +804,7 @@ class PipelineRewriter : public StmtExprMutator {
 
         for (auto body : group_bodies) {
           auto commit_queue_scope =
-              AttrStmt(IntImm::Int32(0), s_tir::attr::async_commit_queue_scope, stage_id, body);
+              AttrStmt(0, s_tir::attr::async_commit_queue_scope, stage_id, body);
           auto new_block = MakeSBlock(commit_queue_scope, buffer_data_to_buffer_);
           stmts.push_back(SBlockRealize({}, predicate, new_block));
         }
@@ -836,7 +838,7 @@ class PipelineRewriter : public StmtExprMutator {
     if (is_unit_loop) {
       new_loop_var = start;  // use constants as the loop var for unit loops
     } else {
-      new_loop_var = pipeline_loop_->loop_var.copy_with_suffix("");
+      new_loop_var = pipeline_loop_->loop_var.CopyWithSuffix("");
       analyzer_->Bind(new_loop_var.as_or_throw<Var>(), Range(start, end));
     }
 
@@ -858,7 +860,7 @@ class PipelineRewriter : public StmtExprMutator {
       PrimExpr skewed_loop_var = new_loop_var - stage;
       PrimExpr inbound = analyzer_->Simplify(pipeline_loop_->min <= skewed_loop_var) &&
                          (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
-      if (extra_loop_lower_bound.defined()) {
+      if (extra_loop_lower_bound.has_value()) {
         inbound = analyzer_->Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
       }
       if (analyzer_->CanProve(!inbound)) {
@@ -872,13 +874,15 @@ class PipelineRewriter : public StmtExprMutator {
       // This variable corresponds to
       // - "producer_head" if this stage is an async producer
       // - "consumer_head" if this stage reads from asynchronously written buffers.
-      PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_var : skewed_loop_var + delta;
+      PrimExpr skewed_loop_prim = skewed_loop_var.as_or_throw<PrimExpr>();
+      PrimExpr normalized_access_index = is_unit_loop ? skewed_loop_prim : skewed_loop_prim + delta;
 
       // Adjust the block predicate and the body according to the final loop bound
       //  [pipeline_loop_->min, extent).
       if (!is_unit_loop) {
         Var loop_iter = new_loop_var.as_or_throw<Var>();
-        inbound = Substitute(inbound, {{loop_iter, loop_iter + delta}});
+        inbound = Substitute(
+            inbound, ffi::Map<Var, Expr>{{loop_iter, loop_iter.as_or_throw<PrimExpr>() + delta}});
       }
 
       new_block = Substitute(new_block, {{pipeline_loop_->loop_var, normalized_access_index}})
@@ -920,7 +924,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
-        n->body = AttrStmt(IntImm::Int32(0), s_tir::attr::async_scope, 1, n->body);
+        n->body = AttrStmt(0, s_tir::attr::async_scope, 1, n->body);
       }
 
       new_blocks.push_back(
@@ -953,7 +957,7 @@ class PipelineRewriter : public StmtExprMutator {
     }
 
     if (!is_unit_loop) {
-      new_loop = For(new_loop_var.as_or_throw<Var>(), pipeline_loop_->min, extent,
+      new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
                      std::nullopt, preserved_annotations_, std::nullopt);
     }

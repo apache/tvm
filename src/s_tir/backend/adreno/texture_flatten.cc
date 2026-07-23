@@ -72,7 +72,7 @@ class TextureLoweringBase : public StmtExprMutator {
 
  protected:
   std::string GetStorageScope(const Buffer& buffer) {
-    auto* ptr = buffer->data->type_annotation.as<PointerTypeNode>();
+    auto* ptr = buffer->data->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
@@ -98,23 +98,23 @@ class TextureFlattener : public TextureLoweringBase {
     std::string storage_scope = GetStorageScope(op->buffer);
     // Lower to two dimensional access
     if (IsTextureStorage(storage_scope)) {
-      ffi::Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
+      ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->value);
-      stmt = Evaluate(Call(args[0].ty(), builtin::texture2d_store(), args));
+      stmt = Evaluate(Call(args[0]->ty, builtin::texture2d_store(), args));
     }
 
     return stmt;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
     op = expr.as<BufferLoadNode>();
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(op->buffer);
     if (IsTextureStorage(storage_scope)) {
-      ffi::Array<PrimExpr> args = GetTextureAccessArgs(op, op->buffer);
+      ffi::Array<Expr> args = GetTextureAccessArgs(op, op->buffer);
       args.push_back(op->indices.back());
-      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args);
+      expr = Call(op->buffer->dtype, builtin::texture2d_load(), args).as_or_throw<PrimExpr>();
     }
 
     return expr;
@@ -122,8 +122,8 @@ class TextureFlattener : public TextureLoweringBase {
 
  protected:
   template <typename T>
-  ffi::Array<PrimExpr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
-    ffi::Array<PrimExpr> args;
+  ffi::Array<Expr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
+    ffi::Array<Expr> args;
     if (let_binding_.count(op->buffer->data)) {
       args.push_back(let_binding_[op->buffer->data]);
     } else {

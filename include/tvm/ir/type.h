@@ -19,30 +19,7 @@
 
 /*!
  * \file tvm/ir/type.h
- * \brief IR/AST nodes for the unified type system in TVM.
- *
- * We use TVM's type system as the unified type system
- * throughout the stack.
- *
- * This file contains types that are common across IR variants.
- *
- * ## Relation between Type and DLPack dtype
- *
- * PrimExpr stores a PrimType in its `ty` field, backed by a DLPack
- * `DLDataType`. This provides coarse grained scalar/vector element type
- * information during compile time and runtime. It is eagerly built in
- * low-level expression construction and can be used for quick type checking
- * in the low-level IR. For example, when an Expr's dtype is int32, we know
- * for sure that its PrimType is also int32.
- *
- * On the other hand, Type provides more fine grained information.
- * For example, a low level expression can have a handle dtype while a
- * node-specific type annotation records a
- * PointerType to a float32 element.
- *
- * The unified Type serves as a common bridge across IR dialects.
- * For example, we require all the functions to have a type signature,
- * which allow us to build cross dialect function calls.
+ * \brief IR/AST nodes for TVM types shared across IR variants.
  */
 #ifndef TVM_IR_TYPE_H_
 #define TVM_IR_TYPE_H_
@@ -72,7 +49,7 @@ class PointerTypeNode : public TypeNode {
   /*!
    * \brief The type of the element which the pointer points to.
    */
-  Type element_type;
+  Type element_type = PrimType::Void();
   /*!
    * \brief The storage scope of the pointer
    */
@@ -99,6 +76,9 @@ class PointerType : public Type {
    * \param storage_scope The storage scope into which the pointer addresses
    */
   TVM_DLL explicit PointerType(Type element_type, ffi::String storage_scope = "");
+
+  /*! \brief Construct an opaque pointer with void element type. */
+  TVM_DLL static PointerType VoidPointerTy(ffi::String storage_scope = "");
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PointerType, Type, PointerTypeNode);
 };
@@ -170,7 +150,7 @@ class FuncTypeNode : public TypeNode {
   /*! \brief type type of arguments */
   ffi::Array<Type> arg_types;
   /*! \brief The type of return value. */
-  Type ret_type;
+  Type ret_type = VoidType();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

@@ -32,10 +32,14 @@ namespace tvm {
 namespace tirx {
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
                             const arith::Analyzer& analyzer) {
-  if (index.as<VarNode>()) {
-    return index.as_or_throw<Var>();
+  if (auto prim_var = index.as<PrimVar>()) {
+    return prim_var.value();
   }
-  arith::IterSumExpr iter_sum = arith::NormalizeToIterSum(index, var_range, analyzer);
+  ffi::Map<PrimVar, Range> primitive_var_range;
+  for (const auto& [var, range] : var_range) {
+    primitive_var_range.Set(var.as_or_throw<PrimVar>(), range);
+  }
+  arith::IterSumExpr iter_sum = arith::NormalizeToIterSum(index, primitive_var_range, analyzer);
   if (!is_zero(iter_sum->base)) {
     return Var();
   }
@@ -44,17 +48,17 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
   }
   // floormod(floordiv(source, lower_factor), extent) * scale
   arith::IterSplitExpr highest_iter_split = iter_sum->args[0];
-  const auto* source_var = highest_iter_split->source->source.as<VarNode>();
+  auto source_var = highest_iter_split->source->source.as<PrimVar>();
   if (!source_var) {
     return Var();
   }
+  Var var = source_var.value();
   // the floormod must take no effect
-  if (!analyzer->CanProve(floordiv(var_range[ffi::GetRef<Var>(source_var)]->extent,
-                                   highest_iter_split->lower_factor) <=
+  if (!analyzer->CanProve(floordiv(var_range[var]->extent, highest_iter_split->lower_factor) <=
                           highest_iter_split->extent)) {
     return Var();
   }
-  return ffi::GetRef<Var>(source_var);
+  return var;
 }
 }  // namespace tirx
 }  // namespace tvm
@@ -165,7 +169,7 @@ void BuildAxisGraphReduce(const Var& output_var, const Call& call,
   ffi::Array<int64_t> axes;
   bool keepdims;
   if (const auto* attrs = call->attrs.as<StatisticalAttrs>()) {
-    if (attrs->axis.defined()) {
+    if (attrs->axis.has_value()) {
       axes = attrs->axis.value();
     }
     keepdims = attrs->keepdims;
@@ -286,7 +290,7 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
   TVM_FFI_ICHECK(attrs);
   int ndim = GetTensorType(input_tensor)->ndim;
   std::vector<int> normalized_axes;
-  if (attrs->axes.defined()) {
+  if (attrs->axes.has_value()) {
     for (int64_t i : attrs->axes.value()) {
       int val = static_cast<int>(i);
       TVM_FFI_ICHECK(val < ndim && val >= -ndim);

@@ -65,7 +65,7 @@ class LCADetector : public StmtExprVisitor {
     for (const auto& kv : detector.buffer_lca_) {
       const Buffer& buffer = ffi::GetRef<Buffer>(kv.first);
       const ffi::Optional<Stmt> stmt =
-          kv.second ? ffi::GetRef<ffi::Optional<Stmt>>(kv.second->stmt) : std::nullopt;
+          kv.second ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(kv.second->stmt)) : std::nullopt;
       buffer_lca.Set(buffer, stmt);
     }
     return buffer_lca;
@@ -93,7 +93,7 @@ class LCADetector : public StmtExprVisitor {
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
 
-    if (op->thread_binding.defined()) {
+    if (op->thread_binding.has_value()) {
       const runtime::ThreadScope& scope =
           runtime::ThreadScope::Create(op->thread_binding.value()->thread_tag);
       if (scope.rank == 0) {
@@ -150,7 +150,8 @@ class LCADetector : public StmtExprVisitor {
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
       PostOrderVisit(binding, [this, &highest_scope](const ffi::ObjectRef& obj) {
-        if (const VarNode* loop_var = obj.as<VarNode>()) {
+        if (auto var = obj.as<PrimVar>()) {
+          const VarNode* loop_var = var.value().get();
           auto it = loop_scope_map_.find(loop_var);
           if (it == loop_scope_map_.end()) {
             return;
@@ -199,7 +200,8 @@ class LCADetector : public StmtExprVisitor {
       const ScopeInfo* scope = ancestor_scopes_.back();
 
       auto handle_itervar = [&opaque_var_scope, &scope](const ffi::ObjectRef& obj) {
-        if (const VarNode* iter_var = obj.as<VarNode>()) {
+        if (auto var = obj.as<PrimVar>()) {
+          const VarNode* iter_var = var.value().get();
           auto dom_scope_it = opaque_var_scope.find(iter_var);
           if (dom_scope_it == opaque_var_scope.end()) {
             return;

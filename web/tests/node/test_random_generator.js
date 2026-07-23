@@ -44,6 +44,28 @@ test("Test whether the same seed make two RNGs generate same results", () => {
   }
 });
 
+test("Restoring RNG state reproduces next random floats", () => {
+  const rng1 = new tvmjs.LinearCongruentialGenerator();
+  const rng2 = new tvmjs.LinearCongruentialGenerator();
+  rng1.setSeed(42);
+  for (let i = 0; i < 8; i++) {
+    rng1.randomFloat();
+  }
+
+  const state = rng1.getState();
+  const expected = [];
+  for (let i = 0; i < 16; i++) {
+    expected.push(rng1.randomFloat());
+  }
+
+  rng2.setState(state);
+  const restored = [];
+  for (let i = 0; i < expected.length; i++) {
+    restored.push(rng2.randomFloat());
+  }
+  expect(restored).toEqual(expected);
+});
+
 test("Test two RNGs with different seeds generate different results", () => {
   const rng1 = new tvmjs.LinearCongruentialGenerator();
   const rng2 = new tvmjs.LinearCongruentialGenerator();
@@ -66,4 +88,24 @@ test('Illegal argument to `setSeed()`', () => {
     const rng1 = new tvmjs.LinearCongruentialGenerator();
     rng1.setSeed(42.5);
   }).toThrow("Seed should be an integer.");
+});
+
+test("Illegal argument to `setState()`", () => {
+  const rng = new tvmjs.LinearCongruentialGenerator();
+
+  expect(() => {
+    rng.setState(undefined);
+  }).toThrow("RNG state should be an integer.");
+  expect(() => {
+    rng.setState({});
+  }).toThrow("RNG state should be an integer.");
+  expect(() => {
+    rng.setState(0);
+  }).toThrow("RNG state should be an integer in");
+  expect(() => {
+    rng.setState(rng.modulus);
+  }).toThrow("RNG state should be an integer in");
+  expect(() => {
+    rng.setState(1.5);
+  }).toThrow("RNG state should be an integer.");
 });

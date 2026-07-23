@@ -88,7 +88,7 @@ class TVMFFIABIBuilder {
   /*! \brief Variable definition info: bound value and the ffi::reflection::AccessPath where first
    * defined. */
   struct VarDefInfo {
-    PrimExpr value;
+    Expr value;
     ffi::reflection::AccessPath first_def_path;
   };
 
@@ -179,8 +179,12 @@ class TVMFFIABIBuilder {
   void DecodeParam(int param_index);
 
   /*! \brief Load the i-th packed argument as the given type from the union value. */
+  static Expr LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index, Type arg_type);
   static PrimExpr LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int param_index,
-                                          PrimType arg_type);
+                                          PrimType arg_type) {
+    return LoadTVMFFIAnyUnionValue(v_packed_args, param_index, Type(arg_type))
+        .as_or_throw<PrimExpr>();
+  }
 
   // ── Per-dtype type-check + value-load methods ──────────────────
   //
@@ -194,7 +198,7 @@ class TVMFFIABIBuilder {
    * \param type_index The variable holding the FFI type index.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamOpaqueHandle(int param_index, const Var& type_index);
+  Expr DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index);
 
   /*!
    * \brief Type-check and load a boolean argument.
@@ -202,7 +206,7 @@ class TVMFFIABIBuilder {
    * \param type_index The variable holding the FFI type index.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamBool(int param_index, const Var& type_index);
+  PrimExpr DecodeParamBool(int param_index, const PrimExpr& type_index);
 
   /*!
    * \brief Type-check and load an integer argument.
@@ -211,7 +215,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamInt(int param_index, const Var& type_index, PrimType dtype);
+  PrimExpr DecodeParamInt(int param_index, const PrimExpr& type_index, PrimType dtype);
 
   /*!
    * \brief Type-check and load a float argument.
@@ -220,7 +224,7 @@ class TVMFFIABIBuilder {
    * \param dtype The expected data type for this parameter.
    * \return The loaded argument value.
    */
-  PrimExpr DecodeParamFloat(int param_index, const Var& type_index, PrimType dtype);
+  PrimExpr DecodeParamFloat(int param_index, const PrimExpr& type_index, PrimType dtype);
 
   // ── Private binding submethods (all take ffi::reflection::AccessPath) ───────────
 
@@ -243,6 +247,10 @@ class TVMFFIABIBuilder {
    */
   bool BindScalar(const PrimExpr& arg, const PrimExpr& value,
                   const ffi::reflection::AccessPath& path, bool with_lets);
+
+  /*! \brief Bind an exact pointer-typed variable to a pointer-valued expression. */
+  bool BindPointer(const Var& arg, const Expr& value, const ffi::reflection::AccessPath& path,
+                   bool with_lets);
 
   /*!
    * \brief Array bind: binds element-wise with ffi::reflection::AccessPath[k] for each element.
@@ -316,18 +324,6 @@ class TVMFFIABIBuilder {
   void BindCompactStrides(const Buffer& buffer, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
-
-  /*!
-   * \brief Bind strides for auto-broadcast buffers: stride=0 for shape==1 dims.
-   *
-   * \param buffer The expected buffer definition.
-   * \param strides_ptr The strides pointer variable.
-   * \param v_strides_is_null Expression checking if strides pointer is NULL.
-   * \param param_path ffi::reflection::AccessPath for the tensor parameter.
-   */
-  void BindAutoBroadcastStrides(const Buffer& buffer, const Var& strides_ptr,
-                                const PrimExpr& v_strides_is_null,
-                                const ffi::reflection::AccessPath& param_path);
 
   /*!
    * \brief Bind strides with C-contiguous fallback when strides pointer is NULL.

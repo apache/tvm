@@ -157,7 +157,7 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
 
   auto it = global_var_map_.find(var->name_hint);
   if (it != global_var_map_.end()) {
-    TVM_FFI_ICHECK_EQ((*it).second, var);
+    TVM_FFI_ICHECK((*it).second.same_as(var));
   } else {
     TVM_FFI_ICHECK(global_var_map_.count(var->name_hint) == 0)
         << "Duplicate global function name " << var;
@@ -330,7 +330,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::RValueRef<IRModule> mod, ffi::Map<ffi::String, ffi::Any> attr_map) -> IRModule {
              return WithAttrs(*std::move(mod), attr_map);
            })
-      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::ObjectRef {
+      .def("ir.Module_GetAttr", [](IRModule mod, ffi::String key) -> ffi::Optional<ffi::ObjectRef> {
         return mod->GetAttr<ffi::ObjectRef>(key);
       });
 }

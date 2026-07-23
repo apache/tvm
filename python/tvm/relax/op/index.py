@@ -16,13 +16,11 @@
 # under the License.
 """Indexing operators."""
 
-from tvm.ir.expr import PrimExpr
-
 from ..expr import Expr
 from ..utils import convert_to_expr
 from . import _ffi_api
 
-PrimExprLike = int | PrimExpr
+PrimExprLike = int | Expr
 
 
 def take(x: Expr, indices: Expr, axis: int | None = None, mode: str = "fast") -> Expr:

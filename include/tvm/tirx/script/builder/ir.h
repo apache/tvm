@@ -53,16 +53,12 @@ using tvm::tirx::Var;
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The declared buffer.
  */
 Buffer BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                   ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                   ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                  int offset_factor, ffi::String buffer_type,
-                  ffi::Optional<ffi::Array<IntImm>> axis_separators,
-                  ffi::Optional<Layout> layout = std::nullopt,
+                  int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
                   ffi::Array<PrimExpr> allocated_addr = {});
 
 /*!
@@ -117,16 +113,12 @@ Type FuncRet(Type ret_type);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \return The matched buffer.
  */
 Buffer MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                    PrimType dtype = PrimType::Float(32), ffi::Optional<Var> data = std::nullopt,
                    ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
                    ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
-                   ffi::String buffer_type = "default",
-                   ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
                    ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
@@ -189,8 +181,6 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \param allocated_addr The allocated address of the buffer. Might be multi-dimensional.
  * \return The allocated buffer or the AllocBufferFrame if the function is called under
@@ -200,9 +190,8 @@ ffi::Variant<Buffer, AllocBufferFrame> SBlockAllocBuffer(
     ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
     ffi::Optional<Var> data = std::nullopt, ffi::Array<PrimExpr> strides = {},
     PrimExpr elem_offset = PrimExpr(), ffi::String storage_scope = "", int align = -1,
-    int offset_factor = 0, ffi::String buffer_type = "default",
-    ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
-    ffi::Optional<Layout> layout = std::nullopt, ffi::Array<PrimExpr> allocated_addr = {});
+    int offset_factor = 0, ffi::Optional<Layout> layout = std::nullopt,
+    ffi::Array<PrimExpr> allocated_addr = {});
 
 namespace axis {
 
@@ -337,7 +326,7 @@ AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The bound Var.
  */
-Var Bind(PrimExpr value, ffi::Optional<Type> type_annotation = std::nullopt,
+Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
          ffi::Optional<Var> var = std::nullopt);
 
 /*!
@@ -366,6 +355,12 @@ AttrFrame DeviceEntry();
  * \return The result WhileFrame.
  */
 WhileFrame While(PrimExpr condition);
+
+/*!
+ * \brief Create a return statement.
+ * \param value The value to return.
+ */
+void Return(Expr value);
 
 /*!
  * \brief Create a break statement.
@@ -407,16 +402,13 @@ ElseFrame Else();
  * \param storage_scope The optional storage scope of buffer data pointer.
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
- * \param buffer_type The buffer type.
- * \param axis_separators The separators between input axes when generating flattened output axes.
  * \param layout The layout of the buffer.
  * \return The declaration frame.
  */
 DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                            ffi::Optional<Var> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::String buffer_type,
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators,
+                           int align, int offset_factor,
                            ffi::Optional<Layout> layout = std::nullopt,
                            ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
@@ -482,46 +474,32 @@ void BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */
-void Evaluate(PrimExpr value);
+void Evaluate(Expr value);
 
 /*!
  * \brief Create a TIR var that represents a pointer
  *
- * \param dtype The data type of the pointer.
+ * \param dtype The optional data type of the pointer.  If omitted, construct
+ * an opaque handle.
  *
  * \param storage_scope The storage scope of the pointer.
  *
- * \param is_size_var Whether the pointer is a size var.
- *
- * \param is_unknown_type Used to distinguish between
- * `PrimType::Handle()` and `PointerType(PrimType::Void())`.
- * If true, resolve dtype
- * of `Void()` as `PrimType`, and if false resolve dtype of `Void()`
- * as a `PointerType`.
- *
  * \return The pointer.
  */
-inline Var Handle(PrimType dtype = PrimType::Handle(), ffi::String storage_scope = "global",
-                  bool is_size_var = false, bool is_unknown_type = false) {
-  Type type_annotation{nullptr};
-  if (is_unknown_type && storage_scope == "global") {
-    type_annotation = PrimType::Handle();
-  } else {
-    type_annotation = PointerType(dtype, storage_scope);
-  }
-  return is_size_var ? tvm::tirx::SizeVar("", type_annotation)
-                     : tvm::tirx::Var("", type_annotation);
+inline Var Handle(ffi::Optional<PrimType> dtype = std::nullopt,
+                  ffi::String storage_scope = "global") {
+  Type type_annotation = dtype.has_value() ? Type(PointerType(dtype.value(), storage_scope))
+                                           : Type(PointerType::VoidPointerTy(storage_scope));
+  return tvm::tirx::Var("", type_annotation);
 }
 
 inline Var TensorMap() { return tvm::tirx::Var("", PointerType(TensorMapType())); }
 
-#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                 \
-  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt,                     \
-                           bool is_size_var = false) {                                      \
-    PrimType dtype = DType;                                                                 \
-    return expr.defined()                                                                   \
-               ? tvm::cast(dtype, expr.value())                                             \
-               : (is_size_var ? tvm::tirx::SizeVar("", dtype) : tvm::tirx::Var("", dtype)); \
+#define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                      \
+  inline PrimExpr FuncName(ffi::Optional<PrimExpr> expr = std::nullopt) {        \
+    PrimType dtype = DType;                                                      \
+    return expr.has_value() ? tvm::cast(dtype, expr.value())                     \
+                            : tvm::tirx::Var("", dtype).as_or_throw<PrimExpr>(); \
   }
 
 #define TVM_TIRX_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, Code)                         \

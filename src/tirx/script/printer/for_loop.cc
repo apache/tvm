@@ -103,17 +103,17 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       ffi::Array<ExprDoc> args;
       ffi::Array<ffi::String> kwargs_keys;
       ffi::Array<ExprDoc> kwargs_values;
-      if (min.defined()) {
+      if (min.has_value()) {
         args.push_back(min.value());
       }
-      if (max.defined()) {
+      if (max.has_value()) {
         args.push_back(max.value());
       }
-      if (thread.defined()) {
+      if (thread.has_value()) {
         kwargs_keys.push_back("thread");
         kwargs_values.push_back(thread.value());
       }
-      if (annotations.defined()) {
+      if (annotations.has_value()) {
         // Check for the special cases:
         // - annotations == {"disable_unroll": True}: print as unroll=False
         // - annotations == {"pragma_unroll": True}: print as unroll=True

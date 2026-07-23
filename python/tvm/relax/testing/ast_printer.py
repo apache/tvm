@@ -26,7 +26,7 @@ from collections.abc import Iterable
 
 import tvm
 from tvm import relax
-from tvm.ir.expr import PrimExpr
+from tvm.ir.expr import Expr
 from tvm.relax import ExprFunctor
 
 
@@ -91,7 +91,7 @@ class ASTPrinter(ExprFunctor):
         Handles whether to include the ty fields.
         """
         fields = kwargs.copy()
-        if node.ty and self.include_ty_annotations:
+        if not node.ty.is_missing() and self.include_ty_annotations:
             fields["ty"] = self.visit_ty_(node.ty)
         return self.build_ast_node(nodename, force_newline=force_newline, **fields)
 
@@ -122,14 +122,14 @@ class ASTPrinter(ExprFunctor):
         return self.build_expr(op, "Tuple", fields=self.build_list(map(self.visit_expr, op.fields)))
 
     def visit_dataflow_var_(self, op: relax.DataflowVar) -> str:
-        return self.build_expr(op, "DataflowVar", name_hint=wrap_quotes(op.name_hint))
+        return self.build_expr(op, "DataflowVar", name=wrap_quotes(op.name))
 
     def visit_var_(self, op: relax.Var) -> str:
-        return self.build_expr(op, "Var", name_hint=wrap_quotes(op.name_hint))
+        return self.build_expr(op, "Var", name=wrap_quotes(op.name))
 
     def visit_shape_expr_(self, op: relax.ShapeExpr) -> str:
         return self.build_expr(
-            op, "ShapeExpr", values=self.build_list(map(self.visit_prim_expr_, op.values))
+            op, "ShapeExpr", values=self.build_list(map(self.visit_prim_expr_field_, op.values))
         )
 
     def visit_extern_func_(self, op: relax.ExternFunc) -> str:
@@ -219,9 +219,15 @@ class ASTPrinter(ExprFunctor):
         # ty fields, so we don't use build_expr here
         return self.build_ast_node("Op", name=wrap_quotes(op.name))
 
-    def visit_prim_expr_(self, prim_expr: PrimExpr) -> str:
-        # TODO: We may want to print PrimExpr ASTs, but this is a simplification for now
-        return self.build_ast_node("PrimExpr", value=f"`{prim_expr!s}`")
+    def visit_prim_expr_field_(self, prim_expr: Expr) -> str:
+        # TODO: We may want to print Expr ASTs, but this is a simplification for now
+        value = prim_expr.name if isinstance(prim_expr, tvm.ir.Var) else str(prim_expr)
+        return self.build_ast_node("Expr", value=f"`{value}`")
+
+    def visit_expr_fallback_(self, op: Expr) -> str:
+        if not tvm.ir.is_prim_expr(op):
+            raise ValueError(f"Invalid Relax expression {op} ({type(op)})")
+        return self.visit_prim_expr_field_(op)
 
     def visit_tuple_getitem_(self, op: relax.TupleGetItem) -> str:
         return self.build_expr(
@@ -274,7 +280,7 @@ class ASTPrinter(ExprFunctor):
             fields = {}
             fields["ndim"] = str(ty_node.ndim)
             if ty_node.values is not None:
-                fields["values"] = self.build_list(map(self.visit_prim_expr_, ty_node.values))
+                fields["values"] = self.build_list(map(self.visit_prim_expr_field_, ty_node.values))
             return self.build_ast_node("ShapeType", **fields)
         elif isinstance(ty_node, relax.AnyType):
             return self.build_ast_node("AnyType")
@@ -283,7 +289,7 @@ class ASTPrinter(ExprFunctor):
         elif isinstance(ty_node, relax.TensorType):
             fields = {}
             fields["dtype"] = ty_node.dtype
-            if ty_node.shape:
+            if ty_node.shape is not None:
                 fields["shape"] = self.visit_expr(ty_node.shape)
             else:
                 fields["ndim"] = str(ty_node.ndim)

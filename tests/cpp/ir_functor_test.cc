@@ -32,7 +32,7 @@
 TEST(IRF, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = x + 1;
 
   NodeFunctor<int(const ffi::ObjectRef& n, int b)> f;
@@ -46,7 +46,7 @@ TEST(IRF, CountVar) {
   using namespace tvm;
   using namespace tvm::tirx;
   int n_var = 0;
-  Var x("x"), y;
+  PrimVar x("x"), y("y");
 
   auto z = x + 1 + y + y;
   tirx::PostOrderVisit(z, [&n_var](const ffi::ObjectRef& n) {
@@ -93,10 +93,10 @@ TEST(IRF, PreOrderVisit) {
 TEST(IRF, ExprTransform) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = x + 1;
 
-  class MyExprFunctor : public tirx::ExprFunctor<int(const PrimExpr&, int)> {
+  class MyExprFunctor : public tirx::ExprFunctor<int(const Expr&, int)> {
    public:
     int VisitExpr_(const VarNode* op, int b) final { return b; }
     int VisitExpr_(const IntImmNode* op, int b) final { return op->value; }
@@ -117,10 +117,10 @@ TEST(IRF, ExprTransform) {
 TEST(IRF, ExprVisit) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = x + 1;
 
-  class MyVisitor : public tirx::ExprFunctor<void(const PrimExpr&)>,
+  class MyVisitor : public tirx::ExprFunctor<void(const Expr&)>,
                     public tirx::StmtFunctor<void(const Stmt&)> {
    public:
     int count = 0;
@@ -141,7 +141,7 @@ TEST(IRF, ExprVisit) {
 TEST(IRF, StmtVisitor) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   class MyVisitor : public StmtExprVisitor {
    public:
     int count = 0;
@@ -153,8 +153,8 @@ TEST(IRF, StmtVisitor) {
     auto z = x + 1;
     Stmt eval_body = Evaluate(z);
     PrimType dtype = PrimType::Float(32);
-    Var data_var("b", PointerType(dtype));
-    Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
+    tirx::Var data_var("b", PointerType(dtype));
+    Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0);
     // AllocBuffer is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({AllocBuffer(buf), eval_body});
   };
@@ -167,7 +167,7 @@ TEST(IRF, StmtVisitor) {
     // tests for block and block_realize
     Stmt body = fmaketest();
     PrimType dtype = PrimType::Float(32);
-    Var buf_var("b", PointerType(dtype));
+    tirx::Var buf_var("b", PointerType(dtype));
     Buffer buffer = decl_buffer({16});
     body = SeqStmt({DeclBuffer(buffer), std::move(body)});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
@@ -191,7 +191,7 @@ TEST(IRF, StmtVisitor) {
 TEST(IRF, StmtMutator) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
 
   class MyVisitor : public tirx::StmtMutator, public tirx::ExprMutator {
    public:
@@ -200,15 +200,15 @@ TEST(IRF, StmtMutator) {
 
    protected:
     // implementation
-    PrimExpr VisitExpr_(const AddNode* op) final { return op->a; }
+    Expr VisitExpr_(const AddNode* op) final { return op->a; }
     Stmt VisitStmt_(const SeqStmtNode* op) final { return StmtMutator::VisitSeqStmt_(op, true); }
-    PrimExpr VisitExpr(const PrimExpr& expr) final { return ExprMutator::VisitExpr(expr); }
+    Expr VisitExpr(const Expr& expr) final { return ExprMutator::VisitExpr(expr); }
   };
   auto fmakealloc = [&]() {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
-    Var data_var("b", PointerType(dtype));
-    Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0, BufferType::kDefault);
+    tirx::Var data_var("b", PointerType(dtype));
+    Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0);
     return AllocBuffer(buf);
   };
 
@@ -331,8 +331,8 @@ TEST(IRF, Substitute) {
   using namespace tvm;
   using namespace tvm::tirx;
   PrimType dtype = PrimType::Float(32);
-  Var x("x", PointerType(dtype, ""));
-  Var n("n", PrimType::Int(32));
+  tirx::Var x("x", PointerType(dtype, ""));
+  PrimVar n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {
     return Buffer{/*data=*/x,
@@ -342,20 +342,19 @@ TEST(IRF, Substitute) {
                   /*elem_offset=*/PrimExpr(),
                   /*name=*/"buf",
                   /*data_alignment=*/1,
-                  /*offset_factor=*/1,
-                  /*buffer_type=*/BufferType::kDefault};
+                  /*offset_factor=*/1};
   };
 
   {
     // test substitute buffer data var and shape var via DeclBuffer
-    Var y = x.copy_with_suffix("subst");
-    Var m("m", PrimType::Int(32));
+    tirx::Var y = x.CopyWithSuffix("subst");
+    PrimVar m("m", PrimType::Int(32));
     Buffer buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl = SeqStmt({DeclBuffer(buffer), store});
-    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> {
-      if (var.same_as(x)) return y;
-      if (var.same_as(n)) return m;
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> {
+      if (var.same_as(x)) return Expr(y);
+      if (var.same_as(n)) return Expr(m);
       return std::nullopt;
     };
     Stmt new_decl = Substitute(decl, f_subst);
@@ -371,7 +370,7 @@ TEST(IRF, Substitute) {
     // test identity substitution on expression
     Buffer buffer = fmakebuffer();
     PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
-    auto f_subst = [&](const Var& var) -> ffi::Optional<PrimExpr> { return var; };
+    auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> { return Expr(var); };
     PrimExpr new_expr = Substitute(expr, f_subst);
     // the expression is not changed
     TVM_FFI_ICHECK(new_expr.same_as(expr));

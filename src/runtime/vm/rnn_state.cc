@@ -213,7 +213,7 @@ class RNNStateImpObj : public RNNStateObj {
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
         << append_lengths.size() << ") mismatch.";
 
-    if (opt_token_tree_parent_ptr.defined()) {
+    if (opt_token_tree_parent_ptr.has_value()) {
       ffi::Shape token_tree_parent_ptr = opt_token_tree_parent_ptr.value();
       int matched_pos = 0;
       for (int64_t append_length : append_lengths) {

@@ -165,7 +165,7 @@ class LoopUnroller : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     if (unroll_local_access_) {
       auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
@@ -225,7 +225,7 @@ class LoopUnroller : public StmtExprMutator {
     ffi::Map<Var, PrimExpr> vmap;
     ffi::Array<Stmt> unrolled;
     for (int i = 0; i < value; ++i) {
-      vmap.Set(op->loop_var, op->min + MakeConst(op->loop_var.ty(), i));
+      vmap.Set(op->loop_var, op->min + IntImm(op->loop_var.ty(), i));
       Stmt step = Substitute(body, vmap);
       unrolled.push_back(step);
     }
@@ -284,7 +284,7 @@ Pass UnrollLoop() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<UnrollLoopConfig>("tirx.UnrollLoop");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<UnrollLoopConfig>();
     }
     n->body = UnrollLoop(std::move(f->body), cfg.value());

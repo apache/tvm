@@ -753,7 +753,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     if (workspace->IsOpenCLDevice(copy_dst.device)) {
       void* nptr = workspace->GetNativePtr(array);
       uint64_t copy_size;
-      if (shape.defined()) {
+      if (shape.has_value()) {
         TVM_FFI_ICHECK_EQ(shape.value().size(), 1);
         copy_size = shape.value()->data[0] * sizeof(int32_t);
       } else {
@@ -764,7 +764,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     }
 #endif
 
-    if (shape.defined()) {
+    if (shape.has_value()) {
       TVM_FFI_ICHECK_EQ(shape.value().size(), 1);
       copy_dst.ndim = 1;
       copy_dst.shape = const_cast<int64_t*>(shape.value()->data);

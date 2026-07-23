@@ -151,7 +151,7 @@ void BroadcastFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv
 
   const void* send_data = [&]() -> const void* {
     if (is_sender) {
-      TVM_FFI_ICHECK(send.defined());
+      TVM_FFI_ICHECK(send.has_value());
       TVM_FFI_ICHECK(send.value().Shape().Product() == recv.Shape().Product());
       return send.value()->data;
     } else {
@@ -176,7 +176,7 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) 
   int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
   if (is_sender) {
-    TVM_FFI_CHECK(send.defined(), ValueError)
+    TVM_FFI_CHECK(send.has_value(), ValueError)
         << "buffer `send` must be provided when worker_id == 0.";
     Tensor buffer = send.value();
     int64_t numel = buffer.Shape().Product();
@@ -201,10 +201,10 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool in_group, Tensor recv) 
       data += bytes_per_shard;
     }
   } else {
-    if (send.defined()) {
+    if (send.has_value()) {
       LOG(WARNING) << "ValueError: buffer `send` must be None when (worker_id != 0 && !in_group) "
                       "or (worker_id % group_size != 0 && in_group). However, got send = "
-                   << send.get() << ". This will be ignored.";
+                   << send.value().GetDLTensorPtr() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }
@@ -225,7 +225,7 @@ void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
   int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
   if (is_sender) {
-    TVM_FFI_CHECK(recv.defined(), ValueError)
+    TVM_FFI_CHECK(recv.has_value(), ValueError)
         << "buffer `recv` must be provided when worker_id == 0.";
     Tensor buffer = recv.value();
     int64_t numel = buffer.Shape().Product();
@@ -250,10 +250,10 @@ void GatherToWorker0(Tensor send, bool in_group, ffi::Optional<Tensor> recv) {
       data += bytes_per_shard;
     }
   } else {
-    if (recv.defined()) {
+    if (recv.has_value()) {
       LOG(WARNING) << "ValueError: buffer `recv` must be None when (worker_id != 0 && !in_group) "
                       "or (worker_id % group_size != 0 && in_group). However, got recv = "
-                   << recv.get() << ". This will be ignored.";
+                   << recv.value().GetDLTensorPtr() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }

@@ -26,6 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
@@ -50,11 +51,12 @@ class BoundCollector : public StmtVisitor {
   BoundCollector() {}
 
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::buffer_bound) {
+    if (op->attr_key == s_tir::attr::buffer_bound) {
       const VarNode* key = op->node.as<VarNode>();
       const CallNode* container = op->value.as<CallNode>();
       if (key && container) {
-        mem_to_shape[key] = container->args;
+        ffi::Array<PrimExpr> shape = container->args.as_or_throw<ffi::Array<PrimExpr>>();
+        mem_to_shape[key] = shape;
       }
     }
     StmtVisitor::VisitStmt_(op);
@@ -76,7 +78,7 @@ class BoundChecker : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (process_store_ && op->op.same_as(builtin::if_then_else())) {
       unsafe_rewritten_ = true;
     }
@@ -106,7 +108,7 @@ class BoundChecker : public StmtExprMutator {
     return ffi::GetRef<Stmt>(op);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     if (CanInstrument(op->indices, op->buffer->data)) {
       Collect(op->indices, op->buffer->data);
     }

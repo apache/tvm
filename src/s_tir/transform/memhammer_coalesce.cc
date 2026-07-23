@@ -37,18 +37,21 @@ Stmt FuseNestLoops(Stmt body) {
   std::string suffix;
   int n = loops.size();
   for (int i = 1; i < n; i++) {
-    suffix += "_" + loops[i]->loop_var->name_hint;
+    suffix += "_" + loops[i]->loop_var->name;
   }
   suffix += "_fused";
-  Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix);
+  PrimVar fused_var = loops[0]->loop_var.CopyWithSuffix(suffix);
   ffi::Map<Var, PrimExpr> subst_map;
   PrimExpr tot = fused_var;
   for (int i = n - 1; i >= 0; i--) {
     subst_map.Set(loops[i]->loop_var, floormod(tot, loops[i]->extent));
     tot = floordiv(tot, loops[i]->extent);
   }
-  auto f_substitute = [&](const Var& v) -> ffi::Optional<PrimExpr> {
-    return subst_map.Get(v).value_or(v);
+  auto f_substitute = [&](const Var& v) -> ffi::Optional<Expr> {
+    if (auto replacement = subst_map.Get(v)) {
+      return replacement.value();
+    }
+    return v.as_or_throw<PrimExpr>();
   };
   PrimExpr fused_extent = 1;
   for (int i = 0; i < n; i++) {
@@ -99,12 +102,12 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   factors[0] = (loop_extent + tot_threads * vector_len - 1) / (tot_threads * vector_len);
   // create new loop vars
   int n = factors.size();
-  std::vector<Var> new_loop_vars;
+  std::vector<PrimVar> new_loop_vars;
   new_loop_vars.reserve(n);
   arith::Analyzer analyzer;
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
-    Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
+    PrimVar var = loop->loop_var.CopyWithSuffix("_" + std::to_string(i));
     analyzer->Bind(var, Range::FromMinExtent(0, factor));
     new_loop_vars.push_back(var);
   }
@@ -112,10 +115,10 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   PrimExpr substitute_value = 0;
   for (int i = 0; i < n; i++) {
     substitute_value *= factors[i];
-    substitute_value += new_loop_vars[i];
+    substitute_value += new_loop_vars[i].as_or_throw<PrimExpr>();
   }
   // Construct the new loop nest
-  Stmt body = Substitute(loop->body, [&](const Var& v) -> ffi::Optional<PrimExpr> {
+  Stmt body = Substitute(loop->body, [&](const Var& v) -> ffi::Optional<Expr> {
     if (v.same_as(loop->loop_var)) {
       return substitute_value;
     } else {
@@ -126,13 +129,17 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
   if (!analyzer->CanProve(predicate)) {
     body = IfThenElse(predicate, body);
   }
-  body = For(new_loop_vars.back(), 0, vector_len, ForKind::kVectorized, std::move(body));
+  body = For(new_loop_vars.back().as_or_throw<PrimVar>(), 0, vector_len, ForKind::kVectorized,
+             std::move(body));
   for (int i = n - 2; i >= 1; i--) {
-    body = For(new_loop_vars[i], 0, factors[i], ForKind::kThreadBinding, std::move(body),
-               IterVar(Range(nullptr), Var(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]),
-               {}, std::nullopt);
+    body =
+        For(new_loop_vars[i].as_or_throw<PrimVar>(), 0, factors[i], ForKind::kThreadBinding,
+            std::move(body),
+            IterVar(Range(nullptr), PrimVar(thread_axis[i - 1]), kThreadIndex, thread_axis[i - 1]),
+            {}, std::nullopt);
   }
-  return For(new_loop_vars[0], 0, factors[0], ForKind::kSerial, std::move(body));
+  return For(new_loop_vars[0].as_or_throw<PrimVar>(), 0, factors[0], ForKind::kSerial,
+             std::move(body));
 }
 
 Stmt CoalescedAccess::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
@@ -178,7 +185,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
 Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                              OutputSet* output) const {
   Stmt body = stmt;
-  ffi::Map<Var, Range> var_range;
+  ffi::Map<PrimVar, Range> var_range;
   ffi::Array<PrimExpr> loop_vars;
   // Step 1. Get index mapping
   ffi::Array<PrimExpr> mapping_pattern = GetMapping(stmt, constraints);
@@ -199,14 +206,14 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   BufferRegion write_region = constraints.write_region;
   ffi::Array<PrimExpr> write_index;
   ffi::Array<PrimExpr> read_index;
-  ffi::Array<Var> new_loop_vars;
+  ffi::Array<PrimVar> new_loop_vars;
   ffi::Map<Var, PrimExpr> substitute_map;
   // Step 3.1 construct target buffer indices
   for (int i = 0, j = 0; i < static_cast<int>(write_region->region.size()); i++) {
     if (is_one(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->min);
     } else {
-      Var var = loop_vars[j].as_or_throw<Var>().copy_with_suffix("_inverse");
+      PrimVar var = loop_vars[j].as_or_throw<PrimVar>().CopyWithSuffix("_inverse");
       new_loop_vars.push_back(var);
       substitute_map.Set(loop_vars[j++].as_or_throw<Var>(), var);
       write_index.push_back(write_region->region[i]->min + var);

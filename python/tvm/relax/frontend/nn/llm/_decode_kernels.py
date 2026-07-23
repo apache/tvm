@@ -73,14 +73,14 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
         sm_scale: T.float32,
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
-        B = T.int32(is_size_var=True)
-        nnz_pages = T.int32(is_size_var=True)
-        max_num_pages = T.int32(is_size_var=True)
-        page_indptr_elem_offset = T.int32(is_size_var=True)
-        page_values_elem_offset = T.int32(is_size_var=True)
-        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
-        q_rope_position_elem_offset = T.int32(is_size_var=True)
-        length_info_elem_offset = T.int32(is_size_var=True)
+        B = T.int32()
+        nnz_pages = T.int32()
+        max_num_pages = T.int32()
+        page_indptr_elem_offset = T.int32()
+        page_values_elem_offset = T.int32()
+        k_rope_pos_offset_elem_offset = T.int32()
+        q_rope_position_elem_offset = T.int32()
+        length_info_elem_offset = T.int32()
 
         Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
         pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype)
@@ -140,9 +140,9 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
                         )
 
                     for row_idx in T.serial(kv_chunk_len[0]):
-                        seq_offset: T.let[T.int32(is_size_var=True)] = _get_seq_offset(row_idx, b, length_info, sliding_window)
-                        page_no: T.let[T.int32(is_size_var=True)] = page_table_values[cur_page_indptr_begin + (seq_offset // page_size)]
-                        page_offset: T.let[T.int32(is_size_var=True)] = seq_offset % page_size
+                        seq_offset: T.let[T.int32()] = _get_seq_offset(row_idx, b, length_info, sliding_window)
+                        page_no: T.let[T.int32()] = page_table_values[cur_page_indptr_begin + (seq_offset // page_size)]
+                        page_offset: T.let[T.int32()] = seq_offset % page_size
 
                         for d in T.serial(D):
                             K_local[d] = T.if_then_else(
@@ -228,15 +228,15 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
         sm_scale: T.float32,
     ):
         T.func_attr({"tirx.is_scheduled": True, "global_symbol": global_symbol})
-        B = T.int32(is_size_var=True)
-        nnz_pages = T.int32(is_size_var=True)
-        max_num_pages = T.int32(is_size_var=True)
-        pages_elem_offset = T.int64(is_size_var=True)
-        page_indptr_elem_offset = T.int32(is_size_var=True)
-        page_values_elem_offset = T.int32(is_size_var=True)
-        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
-        q_rope_position_elem_offset = T.int32(is_size_var=True)
-        length_info_elem_offset = T.int32(is_size_var=True)
+        B = T.int32()
+        nnz_pages = T.int32()
+        max_num_pages = T.int32()
+        pages_elem_offset = T.int64()
+        page_indptr_elem_offset = T.int32()
+        page_values_elem_offset = T.int32()
+        k_rope_pos_offset_elem_offset = T.int32()
+        q_rope_position_elem_offset = T.int32()
+        length_info_elem_offset = T.int32()
 
         Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
         pages = T.match_buffer(pages_handle, (max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset)
@@ -303,18 +303,18 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                     )
 
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_size_per_bdx * bdy * bdz)):
-                                    tile_start_s: T.let[T.int32(is_size_var=True)] = (tz * bdy + ty) * tile_size_per_bdx  # type: ignore
-                                    tile_start_g: T.let[T.int32(is_size_var=True)] = ((iterator * bdz + tz) * bdy + ty) * tile_size_per_bdx  # type: ignore
+                                    tile_start_s: T.let[T.int32()] = (tz * bdy + ty) * tile_size_per_bdx  # type: ignore
+                                    tile_start_g: T.let[T.int32()] = ((iterator * bdz + tz) * bdy + ty) * tile_size_per_bdx  # type: ignore
                                     # load KV from global memory to shared memory
                                     for j in T.serial(tile_size_per_bdx):
                                         with T.sblock("KV_load"):
                                             T.reads()
                                             T.writes()
-                                            row_g: T.let[T.int32(is_size_var=True)] = tile_start_g + j  # type: ignore
+                                            row_g: T.let[T.int32()] = tile_start_g + j  # type: ignore
                                             if row_g < kv_chunk_len[0]:
-                                                seq_offset: T.let[T.int32(is_size_var=True)] = _get_seq_offset(row_g, batch_idx, length_info, sliding_window)  # type: ignore
-                                                page_no: T.let[T.int32(is_size_var=True)] = page_table_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
-                                                page_offset: T.let[T.int32(is_size_var=True)] = T.floormod(seq_offset, page_size)  # type: ignore
+                                                seq_offset: T.let[T.int32()] = _get_seq_offset(row_g, batch_idx, length_info, sliding_window)  # type: ignore
+                                                page_no: T.let[T.int32()] = page_table_values[cur_page_indptr_begin + T.floordiv(seq_offset, page_size)]  # type: ignore
+                                                page_offset: T.let[T.int32()] = T.floormod(seq_offset, page_size)  # type: ignore
                                                 for vec in T.vectorized(VEC_SIZE):
                                                     K_smem[tile_start_s + j, tx * VEC_SIZE + vec] = T.if_then_else(
                                                         rotary_mode == 1,
@@ -343,9 +343,9 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
                                             T.attr(
                                                 T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
                                                 "reduce_scope",
-                                                T.reinterpret("handle", T.uint64(0)),
+                                                T.int32(0),
                                             )
-                                            T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="handle")
+                                            T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="void")
 
                                         S_local[j] = -5e4
                                         if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j < kv_chunk_len[0]:
@@ -420,9 +420,9 @@ def _merge_state_inplace_cpu(v_dtype):
         s_other: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": True})
-        N = T.int32(is_size_var=True)
-        H = T.int32(is_size_var=True)
-        D = T.int32(is_size_var=True)
+        N = T.int32()
+        H = T.int32()
+        D = T.int32()
 
         V = T.match_buffer(v, (N, H, D), v_dtype)
         S = T.match_buffer(s, (N, H), "float32")
@@ -471,9 +471,9 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
         s_other: T.handle,
     ):
         T.func_attr({"tirx.is_scheduled": True})
-        N = T.int32(is_size_var=True)
-        H = T.int32(is_size_var=True)
-        D = T.int32(is_size_var=True)
+        N = T.int32()
+        H = T.int32()
+        D = T.int32()
 
         V = T.match_buffer(v, (N, H, D), v_dtype)
         S = T.match_buffer(s, (N, H), "float32")

@@ -3186,7 +3186,7 @@ def test_group_norm_symbolic():
     @tvm.script.ir_module
     class Expected:
         @T.prim_func(private=True, s_tir=True)
-        def group_norm(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, var_T_reshape: T.handle, c: T.int64):
+        def group_norm(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle, var_rxplaceholder_2: T.handle, c: T.int64, var_T_reshape: T.handle):
             T.func_attr({"tirx.noalias": True})
             n = T.int64()
             h = T.int64()
@@ -3251,7 +3251,7 @@ def test_group_norm_symbolic():
             c = T.int64()
             h = T.int64()
             w = T.int64()
-            gv = R.call_tir(Expected.group_norm, (x, gamma, beta), out_ty=R.Tensor((n, 4 * c, h, w), dtype="float32"), tir_vars=R.shape([c]))
+            gv = R.call_tir(Expected.group_norm, (x, gamma, beta, c), out_ty=R.Tensor((n, 4 * c, h, w), dtype="float32"))
             return gv
     # fmt: on
     mod = LegalizeOps()(GroupNorm)
@@ -3578,7 +3578,7 @@ def test_attention():
     class Attention:
         @R.function
         def main(q: R.Tensor((4, 16, 32, 8), "float32"), k: R.Tensor((4, 8, 32, 8), "float32"), v: R.Tensor((4, 8, 32, 16), "float32"), bias: R.Tensor((4, 32, 16, 8), "float32")):
-            scale = T.FloatImm("float32", 0.1)
+            scale = I.meta_var(T.FloatImm("float32", 0.1))
             gv: R.Tensor((4, 16, 32, 16), "float32") = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="TopLeft")
             return gv
 
@@ -3772,7 +3772,7 @@ def test_dynamic_attention():
             v: R.Tensor((4, "seq_len_kv", 32, 16), "float32"),
             bias: R.Tensor((4, 32, "seq_len", "seq_len_kv"), "float32"),
         ):
-            scale = T.FloatImm("float32", 0.1)
+            scale = I.meta_var(T.FloatImm("float32", 0.1))
             gv = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="BottomRight")
             return gv
 
@@ -3807,7 +3807,7 @@ def test_dynamic_batch_attention():
             v: R.Tensor(("batch_size", 8, 32, 16), "float32"),
             bias: R.Tensor(("batch_size", 32, 16, 8), "float32"),
         ):
-            scale = T.FloatImm("float32", 0.1)
+            scale = I.meta_var(T.FloatImm("float32", 0.1))
             gv = R.nn.attention(q, k, v, bias, scale=scale, causal_mask="BottomRight")
             return gv
 

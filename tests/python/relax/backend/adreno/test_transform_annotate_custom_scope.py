@@ -202,8 +202,13 @@ def _test_conv2d_symbolic_sub_indexed():
             "float32", ndim=4
         ):
             with R.dataflow():
-                N, C, H, W = T.int64(), T.int64(16), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = T.int64(4), T.int64(16), T.int64(), T.int64()
+                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
+                Nw, Cw, Hw, Ww = (
+                    I.meta_var(T.int64(4)),
+                    I.meta_var(T.int64(16)),
+                    T.int64(),
+                    T.int64(),
+                )
                 lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
                 lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
                 gv: R.Tensor(

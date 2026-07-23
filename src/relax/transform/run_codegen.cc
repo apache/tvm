@@ -116,7 +116,7 @@ class CodeGenRunner : ExprMutator {
 
         static const Op& call_op = Op::Get("relax.call_dps_packed");
 
-        return Call(call_op, new_args, tvm::Attrs(), {ret_ty});
+        return Call(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
       };
 
       auto ret_ty = GetType(call);
@@ -145,7 +145,17 @@ class CodeGenRunner : ExprMutator {
       new_args.push_back(VisitExpr(arg));
     }
 
-    return Call(call_node->op, new_args, call_node->attrs, call_node->ty_args, call_node->span);
+    Type ret_ty = Type::Missing();
+    if (call_node->ty.as<PrimTypeNode>()) {
+      if (auto op = call_node->op.as<Op>()) {
+        static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+        if (!infer_type_map.count(op.value())) {
+          ret_ty = call_node->ty.as_or_throw<Type>();
+        }
+      }
+    }
+    return Call(ret_ty, call_node->op, new_args, call_node->attrs, call_node->ty_args,
+                call_node->span);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) override {

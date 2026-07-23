@@ -125,7 +125,7 @@ SBlockRV TracedScheduleNode::GetSBlock(const ffi::String& name,
   GlobalVar gv;
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
-  } else if (func_working_on_.defined()) {
+  } else if (func_working_on_.has_value()) {
     gv = this->func_working_on_.value();
   } else {
     TVM_FFI_THROW(ValueError)
@@ -735,21 +735,6 @@ void TracedScheduleNode::TransformBlockLayout(const SBlockRV& block_rv, const In
                            /*inputs=*/{block_rv},
                            /*attrs=*/{index_map},
                            /*outputs=*/{}));
-}
-
-void TracedScheduleNode::SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                                          BufferIndexType buffer_index_type,
-                                          const ffi::Array<IntImm>& axis_separators) {
-  ConcreteScheduleNode::SetAxisSeparator(block_rv, buffer_index, buffer_index_type,
-                                         axis_separators);
-  static const InstructionKind& kind = InstructionKind::Get("SetAxisSeparator");
-  trace_->Append(/*inst=*/Instruction(
-      /*kind=*/kind,
-      /*inputs=*/{block_rv},
-      /*attrs=*/
-      {IntImm::Int32(buffer_index), IntImm::Int32(static_cast<int>(buffer_index_type)),
-       axis_separators},
-      /*outputs=*/{}));
 }
 
 /******** Schedule: Padding ********/

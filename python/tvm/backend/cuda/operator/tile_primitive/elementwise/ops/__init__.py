@@ -30,7 +30,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir.expr import Expr
 from tvm.tirx import BufferRegion, TilePrimitiveCall
 
 
@@ -38,14 +38,14 @@ from tvm.tirx import BufferRegion, TilePrimitiveCall
 class SrcSpec:
     """One operand of an elementwise op.
 
-    Either a ``BufferRegion`` (per-element load) or a scalar ``PrimExpr``.
+    Either a ``BufferRegion`` (per-element load) or a scalar ``Expr``.
     ``index_fn``, if given, derives per-element indices for broadcasting srcs:
         ``index_fn(dst_indices, dst_start, dst_extent, src_start, src_extent) -> list[Expr]``
     Default is the standard ``get_indices`` over the src's own region.
     """
 
     buf_region: BufferRegion | None = None
-    scalar: PrimExpr | None = None
+    scalar: Expr | None = None
     index_fn: Callable | None = None
 
     @property

@@ -23,6 +23,7 @@
 #include "codegen_metal.h"
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
@@ -46,7 +47,7 @@ void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
   for (Var arg : f->params) {
-    if (arg.ty().IsHandle()) {
+    if (arg->ty.as<PointerTypeNode>()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
@@ -97,18 +98,18 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   }
   for (size_t i = 0; i < func->params.size(); ++i, ++num_buffer) {
     Var v = func->params[i];
-    if (!v.ty().IsHandle()) break;
+    if (!v->ty.as<PointerTypeNode>()) break;
     this->stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, this->stream);
     }
-    PrintType(GetType(v), this->stream);
+    PrintType(v->ty, this->stream);
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
     // type annotation(via a normalizing rewriting).
-    if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+    if (auto* ptr = v->ty.as<PointerTypeNode>()) {
       if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
         RegisterHandleType(v.get(), ffi::GetRef<PrimType>(prim));
       }
@@ -126,24 +127,25 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
     decl_stream << "struct " << arg_buf_type << " {\n";
     for (size_t i = num_buffer; i < func->params.size(); ++i) {
       Var v = func->params[i];
-      TVM_FFI_ICHECK(!v.ty().IsHandle());
+      PrimType value_type = v->ty.as_or_throw<PrimType>();
+      TVM_FFI_ICHECK(!value_type.IsVoid());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
-      if (v.ty().bits() == 32) {
+      if (value_type.bits() == 32) {
         decl_stream << "  ";
-        PrintType(v.ty()->dtype, decl_stream);
+        PrintType(value_type, decl_stream);
         decl_stream << " " << vid << "[2];\n";
         vref << varg << "." << vid << "[0]";
-      } else if (v.ty().bits() == 64) {
+      } else if (value_type.bits() == 64) {
         decl_stream << "  ";
-        PrintType(v.ty()->dtype, decl_stream);
+        PrintType(value_type, decl_stream);
         decl_stream << " " << vid << ";\n";
         vref << varg << "." << vid;
       } else {
         // For non 32bit type, ref through arg union.
         decl_stream << "  __TVMArgUnion " << vid << ";\n";
         vref << varg << "." << vid << ".v_";
-        PrintType(v.ty()->dtype, vref);
+        PrintType(value_type, vref);
       }
       var_idmap_[v.get()] = vref.str();
     }
@@ -165,14 +167,10 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   if (work_dim != 0) {
     // use ushort by default for now
     stream << "  ";
-    PrintType(DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_),
-                         static_cast<uint16_t>(work_dim)},
-              stream);
+    PrintType(PrimType::UInt(thread_index_bits_, work_dim), stream);
     stream << " blockIdx [[threadgroup_position_in_grid]],\n";
     stream << "  ";
-    PrintType(DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_),
-                         static_cast<uint16_t>(work_dim)},
-              stream);
+    PrintType(PrimType::UInt(thread_index_bits_, work_dim), stream);
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
   thread_work_dim_ = work_dim;
@@ -194,24 +192,16 @@ void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
   if (thread_work_dim_ <= 1) {
     vname = vname.substr(0, iv->thread_tag.length() - 2);
   }
-  var_idmap_[iv->var.get()] = CastFromTo(
-      vname, DLDataType{kDLUInt, static_cast<uint8_t>(thread_index_bits_), 1}, iv->var.ty()->dtype);
+  var_idmap_[iv->var.get()] = CastFromTo(vname, PrimType::UInt(thread_index_bits_), iv->var.ty());
 }
 
 void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
-  const DLDataType& raw_t = t->dtype;
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_ICHECK_EQ(lanes, 1) << "do not yet support vector types";
-    os << "void*";
-    return;
-  }
-
   if (t.IsVoid()) {
     os << "void";
     return;
   }
-  if (raw_t == DLDataType{kDLBool, 8, 1}) {
+  if (t == PrimType::Bool()) {
     os << "bool";
     return;
   }
@@ -277,7 +267,7 @@ void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*
     os << "bfloat";
     return;
   }
-  TVM_FFI_THROW(InternalError) << "Cannot convert type " << ffi::DLDataTypeToString(raw_t)
+  TVM_FFI_THROW(InternalError) << "Cannot convert type " << ffi::DLDataTypeToString(t->dtype)
                                << " to Metal type";
 }
 
@@ -334,14 +324,13 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
 
   auto scope = GetPtrStorageScope(op->buffer->data);
   alloc_storage_scope_[op->buffer->data.get()] = scope;
-  DLDataType dtype = op->buffer->dtype->dtype;
+  const PrimType& dtype = op->buffer->dtype;
   if (scope == "metal.simdgroup") {
-    bool supported_simdgroup_dtype = dtype == DLDataType{kDLFloat, 16, 1} ||
-                                     dtype == DLDataType{kDLFloat, 32, 1} ||
-                                     dtype == DLDataType{kDLBfloat, 16, 1};
+    bool supported_simdgroup_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Float(32) ||
+                                     dtype == PrimType::BFloat(16);
     TVM_FFI_ICHECK(supported_simdgroup_dtype)
         << "Only float16, float32, and bfloat16 are supported, but got "
-        << ffi::DLDataTypeToString(dtype);
+        << ffi::DLDataTypeToString(dtype->dtype);
     TVM_FFI_ICHECK(constant_size % 64 == 0)
         << "Only 8x8 matrix is supported, but got " << constant_size << " bytes\n";
 
@@ -369,8 +358,8 @@ void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLI
 
 void CodeGenMetal::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
-  int lanes = op->ty().lanes();
-  PrintType(op->ty()->dtype, os);
+  int lanes = op->ty.as_or_throw<PrimType>().lanes();
+  PrintType(op->ty.as_or_throw<PrimType>(), os);
   os << "(";
   for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
@@ -405,19 +394,22 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     TVM_FFI_ICHECK(it != simdgroup_dtype_.end())
         << "Cannot find variable allocation for simdgroup: " << var;
     const std::string& dtype_str = it->second;
-    f_check_simdgroup_shape(op->args[3], op->args[4]);
+    f_check_simdgroup_shape(op->args[3].as_or_throw<PrimExpr>(),
+                            op->args[4].as_or_throw<PrimExpr>());
     os << PrintExpr(var) << "[" << PrintExpr(op->args[1]) << "] = make_filled_simdgroup_matrix<"
        << dtype_str << ", " << PrintExpr(op->args[3]) << ", " << PrintExpr(op->args[4]) << ">("
        << PrintExpr(op->args[2]) << ")";
   } else if (op->op.same_as(simdgroup_load_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7);
-    f_check_simdgroup_shape(op->args[4], op->args[5]);
+    f_check_simdgroup_shape(op->args[4].as_or_throw<PrimExpr>(),
+                            op->args[5].as_or_throw<PrimExpr>());
     os << "simdgroup_load(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
        << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
        << PrintExpr(op->args[6]) << ")";
   } else if (op->op.same_as(simdgroup_store_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 7);
-    f_check_simdgroup_shape(op->args[4], op->args[5]);
+    f_check_simdgroup_shape(op->args[4].as_or_throw<PrimExpr>(),
+                            op->args[5].as_or_throw<PrimExpr>());
     os << "simdgroup_store(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
        << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
        << PrintExpr(op->args[6]) << ")";
@@ -429,9 +421,12 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
        << PrintExpr(op->args[4]) << "[" << PrintExpr(op->args[5]) << "], "  //
        << PrintExpr(op->args[6]) << "[" << PrintExpr(op->args[7]) << "])";
   } else if (op->op.same_as(builtin::reinterpret())) {
+    if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
+      return CodeGenC::VisitExpr_(op, os);
+    }
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
-    this->PrintType(op->ty()->dtype, os);
+    this->PrintType(op->ty.as_or_throw<PrimType>(), os);
     os << ">(";
     this->PrintExpr(op->args[0], os);
     os << "))";
@@ -451,9 +446,9 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
     temp << "NAN";
   } else {
     temp << std::scientific << op->value;
-    if (op->ty().bits() == 32)
+    if (op->ty.as_or_throw<PrimType>().bits() == 32)
       temp << 'f';
-    else if (op->ty().bits() == 16)
+    else if (op->ty.as_or_throw<PrimType>().bits() == 16)
       temp << 'h';
   }
   MarkConst(temp.str());
@@ -471,7 +466,9 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
   // Map<String, Bytes> across all multi-shader backends.
   ffi::Map<ffi::String, ffi::Bytes> smap;
   const auto fmetal_compile = tvm::ffi::Function::GetGlobal("tvm_callback_metal_compile");
+  // Default payload format. A callback may override it per the contract below.
   std::string fmt = fmetal_compile ? "metallib" : "metal";
+  bool fmt_locked = false;
 
   for (auto kv : mod->functions) {
     TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
@@ -495,7 +492,32 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     std::string fsource = cg.Finish();
     source_maker << fsource << "\n";
     if (fmetal_compile) {
-      fsource = (*fmetal_compile)(fsource, target).cast<std::string>();
+      ffi::Any ret = (*fmetal_compile)(fsource, target);
+      // Backward-compatible contract for tvm_callback_metal_compile:
+      //   * returning a str/bytes    -> treated as a compiled metallib payload
+      //   * returning (payload, fmt) -> the callback declares the payload format
+      std::string kernel_fmt;
+      if (auto ret_tuple = ret.try_cast<ffi::Array<ffi::Any>>()) {
+        TVM_FFI_ICHECK_EQ(ret_tuple->size(), 2)
+            << "tvm_callback_metal_compile must return either a payload or a "
+               "(payload, format) pair, but got a tuple of size "
+            << ret_tuple->size();
+        fsource = (*ret_tuple)[0].cast<std::string>();
+        kernel_fmt = (*ret_tuple)[1].cast<std::string>();
+        TVM_FFI_ICHECK(kernel_fmt == "metal" || kernel_fmt == "metallib")
+            << "tvm_callback_metal_compile returned unsupported format \"" << kernel_fmt
+            << "\"; expected \"metal\" or \"metallib\"";
+      } else {
+        // Backward-compatible behavior
+        fsource = ret.cast<std::string>();
+        kernel_fmt = "metallib";
+      }
+      // All kernels of a module share a single declared format
+      TVM_FFI_ICHECK(!fmt_locked || fmt == kernel_fmt)
+          << "tvm_callback_metal_compile returned inconsistent formats across kernels: \"" << fmt
+          << "\" vs \"" << kernel_fmt << "\"";
+      fmt = kernel_fmt;
+      fmt_locked = true;
     }
     smap.Set(func_name, ffi::Bytes(std::move(fsource)));
   }

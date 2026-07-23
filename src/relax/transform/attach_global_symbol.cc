@@ -57,14 +57,15 @@ struct TirxGvarMutator : tirx::StmtExprMutator {
   explicit TirxGvarMutator(ffi::Map<GlobalVar, GlobalVar> replacements)
       : replacements(replacements) {}
 
-  PrimExpr VisitExpr_(const tirx::CallNode* node) override {
-    auto call = tirx::StmtExprMutator::VisitExpr_(node).as_or_throw<tirx::Call>();
+  using tirx::StmtExprMutator::VisitExpr_;
+  Expr VisitExpr_(const CallNode* node) override {
+    auto call = tirx::StmtExprMutator::VisitExpr_(node).as_or_throw<tvm::Call>();
     if (auto old_gvar = call->op.as<GlobalVar>()) {
       if (auto new_gvar = replacements.Get(old_gvar.value())) {
         call.CopyOnWrite()->op = new_gvar.value();
       }
     }
-    return call;
+    return call.as_or_throw<PrimExpr>();
   }
 };
 

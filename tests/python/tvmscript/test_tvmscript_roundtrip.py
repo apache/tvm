@@ -20,7 +20,6 @@ import sys
 
 import numpy as np
 import pytest
-import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -1437,25 +1436,37 @@ def opt_conv_tensorcore_mod_host():
 
         A: T.let[T.handle] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
         T.attr(A, "storage_alignment", 128)
-        arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
+        arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg0, 0, 2, dtype=T.handle("int64").ty
+        )
         arg0_shape = T.decl_buffer([6], "int64", data=arg0_shape_data)
-        arg0_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
+        arg0_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg0, 0, 3, dtype=T.handle("int64").ty
+        )
         arg0_strides = T.decl_buffer([6], "int64", data=arg0_strides_data)
 
         dev_id: T.let[T.int32] = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
         W: T.let[T.handle] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
         T.attr(W, "storage_alignment", 128)
-        arg1_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
+        arg1_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg1, 0, 2, dtype=T.handle("int64").ty
+        )
         arg1_shape = T.decl_buffer([6], "int64", data=arg1_shape_data)
-        arg1_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
+        arg1_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg1, 0, 3, dtype=T.handle("int64").ty
+        )
         arg1_strides = T.decl_buffer([6], "int64", data=arg1_strides_data)
 
         Conv: T.let[T.handle] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
         T.attr(Conv, "storage_alignment", 128)
-        arg2_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
+        arg2_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg2, 0, 2, dtype=T.handle("int64").ty
+        )
         arg2_shape = T.decl_buffer([6], "int64", data=arg2_shape_data)
-        arg2_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
+        arg2_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
+            arg2, 0, 3, dtype=T.handle("int64").ty
+        )
         arg2_strides = T.decl_buffer([6], "int64", data=arg2_strides_data)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (arg0_code == 4), (
@@ -2109,7 +2120,7 @@ def comm_reducer_single_reduce_group():
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.alloc_buffer((1,), scope="local")
-            with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0)):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
     return comm_reducer_single_reduce_group
@@ -2124,7 +2135,7 @@ def comm_reducer_multiple_reduce_groups():
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.alloc_buffer((1,), scope="local")
-            with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.int32(0)):
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0.data, threadIdx_x, dtype="handle"))
 
     return comm_reducer_multiple_reduce_groups
@@ -2140,11 +2151,11 @@ def multiple_commreducer():
         reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with T.sblock("T_softmax_maxelem_cross_thread_reduction"):
-                T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+                T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.int32(0))
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp0[0], True, reduce_temp0.data, ax0_1, dtype="handle"))
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with T.sblock("T_softmax_expsum_cross_thread_reduction"):
-                T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+                T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0))
                 T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp1[0], True, reduce_temp1.data, ax0_1, dtype="handle"))
 
     return multiple_commreducer
@@ -2279,17 +2290,22 @@ def func_T_ptr_let_statement():
         arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, dtype="handle")
         arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, dtype="handle")
 
-        # Functions that return a "handle" can be assigned to a T.Ptr
-        # variable.  A variable annotated with T.Ptr still has dtype of
-        # T.handle, but has type annotation as a pointer type.
-        A_data: T.let[T.handle("float32")] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+        # The ABI field is an opaque pointer.  Retag it explicitly before
+        # binding it to the buffer's exact element pointer type.
+        A_data: T.let[T.handle("float32")] = T.reinterpret(
+            T.handle("float32").ty,
+            T.tvm_struct_get(arg0, 0, 1, dtype="handle"),
+        )
 
         # The buffer declaration has a data pointer defined earlier in
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
         # the function as other buffer_decl statements can be.
         A = T.decl_buffer([1024], dtype="float32", data=A_data)
-        B_data: T.let[T.handle("float32")] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+        B_data: T.let[T.handle("float32")] = T.reinterpret(
+            T.handle("float32").ty,
+            T.tvm_struct_get(arg1, 0, 1, dtype="handle"),
+        )
         B = T.decl_buffer([1024], dtype="float32", data=B_data)
 
         B[0] = A[0]
@@ -2400,25 +2416,6 @@ def pointer_type():
     return func_with_ptr_type_annotations
 
 
-def buffer_axis_separator():
-    @T.prim_func(s_tir=True)
-    def element_wise(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (128, 128), "float32", axis_separators=[1])
-        C = T.match_buffer(c, (128, 128), "float32")
-        B = T.sblock_alloc_buffer((128, 128), "float32", axis_separators=[1])
-
-        for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                B[vi, vj] = A[vi, vj] * T.float32(2)
-        for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                C[vi, vj] = B[vi, vj] + T.float32(1)
-
-    return element_wise
-
-
 def buffer_ramp_access_as_slice_index():
     @T.prim_func(s_tir=True)
     def buffer_ramp_access(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -2476,23 +2473,32 @@ def let_expression():
 
 
 def test_void_ptr_vs_handle():
-    """Distinguish between void* and handle
-
-    In the future, perhaps these should be de-duplicated by forbidding
-    one of the two C++ representations.
-    """
+    """An untyped handle is the canonical void-pointer type."""
 
     # Generates PointerType(PrimType::Void())
     @T.prim_func(s_tir=True)
     def void_ptr(out_ret_value: T.handle("void")):
         T.evaluate(out_ret_value)
 
-    # Generates PrimType::Handle()
+    # Generates PointerType::VoidPointerTy()
     @T.prim_func(s_tir=True)
     def handle(out_ret_value: T.handle):
         T.evaluate(out_ret_value)
 
-    assert not tvm_ffi.structural_equal(void_ptr, handle)
+    tvm.ir.assert_structural_equal(void_ptr.params[0].ty, handle.params[0].ty)
+    script = void_ptr.script()
+    assert "out_ret_value: T.handle" in script
+    assert 'T.handle("void")' not in script
+    tvm.ir.assert_structural_equal(void_ptr, tvm.script.from_source(script))
+
+    @T.prim_func(s_tir=True)
+    def scoped_void_ptr(out_ret_value: T.handle("void", "shared")):
+        T.evaluate(out_ret_value)
+
+    scoped_script = scoped_void_ptr.script()
+    assert 'out_ret_value: T.handle(storage_scope="shared")' in scoped_script
+    assert 'T.handle("void"' not in scoped_script
+    tvm.ir.assert_structural_equal(scoped_void_ptr, tvm.script.from_source(scoped_script))
 
 
 def void_ptr():
@@ -2744,75 +2750,6 @@ def bind_var():
     return func
 
 
-def string_stride():
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int32()
-        A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
-        B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
-        blockIdx_x = T.launch_thread("blockIdx.x", (n + 63) // 64)
-        threadIdx_x = T.launch_thread("threadIdx.x", 64)
-        if T.likely(blockIdx_x * 64 + threadIdx_x < n):
-            B2 = T.decl_buffer((B.strides[0] * n,), data=B.data)
-            A2 = T.decl_buffer((A.strides[0] * n,), data=A.data)
-            B2[(blockIdx_x * 64 + threadIdx_x) * B.strides[0]] = A2[
-                (blockIdx_x * 64 + threadIdx_x) * A.strides[0]
-            ] * T.float32(2)
-
-    return main
-
-
-def string_stride_int64():
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle):
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        n = T.int64()
-        A_s0 = T.int64()
-        B_s0 = T.int64()
-        A = T.match_buffer(a, (n,), strides=(A_s0,), buffer_type="auto")
-        B = T.match_buffer(b, (n,), strides=(B_s0,), buffer_type="auto")
-        for i in range(n):
-            B[i] = A[i]
-
-    return main
-
-
-def merge_shape_var_def():
-    # uninitialized vars
-    @T.prim_func(check_well_formed=False, s_tir=True)
-    def main(A: T.handle, B: T.handle):
-        # fmt: off
-        T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        m, n = T.int32(), T.int32()
-        A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
-        B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
-        for i_outer, j_outer, i_inner in T.grid((m + 9) // 10, (n + 4) // 5, 10):
-            if T.likely(i_outer * 10 + i_inner < m):
-                for j_inner in range(5):
-                    if T.likely(j_outer * 5 + j_inner < n):
-                        cse_v2: T.let[T.int32] = j_outer * 5 + j_inner
-                        cse_v1: T.let[T.int32] = i_outer * 10 + i_inner
-                        B_2 = T.decl_buffer(
-                            (B_1.strides[0] * m,),
-                            data=B_1.data,
-                            strides=("B_2_s0",),
-                            buffer_type="auto",
-                        )
-                        A_2 = T.decl_buffer(
-                            (A_1.strides[0] * m,),
-                            data=A_1.data,
-                            strides=("A_2_s0",),
-                            buffer_type="auto",
-                        )
-                        B_2[cse_v1 * B_1.strides[0] + cse_v2 * B_1.strides[1]] = A_2[
-                            cse_v1 * A_1.strides[0] + cse_v2 * A_1.strides[1]
-                        ]
-        # fmt: on
-
-    return main
-
-
 def if_then_else_var():
     @T.prim_func(s_tir=True)
     def main(n: T.int32):
@@ -2850,7 +2787,7 @@ def tvm_shfl_builtins():
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
-            T.reinterpret("handle", T.uint64(0)),
+            T.int32(0),
         ):
             mask = T.alloc_buffer((1,), "uint32", scope="local")
             t0 = T.alloc_buffer((1,), scope="local")
@@ -2988,7 +2925,7 @@ def subroutine_call_returning_int():
 
         @T.prim_func(s_tir=True)
         def subroutine(x: T.float32) -> T.float32:
-            T.ret(x * x)
+            return x * x
 
     return mod
 
@@ -3066,7 +3003,7 @@ def subroutine_call_without_arguments():
 def return_zero():
     @T.prim_func(s_tir=True)
     def func() -> T.int32:
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3074,7 +3011,7 @@ def return_zero():
 def return_zero_private():
     @T.prim_func(private=True, s_tir=True)
     def func() -> T.int32:
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3083,7 +3020,7 @@ def return_zero_private_with_attr():
     @T.prim_func(private=True, s_tir=True)
     def func() -> T.int32:
         T.func_attr({"greeting": "hello"})
-        T.ret(0)
+        return 0
 
     return func
 
@@ -3254,9 +3191,9 @@ def relax_match_cast_ty_proxy():
         yield make_ir_generator(subclass)
 
 
-def relax_symbolic_size_var():
-    """Relax symbolic variables may be SizeVar"""
-    N = tvm.tirx.SizeVar("N", "int64")
+def relax_symbolic_var():
+    """Relax tensors may use symbolic variables."""
+    N = tvm.tirx.Var("N", "int64")
 
     @R.function
     def func(A: R.Tensor([N], "float16")):
@@ -3267,15 +3204,11 @@ def relax_symbolic_size_var():
 
 
 def relax_float_symbolic_var():
-    """Relax symbolic variables may hold any dtype"""
+    """Relax scalar variables may use any dtype."""
 
     @R.function
-    def func(A: R.Tensor(["N"], "float16"), _: R.Prim(value="threshold")):
-        N = T.int64()
-        threshold = T.float16()
-
-        B = A >= R.prim_value(threshold / T.cast(N, "float16"))
-        return B
+    def func(value: R.Prim("float16")):
+        return value
 
     return func
 
@@ -3314,7 +3247,6 @@ ir_generator = tvm.testing.parameter(
     int64_support,
     string_annotation_escaping,
     pointer_type,
-    buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     ramp_int64,
     scalable_vectors,
@@ -3340,9 +3272,6 @@ ir_generator = tvm.testing.parameter(
     multi_env_threads,
     intrinsic_pow,
     bind_var,
-    string_stride,
-    string_stride_int64,
-    merge_shape_var_def,
     if_then_else_var,
     tvm_shfl_builtins,
     make_packed_api_result,
@@ -3364,7 +3293,7 @@ ir_generator = tvm.testing.parameter(
     func_with_loop_steps,
     *op_of_literal(),
     *relax_match_cast_ty_proxy(),
-    relax_symbolic_size_var,
+    relax_symbolic_var,
     relax_float_symbolic_var,
 )
 

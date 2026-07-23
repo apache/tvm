@@ -38,11 +38,11 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferIndices(
     if (index->IsInstance<IntImmNode>()) {
       continue;
     }
-    const VarNode* var = index.as<VarNode>();
-    if (var == nullptr) {
+    auto var = index.as<PrimVar>();
+    if (!var.has_value()) {
       return std::nullopt;
     }
-    indices.push_back(ffi::GetRef<Var>(var));
+    indices.push_back(var.value());
   }
   return indices;
 }
@@ -57,8 +57,8 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buff
     if (range->min->IsInstance<IntImmNode>()) {
       continue;
     }
-    if (const auto* var = range->min.as<VarNode>()) {
-      indices.push_back(ffi::GetRef<Var>(var));
+    if (auto var = range->min.as<PrimVar>()) {
+      indices.push_back(var.value());
     } else {
       return std::nullopt;
     }
@@ -145,7 +145,7 @@ struct BufferPadding {
     int ndim = buffer_region->region.size();
     for (int i = 0; i < ndim; ++i) {
       PrimExpr pos = buffer_region->region[i]->min;
-      TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos->IsInstance<VarNode>());
+      TVM_FFI_ICHECK(pos->IsInstance<IntImmNode>() || pos.as<PrimVar>());
       if (pos->IsInstance<IntImmNode>()) {
         shape.push_back(IntImm(pos.ty(), 1));
       } else if (ffi::Optional<PrimExpr> extent = iter_extents.Get(pos.as_or_throw<Var>())) {
@@ -176,7 +176,7 @@ struct BufferPadding {
       Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
       loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
-      IterVar iter_var(dom, Var("v" + std::to_string(i), dim.ty()), kDataPar);
+      IterVar iter_var(dom, PrimVar("v" + std::to_string(i), dim.ty()), kDataPar);
       instance_dom.push_back(Range::FromMinExtent(iter_var->var, IntImm(dim.ty(), 1)));
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);
@@ -203,11 +203,13 @@ struct BufferPadding {
     SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name,
                      std::move(body));
     blocks->push_back(new_block);
-    body = SBlockRealize(ffi::Array<PrimExpr>{loop_vars.begin(), loop_vars.end()},
-                         IntImm::Bool(true), new_block);
+    ffi::Array<PrimExpr> prim_loop_vars;
+    prim_loop_vars.reserve(loop_vars.size());
+    for (const Var& var : loop_vars) prim_loop_vars.push_back(var.as_or_throw<PrimExpr>());
+    body = SBlockRealize(prim_loop_vars, IntImm::Bool(true), new_block);
     for (int i = ndim - 1; i >= 0; --i) {
-      body = For(loop_vars[i], loop_doms[i]->min, loop_doms[i]->extent, ForKind::kSerial,
-                 std::move(body));
+      body = For(loop_vars[i].as_or_throw<PrimVar>(), loop_doms[i]->min, loop_doms[i]->extent,
+                 ForKind::kSerial, std::move(body));
     }
     return body;
   }
@@ -359,7 +361,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
+  Expr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
     BufferLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<BufferLoad>();
     if (ffi::Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
       return BufferLoad(buffer.value(), load->indices);
@@ -393,16 +395,16 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     PrimExpr new_dom = analyzer->Simplify(ceildiv(dom, pad_imm) * pad_imm);
     if (!analyzer->CanProveEqual(new_dom, dom)) {
       replacer.iter2padded_extents.Set(iter->var, new_dom);
-      if (const auto* loop_var = realize->iter_values[i].as<VarNode>()) {
-        replacer.iter2padded_extents.Set(ffi::GetRef<Var>(loop_var), new_dom);
-        replacer.loop_var2padded_extent.Set(ffi::GetRef<Var>(loop_var), new_dom);
+      if (auto loop_var = realize->iter_values[i].as<PrimVar>()) {
+        replacer.iter2padded_extents.Set(loop_var.value(), new_dom);
+        replacer.loop_var2padded_extent.Set(loop_var.value(), new_dom);
       }
     }
   }
   auto f_needs_padding = [&replacer](const ffi::Array<Range>& region) {
     for (const Range& range : region) {
-      if (const auto* var = range->min.as<VarNode>()) {
-        if (replacer.iter2padded_extents.count(ffi::GetRef<Var>(var))) {
+      if (auto var = range->min.as<PrimVar>()) {
+        if (replacer.iter2padded_extents.count(var.value())) {
           return true;
         }
       }

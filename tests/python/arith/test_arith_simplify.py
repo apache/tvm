@@ -73,12 +73,15 @@ def test_simplify_symbolic_comparison():
 
     i0 = tirx.Var("i0", "int64")
     i1 = tirx.Var("i1", "int64")
-    n, m = tvm.tirx.SizeVar("n", "int64"), tvm.tirx.SizeVar("m", "int64")
+    n, m = tvm.tirx.Var("n", "int64"), tvm.tirx.Var("m", "int64")
     outer = (n + 31) // 32
-    ana.bind(i0, tvm.ir.Range(0, outer))
-    ana.bind(i1, tvm.ir.Range(0, 32))
     PS = tvm.arith.ProofStrength
 
+    non_negative = tvm.arith.ConstIntBound(0, tvm.arith.ConstIntBound.POS_INF)
+    ana.update(n, non_negative)
+    ana.update(m, non_negative)
+    ana.bind(i0, tvm.ir.Range(0, outer))
+    ana.bind(i1, tvm.ir.Range(0, 32))
     assert not ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32, PS.DEFAULT)
     assert ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32, PS.SYMBOLIC_BOUND)
     assert ana.can_prove(i0 * 32 + i1 < (n + 31) // 32 * 32 + m, PS.SYMBOLIC_BOUND)
@@ -150,7 +153,10 @@ def test_bind_allow_override():
     ana.bind(x, tvm.ir.Range(0, 5), allow_override=True)
     assert ana.can_prove(x < 5)
 
-    with pytest.raises(RuntimeError, match="Trying to update var 'x' with a different const bound"):
+    with pytest.raises(
+        RuntimeError,
+        match=r"Trying to update var 'x' with a different const bound",
+    ):
         ana.bind(x, tvm.ir.Range(0, 3))
 
 
@@ -165,6 +171,16 @@ def test_simplify_floor_mod_with_linear_offset():
     assert ana.can_prove_equal(tvm.tirx.floormod(expr1, divisor1), 0)
     divisor2 = 32 * (past_decoder_sequence_length + 1)
     assert ana.can_prove_equal(tvm.tirx.floormod(expr1, divisor2), 0)
+
+
+def test_simplify_uint_floormod_const_scale_divisible():
+    """uint32 floormod(x * c1, c2) -> 0 when c1 % c2 == 0 (overflow-free)."""
+    ana = tvm.arith.Analyzer()
+    q = tirx.Var("q_stage_idx", "uint32")
+    expr = q * tirx.Cast("uint32", 128)
+    mod = expr % tirx.const(4, "uint32")
+    assert ana.can_prove_equal(mod, tirx.const(0, "uint32"))
+    tvm.ir.assert_structural_equal(ana.rewrite_simplify(mod), tirx.const(0, "uint32"))
 
 
 def test_simplify_float_division():

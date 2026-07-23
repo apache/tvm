@@ -55,13 +55,19 @@ def test_add_pipeline():
         mod = ModuleGPU if target in ["opencl", "cuda"] else ModuleCPU
         # build and invoke the kernel.
         f = tvm.compile(mod, target=target)
-        dev = tvm.device(target, 0)
-        # launch the kernel.
         n = nn
-        a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
-        c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
-        f(a, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+
+        def run_and_check():
+            dev = tvm.device_from_target(target, 0)
+            a = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
+            c = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+            f(a, c)
+            tvm.testing.assert_allclose(c.numpy(), a.numpy() + 1)
+
+        if target == "llvm":
+            run_and_check()
+        else:
+            tvm.testing.run_with_gpu_lock(run_and_check)
 
     check_target("llvm")
     check_target("opencl")

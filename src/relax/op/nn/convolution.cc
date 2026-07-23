@@ -96,7 +96,7 @@ Type InferTypeConv1d(const Call& call, const BlockBuilder& ctx) {
       attrs->out_dtype.has_value() ? PrimType(attrs->out_dtype.value())
                                    : InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
-  if (!data_shape.defined() || !weight_shape.defined()) {
+  if (!data_shape.has_value() || !weight_shape.has_value()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
@@ -266,7 +266,7 @@ Type InferTypeConv2d(const Call& call, const BlockBuilder& ctx) {
       attrs->out_dtype.has_value() ? PrimType(attrs->out_dtype.value())
                                    : InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
-  if (!data_shape.defined() || !weight_shape.defined()) {
+  if (!data_shape.has_value() || !weight_shape.has_value()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
@@ -480,7 +480,7 @@ Type InferTypeConv3d(const Call& call, const BlockBuilder& ctx) {
       attrs->out_dtype.has_value() ? PrimType(attrs->out_dtype.value())
                                    : InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
-  if (!data_shape.defined() || !weight_shape.defined()) {
+  if (!data_shape.has_value() || !weight_shape.has_value()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
@@ -636,7 +636,7 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op& op = Op::Get("relax.nn.conv1d_transpose");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -668,7 +668,7 @@ Type InferTypeConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
       attrs->out_dtype.has_value() ? PrimType(attrs->out_dtype.value())
                                    : InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
-  if (!data_shape.defined() || !weight_shape.defined()) {
+  if (!data_shape.has_value() || !weight_shape.has_value()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
@@ -827,7 +827,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op& op = Op::Get("relax.nn.conv2d_transpose");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -860,7 +860,7 @@ Type InferTypeConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
       attrs->out_dtype.has_value() ? PrimType(attrs->out_dtype.value())
                                    : InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
-  if (!data_shape.defined() || !weight_shape.defined()) {
+  if (!data_shape.has_value() || !weight_shape.has_value()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 
@@ -1059,7 +1059,7 @@ Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op& op = Op::Get("relax.nn.conv3d_transpose");
-  return Call(op, {data, weight}, Attrs(attrs), {});
+  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1092,7 +1092,7 @@ Type InferTypeConv3dTranspose(const Call& call, const BlockBuilder& ctx) {
       attrs->out_dtype.has_value() ? PrimType(attrs->out_dtype.value())
                                    : InferBinaryArithOpOutDtype(call, ctx, data_ty, weight_ty);
   ffi::Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, data_ty, weight_ty);
-  if (!data_shape.defined() || !weight_shape.defined()) {
+  if (!data_shape.has_value() || !weight_shape.has_value()) {
     return TensorType(out_dtype, out_layout.ndim(), vdevice);
   }
 

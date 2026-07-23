@@ -22,7 +22,7 @@ from numbers import Integral
 import tvm_ffi
 
 import tvm
-from tvm.ir import PointerType, PrimExpr, PrimType, Range
+from tvm.ir import PointerType, PrimType, Range
 from tvm.runtime import Object, Scriptable, convert
 
 from . import _ffi_api
@@ -58,7 +58,7 @@ class Buffer(Object, Scriptable):
             The access pattern MASK. Indicate whether the
             access will read or write to the data content.
 
-        ptr_type : str, optional
+        ptr_type : str or tvm.ir.Type, optional
             The data type of the result pointer. Do not specify
             unless we want to cast pointer to specific type.
 
@@ -98,6 +98,14 @@ class Buffer(Object, Scriptable):
                 else:
                     raise ValueError(f"Unknown access_mask {access_mask}")
             access_mask = mask
+        if isinstance(ptr_type, str):
+            ptr_type = (
+                PointerType(PrimType("void"))
+                if ptr_type == "handle"
+                else PointerType(PrimType(ptr_type))
+            )
+        elif isinstance(ptr_type, PrimType):
+            ptr_type = PointerType(ptr_type)
         offset = convert(offset)
         extent = convert(extent)
         return _ffi_api.BufferAccessPtr(
@@ -121,7 +129,7 @@ class Buffer(Object, Scriptable):
             The data type to be loaded,
             can be vector type which have lanes that is multiple of Buffer.dtype
 
-        predicate : Optional[PrimExpr]
+        predicate : Optional[Expr]
             A vector mask of boolean values indicating which lanes of a vector are to be
             loaded. The number lanes of the mask must be equal to the number of lanes being loaded.
 
@@ -130,7 +138,7 @@ class Buffer(Object, Scriptable):
         load : Expr
             The corresponding load expression.
         """
-        begin = (begin,) if isinstance(begin, int | PrimExpr) else begin
+        begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
         dtype = dtype if dtype else self.dtype
         return _ffi_api.BufferVLoad(self, begin, dtype, predicate)  # type: ignore
 
@@ -145,7 +153,7 @@ class Buffer(Object, Scriptable):
         value : Expr
             The value to be stored.
 
-        predicate : Optional[PrimExpr]
+        predicate : Optional[Expr]
             A vector mask of boolean values indicating which lanes of a vector are to be
             stored. The number lanes of the mask must be equal to the number of lanes in
             value.
@@ -155,7 +163,7 @@ class Buffer(Object, Scriptable):
         store : Stmt
             The corresponding store stmt.
         """
-        begin = (begin,) if isinstance(begin, int | PrimExpr) else begin
+        begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
         return _ffi_api.BufferVStore(self, begin, value, predicate)  # type: ignore
 
     def scope(self):
@@ -194,13 +202,13 @@ class Buffer(Object, Scriptable):
 
         Parameters
         ----------
-        indices : Union[PrimExpr, List[PrimExpr]]
+        indices : Union[Expr, List[Expr]]
 
             The indices of the element in the original buffer.
 
         Returns
         -------
-        flattened_indices: List[PrimExpr]
+        flattened_indices: List[Expr]
 
             The offset indices of the element in the flattened buffer.
         """
@@ -217,7 +225,7 @@ class Buffer(Object, Scriptable):
 
         Parameters
         ----------
-        indices : Union[PrimExpr, List[PrimExpr]]
+        indices : Union[Expr, List[Expr]]
             The indices of the element in the original buffer.
 
         inner : bool, optional
@@ -226,7 +234,7 @@ class Buffer(Object, Scriptable):
 
         Returns
         -------
-        offset: PrimExpr
+        offset: Expr
             The element offset of the buffer at the given indices.
         """
         if inner:
@@ -239,7 +247,7 @@ class Buffer(Object, Scriptable):
 
         Parameters
         ----------
-        indices : Union[PrimExpr, List[PrimExpr]]
+        indices : Union[Expr, List[Expr]]
             The indices of the element in the original buffer.
 
         inner : bool, optional
@@ -248,7 +256,7 @@ class Buffer(Object, Scriptable):
 
         Returns
         -------
-        offset: PrimExpr
+        offset: Expr
             The byte offset of the buffer at the given indices.
         """
         return self.elem_offset_of(indices, inner) * tvm.DataType(self.dtype).bits // 8
@@ -299,8 +307,8 @@ class Buffer(Object, Scriptable):
                 shape[shape.index(-1)] = size // n_size
             else:
                 # Only validate the shape product when both old and new shapes
-                # are fully concrete: a PrimExpr `==` returns an `EQ` node, not
-                # a Python bool, and `assert <PrimExpr>` raises (no __bool__).
+                # are fully concrete: a Expr `==` returns an `EQ` node, not
+                # a Python bool, and `assert <Expr>` raises (no __bool__).
                 if all(isinstance(s, int) for s in shape) and all(
                     isinstance(s, int) for s in self.shape
                 ):
@@ -342,8 +350,6 @@ class Buffer(Object, Scriptable):
                 self.scope(),
                 self.data_alignment,
                 self.offset_factor,
-                "",
-                self.axis_separators,
                 layout,
             )
         else:
@@ -352,7 +358,7 @@ class Buffer(Object, Scriptable):
             shape = args
             assert all(
                 isinstance(arg, int)
-                or (isinstance(arg, PrimExpr) and arg.ty.dtype in ["int32", "int64"])
+                or (tvm.ir.is_prim_expr(arg) and arg.ty.dtype in ["int32", "int64"])
                 for arg in shape
             ), "shape must be a list of integers or PrimExprs with dtype int32 or int64"
             # Safely get optional keyword arguments
@@ -375,8 +381,6 @@ class Buffer(Object, Scriptable):
                 self.scope(),
                 self.data_alignment,
                 self.offset_factor,
-                "",
-                self.axis_separators,
                 self.layout if layout is None else layout,
             )
 
@@ -417,8 +421,6 @@ class Buffer(Object, Scriptable):
             self.scope(),
             self.data_alignment,
             self.offset_factor,
-            "",
-            self.axis_separators,
             self.layout.storage() if layout is None else layout,
         )
 
@@ -455,8 +457,6 @@ class Buffer(Object, Scriptable):
             self.scope(),
             self.data_alignment,
             self.offset_factor,
-            "",
-            self.axis_separators,
             new_layout,
         )
 
@@ -484,7 +484,7 @@ class Buffer(Object, Scriptable):
                     region.append(
                         Range.from_min_extent(
                             index,
-                            tvm.tirx.expr.IntImm(index.ty, 1) if isinstance(index, PrimExpr) else 1,
+                            tvm.tirx.expr.IntImm(index.ty, 1) if tvm.ir.is_prim_expr(index) else 1,
                         )
                     )
             if has_implicit_slice:
@@ -499,7 +499,7 @@ class Buffer(Object, Scriptable):
                     stop = self.shape[i] if index.stop is None else index.stop
                     step = 1 if index.step is None else index.step
                     # We should ensure the dtype of start is the same with that of step.
-                    if isinstance(start, tvm.tirx.expr.PrimExpr) and isinstance(step, int):
+                    if tvm.ir.is_prim_expr(start) and isinstance(step, int):
                         step = tvm.tirx.expr.IntImm(start.ty, step)
                     lanes = analyzer.simplify((stop - start + step - 1) // step)
                     if lanes == 1:
@@ -521,8 +521,6 @@ def decl_buffer(
     scope="",
     data_alignment=-1,
     offset_factor=0,
-    buffer_type="",
-    axis_separators=None,
     span=None,
     layout="default",
 ):
@@ -530,18 +528,15 @@ def decl_buffer(
     from .expr import Var
     from .layout import S, TileLayout
 
-    shape = (shape,) if isinstance(shape, PrimExpr | Integral) else shape
+    shape = (shape,) if tvm.ir.is_prim_expr(shape) or isinstance(shape, Integral) else shape
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
-
-    if axis_separators is None:
-        axis_separators = []
 
     if layout == "default":
         layout = TileLayout(S[tuple(shape)]) if shape else None
 
     if offset_factor != 0 and elem_offset is None:
-        shape_ty = shape[0].ty if shape and isinstance(shape[0], PrimExpr) else "int32"
+        shape_ty = shape[0].ty if shape and tvm.ir.is_prim_expr(shape[0]) else "int32"
         elem_offset = Var(f"{name}_elem_offset", shape_ty)
     if data is None:
         # Bool is represented as uint1 in the IR, but stored as int8
@@ -557,8 +552,6 @@ def decl_buffer(
         name,
         data_alignment,
         offset_factor,
-        buffer_type,
-        axis_separators,
         span,
         layout,
     )

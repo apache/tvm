@@ -238,7 +238,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   void serialize(Function func) {
     // First we convert all the parameters into input nodes.
     for (const auto& param : func->params) {
-      auto node_ptr = std::make_shared<JSONGraphNode>(param->name_hint(), "input" /* op_type_ */);
+      auto node_ptr = std::make_shared<JSONGraphNode>(param->name, "input" /* op_type_ */);
       memo_[param] = AddNode(node_ptr, param);
     }
     heads_ = VisitExpr(func->body);
@@ -249,7 +249,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
 
   /*!\brief Return the generated json. */
   std::string GetJSON() {
-    namespace json = ::tvm::ffi::json;
+    namespace json = ffi::json;
     return std::string(json::Stringify(SaveToJSON()));
   }
 
@@ -278,7 +278,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
         const auto* tensor_ty = tuple_ty->fields[i].as<TensorTypeNode>();
         TVM_FFI_ICHECK(tensor_ty) << "Expect TensorType, but received: ."
                                   << tuple_ty->fields[i]->GetTypeKey();
-        TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Expect shape to be defined.";
+        TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Expect shape to be defined.";
         ShapeExpr output_shape = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
         ret.push_back(JSONGraphNodeEntry(node_id, i));
         shape.emplace_back(GetIntShape(output_shape->values));
@@ -288,7 +288,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     } else {
       const auto* tensor_ty = ty.as<TensorTypeNode>();
       TVM_FFI_ICHECK(tensor_ty) << "Expect TensorType, but received: " << ty->GetTypeKey();
-      TVM_FFI_ICHECK(tensor_ty->shape.defined()) << "Expect shape to be defined.";
+      TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Expect shape to be defined.";
       ShapeExpr output_shape = tensor_ty->shape.value().as_or_throw<ShapeExpr>();
 
       shape.emplace_back(GetIntShape(output_shape->values));
@@ -447,7 +447,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   ffi::json::Value SaveToJSON() {
-    namespace json = ::tvm::ffi::json;
+    namespace json = ffi::json;
     std::vector<size_t> arg_nodes;
     for (size_t i = 0; i < nodes_.size(); ++i) {
       auto node = nodes_[i];

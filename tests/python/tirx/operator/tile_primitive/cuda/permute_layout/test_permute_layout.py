@@ -162,10 +162,15 @@ def _compile_and_run(prim_func, np_inputs):
     with target:
         mod = tvm.IRModule({"main": prim_func})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
-    dev = tvm.cuda(0)
-    tensors = [tvm.runtime.tensor(a, dev) for a in np_inputs]
-    mod(*tensors)
-    return [t.numpy() for t in tensors], mod.mod.imports[0].inspect_source()
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        tensors = [tvm.runtime.tensor(a, dev) for a in np_inputs]
+        mod(*tensors)
+        return [tensor.numpy() for tensor in tensors]
+
+    outputs = tvm.testing.run_with_gpu_lock(run_and_check)
+    return outputs, mod.mod.imports[0].inspect_source()
 
 
 @pytest.mark.gpu
@@ -256,6 +261,7 @@ def test_identity_passes_through_as_copy():
     np.random.seed(0)
     A_np = tvm.testing.generate_random_array("uint32", shape)
     B_np = np.zeros_like(A_np)
+
     [_, B_out], _ = _compile_and_run(f, [A_np, B_np])
     np.testing.assert_array_equal(B_out, A_np)
 
@@ -412,6 +418,49 @@ def test_reject_non_warp_scope():
     with target, pytest.raises(RuntimeError) as exc_info:
         tvm.compile(tvm.IRModule({"main": f}), target=target, tir_pipeline="tirx")
     assert "warp" in str(exc_info.value)
+
+
+@pytest.mark.parametrize("dtype", ["uint32", "float32"])
+@pytest.mark.gpu
+def test_shared_to_shared_uses_direct_ldst(dtype):
+    """Compile-only: a shared->shared 32b transpose must take the direct
+    base-ptr + byte-offset ``ld.shared`` / ``st.shared`` path.
+
+    For a 4/8-byte dtype with both operands in shared memory, indexing through
+    ``buf[...]`` lowers the swizzled layout to a per-element IMAD flatten. The
+    direct path computes one base ptr (``ptr_to(stride_offset)``) and adds a
+    compile-time ``off * dtype_bytes`` per register slot, then issues
+    ``T.ptx.ld/st(..., space="shared")``. The bits move through a uint
+    container, so ``float32`` (whose ``ld.b32`` cannot return a float) lowers
+    the same way as the ``uint32`` SF case.
+    """
+    shape = (4, 32)
+    pre = TileLayout(S[shape : (32, 1)])  # linear
+    post = TileLayout(S[shape : (1, 4)])  # transposed within the 128-block
+
+    # fmt: off
+    @T.prim_func
+    def f(A: T.handle, B: T.handle):
+        A_buf = T.match_buffer(A, shape, dtype, layout=pre)
+        B_buf = T.match_buffer(B, shape, dtype, layout=post)
+        T.device_entry()
+        T.cta_id([1])
+        tid = T.thread_id([32])
+        sA = T.alloc_buffer(shape, dtype, scope="shared", layout=pre)
+        sB = T.alloc_buffer(shape, dtype, scope="shared", layout=post)
+        Tx.cta.copy(sA[:, :], A_buf[:, :])
+        T.cuda.cta_sync()
+        Tx.warp.permute_layout(sB[:, :], sA[:, :])
+        T.cuda.cta_sync()
+        Tx.cta.copy(B_buf[:, :], sB[:, :])
+        # fmt: on
+
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": f}), target=target, tir_pipeline="tirx")
+    src = mod.mod.imports[0].inspect_source()
+    assert "ld.shared" in src, f"expected direct ld.shared in permute; src=\n{src}"
+    assert "st.shared" in src, f"expected direct st.shared in permute; src=\n{src}"
 
 
 if __name__ == "__main__":

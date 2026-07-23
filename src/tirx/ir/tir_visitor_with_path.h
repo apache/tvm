@@ -41,9 +41,8 @@ namespace tvm {
 namespace tirx {
 
 /*! \brief Visit TIR while tracking the ffi::reflection::AccessPath */
-class TIRVisitorWithPath
-    : protected ExprFunctor<void(const PrimExpr&, ffi::reflection::AccessPath)>,
-      protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
+class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflection::AccessPath)>,
+                           protected StmtFunctor<void(const Stmt&, ffi::reflection::AccessPath)> {
  public:
   template <typename TObjectRef>
   void operator()(TObjectRef&& obj) {
@@ -54,6 +53,18 @@ class TIRVisitorWithPath
   // Delegate to ExprFunctor::VisitExpr for PrimExpr, and any subclasses
   virtual inline void Visit(const PrimExpr& obj, ffi::reflection::AccessPath path) {
     VisitExpr(obj, path);
+  }
+  // Core Call stores arguments as Expr, including pointer-typed Vars.
+  virtual inline void Visit(const Expr& obj, ffi::reflection::AccessPath path) {
+    if (auto prim = obj.as<PrimExpr>()) {
+      Visit(prim.value(), path);
+    } else if (auto* var = obj.as<VarNode>()) {
+      VisitExpr_(var, path);
+    } else if (auto* call = obj.as<CallNode>()) {
+      VisitExpr_(call, path);
+    } else {
+      TVM_FFI_THROW(TypeError) << "Unsupported non-primitive TIR expression " << obj.GetTypeKey();
+    }
   }
   // Delegate to ExprFunctor::VisitStmt for Stmt, and any subclasses
   virtual inline void Visit(const Stmt& obj, ffi::reflection::AccessPath path) {
@@ -118,6 +129,7 @@ class TIRVisitorWithPath
   void VisitStmt_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const WhileNode* op, ffi::reflection::AccessPath path) override;
+  void VisitStmt_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const BreakNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
   void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
@@ -133,7 +145,6 @@ class TIRVisitorWithPath
 
   using ExprFunctor::VisitExpr;
   void VisitExpr_(const VarNode* op, ffi::reflection::AccessPath path) override;
-  void VisitExpr_(const SizeVarNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const BufferLoadNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const ProducerLoadNode* op, ffi::reflection::AccessPath path) override;
   void VisitExpr_(const LetNode* op, ffi::reflection::AccessPath path) override;
@@ -234,7 +245,7 @@ class TIRVisitorWithPath
   std::vector<DefContext<Var>> WithMatchBufferDefs(Buffer buf, ffi::reflection::AccessPath path) {
     std::vector<DefContext<Var>> context;
 
-    auto try_visit_implicit_var_def = [this, &context](const PrimExpr& expr,
+    auto try_visit_implicit_var_def = [this, &context](const Expr& expr,
                                                        ffi::reflection::AccessPath path) {
       if (auto opt = expr.as<Var>()) {
         auto var = opt.value();

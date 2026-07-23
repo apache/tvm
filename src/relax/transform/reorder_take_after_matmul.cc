@@ -98,7 +98,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
 
       return new_output;
     } else if (lhs_ty->ndim == 3 && weights_ty->ndim == 3 && indices_ty->ndim == 1 && axis == 0 &&
-               weights_ty->GetShape().defined() && lhs_ty->GetShape().defined()) {
+               weights_ty->GetShape().has_value() && lhs_ty->GetShape().has_value()) {
       // More complicated case, used for batched LoRA.  The conditions
       // on the argument dimensions can probably be relaxed, but would
       // probably need to remove the use of the einsum operator.

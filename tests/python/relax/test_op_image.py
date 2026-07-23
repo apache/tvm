@@ -158,7 +158,7 @@ def test_resize2d_infer_ty_shape_var():
     )
 
 
-def test_resize2d_infer_ty_pool_size_var():
+def test_resize2d_infer_ty_pool_symbolic_shape():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     s0 = relax.Var("s", relax.ShapeType((30, 30)))

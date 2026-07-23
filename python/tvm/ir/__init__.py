@@ -30,11 +30,14 @@ from .base import (
     load_json,
     save_json,
 )
-from .expr import Expr, GlobalVar, PrimExpr, Range
+
+# Register Type before Expr.  Expr's reflected ``ty`` field otherwise creates
+# an auto-generated Type wrapper before the concrete Python class is available.
+from .type import FuncType, PointerType, PrimType, TupleType, Type
+from .expr import Call, Expr, GlobalVar, Range, Var, is_prim_expr, is_prim_var
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo, DummyGlobalInfo, VDevice
 from .module import IRModule
 from .op import Op, register_intrin_lowering, register_op_attr
-from .type import FuncType, PointerType, PrimType, TupleType, Type
 
 from tvm_ffi import Array, Map

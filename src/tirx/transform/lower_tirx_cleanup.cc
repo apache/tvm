@@ -51,7 +51,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     std::unordered_map<Var, Buffer> new_buffer_map;
     std::vector<Buffer> param_flattened_buffers;
     for (const auto& kv : buffer_map) {
-      if (kv.second->layout.defined()) {
+      if (kv.second->layout.has_value()) {
         param_flattened_buffers.push_back(storage_lower.GetFlattenedBuffer(kv.second));
         Buffer buffer = kv.second;
         auto* writer = buffer.CopyOnWrite();
@@ -82,7 +82,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
     if (auto buffer = any.as<Buffer>()) {
       return GetFlattenedBuffer(buffer.value());
     } else if (auto prim_expr = any.as<PrimExpr>()) {
-      return VisitExpr(prim_expr.value());
+      return VisitPrimExpr(prim_expr.value());
     } else if (auto stmt = any.as<Stmt>()) {
       return VisitStmt(stmt.value());
     }
@@ -91,7 +91,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     auto mutate = [this](Buffer buf) {
-      if (target_->kind->name == "trn" && !buf->layout.defined()) {
+      if (target_->kind->name == "trn" && !buf->layout.has_value()) {
         return buf;
       }
       return GetFlattenedBuffer(buf, /*is_alloc=*/true);
@@ -134,7 +134,6 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
       writer = flattened.CopyOnWrite();
       writer->shape = new_shape;
       writer->strides = {};
-      writer->axis_separators = {};
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
@@ -160,7 +159,6 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
         writer = flattened.CopyOnWrite();
         writer->shape = {ana->Simplify(mem_span)};
         writer->strides = {};
-        writer->axis_separators = {};
       } else {
         flattened = buf.GetFlattenedBuffer();
         writer = flattened.CopyOnWrite();
@@ -169,17 +167,12 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
       flattened = buf.GetFlattenedBuffer();
       writer = flattened.CopyOnWrite();
     }
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (flattened->dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
-      writer->dtype = PrimType::Int(8);
-    }
     // canonicalize shape
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
       writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
     writer->layout = std::nullopt;
-    writer->elem_offset = StmtExprMutator::VisitExpr(buf->elem_offset);
+    writer->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
 
     buffer_remap_[buf] = flattened;
     return flattened;
@@ -187,40 +180,14 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    PrimType store_value_ty = op->value.ty();
-    bool store_returns_bool = store_value_ty.MatchesCode(DLDataTypeCode::kDLBool);
     store = VisitBufferAccess(store);
-
-    // Handle casts from the value's dtype to the dtype of the
-    // backing array.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (store_returns_bool) {
-      TVM_FFI_ICHECK_EQ(store->buffer->dtype, PrimType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
-      auto writer = store.CopyOnWrite();
-      writer->value = tvm::cast(PrimType::Int(8), store->value);
-      return std::move(store);
-    }
     return std::move(store);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimType load_ty = op->ty();
-    bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
-    // Handle casts from dtype of the backing array to value's dtype.
-    // TODO(Lunderberg): Move the handling of boolean into a
-    // dedicated pass.
-    if (load_returns_bool) {
-      TVM_FFI_ICHECK_EQ(load->buffer->dtype, PrimType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
-      load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
-      return tvm::cast(PrimType::Bool(), load);
-    } else {
-      return std::move(load);
-    }
+    return std::move(load);
   }
 
   Stmt VisitStmt_(const tirx::TilePrimitiveCallNode* op) final {
@@ -237,7 +204,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
-    if (buffer->layout.defined()) {
+    if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
       if (tile_layout && tile_layout->IsTrainium()) {
         auto coord = buffer->layout.value()->Apply(indices, buffer->shape);
@@ -271,7 +238,7 @@ class LayoutApplier : public arith::IRMutatorWithAnalyzer {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     TVM_FFI_ICHECK(node->buffer.defined());
-    if (target_->kind->name == "trn" && !node->buffer->layout.defined()) {
+    if (target_->kind->name == "trn" && !node->buffer->layout.has_value()) {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
@@ -292,7 +259,7 @@ class BufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return BufferOffsetRemover()(stmt); }
 
  private:
-  PrimExpr VisitExpr_(const tirx::CallNode* call) final {
+  Expr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
@@ -303,7 +270,7 @@ class BufferOffsetRemover : public StmtExprMutator {
 
   Stmt VisitStmt_(const DeclBufferNode* op) {
     auto buffer = op->buffer;
-    auto elem_offset = this->VisitExpr(buffer->elem_offset);
+    auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
     if (elem_offset.same_as(buffer->elem_offset)) {
       return StmtExprMutator::VisitStmt_(op);
     } else {
@@ -325,7 +292,7 @@ class BufferOffsetRemover : public StmtExprMutator {
     return std::move(store);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);
@@ -349,7 +316,7 @@ class BufferOffsetRemover : public StmtExprMutator {
 namespace {
 Target ResolveTarget(const PrimFunc& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-  if (!target.defined()) {
+  if (!target.has_value()) {
     target = Target::Current(false);
   }
   return target.value();

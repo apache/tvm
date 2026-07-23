@@ -31,6 +31,9 @@ from tvm.runtime.vm import VirtualMachine
 from tvm.s_tir import dlight as dl
 from tvm.script import relax as R
 
+if di is None:
+    pytest.skip("disco runtime is not available", allow_module_level=True)
+
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
 _compiled_ccl = get_global_func("runtime.disco.compiled_ccl", allow_missing=True)
 if _compiled_ccl is None:
@@ -47,134 +50,153 @@ def create_device_target(ccl):
     return (dev, target)
 
 
+def _run_with_ccl_session(session_kind, ccl, devices, func, *, num_groups=1):
+    def run_and_check():
+        sess = session_kind(num_workers=len(devices), num_groups=num_groups)
+        try:
+            sess.init_ccl(ccl, *devices)
+            return func(sess)
+        finally:
+            sess.shutdown()
+
+    return tvm.testing.run_with_gpu_lock(run_and_check)
+
+
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_init(session_kind, ccl):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
+
+    def run_test(_sess):
+        pass
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_allreduce(session_kind, ccl):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
-
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
-    d_array = sess.empty((3, 4), "float32")
-    d_array.debug_copy_from(0, array_1)
-    d_array.debug_copy_from(1, array_2)
-    for op, np_op in [  # pylint: disable=invalid-name
-        ("sum", np.add),
-        ("prod", np.multiply),
-        ("min", np.minimum),
-        ("max", np.maximum),
-        ("avg", lambda a, b: (a + b) * 0.5),
-    ]:
-        dst_array = sess.empty((3, 4), "float32")
-        sess.allreduce(d_array, dst_array, op=op)
-        result = dst_array.debug_get_from_remote(0).numpy()
-        expected = np_op(array_1, array_2)
-        np.testing.assert_equal(result, expected)
+
+    def run_test(sess):
+        d_array = sess.empty((3, 4), "float32")
+        d_array.debug_copy_from(0, array_1)
+        d_array.debug_copy_from(1, array_2)
+        for op, np_op in [  # pylint: disable=invalid-name
+            ("sum", np.add),
+            ("prod", np.multiply),
+            ("min", np.minimum),
+            ("max", np.maximum),
+            ("avg", lambda a, b: (a + b) * 0.5),
+        ]:
+            dst_array = sess.empty((3, 4), "float32")
+            sess.allreduce(d_array, dst_array, op=op)
+            result = dst_array.debug_get_from_remote(0).numpy()
+            expected = np_op(array_1, array_2)
+            np.testing.assert_equal(result, expected)
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_group_allreduce(session_kind, ccl):
     devices = [0, 1, 2, 3]
-    sess = session_kind(num_workers=len(devices), num_groups=2)
-    sess.init_ccl(ccl, *devices)
-
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
     array_3 = np.arange(30, dtype="float32").reshape(5, 6)
     array_4 = np.arange(start=1, stop=-29, step=-1, dtype="float32").reshape(5, 6)
-    d_array_1 = sess.empty((3, 4), "float32")
-    d_array_2 = sess.empty((5, 6), "float32")
-    d_array_1.debug_copy_from(0, array_1)
-    d_array_1.debug_copy_from(1, array_2)
-    d_array_2.debug_copy_from(2, array_3)
-    d_array_2.debug_copy_from(3, array_4)
-    for op, np_op in [  # pylint: disable=invalid-name
-        ("sum", np.add),
-        ("prod", np.multiply),
-        ("min", np.minimum),
-        ("max", np.maximum),
-        ("avg", lambda a, b: (a + b) * 0.5),
-    ]:
-        dst_array_1 = sess.empty((3, 4), "float32")
-        dst_array_2 = sess.empty((5, 6), "float32")
-        sess.allreduce(d_array_1, dst_array_1, op=op, in_group=True)
-        sess.allreduce(d_array_2, dst_array_2, op=op, in_group=True)
-        result_1 = dst_array_1.debug_get_from_remote(0).numpy()
-        result_2 = dst_array_2.debug_get_from_remote(2).numpy()
-        expected_1 = np_op(array_1, array_2)
-        expected_2 = np_op(array_3, array_4)
-        np.testing.assert_equal(result_1, expected_1)
-        np.testing.assert_equal(result_2, expected_2)
+
+    def run_test(sess):
+        d_array_1 = sess.empty((3, 4), "float32")
+        d_array_2 = sess.empty((5, 6), "float32")
+        d_array_1.debug_copy_from(0, array_1)
+        d_array_1.debug_copy_from(1, array_2)
+        d_array_2.debug_copy_from(2, array_3)
+        d_array_2.debug_copy_from(3, array_4)
+        for op, np_op in [  # pylint: disable=invalid-name
+            ("sum", np.add),
+            ("prod", np.multiply),
+            ("min", np.minimum),
+            ("max", np.maximum),
+            ("avg", lambda a, b: (a + b) * 0.5),
+        ]:
+            dst_array_1 = sess.empty((3, 4), "float32")
+            dst_array_2 = sess.empty((5, 6), "float32")
+            sess.allreduce(d_array_1, dst_array_1, op=op, in_group=True)
+            sess.allreduce(d_array_2, dst_array_2, op=op, in_group=True)
+            result_1 = dst_array_1.debug_get_from_remote(0).numpy()
+            result_2 = dst_array_2.debug_get_from_remote(2).numpy()
+            expected_1 = np_op(array_1, array_2)
+            expected_2 = np_op(array_3, array_4)
+            np.testing.assert_equal(result_1, expected_1)
+            np.testing.assert_equal(result_2, expected_2)
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test, num_groups=2)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_allgather(session_kind, ccl):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
-
     array = np.arange(36, dtype="float32")
-    d_src = sess.empty((3, 3, 2), "float32")
-    d_dst = sess.empty((3, 4, 3), "float32")
-    d_src.debug_copy_from(0, array[:18])
-    d_src.debug_copy_from(1, array[18:])
-    sess.allgather(d_src, d_dst)
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(0).numpy(),
-        array.reshape(3, 4, 3),
-    )
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(1).numpy(),
-        array.reshape(3, 4, 3),
-    )
+
+    def run_test(sess):
+        d_src = sess.empty((3, 3, 2), "float32")
+        d_dst = sess.empty((3, 4, 3), "float32")
+        d_src.debug_copy_from(0, array[:18])
+        d_src.debug_copy_from(1, array[18:])
+        sess.allgather(d_src, d_dst)
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(0).numpy(),
+            array.reshape(3, 4, 3),
+        )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(1).numpy(),
+            array.reshape(3, 4, 3),
+        )
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_group_allgather(session_kind, ccl):
     devices = [0, 1, 2, 3]
-    sess = session_kind(num_workers=len(devices), num_groups=2)
-    sess.init_ccl(ccl, *devices)
-
     array_1 = np.arange(36, dtype="float32")
     array_2 = np.arange(48, dtype="float32")
-    d_src_1 = sess.empty((3, 3, 2), "float32")
-    d_dst_1 = sess.empty((3, 4, 3), "float32")
-    d_src_2 = sess.empty((2, 4, 3), "float32")
-    d_dst_2 = sess.empty((2, 6, 4), "float32")
-    d_src_1.debug_copy_from(0, array_1[:18])
-    d_src_1.debug_copy_from(1, array_1[18:])
-    d_src_2.debug_copy_from(2, array_2[:24])
-    d_src_2.debug_copy_from(3, array_2[24:])
-    sess.allgather(d_src_1, d_dst_1, in_group=True)
-    sess.allgather(d_src_2, d_dst_2, in_group=True)
-    np.testing.assert_equal(
-        d_dst_1.debug_get_from_remote(0).numpy(),
-        array_1.reshape(3, 4, 3),
-    )
-    np.testing.assert_equal(
-        d_dst_1.debug_get_from_remote(1).numpy(),
-        array_1.reshape(3, 4, 3),
-    )
-    np.testing.assert_equal(
-        d_dst_2.debug_get_from_remote(2).numpy(),
-        array_2.reshape(2, 6, 4),
-    )
-    np.testing.assert_equal(
-        d_dst_2.debug_get_from_remote(3).numpy(),
-        array_2.reshape(2, 6, 4),
-    )
+
+    def run_test(sess):
+        d_src_1 = sess.empty((3, 3, 2), "float32")
+        d_dst_1 = sess.empty((3, 4, 3), "float32")
+        d_src_2 = sess.empty((2, 4, 3), "float32")
+        d_dst_2 = sess.empty((2, 6, 4), "float32")
+        d_src_1.debug_copy_from(0, array_1[:18])
+        d_src_1.debug_copy_from(1, array_1[18:])
+        d_src_2.debug_copy_from(2, array_2[:24])
+        d_src_2.debug_copy_from(3, array_2[24:])
+        sess.allgather(d_src_1, d_dst_1, in_group=True)
+        sess.allgather(d_src_2, d_dst_2, in_group=True)
+        np.testing.assert_equal(
+            d_dst_1.debug_get_from_remote(0).numpy(),
+            array_1.reshape(3, 4, 3),
+        )
+        np.testing.assert_equal(
+            d_dst_1.debug_get_from_remote(1).numpy(),
+            array_1.reshape(3, 4, 3),
+        )
+        np.testing.assert_equal(
+            d_dst_2.debug_get_from_remote(2).numpy(),
+            array_2.reshape(2, 6, 4),
+        )
+        np.testing.assert_equal(
+            d_dst_2.debug_get_from_remote(3).numpy(),
+            array_2.reshape(2, 6, 4),
+        )
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test, num_groups=2)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -182,44 +204,44 @@ def test_group_allgather(session_kind, ccl):
 @pytest.mark.parametrize("use_explicit_output", [True, False])
 def test_broadcast(session_kind, ccl, use_explicit_output):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
-
     array = np.arange(12, dtype="float32").reshape(3, 4)
 
-    if use_explicit_output:
-        src_array = sess.empty((3, 4), "float32", worker0_only=True)
-        src_array.debug_copy_from(0, array)
-        dst_array = sess.empty((3, 4), "float32")
-        sess.broadcast_from_worker0(src_array, dst_array)
-    else:
-        dst_array = sess.broadcast(array)
+    def run_test(sess):
+        if use_explicit_output:
+            src_array = sess.empty((3, 4), "float32", worker0_only=True)
+            src_array.debug_copy_from(0, array)
+            dst_array = sess.empty((3, 4), "float32")
+            sess.broadcast_from_worker0(src_array, dst_array)
+        else:
+            dst_array = sess.broadcast(array)
 
-    result = dst_array.debug_get_from_remote(1).numpy()
-    np.testing.assert_equal(result, array)
+        result = dst_array.debug_get_from_remote(1).numpy()
+        np.testing.assert_equal(result, array)
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_group_broadcast(session_kind, ccl):
     devices = [0, 1, 2, 3]
-    sess = session_kind(num_workers=len(devices), num_groups=2)
-    sess.init_ccl(ccl, *devices)
-
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.multiply(array_1, -1)
 
-    src_array = sess.empty((3, 4), "float32", worker0_only=True, in_group=True)
-    src_array.debug_copy_from(0, array_1)
-    src_array.debug_copy_from(2, array_2)
-    dst_array = sess.empty((3, 4), "float32")
-    sess.broadcast_from_worker0(src_array, dst_array)
+    def run_test(sess):
+        src_array = sess.empty((3, 4), "float32", worker0_only=True, in_group=True)
+        src_array.debug_copy_from(0, array_1)
+        src_array.debug_copy_from(2, array_2)
+        dst_array = sess.empty((3, 4), "float32")
+        sess.broadcast_from_worker0(src_array, dst_array)
 
-    result_1 = dst_array.debug_get_from_remote(1).numpy()
-    np.testing.assert_equal(result_1, array_1)
+        result_1 = dst_array.debug_get_from_remote(1).numpy()
+        np.testing.assert_equal(result_1, array_1)
 
-    result_3 = dst_array.debug_get_from_remote(3).numpy()
-    np.testing.assert_equal(result_3, array_2)
+        result_3 = dst_array.debug_get_from_remote(3).numpy()
+        np.testing.assert_equal(result_3, array_2)
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test, num_groups=2)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -227,71 +249,71 @@ def test_group_broadcast(session_kind, ccl):
 @pytest.mark.parametrize("use_explicit_output", [True, False])
 def test_scatter(session_kind, ccl, use_explicit_output, capfd):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
-
     array = np.arange(36, dtype="float32").reshape(2, 6, 3)
 
-    if use_explicit_output:
-        d_src = sess.empty((2, 6, 3), "float32", worker0_only=True)
-        d_dst = sess.empty((6, 3), "float32")
-        d_src.debug_copy_from(0, array)
-        sess.scatter_from_worker0(d_src, d_dst)
-    else:
-        d_dst = sess.scatter(array)
+    def run_test(sess):
+        if use_explicit_output:
+            d_src = sess.empty((2, 6, 3), "float32", worker0_only=True)
+            d_dst = sess.empty((6, 3), "float32")
+            d_src.debug_copy_from(0, array)
+            sess.scatter_from_worker0(d_src, d_dst)
+        else:
+            d_dst = sess.scatter(array)
 
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(0).numpy(),
-        array[0, :, :],
-    )
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(1).numpy(),
-        array[1, :, :],
-    )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(0).numpy(),
+            array[0, :, :],
+        )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(1).numpy(),
+            array[1, :, :],
+        )
 
-    captured = capfd.readouterr()
-    assert not captured.err, (
-        "No warning messages should be generated from disco.Session.scatter_from_worker0"
-    )
+        captured = capfd.readouterr()
+        assert not captured.err, (
+            "No warning messages should be generated from disco.Session.scatter_from_worker0"
+        )
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_group_scatter(session_kind, ccl, capfd):
     devices = [0, 1, 2, 3]
-    sess = session_kind(num_workers=len(devices), num_groups=2)
-    sess.init_ccl(ccl, *devices)
-
     array_1 = np.arange(36, dtype="float32").reshape(2, 6, 3)
     array_2 = np.multiply(array_1, -1)
 
-    d_src = sess.empty((2, 6, 3), "float32", worker0_only=True, in_group=True)
-    d_src.debug_copy_from(0, array_1)
-    d_src.debug_copy_from(2, array_2)
-    d_dst = sess.empty((6, 3), "float32")
-    sess.scatter_from_worker0(d_src, d_dst)
+    def run_test(sess):
+        d_src = sess.empty((2, 6, 3), "float32", worker0_only=True, in_group=True)
+        d_src.debug_copy_from(0, array_1)
+        d_src.debug_copy_from(2, array_2)
+        d_dst = sess.empty((6, 3), "float32")
+        sess.scatter_from_worker0(d_src, d_dst)
 
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(0).numpy(),
-        array_1[0, :, :],
-    )
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(1).numpy(),
-        array_1[1, :, :],
-    )
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(2).numpy(),
-        array_2[0, :, :],
-    )
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(3).numpy(),
-        array_2[1, :, :],
-    )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(0).numpy(),
+            array_1[0, :, :],
+        )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(1).numpy(),
+            array_1[1, :, :],
+        )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(2).numpy(),
+            array_2[0, :, :],
+        )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(3).numpy(),
+            array_2[1, :, :],
+        )
 
-    captured = capfd.readouterr()
-    assert not captured.err, (
-        "No warning messages should be generated from disco.Session.scatter_from_worker0"
-    )
+        captured = capfd.readouterr()
+        assert not captured.err, (
+            "No warning messages should be generated from disco.Session.scatter_from_worker0"
+        )
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test, num_groups=2)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -314,130 +336,132 @@ def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
 
     """
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
-
     array = np.arange(36, dtype="float32").reshape(3, 4, 3)
 
-    d_src = sess.empty((3, 4, 3), "float32", worker0_only=True)
-    d_dst = sess.empty((3, 3, 2), "float32")
-    d_src.debug_copy_from(0, array)
-    sess.scatter_from_worker0(d_src, d_dst)
+    def run_test(sess):
+        d_src = sess.empty((3, 4, 3), "float32", worker0_only=True)
+        d_dst = sess.empty((3, 3, 2), "float32")
+        d_src.debug_copy_from(0, array)
+        sess.scatter_from_worker0(d_src, d_dst)
 
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(0).numpy(),
-        array.flat[:18].reshape(3, 3, 2),
-    )
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(1).numpy(),
-        array.flat[18:].reshape(3, 3, 2),
-    )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(0).numpy(),
+            array.flat[:18].reshape(3, 3, 2),
+        )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(1).numpy(),
+            array.flat[18:].reshape(3, 3, 2),
+        )
 
-    captured = capfd.readouterr()
-    assert not captured.err, (
-        "No warning messages should be generated from disco.Session.scatter_from_worker0"
-    )
+        captured = capfd.readouterr()
+        assert not captured.err, (
+            "No warning messages should be generated from disco.Session.scatter_from_worker0"
+        )
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_gather(session_kind, ccl, capfd):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
-
     array = np.arange(36, dtype="float32")
-    d_src = sess.empty((3, 3, 2), "float32")
-    d_dst = sess.empty((3, 4, 3), "float32", worker0_only=True)
-    d_src.debug_copy_from(0, array[:18])
-    d_src.debug_copy_from(1, array[18:])
-    sess.gather_to_worker0(d_src, d_dst)
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(0).numpy(),
-        array.reshape(3, 4, 3),
-    )
 
-    captured = capfd.readouterr()
-    assert not captured.err, (
-        "No warning messages should be generated from disco.Session.gather_to_worker0"
-    )
+    def run_test(sess):
+        d_src = sess.empty((3, 3, 2), "float32")
+        d_dst = sess.empty((3, 4, 3), "float32", worker0_only=True)
+        d_src.debug_copy_from(0, array[:18])
+        d_src.debug_copy_from(1, array[18:])
+        sess.gather_to_worker0(d_src, d_dst)
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(0).numpy(),
+            array.reshape(3, 4, 3),
+        )
+
+        captured = capfd.readouterr()
+        assert not captured.err, (
+            "No warning messages should be generated from disco.Session.gather_to_worker0"
+        )
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_group_gather(session_kind, ccl, capfd):
     devices = [0, 1, 2, 3]
-    sess = session_kind(num_workers=len(devices), num_groups=2)
-    sess.init_ccl(ccl, *devices)
-
     array_1 = np.arange(36, dtype="float32")
     array_2 = np.multiply(array_1, -1)
-    d_src = sess.empty((3, 3, 2), "float32")
-    d_dst = sess.empty((3, 4, 3), "float32", worker0_only=True, in_group=True)
-    d_src.debug_copy_from(0, array_1[:18])
-    d_src.debug_copy_from(1, array_1[18:])
-    d_src.debug_copy_from(2, array_2[:18])
-    d_src.debug_copy_from(3, array_2[18:])
-    sess.gather_to_worker0(d_src, d_dst)
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(0).numpy(),
-        array_1.reshape(3, 4, 3),
-    )
-    np.testing.assert_equal(
-        d_dst.debug_get_from_remote(2).numpy(),
-        array_2.reshape(3, 4, 3),
-    )
 
-    captured = capfd.readouterr()
-    assert not captured.err, (
-        "No warning messages should be generated from disco.Session.gather_to_worker0"
-    )
+    def run_test(sess):
+        d_src = sess.empty((3, 3, 2), "float32")
+        d_dst = sess.empty((3, 4, 3), "float32", worker0_only=True, in_group=True)
+        d_src.debug_copy_from(0, array_1[:18])
+        d_src.debug_copy_from(1, array_1[18:])
+        d_src.debug_copy_from(2, array_2[:18])
+        d_src.debug_copy_from(3, array_2[18:])
+        sess.gather_to_worker0(d_src, d_dst)
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(0).numpy(),
+            array_1.reshape(3, 4, 3),
+        )
+        np.testing.assert_equal(
+            d_dst.debug_get_from_remote(2).numpy(),
+            array_2.reshape(3, 4, 3),
+        )
+
+        captured = capfd.readouterr()
+        assert not captured.err, (
+            "No warning messages should be generated from disco.Session.gather_to_worker0"
+        )
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test, num_groups=2)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_send_to_next_group_receive_from_prev_group(session_kind, ccl):
     devices = [0, 1, 2, 3]
-    sess = session_kind(num_workers=len(devices), num_groups=2)
-    sess.init_ccl(ccl, *devices)
-
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
-    d_array = sess.empty((3, 4), "float32")
-    d_array.debug_copy_from(0, array_1)
-    d_array.debug_copy_from(1, array_2)
-    sess.get_global_func("runtime.disco." + ccl + ".test_send_to_next_group_recv_from_prev_group")(
-        d_array
-    )
 
-    result_1 = d_array.debug_get_from_remote(2).numpy()
-    result_2 = d_array.debug_get_from_remote(3).numpy()
-    np.testing.assert_equal(result_1, array_1)
-    np.testing.assert_equal(result_2, array_2)
+    def run_test(sess):
+        d_array = sess.empty((3, 4), "float32")
+        d_array.debug_copy_from(0, array_1)
+        d_array.debug_copy_from(1, array_2)
+        sess.get_global_func(
+            "runtime.disco." + ccl + ".test_send_to_next_group_recv_from_prev_group"
+        )(d_array)
+
+        result_1 = d_array.debug_get_from_remote(2).numpy()
+        result_2 = d_array.debug_get_from_remote(3).numpy()
+        np.testing.assert_equal(result_1, array_1)
+        np.testing.assert_equal(result_2, array_2)
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test, num_groups=2)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_worker2_send_to_worker0(session_kind, ccl):
     devices = [0, 1, 2, 3]
-    sess = session_kind(num_workers=len(devices), num_groups=2)
-    sess.init_ccl(ccl, *devices)
-
     array = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
-    d_array = sess.empty((3, 4), "float32")
-    d_array.debug_copy_from(2, array)
-    sess.get_global_func("runtime.disco." + ccl + ".test_worker2_sends_to_worker0")(d_array)
 
-    result = d_array.debug_get_from_remote(0).numpy()
-    np.testing.assert_equal(result, array)
+    def run_test(sess):
+        d_array = sess.empty((3, 4), "float32")
+        d_array.debug_copy_from(2, array)
+        sess.get_global_func("runtime.disco." + ccl + ".test_worker2_sends_to_worker0")(d_array)
+
+        result = d_array.debug_get_from_remote(0).numpy()
+        np.testing.assert_equal(result, array)
+
+    _run_with_ccl_session(session_kind, ccl, devices, run_test, num_groups=2)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -493,42 +517,45 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
     X = np.random.randn(128, 128).astype("float32")
     W1 = np.random.randn(128, 128).astype("float32")
     W2 = np.random.randn(128, 128).astype("float32")
-    Y_expected = VirtualMachine(relax_build(MLP, target), device=dev)["main"](
-        tvm.runtime.tensor(X, device=dev),
-        tvm.runtime.tensor(W1, device=dev),
-        tvm.runtime.tensor(W2, device=dev),
-    ).numpy()
+    expected_ex = relax_build(MLP, target)
+    sharded_ex = relax_build(ShardedMLP, target)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = tmpdir + "/test.so"
-        relax_build(ShardedMLP, target).export_library(path)
+        sharded_ex.export_library(path)
 
-        mod = sess.load_vm_module(path)
+        def run_test(sess):
+            Y_expected = VirtualMachine(expected_ex, device=dev)["main"](
+                tvm.runtime.tensor(X, device=dev),
+                tvm.runtime.tensor(W1, device=dev),
+                tvm.runtime.tensor(W2, device=dev),
+            ).numpy()
 
-        d_X = sess.empty((128, 128), "float32")
-        d_W1 = sess.empty((128, 64), "float32")
-        d_W2 = sess.empty((64, 128), "float32")
+            mod = sess.load_vm_module(path)
+            d_X = sess.empty((128, 128), "float32")
+            d_W1 = sess.empty((128, 64), "float32")
+            d_W2 = sess.empty((64, 128), "float32")
 
-        d_X.debug_copy_from(0, X)
-        d_W1.debug_copy_from(0, W1[:, :64])
-        d_W1.debug_copy_from(1, W1[:, 64:])
-        d_W2.debug_copy_from(0, W2[:64, :])
-        d_W2.debug_copy_from(1, W2[64:, :])
-        d_Y = mod["main"](d_X, d_W1, d_W2)
-        Y_result = tvm.runtime.empty((128, 128), "float32", device=dev)
-        sess.copy_from_worker_0(Y_result, d_Y)
-        sess.sync_worker_0()
-        Y_result = Y_result.numpy()
+            d_X.debug_copy_from(0, X)
+            d_W1.debug_copy_from(0, W1[:, :64])
+            d_W1.debug_copy_from(1, W1[:, 64:])
+            d_W2.debug_copy_from(0, W2[:64, :])
+            d_W2.debug_copy_from(1, W2[64:, :])
+            d_Y = mod["main"](d_X, d_W1, d_W2)
+            Y_result = tvm.runtime.empty((128, 128), "float32", device=dev)
+            sess.copy_from_worker_0(Y_result, d_Y)
+            sess.sync_worker_0()
+            Y_result = Y_result.numpy()
+            tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
+
+        _run_with_ccl_session(session_kind, ccl, devices, run_test)
     # pylint: enable=invalid-name
-    tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-4, atol=1e-4)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-many-statements
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
-    sess.init_ccl(ccl, *devices)
 
     # pylint: disable=invalid-name
     @tvm.script.ir_module
@@ -634,42 +661,47 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
     Wk = np.random.randn(128, 512).astype("float32")
     Wv = np.random.randn(128, 512).astype("float32")
     Wo = np.random.randn(512, 128).astype("float32")
-    Y_expected = VirtualMachine(relax_build(Attention, target), device=dev)["main"](
-        tvm.runtime.tensor(X, device=dev),
-        tvm.runtime.tensor(Wq, device=dev),
-        tvm.runtime.tensor(Wk, device=dev),
-        tvm.runtime.tensor(Wv, device=dev),
-        tvm.runtime.tensor(Wo, device=dev),
-    ).numpy()
+    expected_ex = relax_build(Attention, target)
+    sharded_ex = relax_build(ShardedAttention, target)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = tmpdir + "/test.so"
-        relax_build(ShardedAttention, target).export_library(path)
+        sharded_ex.export_library(path)
 
-        mod = sess.load_vm_module(path)
+        def run_test(sess):
+            Y_expected = VirtualMachine(expected_ex, device=dev)["main"](
+                tvm.runtime.tensor(X, device=dev),
+                tvm.runtime.tensor(Wq, device=dev),
+                tvm.runtime.tensor(Wk, device=dev),
+                tvm.runtime.tensor(Wv, device=dev),
+                tvm.runtime.tensor(Wo, device=dev),
+            ).numpy()
 
-        d_X = sess.empty((1, 10, 128), "float32")
-        d_Wq = sess.empty((128, 256), "float32")
-        d_Wk = sess.empty((128, 256), "float32")
-        d_Wv = sess.empty((128, 256), "float32")
-        d_Wo = sess.empty((256, 128), "float32")
+            mod = sess.load_vm_module(path)
+            d_X = sess.empty((1, 10, 128), "float32")
+            d_Wq = sess.empty((128, 256), "float32")
+            d_Wk = sess.empty((128, 256), "float32")
+            d_Wv = sess.empty((128, 256), "float32")
+            d_Wo = sess.empty((256, 128), "float32")
 
-        d_X.debug_copy_from(0, X)
-        d_Wq.debug_copy_from(0, Wq[:, :256])
-        d_Wq.debug_copy_from(1, Wq[:, 256:])
-        d_Wk.debug_copy_from(0, Wk[:, :256])
-        d_Wk.debug_copy_from(1, Wk[:, 256:])
-        d_Wv.debug_copy_from(0, Wv[:, :256])
-        d_Wv.debug_copy_from(1, Wv[:, 256:])
-        d_Wo.debug_copy_from(0, Wo[:256, :])
-        d_Wo.debug_copy_from(1, Wo[256:, :])
-        d_Y = mod["main"](d_X, d_Wq, d_Wk, d_Wv, d_Wo)
-        Y_result = tvm.runtime.empty((1, 10, 128), "float32", device=dev)
-        sess.copy_from_worker_0(Y_result, d_Y)
-        sess.sync_worker_0()
-        Y_result = Y_result.numpy()
+            d_X.debug_copy_from(0, X)
+            d_Wq.debug_copy_from(0, Wq[:, :256])
+            d_Wq.debug_copy_from(1, Wq[:, 256:])
+            d_Wk.debug_copy_from(0, Wk[:, :256])
+            d_Wk.debug_copy_from(1, Wk[:, 256:])
+            d_Wv.debug_copy_from(0, Wv[:, :256])
+            d_Wv.debug_copy_from(1, Wv[:, 256:])
+            d_Wo.debug_copy_from(0, Wo[:256, :])
+            d_Wo.debug_copy_from(1, Wo[256:, :])
+            d_Y = mod["main"](d_X, d_Wq, d_Wk, d_Wv, d_Wo)
+            Y_result = tvm.runtime.empty((1, 10, 128), "float32", device=dev)
+            sess.copy_from_worker_0(Y_result, d_Y)
+            sess.sync_worker_0()
+            Y_result = Y_result.numpy()
+            tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-3, atol=1e-3)
+
+        _run_with_ccl_session(session_kind, ccl, devices, run_test)
     # pylint: enable=invalid-name
-    tvm.testing.assert_allclose(Y_result, Y_expected, rtol=1e-3, atol=1e-3)
 
 
 if __name__ == "__main__":

@@ -97,7 +97,7 @@ class LoopRV : public ffi::ObjectRef {
 /*! \brief An expr random variable */
 using ExprRV = PrimExpr;
 
-using ExprRVNode = PrimExprNode;
+using ExprRVNode = ExprNode;
 
 /**************** The Schedule class ****************/
 
@@ -795,18 +795,6 @@ class ScheduleNode : public ffi::Object {
    * \param index_map The transformation to apply.
    */
   virtual void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) = 0;
-
-  /*!
-   * \brief Set the axis separator of a buffer, where the buffer is specified by a block and a read
-   * or write index
-   * \param block_rv The block that accesses the target buffer.
-   * \param buffer_index The index of the buffer in block's read or write region.
-   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
-   * \param axis_separators The axis separator of the buffer
-   */
-  virtual void SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                                BufferIndexType buffer_index_type,
-                                const ffi::Array<IntImm>& axis_separators) = 0;
 
   /******** Schedule: Padding ********/
   /*!

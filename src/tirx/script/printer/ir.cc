@@ -28,7 +28,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IntImm>("", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-      DLDataType dtype = imm->ty()->dtype;
+      DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
       if (dtype == d->cfg->int_dtype) {
         return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
       } else if (dtype == DLDataType{kDLBool, 8, 1}) {
@@ -41,7 +41,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<FloatImm>("", [](FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
-      DLDataType dtype = imm->ty()->dtype;
+      DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
       if (dtype == d->cfg->float_dtype) {
         return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
       } else {
@@ -67,9 +67,17 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<PointerType>("", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
       ExprDoc element_type{ffi::UnsafeInit()};
-      TVM_FFI_ICHECK(ty->element_type.defined())
-          << "InternalError: PointerType.element_type is null";
+      TVM_FFI_ICHECK(!ty->element_type.IsMissing())
+          << "InternalError: PointerType.element_type is missing";
       if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
+        if (ffi::GetRef<PrimType>(prim_type).IsVoid()) {
+          if (ty->storage_scope == "global") {
+            return TIR(d, "handle");
+          }
+          return TIR(d, "handle")
+              ->Call({}, {"storage_scope"},
+                     {LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
+        }
         element_type = LiteralDoc::DataType(prim_type->dtype,  //
                                             ty_p->Attr("element_type")->Attr("dtype"));
       } else if (ty->element_type.as<TensorMapTypeNode>()) {

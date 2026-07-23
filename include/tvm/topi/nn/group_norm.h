@@ -101,7 +101,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   auto func = MakeTupleSumReducer();
 
   auto compute = [ndim, &new_axes, &reduce_axes, &func,
-                  &data_reshaped](const ffi::Array<Var>& indices) {
+                  &data_reshaped](const ffi::Array<PrimVar>& indices) {
     ffi::Array<PrimExpr> eval_range;
     int arg_counter = 0;
     int red_counter = 0;
@@ -130,8 +130,8 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   for (auto axis : new_axes) {
     reduce_extent *= data_reshaped->shape[axis];
   }
-  auto group_norm_func = [&](const ffi::Array<Var>& indices) {
-    ffi::Array<Var> reduce_indices, non_reduce_indices, gamma_indices;
+  auto group_norm_func = [&](const ffi::Array<PrimVar>& indices) {
+    ffi::Array<PrimVar> reduce_indices, non_reduce_indices, gamma_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
       if (std::find(new_axes.begin(), new_axes.end(), i) != new_axes.end()) {
         reduce_indices.push_back(indices[i]);

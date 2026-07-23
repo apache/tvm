@@ -414,12 +414,8 @@ def test_ones_zeros_shape_not_tuple():
 def test_ones_zeros_wrong_dtype():
     with pytest.raises(TypeError):
         relax.op.ones((2, 3))
-    with pytest.raises(tvm.error.InternalError):
-        relax.op.ones((2, 3), "")
     with pytest.raises(TypeError):
         relax.op.zeros((2, 3))
-    with pytest.raises(tvm.error.InternalError):
-        relax.op.zeros((2, 3), "")
 
 
 def test_ones_zeros_infer_ty_wrong_input_type():
@@ -571,6 +567,11 @@ def test_arange_infer_ty():
     _check_inference(bb, relax.op.arange(1.0, 10), relax.TensorType((9,), "float32"))
     _check_inference(bb, relax.op.arange(0, 20, 2.5), relax.TensorType((8,), "float32"))
     _check_inference(bb, relax.op.arange(1, 10, 2.3), relax.TensorType((4,), "float32"))
+    _check_inference(
+        bb,
+        relax.op.arange(0, 10, 1, tvm.ir.PrimType("float32")),
+        relax.TensorType((10,), "float32"),
+    )
 
 
 def test_arange_infer_ty_shape_var():

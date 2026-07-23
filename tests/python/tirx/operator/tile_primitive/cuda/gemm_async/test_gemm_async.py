@@ -271,7 +271,6 @@ def test_gemm_tcgen05_cta_group_1(task):
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -284,16 +283,19 @@ def test_gemm_tcgen05_cta_group_1(task):
         A_np = np.random.randn(*A_shape).astype(A_dtype)
         B_np = np.random.randn(*B_shape).astype(B_dtype)
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_np, dev)
-        B_tvm = tvm.runtime.tensor(B_np, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm)
-
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         A_ref = np.squeeze(A_np[tuple(r_smem_A)] if not transA else A_np[tuple(r_smem_A)].T)
         B_ref = np.squeeze(B_np[tuple(r_smem_B)] if transB else B_np[tuple(r_smem_B)].T)
         C_ref[tuple(r_tmem_C)] = A_ref @ B_ref
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_np, dev)
+            B_tvm = tvm.runtime.tensor(B_np, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -392,7 +394,6 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=64, cta_group=1)
     # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
     target = tvm.target.Target("cuda")
     with target:
@@ -401,13 +402,17 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     A_np = np.random.randn(*A_shape).astype(A_dtype)
     B_np = np.random.randn(*B_shape).astype(B_dtype)
     C_np = np.zeros(C_shape, dtype=C_dtype)
-    A_tvm = tvm.runtime.tensor(A_np, dev)
-    B_tvm = tvm.runtime.tensor(B_np, dev)
-    C_tvm = tvm.runtime.tensor(C_np, dev)
-    mod["main"](A_tvm, B_tvm, C_tvm)
-
     C_ref = A_np.astype(np.float32) @ B_np.astype(np.float32).T
-    np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-2, rtol=1e-2)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_tvm = tvm.runtime.tensor(A_np, dev)
+        B_tvm = tvm.runtime.tensor(B_np, dev)
+        C_tvm = tvm.runtime.tensor(C_np, dev)
+        mod["main"](A_tvm, B_tvm, C_tvm)
+        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-2, rtol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -478,7 +483,7 @@ def test_gemm_tcgen05_cta_group_2(task):
         tma_mbar = T.alloc_shared([1], "uint64")
         mma_mbar = T.alloc_shared([1], "uint64")
 
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -525,7 +530,6 @@ def test_gemm_tcgen05_cta_group_2(task):
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -538,18 +542,21 @@ def test_gemm_tcgen05_cta_group_2(task):
         A_np = np.random.randn(*A_shape).astype(A_dtype)
         B_np = np.random.randn(*B_shape).astype(B_dtype)
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_np, dev)
-        B_tvm = tvm.runtime.tensor(B_np, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm)
-
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         A_ref = np.squeeze(
             A_np[tuple(r_smem_A[:-2])] if not transA else A_np[tuple(r_smem_A[:-2])].T
         )
         B_ref = np.squeeze(B_np[tuple(r_smem_B[:-2])] if transB else B_np[tuple(r_smem_B[:-2])].T)
         C_ref[:, C_region[1][0] : C_region[1][0] + width] = A_ref @ B_ref
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_np, dev)
+            B_tvm = tvm.runtime.tensor(B_np, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -608,7 +615,7 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         tma_mbar = T.alloc_shared([1], "uint64")
         mma_mbar = T.alloc_shared([1], "uint64")
 
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -662,7 +669,6 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -674,14 +680,18 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
         A_np = np.random.randn(M_per_cta * 2, K).astype(A_dtype)
         B_np = np.random.randn(N_logical, K).astype(B_dtype)
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_np, dev)
-        B_tvm = tvm.runtime.tensor(B_np, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm)
-
         # Reference: C = A @ B.T
         C_ref = A_np.astype(np.float32) @ B_np.astype(np.float32).T
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_np, dev)
+            B_tvm = tvm.runtime.tensor(B_np, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -842,7 +852,6 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -860,19 +869,22 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
         sfb_packed = pack_scale_uint32(sfb_exp.ravel(), 128)
 
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_fp8, dev)
-        B_tvm = tvm.runtime.tensor(B_fp8, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-        sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
-
         # Reference: C = dequant(A) @ dequant(B).T
         A_dq = A_fp8[tuple(r_smem_A)].astype(np.float32) * sfa_scale[..., None]
         B_dq = B_fp8[tuple(r_smem_B)].astype(np.float32) * sfb_scale[..., None]
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         C_ref[tuple(r_tmem_C)] = A_dq @ B_dq.T
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_fp8, dev)
+            B_tvm = tvm.runtime.tensor(B_fp8, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -980,7 +992,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         descSFA = T.alloc_buffer((1,), "uint64", scope="local")
         descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -1052,7 +1064,6 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -1087,19 +1098,22 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
         sfb_packed = pack_scale_uint32(np.full(128, sfb_exp_val, dtype=np.uint8), 128)
 
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_fp8, dev)
-        B_tvm = tvm.runtime.tensor(B_fp8, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-        sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
-
         # Reference: C = dequant(A) @ dequant(B).T
         A_dq = A_fp8_active.astype(np.float32) * sfa_scale[:, None]
         B_dq = B_fp8_active.astype(np.float32) * b_scale
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         C_ref[:, C_region[1][0] : C_region[1][0] + width] = A_dq @ B_dq.T
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_fp8, dev)
+            B_tvm = tvm.runtime.tensor(B_fp8, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1236,7 +1250,6 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -1258,19 +1271,22 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
         sfb_packed = pack_sf_fp8_uint32(sfb_fp8.view(np.uint8).ravel(), 128)
 
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_packed, dev)
-        B_tvm = tvm.runtime.tensor(B_packed, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-        sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
-
         # Reference: C = dequant(A) @ dequant(B).T
         A_dq = A_fp4.astype(np.float32) * sfa_f32[..., None]
         B_dq = B_fp4.astype(np.float32) * sfb_f32[..., None]
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         C_ref[0:128, 0:N] = A_dq @ B_dq.T
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_packed, dev)
+            B_tvm = tvm.runtime.tensor(B_packed, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1358,7 +1374,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         descSFA = T.alloc_buffer((1,), "uint64", scope="local")
         descSFB = T.alloc_buffer((1,), "uint64", scope="local")
 
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = T.reinterpret("handle", T.ptx.map_shared_rank(tma_mbar.ptr_to([0]), 0))  # noqa: E501
         tma_mbar_cta_0 = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
 
         if tid_in_wg == 0:
@@ -1430,7 +1446,6 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=2)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -1464,19 +1479,22 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
         sfb_packed = pack_sf_fp8_uint32(np.full(128, sfb_exp, dtype=np.uint8), 128)
 
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_packed, dev)
-        B_tvm = tvm.runtime.tensor(B_packed, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-        sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
-
         # Reference: C = dequant(A) @ dequant(B).T
         A_dq = A_fp4.astype(np.float32) * sfa_f32[..., None]
         B_dq = B_fp4.astype(np.float32) * b_scale_f32
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         C_ref[0:M_total, 0:N_total] = A_dq @ B_dq.T
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_packed, dev)
+            B_tvm = tvm.runtime.tensor(B_packed, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1638,7 +1656,6 @@ def test_gemm_block_scaled_fp8_sf_id():
         exp_uint8 = (log_scale.astype(np.int32) + 127).astype(np.uint8)  # (rows, n_blocks)
         return mat_fp8, scale, exp_uint8
 
-    dev = tvm.cuda(0)
     np.random.seed(42)
 
     target = tvm.target.Target("cuda")
@@ -1674,13 +1691,6 @@ def test_gemm_block_scaled_fp8_sf_id():
         sfb_packed[:N] = sfb_base
 
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_fp8, dev)
-        B_tvm = tvm.runtime.tensor(B_fp8, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
-        sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
-
         # Reference: per-block dequantize and accumulate
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         for i in range(num_blocks):
@@ -1691,7 +1701,17 @@ def test_gemm_block_scaled_fp8_sf_id():
                 B_fp8[:, i * MMA_K : (i + 1) * MMA_K].astype(np.float32) * B_scale[:, i : i + 1]
             )
             C_ref[:M, :N] += A_block @ B_block.T
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_fp8, dev)
+            B_tvm = tvm.runtime.tensor(B_fp8, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            sfa_tvm = tvm.runtime.tensor(sfa_packed, dev)
+            sfb_tvm = tvm.runtime.tensor(sfb_packed, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm, sfa_tvm, sfb_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1.0, rtol=0.15)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
         # Sanity: blocks must have different scales (test is meaningless if uniform)
         for i in range(1, num_blocks):
@@ -1941,7 +1961,6 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=cta_group)
         # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
 
     target = tvm.target.Target("cuda")
@@ -1952,11 +1971,6 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
         A_np = np.random.randn(*A_shape).astype(A_dtype)
         B_np = np.random.randn(*B_shape).astype(B_dtype)
         C_np = np.zeros(C_shape, dtype=C_dtype)
-        A_tvm = tvm.runtime.tensor(A_np, dev)
-        B_tvm = tvm.runtime.tensor(B_np, dev)
-        C_tvm = tvm.runtime.tensor(C_np, dev)
-        mod["main"](A_tvm, B_tvm, C_tvm)
-
         C_ref = np.zeros(C_shape, dtype=C_dtype)
         # Apply ref_perm: when global layout differs from row-major, the kernel
         # reinterprets the flat bytes, so the reference must transpose accordingly.
@@ -1978,7 +1992,15 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
             B_np_ref[tuple(r_smem_B_ref)] if transB else B_np_ref[tuple(r_smem_B_ref)].T
         )
         C_ref[tuple(r_tmem_C)] = A_ref @ B_ref
-        np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A_tvm = tvm.runtime.tensor(A_np, dev)
+            B_tvm = tvm.runtime.tensor(B_np, dev)
+            C_tvm = tvm.runtime.tensor(C_np, dev)
+            mod["main"](A_tvm, B_tvm, C_tvm)
+            np.testing.assert_allclose(C_tvm.numpy(), C_ref, atol=1e-3, rtol=1e-3)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -2053,18 +2075,247 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
             T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=128, cta_group=1)
     # fmt: on
 
-    dev = tvm.cuda(0)
     np.random.seed(0)
     with tvm.target.Target("cuda"):
         mod = tvm.compile(tvm.IRModule({"main": gemm_async}), target="cuda", tir_pipeline="tirx")
     A_np = np.random.randn(*A_shape).astype(dtype)
     B_np = np.random.randn(*B_shape).astype(dtype)
     C_np = np.zeros(C_shape, "float32")
-    A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
-    mod["main"](A_t, B_t, C_t)
     # Reference: accumulate only k in [k_lo, k_hi).
     C_ref = A_np[:, k_lo:k_hi].astype("float32") @ B_np[:, k_lo:k_hi].astype("float32").T
-    np.testing.assert_allclose(C_t.numpy(), C_ref, atol=1e-2, rtol=1e-2)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+        mod["main"](A_t, B_t, C_t)
+        np.testing.assert_allclose(C_t.numpy(), C_ref, atol=1e-2, rtol=1e-2)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def _run_dense_gemm(
+    A_dtype, B_dtype, C_dtype, K, *, is_AB_tf32=False, tma_dtype_B=None, atol=1e-3, rtol=1e-3
+):
+    M, N = 128, 128
+    A_shape = (M, K)
+    B_shape = (N, K)
+    C_shape = (M, N)
+    A_swizzle, B_swizzle = 3, 3
+    A_layout = mma_shared_layout(A_dtype, A_swizzle, A_shape)
+    B_layout = mma_shared_layout(B_dtype, B_swizzle, B_shape)
+    C_elem_32b = 4 // (tvm.runtime.DataType(C_dtype).bits // 8)
+    cols_alloc = max(32, next_power_of_2(N // C_elem_32b))
+    total_bytes = functools.reduce(operator.mul, A_shape, 1) * (
+        tvm.runtime.DataType(A_dtype).bits // 8
+    ) + functools.reduce(operator.mul, B_shape, 1) * (tvm.runtime.DataType(B_dtype).bits // 8)
+    gemm_kw = {"dispatch": "tcgen05"}
+    if is_AB_tf32:
+        gemm_kw["is_AB_tf32"] = True
+    b_tma_kw = {"dispatch": "tma"}
+    if tma_dtype_B is not None:
+        b_tma_kw["tma_dtype"] = tma_dtype_B
+
+    @T.prim_func
+    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
+        T.device_entry()
+        warp_id = T.warp_id([4])
+        T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
+        if tid_in_wg == 0:
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        if warp_id == 0:
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=cols_alloc, cta_group=1)
+        T.cuda.cta_sync()
+        tmem = T.decl_buffer(
+            (128, N),
+            C_dtype,
+            scope="tmem",
+            allocated_addr=tmem_addr[0],
+            layout=TileLayout(S[(128, N) : (1 @ TLane, 1 @ TCol)]),
+        )
+        if tid_in_wg == 0:
+            Tx.copy_async(A_smem[:, :], A[:, :], dispatch="tma", mbar=tma_mbar.ptr_to([0]))
+            Tx.copy_async(B_smem[:, :], B[:, :], mbar=tma_mbar.ptr_to([0]), **b_tma_kw)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        if tid_in_wg == 0:
+            Tx.gemm_async(tmem[:, :], A_smem[:, :], B_smem[:, :], **gemm_kw)
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        T.ptx.tcgen05.fence.after_thread_sync()
+        C_reg = T.alloc_local(N, dtype=C_dtype)
+        C_view = C_reg.view(128, N, layout=TileLayout(S[(128, N) : (1 @ axis_tid_in_wg, 1)]))
+        if wg_id == 0:
+            Tx.wg.copy_async(C_view[:, :], tmem[:, :])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[tid_in_wg, 0:N], C_reg[:])
+        if warp_id == 0:
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=cols_alloc, cta_group=1)
+
+    np.random.seed(0)
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(tvm.IRModule({"main": gemm_async}), target=target, tir_pipeline="tirx")
+
+    def _rand(shape, dtype):
+        f = np.random.randn(*shape).astype("float32")
+        return f.astype(dtype) if ml_dtypes is not None or "float8" not in dtype else f
+
+    A_np = _rand(A_shape, A_dtype)
+    B_np = _rand(B_shape, B_dtype)
+    C_np = np.zeros(C_shape, dtype=C_dtype)
+    C_ref = A_np.astype("float32") @ B_np.astype("float32").T
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A_t, B_t, C_t = (tvm.runtime.tensor(x, dev) for x in (A_np, B_np, C_np))
+        mod["main"](A_t, B_t, C_t)
+        np.testing.assert_allclose(C_t.numpy().astype("float32"), C_ref, atol=atol, rtol=rtol)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+@pytest.mark.skipif(ml_dtypes is None, reason="Requires ml_dtypes for fp8")
+def test_gemm_dense_fp8():
+    _run_dense_gemm("float8_e4m3fn", "float8_e4m3fn", "float32", 128, atol=2.0, rtol=0.15)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_gemm_tf32_with_tfloat32_tma():
+    _run_dense_gemm(
+        "float32",
+        "float32",
+        "float32",
+        64,
+        is_AB_tf32=True,
+        tma_dtype_B="tf32",
+        atol=2e-2,
+        rtol=2e-2,
+    )
+
+
+def _build_smem_desc_kernel(smem_desc):
+    """Minimal cta_group=1 fp16 gemm_async kernel parametrized on ``smem_desc``."""
+    C_shape, C_dtype, C_region = (128, 512), "float32", [(0, 128), (256, 384)]
+    A_shape, A_dtype, A_sw = (3, 128, 64), "float16", 3
+    B_shape, B_dtype, B_sw = (3, 128, 64), "float16", 3
+    width = C_region[1][1] - C_region[1][0]
+    A_layout = mma_shared_layout(A_dtype, A_sw, A_shape)
+    B_layout = mma_shared_layout(B_dtype, B_sw, B_shape)
+    r_gmem_A = [slice(0, A_shape[i]) for i in range(len(A_shape))]
+    r_gmem_B = [slice(0, B_shape[i]) for i in range(len(B_shape))]
+    total_bytes = (
+        functools.reduce(operator.mul, A_shape, 1) * 2
+        + functools.reduce(operator.mul, B_shape, 1) * 2
+    )
+    r_tmem_C = [slice(C_region[i][0], C_region[i][1]) for i in range(len(C_shape))]
+    r_smem_A = [slice(1, 2), slice(0, 128), slice(0, 64)]
+    r_smem_B = [slice(2, 3), slice(0, 128), slice(0, 64)]
+
+    # fmt: off
+    @T.prim_func
+    def gemm_async(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle) -> None:
+        A = T.match_buffer(A_ptr, A_shape, A_dtype)
+        B = T.match_buffer(B_ptr, B_shape, B_dtype)
+        C = T.match_buffer(C_ptr, C_shape, C_dtype)
+        T.device_entry()
+        warp_id = T.warp_id([4])
+        cta_id = T.cta_id([1])
+        wg_id = T.warpgroup_id([1])
+        tid_in_wg = T.thread_id_in_wg([128])
+        A_smem = T.alloc_buffer(A_shape, A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer(B_shape, B_dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        tma_mbar = T.alloc_shared([1], "uint64")
+        mma_mbar = T.alloc_shared([1], "uint64")
+        if tid_in_wg == 0:
+            T.ptx.mbarrier.init(tma_mbar.ptr_to([0]), 1)
+            T.ptx.mbarrier.init(mma_mbar.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        if warp_id == 0:
+            T.ptx.tcgen05.alloc(T.address_of(tmem_addr), n_cols=128, cta_group=1)
+        T.cuda.cta_sync()
+        tmem = T.decl_buffer((128, C_shape[1]), C_dtype, scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(128, C_shape[1]) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        if tid_in_wg == 0:
+            tma_args = T.meta_var({"dispatch": "tma", "mbar": tma_mbar.ptr_to([0])})
+            Tx.copy_async(A_smem[tuple(r_gmem_A)], A[tuple(r_gmem_A)], **tma_args)
+            Tx.copy_async(B_smem[tuple(r_gmem_B)], B[tuple(r_gmem_B)], **tma_args)
+            T.ptx.mbarrier.arrive.expect_tx(tma_mbar.ptr_to([0]), total_bytes)
+        T.ptx.mbarrier.try_wait(tma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        if tid_in_wg == 0:
+            Tx.gemm_async(tmem[tuple(r_tmem_C)], A_smem[tuple(r_smem_A)], B_smem[tuple(r_smem_B)], dispatch="tcgen05", smem_desc=smem_desc)  # noqa: E501
+            T.ptx.tcgen05.commit(mma_mbar.ptr_to([0]), cta_group=1)
+        T.ptx.mbarrier.try_wait(mma_mbar.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        T.ptx.tcgen05.fence.after_thread_sync()
+        C_reg = T.alloc_local(width, dtype=C_dtype)
+        C_view = C_reg.view(128, width, layout=TileLayout(S[(128, width) : (1@axis_tid_in_wg, 1)]))
+        if wg_id == 0:
+            Tx.wg.copy_async(C_view[:, :], tmem[tuple(r_tmem_C)])
+            T.ptx.tcgen05.wait.ld()
+        T.cuda.cta_sync()
+        Tx.copy(C[tid_in_wg, C_region[1][0]:C_region[1][1]], C_reg[:])
+        if warp_id == 0:
+            T.ptx.tcgen05.relinquish_alloc_permit(cta_group=1)
+            T.ptx.tcgen05.dealloc(tmem_addr[0], n_cols=128, cta_group=1)
+        # fmt: on
+
+    return gemm_async
+
+
+@pytest.mark.parametrize("smem_desc", ["hoist", "recompute"])
+@pytest.mark.gpu
+def test_gemm_smem_desc_hoist_vs_recompute(smem_desc):
+    """Compile-only: the SMEM matrix descriptor is built per-MMA from the buffer
+    base address, selected by the ``smem_desc`` config.
+
+    - ``hoist`` (default): allocate + encode one warp-uniform descriptor per
+      operand (``descA`` / ``descB`` + ``smem_desc_make_lo_uniform``) and add the
+      per-MMA 16B offset via ``smem_desc_add_16B_offset``.
+    - ``recompute``: build the full descriptor inline per MMA (``_uniform_desc``)
+      with no allocated/encoded descriptor cell — trades a few ALU ops for one
+      fewer live register on the hot path.
+
+    Both must emit the MMA; the descriptor-construction fingerprints differ.
+    """
+    target = tvm.target.Target("cuda")
+    with target:
+        mod = tvm.compile(
+            tvm.IRModule({"main": _build_smem_desc_kernel(smem_desc)}),
+            target=target,
+            tir_pipeline="tirx",
+        )
+    src = mod.mod.imports[0].inspect_source()
+    assert "tcgen05.mma" in src, f"mma not emitted; src=\n{src}"
+
+    if smem_desc == "hoist":
+        assert "smem_desc_make_lo_uniform" in src, "hoist mode must encode a uniform descriptor"
+        assert "smem_desc_add_16B_offset" in src, "hoist mode must add the per-MMA 16B offset"
+    else:
+        assert "smem_desc_make_lo_uniform" not in src, "recompute mode must not hoist a descriptor"
+        assert "smem_desc_add_16B_offset" not in src, "recompute mode must not add a 16B offset"
+        assert "encode_matrix_descriptor" not in src, "recompute mode must not encode a descriptor"
 
 
 if __name__ == "__main__":

@@ -14,17 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Configure pytest"""
+"""Configure pytest for TVM's Python test suite."""
 
-import sys
+import os
+from pathlib import Path
 
-COLLECT_IGNORE = []
-if sys.platform.startswith("win"):
-    COLLECT_IGNORE.append("frontend/coreml")
-    COLLECT_IGNORE.append("frontend/keras")
-    COLLECT_IGNORE.append("frontend/pytorch")
-    COLLECT_IGNORE.append("frontend/tensorflow")
-    COLLECT_IGNORE.append("frontend/tflite")
-    COLLECT_IGNORE.append("frontend/onnx")
 
-    COLLECT_IGNORE.append("tir_base/test_tir_intrin.py")
+def pytest_sessionstart():
+    if os.getenv("CI", "") == "true":
+        from tvm.testing.utils import (
+            install_request_hook,  # pylint: disable=import-outside-toplevel
+        )
+
+        install_request_hook(Path(__file__).with_name("request_hook.py"))

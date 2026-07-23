@@ -591,7 +591,6 @@ generated = [
                 [
                     "./tests/scripts/task_java_unittest.sh",
                     "./tests/scripts/task_python_unittest_gpuonly.sh",
-                    "./tests/scripts/task_python_integration_gpuonly.sh",
                 ],
             ),
         },
@@ -601,10 +600,6 @@ generated = [
         help="Run CPU build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "integration": (
-                "run integration tests",
-                ["./tests/scripts/task_python_integration.sh"],
-            ),
             "unittest": (
                 "run unit tests",
                 [

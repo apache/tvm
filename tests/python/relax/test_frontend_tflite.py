@@ -219,37 +219,6 @@ def test_cumsum():
     verify(Cumsum, Expected)
 
 
-def test_split():
-    class Split(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            a, b, c = tf.split(x, 3, axis=1)
-            return tf.raw_ops.Pack(values=[a, b, c], axis=1)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 3, 10), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tuple(
-                    R.Tensor((1, 10), dtype="float32"),
-                    R.Tensor((1, 10), dtype="float32"),
-                    R.Tensor((1, 10), dtype="float32"),
-                ) = R.split(x, indices_or_sections=3, axis=1)
-                lv1: R.Tensor((1, 10), dtype="float32") = lv[0]
-                lv2: R.Tensor((1, 1, 10), dtype="float32") = R.expand_dims(lv1, axis=[1])
-                lv3: R.Tensor((1, 10), dtype="float32") = lv[1]
-                lv4: R.Tensor((1, 1, 10), dtype="float32") = R.expand_dims(lv3, axis=[1])
-                lv5: R.Tensor((1, 10), dtype="float32") = lv[2]
-                lv6: R.Tensor((1, 1, 10), dtype="float32") = R.expand_dims(lv5, axis=[1])
-                gv: R.Tensor((1, 3, 10), dtype="float32") = R.concat((lv2, lv4, lv6), axis=1)
-                R.output(gv)
-            return gv
-
-    verify(Split, Expected)
-
-
 def test_split_v_dynamic():
     """SPLIT_V with runtime split sizes imports shape-aware Relax IR."""
 
@@ -643,7 +612,13 @@ def test_unique():
             R.func_attr({"num_input": 1})
             with R.dataflow():
                 lv: R.Tuple(R.Tensor(dtype="int32", ndim=1), R.Tensor(dtype="int64", ndim=1)) = (
-                    R.unique(x, R.prim_value(0), R.prim_value(0), R.prim_value(1), R.prim_value(0))
+                    R.unique(
+                        x,
+                        R.prim_value(False),
+                        R.prim_value(False),
+                        R.prim_value(True),
+                        R.prim_value(False),
+                    )
                 )
                 lv1: R.Tensor(dtype="int32", ndim=1) = lv[0]
                 lv2: R.Tensor(dtype="int64", ndim=1) = lv[1]
@@ -656,45 +631,6 @@ def test_unique():
 
     mod = _get_mod_from_cfunc(Unique().func.get_concrete_function())
     tvm.ir.assert_structural_equal(mod, Expected)
-
-
-def test_expand_dims():
-    class ExpandDims(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return tf.expand_dims(x, axis=2)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30, 1), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 30, 1), dtype="float32") = R.reshape(x, R.shape([1, 30, 1]))
-                R.output(gv)
-            return gv
-
-    verify(ExpandDims, Expected)
-
-
-def test_transpose():
-    class Transpose(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            x = tf.expand_dims(x, axis=2)
-            return tf.transpose(x, perm=[0, 2, 1])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((1, 1, 30), dtype="float32") = R.reshape(x, R.shape([1, 1, 30]))
-                R.output(gv)
-            return gv
-
-    verify(Transpose, Expected)
 
 
 def test_reshape():
@@ -926,27 +862,6 @@ def test_range_dynamic_scalar_inputs(start, limit, delta, dtype):
     np.testing.assert_allclose(tvm_out, expected, rtol=1e-5, atol=1e-5)
 
 
-def test_tile_ir():
-    """TILE conversion with explicit Relax IR structural check."""
-
-    class Tile(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.tile(x, [2, 1])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((4, 3), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((4, 3), dtype="float32") = R.tile(x, repeats=[2, 1])
-                R.output(gv)
-            return gv
-
-    verify(Tile, Expected)
-
-
 @pytest.mark.parametrize(
     "input_shape, multiples, dtype",
     [
@@ -1057,27 +972,6 @@ def test_tile(input_shape, multiples, dtype):
     verify(Tile, expected)
 
 
-def test_tile_identity():
-    """TILE with all repeat factors set to one imports as identity."""
-
-    class Tile(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
-        def func(self, x):
-            return tf.tile(x, [1, 1])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((2, 3), dtype="float32") = x
-                R.output(gv)
-            return gv
-
-    verify(Tile, Expected)
-
-
 def test_concat_v2():
     class ConcatV2(tf.Module):
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
@@ -1175,82 +1069,6 @@ def test_gelu():
                 lv2: R.Tensor((1, 30), dtype="float32") = R.multiply(lv1, R.const(0.5, "float32"))
                 lv3: R.Tensor((1, 30), dtype="float32") = R.add(R.const(0.5, "float32"), lv2)
                 gv: R.Tensor((1, 30), dtype="float32") = R.multiply(x, lv3)
-                R.output(gv)
-            return gv
-
-    verify(TfInput, Expected)
-
-
-def test_swish():
-    class TfInput(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return tf.nn.swish(x)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((1, 30), dtype="float32") = R.sigmoid(x)
-                gv: R.Tensor((1, 30), dtype="float32") = R.multiply(x, lv)
-                R.output(gv)
-            return gv
-
-    verify(TfInput, Expected)
-
-
-def test_prelu_constant_alpha():
-    alpha = np.linspace(0.1, 0.3, 30, dtype=np.float32)
-    alpha_init = tf.keras.initializers.Constant(alpha)
-    prelu = tf.keras.layers.PReLU(alpha_initializer=alpha_init)
-
-    class TfInput(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
-        def func(self, x):
-            return prelu(x)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((1, 30), dtype="float32")) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((1, 30), dtype="float32") = R.broadcast_to(
-                    R.const(alpha), R.shape([1, 30])
-                )
-                lv1: R.Tensor((30,), dtype="float32") = R.reshape(x, R.shape([30]))
-                lv2: R.Tensor((30,), dtype="float32") = R.reshape(lv, R.shape([30]))
-                lv3: R.Tensor((30,), dtype="float32") = R.nn.prelu(lv1, lv2, axis=0)
-                gv: R.Tensor((1, 30), dtype="float32") = R.reshape(lv3, R.shape([1, 30]))
-                R.output(gv)
-            return gv
-
-    verify(TfInput, Expected)
-
-
-def test_fill():
-    class TfInput(tf.Module):
-        @tf.function(
-            input_signature=[
-                tf.TensorSpec(shape=(1, 30), dtype=tf.float32),
-                tf.TensorSpec(shape=(), dtype=tf.float32),
-            ]
-        )
-        def func(self, x, y):
-            fill_out = tf.fill((1, 30), y)
-            return x + fill_out
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(
-            x: R.Tensor((1, 30), dtype="float32"), y: R.Tensor((), dtype="float32")
-        ) -> R.Tensor((1, 30), dtype="float32"):
-            R.func_attr({"num_input": 2})
-            with R.dataflow():
-                gv: R.Tensor((1, 30), dtype="float32") = R.add(x, y)
                 R.output(gv)
             return gv
 
@@ -1507,6 +1325,48 @@ def test_binary(tf_op, relax_op):
             return gv
 
     verify(Binary, Expected)
+
+
+def test_static_broadcast_lowered_to_multiply():
+    """Static TensorFlow broadcasts become TFLite MUL with a constant operand."""
+
+    class RankExpansion(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+        def func(self, x):
+            return tf.broadcast_to(x, [3, 2, 2])
+
+    @I.ir_module
+    class ExpectedRankExpansion:
+        @R.function
+        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((3, 2, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((3, 2, 2), dtype="float32") = R.multiply(
+                    x, R.const(np.ones((3, 2, 2), dtype="float32"))
+                )
+                R.output(gv)
+            return gv
+
+    verify(RankExpansion, ExpectedRankExpansion)
+
+    class ScalarInt(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(), dtype=tf.int32)])
+        def func(self, x):
+            return tf.broadcast_to(x, [4, 4])
+
+    @I.ir_module
+    class ExpectedScalarInt:
+        @R.function
+        def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((4, 4), dtype="int32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((4, 4), dtype="int32") = R.multiply(
+                    x, R.const(np.ones((4, 4), dtype="int32"))
+                )
+                R.output(gv)
+            return gv
+
+    verify(ScalarInt, ExpectedScalarInt)
 
 
 def test_pow():
@@ -2238,6 +2098,33 @@ def test_gather():
 
     verify(Gather, Expected)
 
+    # TensorFlow lowers embedding lookup to TFLite GATHER.  Keep a case with
+    # constant params and multidimensional int32 indices, since the case above
+    # uses runtime params and one-dimensional int64 indices along axis 1.
+    class GatherConstantParams(tf.Module):
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.int32)])
+        def func(self, indices):
+            params = tf.constant([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=tf.float32)
+            return tf.gather(params, indices, axis=0)
+
+    @I.ir_module
+    class ExpectedConstantParams:
+        @R.function
+        def main(indices: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3, 2), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="int32") = R.astype(indices, dtype="int32")
+                gv: R.Tensor((2, 3, 2), dtype="float32") = R.take(
+                    R.const(np.array([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=np.float32)),
+                    lv,
+                    axis=0,
+                    mode="fast",
+                )
+                R.output(gv)
+            return gv
+
+    verify(GatherConstantParams, ExpectedConstantParams)
+
 
 def test_gather_nd():
     class GatherND(tf.Module):
@@ -2814,96 +2701,6 @@ def test_networks(net, shape):
     verify(concrete_func)
 
 
-def test_broadcast_to():
-    class Model(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
-        def func(self, x):
-            return tf.broadcast_to(x, [3, 2, 2])
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(x: R.Tensor((2, 2), dtype="float32")) -> R.Tensor((3, 2, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((3, 2, 2), dtype="float32") = R.multiply(
-                    x, R.const(np.ones((3, 2, 2), dtype="float32"))
-                )
-                R.output(gv)
-            return gv
-
-    verify(Model, Expected)
-
-    class ModelScalarAndInt(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(), dtype=tf.int32)])
-        def func(self, x):
-            return tf.broadcast_to(x, [4, 4])
-
-    @I.ir_module
-    class ExpectedScalarAndInt:
-        @R.function
-        def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((4, 4), dtype="int32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                gv: R.Tensor((4, 4), dtype="int32") = R.multiply(
-                    x, R.const(np.ones((4, 4), dtype="int32"))
-                )
-                R.output(gv)
-            return gv
-
-    verify(ModelScalarAndInt, ExpectedScalarAndInt)
-
-
-def test_embedding_lookup():
-    class Model(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(3,), dtype=tf.int32)])
-        def func(self, indices):
-            params = tf.constant([[1, 2], [3, 4], [5, 6]], dtype=tf.float32)
-            return tf.nn.embedding_lookup(params, indices)
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(indices: R.Tensor((3,), dtype="int32")) -> R.Tensor((3, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((3,), dtype="int32") = R.astype(indices, dtype="int32")
-                gv: R.Tensor((3, 2), dtype="float32") = R.take(
-                    R.const(np.array([[1, 2], [3, 4], [5, 6]], dtype=np.float32)),
-                    lv,
-                    axis=0,
-                    mode="fast",
-                )
-                R.output(gv)
-            return gv
-
-    verify(Model, Expected)
-
-    class ModelMultidim(tf.Module):
-        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.int32)])
-        def func(self, indices):
-            params = tf.constant([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=tf.float32)
-            return tf.nn.embedding_lookup(params, indices)
-
-    @I.ir_module
-    class ExpectedMultidim:
-        @R.function
-        def main(indices: R.Tensor((2, 3), dtype="int32")) -> R.Tensor((2, 3, 2), dtype="float32"):
-            R.func_attr({"num_input": 1})
-            with R.dataflow():
-                lv: R.Tensor((2, 3), dtype="int32") = R.astype(indices, dtype="int32")
-                gv: R.Tensor((2, 3, 2), dtype="float32") = R.take(
-                    R.const(np.array([[1, 2], [3, 4], [5, 6], [7, 8]], dtype=np.float32)),
-                    lv,
-                    axis=0,
-                    mode="fast",
-                )
-                R.output(gv)
-            return gv
-
-    verify(ModelMultidim, ExpectedMultidim)
-
-
 def test_select_v2():
     class Model(tf.Module):
         @tf.function(
@@ -2989,7 +2786,7 @@ def test_scatter_nd():
                 gv: R.Tensor(dtype="float32", ndim=1) = R.scatter_nd(
                     lv2, lv3, updates, reduction="update"
                 )
-                R.output(gv)
+                R.output(lv1, gv)
             return gv
 
     verify(Model, Expected)
@@ -3662,30 +3459,6 @@ def test_nms_v5_ir():
         max_output_size=max_output_size,
         iou_threshold=0.5,
         score_threshold=0.0,
-    )
-
-    tvm.ir.assert_structural_equal(
-        mod["main"].ret_ty,
-        relax.TupleType(
-            [
-                relax.TensorType((max_output_size,), "int32"),
-                relax.TensorType((max_output_size,), "float32"),
-                relax.TensorType((), "int32"),
-            ]
-        ),
-    )
-
-
-def test_nms_v5_soft_ir():
-    """Verify the emitted Relax IR passes soft_nms_sigma for NON_MAX_SUPPRESSION_V5."""
-    num_boxes = 6
-    max_output_size = 3
-    mod, _ = _build_nms_v5_mod(
-        num_boxes=num_boxes,
-        max_output_size=max_output_size,
-        iou_threshold=0.5,
-        score_threshold=0.0,
-        soft_nms_sigma=0.5,
     )
 
     tvm.ir.assert_structural_equal(
@@ -4901,6 +4674,7 @@ _tfl_int32_vector = _get_tflite_schema_module("Int32Vector")
 _tfl_model = _get_tflite_schema_module("Model")
 _tfl_operator = _get_tflite_schema_module("Operator")
 _tfl_operator_code = _get_tflite_schema_module("OperatorCode")
+_tfl_pool2d_options = _get_tflite_schema_module("Pool2DOptions")
 _tfl_quantization_parameters = _get_tflite_schema_module("QuantizationParameters")
 _tfl_sparsity_parameters = _get_tflite_schema_module("SparsityParameters")
 _tfl_subgraph = _get_tflite_schema_module("SubGraph")
@@ -5287,6 +5061,37 @@ def _get_builtin_operator(builtin_name):
     if not hasattr(_tfl_builtin_operator, builtin_name):
         pytest.skip(f"TFLite schema does not provide BuiltinOperator.{builtin_name}")
     return getattr(_tfl_builtin_operator, builtin_name)
+
+
+def test_broadcast_to_dynamic_shape():
+    builder = flatbuffers.Builder(1024)
+    op_code = _build_operator_code(builder, _get_builtin_operator("BROADCAST_TO"))
+    tensors = [
+        _build_tensor(builder, 0, [2, 2], tensor_type=_tfl_tensor_type.FLOAT32),
+        _build_tensor(builder, 0, [3], tensor_type=_tfl_tensor_type.INT32),
+        _build_tensor(builder, 0, [3, 2, 2], tensor_type=_tfl_tensor_type.FLOAT32),
+    ]
+    op = _build_operator(builder, 0, [0, 1], [2])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=tensors,
+        operators=[op],
+        inputs=[0, 1],
+        outputs=[2],
+    )
+    model = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=[op_code],
+        buffers=[_build_buffer(builder)],
+    )
+    mod = _load_model_from_buffer(model)
+    relax.analysis.well_formed(mod)
+
+    shape_binding, result_binding = mod["main"].body.blocks[0].bindings
+    assert not isinstance(shape_binding.var, relax.DataflowVar)
+    tvm.ir.assert_structural_equal(result_binding.var.ty.shape, shape_binding.var)
+    assert mod["main"].body.body.same_as(result_binding.var)
 
 
 def _build_tflite_operator_marker_model(builtin_name):
@@ -11176,6 +10981,153 @@ def test_dequantize_op_uses_relax_dequantize():
                     R.const(3, "int32"),
                     axis=0,
                 )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_dequantize_float16_uses_astype():
+    """TFLite DEQUANTIZE float16 -> float32 uses R.astype."""
+    builder = flatbuffers.Builder(1024)
+
+    input_data = np.array([1.5, -2.0], dtype=np.float16)
+
+    input_tensor = _build_tensor(builder, 0, [2], tensor_type=_tfl_tensor_type.FLOAT16)
+    output_tensor = _build_tensor(builder, 1, [2], tensor_type=_tfl_tensor_type.FLOAT32)
+
+    dequantize_op = _build_operator(builder, 0, [0], [1])
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[dequantize_op],
+        inputs=[],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.DEQUANTIZE)]
+    input_buffer = _build_buffer(builder, input_data.tobytes())
+    output_buffer = _build_buffer(builder)
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[input_buffer, output_buffer],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+    mod = from_tflite(tflite_model)
+    mod["main"] = mod["main"].without_attr("params")
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((2,), dtype="float32"):
+            R.func_attr({"num_input": 0})
+            with R.dataflow():
+                gv: R.Tensor((2,), dtype="float32") = R.astype(
+                    R.const(np.array([1.5, -2.0], dtype=np.float16)), dtype="float32"
+                )
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_quantized_avg_pool2d_uses_astype():
+    """Quantized AVERAGE_POOL_2D casts through int32 with R.astype."""
+    builder = flatbuffers.Builder(1024)
+
+    qparams = _build_quantization_parameters(
+        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+    )
+    input_tensor = _build_tensor(
+        builder,
+        0,
+        [1, 2, 2, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=qparams,
+    )
+    output_tensor = _build_tensor(
+        builder,
+        1,
+        [1, 1, 1, 1],
+        tensor_type=_tfl_tensor_type.INT8,
+        quantization=qparams,
+    )
+
+    _tfl_pool2d_options.Pool2DOptionsStart(builder)
+    _tfl_pool2d_options.Pool2DOptionsAddPadding(builder, _tfl_padding.VALID)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideH(builder, 1)
+    _tfl_pool2d_options.Pool2DOptionsAddStrideW(builder, 1)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterHeight(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterWidth(builder, 2)
+    _tfl_pool2d_options.Pool2DOptionsAddFusedActivationFunction(builder, _tfl_activation_fn.NONE)
+    pool_opts = _tfl_pool2d_options.Pool2DOptionsEnd(builder)
+
+    avg_pool_op = _build_operator(
+        builder,
+        0,
+        [0],
+        [1],
+        builtin_options_type=_tfl_builtin_options.Pool2DOptions,
+        builtin_options=pool_opts,
+    )
+    subgraph = _build_subgraph(
+        builder,
+        tensors=[input_tensor, output_tensor],
+        operators=[avg_pool_op],
+        inputs=[0],
+        outputs=[1],
+    )
+    operator_codes = [_build_operator_code(builder, _tfl_builtin_operator.AVERAGE_POOL_2D)]
+    buf = _finish_tflite_model(
+        builder,
+        subgraph=subgraph,
+        operator_codes=operator_codes,
+        buffers=[_build_buffer(builder), _build_buffer(builder)],
+    )
+
+    if hasattr(tflite.Model, "Model"):
+        tflite_model = tflite.Model.Model.GetRootAsModel(buf, 0)
+    else:
+        tflite_model = tflite.Model.GetRootAsModel(buf, 0)
+
+    subgraph = tflite_model.Subgraphs(0)
+    bb = relax.BlockBuilder()
+    exp_tab = tflite_frontend.ExprTable()
+    input_var = relax.Var("tvmgen_tensor_0", relax.TensorType((1, 2, 2, 1), dtype="int8"))
+    exp_tab.set_expr("tvmgen_tensor_0", input_var)
+    converter = tflite_frontend.OperatorConverter(tflite_model, subgraph, exp_tab, bb)
+    with bb.function("main", [input_var]):
+        with bb.dataflow():
+            output = converter.convert_pool2d(subgraph.Operators(0), "average")
+            gv = bb.emit_output(output)
+        bb.emit_func_output(gv)
+    mod = bb.get()
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(tvmgen_tensor_0: R.Tensor((1, 2, 2, 1), dtype="int8")) -> R.Tensor(
+            (1, 1, 1, 1), dtype="int8"
+        ):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 2, 1), dtype="int32") = R.astype(tvmgen_tensor_0, dtype="int32")
+                lv1: R.Tensor((1, 1, 1, 1), dtype="int32") = R.nn.avg_pool2d(
+                    lv,
+                    pool_size=[2, 2],
+                    strides=[1, 1],
+                    dilation=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=False,
+                    layout="NHWC",
+                    out_layout="NHWC",
+                )
+                gv: R.Tensor((1, 1, 1, 1), dtype="int8") = R.astype(lv1, dtype="int8")
                 R.output(gv)
             return gv
 

@@ -36,115 +36,6 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief The unique identifier of variables.
- *
- * Id is like name to the variables,
- * except that id is unique for each Var.
- *
- * \note Do not create Id directly, they are created in Var.
- */
-class IdNode : public ffi::Object {
- public:
-  /*!
-   * \brief The name of the variable,
-   *  this only acts as a hint to the user,
-   *  and is not used for equality.
-   */
-  ffi::String name_hint;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<IdNode>().def_ro("name_hint", &IdNode::name_hint,
-                                     refl::AttachFieldFlag::SEqHashIgnore());
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.Id", IdNode, ffi::Object);
-};
-
-class Id : public ffi::ObjectRef {
- public:
-  /*!
-   * \brief The constructor
-   * \param name_hint The name of the variable.
-   */
-  TVM_DLL explicit Id(ffi::String name_hint);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Id, ffi::ObjectRef, IdNode);
-};
-
-/*!
- * \brief Call corresponds to callable invocation.
- *  Corresponds to operation in computational graph terminology.
- */
-class CallNode : public ExprNode {
- public:
-  /*!
-   * \brief The operator(function) being invoked
-   *
-   *  - It can be tvm::Op which corresponds to the primitive operators.
-   *  - It can also be user defined functions (Function, GlobalVar, Var).
-   */
-  Expr op;
-
-  /*! \brief The arguments(inputs) of the call */
-  tvm::ffi::Array<Expr> args;
-
-  /*! \brief The additional attributes */
-  Attrs attrs;
-
-  /*!
-   * \brief The type information arguments of a CallNode.
-   * ty_args is by default designed to be non-empty only for intrinsic op (e.g.,
-   * call_tir, call_builtin_with_ctx, etc.) and calls to ExternFuncs, with the main
-   * usage of type information inference.
-   *
-   * Regular ops also at times may have ty_args defined to specialize partial
-   * or complete type information. Like VDevice customization with mixed input memory_scopes.
-   * The customized pass can set this info and operator specific inference will respect it.
-   */
-  ffi::Array<Type> ty_args;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallNode>()
-        .def_ro("op", &CallNode::op)
-        .def_ro("args", &CallNode::args)
-        .def_ro("attrs", &CallNode::attrs)
-        .def_ro("ty_args", &CallNode::ty_args);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.Call", CallNode, ExprNode);
-};
-
-class Call : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param op The operator to be invoked.
-   * \param args The arguments of the call.
-   * \param attrs The attributes of the call node.
-   * \param ty_args The type information arguments passed to a function.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL Call(Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
-               ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
-};
-
-/*!
- * \brief Returns \p call with the given properties. A null property denotes 'no change'.
- * Returns \p call if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-Call WithFields(Call call, ffi::Optional<Expr> opt_op = ffi::Optional<Expr>(),
-                ffi::Optional<ffi::Array<Expr>> opt_args = ffi::Optional<ffi::Array<Expr>>(),
-                ffi::Optional<Attrs> opt_attrs = ffi::Optional<Attrs>(),
-                ffi::Optional<ffi::Array<Type>> opt_ty_args = ffi::Optional<ffi::Array<Type>>(),
-                ffi::Optional<Span> opt_span = ffi::Optional<Span>());
-
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
@@ -171,7 +62,7 @@ class Tuple : public Expr {
    * \brief Utility constructor to handle conversion to relax::Expr
    *
    * If the calling scope already has an array of a specific type of
-   * relax expression (e.g. `ffi::Array<relax::Var>`), it must be converted
+   * relax expression (e.g. `ffi::Array<Var>`), it must be converted
    * into an array of base type.  This constructor handles the
    * conversion to the base `ffi::Array<relax::Expr>`.
    *
@@ -188,15 +79,6 @@ class Tuple : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
-
-/*!
- * \brief Returns \p tuple with the given properties. A null property denotes 'no change'.
- * Returns \p tuple if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-Tuple WithFields(Tuple tuple,
-                 ffi::Optional<ffi::Array<Expr>> opt_fields = ffi::Optional<ffi::Array<Expr>>(),
-                 ffi::Optional<Span> opt_span = ffi::Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
@@ -229,16 +111,6 @@ class TupleGetItem : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
 };
 
-/*!
- * \brief Returns \p tuple_get_item with the given properties. A null property denotes 'no change'.
- * Returns \p tuple_get_item if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-TupleGetItem WithFields(TupleGetItem tuple_get_item,
-                        ffi::Optional<Expr> opt_tuple = ffi::Optional<Expr>(),
-                        ffi::Optional<int64_t> opt_index = ffi::Optional<int64_t>(),
-                        ffi::Optional<Span> opt_span = ffi::Optional<Span>());
-
 /*! \brief A shape expression which allows users to construct a shape containing PrimExpr.
  */
 class ShapeExprNode : public ExprNode {
@@ -260,53 +132,6 @@ class ShapeExpr : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShapeExprNode);
 };
 
-/*! \brief The variable class for all Relax bindings. */
-class VarNode : public ExprNode {
- public:
-  /*! \brief The identifier of the variable, which is used for comparing stable equality across
-   * transformations. */
-  Id vid;
-
-  /*! \return The name hint of the variable */
-  const ffi::String& name_hint() const { return vid->name_hint; }
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
-    // customize structural equal and hash to include ty
-    refl::TypeAttrDef<VarNode>()
-        .def("__s_equal__", &VarNode::SEqual)
-        .def("__s_hash__", &VarNode::SHash);
-  }
-
-  bool SEqual(const VarNode* other,
-              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
-    return equal(vid, other->vid, false, "vid") && equal(ty, other->ty, false, "ty");
-  }
-
-  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
-    int64_t hash_value = init_hash;
-    hash_value = hash(vid, hash_value, false);
-    hash_value = hash(ty, hash_value, false);
-    return hash_value;
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  static constexpr const uint32_t _type_child_slots = 1;
-  TVM_FFI_DECLARE_OBJECT_INFO("relax.expr.Var", VarNode, ExprNode);
-};
-
-class Var : public Expr {
- public:
-  TVM_DLL explicit Var(ffi::String name_hint, ffi::Optional<Type> ty_annotation, Span span = Span())
-      : Var(Id(name_hint), ty_annotation, span) {}
-
-  TVM_DLL explicit Var(Id vid, ffi::Optional<Type> ty_annotation, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
-
-  VarNode* CopyOnWrite();
-};
-
 /*! \brief A sub-type of the variable node used to mark dataflow variables from
  * normal visible "function local" bindings.
  */
@@ -317,20 +142,16 @@ class DataflowVarNode : public VarNode {
     refl::ObjectDef<DataflowVarNode>();
   }
 
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.DataflowVar", DataflowVarNode, VarNode);
 };
 
 class DataflowVar : public Var {
  public:
-  TVM_DLL explicit DataflowVar(ffi::String name_hint, ffi::Optional<Type> ty_annotation,
-                               Span span = Span())
-      : DataflowVar(Id(name_hint), ty_annotation, span) {}
-
-  TVM_DLL explicit DataflowVar(Id vid, ffi::Optional<Type> ty_annotation, Span span = Span());
+  TVM_DLL explicit DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation,
+                               Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataflowVar, Var, DataflowVarNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(DataflowVarNode);
 };
 
 /*!
@@ -484,7 +305,7 @@ class MatchCastNode : public BindingNode {
   /*! \brief The input value to match cast. */
   Expr value;
   /*! \brief The type pattern to match to. */
-  Type ty;
+  Type ty = Type::Missing();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -591,6 +412,25 @@ class SeqExprNode : public ExprNode {
     refl::ObjectDef<SeqExprNode>()
         .def_ro("blocks", &SeqExprNode::blocks)
         .def_ro("body", &SeqExprNode::body);
+    refl::TypeAttrDef<SeqExprNode>()
+        .def("__s_equal__", &SeqExprNode::SEqual)
+        .def("__s_hash__", &SeqExprNode::SHash);
+  }
+
+  bool SEqual(const SeqExprNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    // Establish mappings for symbolic variables defined by bindings before
+    // comparing their uses in the SeqExpr result type and body.
+    return equal(blocks, other->blocks, false, "blocks") && equal(ty, other->ty, false, "ty") &&
+           equal(body, other->body, false, "body");
+  }
+
+  int64_t SHash(int64_t init_hash, ffi::TypedFunction<int64_t(AnyView, int64_t, bool)> hash) const {
+    int64_t hash_value = init_hash;
+    hash_value = hash(blocks, hash_value, false);
+    hash_value = hash(ty, hash_value, false);
+    hash_value = hash(body, hash_value, false);
+    return hash_value;
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.expr.SeqExpr", SeqExprNode, ExprNode);
 };
@@ -672,16 +512,6 @@ class If : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
 };
 
-/*!
- * \brief Returns \p if_expr with the given properties. A null property denotes 'no change'.
- * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-If WithFields(If if_expr, ffi::Optional<Expr> opt_cond = ffi::Optional<Expr>(),
-              ffi::Optional<Expr> opt_true_branch = ffi::Optional<Expr>(),
-              ffi::Optional<Expr> opt_false_branch = ffi::Optional<Expr>(),
-              ffi::Optional<Span> opt_span = ffi::Optional<Span>());
-
 /*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
  public:
@@ -690,7 +520,7 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The body of the function. */
   SeqExpr body;
   /*! \brief The return type of the function. */
-  Type ret_ty;
+  Type ret_ty = Type::Missing();
   /*! \brief Whether the function is annotated as pure or not. */
   bool is_pure;
 
@@ -812,33 +642,5 @@ TVM_DLL Expr GetShapeOf(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm
-
-/* \brief Allow relax.Var as key in STL tables
- *
- * For most Relax expressions, it would be ambiguous whether the
- * expression should follow reference equality or structural equality.
- * This is not the case for variables, which do not contain nested
- * internal structure, and are frequently used as keys in lookup
- * tables.
- *
- * Providing `std::hash` and `std::equal_to` specializations for
- * `relax::Var` allows it to be used as a key in STL tables.  For
- * `relax::Expr`, the user must specify the type of equality used
- * (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>` or
- * `std::unordered_set<T, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>`).
- */
-template <>
-struct std::hash<tvm::relax::Var> {
-  std::size_t operator()(const tvm::relax::Var& var) const {
-    return tvm::ffi::ObjectPtrHash()(var);
-  }
-};
-
-template <>
-struct std::equal_to<tvm::relax::Var> {
-  bool operator()(const tvm::relax::Var& var_a, const tvm::relax::Var& var_b) const {
-    return tvm::ffi::ObjectPtrEqual()(var_a, var_b);
-  }
-};
 
 #endif  // TVM_RELAX_EXPR_H_

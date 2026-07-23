@@ -19,7 +19,6 @@
 # pylint: disable=redefined-builtin,unused-argument
 import tvm
 from tvm import DataTypeCode, te
-from tvm.tirx import PrimExpr
 
 from . import cpp, tag
 from .utils import get_const_tuple
@@ -625,9 +624,9 @@ def clip(x, a_min, a_max):
     ----------
     x : tvm.te.Tensor
         Input argument.
-    a_min : tvm.tirx.PrimExpr
+    a_min : tvm.tirx.Expr
         Minimum value.
-    a_max : tvm.tirx.PrimExpr
+    a_max : tvm.tirx.Expr
         Maximum value.
 
     Returns
@@ -640,12 +639,12 @@ def clip(x, a_min, a_max):
         value = x(*indices)
         const_min = (
             tvm.tirx.Cast(value.ty, a_min)
-            if isinstance(a_min, PrimExpr)
+            if tvm.ir.is_prim_expr(a_min)
             else tvm.tirx.const(a_min, value.ty)
         )
         const_max = (
             tvm.tirx.Cast(value.ty, a_max)
-            if isinstance(a_max, PrimExpr)
+            if tvm.ir.is_prim_expr(a_max)
             else tvm.tirx.const(a_max, value.ty)
         )
         return tvm.te.max(tvm.te.min(value, const_max), const_min)
@@ -856,7 +855,7 @@ def ceil_log2(x):
     y : tvm.te.Tensor
         The result.
     """
-    if not isinstance(x, tvm.tirx.PrimExpr):
+    if not tvm.ir.is_prim_expr(x):
         x = tvm.tirx.const(x)
 
     if x.ty.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT):

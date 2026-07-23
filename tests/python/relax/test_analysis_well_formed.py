@@ -104,6 +104,32 @@ def test_dataflow_var():
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
 
 
+def test_nested_tir_call_in_dependent_type_is_well_formed():
+    p = rx.Var("p", tvm.ir.PrimType("int64"))
+    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    x = rx.Var("x", rx.TensorType([outer], "float32"))
+    bb = rx.BlockBuilder()
+
+    with bb.function("main", [p, x]):
+        bb.emit_func_output(x)
+
+    rx.analysis.well_formed(bb.get())
+
+
+def test_nested_tir_call_in_shape_expr_is_well_formed():
+    p = rx.Var("p", tvm.ir.PrimType("int64"))
+    inner = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", p)
+    outer = tirx.call_intrin("int64", "tirx.tvm_thread_invariant", inner)
+    bb = rx.BlockBuilder()
+
+    with bb.function("main", [p]):
+        shape = bb.emit(rx.ShapeExpr([outer]))
+        bb.emit_func_output(shape)
+
+    rx.analysis.well_formed(bb.get())
+
+
 def test_param_var():
     v0 = rx.Var("v0", R.Tensor([m, n], "float32"))
     v1 = rx.Var("v1", R.Tensor([m, n], "float32"))
@@ -662,7 +688,7 @@ def test_pass_dltensor_arg_to_tir():
 
     In TIR, a `DLTensor*` argument with unknown shape and dtype is
     represented as a `tirx.Var` with
-    `tvm::PrimType::Handle()`, and with no entry in the
+    `tvm::PointerType::VoidPointerTy()`, and with no entry in the
     `PrimFuncNode::buffer_map`.  In Relax, this is represented as
     `R.Tensor`.  Calls from Relax to TIR that pass a tensor of unknown
     rank/shape are well-formed.
@@ -720,6 +746,76 @@ def test_call_tir_with_matching_arguments():
                     B[vi] = A[vi] + T.float16(1.0)
 
     rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_interspersed_primitive_argument():
+    """Primitive values are positional arguments in the call_tir tuple."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor([16], "float16"),
+            scale: R.Prim("float32"),
+            C: R.Tensor([16], "float16"),
+        ):
+            B = R.call_tir(Module.add_scaled, (A, scale, C), out_ty=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func(s_tir=True)
+        def add_scaled(
+            A: T.Buffer([T.int64(16)], "float16"),
+            scale: T.float32,
+            C: T.Buffer([T.int64(16)], "float16"),
+            B: T.Buffer([T.int64(16)], "float16"),
+        ):
+            for i in range(T.int64(16)):
+                B[i] = A[i] + T.Cast("float16", scale) * C[i]
+
+    rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_incorrect_primitive_argument_dtype():
+    """Primitive call_tir arguments must match the PrimFunc parameter dtype."""
+
+    @I.ir_module(check_well_formed=False, s_tir=True)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16"), scale: R.Prim("int64")):
+            B = R.call_tir(Module.scale, (A, scale), out_ty=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func(s_tir=True)
+        def scale(
+            A: T.Buffer([T.int64(16)], "float16"),
+            scale: T.float32,
+            B: T.Buffer([T.int64(16)], "float16"),
+        ):
+            for i in range(T.int64(16)):
+                B[i] = A[i] * T.Cast("float16", scale)
+
+    assert not rx.analysis.check_well_formed(Module)
+
+
+def test_call_tir_shape_expr_is_not_a_primitive_argument():
+    """ShapeExpr groups must be unpacked into positional primitive values."""
+
+    @I.ir_module(check_well_formed=False, s_tir=True)
+    class Module:
+        @R.function
+        def main():
+            B = R.call_tir(
+                Module.make_tensor,
+                (R.shape([1, 2]),),
+                out_ty=R.Tensor([1], "float32"),
+            )
+            return B
+
+        @T.prim_func(s_tir=True)
+        def make_tensor(m: T.int64, n: T.int64, B: T.Buffer([T.int64(1)], "float32")):
+            B[0] = T.Cast("float32", m + n)
+
+    assert not rx.analysis.check_well_formed(Module)
 
 
 def test_call_tir_input_ndim():

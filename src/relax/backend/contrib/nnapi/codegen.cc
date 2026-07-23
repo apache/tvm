@@ -73,7 +73,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void SetMeanAttribute(const CallNode* call_node) {
     const auto* mean_attrs = call_node->attrs.as<StatisticalAttrs>();
     TVM_FFI_ICHECK(mean_attrs);
-    TVM_FFI_ICHECK(mean_attrs->axis.defined());
+    TVM_FFI_ICHECK(mean_attrs->axis.has_value());
 
     {
       ffi::Array<int64_t> axis;

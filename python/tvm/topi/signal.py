@@ -19,7 +19,7 @@
 
 from math import pi
 
-from tvm import te, tirx
+from tvm import ir, te, tirx
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import tirx as T
 
@@ -112,7 +112,7 @@ def stft(
 
     output_buf = tirx.decl_buffer(output_shape, data.dtype, "output_buf", layout=None)
     loop_kind = "vectorize"
-    if isinstance(output_shape[2], tirx.expr.SizeVar):  # any_dim
+    if ir.is_prim_var(output_shape[2]):  # any_dim
         loop_kind = "serial"
 
     return te.extern(

@@ -26,11 +26,13 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/attrs/statistical.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
+#include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/index_map.h>
 
@@ -97,18 +99,13 @@ using JSONGraphObjectPtr = backend::contrib::JSONGraphObjectPtr;
 using OpAttrExtractor = backend::contrib::OpAttrExtractor;
 using JSONSerializer = backend::contrib::JSONSerializer;
 
-class TensorRTJSONSerializer;
-
 /*!
- * \brief Collect the constants and attributes from all operator calls in the body
- * of a "Composite" function.
+ * \brief Collect the primitive operator call and its attributes from a "Composite" function.
  */
 class CollectFromCompositeFunctionBody : public ExprVisitor {
  public:
-  explicit CollectFromCompositeFunctionBody(TensorRTJSONSerializer* serializer)
-      : serializer_(serializer), node_(std::make_shared<JSONGraphNode>()) {}
+  CollectFromCompositeFunctionBody() : node_(std::make_shared<JSONGraphNode>()) {}
 
-  void VisitExpr_(const ConstantNode* constant_node) final;
   void VisitExpr_(const CallNode* call_node) final;
 
   void SetGenericAttributes(const CallNode* call_node) {
@@ -126,8 +123,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     for (size_t i = 0; i < call_node->args.size() && i < arg_infos.size(); ++i) {
       const Expr& arg = call_node->args[i];
       const std::string key = "arg_" + std::string(arg_infos[i]->name);
-      if (const auto* prim_value = arg.as<PrimExprNode>()) {
-        PrimExpr value = ffi::GetRef<PrimExpr>(prim_value);
+      if (auto prim_value = arg.as<PrimExpr>()) {
+        PrimExpr value = prim_value.value();
         if (const auto* imm = value.as<IntImmNode>()) {
           node_->SetAttr(key, static_cast<int64_t>(imm->value));
         } else if (const auto* fimm = value.as<FloatImmNode>()) {
@@ -145,7 +142,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     const auto* attrs = call_node->attrs.as<StatisticalAttrs>();
     if (attrs == nullptr || attrs->axis.has_value()) return;
     const auto* tensor_ty = GetType(call_node->args[0]).as<TensorTypeNode>();
-    if (tensor_ty == nullptr || !tensor_ty->shape.defined()) return;
+    if (tensor_ty == nullptr || !tensor_ty->shape.has_value()) return;
     const auto* shape = tensor_ty->shape.value().as<ShapeExprNode>();
     if (shape == nullptr) return;
     ffi::Array<int64_t> all_axes;
@@ -164,8 +161,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
       if (tuple == nullptr) continue;
       ffi::Array<PrimExpr> values;
       for (const Expr& field : tuple->fields) {
-        if (const auto* prim_value = field.as<PrimExprNode>()) {
-          values.push_back(ffi::GetRef<PrimExpr>(prim_value));
+        if (auto prim_value = field.as<PrimExpr>()) {
+          values.push_back(prim_value.value());
         }
       }
       if (values.size() == tuple->fields.size()) SetIntArrayAttr(kNames[i - 1], values);
@@ -196,11 +193,11 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     if (initial.size() != final_indices.size()) return true;
     ffi::Array<int64_t> permutation;
     for (const PrimExpr& expr : final_indices) {
-      const auto* var = expr.as<tirx::VarNode>();
-      if (var == nullptr) return true;
+      auto var = expr.as<tirx::PrimVar>();
+      if (!var.has_value()) return true;
       int64_t pos = -1;
       for (size_t j = 0; j < initial.size(); ++j) {
-        if (initial[j].get() == var) {
+        if (initial[j].get() == var.value().get()) {
           pos = static_cast<int64_t>(j);
           break;
         }
@@ -212,9 +209,8 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     return true;
   }
 
-  TensorRTJSONSerializer* serializer_;
-  /*! \brief Accumulated translated arguments. */
-  std::vector<JSONGraphNodeEntry> args_;
+  /*! \brief The primitive operator call in the composite function. */
+  const CallNode* operator_call_{nullptr};
   /*!
    * \brief Temporary node into which we'll accumulate attributes. Ideally this would be the
    * final JSONGraphNode however we don't yet know how many inputs that will have.
@@ -245,20 +241,37 @@ class TensorRTJSONSerializer : public JSONSerializer {
     TVM_FFI_ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
-    // Collect the constants and attributes of all operator calls inside the composite body.
-    CollectFromCompositeFunctionBody collector(this);
+    // TensorRT patterns describe a single primitive operator and use the Composite function only
+    // to bind that operator's arguments and attributes.
+    CollectFromCompositeFunctionBody collector;
     collector.VisitExpr(fn->body);
+    TVM_FFI_ICHECK(collector.operator_call_ != nullptr)
+        << "TensorRT Composite function " << name
+        << " must contain exactly one primitive Relax operator call";
 
-    // Capture the args to the "Composite" function as inputs for this node.
-    std::vector<JSONGraphNodeEntry> inputs;
-    for (const auto& arg : call_node->args) {
-      auto res = VisitExpr(arg);
-      inputs.insert(inputs.end(), res.begin(), res.end());
+    // Bind Composite parameters back to the caller. The primitive operator's tensor arguments
+    // are serialized below in their original order, regardless of whether they are constants or
+    // parameters. Non-tensor scalar and shape arguments have already been captured as attributes.
+    TVM_FFI_ICHECK_EQ(fn->params.size(), call_node->args.size());
+    ffi::Map<Var, Expr> param_bindings;
+    for (size_t i = 0; i < call_node->args.size(); ++i) {
+      param_bindings.Set(fn->params[i], call_node->args[i]);
     }
 
-    // Capture constants from the composite function body as additional inputs for this node.
-    for (const auto& node : collector.args_) {
-      inputs.emplace_back(node);
+    std::vector<JSONGraphNodeEntry> inputs;
+    auto append_tensor_inputs = [&](const auto& self, const Expr& expr) -> void {
+      if (const auto* tuple = expr.as<TupleNode>()) {
+        for (const Expr& field : tuple->fields) self(self, field);
+        return;
+      }
+      Type type = GetType(expr);
+      if (type->IsInstance<TensorTypeNode>() || type->IsInstance<TupleTypeNode>()) {
+        auto entries = VisitExpr(expr);
+        inputs.insert(inputs.end(), entries.begin(), entries.end());
+      }
+    };
+    for (const Expr& arg : collector.operator_call_->args) {
+      append_tensor_inputs(append_tensor_inputs, Bind(arg, param_bindings));
     }
 
     // Create the final node.
@@ -280,7 +293,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
   static void SaveGlobalAttributes(std::shared_ptr<JSONGraphNode> node) {
     auto ctx = transform::PassContext::Current();
     auto cfg = ctx->GetConfig<TensorRTCompilerConfig>("relax.ext.tensorrt.options");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = transform::PassConfigWithDefaults<TensorRTCompilerConfig>();
     }
     TVM_FFI_ICHECK_EQ(cfg.value()->tensorrt_version.size(), 3);
@@ -299,13 +312,12 @@ class TensorRTJSONSerializer : public JSONSerializer {
   ffi::Map<Var, Expr> bindings_;
 };
 
-void CollectFromCompositeFunctionBody::VisitExpr_(const ConstantNode* constant_node) {
-  for (const auto& entry : serializer_->VisitExpr(ffi::GetRef<Constant>(constant_node))) {
-    args_.emplace_back(entry);
-  }
-}
-
 void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
+  TVM_FFI_ICHECK(call_node->op->IsInstance<OpNode>())
+      << "TensorRT Composite functions must contain exactly one primitive Relax operator call";
+  TVM_FFI_ICHECK(operator_call_ == nullptr)
+      << "TensorRT Composite functions must contain exactly one primitive Relax operator call";
+  operator_call_ = call_node;
   if (!TrySetLayoutTransformAttributes(call_node)) {
     SetGenericAttributes(call_node);
     SetArgumentAttributes(call_node);

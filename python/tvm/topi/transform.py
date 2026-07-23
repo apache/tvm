@@ -254,7 +254,7 @@ def dynamic_strided_slice(a, begin, end, strides, output_shape):
         in that case, the input tensor will be reversed
         in that particular axis.
 
-    output_shape: list of PrimExpr
+    output_shape: list of Expr
         Specifies the output shape
 
     Returns
@@ -668,7 +668,7 @@ def dyn_tile(a, new_shape, rdim):
     a : tvm.te.Tensor
         The tensor to be tiled.
 
-    new_shape : tuple of PrimExpr
+    new_shape : tuple of Expr
         The output shape after tiling.
 
     rdim : int

@@ -84,7 +84,7 @@ class CodeGenHexagon final : public CodeGenCPU {
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
 
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                const ffi::Array<PrimExpr>& args, bool skip_first_arg) override;
+                                const ffi::Array<Expr>& args, bool skip_first_arg) override;
   llvm::Value* CreateCallExternQHL(Type ret_type, ffi::String global_symbol,
                                    const ffi::Array<PrimExpr>& args, bool skip_first_arg);
 
@@ -102,8 +102,8 @@ class CodeGenHexagon final : public CodeGenCPU {
   void CreatePrintf(const std::string& format, llvm::ArrayRef<llvm::Value*> format_args) final;
 
  private:
-  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, PrimType buffer_element_dtype,
-                               llvm::ArrayRef<llvm::Value*> indices, PrimType value_dtype) final;
+  TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, Type buffer_element_type,
+                               llvm::ArrayRef<llvm::Value*> indices, Type value_type) final;
 
   bool IsQHLFunction(const std::string& func);
 
@@ -185,13 +185,16 @@ bool CodeGenHexagon::IsQHLFunction(const std::string& func) {
 }
 
 llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                              const ffi::Array<PrimExpr>& args,
-                                              bool skip_first_arg) {
-  PrimType arg_ty = args[1].ty();
-  int num_lanes = arg_ty.lanes();
-  int vector_length = native_vector_bits_ / arg_ty.bits();
-  if (IsQHLFunction(global_symbol) && (num_lanes > vector_length))
-    return CreateCallExternQHL(ret_type, global_symbol, args, skip_first_arg);
+                                              const ffi::Array<Expr>& args, bool skip_first_arg) {
+  if (IsQHLFunction(global_symbol)) {
+    PrimType arg_ty = args[1].as_or_throw<PrimExpr>().ty();
+    int num_lanes = arg_ty.lanes();
+    int vector_length = native_vector_bits_ / arg_ty.bits();
+    if (num_lanes > vector_length) {
+      return CreateCallExternQHL(ret_type, global_symbol, args.as_or_throw<ffi::Array<PrimExpr>>(),
+                                 skip_first_arg);
+    }
+  }
   return CodeGenCPU::CreateCallExtern(ret_type, global_symbol, args, skip_first_arg);
 }
 
@@ -199,7 +202,7 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
   if (!op->buffer.same_as(op->buffer->data)) {
     // Check if we can generate a vector lookup.
     if (!op->indices[0].as<RampNode>()) {
-      if (auto* vlut = VectorLookupLoad(op->buffer, PrimType(op->ty()->dtype), op->indices)) {
+      if (auto* vlut = VectorLookupLoad(op->buffer, op->ty.as_or_throw<PrimType>(), op->indices)) {
         return vlut;
       }
     }
@@ -210,7 +213,7 @@ llvm::Value* CodeGenHexagon::VisitExpr_(const BufferLoadNode* op) {
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin::start_profile_intrinsic()) ||
       op->op.same_as(builtin::end_profile_intrinsic())) {
-    llvm::Value* id = MakeValue(op->args[0]);
+    llvm::Value* id = MakeValue(op->args[0].as_or_throw<PrimExpr>());
     auto instrprof_id = llvm::Intrinsic::hexagon_instrprof_custom;
 #if TVM_LLVM_VERSION >= 200
     llvm::Function* func = llvm::cast<llvm::Function>(
@@ -268,12 +271,12 @@ void CodeGenHexagon::CreatePrintf(const std::string& format,
 }
 
 CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_ptr,
-                                                          PrimType buffer_element_dtype,
+                                                          Type buffer_element_type,
                                                           llvm::ArrayRef<llvm::Value*> indices,
-                                                          PrimType value_dtype) {
+                                                          Type value_type) {
   // Flat indices get delegated to the LLVM codegen.
   if (indices.size() == 1) {
-    return CodeGenCPU::CreateBufferPtr(buffer_ptr, buffer_element_dtype, indices, value_dtype);
+    return CodeGenCPU::CreateBufferPtr(buffer_ptr, buffer_element_type, indices, value_type);
   }
 
   TVM_FFI_ICHECK_EQ(indices.size(), 2)
@@ -281,16 +284,16 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_pt
       << "-d buffer indices";
 
   // Use the first index to identify the pointer.
-  PrimType dtype_void_ptr = PrimType::Handle();
+  Type type_void_ptr = PointerType::VoidPointerTy();
   CodeGenLLVM::TypedPointer buffer_chunk_ptr_ptr =
-      CodeGenCPU::CreateBufferPtr(buffer_ptr, dtype_void_ptr, {indices[0]}, dtype_void_ptr);
+      CodeGenCPU::CreateBufferPtr(buffer_ptr, type_void_ptr, {indices[0]}, type_void_ptr);
   llvm::Value* buffer_chunk_ptr =
       builder_->CreateLoad(buffer_chunk_ptr_ptr.type, buffer_chunk_ptr_ptr.addr);
 
   // Then delegate the CodeGenLLVM to find the value from the second
   // index.
-  return CodeGenCPU::CreateBufferPtr(buffer_chunk_ptr, buffer_element_dtype, {indices[1]},
-                                     value_dtype);
+  return CodeGenCPU::CreateBufferPtr(buffer_chunk_ptr, buffer_element_type, {indices[1]},
+                                     value_type);
 }
 
 llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,

@@ -16,7 +16,7 @@
 # under the License.
 
 [build-system]
-# z3-static ships the PIC static libz3 + headers for explicit USE_Z3=ON builds.
+# z3-static ships the PIC static libz3 + headers consumed by USE_Z3=ON.
 requires = [
   "scikit-build-core>=0.11",
   "setuptools-scm>=8",
@@ -50,7 +50,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "apache-tvm-ffi>=0.1.12",
+  "apache-tvm-ffi>=0.1.13",
   "ml_dtypes",
   "numpy",
   "typing_extensions",
@@ -91,7 +91,7 @@ dev = [{ include-group = "test" }, { include-group = "lint" }]
 [tool.scikit-build]
 cmake.build-type = "Release"
 wheel.py-api = "py3"
-build-dir = "build/{wheel_tag}"
+build-dir = "build"
 
 # Wheel configuration
 wheel.packages = ["python/tvm"]
@@ -146,8 +146,8 @@ logging.level = "INFO"
 [tool.scikit-build.cmake.define]
 TVM_BUILD_PYTHON_MODULE = "ON"
 USE_CUDA = "OFF"
-# Keep Z3 disabled by default until CI's C++ toolchain can link z3-static reliably.
-USE_Z3 = "OFF"
+# Statically link Z3 from the z3-static build dependency by default.
+USE_Z3 = "AUTO"
 BUILD_TESTING = "OFF"
 
 [tool.setuptools_scm]

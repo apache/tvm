@@ -70,10 +70,10 @@ CheckContains::CheckContains(std::function<bool(const PrimExpr&)> predicate)
  * \brief The method which overrides the generic dispatcher of StmtExprVisitor for expressions.
  * \param expr The expression to visit
  */
-void CheckContains::VisitExpr(const PrimExpr& expr) {
+void CheckContains::VisitExpr(const Expr& expr) {
   // If the predicate holds on `expr`, we know `expr` contains something which makes
   // the predicate hold
-  if (predicate_(expr)) {
+  if (auto prim_expr = expr.as<PrimExpr>(); prim_expr && predicate_(prim_expr.value())) {
     contains_it_ = true;
   } else {
     // Otherwise we continue to look for it recursively by calling the dispatcher

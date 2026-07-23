@@ -42,16 +42,32 @@ def _check_json_roundtrip(x):
     return xret
 
 
+def _check_type_missing(ty):
+    assert isinstance(ty, tvm.ir.Type)
+    assert ty.is_missing()
+
+
 def test_var() -> None:
     v0 = rx.Var("v0")
-    assert v0.name_hint == "v0"
-    assert v0.ty is None
+    assert v0.name == "v0"
+    _check_type_missing(v0.ty)
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
-    assert v1.name_hint == "v1"
+    assert v1.name == "v1"
     for s0, s1 in zip(v1.ty.shape, shape):
         assert s0 == s1
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float32"))
+
+
+def test_var_name_keyword_compatibility() -> None:
+    primary = tvm.ir.Var(name="primary")
+    legacy = tvm.ir.Var(name_hint="legacy")
+    assert primary.name == "primary"
+    assert legacy.name == "legacy"
+    assert not hasattr(primary, "name_hint")
+    assert not hasattr(legacy, "name_hint")
+    with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
+        tvm.ir.Var(name="primary", name_hint="legacy")
 
 
 def test_tensor_type_empty_dtype_is_unknown() -> None:
@@ -67,7 +83,7 @@ def test_relax_expr_ty_running_example() -> None:
     assert x.ty.ndim == 2
 
     call = rx.op.add(x, x)
-    assert call.ty is None
+    _check_type_missing(call.ty)
 
     bb = rx.BlockBuilder()
     normalized = bb.normalize(call)
@@ -78,15 +94,26 @@ def test_relax_expr_ty_running_example() -> None:
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
-    assert v0.name_hint == "v0"
-    assert v0.ty is None
+    assert v0.name == "v0"
+    _check_type_missing(v0.ty)
 
     shape = [54, 96]
     v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
-    assert v1.name_hint == "v1"
+    assert v1.name == "v1"
 
     assert isinstance(v1, rx.DataflowVar)
     tvm.ir.assert_structural_equal(v1.ty, rx.TensorType(shape, "float16"))
+
+
+def test_dataflow_var_name_keyword_compatibility() -> None:
+    primary = rx.DataflowVar(name="primary")
+    legacy = rx.DataflowVar(name_hint="legacy")
+    assert primary.name == "primary"
+    assert legacy.name == "legacy"
+    assert not hasattr(primary, "name_hint")
+    assert not hasattr(legacy, "name_hint")
+    with pytest.raises(TypeError, match="Specify either name or name_hint, not both"):
+        rx.DataflowVar(name="primary", name_hint="legacy")
 
 
 def test_tuple() -> None:
@@ -122,13 +149,13 @@ def test_tuple_ty_requires_fields_with_known_ty():
     v1 = rx.Var("v1")
     tup = rx.Tuple((v0, v1))
 
-    assert tup.ty is None
+    _check_type_missing(tup.ty)
 
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
@@ -150,8 +177,8 @@ def test_match_cast() -> None:
 
 
 def test_match_cast() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     ivalue = rx.Var("input_value")
     ty = rx.TensorType([n, m], "float32")
     b0 = rx.MatchCast(rx.Var("v"), ivalue, ty)
@@ -164,13 +191,13 @@ def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    assert b0.var.name_hint == "v0"
+    assert b0.var.name == "v0"
     assert b0.value == val
 
 
 def test_binding_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -184,8 +211,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -216,11 +243,16 @@ def test_func():
     seqe = rx.SeqExpr(blocks, x)
     ret_ty = R.Tensor(dtype="float32", ndim=-1)
     func = rx.Function([x], seqe, ret_ty)
-    func = func.with_attr("global_symbol", "func")
-    assert func.params[0] == x
-    assert func.body == seqe
-    assert func.ret_ty == ret_ty
-    assert func.attrs["global_symbol"] == "func"
+    with_attr = func.with_attr("global_symbol", "func")
+    with_attrs = func.with_attr({"global_symbol": "func", "num_input": 1})
+
+    assert "global_symbol" not in func.attrs
+    assert with_attr.params[0] == x
+    assert with_attr.body == seqe
+    assert with_attr.ret_ty == ret_ty
+    assert with_attr.attrs["global_symbol"] == "func"
+    assert with_attrs.attrs["global_symbol"] == "func"
+    assert with_attrs.attrs["num_input"] == 1
 
 
 def test_shape_of():
@@ -232,8 +264,8 @@ def test_shape_of():
 
 
 def test_shape_expr():
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     s = rx.ShapeExpr([m, n])
     assert s.values[0] == m
     assert s.values[1] == n
@@ -328,14 +360,17 @@ def test_call():
     assert call.args[0].same_as(arg)
 
 
-def test_call_raises_error_for_invalid_function():
-    """relax::Call requires the function to have FuncType"""
+def test_call_accepts_core_expr_operator():
+    """relax.Call aliases the core ir.Call constructor."""
     dtype = tvm.ir.PrimType("int32")
     func = rx.Var("func", dtype)
     arg = rx.Var("arg", dtype)
 
-    with pytest.raises(ValueError):
-        rx.Call(func, [arg])
+    call = rx.Call(func, [arg])
+    assert call.op.same_as(func)
+    assert len(call.args) == 1
+    assert call.args[0].same_as(arg)
+    _check_type_missing(call.ty)
 
 
 def test_call_raises_error_for_missing_operator():

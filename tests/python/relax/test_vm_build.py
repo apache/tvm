@@ -517,11 +517,14 @@ def test_vm_emit_te_constant_param_gpu(exec_mode):
     sch.bind(loops[0], "threadIdx.x")
 
     exec = relax.build(sch.mod, "cuda", exec_mode=exec_mode)
-    dev = tvm.cuda()
-    vm = relax.VirtualMachine(exec, dev)
 
-    add_res = check_saved_func(vm, "main", tvm.runtime.tensor(x_np, dev))
-    tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
+    def run_and_check():
+        dev = tvm.cuda()
+        vm = relax.VirtualMachine(exec, dev)
+        add_res = check_saved_func(vm, "main", tvm.runtime.tensor(x_np, dev))
+        tvm.testing.assert_allclose(add_res.numpy(), x_np + c_np, rtol=1e-7, atol=1e-7)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_vm_relax_symbolic_shape(exec_mode):
@@ -578,100 +581,6 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
 
     with pytest.raises(TypeError):
         func(R.prim_value(2))
-
-
-@pytest.mark.xfail(reason="value-bearing R.Prim annotations are erased to dtype-only PrimType")
-def test_vm_relax_symbolic_prim_value(exec_mode):
-    @I.ir_module(s_tir=True)
-    class mod:
-        @R.function
-        def main(shape: R.Prim(value="n")):
-            n = T.int64()
-            return R.prim_value(n * n)
-
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-
-    func = vm["main"]
-
-    assert func(2) == 4
-
-    with pytest.raises(TypeError):
-        func(Shape([2]))
-
-
-@pytest.mark.xfail(reason="value-bearing R.Prim annotations are erased to dtype-only PrimType")
-def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
-    """Like test_vm_relax_symbolic_prim_value, but with multiple variables"""
-
-    @I.ir_module(s_tir=True)
-    class mod:
-        @R.function
-        def main(
-            # Provides definition of "n"
-            _n: R.Prim(value="n"),
-            # Requires definitions of both "n" and "m", but cannot
-            # provide either.
-            _shape: R.Shape(["n*2", "m*2"]),
-            # Provides definition of "m"
-            _m: R.Prim(value="m"),
-        ):
-            n = T.int64()
-            m = T.int64()
-            return R.shape([n * n, m + 1])
-
-    target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-
-    func = vm["main"]
-
-    assert func(2, Shape([4, 12]), 6) == (4, 7)
-
-    with pytest.raises(RuntimeError):
-        func(2, Shape([4, 12]), 1)
-
-    with pytest.raises(RuntimeError):
-        func(Shape([2]))
-
-
-@pytest.mark.xfail(reason="Current support for R.Prim with known value is primarily for int64")
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_relax_prim_value_fp32(exec_mode):
-    """A PrimExpr may be R.prim('float32')
-
-    Unlike shape tuples, which must contain int64, a PrimExpr may be
-    any type that can be represented as a single primitive value.
-    """
-
-    @I.ir_module(s_tir=True)
-    class mod:
-        @R.function
-        def main(
-            # First failure occurs during parsing.  The syntactic
-            # sugar for symbolic variables assumes that all symbolic
-            # variables are int64, rather than using the type that is
-            # later declared.
-            _x: R.Prim(value="half_fill_value"),
-        ):
-            half_fill_value = T.float32()
-            # Second failure occurs when calling `relax.op.full`.  The
-            # `fill_value` is expected to be a scalar constant
-            # (R.Tensor with 0-dim shape), not a primitive value, even
-            # though these are semantically the same.
-            return R.full(shape=[16, 16], fill_value=R.prim_value(2 * half_fill_value))
-
-    target = tvm.target.Target("llvm", host="llvm")
-    # Third failure occurs here.  The current codegen assumes that all
-    # symbolic variables are int64.
-    ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-
-    func = vm["main"]
-
-    res = func(16.0).numpy()
-    assert np.all(res == 32.0)
 
 
 def test_vm_relax_dyn_tir_shape(exec_mode):
@@ -900,17 +809,21 @@ def test_vm_to_device(exec_mode):
     mod = TestToVDevice
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
-    vm = relax.VirtualMachine(ex, tvm.cpu())
-    x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
-    res_1 = check_saved_func(vm, "foo1", x_inp)
-    res_2 = check_saved_func(vm, "foo2", x_inp)
 
-    # check the copied tensor's device
-    assert res_1.device == tvm.cuda(0)
-    assert res_2.device == tvm.cpu(0)
+    def run_and_check():
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        x_inp = tvm.runtime.tensor(np.random.rand(2, 3).astype("float32"))
+        res_1 = check_saved_func(vm, "foo1", x_inp)
+        res_2 = check_saved_func(vm, "foo2", x_inp)
 
-    tvm.testing.assert_allclose(res_1.numpy(), x_inp.numpy())
-    tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
+        # check the copied tensor's device
+        assert res_1.device == tvm.cuda(0)
+        assert res_2.device == tvm.cpu(0)
+
+        tvm.testing.assert_allclose(res_1.numpy(), x_inp.numpy())
+        tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def test_vm_closure(exec_mode):
@@ -1326,25 +1239,27 @@ def test_relax_module_with_multiple_targets(exec_mode):
     np_A = np.random.random([32, 32]).astype("float32")
     np_B = np.random.random([32, 32]).astype("float32")
 
-    dev_llvm = tvm.device("llvm")
+    dev_llvm = tvm.cpu()
     vm_llvm = tvm.relax.VirtualMachine(built, device=dev_llvm)
     llvm_output = vm_llvm["func_llvm"](
         tvm.runtime.tensor(np_A, dev_llvm),
         tvm.runtime.tensor(np_B, dev_llvm),
     )
 
-    dev_cuda = tvm.device("cuda")
-    vm_cuda = tvm.relax.VirtualMachine(built, device=dev_cuda)
-
-    cuda_output = vm_cuda["func_cuda"](
-        tvm.runtime.tensor(np_A, dev_cuda),
-        tvm.runtime.tensor(np_B, dev_cuda),
-    )
-
     np_C = np_A + np_B
 
     tvm.testing.assert_allclose(llvm_output.numpy(), np_C)
-    tvm.testing.assert_allclose(cuda_output.numpy(), np_C)
+
+    def run_and_check():
+        dev_cuda = tvm.cuda()
+        vm_cuda = tvm.relax.VirtualMachine(built, device=dev_cuda)
+        cuda_output = vm_cuda["func_cuda"](
+            tvm.runtime.tensor(np_A, dev_cuda),
+            tvm.runtime.tensor(np_B, dev_cuda),
+        )
+        tvm.testing.assert_allclose(cuda_output.numpy(), np_C)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

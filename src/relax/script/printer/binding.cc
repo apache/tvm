@@ -33,7 +33,7 @@ IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p,
       PrintSeqExpr(n->true_branch, n_p->Attr("true_branch"), d, false),
       PrintSeqExpr(n->false_branch, n_p->Attr("false_branch"), d, false),
   };
-  if (var.defined()) {
+  if (var.has_value()) {
     for (ffi::Array<StmtDoc>& stmts : branches) {
       ExprDoc ret = stmts.back().as_or_throw<ExprStmtDoc>()->expr;
       stmts.Set(stmts.size() - 1, AssignDoc(var.value(), ret, ann));
@@ -54,7 +54,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc rhs = Relax(d, "match_cast")
                             ->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value")),
                                     d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"))});
-          ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
+          ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
           return AssignDoc(lhs, rhs, ann);
         });
 
@@ -63,11 +63,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
           if (const auto if_ = n->value.as<relax::IfNode>()) {
             ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
-            ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
+            if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
+              ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
+            }
+            ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
             return PrintIfExpr(ffi::GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
           } else if (n->value->IsInstance<tvm::BaseFuncNode>() &&
                      !n->value->IsInstance<relax::ExternFuncNode>()) {
-            IdDoc lhs = DefineVar(n->var, d->frames.back(), d);
+            IdDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
             d->cfg->binding_names.push_back(lhs->name);
             Doc ret = d->AsDoc(n->value, n_p->Attr("value"));
             d->cfg->binding_names.pop_back();
@@ -79,7 +82,10 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           } else {
             ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
             ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
-            ExprDoc lhs = DefineVar(n->var, d->frames.back(), d);
+            if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
+              ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
+            }
+            ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
             return AssignDoc(lhs, rhs, ann);
           }
         });

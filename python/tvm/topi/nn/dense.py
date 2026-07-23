@@ -59,7 +59,7 @@ def matmul(
     auto_scheduler_rewritten_layout: Optional[str] = ""
         The layout after auto-scheduler's layout rewrite pass.
 
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns
@@ -95,7 +95,7 @@ def matmul(
         reduce_dim_b, out_dim = tensor_b.shape[-2:]
     batch_dims_b = tensor_b.shape[:-2]
 
-    if not isinstance(reduce_dim_a, tvm.tirx.Var) and not isinstance(reduce_dim_b, tvm.tirx.Var):
+    if not tvm.ir.is_prim_var(reduce_dim_a) and not tvm.ir.is_prim_var(reduce_dim_b):
         assert int(reduce_dim_a) == int(reduce_dim_b), (
             f"Reduction dimensions of dense do not match. {reduce_dim_a} vs {reduce_dim_b}."
         )
@@ -105,17 +105,12 @@ def matmul(
     batch_dims_b = [1] * (result_ndim - len(batch_dims_b)) + batch_dims_b
 
     for idx, (l, r) in enumerate(zip(batch_dims_a, batch_dims_b)):
-        if (
-            not isinstance(l, tvm.tirx.Var)
-            and not isinstance(r, tvm.tirx.Var)
-            and int(l) != 1
-            and int(r) != 1
-        ):
+        if not tvm.ir.is_prim_var(l) and not tvm.ir.is_prim_var(r) and int(l) != 1 and int(r) != 1:
             assert int(l) == int(r), (
                 "Batch dimensions of dense do not match: "
                 f"{tensor_a.shape[:-2]} vs {tensor_b.shape[:-2]}."
             )
-        if not isinstance(l, tvm.tirx.Var) and int(l) == 1:
+        if not tvm.ir.is_prim_var(l) and int(l) == 1:
             batch_dims_a[idx] = batch_dims_b[idx]
 
     k = te.reduce_axis((0, reduce_dim_a), name="k")
@@ -123,12 +118,12 @@ def matmul(
     def compute(*indices):
         batch_indices_a = indices[-len(tensor_a.shape) : -2]
         batch_indices_a = [
-            i if isinstance(dim, tvm.tirx.Var) or int(dim) != 1 else 0
+            i if tvm.ir.is_prim_var(dim) or int(dim) != 1 else 0
             for i, dim in zip(batch_indices_a, tensor_a.shape[:-2])
         ]
         batch_indices_b = indices[-len(tensor_b.shape) : -2]
         batch_indices_b = [
-            i if isinstance(dim, tvm.tirx.Var) or int(dim) != 1 else 0
+            i if tvm.ir.is_prim_var(dim) or int(dim) != 1 else 0
             for i, dim in zip(batch_indices_b, tensor_b.shape[:-2])
         ]
         i, j = indices[-2:]
@@ -194,7 +189,7 @@ def dense(
     auto_scheduler_rewritten_layout: str = ""
         The layout after auto-scheduler's layout rewrite pass.
 
-    meta_schedule_original_shape: Optional[List[PrimExpr]] = None
+    meta_schedule_original_shape: Optional[List[Expr]] = None
         The original shape of the input tensor.
 
     Returns

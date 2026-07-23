@@ -41,7 +41,6 @@ from tvm.testing import env
 def test_int_intrin(target, dtype):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
-    dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
     test_funcs = [
         (T.clz, lambda x, dtype: int(dtype[-2:]) - (len(bin(x)) - 2)),
     ]
@@ -65,11 +64,16 @@ def test_int_intrin(target, dtype):
                         B[v_i0] = tvm_intrin(A[v_i0])
 
         f = tvm.compile(Module, target=target)
-        a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
-        b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
-        f(a, b)
-        ref = np.vectorize(partial(np_func, dtype=dtype))(a.numpy())
-        tvm.testing.assert_allclose(b.numpy(), ref)
+
+        def run_and_check():
+            dev = tvm.device_from_target(target)
+            a = tvm.runtime.tensor(np.random.randint(0, 100000, size=n).astype(dtype), dev)
+            b = tvm.runtime.tensor(np.zeros(shape=(n,)).astype(dtype), dev)
+            f(a, b)
+            ref = np.vectorize(partial(np_func, dtype=dtype))(a.numpy())
+            tvm.testing.assert_allclose(b.numpy(), ref)
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 if __name__ == "__main__":

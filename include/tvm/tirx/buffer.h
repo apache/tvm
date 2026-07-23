@@ -60,13 +60,6 @@ inline DLDataType DefaultIndexType() {
 // forward declare Stmt
 class Stmt;
 
-/*! \brief buffer type */
-enum BufferType : int {
-  kDefault = 1,
-  // Maps buffer[i][j][k] -> buffer[i][0][k] if dimension i's shape equals 1.
-  kAutoBroadcast = 2,
-};
-
 /*! \brief Node to represent a buffer */
 class BufferNode : public ffi::Object {
  public:
@@ -86,15 +79,6 @@ class BufferNode : public ffi::Object {
    */
   ffi::Array<PrimExpr> shape;
   /*!
-   * \brief Separators between input axes when generating flattened output axes
-   *
-   * For buffers representing flat 1-d memory (e.g. any buffer in
-   * RAM), this should be an empty array.  For buffers representing
-   * non-flat memory, each entry in axis_separators should be the
-   * first input axis that is part of a new flattened axis.
-   */
-  ffi::Array<IntImm> axis_separators;
-  /*!
    * \brief The strides of each dimension
    *  This can be an empty array, indicating array is contiguous
    */
@@ -111,8 +95,6 @@ class BufferNode : public ffi::Object {
    *  elem_offset is guaranteed to be multiple of offset_factor.
    */
   int offset_factor;
-  /*! \brief buffer type */
-  BufferType buffer_type;
   /*!
    * \brief Span that points to the original source code.
    *        Reserved debug information.
@@ -141,15 +123,12 @@ class BufferNode : public ffi::Object {
         .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDefRecursive())
         // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
         .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDefRecursive())
-        .def_ro("axis_separators", &BufferNode::axis_separators,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
         // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
         .def_ro("elem_offset", &BufferNode::elem_offset,
                 refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("name", &BufferNode::name, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)
-        .def_ro("buffer_type", &BufferNode::buffer_type)
         .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("layout", &BufferNode::layout)
         .def_ro("allocated_addr", &BufferNode::allocated_addr);
@@ -190,7 +169,6 @@ class Buffer : public ffi::ObjectRef {
   // A default value will be picked.
   TVM_DLL Buffer(Var data, PrimType dtype, ffi::Array<PrimExpr> shape, ffi::Array<PrimExpr> strides,
                  PrimExpr elem_offset, ffi::String name, int data_alignment, int offset_factor,
-                 BufferType buffer_type, ffi::Array<IntImm> axis_separators = {},
                  Span span = Span(), ffi::Optional<Layout> layout = std::nullopt,
                  ffi::Array<PrimExpr> allocated_addr = {});
 
@@ -217,9 +195,9 @@ class Buffer : public ffi::ObjectRef {
    * \param offset The offset of ptr.
    * \param input_extent The extent of ptr.
    */
-  TVM_DLL PrimExpr access_ptr(int access_mask, PrimType ptr_type = PrimType::Handle(),
-                              int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
-                              ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
+  TVM_DLL Expr access_ptr(int access_mask, PointerType ptr_type = PointerType::VoidPointerTy(),
+                          int content_lanes = 1, PrimExpr offset = IntImm::Int32(0),
+                          ffi::Optional<PrimExpr> input_extent = std::nullopt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
@@ -299,14 +277,12 @@ class Buffer : public ffi::ObjectRef {
  * \param dtype The content data type.
  * \param name The name of the buffer
  * \param storage_scope The storage scope associated with this buffer
- * \param axis_separators Divisions defining the groups of axes that will be flattened together.
  * \param span The location of this object in the source code.
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                            ffi::String name = "buffer", ffi::String storage_scope = "",
-                           ffi::Optional<ffi::Array<IntImm>> axis_separators = std::nullopt,
                            Span span = Span());
 
 /*!
@@ -362,13 +338,11 @@ class DataProducer : public PrimExprConvertible {
  *                      multiple of offset_factor
                         User can specify data_alignment and offset_factor to be 0
  *                      A default value will be picked.
- * \param compact If the statement has already bound to a compact buffer.
  * \param memory_scope memory scope of the buffer
  */
 TVM_DLL tirx::Buffer BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                std::string name, int data_alignment,
-                                               int offset_factor, bool compact,
-                                               std::string memory_scope = "");
+                                               int offset_factor, std::string memory_scope = "");
 }  // namespace tirx
 }  // namespace tvm
 #endif  // TVM_TIR_BUFFER_H_

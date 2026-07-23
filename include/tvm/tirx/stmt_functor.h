@@ -90,6 +90,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const IfThenElseNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const WhileNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const ReturnNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const BreakNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ContinueNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocBufferNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -116,6 +117,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(IfThenElseNode);
     IR_STMT_FUNCTOR_DISPATCH(ForNode);
     IR_STMT_FUNCTOR_DISPATCH(WhileNode);
+    IR_STMT_FUNCTOR_DISPATCH(ReturnNode);
     IR_STMT_FUNCTOR_DISPATCH(BreakNode);
     IR_STMT_FUNCTOR_DISPATCH(ContinueNode);
     IR_STMT_FUNCTOR_DISPATCH(AllocBufferNode);
@@ -152,7 +154,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
    *       or have a class sub-class both StmtVisitor and ExprVisitor
    *       and redirect Visit to ExprMutator::VisitExpr(Expr)
    */
-  virtual void VisitExpr(const PrimExpr& e) {}
+  virtual void VisitExpr(const Expr& e) {}
   /*!
    * \brief Visit buffer at definition site (AllocBuffer, DeclBuffer, SBlock alloc_buffers).
    *  Visits buffer shape, strides, elem_offset via VisitExpr.
@@ -173,6 +175,7 @@ class TVM_DLL StmtVisitor : protected StmtFunctor<void(const Stmt&)> {
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const ReturnNode* op) override;
   void VisitStmt_(const BreakNode* op) override;
   void VisitStmt_(const ContinueNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
@@ -268,7 +271,9 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    *       or have a class sub-class both StmtMutator and ExprMutator
    *       and redirect Mutate to ExprMutator::Mutate(Expr)
    */
-  virtual PrimExpr VisitExpr(const PrimExpr& e) { return e; }
+  virtual Expr VisitExpr(const Expr& e) { return e; }
+  /*! \brief Mutate a primitive expression and verify that it remains primitive. */
+  PrimExpr VisitPrimExpr(const PrimExpr& e) { return VisitExpr(e).as_or_throw<PrimExpr>(); }
   /*!
    * \brief Visit buffer at definition site. Visits shape/strides/elem_offset via VisitExpr.
    *  If any field changes, creates a new buffer and records it in buffer_remap_.
@@ -291,6 +296,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
   Stmt VisitStmt_(const IfThenElseNode* op) override;
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const WhileNode* op) override;
+  Stmt VisitStmt_(const ReturnNode* op) override;
   Stmt VisitStmt_(const BreakNode* op) override;
   Stmt VisitStmt_(const ContinueNode* op) override;
   Stmt VisitStmt_(const AllocBufferNode* op) override;
@@ -335,7 +341,7 @@ class TVM_DLL StmtExprVisitor : public ExprVisitor, public StmtVisitor {
   using ExprVisitor::VisitExpr_;
   using StmtVisitor::VisitStmt;
 
-  void VisitExpr(const PrimExpr& e) override { return ExprVisitor::VisitExpr(e); }
+  void VisitExpr(const Expr& e) override { return ExprVisitor::VisitExpr(e); }
   void VisitExpr_(const BufferLoadNode* op) override;
 };
 
@@ -350,10 +356,11 @@ class TVM_DLL StmtExprMutator : public ExprMutator, public StmtMutator {
  protected:
   using ExprMutator::VisitExpr;
   using ExprMutator::VisitExpr_;
+  using ExprMutator::VisitPrimExpr;
   using StmtMutator::VisitStmt;
 
-  PrimExpr VisitExpr(const PrimExpr& e) override { return ExprMutator::VisitExpr(e); }
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr(const Expr& e) override { return ExprMutator::VisitExpr(e); }
+  Expr VisitExpr_(const BufferLoadNode* op) override;
 };
 
 /*!
@@ -375,9 +382,9 @@ TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Fu
                          ffi::Optional<ffi::Array<ffi::String>> only_enable = std::nullopt);
 
 /*!
- * \brief Recursively visit the ir in post DFS order node, apply fvisit
+ * \brief Recursively visit a statement or expression in post DFS order, applying fvisit.
  * Each node is guaranteed to be visited only once.
- * \param node The ir to be visited.
+ * \param node The statement or expression to be visited.
  * \param fvisit The visitor function to be applied.
  */
 TVM_DLL void PostOrderVisit(const ffi::ObjectRef& node,
@@ -389,7 +396,7 @@ TVM_DLL void PostOrderVisit(const ffi::ObjectRef& node,
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  * \return The converted form.
  */
-TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
+TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
 
 /*!
  * \brief Substitute the var specified by vmap.
@@ -397,19 +404,10 @@ TVM_DLL Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const V
  * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
  * \return The result.
  */
-TVM_DLL PrimExpr Substitute(PrimExpr expr,
-                            std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap);
+TVM_DLL Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap);
 
-/*!
- * \brief Substitute the var specified by vmap.
- * \param arr The array of Stmt/PrimExpr to be substituted
- * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
- * \return The result.
- */
-template <typename T>
-ffi::Array<T> Substitute(const ffi::Array<T>& arr,
-                         std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
-  return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
+inline PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
+  return Substitute(Expr(expr), std::move(vmap)).as_or_throw<PrimExpr>();
 }
 
 /*!
@@ -419,8 +417,20 @@ ffi::Array<T> Substitute(const ffi::Array<T>& arr,
  * \return The modified Range.
  */
 inline Range Substitute(const Range& range,
-                        std::function<ffi::Optional<PrimExpr>(const Var& var)> vmap) {
+                        std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
   return Range::FromMinExtent(Substitute(range->min, vmap), Substitute(range->extent, vmap));
+}
+
+/*!
+ * \brief Substitute the var specified by vmap.
+ * \param arr The array of Stmt/PrimExpr to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The result.
+ */
+template <typename T>
+ffi::Array<T> Substitute(const ffi::Array<T>& arr,
+                         std::function<ffi::Optional<Expr>(const Var& var)> vmap) {
+  return arr.Map([&vmap](const auto& elem) { return Substitute(elem, vmap); });
 }
 
 /*!
@@ -435,29 +445,25 @@ inline Range Substitute(const Range& range,
  * \return The modified object.
  */
 template <typename Obj>
-auto Substitute(Obj&& obj, const ffi::Map<Var, PrimExpr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> { return vmap.Get(var); };
-  return Substitute(std::forward<Obj>(obj), func);
-}
-
-/*!
- * \brief Substitute the vars specified by vmap.
- *
- * Delegates to the Substitute methods that use std::function.
- *
- * \param obj The object in which TIR variables should be substituted
- * \param vmap Map defining the TIR variables to be replaced
- * \return The modified object.
- */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
 auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
-    if (auto opt = vmap.Get(var)) {
-      return opt.value();
-    } else {
-      return std::nullopt;
-    }
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> { return vmap.Get(var); };
+  return Substitute(std::forward<Obj>(obj), func);
+}
+
+/*!
+ * \brief Substitute the vars specified by vmap.
+ *
+ * Delegates to the Substitute methods that use std::function.
+ *
+ * \param obj The object in which TIR variables should be substituted
+ * \param vmap Map defining the TIR variables to be replaced
+ * \return The modified object.
+ */
+template <typename Obj, typename Replacement>
+auto Substitute(Obj&& obj, const ffi::Map<Var, Replacement>& vmap) {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap.Get(var)) return Expr(replacement.value());
+    return std::nullopt;
   };
   return Substitute(std::forward<Obj>(obj), func);
 }
@@ -471,15 +477,13 @@ auto Substitute(Obj&& obj, const ffi::Map<Var, Expr>& vmap) {
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+template <typename Obj, typename Replacement>
+auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Replacement>& vmap) {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
-      return it->second;
-    } else {
-      return std::nullopt;
+      return Expr(it->second);
     }
+    return std::nullopt;
   };
   return Substitute(std::forward<Obj>(obj), func);
 }
@@ -493,15 +497,14 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap)
  * \param vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Expr, typename Hasher, typename EqualityChecker,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityChecker>& vmap) {
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+template <typename Obj, typename Replacement, typename Hasher, typename EqualityChecker>
+auto Substitute(Obj&& obj,
+                const std::unordered_map<Var, Replacement, Hasher, EqualityChecker>& vmap) {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
     if (auto it = vmap.find(var); it != vmap.end()) {
-      return it->second;
-    } else {
-      return std::nullopt;
+      return Expr(it->second);
     }
+    return std::nullopt;
   };
   return Substitute(std::forward<Obj>(obj), func);
 }
@@ -515,15 +518,14 @@ auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityC
  * \param iter_vmap Map defining the TIR variables to be replaced
  * \return The modified object.
  */
-template <typename Obj, typename Expr,
-          typename = std::enable_if_t<std::is_base_of_v<PrimExpr, Expr>>>
-auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
+template <typename Obj, typename Replacement>
+auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Replacement>& iter_vmap) {
+  std::unordered_map<const VarNode*, Expr> vmap;
   for (const auto& [iter_var, expr] : iter_vmap) {
-    vmap[iter_var->var.get()] = expr;
+    vmap[iter_var->var.get()] = Expr(expr);
   }
 
-  auto func = [&vmap](const Var& var) -> ffi::Optional<PrimExpr> {
+  auto func = [&vmap](const Var& var) -> ffi::Optional<Expr> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {
@@ -560,9 +562,9 @@ TVM_DLL PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap);
 
 /*!
- * \brief Recursively visit the IR in pre DFS order node, apply fvisit.
+ * \brief Recursively visit a statement or expression in pre DFS order, applying fvisit.
  * If fvisit returns false, it won't visit the children of the node.
- * \param stmt_or_expr The ir to be visited.
+ * \param stmt_or_expr The statement or expression to be visited.
  * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
  * children of the node
  */

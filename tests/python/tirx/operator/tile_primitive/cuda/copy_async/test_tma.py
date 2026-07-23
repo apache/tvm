@@ -64,7 +64,7 @@ class TMACounter(StmtExprVisitor):
         self.loop_extents.pop()
 
     def visit_evaluate_(self, op):
-        if isinstance(op.value, tvm.tirx.Call):
+        if isinstance(op.value, tvm.ir.Call):
             if op.value.op.name in (
                 "tirx.ptx.cp_async_bulk_tensor_global_to_cluster",
                 "tirx.ptx.cp_async_bulk_tensor_shared_to_global",
@@ -143,10 +143,10 @@ def _build_expected_host_init(dtype, encode_args):
     where ndim = encode_args[0] and the rest are the tensor map parameters.
     """
     A_tensormap = Var("A_tensormap", PointerType(TensorMapType(), "global"))
-    stack_alloca = tvm.tirx.Call(
-        "handle",
+    stack_alloca = tvm.ir.Call(
         tvm.ir.Op.get("tirx.tvm_stack_alloca"),
         [StringImm("tensormap"), IntImm("int32", 1)],
+        ret_ty="handle",
     )
     A_var = Var("A", PointerType(PrimType(dtype), "global"))
     call_args = (
@@ -159,7 +159,7 @@ def _build_expected_host_init(dtype, encode_args):
         ]
         + [IntImm("int32", v) for v in encode_args[1:]]
     )
-    encode_call = tvm.tirx.Call("int32", tvm.ir.Op.get("tirx.tvm_call_packed"), call_args)
+    encode_call = tvm.ir.Call(tvm.ir.Op.get("tirx.tvm_call_packed"), call_args, ret_ty="int32")
     replace_point = tvm.tirx.Evaluate(tvm.tirx.op.tvm_kernel_replace_point())
     return tvm.tirx.SeqStmt(
         [tvm.tirx.Bind(A_tensormap, stack_alloca), tvm.tirx.Evaluate(encode_call), replace_point]
@@ -172,8 +172,8 @@ def _build_expected_impl(direction, dtype, s_shape, s_layout, impl_spec):
     impl_spec is a dict with:
         loop_extents: list[int]  — e.g. [1], [2, 2], [8]
         dim: int  — TMA rank (number of coordinates, also the dim arg to PTX call)
-        elem_offset_fn: callable(loop_vars) -> PrimExpr  (or None for 0)
-        coord_fn: callable(loop_vars) -> list[PrimExpr]  (dim coordinate args)
+        elem_offset_fn: callable(loop_vars) -> Expr  (or None for 0)
+        coord_fn: callable(loop_vars) -> list[Expr]  (dim coordinate args)
         s_start: optional list[int]  — starting index for address_of (default all zeros)
     """
     from tvm.tirx.layout import ComposeLayout, SwizzleLayout
@@ -224,13 +224,15 @@ def _build_expected_impl(direction, dtype, s_shape, s_layout, impl_spec):
         buf_indices = [IntImm("int32", v) for v in s_start]
     else:
         buf_indices = [IntImm("int32", 0)] * len(s_shape)
-    addr_of = tvm.tirx.Call(
-        "handle", tvm.ir.Op.get("tirx.address_of"), [tvm.tirx.BufferLoad(s_buf, buf_indices)]
+    addr_of = tvm.ir.Call(
+        tvm.ir.Op.get("tirx.address_of"),
+        [tvm.tirx.BufferLoad(s_buf, buf_indices)],
+        ret_ty="handle",
     )
 
     # Coordinate args (must have exactly `dim` entries)
     coords = coord_fn(loop_vars)
-    tensormap_addr = tvm.tirx.Call("uint64", tvm.ir.Op.get("tirx.address_of"), [A_tensormap])
+    tensormap_addr = tvm.ir.Call(tvm.ir.Op.get("tirx.address_of"), [A_tensormap], ret_ty="uint64")
 
     # Build PTX call based on direction
     if direction == "g2s":
@@ -260,7 +262,7 @@ def _build_expected_impl(direction, dtype, s_shape, s_layout, impl_spec):
             *coords,
         ]
 
-    eval_stmt = tvm.tirx.Evaluate(tvm.tirx.Call("", ptx_op, ptx_args))
+    eval_stmt = tvm.tirx.Evaluate(tvm.ir.Call(ptx_op, ptx_args))
 
     # Wrap: DeclBuffer -> nested For loops (skipped when total extent is 1,
     # matching the implementation's always-unroll single-loop emission).
@@ -334,8 +336,8 @@ def _atom_multiphase_rank5_coords(lvs):
 # impl_spec keys:
 #   loop_extents: list[int] — iteration counts for nested loops
 #   dim: int — TMA rank = number of coordinates = dim arg to PTX call
-#   coord_fn: callable(loop_vars) -> list[PrimExpr] — coordinate arguments (len == dim)
-#   elem_offset_fn: optional callable(loop_vars) -> PrimExpr — buffer offset
+#   coord_fn: callable(loop_vars) -> list[Expr] — coordinate arguments (len == dim)
+#   elem_offset_fn: optional callable(loop_vars) -> Expr — buffer offset
 #
 # encode_args: list[int] — all numeric args to cuTensorMapEncodeTiled
 #   [ndim, global_strides..., global_dims..., box_dims..., elem_strides...,
@@ -1001,6 +1003,7 @@ TMA_CASES = [
 # fmt: on
 
 
+@pytest.mark.gpu
 @pytest.mark.parametrize("case", TMA_CASES)
 def test_copy_tma_codegen(case):
     """Unified structural-golden driver for every TMA unit test case.
@@ -1067,8 +1070,6 @@ def test_copy_tma_symbolic_dimension(dtype, swizzle_len):
     M_CONCRETE = 128  # Concrete value for testing
     thread_cnt = 128
 
-    dev = tvm.cuda(0)
-
     # Shared memory layout with swizzle
     shared_layout = T.ComposeLayout(
         T.SwizzleLayout(3, swizzle_len, 3, swizzle_inner=True),
@@ -1134,15 +1135,19 @@ def test_copy_tma_symbolic_dimension(dtype, swizzle_len):
         A_np = tvm.testing.generate_random_array(dtype, (M_CONCRETE, K))
         B_np = np.zeros((SMEM_PIPE_DEPTH, BLK_M, BLK_K), dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
-
         # Verify: B[ks, :, :] should equal A[0:BLK_M, ks*BLK_K:(ks+1)*BLK_K]
         B_ref = np.zeros((SMEM_PIPE_DEPTH, BLK_M, BLK_K), dtype=np_dtype)
         for ks in range(SMEM_PIPE_DEPTH):
             B_ref[ks, :, :] = A_np[0:BLK_M, ks * BLK_K : (ks + 1) * BLK_K]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1158,7 +1163,6 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
         Tx.copy_async(Q_smem_3d[pipe_idx, blk_k_idx, :, :, :],
                       Q[batch, seq_start:seq_end, head_start:head_end, k_start:k_end], ...)
     """
-    dev = tvm.cuda(0)
     smem_bytes = 2 * 2 * 128 * 64 * tvm.DataType(dtype).bits // 8
     copy_bytes_per_blk = 32 * 4 * 64 * tvm.DataType(dtype).bits // 8
 
@@ -1237,13 +1241,17 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
         Q_np = tvm.testing.generate_random_array(dtype, (2, 128, 8, 128))
         B_np = np.zeros((32, 4, 64), dtype=np_dtype)
 
-        Q = tvm.runtime.tensor(Q_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(Q, B)
-
         B_ref = np.zeros((32, 4, 64), dtype=np_dtype)
         B_ref[:, :, :] = Q_np[0, 0:32, 0:4, 0:64]
-        np.testing.assert_allclose(B_ref, B.numpy())
+
+        def run_and_check():
+            dev = tvm.cuda(0)
+            Q = tvm.runtime.tensor(Q_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(Q, B)
+            np.testing.assert_allclose(B_ref, B.numpy())
+
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 # ===========================================================================
@@ -1304,8 +1312,6 @@ def test_copy_tma_3d_with_view(dtype, swizzle_len):
 def test_copy_tma_gpu_smoke_g2s(task, dtype):
     """Smoke test: compile and run TMA G2S copy on GPU to verify end-to-end correctness."""
     g_shape, g_region, s_shape, s_region, thread_cnt, layoutA, layoutB, layoutS_fn = task
-    dev = tvm.cuda(0)
-
     shared_layout = layoutS_fn(dtype)
     is_pipeline = g_region is None
 
@@ -1365,10 +1371,7 @@ def test_copy_tma_gpu_smoke_g2s(task, dtype):
             A_np = tvm.testing.generate_random_array(dtype, g_shape)
             B_np = np.zeros(g_shape, dtype=np_dtype)
 
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
-            mod(A, B)
-            np.testing.assert_allclose(A_np, B.numpy())
+            B_ref = A_np
     else:
         total_bytes = functools.reduce(
             lambda acc, region: acc * (region[1] - region[0]), s_region, 1
@@ -1418,13 +1421,17 @@ def test_copy_tma_gpu_smoke_g2s(task, dtype):
             A_np = tvm.testing.generate_random_array(dtype, g_shape)
             B_np = np.zeros(g_shape, dtype=np_dtype)
 
-            A = tvm.runtime.tensor(A_np, dev)
-            B = tvm.runtime.tensor(B_np, dev)
-            mod(A, B)
-
             B_ref = np.zeros(g_shape, dtype=np_dtype)
             B_ref[tuple(r_gmem)] = A_np[tuple(r_gmem)]
-            np.testing.assert_allclose(B_ref, B.numpy())
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        A = tvm.runtime.tensor(A_np, dev)
+        B = tvm.runtime.tensor(B_np, dev)
+        mod(A, B)
+        np.testing.assert_allclose(B_ref, B.numpy())
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1475,7 +1482,6 @@ def test_copy_tma_gpu_smoke_s2g(dtype):
 
     np_dtype = tvm.testing.np_dtype_from_str(dtype)
     target = tvm.target.Target("cuda")
-    dev = tvm.cuda(0)
 
     with target:
         mod = tvm.IRModule({"main": copy_async})
@@ -1485,11 +1491,14 @@ def test_copy_tma_gpu_smoke_s2g(dtype):
         A_np = tvm.testing.generate_random_array(dtype, g_shape)
         B_np = np.zeros(g_shape, dtype=np_dtype)
 
-        A = tvm.runtime.tensor(A_np, dev)
-        B = tvm.runtime.tensor(B_np, dev)
-        mod(A, B)
+        def run_and_check():
+            dev = tvm.cuda(0)
+            A = tvm.runtime.tensor(A_np, dev)
+            B = tvm.runtime.tensor(B_np, dev)
+            mod(A, B)
+            np.testing.assert_allclose(A_np, B.numpy())
 
-        np.testing.assert_allclose(A_np, B.numpy())
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @pytest.mark.gpu
@@ -1566,6 +1575,74 @@ def test_copy_tma_dynamic_cta_mask(dtype):
     # Verify multicast instruction was generated
     src = mod.mod.imports[0].inspect_source()
     assert "multicast" in src, "Expected multicast TMA instruction in generated code"
+
+
+@pytest.mark.gpu
+def test_copy_tma_uint32_shape_extent():
+    BK = 64
+    A_layout = mma_shared_layout("float16", 3, (128, BK))
+
+    @T.prim_func
+    def tma_load(n: T.uint32, a_ptr: T.handle, o_ptr: T.handle) -> None:
+        A = T.match_buffer(a_ptr, (n, BK), "float16")
+        Out = T.match_buffer(o_ptr, (128, BK), "float16")
+        T.device_entry()
+        T.warp_id([4])
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([128])
+        sm = T.alloc_buffer((128, BK), "float16", scope="shared", layout=A_layout)
+        mb = T.alloc_shared([1], "uint64")
+        if tid == 0:
+            T.ptx.mbarrier.init(mb.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        if tid == 0:
+            Tx.copy_async(sm[:, :], A[0:128, 0:BK], dispatch="tma", mbar=mb.ptr_to([0]))
+            T.ptx.mbarrier.arrive.expect_tx(mb.ptr_to([0]), 128 * BK * 2)
+        T.ptx.mbarrier.try_wait(mb.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        reg = T.alloc_local(BK, "float16")
+        Tx.copy(reg[:], sm[tid, 0:BK])
+        Tx.copy(Out[tid, 0:BK], reg[:])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        tvm.compile(tvm.IRModule({"main": tma_load}), target=target, tir_pipeline="tirx")
+
+
+@pytest.mark.gpu
+def test_copy_tma_uint32_slice_base():
+    BK = 64
+    A_layout = mma_shared_layout("float16", 3, (128, BK))
+
+    @T.prim_func
+    def tma_off(off: T.uint32, a_ptr: T.handle, o_ptr: T.handle) -> None:
+        A = T.match_buffer(a_ptr, (4096, BK), "float16")
+        Out = T.match_buffer(o_ptr, (128, BK), "float16")
+        T.device_entry()
+        T.warp_id([4])
+        T.cta_id([1])
+        T.warpgroup_id([1])
+        tid = T.thread_id_in_wg([128])
+        sm = T.alloc_buffer((128, BK), "float16", scope="shared", layout=A_layout)
+        mb = T.alloc_shared([1], "uint64")
+        if tid == 0:
+            T.ptx.mbarrier.init(mb.ptr_to([0]), 1)
+        T.ptx.fence.proxy_async("shared::cta")
+        T.cuda.cta_sync()
+        if tid == 0:
+            Tx.copy_async(sm[:, :], A[off : off + 128, 0:BK], dispatch="tma", mbar=mb.ptr_to([0]))
+            T.ptx.mbarrier.arrive.expect_tx(mb.ptr_to([0]), 128 * BK * 2)
+        T.ptx.mbarrier.try_wait(mb.ptr_to([0]), 0)
+        T.cuda.cta_sync()
+        reg = T.alloc_local(BK, "float16")
+        Tx.copy(reg[:], sm[tid, 0:BK])
+        Tx.copy(Out[tid, 0:BK], reg[:])
+
+    target = tvm.target.Target("cuda")
+    with target:
+        tvm.compile(tvm.IRModule({"main": tma_off}), target=target, tir_pipeline="tirx")
 
 
 if __name__ == "__main__":

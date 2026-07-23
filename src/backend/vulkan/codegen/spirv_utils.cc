@@ -123,7 +123,9 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
 
   for (auto kv : mod->functions) {
     TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenSPIRV: Can only take PrimFunc";
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto func = kv.second.as<PrimFunc>();
+    TVM_FFI_ICHECK(func);
+    PrimFunc f = func.value();
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenSPIRV: expected kCallingConv attribute to be set.";

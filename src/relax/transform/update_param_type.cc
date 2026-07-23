@@ -52,7 +52,7 @@ class ParamTypeMutator : public ExprMutator {
     auto params = op->params.Map([this](Var param) {
       if (auto new_ty = ty_func_(param)) {
         auto new_param = WithType(param, new_ty.value());
-        var_remap_[param->vid] = new_param;
+        var_remap_[param] = new_param;
         return new_param;
       } else {
         return param;

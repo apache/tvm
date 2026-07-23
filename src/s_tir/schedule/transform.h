@@ -141,7 +141,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
   using StmtExprMutator::VisitExpr_;
   using StmtExprMutator::VisitStmt_;
 
-  PrimExpr VisitExpr_(const VarNode* var) final;
+  Expr VisitExpr_(const VarNode* var) final;
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
@@ -154,7 +154,7 @@ class ReplaceBufferMutator : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) override;
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) override;
+  Expr VisitExpr_(const BufferLoadNode* op) override;
 
   virtual MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer);
 
@@ -253,7 +253,7 @@ class BlockBufferAccessSimplifier : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const SBlockNode* op) final;
   Stmt VisitStmt_(const BufferStoreNode* op) final;
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final;
+  Expr VisitExpr_(const BufferLoadNode* op) final;
 };
 
 }  // namespace s_tir

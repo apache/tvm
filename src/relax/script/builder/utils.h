@@ -52,8 +52,8 @@ inline IfFrame FindIfFrame(const ffi::String& method) {
 
 inline tvm::relax::BlockBuilder GetBlockBuilder() {
   ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>();
-  TVM_FFI_CHECK(frame.defined(), ValueError) << "Relax Function frame not find. Please ensure "
-                                                "assignment is called under R.function()";
+  TVM_FFI_CHECK(frame.has_value(), ValueError) << "Relax Function frame not find. Please ensure "
+                                                  "assignment is called under R.function()";
   return frame.value()->block_builder;
 }
 
@@ -63,7 +63,7 @@ inline BindingBlockFrame CheckBindingBlockFrameExistAndUnended() {
 
   ffi::Optional<BindingBlockFrame> block_frame =
       IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
-  TVM_FFI_CHECK(block_frame.defined(), ValueError) << "Block frame not find";
+  TVM_FFI_CHECK(block_frame.has_value(), ValueError) << "Block frame not find";
   TVM_FFI_CHECK(!block_frame.value()->block_ended, ValueError)
       << "New binding is not allowed after dataflow block output.";
   return block_frame.value();
@@ -99,7 +99,7 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   TVM_FFI_ICHECK(!last_binding->var->IsInstance<tvm::relax::DataflowVarNode>())
       << "A non-dataflow var is expected in the last binding of '" << method << "'.";
 
-  *var_name = last_binding->var->name_hint();
+  *var_name = last_binding->var->name;
 
   // Step 3. Re-collect binding blocks to replace the last binding.
   ffi::Array<tvm::relax::BindingBlock> new_blocks(frame->binding_blocks.begin(),
@@ -107,8 +107,8 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, ffi::S
   ffi::Array<tvm::relax::Binding> last_block_bindings(last_block->bindings.begin(),
                                                       last_block->bindings.end() - 1);
 
-  tvm::relax::Var new_var = tvm::relax::Var(last_binding->var->name_hint() + output_var_suffix,
-                                            GetType(last_binding->var));
+  tvm::Var new_var(last_binding->var->name + output_var_suffix,
+                   tvm::relax::GetType(last_binding->var));
   tvm::relax::Expr body;
 
   const auto* var_binding = last_binding.as<tvm::relax::VarBindingNode>();

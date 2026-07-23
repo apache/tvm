@@ -62,7 +62,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     std::unordered_map<Var, Buffer> new_buffer_map;
     std::vector<Buffer> param_flattened_buffers;
     for (const auto& kv : buffer_map) {
-      if (kv.second->layout.defined()) {
+      if (kv.second->layout.has_value()) {
         param_flattened_buffers.push_back(storage_lower.GetFlattenedBuffer(kv.second));
         Buffer buffer = kv.second;
         auto* writer = buffer.CopyOnWrite();
@@ -93,7 +93,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     if (auto buffer = any.as<Buffer>()) {
       return GetFlattenedBuffer(buffer.value());
     } else if (auto prim_expr = any.as<PrimExpr>()) {
-      return VisitExpr(prim_expr.value());
+      return VisitPrimExpr(prim_expr.value());
     } else if (auto stmt = any.as<Stmt>()) {
       return VisitStmt(stmt.value());
     }
@@ -101,7 +101,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    if (!op->buffer->layout.defined()) {
+    if (!op->buffer->layout.has_value()) {
       return ffi::GetRef<Stmt>(op);
     }
     auto buffer = GetFlattenedBuffer(op->buffer, /*is_alloc=*/true);
@@ -142,7 +142,6 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
       writer = flattened.CopyOnWrite();
       writer->shape = new_shape;
       writer->strides = {};
-      writer->axis_separators = {};
     } else if (is_alloc) {
       if (auto tile_layout = buf->layout.as<TileLayoutNode>();
           tile_layout && tile_layout->HasThreadAxis()) {
@@ -167,7 +166,6 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
         writer = flattened.CopyOnWrite();
         writer->shape = {ana->Simplify(mem_span)};
         writer->strides = {};
-        writer->axis_separators = {};
       } else {
         flattened = buf.GetFlattenedBuffer();
         writer = flattened.CopyOnWrite();
@@ -183,7 +181,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
       writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
     writer->layout = std::nullopt;
-    writer->elem_offset = StmtExprMutator::VisitExpr(buf->elem_offset);
+    writer->elem_offset = StmtExprMutator::VisitPrimExpr(buf->elem_offset);
 
     buffer_remap_[buf] = flattened;
     return flattened;
@@ -205,8 +203,8 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     return std::move(store);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    PrimType load_ty = op->ty();
+  Expr VisitExpr_(const BufferLoadNode* op) final {
+    PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
@@ -234,7 +232,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
-    if (buffer->layout.defined()) {
+    if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
       if (IsTrainiumLayout(tile_layout)) {
         auto coord = buffer->layout.value()->Apply(indices, buffer->shape);
@@ -268,7 +266,7 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     TVM_FFI_ICHECK(node->buffer.defined());
-    if (!node->buffer->layout.defined()) {
+    if (!node->buffer->layout.has_value()) {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
@@ -287,7 +285,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
   static Stmt Remove(const Stmt& stmt) { return TrainiumBufferOffsetRemover()(stmt); }
 
  private:
-  PrimExpr VisitExpr_(const tirx::CallNode* call) final {
+  Expr VisitExpr_(const CallNode* call) final {
     if (call->op.same_as(tirx::builtin::buffer_offset())) {
       auto buffer_load = call->args[0].as_or_throw<BufferLoad>();
       TVM_FFI_ICHECK_EQ(buffer_load->indices.size(), 1) << "Expected a single index";
@@ -298,7 +296,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
 
   Stmt VisitStmt_(const DeclBufferNode* op) {
     auto buffer = op->buffer;
-    auto elem_offset = this->VisitExpr(buffer->elem_offset);
+    auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
     if (elem_offset.same_as(buffer->elem_offset)) {
       return StmtExprMutator::VisitStmt_(op);
     } else {
@@ -320,7 +318,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
     return std::move(store);
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load);
     return std::move(load);

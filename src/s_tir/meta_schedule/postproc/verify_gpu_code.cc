@@ -124,7 +124,7 @@ class VerifyGPUCodeNode : public PostprocNode {
   int thread_warp_size_ = -1;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
-    TVM_FFI_ICHECK(context->target.defined());
+    TVM_FFI_ICHECK(context->target.has_value());
     this->target_ = context->target.value();
     this->target_constraints_ = ffi::Map<ffi::String, PrimExpr>{
         {"max_shared_memory_per_block", Extract(this->target_, "max_shared_memory_per_block")},

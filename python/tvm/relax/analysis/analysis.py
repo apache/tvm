@@ -26,8 +26,8 @@ from enum import IntEnum
 
 import tvm
 from tvm import IRModule, tirx
-from tvm.ir import Type
-from tvm.relax.expr import Binding, Call, DataflowBlock, Expr, Function, GlobalVar, Var
+from tvm.ir import Call, Type
+from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar, Var
 from tvm.relax.type import FuncType
 from tvm.tirx import Buffer, IndexMap, PrimFunc, SBlock
 
@@ -52,7 +52,7 @@ def get_static_type(ty: Type) -> Type:
 
 def erase_to_well_defined(
     ty: Type,
-    shape_var_map: dict[tirx.Var, tirx.PrimExpr] | None = None,
+    shape_var_map: dict[tirx.Var, tirx.Expr] | None = None,
     var_map: dict[Var, Expr] | None = None,
 ) -> Type:
     """Erase ty into a well defined form.
@@ -65,7 +65,7 @@ def erase_to_well_defined(
     ty : Type
         The input type.
 
-    shape_var_map : Dict[tirx.Var, tirx.PrimExpr]
+    shape_var_map : Dict[tirx.Var, tirx.Expr]
         Specifies the defined shape vars and the values they should map to.
 
     var_map : Dict[Var, Expr]
@@ -200,7 +200,7 @@ def definable_tir_vars_in_type(ty: Type) -> list[tirx.Var]:
     return _ffi_api.DefinableTIRVarsInType(ty)  # type: ignore
 
 
-def collect_non_negative_expressions(ty: Type) -> list[tirx.PrimExpr]:
+def collect_non_negative_expressions(ty: Type) -> list[tirx.Expr]:
     """Collect TIR expressions used in non-negative contexts
 
     Get TIR variables that are non-negative within the context where

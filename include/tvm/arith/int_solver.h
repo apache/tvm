@@ -38,6 +38,7 @@ namespace tvm {
 namespace arith {
 
 using tirx::IterVar;
+using tirx::PrimVar;
 using tirx::Var;
 using tirx::VarNode;
 
@@ -132,7 +133,7 @@ class IntGroupBounds : public ffi::ObjectRef {
 class IntConstraintsNode : public ffi::Object {
  public:
   // e.g., \alpha, \beta, must be integers
-  ffi::Array<Var> variables;
+  ffi::Array<PrimVar> variables;
   // e.g., 1 <= \alpha <= N, etc.
   // it is absolutely ok to include ranges for parameters
   // (variables that are not in this->variables) in this map
@@ -166,7 +167,7 @@ class IntConstraints : public ffi::ObjectRef {
    * \param relations The linear relations between the variables
    *                  (either equations or inequalities)
    */
-  TVM_DLL IntConstraints(ffi::Array<Var> variables, ffi::Map<Var, Range> ranges,
+  TVM_DLL IntConstraints(ffi::Array<PrimVar> variables, ffi::Map<Var, Range> ranges,
                          ffi::Array<PrimExpr> relations);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntConstraints, ffi::ObjectRef, IntConstraintsNode);
@@ -299,7 +300,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
  * \param bounds grouped boundary of the variables.
  * \param relations other relations.
  */
-ffi::Array<PrimExpr> AsConditions(const ffi::Array<Var>& variables,
+ffi::Array<PrimExpr> AsConditions(const ffi::Array<PrimVar>& variables,
                                   const ffi::Map<Var, IntGroupBounds>& bounds,
                                   const ffi::Array<PrimExpr>& relations);
 

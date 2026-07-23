@@ -99,7 +99,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+  Expr VisitExpr_(const BufferLoadNode* _load) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_load).as_or_throw<BufferLoad>();
     if (load->buffer.same_as(src_)) {
       ffi::ObjectPtr<BufferLoadNode> new_load = ffi::make_object<BufferLoadNode>(*load.get());
@@ -272,7 +272,7 @@ struct ReadWriteAtImpl {
     std::vector<Var> loop_vars;
     loop_vars.reserve(n);
     for (int i = 0; i < n; ++i) {
-      loop_vars.push_back(Var("ax" + std::to_string(i)));
+      loop_vars.push_back(PrimVar("ax" + std::to_string(i)));
     }
     ffi::Map<Var, PrimExpr> bindings;
     ffi::Array<IterVar> iter_vars;
@@ -283,18 +283,17 @@ struct ReadWriteAtImpl {
     indices.reserve(n);
     for (int i = 0; i < n; ++i) {
       auto f_substitute = [&loop_domain, &bindings, &iter_vars,
-                           &iter_values](const Var& var) -> ffi::Optional<PrimExpr> {
+                           &iter_values](const Var& var) -> ffi::Optional<Expr> {
         auto it = bindings.find(var);
         if (it != bindings.end()) {
           return (*it).second;
         }
         Range range = loop_domain.at(var);
-        ffi::ObjectPtr<VarNode> v = ffi::make_object<VarNode>(*var.get());
-        v->name_hint = "v" + std::to_string(iter_vars.size());
-        bindings.Set(var, Var(v));
-        iter_values.push_back(var);
-        iter_vars.push_back(IterVar(range, Var(v), IterVarType::kDataPar));
-        return Var(v);
+        Var v("v" + std::to_string(iter_vars.size()), var->ty, var->span);
+        bindings.Set(var, v.as_or_throw<PrimExpr>());
+        iter_values.push_back(var.as_or_throw<PrimExpr>());
+        iter_vars.push_back(IterVar(range, v.as_or_throw<PrimVar>(), IterVarType::kDataPar));
+        return v.as_or_throw<PrimExpr>();
       };
       ffi::ObjectPtr<RangeNode> dom = ffi::make_object<RangeNode>(*domain[i].get());
       dom->min = Substitute(std::move(dom->min), f_substitute);
@@ -302,11 +301,12 @@ struct ReadWriteAtImpl {
       domain.Set(i, Range(dom));
     }
     for (int i = 0; i < n; ++i) {
-      indices.push_back(domain[i]->min + loop_vars[i]);
+      indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
     Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
-      stmt = For(loop_vars[i], IntImm::Int32(0), domain[i]->extent, ForKind::kSerial, stmt);
+      stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
+                 ForKind::kSerial, stmt);
     }
     return SBlockRealize(
         /*values=*/iter_values,

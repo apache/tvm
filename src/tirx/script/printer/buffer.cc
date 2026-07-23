@@ -37,7 +37,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
 
   // Step 0. Set up statistics
   std::unordered_map<const ffi::Object*, int> use_count;
-  auto update_use_count = [&](const PrimExpr& e) {
+  auto update_use_count = [&](const Expr& e) {
     tirx::PostOrderVisit(e, [&](const ffi::ObjectRef& n) {
       if (const VarNode* var = n.as<VarNode>()) {
         ++use_count[var];
@@ -52,9 +52,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   for (const PrimExpr& e : buffer->shape) {
     update_use_count(e);
   }
-  auto is_new_var = [&](const PrimExpr& e) {
-    return e->IsInstance<VarNode>() && !d->IsVarDefined(e);
-  };
+  auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
   auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
     TVM_FFI_ICHECK(!d->IsVarDefined(var));
     ExprDoc lhs = DefineVar(var, frame, d);
@@ -62,7 +60,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     var_def_lhs.push_back(lhs);
     var_def_rhs.push_back(PrintVarCreation(var, var_p, d));
   };
-  auto try_inline_def = [&](const PrimExpr& e, const AccessPath& e_p,
+  auto try_inline_def = [&](const Expr& e, const AccessPath& e_p,
                             std::function<ExprDoc()> inline_f) {
     TVM_FFI_ICHECK(is_new_var(e));
     Var var = e.as_or_throw<Var>();
@@ -101,7 +99,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   // Step 3. Handle `buffer.data`
   // For tmem scope, DeclBuffer does not accept `data` (it auto-creates the data var).
   bool is_tmem_scope = false;
-  if (auto* ptr_type = buffer->data->type_annotation.as<PointerTypeNode>()) {
+  if (auto* ptr_type = buffer->data->ty.as<PointerTypeNode>()) {
     is_tmem_scope = (ptr_type->storage_scope == "tmem");
   }
   bool is_inline_data = false;
@@ -134,7 +132,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
               return d->AsDoc<ExprDoc>(buffer, buffer_p)
                   ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
             })) {
-          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name_hint, e_p));
+          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name, e_p));
           continue;
         }
       }
@@ -145,7 +143,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   // Step 5. Handle `buffer.elem_offset`
   bool needs_print_factor = false;
   if (const auto* int_imm = buffer->elem_offset.as<IntImmNode>()) {
-    if (int_imm->value != 0 || int_imm->ty()->dtype != buffer->DefaultIndexType()) {
+    if (int_imm->value != 0 ||
+        int_imm->ty.as_or_throw<PrimType>()->dtype != buffer->DefaultIndexType()) {
       kwargs.Set("elem_offset",
                  d->AsDoc<ExprDoc>(buffer->elem_offset,  //
                                    buffer_p->Attr("elem_offset")));
@@ -163,10 +162,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   {
     ffi::String scope = buffer.scope();
     if (scope != "global") {
-      kwargs.Set(
-          "scope",
-          LiteralDoc::Str(scope,
-                          buffer_p->Attr("data")->Attr("type_annotation")->Attr("storage_scope")));
+      kwargs.Set("scope",
+                 LiteralDoc::Str(scope, buffer_p->Attr("data")->Attr("ty")->Attr("storage_scope")));
     }
   }
   // Step 7. Handle `buffer.data_alignment`
@@ -178,16 +175,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
     kwargs.Set("offset_factor",
                LiteralDoc::Int(buffer->offset_factor, buffer_p->Attr("offset_factor")));
   }
-  // Step 9. Handle `buffer.buffer_type`
-  if (buffer->buffer_type != tirx::BufferType::kDefault) {
-    kwargs.Set("buffer_type", LiteralDoc::Str("auto", buffer_p->Attr("buffer_type")));
-  }
-  // Step 10. Handle `buffer.axis_separator`
-  if (!buffer->axis_separators.empty()) {
-    kwargs.Set("axis_separators",
-               d->AsDoc<ExprDoc>(buffer->axis_separators, buffer_p->Attr("axis_separators")));
-  }
-  // Step 12. Handle `buffer.layout`. Track the enclosing PrimFunc's `s_tir`
+  // Step 9. Handle `buffer.layout`. Track the enclosing PrimFunc's `s_tir`
   // attr — in `s_tir=True` mode the parser fills `layout=None` by default,
   // in `s_tir=False` (tirx) mode it fills `DefaultLayout(shape)`. Mirror
   // that here so the implicit default is omitted and the non-default value
@@ -203,7 +191,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
       }
     }
   }
-  if (buffer->layout.defined()) {
+  if (buffer->layout.has_value()) {
     bool is_default =
         ffi::StructuralEqual()(buffer->layout, tirx::TileLayoutNode::DefaultLayout(buffer->shape));
     if (!is_default) {
@@ -212,7 +200,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::Buffer buffer, const AccessPath
   } else if (!enclosing_s_tir) {
     kwargs.Set("layout", LiteralDoc::None(buffer_p->Attr("layout")));
   }
-  // Step 13. Handle `buffer.allocated_addr`
+  // Step 10. Handle `buffer.allocated_addr`
   if (!buffer->allocated_addr.empty()) {
     if (buffer->allocated_addr.size() == 1) {
       // Unwrap single-element array: DeclBuffer expects Optional<PrimExpr>, not Array.
@@ -265,7 +253,7 @@ ExprDoc BufferCall(const ExprDoc& prefix, const ffi::Map<ffi::String, ExprDoc>& 
     }
   }
   for (ffi::String s : {"data", "strides", "elem_offset", "scope", "align", "offset_factor",
-                        "buffer_type", "axis_separators", "layout", "allocated_addr"}) {
+                        "layout", "allocated_addr"}) {
     if (ffi::Optional<ExprDoc> doc = attrs.Get(s)) {
       kwargs_keys.push_back(s);
       kwargs_values.push_back(doc.value());
@@ -394,7 +382,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
           // special case for scalar buffers
           if ((store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) &&
-              !store->predicate.defined()) {
+              !store->predicate.has_value()) {
             // TVM_FFI_ICHECK(store->indices.size() == 1 && tirx::is_zero(store->indices[0]))
             //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
             //        "supported";
@@ -405,7 +393,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
 
           // Use .vstore(...) syntax when there is a predicate
-          if (store->predicate.defined()) {
+          if (store->predicate.has_value()) {
             ExprDoc indices = d->AsDoc<ExprDoc>(store->indices, p->Attr("indices"));
             ExprDoc predicate = d->AsDoc<ExprDoc>(store->predicate, p->Attr("predicate"));
             return ExprStmtDoc(
@@ -424,7 +412,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
           // special case for scalar
           if ((load->buffer.IsScalar(true) || load->buffer.IsScalar(false)) &&
-              !load->predicate.defined()) {
+              !load->predicate.has_value()) {
             // TVM_FFI_ICHECK(load->indices.size() == 1 && tirx::is_zero(load->indices[0]))
             //     << "Scalar buffer load with indices other than [0] is not supported";
             ffi::Optional<ExprDoc> doc = d->GetVarDoc(load->buffer);
@@ -434,7 +422,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           }
 
           // Use .vload(...) syntax when there is a predicate
-          if (load->predicate.defined()) {
+          if (load->predicate.has_value()) {
             ExprDoc indices = d->AsDoc<ExprDoc>(load->indices, p->Attr("indices"));
             ExprDoc predicate = d->AsDoc<ExprDoc>(load->predicate, p->Attr("predicate"));
             return buffer->Attr("vload")->Call({indices}, {"predicate"}, {predicate});

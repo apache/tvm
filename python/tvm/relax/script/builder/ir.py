@@ -25,7 +25,7 @@ from typing import Any
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import IRModule, PrimExpr, VDevice
+from tvm.ir import IRModule, VDevice
 from tvm.relax import (
     Call,
     Expr,
@@ -582,11 +582,11 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
         A newly created call that calls into a tirx function.
     """
     primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
-    tir_func, call_args, out_ty, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    tir_func, call_args, out_ty = gen_call_tir_inputs(func, *args, **kwargs)
     if not primfunc_name_hint:
         primfunc_name_hint = func.__name__
     gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
-    return call_tir(gvar, call_args, out_ty, tir_vars)
+    return call_tir(gvar, call_args, out_ty)
 
 
 def emit_match_cast(value: Expr, ty: Type) -> Var:
@@ -669,12 +669,12 @@ def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
 ############################# If Then Else #############################
 
 
-def If(condition: Expr | PrimExpr) -> frame.IfFrame:  # pylint: disable=invalid-name
+def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
     """Create an if frame.
 
     Parameters
     ----------
-    condition : Union[Expr, PrimExpr]
+    condition : Expr
 
         The condition of if statement, executes the true branch if the
         condition is true, otherwise jump into the false branch.
@@ -734,11 +734,11 @@ def tuple(*fields: Expr) -> Expr:
 ############################### R.shape ################################
 
 
-def shape(value: list[PrimExpr]) -> Expr:
+def shape(value: list[Expr]) -> Expr:
     """Create a ShapeExpr.
     Parameters
     ----------
-    value : List[PrimExpr]
+    value : List[Expr]
         The fields of the tuple.
     Returns
     -------
@@ -748,15 +748,15 @@ def shape(value: list[PrimExpr]) -> Expr:
     return relax.ShapeExpr(value)  # pylint: disable=no-member # type: ignore
 
 
-############################### PrimExpr ###############################
+############################### Expr ###############################
 
 
-def prim_value(value: PrimExpr | int | float) -> Expr:
+def prim_value(value: Expr | int | float) -> Expr:
     """Convert a value to a primitive expression.
 
     Parameters
     ----------
-    value : PrimExpr | int | float
+    value : Expr | int | float
         The value to convert.
 
     Returns

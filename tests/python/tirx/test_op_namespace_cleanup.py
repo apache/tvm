@@ -44,7 +44,7 @@ def _expr_calls(func):
     calls = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.Call):
+        if isinstance(node, tvm.ir.Call):
             calls.append(node)
 
     tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
@@ -95,7 +95,7 @@ def test_builtin_expression_ops_are_not_tile_primitives():
 
     cast = T.cast(x, "float32")
     assert isinstance(cast, tvm.tirx.Cast)
-    assert cast.dtype == "float32"
+    assert cast.ty.dtype == "float32"
 
     sqrt = T.sqrt(y)
     assert sqrt.op.name == "tirx.sqrt"
@@ -292,7 +292,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     def device_namespaces(dst: T.handle, src: T.handle):
         A = T.match_buffer(src, (1,), "float32")
         R = T.alloc_buffer((1,), "float32", scope="local")
-        T.cuda.copy_bytes(dst, src, 16)
+        T.cuda.cta_sync()
         T.ptx.ldg32(R[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
         T.metal.simd_shuffle_up(A[0], 1)
@@ -300,14 +300,14 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
-        "tirx.cuda.copy_bytes",
+        "tirx.cuda.cta_sync",
         "tirx.ptx.ldg32",
         "tirx.metal.simd_shuffle",
         "tirx.metal.simd_shuffle_up",
         "tirx.metal.simd_shuffle_down",
     ]
     for op_name, namespace in [
-        ("tirx.cuda.copy_bytes", "cuda"),
+        ("tirx.cuda.cta_sync", "cuda"),
         ("tirx.ptx.ldg32", "ptx"),
         ("tirx.metal.simd_shuffle", "metal"),
         ("tirx.metal.simd_shuffle_up", "metal"),
@@ -318,7 +318,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
         assert _op_attr(op_name, "TCallEffectKind") in (1, 3)
 
     code = device_namespaces.script()
-    assert "T.cuda.copy_bytes(" in code
+    assert "T.cuda.cta_sync(" in code
     assert "T.ptx.ldg32(" in code
     assert "T.metal.simd_shuffle(" in code
     assert "T.metal.simd_shuffle_up(" in code

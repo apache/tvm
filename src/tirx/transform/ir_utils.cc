@@ -163,8 +163,8 @@ class IRConvertSSA final : public StmtExprMutator {
 
       for (const auto& [key, old_value] : func->attrs->dict) {
         auto value = old_value;
-        if (auto* expr = value.as<PrimExprNode>()) {
-          value = VisitExpr(ffi::GetRef<PrimExpr>(expr));
+        if (auto expr = value.as<PrimExpr>()) {
+          value = VisitPrimExpr(expr.value());
         } else if (auto* stmt = value.as<StmtNode>()) {
           value = VisitStmt(ffi::GetRef<Stmt>(stmt));
         }
@@ -204,14 +204,14 @@ class IRConvertSSA final : public StmtExprMutator {
   // undefined SSA-renamed variables.
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) override { return buffer; }
 
-  PrimExpr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
-  PrimExpr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final { return GetRemappedVar(ffi::GetRef<Var>(op)); }
+  Expr VisitExpr_(const LetNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      PrimExpr value = this->VisitExpr(op->value);
+      PrimExpr value = this->VisitPrimExpr(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
-      PrimExpr body = this->VisitExpr(op->body);
+      PrimExpr body = this->VisitPrimExpr(op->body);
       PopVarRemap(v, new_var);
       return Let(new_var, value, body);
     } else {
@@ -220,7 +220,7 @@ class IRConvertSSA final : public StmtExprMutator {
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     auto output = VisitBufferAccess(std::move(node));
     return output;
@@ -252,7 +252,7 @@ class IRConvertSSA final : public StmtExprMutator {
         if (defined_.count(iter_var->var.get())) {
           Var new_var = MakeNewVar(iter_var->var);
           PushVarRemap(iter_var->var, new_var);
-          iter_var.CopyOnWrite()->var = new_var;
+          iter_var.CopyOnWrite()->var = new_var.as_or_throw<PrimVar>();
         } else {
           defined_.insert(iter_var->var.get());
         }
@@ -302,8 +302,8 @@ class IRConvertSSA final : public StmtExprMutator {
     // given the current scope.  If no redefines are present, then the
     // buffer var is unchanged.
     Var new_buffer_var = GetRemappedVar(buf->data);
-    PrimExpr elem_offset = VisitExpr(buf->elem_offset);
-    auto visit_expr = [this](const PrimExpr& expr) { return VisitExpr(expr); };
+    PrimExpr elem_offset = VisitPrimExpr(buf->elem_offset);
+    auto visit_expr = [this](const PrimExpr& expr) { return VisitPrimExpr(expr); };
     ffi::Array<PrimExpr> shape = buf->shape.Map(visit_expr);
     ffi::Array<PrimExpr> strides = buf->strides.Map(visit_expr);
 
@@ -314,11 +314,11 @@ class IRConvertSSA final : public StmtExprMutator {
     // test_dynamic_launch_thread).
     ffi::Optional<Layout> new_layout = buf->layout;
     bool layout_changed = false;
-    if (buf->layout.defined()) {
+    if (buf->layout.has_value()) {
       if (auto opt_tile = buf->layout.value().as<TileLayoutNode>()) {
         auto remap_iter = [&](const Iter& it) -> Iter {
-          PrimExpr new_extent = VisitExpr(it->extent);
-          PrimExpr new_stride = VisitExpr(it->stride);
+          PrimExpr new_extent = VisitPrimExpr(it->extent);
+          PrimExpr new_stride = VisitPrimExpr(it->stride);
           if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
             return it;
           }
@@ -372,7 +372,7 @@ class IRConvertSSA final : public StmtExprMutator {
     // body-carrying statement's scope exits.
     const Var& v = op->var;
     if (defined_.count(v.get())) {
-      PrimExpr value = this->VisitExpr(op->value);
+      Expr value = this->VisitExpr(op->value);
       Var new_var = MakeNewVar(v);
       PushVarRemap(v, new_var);
       return Bind(new_var, value);
@@ -385,7 +385,7 @@ class IRConvertSSA final : public StmtExprMutator {
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     // Each branch gets its own scope so Bind remaps in one branch
     // do not leak into the other.
-    PrimExpr condition = VisitExpr(op->condition);
+    PrimExpr condition = VisitPrimExpr(op->condition);
     Stmt then_case = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->then_case); });
     ffi::Optional<Stmt> else_case;
     if (op->else_case) {
@@ -406,7 +406,7 @@ class IRConvertSSA final : public StmtExprMutator {
         PushVarRemap(v, new_var);
         Stmt stmt = StmtExprMutator::VisitStmt_(op);
         auto n = ffi::make_object<ForNode>(*stmt.as<ForNode>());
-        n->loop_var = new_var;
+        n->loop_var = new_var.as_or_throw<PrimVar>();
         return For(n);
       });
     } else {
@@ -442,8 +442,8 @@ class IRConvertSSA final : public StmtExprMutator {
     if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
       Range dom = iter_var->dom;
       if (dom.defined()) {
-        auto min = VisitExpr(dom->min);
-        auto extent = VisitExpr(dom->extent);
+        auto min = VisitPrimExpr(dom->min);
+        auto extent = VisitPrimExpr(dom->extent);
         if (!min.same_as(iter_var->dom->min) || !extent.same_as(iter_var->dom->extent)) {
           dom = Range::FromMinExtent(min, extent);
         }
@@ -455,13 +455,7 @@ class IRConvertSSA final : public StmtExprMutator {
           it != function_scope_var_remap_.end()) {
         var = it->second;
       } else if (defined_.count(var.get())) {
-        Var new_var = [&]() {
-          if (var->type_annotation.defined()) {
-            return Var(var->name_hint, var->type_annotation);
-          } else {
-            return Var(var->name_hint, var.ty());
-          }
-        }();
+        Var new_var(var->name, var->ty);
 
         function_scope_var_remap_.insert({var.get(), new_var});
         var = new_var;
@@ -489,10 +483,11 @@ class IRConvertSSA final : public StmtExprMutator {
       if (dom.same_as(iter_var->dom) && var.same_as(iter_var->var)) {
         new_iter_var = ffi::GetRef<IterVar>(iter_var);
       } else {
-        new_iter_var = IterVar(dom, var, iter_var->iter_type, iter_var->thread_tag, iter_var->span);
+        new_iter_var = IterVar(dom, var.as_or_throw<PrimVar>(), iter_var->iter_type,
+                               iter_var->thread_tag, iter_var->span);
       }
 
-      auto value = VisitExpr(op->value);
+      auto value = VisitPrimExpr(op->value);
       auto body = scope_.WithNewScope([&]() -> Stmt { return VisitStmt(op->body); });
 
       Stmt output;
@@ -532,22 +527,7 @@ class IRConvertSSA final : public StmtExprMutator {
   };
 
   /*! \brief Create a new variable with the same name and type as the original. */
-  static Var MakeNewVar(const Var& old_var) {
-    bool is_size_var = old_var->IsInstance<SizeVarNode>();
-    if (old_var->type_annotation.defined()) {
-      if (is_size_var) {
-        return SizeVar(old_var->name_hint, old_var->type_annotation);
-      } else {
-        return Var(old_var->name_hint, old_var->type_annotation);
-      }
-    } else {
-      if (is_size_var) {
-        return SizeVar(old_var->name_hint, old_var.ty());
-      } else {
-        return Var(old_var->name_hint, old_var.ty());
-      }
-    }
-  }
+  static Var MakeNewVar(const Var& old_var) { return Var(old_var->name, old_var->ty); }
 
   /*! \brief Push a variable remap to the current scope and the var_remap_ stack. */
   void PushVarRemap(const Var& old_var, const Var& new_var) {
@@ -667,7 +647,7 @@ class IRConvertSSA final : public StmtExprMutator {
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
-  const auto* ptr_type = buffer_var->type_annotation.as<PointerTypeNode>();
+  const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type) << "The provided variable is not of pointer type";
   return ptr_type->storage_scope;
 }
@@ -740,19 +720,19 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
     return std::nullopt;
   }
   ffi::Array<PrimExpr> equations;
-  ffi::Array<Var> vars;
+  ffi::Array<PrimVar> vars;
   std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
       bool is_simple = true;
-      std::vector<Var> cand_vars;
+      std::vector<PrimVar> cand_vars;
       PostOrderVisit(e, [&cand_vars, &is_simple, &e](const ffi::ObjectRef& obj) {
         if (obj.same_as(e)) {
           return;
         } else if (const VarNode* var = obj.as<VarNode>()) {
-          PrimType var_ty = var->ty();
+          PrimType var_ty = var->ty.as_or_throw<PrimType>();
           if (var_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-            cand_vars.push_back(ffi::GetRef<Var>(var));
+            cand_vars.push_back(ffi::GetRef<Var>(var).as_or_throw<PrimVar>());
           }
         } else {
           is_simple &= obj->IsInstance<AddNode>() || obj->IsInstance<SubNode>() ||
@@ -761,9 +741,9 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
         }
       });
       if (is_simple && !cand_vars.empty()) {
-        for (const Var& new_var : cand_vars) {
+        for (const PrimVar& new_var : cand_vars) {
           if (!std::any_of(vars.begin(), vars.end(),
-                           [&new_var](const Var& v) { return v.same_as(new_var); })) {
+                           [&new_var](const PrimVar& v) { return v.same_as(new_var); })) {
             vars.push_back(new_var);
           }
         }
@@ -776,7 +756,7 @@ ffi::Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition
     } else if (e->IsInstance<CallNode>()) {
       Call op = e.as_or_throw<Call>();
       if (op->op.same_as(builtin::likely())) {
-        fvisit(op->args[0]);
+        fvisit(op->args[0].as_or_throw<PrimExpr>());
       }
     }
   };
@@ -822,7 +802,7 @@ ConditionalBoundsContext::ConditionalBoundsContext(
 
 void ConditionalBoundsContext::EnterWithScope() {
   ffi::Optional<arith::IntConstraints> constraints = TrySolveCondition();
-  if (!constraints.defined()) {
+  if (!constraints.has_value()) {
     // fail to process the condition, add to unresolved
     pending_conditions_->push_back(condition_);
     return;

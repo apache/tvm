@@ -284,13 +284,13 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         lse_self_attn = Tensor(_expr=bb.emit(rx.TupleGetItem(merge_results, 1))).reshape(b, s, h_qo)
         return o_self_attn, lse_self_attn
 
-    def get_query_positions(self, total_length: tirx.PrimExpr) -> Tensor:
+    def get_query_positions(self, total_length: tirx.Expr) -> Tensor:
         """Get the in-sequence positions of each slot in the query,
         which are needed for applying positional embeddings in some models.
 
         Parameters
         ----------
-        total_length : tirx.PrimExpr
+        total_length : tirx.Expr
             The summed-up total sequence length of queries in
             the batch being forwarded.
 

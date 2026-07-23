@@ -413,36 +413,34 @@ class RelaxExpressionConverter:
 
     def _convert_var(self, var: relax.Var, args: list[Any]) -> Any:
         """Convert a Relax variable to Python equivalent."""
-        if hasattr(var, "name_hint"):
-            var_name = var.name_hint
+        var_name = var.name
 
-            # Check if it's a function parameter
-            for i, param in enumerate(self.current_params):
-                if hasattr(param, "name_hint") and param.name_hint == var_name:
-                    return args[i]
+        # Check if it's a function parameter
+        for i, param in enumerate(self.current_params):
+            if param.name == var_name:
+                return args[i]
 
-            # Check if it's a bound variable
-            if var_name in self.variable_map:
-                return self.variable_map[var_name]
+        # Check if it's a bound variable
+        if var_name in self.variable_map:
+            return self.variable_map[var_name]
 
-            # Try to infer shape from var's type annotation
-            if hasattr(var, "ty") and hasattr(var.ty, "shape"):
-                shape = var.ty.shape
-                if shape and len(shape) > 0:
-                    # Convert symbolic shapes to concrete values
-                    concrete_shape = []
-                    for dim in shape:
-                        if isinstance(dim, int):
-                            concrete_shape.append(dim)
-                        else:
-                            # For symbolic dimensions, use a reasonable default
-                            concrete_shape.append(1)
-                    return torch.zeros(concrete_shape, dtype=torch.float32)
+        # Try to infer shape from var's type annotation
+        if hasattr(var, "ty") and hasattr(var.ty, "shape"):
+            shape = var.ty.shape
+            if shape and len(shape) > 0:
+                # Convert symbolic shapes to concrete values
+                concrete_shape = []
+                for dim in shape:
+                    if isinstance(dim, int):
+                        concrete_shape.append(dim)
+                    else:
+                        # For symbolic dimensions, use a reasonable default
+                        concrete_shape.append(1)
+                return torch.zeros(concrete_shape, dtype=torch.float32)
 
-            if args and isinstance(args[0], torch.Tensor):
-                return torch.zeros_like(args[0])
-            # Use fallback tensor with shape inference
-            return self._create_fallback_tensor()
+        if args and isinstance(args[0], torch.Tensor):
+            return torch.zeros_like(args[0])
+        # Use fallback tensor with shape inference
         return self._create_fallback_tensor()
 
     def _convert_call(self, call: relax.Call, args: list[Any]) -> Any:
@@ -728,11 +726,11 @@ class RelaxExpressionConverter:
         for arg in packed_args:
             converted_arg = self.convert_expr(arg, args)
             if isinstance(converted_arg, str) and converted_arg.startswith("<"):
-                # Handle PrimExpr and other special cases
-                if "PrimExpr" in converted_arg:
-                    # Extract the value from PrimExpr
+                # Handle Expr and other special cases
+                if "Expr" in converted_arg:
+                    # Extract the value from Expr
                     try:
-                        # Try to get the actual value from the PrimExpr
+                        # Try to get the actual value from the Expr
                         if hasattr(arg, "value"):
                             converted_arg = arg.value
                         else:
@@ -806,7 +804,7 @@ class RelaxExpressionConverter:
             if hasattr(block, "bindings"):
                 for binding in block.bindings:
                     if isinstance(binding, relax.VarBinding):
-                        var_name = binding.var.name_hint
+                        var_name = binding.var.name
                         value = self.convert_expr(binding.value, args)
                         self.variable_map[var_name] = value
 

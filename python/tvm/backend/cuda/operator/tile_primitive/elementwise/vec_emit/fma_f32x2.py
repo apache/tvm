@@ -23,9 +23,10 @@ shape collapse as binary_f32x2.
 
 from __future__ import annotations
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir.expr import Expr
 from tvm.script import tirx as T
 
+from .._common import dtype_name, scalar_dtype
 from ..ops import VecImpl
 from .binary_f32x2 import _lane
 
@@ -33,7 +34,7 @@ from .binary_f32x2 import _lane
 def _fma_f32x2_applies(op_call, sctx, plan):
     from ...common import sm_version_ok
 
-    if plan.dst.buffer.dtype != "float32":
+    if dtype_name(plan.dst.buffer.dtype) != "float32":
         return False, "dst dtype not f32"
     if not sm_version_ok(op_call, sctx, min_version=100)[0]:
         return False, "sm version < 100"
@@ -42,23 +43,23 @@ def _fma_f32x2_applies(op_call, sctx, plan):
     a, b, c = plan.srcs
     if a.is_scalar:
         return False, "fma 'a' must be a buffer (no scalar-a packed FMA)"
-    if a.buf_region.buffer.dtype != "float32":
+    if dtype_name(a.buf_region.buffer.dtype) != "float32":
         return False, "src a dtype not f32"
     if a.index_fn is not None:
         return False, "broadcasting src a not supported"
     for s in (b, c):
         if s.is_scalar:
-            if s.scalar.dtype != "float32":
+            if scalar_dtype(s.scalar) != "float32":
                 return False, "scalar b/c dtype not f32"
         else:
-            if s.buf_region.buffer.dtype != "float32":
+            if dtype_name(s.buf_region.buffer.dtype) != "float32":
                 return False, "buffer b/c dtype not f32"
             if s.index_fn is not None:
                 return False, "broadcasting src b/c not supported"
     return True, None
 
 
-def _emit_fma_f32x2(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
+def _emit_fma_f32x2(dst_buf, dst_lane_indices, src_args, extras) -> Expr:
     a_arg, b_arg, c_arg = src_args
     rm = extras.get("rounding_mode", "rz")
     return T.ptx.fma_f32x2(

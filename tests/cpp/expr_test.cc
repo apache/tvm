@@ -20,13 +20,16 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/source_map.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
+
+#include <type_traits>
 
 TEST(Expr, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   auto z = max(x + 1 + 2, 100);
   ffi::ObjectRef tmp = z;
   PrimExpr zz = tmp.as_or_throw<PrimExpr>();
@@ -39,11 +42,42 @@ TEST(Expr, Basic) {
 TEST(Expr, VarTypeAnnotation) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x", PrimType::Float(32));
-  Var y("y", PrimType::Float(32));
+  PrimVar x("x", PrimType::Float(32));
+  PrimVar y("y", PrimType::Float(32));
   tvm::ffi::StructuralEqual checker;
   TVM_FFI_ICHECK(checker(x.ty(), y.ty()));
-  TVM_FFI_ICHECK(checker(x->type_annotation, y->type_annotation));
+  TVM_FFI_ICHECK(checker(x->ty, y->ty));
+}
+
+TEST(Expr, VarCopyHelpers) {
+  using namespace tvm;
+  using namespace tvm::tirx;
+
+  Span span(SourceName::Get("test.cc"), 1, 1, 1, 10);
+  Type pointer_type = PointerType(PrimType::Float(32), "global");
+  Var var("x", pointer_type, span);
+
+  Var renamed = var.CopyWithName("y");
+  EXPECT_FALSE(renamed.same_as(var));
+  EXPECT_EQ(renamed->name, "y");
+  EXPECT_TRUE(renamed->ty.same_as(pointer_type));
+  EXPECT_TRUE(renamed->span.same_as(span));
+
+  PrimType dtype = PrimType::Int(64);
+  Var retyped = var.CopyWithDType(dtype);
+  EXPECT_FALSE(retyped.same_as(var));
+  EXPECT_EQ(retyped->name, "x");
+  EXPECT_TRUE(retyped->ty.same_as(dtype));
+  EXPECT_TRUE(retyped->span.same_as(span));
+
+  PrimVar prim_var("i", PrimType::Int(32), span);
+  static_assert(std::is_same_v<decltype(prim_var.CopyWithDType(PrimType::Float(32))), PrimVar>);
+  PrimType prim_dtype = PrimType::Float(32);
+  PrimVar retyped_prim_var = prim_var.CopyWithDType(prim_dtype);
+  EXPECT_FALSE(retyped_prim_var.same_as(prim_var));
+  EXPECT_EQ(retyped_prim_var->name, "i");
+  EXPECT_TRUE(retyped_prim_var.ty().same_as(prim_dtype));
+  EXPECT_TRUE(retyped_prim_var->span.same_as(span));
 }
 
 TEST(Expr, PrimTypeBoolLanes) {
@@ -58,7 +92,7 @@ TEST(Expr, PrimTypeBoolLanes) {
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
-  Var x("x");
+  PrimVar x("x");
   PrimExpr z = max(x + 1 + 2, 100);
   const tirx::MaxNode* op = z.as<tirx::MaxNode>();
   TVM_FFI_ICHECK(ffi::GetRef<ffi::ObjectRef>(op).same_as(z));

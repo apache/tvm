@@ -20,6 +20,7 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm.ir import PointerType, PrimType, assert_structural_equal
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
 from tvm.tirx.layout import laneid, warpid
@@ -965,6 +966,25 @@ def test_range():
     tvm.ir.assert_structural_equal(test, expected)
 
 
+def test_shared_meta_var_alias():
+    assert I.meta_var is T.meta_var
+
+    @T.prim_func(private=True)
+    def via_ir_namespace():
+        value = I.meta_var(T.int32(1))
+        T.evaluate(value)
+
+    @T.prim_func(private=True)
+    def via_tirx_alias():
+        value = T.meta_var(T.int32(1))
+        T.evaluate(value)
+
+    assert_structural_equal(via_ir_namespace, via_tirx_alias)
+    code = via_ir_namespace.script()
+    assert "meta_var" not in code
+    assert_structural_equal(via_ir_namespace, from_source(code))
+
+
 def test_buffer():
     # fmt: off
     @T.prim_func(private=True)
@@ -1050,11 +1070,11 @@ def test_workspace_default_none():
 
 
 def test_scalar_assign_in_macro():
-    """Regression: the parser's scalar-assignment sugar (scalar = PrimExpr) must
+    """Regression: the parser's scalar-assignment sugar (scalar = Expr) must
     work in macro context via self.attr.
 
     The parser narrowed ``except Exception: pass`` around the scalar-detection
-    path. This test verifies that PrimExpr assignment to a scalar attribute in
+    path. This test verifies that Expr assignment to a scalar attribute in
     a macro still goes through buffer_store correctly.
 
     The full integration regression for the TypeError fallthrough path
@@ -1068,7 +1088,7 @@ def test_scalar_assign_in_macro():
 
         @T.inline
         def add_one(self):
-            # PrimExpr assigned to scalar via self.attr → buffer_store succeeds
+            # Expr assigned to scalar via self.attr → buffer_store succeeds
             self.counter = self.counter + T.int32(1)
 
     @T.prim_func
@@ -1230,7 +1250,7 @@ def test_annotation_syntax_comprehensive():
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
-        ptr: T.let[T.Var(name="ptr", dtype=PointerType(PrimType("uint64")))] = T.reinterpret(
+        ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("void")))] = T.reinterpret(
             "handle", smem.access_ptr("rw")
         )
         T.evaluate(ptr)
@@ -1254,7 +1274,7 @@ from tvm.script import tirx as T
 from tvm.ir import PointerType, PrimType
 @T.prim_func
 def func():
-    x: T.Var(name="x", dtype=PointerType(PrimType("float16"))) = T.int64(0)
+    x: T.Var(name="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
 """
     with pytest.raises(tvm.error.DiagnosticError):
         from_source(src_ptr)
@@ -1763,7 +1783,7 @@ def test_vector_annotation_with_python_variable_size():
 
 def test_roundtrip_tmem_decl_buffer():
     """DeclBuffer with tmem scope: data kwarg must be suppressed, allocated_addr
-    must print as PrimExpr (not Array), and scalar buffer index must not get
+    must print as Expr (not Array), and scalar buffer index must not get
     a .buffer suffix."""
 
     # fmt: off

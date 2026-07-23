@@ -41,15 +41,15 @@ void TensorNode::RegisterReflection() {
 TVM_FFI_STATIC_INIT_BLOCK() { TensorNode::RegisterReflection(); }
 
 IterVar thread_axis(Range dom, std::string tag) {
-  return IterVar(dom, Var(tag, dom.defined() ? dom->extent.ty() : PrimType::Int(32)), kThreadIndex,
-                 tag);
+  return IterVar(dom, PrimVar(tag, dom.defined() ? dom->extent.ty() : PrimType::Int(32)),
+                 kThreadIndex, tag);
 }
 
 IterVar reduce_axis(Range dom, std::string name) {
-  return IterVar(dom, Var(name, dom->extent.ty()), kCommReduce);
+  return IterVar(dom, PrimVar(name, dom->extent.ty()), kCommReduce);
 }
 
-Var var(std::string name_hint, PrimType t) { return Var(name_hint, t); }
+PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 
 // Tensor
 inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
@@ -72,8 +72,9 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
   return ProducerLoad((*this), indices);
 }
 
-PrimExpr Tensor::operator()(ffi::Array<Var> indices) const {
-  ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
+PrimExpr Tensor::operator()(ffi::Array<PrimVar> indices) const {
+  ffi::Array<PrimExpr> arr =
+      indices.Map([](const PrimVar& var) { return static_cast<PrimExpr>(var); });
   return operator()(arr);
 }
 
@@ -81,8 +82,9 @@ PrimExpr Tensor::operator()(ffi::Array<PrimExpr> indices) const {
   return IndexTensor(indices, false);
 }
 
-PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<Var> indices) const {
-  ffi::Array<PrimExpr> arr(indices.begin(), indices.end());
+PrimExpr Tensor::IndexWithNegativeIndices(ffi::Array<PrimVar> indices) const {
+  ffi::Array<PrimExpr> arr =
+      indices.Map([](const PrimVar& var) { return static_cast<PrimExpr>(var); });
   return IndexWithNegativeIndices(arr);
 }
 

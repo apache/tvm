@@ -32,13 +32,11 @@ uv pip install --upgrade \
     Pillow==12.1.1 \
     "psutil~=7.0" \
     "pytest~=8.3" \
-    "pytest-profiling~=1.8" \
     "pytest-xdist~=3.6" \
     pytest-rerunfailures==16.1 \
     "requests~=2.32" \
     "scipy~=1.13" \
     "Jinja2~=3.1" \
-    junitparser==4.0.2 \
     "six~=1.17" \
     "tornado~=6.4" \
     "ml_dtypes~=0.5" \

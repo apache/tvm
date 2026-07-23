@@ -473,6 +473,34 @@ def test_symbolic_variable_defined_by_inner_func():
     assert_structural_equal(Expected, After)
 
 
+def test_runtime_symbolic_variable_defined_by_inner_func():
+    @I.ir_module(s_tir=True)
+    class Before:
+        @R.function
+        def main(x: R.Tensor((4,), "float32")):
+            @R.function
+            def from_param(y: R.Tensor(("n",), "float32")):
+                n = T.int64()
+                z = R.ones((n,), "float32")
+                return z
+
+            @R.function
+            def from_match_cast(y: R.Tensor(ndim=1, dtype="float32")):
+                n = T.int64()
+                y2 = R.match_cast(y, R.Tensor((n,), "float32"))
+                z = R.ones((n,), "float32")
+                return z
+
+            a = from_param(x)
+            b = from_match_cast(x)
+            return a, b
+
+    After = transform.LambdaLift()(Before)
+
+    assert relax.analysis.check_well_formed(After)
+    assert "R.make_closure" not in After.script()
+
+
 def test_symbolic_variable_defined_by_outer_func():
     @I.ir_module(s_tir=True)
     class Before:

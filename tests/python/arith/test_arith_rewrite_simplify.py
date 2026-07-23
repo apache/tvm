@@ -57,7 +57,7 @@ class TestCase:
     def constraint(self):
         if self.preconditions is None:
             return True
-        elif isinstance(self.preconditions, tvm.ir.PrimExpr):
+        elif tvm.ir.is_prim_expr(self.preconditions):
             return self.preconditions
         else:
             return tvm.tirx.all(*self.preconditions)
@@ -749,6 +749,13 @@ class TestFloorModPadded(BaseCompare):
         TestCase(flm(x - flm(x, -y), y), 0),
         TestCase(flm(x + flm(-x, y), y), 0),
     )
+
+
+def test_uint_floormod_const_fold():
+    analyzer = tvm.arith.Analyzer()
+    expr = flm(8192, T.uint32(128))
+    tvm.ir.assert_structural_equal(expr, T.uint32(0))
+    assert analyzer.can_prove_equal(expr, 0)
 
 
 class TestMinIndex(BaseCompare):

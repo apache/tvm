@@ -283,7 +283,6 @@ dtype = tvm.testing.parameter("int32", "int64")
 def test_clz(target, dtype):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
-    dev = tvm.device(target["kind"] if isinstance(target, dict) else target)
     target = tvm.target.Target(target)
     if (
         target.kind.name == "vulkan"
@@ -318,19 +317,26 @@ def test_clz(target, dtype):
     # Build from scheduled TIR
     func = tvm.compile(sch.mod, target=target)
 
-    n = 10
-    highs = [10, 100, 1000, 10000, 100000, 1000000]
+    def run_and_check():
+        dev = tvm.device_from_target(target)
+        n = 10
+        highs = [10, 100, 1000, 10000, 100000, 1000000]
 
-    if dtype == "int64":
-        highs.append((1 << 63) - 1)
+        if dtype == "int64":
+            highs.append((1 << 63) - 1)
 
-    for high in highs:
-        a_np = np.random.randint(1, high=high, size=(n,), dtype=dtype)
-        a = tvm.runtime.tensor(a_np, dev)
-        b = tvm.runtime.tensor(np.zeros((n,)).astype("int32"), dev)
-        func(a, b)
-        ref = clz_np(a_np, dtype)
-        np.testing.assert_equal(b.numpy(), ref)
+        for high in highs:
+            a_np = np.random.randint(1, high=high, size=(n,), dtype=dtype)
+            a = tvm.runtime.tensor(a_np, dev)
+            b = tvm.runtime.tensor(np.zeros((n,)).astype("int32"), dev)
+            func(a, b)
+            ref = clz_np(a_np, dtype)
+            np.testing.assert_equal(b.numpy(), ref)
+
+    if target.kind.name == "llvm":
+        run_and_check()
+    else:
+        tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 @tvm.script.ir_module
@@ -351,7 +357,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         B_1 = T.match_buffer(
             B,
@@ -360,7 +365,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         C_1 = T.match_buffer(
             C,
@@ -369,7 +373,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         d_1 = T.match_buffer(
             d,
@@ -378,7 +381,6 @@ class Module:
             elem_offset=0,
             align=64,
             offset_factor=1,
-            buffer_type="auto",
         )
         # body
         for i in T.serial(0, n):

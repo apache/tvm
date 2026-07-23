@@ -129,7 +129,7 @@ def test_sync_bind():
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
-            T.reinterpret("handle", T.uint64(0)),
+            T.int32(0),
         ):
             T.tvm_thread_allreduce(
                 T.uint32(1),
@@ -166,7 +166,7 @@ def test_sync_bind():
         T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
-            T.reinterpret("handle", T.uint64(0)),
+            T.int32(0),
         )
         T.tvm_thread_allreduce(
             T.uint32(1),

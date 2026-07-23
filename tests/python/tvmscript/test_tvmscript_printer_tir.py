@@ -476,13 +476,19 @@ a = T.float32()
 a""",
     )
 
-
-def test_size_var():
-    a = tirx.SizeVar("a", "float32")
+    a = tirx.Var("a", "handle")
     _assert_print(
         a,
         """
-a = T.float32(is_size_var=True)
+a = T.handle()
+a""",
+    )
+
+    a = tirx.Var("a", ir.PointerType(ir.PrimType("void"), "shared"))
+    _assert_print(
+        a,
+        """
+a = T.handle(storage_scope="shared")
 a""",
     )
 
@@ -725,6 +731,12 @@ def test_pointer_type():
     obj = ir.PointerType(ir.PrimType("int32"), "global")
     _assert_print(obj, 'T.handle("int32", "global")')
 
+    obj = ir.PointerType(ir.PrimType("void"))
+    _assert_print(obj, "T.handle")
+
+    obj = ir.PointerType(ir.PrimType("void"), "shared")
+    _assert_print(obj, 'T.handle(storage_scope="shared")')
+
 
 def test_tuple_type():
     obj = ir.TupleType([ir.PrimType("float32"), ir.PrimType("int32")])
@@ -898,7 +910,7 @@ def test_return_statement():
 
     @T.prim_func(s_tir=True)
     def func():
-        T.evaluate(T.ret(5))
+        return T.int32(5)
 
     expected_output = """
 # from tvm.script import tirx as T
@@ -909,6 +921,7 @@ def func():
     return 5
     """
     _assert_print(func, expected_output)
+    assert func.script(verbose_expr=True, syntax_sugar=False).strip() == expected_output.strip()
 
 
 CUSTOM_FLOAT_DTYPES = [

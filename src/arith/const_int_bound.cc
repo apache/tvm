@@ -92,8 +92,7 @@ struct ConstIntBoundAnalyzer::Entry {
   }
 };
 
-class ConstIntBoundAnalyzer::Impl
-    : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const PrimExpr&)> {
+class ConstIntBoundAnalyzer::Impl : public ExprFunctor<ConstIntBoundAnalyzer::Entry(const Expr&)> {
  public:
   explicit Impl(AnalyzerObj* parent) : parent_(parent) {}
   /*! \brief additional bound info about expr in bound */
@@ -151,30 +150,31 @@ class ConstIntBoundAnalyzer::Impl
 
   // Override visitor behaviors
   Entry VisitExprDefault_(const ffi::Object* op) final {
-    return Everything(static_cast<const PrimExprNode*>(op)->ty());
+    return Everything(static_cast<const ExprNode*>(op)->ty.as_or_throw<PrimType>());
   }
 
-  Entry VisitExpr(const PrimExpr& expr) final {
+  Entry VisitExpr(const Expr& expr) final {
+    PrimExpr prim_expr = expr.as_or_throw<PrimExpr>();
     Entry res = ExprFunctor::VisitExpr(expr);
     tirx::ExprDeepEqual equal;
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {
-      if (equal(expr, info.expr)) {
+      if (equal(prim_expr, info.expr)) {
         res = Intersect(res, info.bound);
       }
     }
     if (bound_) {
-      auto val = bound_->find(expr);
+      auto val = bound_->find(prim_expr);
       if (val != bound_->end()) {
-        auto everything = Everything(expr->ty());
+        auto everything = Everything(prim_expr.ty());
         TVM_FFI_ICHECK(
             (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
              val->second->max_value == everything.max_value))
             << "Detected bound for " << expr << "conflicts with memorization";
       }
-      (*bound_)[expr] = ConstIntBound(res.min_value, res.max_value);
+      (*bound_)[prim_expr] = ConstIntBound(res.min_value, res.max_value);
     }
     return res;
   }
@@ -203,7 +203,7 @@ class ConstIntBoundAnalyzer::Impl
       a = VisitExpr(op->value);
     }
 
-    Entry b = Everything(op->ty());
+    Entry b = Everything(op->ty.as_or_throw<PrimType>());
     return Intersect(a, b);
   }
 
@@ -263,7 +263,7 @@ class ConstIntBoundAnalyzer::Impl
   Entry VisitExpr_(const DivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
-    return HandleDivision(a, b, op->ty(), InfAwareDiv);
+    return HandleDivision(a, b, op->ty.as_or_throw<PrimType>(), InfAwareDiv);
   }
 
   Entry VisitExpr_(const ModNode* op) final {
@@ -273,15 +273,52 @@ class ConstIntBoundAnalyzer::Impl
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
 
+      // Interval-based bound of the truncated mod.
+      Entry interval_bound;
+      if (a.min_value >= 0) {
+        // 0 <= [a_min, a_max] < b_min
+        if (a.max_value < b.min_value) {
+          interval_bound = a;
+        } else {
+          // other case, we can get close to 0
+          interval_bound = MakeBound(0, std::min(a.max_value, b_max_cap));
+        }
+      } else if (a.max_value < 0) {
+        // The dividend is entirely negative. The truncated result keeps the
+        // sign of the dividend, so it is in [-(b-1), 0]. If additionally
+        // |a| < b for every value in range (a.min_value > -b.min_value),
+        // no reduction happens and the result equals a, giving the tight
+        // [a.min, a.max]. This mirrors the non-negative "return a" case
+        // above; without it the upper bound would be the loose 0.
+        if (a.min_value > -b.min_value) {
+          interval_bound = a;
+        } else {
+          interval_bound = MakeBound(std::max(a.min_value, -b_max_cap), 0);
+        }
+      } else {
+        interval_bound = MakeBound(std::max(a.min_value, -b_max_cap),
+                                   std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
+      }
+
       // Try to get tighter bounds using modular set information
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
         int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
-        // If gcd_coeff_mod > 1, we can get tighter bounds
-        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
-        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        // If gcd_coeff_mod > 1, we can get tighter bounds.
+        // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
+        // a == mod_a->base (mod gcd_coeff_mod). Truncated mod keeps that
+        // residue on the non-negative side and mirrors it on the negative
+        // side, so with base_mod = mod_a->base % gcd_coeff_mod (normalized
+        // to [0, gcd_coeff_mod)):
+        //   non-negative results are in {base_mod, base_mod + gcd, ...,
+        //     modulus - gcd + base_mod}
+        //   negative results (only if a can be negative) are the mirrored
+        //     set {-(modulus - gcd + neg_base), ..., -neg_base} with
+        //     neg_base = (gcd - base_mod) % gcd.
+        // The modular bound is intersected with the interval bound so a
+        // tight dividend range is never lost.
         //
         // Example: expr = (bx * 2048 + tx * 16) % 7168
         //          where bx in [0, 3584), tx in [0, 128)
@@ -291,35 +328,38 @@ class ConstIntBoundAnalyzer::Impl
         //          Without this optimization: bound = [0, 7167]
         //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
-          int64_t base_mod = mod_a->base % modulus;
-          if (base_mod < 0) base_mod += modulus;
+          int64_t base_mod = mod_a->base % gcd_coeff_mod;
+          if (base_mod < 0) base_mod += gcd_coeff_mod;
           int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
-          if (tight_max >= modulus) tight_max -= modulus;
-          return MakeBound(base_mod, tight_max);
+          Entry modular_bound;
+          if (a.min_value >= 0) {
+            modular_bound = MakeBound(base_mod, tight_max);
+          } else {
+            int64_t neg_base = (gcd_coeff_mod - base_mod) % gcd_coeff_mod;
+            int64_t tight_min = -(modulus - gcd_coeff_mod + neg_base);
+            if (a.max_value < 0) {
+              modular_bound = MakeBound(tight_min, -neg_base);
+            } else {
+              modular_bound = MakeBound(tight_min, tight_max);
+            }
+          }
+          return Intersect(interval_bound, modular_bound);
         }
       }
 
-      if (a.min_value >= 0) {
-        // 0 <= [a_min, a_max] < b_min
-        if (a.max_value < b.min_value) return a;
-        // other case, we can get close to 0
-        return MakeBound(0, std::min(a.max_value, b_max_cap));
-      } else {
-        return MakeBound(std::max(a.min_value, -b_max_cap),
-                         std::min(std::max(a.max_value, (int64_t)0), b_max_cap));
-      }
+      return interval_bound;
     } else {
       TVM_FFI_ICHECK(!b.is_const(0)) << "mod by zero";
       // mod by negative value is rare,
       // and we just use the simpliest rule.
-      return Everything(op->ty());
+      return Everything(op->ty.as_or_throw<PrimType>());
     }
   }
 
   Entry VisitExpr_(const FloorDivNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = AssumeNoZeroDivisor(VisitExpr(op->b));
-    return HandleDivision(a, b, op->ty(), InfAwareFloorDiv);
+    return HandleDivision(a, b, op->ty.as_or_throw<PrimType>(), InfAwareFloorDiv);
   }
 
   Entry VisitExpr_(const FloorModNode* op) final {
@@ -345,15 +385,38 @@ class ConstIntBoundAnalyzer::Impl
 
     if (b.min_value > 0) {
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
+
+      // Interval-based bound of the floor mod (result is always in
+      // [0, b_max_cap] for a positive divisor).
+      Entry interval_bound;
+      if (a.min_value >= 0) {
+        // 0 <= [a_min, a_max] < b_min
+        if (a.max_value < b.min_value) {
+          interval_bound = a;
+        } else {
+          // other case, we can get close to 0
+          interval_bound = MakeBound(0, std::min(a.max_value, b_max_cap));
+        }
+      } else {
+        interval_bound = MakeBound(0, b_max_cap);
+      }
+
       // Try to get tighter bounds using modular set information
       if (parent_ && b.min_value == b.max_value) {
         ModularSet mod_a = parent_->modular_set(op->a);
         int64_t modulus = b.min_value;
         int64_t gcd_coeff_mod = ZeroAwareGCD(mod_a->coeff, modulus);
 
-        // If gcd_coeff_mod > 1, we can get tighter bounds
-        // The result will be of the form gcd_coeff_mod * k + (base % modulus)
-        // where k ranges to cover [0, modulus - gcd_coeff_mod]
+        // If gcd_coeff_mod > 1, we can get tighter bounds.
+        // Since gcd_coeff_mod divides both mod_a->coeff and modulus, we know
+        // a == mod_a->base (mod gcd_coeff_mod), and therefore
+        // floormod(a, modulus) == base_mod (mod gcd_coeff_mod), where
+        // base_mod = mod_a->base % gcd_coeff_mod (normalized to
+        // [0, gcd_coeff_mod)). The result (always in [0, modulus)) is thus
+        // in {base_mod, base_mod + gcd_coeff_mod, ...,
+        //     modulus - gcd_coeff_mod + base_mod}.
+        // The modular bound is intersected with the interval bound so a
+        // tight dividend range is never lost.
         //
         // Example: expr = (bx * 2048 + tx * 16) % 7168
         //          where bx in [0, 3584), tx in [0, 128)
@@ -363,29 +426,21 @@ class ConstIntBoundAnalyzer::Impl
         //          Without this optimization: bound = [0, 7167]
         //          With this optimization: bound = [0, 7152]
         if (gcd_coeff_mod > 1) {
-          int64_t base_mod = mod_a->base % modulus;
-          if (base_mod < 0) base_mod += modulus;
+          int64_t base_mod = mod_a->base % gcd_coeff_mod;
+          if (base_mod < 0) base_mod += gcd_coeff_mod;
           int64_t tight_max = modulus - gcd_coeff_mod + base_mod;
-          if (tight_max >= modulus) tight_max -= modulus;
-          return MakeBound(base_mod, tight_max);
+          return Intersect(interval_bound, MakeBound(base_mod, tight_max));
         }
       }
 
-      if (a.min_value >= 0) {
-        // 0 <= [a_min, a_max] < b_min
-        if (a.max_value < b.min_value) return a;
-        // other case, we can get close to 0
-        return MakeBound(0, std::min(a.max_value, b_max_cap));
-      } else {
-        return MakeBound(0, b_max_cap);
-      }
+      return interval_bound;
     } else {
       TVM_FFI_ICHECK(!b.is_const(0)) << "floormod by zero";
       int64_t b_min_cap = InfAwareAdd(b.min_value, 1);
       int64_t b_max_cap = InfAwareAdd(b.max_value, -1);
       return Intersect(MakeBound(std::min(static_cast<int64_t>(0), b_min_cap),
                                  std::max(static_cast<int64_t>(0), b_max_cap)),
-                       Everything(op->ty()));
+                       Everything(op->ty.as_or_throw<PrimType>()));
     }
   }
 
@@ -424,7 +479,7 @@ class ConstIntBoundAnalyzer::Impl
     } else if (op->op.same_as(tirx::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else {
-      return Everything(op->ty());
+      return Everything(op->ty.as_or_throw<PrimType>());
     }
   }
 
@@ -434,43 +489,33 @@ class ConstIntBoundAnalyzer::Impl
     if (it != var_map_.end()) {
       return it->second;
     } else {
-      return Everything(op->ty());
-    }
-  }
-
-  Entry VisitExpr_(const SizeVarNode* op) final {
-    SizeVar v = ffi::GetRef<SizeVar>(op);
-    auto it = var_map_.find(v);
-    if (it != var_map_.end()) {
-      return it->second;
-    } else {
-      return MakeBound(0, kPosInf);
+      return Everything(op->ty.as_or_throw<PrimType>());
     }
   }
 
   Entry VisitLeftShift(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0]);
-    Entry b = VisitExpr(op->args[1]);
+    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
 
     if (a.min_value < 0 || b.min_value < 0) {
       // If either operand can negative, we may run into undefined
       // behavior for some targets.  In these cases, avoid making any
       // assumptions about the result.
-      return Everything(op->ty());
+      return Everything(op->ty.as_or_throw<PrimType>());
     }
 
     return BinaryOpBoundary(a, b, InfAwareLeftShift);
   }
 
   Entry VisitRightShift(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0]);
-    Entry b = VisitExpr(op->args[1]);
+    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     return BinaryOpBoundary(a, b, InfAwareRightShift);
   }
 
   Entry VisitBitwiseAnd(const CallNode* op) {
-    Entry a = VisitExpr(op->args[0]);
-    Entry b = VisitExpr(op->args[1]);
+    Entry a = VisitExpr(op->args[0].as_or_throw<PrimExpr>());
+    Entry b = VisitExpr(op->args[1].as_or_throw<PrimExpr>());
     // handle positive index case.
     if (a.min_value >= 0 && b.min_value >= 0) {
       return MakeBound(0, std::min(a.max_value, b.max_value));
@@ -481,7 +526,7 @@ class ConstIntBoundAnalyzer::Impl
       if (a.min_value >= 0) {
         return MakeBound(0, a.max_value);
       }
-      return Everything(op->ty());
+      return Everything(op->ty.as_or_throw<PrimType>());
     }
   }
 
@@ -801,13 +846,13 @@ class ConstIntBoundAnalyzer::Impl
   static ffi::Optional<PrimExpr> FindCeilLog2Arg(const CastNode* op) {
     static const Op& ceil_op = Op::Get("tirx.ceil");
     static const Op& log2_op = Op::Get("tirx.log2");
-    if (op->ty().code() == DLDataTypeCode::kDLInt) {
+    if (op->ty.as_or_throw<PrimType>().code() == DLDataTypeCode::kDLInt) {
       if (auto as_call = op->value.as<CallNode>()) {
         if (as_call->op.same_as(ceil_op)) {
-          PrimExpr ceil_arg = as_call->args[0];
+          PrimExpr ceil_arg = as_call->args[0].as_or_throw<PrimExpr>();
           if (auto arg_call = ceil_arg.as<CallNode>()) {
             if (arg_call->op.same_as(log2_op)) {
-              PrimExpr log_arg = arg_call->args[0];
+              PrimExpr log_arg = arg_call->args[0].as_or_throw<PrimExpr>();
               return log_arg;
             }
           }

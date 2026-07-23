@@ -232,17 +232,20 @@ class KillInserter : public ExprMutator {
     if (auto it = last_usage_.find(binding->var.get()); it != last_usage_.end()) {
       static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
       for (const auto& tensor_obj : it->second.tensors) {
-        builder_->Emit(Call(mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}),
+                       /*name_hint=*/"_");
       }
 
       static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
       for (const VarNode* storage_obj : it->second.storage) {
-        builder_->Emit(Call(mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}),
+                       /*name_hint=*/"_");
       }
 
       static const Op& vm_kill_object = Op::Get("relax.vm.kill_object");
       for (const VarNode* obj : it->second.objects) {
-        builder_->Emit(Call(vm_kill_object, {ffi::GetRef<Expr>(obj)}), /*name_hint=*/"_");
+        builder_->Emit(Call(Type::Missing(), vm_kill_object, {ffi::GetRef<Expr>(obj)}),
+                       /*name_hint=*/"_");
       }
     }
   }

@@ -56,65 +56,66 @@ class ReturnRewriter : public StmtMutator {
     return ret;
   }
 
-  Stmt VisitStmt_(const EvaluateNode* node) override {
-    Stmt ret = StmtMutator::VisitStmt_(node);
-    const EvaluateNode* eval = ret.as<EvaluateNode>();
-    TVM_FFI_ICHECK(eval);
-    if (const CallNode* call = eval->value.as<CallNode>()) {
-      if (call->op.same_as(builtin::ret())) {
-        TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "tirx.ret cannot be used in parallel scope.";
-        TVM_FFI_ICHECK_EQ(call->args.size(), 1) << "tirx.ret expect a single argument.";
-        ret = WriteToOut(call->args[0]);
-      }
-    }
-    return ret;
+  Stmt VisitStmt_(const ReturnNode* node) override {
+    TVM_FFI_ICHECK_EQ(in_parallel_, 0) << "Return cannot be used in parallel scope.";
+    return WriteToOut(this->VisitExpr(node->value));
   }
 
  private:
   struct ConvertedInfo {
     int type_index{-1};
-    PrimExpr expr;
+    Expr expr;
   };
 
-  ConvertedInfo ConvertForFFI(PrimExpr val) {
+  ConvertedInfo ConvertForFFI(Expr val) {
     ConvertedInfo info;
 
     // convert val's data type to FFI data type, return type code
-    PrimType dtype = val.ty();
+    if (val->ty.as<PointerTypeNode>()) {
+      info.type_index = ffi::TypeIndex::kTVMFFIOpaquePtr;
+      info.expr = val;
+      return info;
+    }
+
+    PrimExpr prim_val = val.as_or_throw<PrimExpr>();
+    PrimType dtype = prim_val.ty();
     if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
       info.type_index = ffi::TypeIndex::kTVMFFIBool;
-      info.expr = Cast(PrimType::Int(64), val);
+      info.expr = Cast(PrimType::Int(64), prim_val);
 
     } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
       info.type_index = ffi::TypeIndex::kTVMFFIInt;
-      info.expr = Cast(PrimType::Int(64), val);
+      info.expr = Cast(PrimType::Int(64), prim_val);
     } else if (dtype.code() == DLDataTypeCode::kDLFloat) {
       info.type_index = ffi::TypeIndex::kTVMFFIFloat;
-      info.expr = Cast(PrimType::Float(64), val);
+      info.expr = Cast(PrimType::Float(64), prim_val);
     } else if (dtype.IsVoid()) {
       info.type_index = ffi::TypeIndex::kTVMFFINone;
-      info.expr = val;
+      info.expr = prim_val;
     } else {
       TVM_FFI_THROW(InternalError) << "data type " << dtype->dtype << " not supported yet";
     }
     return info;
   }
 
-  Stmt WriteToOut(PrimExpr val) {
+  Stmt WriteToOut(Expr val) {
     auto info = ConvertForFFI(val);
     Stmt store_tindex = tirx::Evaluate(
-        tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                   {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
-                    IntImm::Int32(info.type_index)}));
-    Stmt store_zero_padding = tirx::Evaluate(
-        tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                   {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding),
-                    IntImm::Int32(0)}));
+        Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+             {ret_var_, IntImm::Int32(0), IntImm::Int32(tirx::builtin::kTVMFFIAnyTypeIndex),
+              IntImm::Int32(info.type_index)})
+            .as_or_throw<PrimExpr>());
+    Stmt store_zero_padding =
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+                            {ret_var_, IntImm::Int32(0),
+                             IntImm::Int32(tirx::builtin::kTVMFFIAnyZeroPadding), IntImm::Int32(0)})
+                           .as_or_throw<PrimExpr>());
     Stmt store_val =
-        tirx::Evaluate(tirx::Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
-                                  {ret_var_, IntImm::Int32(0),
-                                   IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr}));
-    Stmt ret_zero = Evaluate(tvm::ret(0));
+        tirx::Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
+                            {ret_var_, IntImm::Int32(0),
+                             IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
+                           .as_or_throw<PrimExpr>());
+    Stmt ret_zero = Return(IntImm::Int32(0));
     return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
 
@@ -139,22 +140,22 @@ class SubroutineCallRewriter : public StmtExprMutator {
   explicit SubroutineCallRewriter(const ffi::Map<GlobalVar, ffi::String>& packed_func_methods)
       : packed_func_methods(packed_func_methods) {}
 
-  PrimExpr VisitExpr_(const CallNode* op) override {
+  Expr VisitExpr_(const CallNode* op) override {
     auto node = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     if (auto* gvar_ptr = node->op.as<GlobalVarNode>()) {
       auto gvar = ffi::GetRef<GlobalVar>(gvar_ptr);
       if (auto symbol = packed_func_methods.Get(gvar)) {
-        ffi::Array<PrimExpr> cpacked_args;
+        ffi::Array<Expr> cpacked_args;
         cpacked_args.push_back(tirx::StringImm(symbol.value()));
-        for (auto arg : node->args) {
+        for (const Expr& arg : node->args) {
           cpacked_args.push_back(arg);
         }
 
         // push an empty handle to be compatible with current cpacked convention
         cpacked_args.push_back(tirx::ConstHandle(0));
         made_change_ = true;
-        return tirx::Call(node.ty(), tirx::builtin::tvm_call_cpacked(), cpacked_args);
+        return Call(node->ty, tirx::builtin::tvm_call_cpacked(), cpacked_args);
       }
     }
 
@@ -219,18 +220,18 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   const Stmt nop = Evaluate(0);
 
   // Data field definitions
-  Var v_self_handle("self_handle", PrimType::Handle());
-  Var v_packed_args("args", PrimType::Handle());
+  Var v_self_handle("self_handle", PointerType::VoidPointerTy());
+  Var v_packed_args("args", PointerType::VoidPointerTy());
   Var v_num_packed_args("num_args", PrimType::Int(32));
-  Var v_result("result", PointerType(PrimType::Void()));
+  Var v_result("result", PointerType::VoidPointerTy());
 
   // The device context
-  Var device_id("dev_id");
+  PrimVar device_id("dev_id");
   IntImm device_type(PrimType::Int(32), target_device_type);
 
   // Create TVMFFIABIBuilder and decode all packed args
   TVMFFIABIBuilder binder(name_hint, func_ptr->params, func_ptr->buffer_map, v_packed_args,
-                          v_num_packed_args, device_type, device_id);
+                          v_num_packed_args, device_type, device_id.as_or_throw<PrimExpr>());
   binder.DecodeAllParams();
 
   auto result = binder.Finalize();
@@ -248,23 +249,24 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                       ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ReturnRewriter(v_result)(func_ptr->body);
-  body = AttrStmt(IntImm::Int32(0), attr::compute_scope, StringImm(name_hint + "_compute_"), body);
+  body = AttrStmt(0, attr::compute_scope, StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (need_set_device) {
     ffi::Any node = ffi::String("default");
-    seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
+    seq_check.push_back(AttrStmt(node, attr::device_id, device_id.as_or_throw<PrimExpr>(), nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
-      Stmt set_device =
-          Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                        {StringImm(runtime::symbol::tvm_set_device), device_type, device_id}));
+      Stmt set_device = Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
+                                      {StringImm(runtime::symbol::tvm_set_device), device_type,
+                                       device_id.as_or_throw<PrimExpr>()})
+                                     .as_or_throw<PrimExpr>());
       body = SeqStmt({set_device, body});
     }
   }
 
   // Return error code of zero on success
-  body = SeqStmt({body, Evaluate(ret(IntImm::Int32(0)))});
+  body = SeqStmt({body, Return(IntImm::Int32(0))});
 
   body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
                     std::move(result.decl_buffers)},

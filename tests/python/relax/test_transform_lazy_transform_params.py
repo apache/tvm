@@ -16,7 +16,6 @@
 # under the License.
 # ruff: noqa: F841
 import numpy as np
-import pytest
 
 import tvm
 import tvm.testing
@@ -423,8 +422,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             param = params[0]
             transformed = R.call_tir(
                 cls.slice_buffer,
-                (param,),
-                tir_vars=[slice_index],
+                (param, slice_index),
                 out_ty=R.Tensor((16,), dtype="float32"),
             )
             output = (transformed,)
@@ -433,8 +431,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True, s_tir=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            Output: T.Buffer(16, "float32"),
             slice_index: T.int64,
+            Output: T.Buffer(16, "float32"),
         ):
             for i in T.grid(16):
                 with T.sblock("slice_buffer"):
@@ -456,8 +454,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             param_m: R.Tensor((16, 16), dtype="float32") = gv
             transformed = R.call_tir(
                 cls.slice_buffer,
-                (param_m,),
-                tir_vars=[slice_index],
+                (param_m, slice_index),
                 out_ty=R.Tensor((16,), dtype="float32"),
             )
             unused_1_ = R.vm.kill_object(param_m)
@@ -469,8 +466,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True, s_tir=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            Output: T.Buffer(16, "float32"),
             slice_index: T.int64,
+            Output: T.Buffer(16, "float32"),
         ):
             for i in T.grid(16):
                 with T.sblock("slice_buffer"):
@@ -618,7 +615,7 @@ def test_output_with_use_site():
 
 def test_output():
     target = "llvm"
-    dev = tvm.device(target)
+    dev = tvm.cpu()
 
     @I.ir_module(s_tir=True)
     class TransformModule:
@@ -744,53 +741,6 @@ def test_params_without_tuple():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
-def test_retain_before_num_input():
-    """Only lazily load parameters after num_input"""
-
-    @I.ir_module(s_tir=True)
-    class Before:
-        @R.function
-        def transform_params(
-            relax_rank: R.Prim(value="rank"),
-            A: R.Tensor([16, 16], "float32"),
-            B: R.Tensor([16, 16], "float32"),
-        ):
-            R.func_attr({"num_input": 1})
-            rank = T.int64()
-            A_sharded = R.strided_slice(
-                A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
-            )
-            B_sharded = R.strided_slice(
-                B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
-            )
-            return (A_sharded, B_sharded)
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @R.function(pure=False)
-        def transform_params(relax_rank: R.Prim(value="rank")):
-            R.func_attr({"num_input": 1})
-            rank = T.int64()
-
-            A = R.call_packed("get_item", R.prim_value(0), ty_args=[R.Any])
-            A = R.match_cast(A, R.Tensor([16, 16], "float32"))
-            A_sharded = R.strided_slice(
-                A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
-            )
-
-            B = R.call_packed("get_item", R.prim_value(1), ty_args=[R.Any])
-            B = R.match_cast(B, R.Tensor([16, 16], "float32"))
-            B_sharded = R.strided_slice(
-                B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
-            )
-
-            return (A_sharded, B_sharded)
-
-    After = LazyTransformParams(fset_item=None)(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
 def test_params_without_tuple_with_symbolic_var():
     @I.ir_module(s_tir=True)
     class Before:
@@ -833,103 +783,6 @@ def test_get_item_callback():
             B = R.match_cast(B, R.Tensor([16, 16], "float32"))
             D = R.add(C, B)
             return (D, B)
-
-    After = relax.transform.LazyGetInput()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
-
-
-@pytest.mark.xfail(reason="value-bearing R.Prim annotations were removed")
-def test_get_item_callback_num_attrs():
-    @I.ir_module(s_tir=True)
-    class Before:
-        @R.function(pure=False)
-        def transform_params(
-            rank_arg: R.Prim(value="rank"),
-            world_size_arg: R.Prim(value="world_size"),
-            weight_A: R.Tensor([16, 64], "float32"),
-            weight_B: R.Tensor([1024, 2048], "float32"),
-        ):
-            R.func_attr({"num_input": 2})
-
-            rank = T.int64()
-            world_size = T.int64()
-
-            _ = R.assert_op(
-                R.prim_value(16 % world_size == 0),
-                [R.prim_value(16), R.prim_value(world_size)],
-                format=(
-                    "World size must evenly divide A.shape[0] ({}), but received world size of {}."
-                ),
-            )
-            weight_A = R.strided_slice(
-                weight_A,
-                axes=[0],
-                begin=[rank * 16 // world_size],
-                end=[(rank + 1) * 16 // world_size],
-            )
-
-            _ = R.assert_op(
-                R.prim_value(2048 % world_size == 0),
-                [R.prim_value(2048), R.prim_value(world_size)],
-                format=(
-                    "World size must evenly divide B.shape[1] ({}), but received world size of {}."
-                ),
-            )
-            weight_B = R.strided_slice(
-                weight_B,
-                axes=[1],
-                begin=[rank * 2048 // world_size],
-                end=[(rank + 1) * 2048 // world_size],
-            )
-
-            return (weight_A, weight_B)
-
-    @I.ir_module(s_tir=True)
-    class Expected:
-        @R.function(pure=False)
-        def transform_params(
-            rank_arg: R.Prim(value="rank"),
-            world_size_arg: R.Prim(value="world_size"),
-            fget_item: R.Callable([R.Prim("int64"), R.Any], R.Any),
-        ):
-            R.func_attr({"num_input": 3})
-
-            rank = T.int64()
-            world_size = T.int64()
-
-            _ = R.assert_op(
-                R.prim_value(16 % world_size == 0),
-                [R.prim_value(16), R.prim_value(world_size)],
-                format=(
-                    "World size must evenly divide A.shape[0] ({}), but received world size of {}."
-                ),
-            )
-            weight_A = fget_item(R.prim_value(0), R.str("weight_A"))
-            weight_A = R.match_cast(weight_A, R.Tensor([16, 64], "float32"))
-            weight_A = R.strided_slice(
-                weight_A,
-                axes=[0],
-                begin=[rank * 16 // world_size],
-                end=[(rank + 1) * 16 // world_size],
-            )
-
-            _ = R.assert_op(
-                R.prim_value(2048 % world_size == 0),
-                [R.prim_value(2048), R.prim_value(world_size)],
-                format=(
-                    "World size must evenly divide B.shape[1] ({}), but received world size of {}."
-                ),
-            )
-            weight_B = fget_item(R.prim_value(1), R.str("weight_B"))
-            weight_B = R.match_cast(weight_B, R.Tensor([1024, 2048], "float32"))
-            weight_B = R.strided_slice(
-                weight_B,
-                axes=[1],
-                begin=[rank * 2048 // world_size],
-                end=[(rank + 1) * 2048 // world_size],
-            )
-
-            return (weight_A, weight_B)
 
     After = relax.transform.LazyGetInput()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -1109,7 +962,7 @@ def test_set_output_callback_with_inline_const():
     """fset_output may be called for inline objects
 
     The return tuple may contain inline leaf nodes, such as
-    `PrimExpr` or `relax.Constant`.  A call to `fset_output`
+    `Expr` or `relax.Constant`.  A call to `fset_output`
     must be generated, even though they do not have an associated
     `relax.VarBinding`.
     """

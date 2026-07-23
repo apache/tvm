@@ -143,8 +143,8 @@ ScopeBlockLoopInfo GetScopeBlockLoopInfo(const SBlock& scope_block) {
           vars = &result.non_spatial_vars;
         }
         PostOrderVisit(iter_value, [vars](const ffi::ObjectRef& obj) {
-          if (const VarNode* var = obj.as<VarNode>()) {
-            vars->insert(var);
+          if (auto var = obj.as<PrimVar>()) {
+            vars->insert(var.value().get());
           }
         });
       }
@@ -316,7 +316,7 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
                                  const StmtSRef& scope_root_sref) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   // Cond 1. The block has the `init` statement.
-  if (!block->init.defined()) {
+  if (!block->init.has_value()) {
     return 1;
   }
   // Cond 2. All the block bindings are quasi-affine expressions.
@@ -560,9 +560,13 @@ bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& l
   if (loop_var_ranges.empty()) {
     return true;
   }
+  ffi::Map<PrimVar, Range> primitive_loop_var_ranges;
+  for (const auto& [var, range] : loop_var_ranges) {
+    primitive_loop_var_ranges.Set(var.as_or_throw<PrimVar>(), range);
+  }
   auto res = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
-      /*input_iters=*/loop_var_ranges,
+      /*input_iters=*/primitive_loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*check_level=*/arith::IterMapLevel::Surjective,
       /*analyzer=*/ffi::GetRef<arith::Analyzer>(analyzer),
@@ -586,7 +590,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
     explicit NotAffineBindingError(IRModule mod, SBlock block,
                                    ffi::Optional<StmtSRef> high_exclusive)
         : mod_(std::move(mod)), block_(std::move(block)) {
-      if (high_exclusive.defined()) {
+      if (high_exclusive.has_value()) {
         high_exclusive_loop_ = high_exclusive.value()->StmtAs<ForNode>();
       }
     }
@@ -622,7 +626,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, SBlock block,
     // check block cached state for global affineness
     return;
   }
-  if (block_sref->parent && high_exclusive.defined()) {
+  if (block_sref->parent && high_exclusive.has_value()) {
     // if it is not of global affine binding, check affineness under high_exclusive,
     arith::Analyzer analyzer;
     ffi::Map<Var, Range> dom_map =
@@ -672,7 +676,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
                                               const runtime::StorageScope& extra_relax_scope) {
   ffi::Map<Var, Range> result;
   const StmtSRefNode* p = low_inclusive.get();
-  const StmtSRefNode* limit = static_cast<const StmtSRefNode*>(high_exclusive.get());
+  const StmtSRefNode* limit = high_exclusive.has_value() ? high_exclusive.value().get() : nullptr;
   for (; p != limit; p = p->parent) {
     const ForNode* loop = p->StmtAs<ForNode>();
     if (loop == nullptr) {
@@ -1387,8 +1391,8 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
     if (as_const_int(dom->extent) == nullptr) {
       return kNotExist;
     }
-    if (const auto* v = dom->min.as<VarNode>()) {
-      var2idx.emplace(v, i);
+    if (auto var = dom->min.as<PrimVar>()) {
+      var2idx.emplace(var.value().get(), i);
     } else {
       return kNotExist;
     }
@@ -1411,14 +1415,14 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
     // Case 2. Read index cannot be recognized as `var +/- const`
     // where `var` is a write index and `const` is an optional constant shift
     ffi::Optional<IntImm> opt_const = std::nullopt;
-    const VarNode* var =
-        static_cast<const VarNode*>(AnalyzeVarWithShift(dom->min, &opt_const).get());
+    ffi::Optional<Var> opt_var = AnalyzeVarWithShift(dom->min, &opt_const);
+    const VarNode* var = opt_var.has_value() ? opt_var.value().get() : nullptr;
     if (var == nullptr || !var2idx.count(var)) {
       return kNotExist;
     }
     // Case 3. Read index is `var +/- const`
     mapped[i] = var2idx.at(var);
-    if (opt_const.defined()) {
+    if (opt_const.has_value()) {
       no_shift_read = false;
     }
   }
@@ -1998,8 +2002,8 @@ class AutoTensorizeMappingProposer {
     for (const auto& it : extractor_->rhs_buffer_indices_map_) {
       const Buffer& rhs_buffer = it.first;
       for (const PrimExpr& rhs_index : it.second) {
-        if (const VarNode* var_node = rhs_index.as<VarNode>()) {
-          update_mask(var_node, &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
+        if (auto var = rhs_index.as<PrimVar>()) {
+          update_mask(var.value().get(), &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
         } else {
           TVM_FFI_THROW(ValueError)
               << "Buffer index " << rhs_index
@@ -2012,8 +2016,8 @@ class AutoTensorizeMappingProposer {
       const Buffer& lhs_buffer = lhs_buffer_it->second;
       for (const PrimExpr& index : extractor_->lhs_buffer_indices_map_.at(lhs_buffer)) {
         PreOrderVisit(index, [&](const ffi::ObjectRef& obj) -> bool {
-          if (const VarNode* var = obj.as<VarNode>()) {
-            update_mask(var, &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
+          if (auto var = obj.as<PrimVar>()) {
+            update_mask(var.value().get(), &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));
           }
           return true;
         });
@@ -2058,7 +2062,7 @@ class AutoTensorizeMappingProposer {
     ffi::Map<Var, PrimExpr> lhs_iter_extents;
     for (const auto& iter : extractor_->lhs_iters_) {
       lhs_iter_extents.Set(iter->var, iter->dom->extent);
-      index_map_src.push_back(iter->var.copy_with_suffix(""));
+      index_map_src.push_back(iter->var.CopyWithSuffix(""));
     }
 
     // Step 2: Each iter on RHS has a group of corresponding iters on LHS. Initialize the fusion
@@ -2075,12 +2079,12 @@ class AutoTensorizeMappingProposer {
       const VarSet& rhs_candidates = lhs_feasible_vars_[lhs_iter_var];
       if (rhs_candidates.empty()) {
         // put unmapped iters at the beginning
-        index_map_tgt.push_back(index_map_src[i]);
+        index_map_tgt.push_back(index_map_src[i].as_or_throw<PrimExpr>());
       } else if (rhs_candidates.size() == 1) {
         Var rhs_var = *rhs_candidates.begin();
         PrimExpr fused_lhs = fused_lhs_iters.at(rhs_var);
-        PrimExpr updated_fused_lhs =
-            fused_lhs * lhs_iter_extents.at(lhs_iter_var) + index_map_src[i];
+        PrimExpr updated_fused_lhs = fused_lhs * lhs_iter_extents.at(lhs_iter_var) +
+                                     index_map_src[i].as_or_throw<PrimExpr>();
         fused_lhs_iters.Set(rhs_var, updated_fused_lhs);
         used_rhs_vars.insert(rhs_var);
       } else {
@@ -2095,7 +2099,8 @@ class AutoTensorizeMappingProposer {
       index_map_tgt.push_back(analyzer_->Simplify(fused_lhs_iters[iter->var]));
     }
     // At most one mapping is supported.
-    return {IndexMap(index_map_src, index_map_tgt)};
+    return {IndexMap(index_map_src.Map([](Var var) { return var.as_or_throw<PrimVar>(); }),
+                     index_map_tgt)};
   }
 
  private:

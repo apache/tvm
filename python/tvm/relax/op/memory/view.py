@@ -30,12 +30,11 @@ from collections.abc import Sequence
 
 from tvm.relax import DataTypeImm, Expr, ShapeExpr
 from tvm.relax.expr import prim_value
-from tvm.tirx import PrimExpr
 
 from ..base import null_value
 from . import _ffi_api
 
-PrimExprLike = int | PrimExpr
+PrimExprLike = int | Expr
 
 
 def view(

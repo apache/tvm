@@ -90,10 +90,10 @@ ffi::String GetRuleKindFromTarget(const Target& target) {
 }
 
 void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
-  if (context->target.defined() &&  //
-      !(sch_rules.defined() &&      //
-        postprocs.defined() &&      //
-        mutator_probs.defined())) {
+  if (context->target.has_value() &&  //
+      !(sch_rules.has_value() &&      //
+        postprocs.has_value() &&      //
+        mutator_probs.has_value())) {
     ffi::String kind = GetRuleKindFromTarget(context->target.value());
     ffi::Array<ScheduleRule> default_sch_rules;
     ffi::Array<Postproc> default_postprocs;
@@ -142,27 +142,27 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       TVM_FFI_THROW(InternalError) << "Unsupported kind: " << kind;
       throw;
     }
-    if (!sch_rules.defined()) {
+    if (!sch_rules.has_value()) {
       sch_rules = default_sch_rules;
     }
-    if (!postprocs.defined()) {
+    if (!postprocs.has_value()) {
       postprocs = default_postprocs;
     }
-    if (!mutator_probs.defined()) {
+    if (!mutator_probs.has_value()) {
       mutator_probs = default_mutator_probs;
     }
   }
-  if (sch_rules.defined()) {
+  if (sch_rules.has_value()) {
     for (ScheduleRule i : sch_rules.value()) {
       i->InitializeWithTuneContext(context);
     }
   }
-  if (postprocs.defined()) {
+  if (postprocs.has_value()) {
     for (Postproc i : postprocs.value()) {
       i->InitializeWithTuneContext(context);
     }
   }
-  if (mutator_probs.defined()) {
+  if (mutator_probs.has_value()) {
     for (const auto& kv : mutator_probs.value()) {
       Mutator mutator = kv.first;
       mutator->InitializeWithTuneContext(context);

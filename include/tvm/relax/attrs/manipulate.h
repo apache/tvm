@@ -64,19 +64,6 @@ struct LayoutTransformAttrs : public AttrsNode {
   // pad_value is chosen to be of PrimExpr type, as it represents constant TIR POD expression. This
   // needs to be revisited in case PrimExpr is evolved to represent symbolic expression in future.
   ffi::Optional<PrimExpr> pad_value;
-  /*!
-   * axis_separators between input axes when generating flattened output axes. For buffers
-   * representing flat 1-d memory (e.g. any buffer in RAM), this should be an empty array.
-   * For buffers representing non-flat memory, each entry in axis_separators should be the
-   * first input axis that is part of a new flattened axis.
-   */
-  ffi::Optional<ffi::Array<IntImm>> axis_separators;
-  /*!
-   * axis_separators for input buffers.
-   * Needed to identify if the input buffer to layout_transform
-   * contains axis separator.
-   */
-  ffi::Optional<ffi::Array<IntImm>> input_axis_separators;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -86,11 +73,7 @@ struct LayoutTransformAttrs : public AttrsNode {
         .def_ro(
             "pad_value", &LayoutTransformAttrs::pad_value,
             "The specific value to be used to pad if the layout transform would result in implicit "
-            "padding. If not specified, the compiler is free to choose any value.")
-        .def_ro("axis_separators", &LayoutTransformAttrs::axis_separators,
-                "The separators between input axes when generating flat output axes")
-        .def_ro("input_axis_separators", &LayoutTransformAttrs::input_axis_separators,
-                "The separators between axes to regenerate output");
+            "padding. If not specified, the compiler is free to choose any value.");
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("relax.attrs.LayoutTransformAttrs", LayoutTransformAttrs,
                                     AttrsNode);

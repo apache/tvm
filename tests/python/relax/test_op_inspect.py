@@ -48,12 +48,16 @@ shape = tvm.testing.parameter(
 elem_offset = tvm.testing.parameter(0, 64, 128)
 
 
+def inspect_tensor_field(op_name, *args):
+    return relax.Call(Op.get(f"relax.inspect.{op_name}"), args)
+
+
 def test_tensor_dtype_code(dtype):
     @I.ir_module
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return A.dtype.type_code
+            return inspect_tensor_field("tensor_dtype_code", A)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -70,7 +74,7 @@ def test_tensor_dtype_bits(dtype):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return A.dtype.bits
+            return inspect_tensor_field("tensor_dtype_bits", A)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -87,7 +91,7 @@ def test_tensor_dtype_lanes(dtype):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return A.dtype.lanes
+            return inspect_tensor_field("tensor_dtype_lanes", A)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -104,7 +108,7 @@ def test_tensor_ndim(shape):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return A.ndim
+            return inspect_tensor_field("tensor_ndim", A)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -120,7 +124,7 @@ def test_tensor_shape(shape):
     class mod:
         @R.function
         def main(A: R.Tensor, axis: R.Prim("int64")):
-            return A.shape[axis]
+            return inspect_tensor_field("tensor_shape_i", A, axis)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -146,7 +150,7 @@ def test_strides_of_compact_tensor(shape):
     class mod:
         @R.function
         def main(A: R.Tensor, axis: R.Prim("int64")):
-            return A.strides[axis]
+            return inspect_tensor_field("tensor_stride_i", A, axis)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -164,7 +168,7 @@ def test_strides_of_non_compact_tensor():
     class mod:
         @R.function
         def main(A: R.Tensor, axis: R.Prim("int64")):
-            return A.strides[axis]
+            return inspect_tensor_field("tensor_stride_i", A, axis)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -186,7 +190,7 @@ def test_byte_offset(elem_offset):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return A.byte_offset
+            return inspect_tensor_field("tensor_byte_offset", A)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
@@ -209,7 +213,7 @@ def test_elem_offset(elem_offset, dtype):
     class mod:
         @R.function
         def main(A: R.Tensor):
-            return A.elem_offset
+            return inspect_tensor_field("tensor_elem_offset", A)
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())

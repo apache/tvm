@@ -20,4 +20,4 @@ tvm.relax
 .. automodule:: tvm.relax
     :members:
     :imported-members:
-    :exclude-members: BlockBuilder, Span, GlobalVar, SourceName, TupleType, Type, FuncType
+    :exclude-members: BlockBuilder, Call, Var, Span, GlobalVar, SourceName, TupleType, Type, FuncType

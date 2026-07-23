@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F811, F841
 """
 Test DLPack integration between PyTorch and TVM.
 
@@ -23,15 +22,13 @@ This test verifies:
 2. DLPack conversion from TVM to PyTorch
 3. Data integrity preservation during conversion
 4. Functionality equivalence between DLPack and numpy fallback
-5. Error handling for unsupported data types
 """
 
-import numpy as np
 import pytest
 import torch
 
 import tvm
-from tvm import relax, tirx
+import tvm.testing
 from tvm.relax import BasePyModule
 from tvm.script import relax as R
 from tvm.script import tirx as T
@@ -53,21 +50,25 @@ class TestDLPackIntegration:
 
     def test_dlpack_pytorch_to_tvm_conversion_gpu(self):
         if tvm.cuda().exist:
-            pytorch_tensor = torch.tensor(
-                [1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda"
-            )
 
-            tvm_tensor = tvm.runtime.from_dlpack(pytorch_tensor)
+            def run_and_check():
+                pytorch_tensor = torch.tensor(
+                    [1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda"
+                )
 
-            assert isinstance(tvm_tensor, tvm.runtime.Tensor)
-            assert tvm_tensor.shape == pytorch_tensor.shape
-            assert str(tvm_tensor.dtype) == str(pytorch_tensor.dtype).replace("torch.", "")
-            assert str(tvm_tensor.device) == "cuda:0"
+                tvm_tensor = tvm.runtime.from_dlpack(pytorch_tensor)
 
-            # Move to CPU for numpy conversion
-            tvm_numpy = tvm_tensor.numpy()
-            pytorch_numpy = pytorch_tensor.cpu().numpy()
-            tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+                assert isinstance(tvm_tensor, tvm.runtime.Tensor)
+                assert tvm_tensor.shape == pytorch_tensor.shape
+                assert str(tvm_tensor.dtype) == str(pytorch_tensor.dtype).replace("torch.", "")
+                assert str(tvm_tensor.device) == "cuda:0"
+
+                # Move to CPU for numpy conversion
+                tvm_numpy = tvm_tensor.numpy()
+                pytorch_numpy = pytorch_tensor.cpu().numpy()
+                tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 
@@ -92,18 +93,22 @@ class TestDLPackIntegration:
             import numpy as np
 
             data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype="float32")
-            tvm_tensor = tvm.runtime.tensor(data, device=tvm.cuda(0))
 
-            pytorch_tensor = torch.from_dlpack(tvm_tensor)
+            def run_and_check():
+                tvm_tensor = tvm.runtime.tensor(data, device=tvm.cuda(0))
 
-            assert isinstance(pytorch_tensor, torch.Tensor)
-            assert pytorch_tensor.shape == tvm_tensor.shape
-            assert pytorch_tensor.dtype == torch.float32
-            assert pytorch_tensor.device.type == "cuda"
+                pytorch_tensor = torch.from_dlpack(tvm_tensor)
 
-            tvm_numpy = tvm_tensor.numpy()
-            pytorch_numpy = pytorch_tensor.cpu().numpy()
-            tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+                assert isinstance(pytorch_tensor, torch.Tensor)
+                assert pytorch_tensor.shape == tvm_tensor.shape
+                assert pytorch_tensor.dtype == torch.float32
+                assert pytorch_tensor.device.type == "cuda"
+
+                tvm_numpy = tvm_tensor.numpy()
+                pytorch_numpy = pytorch_tensor.cpu().numpy()
+                tvm.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+
+            tvm.testing.run_with_gpu_lock(run_and_check)
         else:
             pytest.skip("CUDA not available")
 
@@ -192,21 +197,6 @@ class TestDLPackIntegration:
         assert result_dlpack.shape == pytorch_tensor.shape
         assert result_dlpack.dtype == pytorch_tensor.dtype
 
-    def test_dlpack_error_handling(self):
-        """Test DLPack error handling for unsupported operations."""
-        # Test with non-contiguous tensor
-        pytorch_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
-        non_contiguous = pytorch_tensor[::2]  # Create non-contiguous view
-
-        # This should work (PyTorch handles non-contiguous tensors)
-        try:
-            tvm_tensor = tvm.runtime.from_dlpack(non_contiguous)
-            result_tensor = torch.from_dlpack(tvm_tensor)
-            assert torch.allclose(non_contiguous, result_tensor, atol=1e-5)
-        except Exception as e:
-            # If it fails, that's also acceptable
-            pass
-
     def test_dlpack_with_base_py_module(self):
         """Test DLPack conversion within BasePyModule context."""
 
@@ -216,7 +206,12 @@ class TestDLPackIntegration:
             for i in T.grid(3):
                 B[i] = A[i]
 
-        ir_mod = tvm.IRModule({"identity_func": identity_func})
+        @T.prim_func(s_tir=True)
+        def constant_func(B: T.Buffer((2,), "float32")):
+            for i in T.grid(2):
+                B[i] = T.float32(5.0)
+
+        ir_mod = tvm.IRModule({"identity_func": identity_func, "constant_func": constant_func})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
 
@@ -229,6 +224,11 @@ class TestDLPackIntegration:
         # Verify result
         assert isinstance(result, torch.Tensor)
         assert torch.allclose(result, input_tensor, atol=1e-5)
+
+        # Preserve the output-only call_tir path, where there are no input tensors
+        # from which to infer or transfer the output.
+        result = py_mod.call_tir(constant_func, [], R.Tensor((2,), "float32"))
+        torch.testing.assert_close(result, torch.full((2,), 5.0))
 
     def test_dlpack_device_consistency(self):
         """Test DLPack conversion maintains device consistency."""

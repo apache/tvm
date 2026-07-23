@@ -636,56 +636,12 @@ def _generate_prim_test_cases():
         # LCA of a PrimType with itself yields itself
         yield (R.Prim(dtype), R.Prim(dtype), R.Prim(dtype))
 
-        # The LCA of two values, each statically known to be the same
-        # value, is known to have that value.
-        yield (
-            R.Prim(value=tirx.const(0, dtype)),
-            R.Prim(value=tirx.const(0, dtype)),
-            R.Prim(value=tirx.const(0, dtype)),
-        )
-
-        # The LCA of two values, each of which is statically known to
-        # have a different value, no longer knows the contained value.
-        yield (
-            R.Prim(value=tirx.const(0, dtype)),
-            R.Prim(value=tirx.const(1, dtype)),
-            R.Prim(dtype=dtype),
-        )
-
-        # LCA of a known variable with itself yields itself
-        var_N = tirx.Var("N", dtype)
-        yield (R.Prim(value=var_N), R.Prim(value=var_N), R.Prim(value=var_N))
-
-        # LCA of a known variable with a known static value is no
-        # longer known to have a specific value.
-        yield (R.Prim(value=var_N), R.Prim(value=tirx.const(0, dtype)), R.Prim(dtype=dtype))
-        yield (R.Prim(value=tirx.const(0, dtype)), R.Prim(value=var_N), R.Prim(dtype=dtype))
-
-        var_M = tirx.Var("M", dtype)
-        yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Prim(dtype=dtype))
-
     for dtype_a in dtypes:
         for dtype_b in dtypes:
             if dtype_a != dtype_b:
-                # Unlike R.Tensor, R.Prim does not currently support a
-                # value with an unknown datatype.  If the dtype
-                # differs between the two annotations, the next wider
-                # category is R.Any.
+                # If the dtype differs between the two annotations,
+                # the next wider category is R.Any.
                 yield (R.Prim(dtype_a), R.Prim(dtype_b), R.Any)
-
-                # Because the dtypes are different, even `R.Prim` containing
-                # the same value in different representations (e.g.
-                # `T.float32(0)` vs `T.float16(0)`) fall back to `R.Any`.
-                yield (
-                    R.Prim(value=tirx.const(0, dtype_a)),
-                    R.Prim(value=tirx.const(0, dtype_b)),
-                    R.Any,
-                )
-
-                # And the same is true for known variable values
-                var_N = tirx.Var("N", dtype_a)
-                var_M = tirx.Var("M", dtype_b)
-                yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Any)
 
 
 @pytest.mark.parametrize("test_case", list(_generate_prim_test_cases()))
@@ -806,7 +762,7 @@ def test_collect_nonnegative_expressions():
         A: R.Tensor([1024, "M", "N-2"]),
         B: R.Tensor([128, "N", "M+2"]),
         C: R.Shape(["M", "N"]),
-        D: R.Prim(value="N"),
+        D: R.Prim("int64"),
     ):
         return R.tuple()
 
@@ -834,7 +790,7 @@ def test_collect_nonnegative_expressions():
         [M, N],
     )
 
-    # PrimExpr instances may contain negative values, and do not
+    # Expr instances may contain negative values, and do not
     # imply that their contents are non-negative.
     tvm.ir.assert_structural_equal(
         rx.analysis.collect_non_negative_expressions(func.params[3].ty),

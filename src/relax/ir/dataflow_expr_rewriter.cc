@@ -251,7 +251,7 @@ ffi::Optional<Expr> ExprPatternRewriterNode::RewriteExpr(
     }
 
     ffi::Optional<Expr> rewritten_expr = func(expr, matches);
-    if (rewritten_expr.defined() && !rewritten_expr.same_as(expr)) {
+    if (rewritten_expr.has_value() && !rewritten_expr.same_as(expr)) {
       return rewritten_expr.value();
     }
   }
@@ -735,8 +735,8 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
     } else if (auto func = expr.as<ExternFuncNode>()) {
       return ExternFuncPattern(func->global_symbol);
 
-    } else if (auto prim = expr.as<PrimExprNode>()) {
-      return TypePattern(WildcardPattern(), prim->ty());
+    } else if (auto prim = expr.as<PrimExpr>()) {
+      return TypePattern(WildcardPattern(), prim.value().ty());
 
     } else {
       TVM_FFI_THROW(TypeError) << "Cannot convert Relax expression of type " << expr->GetTypeKey()
@@ -774,8 +774,8 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
       // wouldn't normally be normalized into a variable.
       Var intermediate_var("intermediate_var", GetType(matched_expr));
       wildcard_bindings.push_back(VarBinding(intermediate_var, matched_expr));
-      wildcard_bindings.push_back(
-          MatchCast(func_replacement->params[i], intermediate_var, GetType(matched_expr)));
+      wildcard_bindings.push_back(MatchCast(func_replacement->params[i], intermediate_var,
+                                            GetType(func_replacement->params[i])));
     }
 
     new_blocks.push_back(DataflowBlock(wildcard_bindings));
@@ -1017,7 +1017,7 @@ class PatternMatchingMutator : public ExprMutator {
 
         auto last_binding = last_block->bindings.back();
         last_block.CopyOnWrite()->bindings.pop_back();
-        TVM_FFI_ICHECK(last_binding->var.same_as(dummy_output_var));
+        TVM_FFI_ICHECK(dummy_output_var.same_as(last_binding->var));
 
         if (last_block->bindings.size()) {
           new_blocks.push_back(last_block);

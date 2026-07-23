@@ -34,22 +34,11 @@ namespace relax {
 using tvm::script::ir_builder::details::Namer;
 
 TVM_STATIC_IR_FUNCTOR(Namer, vtable)
-    .set_dispatch<tvm::relax::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
-      using tvm::relax::VarNode;
-      using tvm::relax::IdNode;
-      const VarNode* var = node.as<VarNode>();
-      IdNode* vid = const_cast<IdNode*>(var->vid.get());
-      vid->name_hint = name;
-    });
-
-TVM_STATIC_IR_FUNCTOR(Namer, vtable)
     .set_dispatch<tvm::relax::DataflowVarNode>([](const ffi::ObjectRef& node,
                                                   ffi::String name) -> void {
       using tvm::relax::DataflowVarNode;
-      using tvm::relax::IdNode;
-      const DataflowVarNode* var = node.as<DataflowVarNode>();
-      IdNode* vid = const_cast<IdNode*>(var->vid.get());
-      vid->name_hint = name;
+      DataflowVarNode* var = const_cast<DataflowVarNode*>(node.as<DataflowVarNode>());
+      var->name = name;
     });
 
 /////////////////////////////// Function ////////////////////////////////
@@ -69,9 +58,9 @@ FunctionFrame Function(bool is_pure, bool is_private) {
   return FunctionFrame(n);
 }
 
-tvm::relax::Var Arg(const ffi::String& name, const tvm::Type& ty) {
+tvm::Var Arg(const ffi::String& name, const tvm::Type& ty) {
   FunctionFrame frame = FindFunctionFrame("R.Arg");
-  tvm::relax::Var var(name, ty);
+  tvm::Var var(name, ty);
   frame->params.push_back(var);
   frame->block_builder->AddDefinitionToScope(var);
 
@@ -108,7 +97,7 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs) {
 
 void FuncRetType(const tvm::Type& ret_ty) {
   FunctionFrame frame = FindFunctionFrame("R.func_ret_type");
-  if (frame->ret_ty.defined()) {
+  if (frame->ret_ty.has_value()) {
     TVM_FFI_THROW(ValueError) << "Duplicate function return type, previous one is:\n "
                               << frame->ret_ty.value();
   }
@@ -136,7 +125,7 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   }
   // Step 2. Add the output value to the function frame.
   FunctionFrame frame = FindFunctionFrame("return");
-  TVM_FFI_CHECK(!frame->output.defined(), ValueError)
+  TVM_FFI_CHECK(!frame->output.has_value(), ValueError)
       << "Relax functions do not support multiple return statement.  "
       << "However, return of " << normalized_value << " occurred after a return of "
       << frame->output << ".  "
@@ -173,11 +162,11 @@ BindingBlockFrame BindingBlock() {
   return BindingBlockFrame(n);
 }
 
-void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
+void DataflowBlockOutput(const ffi::Array<tvm::Var>& vars) {
   // Step 1. Check that we're in a Dataflow block that is not ended.
   ffi::Optional<BindingBlockFrame> block_frame =
       IRBuilder::Current()->GetLastFrame<BindingBlockFrame>();
-  TVM_FFI_CHECK(block_frame.defined() && block_frame.value()->is_dataflow, ValueError)
+  TVM_FFI_CHECK(block_frame.has_value() && block_frame.value()->is_dataflow, ValueError)
       << "`R.output` should appear inside a dataflow block. However, the current "
          "innermost block is not a dataflow block.";
   TVM_FFI_CHECK(!block_frame.value()->block_ended, ValueError)
@@ -189,9 +178,11 @@ void DataflowBlockOutput(const ffi::Array<tvm::relax::Var>& vars) {
 
   // Step 3. All the output variables must be global variables and must be emitted by this dataflow
   // block.
-  const ffi::Array<tvm::relax::Var>& emitted_vars = block_frame.value()->emitted_vars;
-  for (const tvm::relax::Var& var : vars) {
-    TVM_FFI_CHECK(std::find(emitted_vars.begin(), emitted_vars.end(), var) != emitted_vars.end(),
+  const ffi::Array<tvm::Var>& emitted_vars = block_frame.value()->emitted_vars;
+  for (const tvm::Var& var : vars) {
+    TVM_FFI_CHECK(std::find_if(emitted_vars.begin(), emitted_vars.end(),
+                               [&](const tvm::Var& emitted) { return emitted.same_as(var); }) !=
+                      emitted_vars.end(),
                   ValueError)
         << "An output variable is not emitted by this dataflow block. Please make sure "
            "all dataflow block output variables are emitted exactly by this block.";
@@ -209,13 +200,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /////////////////////////////// Bindings ///////////////////////////////
 
-tvm::relax::Var Emit(const tvm::relax::Expr& expr, const ffi::Optional<tvm::Type>& annotate_ty) {
+tvm::Var Emit(const tvm::relax::Expr& expr, const ffi::Optional<tvm::Type>& annotate_ty) {
   using tvm::relax::GetType;
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
-  if (annotate_ty.defined()) {
+  if (annotate_ty.has_value()) {
     const auto& ty = annotate_ty.value();
-    if (!expr->ty.defined()) {
+    if (expr->ty.IsMissing()) {
       tvm::relax::UpdateType(expr, ty);
     } else {
       TVM_FFI_ICHECK(tvm::relax::TypeBaseCheck(ty, GetType(expr)) !=
@@ -223,21 +214,21 @@ tvm::relax::Var Emit(const tvm::relax::Expr& expr, const ffi::Optional<tvm::Type
           << "Invalid annotation. Got rhs value type: " << GetType(expr) << ", given type: " << ty;
     }
   }
-  tvm::relax::Var var = block_builder->Emit(expr);
+  tvm::Var var = block_builder->Emit(expr);
   block_frame->emitted_vars.push_back(var);
   return var;
 }
 
-tvm::relax::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& ty) {
+tvm::Var EmitMatchCast(const tvm::relax::Expr& value, const tvm::Type& ty) {
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
 
-  tvm::relax::Var var = block_builder->EmitMatchCast(value, ty);
+  tvm::Var var = block_builder->EmitMatchCast(value, ty);
   block_frame->emitted_vars.push_back(var);
   return var;
 }
 
-tvm::relax::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
+tvm::Var EmitVarBinding(const tvm::relax::VarBinding& binding) {
   BindingBlockFrame block_frame = CheckBindingBlockFrameExistAndUnended();
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   block_builder->EmitNormalized(binding);

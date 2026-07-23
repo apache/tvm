@@ -38,11 +38,11 @@ Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
 
   // Todo(relax-team): revisit here for better check on if the input tensor has
   // ndim same as the number of input axes.
-  if (!attrs->axes.defined() && data_ty->IsUnknownNdim()) {
+  if (!attrs->axes.has_value() && data_ty->IsUnknownNdim()) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Input of distributed operator must have known ndim";
   }
 
-  if (attrs->axes.defined()) {
+  if (attrs->axes.has_value()) {
     int n_axis = attrs->axes.value().size();
     if (!data_ty->IsUnknownNdim() && n_axis != data_ty->ndim) {
       TVM_FFI_VISIT_THROW(ValueError, call)
@@ -53,7 +53,7 @@ Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
   }
 
   std::vector<int> axes;
-  if (attrs->axes.defined()) {
+  if (attrs->axes.has_value()) {
     axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axes.value());
   } else {
     // Construct the reverse permutation via std::iota
@@ -100,13 +100,13 @@ Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
   }
 
   ffi::Optional<ffi::Array<PrimExpr>> old_shape_values;
-  if (data_ty->shape.defined()) {
+  if (data_ty->shape.has_value()) {
     const auto* old_shape_ty = GetTypeAs<ShapeTypeNode>(data_ty->shape.value());
     TVM_FFI_ICHECK_NOTNULL(old_shape_ty);
     old_shape_values = old_shape_ty->values;
   }
 
-  if (new_shape_ty->values.defined() && old_shape_values.defined()) {
+  if (new_shape_ty->values.has_value() && old_shape_values.has_value()) {
     PrimExpr new_shape_prod = ComputeShapeProduct(new_shape_ty->values.value());
     PrimExpr old_shape_prod = ComputeShapeProduct(old_shape_values.value());
     if (ctx->GetAnalyzer()->CanProve(old_shape_prod != new_shape_prod)) {
@@ -118,9 +118,9 @@ Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
     }
   }
   Expr target_shape = call->args[1];
-  Type output_tensor_ty;
+  Type output_tensor_ty = Type::Missing();
   // If shape values are defined, use them
-  if (target_shape->IsInstance<VarNode>() && new_shape_ty->values.defined()) {
+  if (target_shape->IsInstance<VarNode>() && new_shape_ty->values.has_value()) {
     output_tensor_ty = TensorType(ShapeExpr(new_shape_ty->values.value()), data_ty->dtype);
   } else {
     output_tensor_ty = TensorType(target_shape, data_ty->dtype);

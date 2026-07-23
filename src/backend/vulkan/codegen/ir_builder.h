@@ -50,7 +50,7 @@ struct SType {
   /*! \brief The Id to represent type */
   uint32_t id{0};
   /*! \brief corresponding TVM type */
-  tvm::PrimType type{tvm::PrimType::Void()};
+  tvm::Type type{tvm::PrimType::Void()};
   /*! \brief content type id if it is a pointer/struct-array class */
   uint32_t element_type_id{0};
   /*! \brief The storage class, if it is a pointer */
@@ -694,6 +694,12 @@ class IRBuilder {
    *  These are declared in the global section of the shader.
    */
   std::unordered_map<spv::BuiltIn, Value> built_in_tbl_;
+
+  /*! \brief Module-scope variables used by the entry point.
+   *
+   * SPIR-V 1.4 and later require all used global variables in OpEntryPoint.
+   */
+  std::vector<Value> entry_point_interface_;
 
   /*! \brief The cached values for built-in values
    *

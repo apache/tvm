@@ -38,14 +38,14 @@ class IterInfo:
 
     kind: Literal["S", "R", "O"]
     var: tirx.Var
-    _dom: tirx.PrimExpr
+    _dom: tirx.Expr
     loop_rv: s_tir.schedule.LoopRV
 
     def __init__(
         self,
         kind: Literal["S", "R", "O"],
         var: tirx.Var,
-        dom: tirx.PrimExpr,
+        dom: tirx.Expr,
         loop_rv: s_tir.schedule.LoopRV,
     ):
         """Construct an IterInfo object."""
@@ -55,7 +55,7 @@ class IterInfo:
         self.loop_rv = loop_rv
 
     @property
-    def dom(self) -> int | tirx.PrimExpr:
+    def dom(self) -> int | tirx.Expr:
         """The iteration domain of the loop."""
         return int(self._dom) if isinstance(self._dom, tirx.IntImm) else self._dom
 
@@ -104,11 +104,11 @@ class BufferInfo:
             for expr in buf.region:
                 expr = expr.min
                 dim = None
-                if isinstance(expr, tirx.expr.Add) and isinstance(expr.b, tirx.expr.Var):
+                if isinstance(expr, tirx.expr.Add) and ir.is_prim_var(expr.b):
                     var_add = expr.b
                     if (
                         isinstance(expr, tirx.expr.Mul)
-                        and isinstance(expr.a, tirx.expr.Var)
+                        and ir.is_prim_var(expr.a)
                         and isinstance(expr.b, tirx.expr.IntImm)
                     ):
                         mul = expr.b
@@ -116,17 +116,17 @@ class BufferInfo:
                         dim = MergeIndex(var_mul, mul, var_add)
                 elif (
                     isinstance(expr, tirx.expr.FloorMod)
-                    and isinstance(expr.a, tirx.expr.Var)
+                    and ir.is_prim_var(expr.a)
                     and isinstance(expr.b, tirx.expr.IntImm)
                 ):
                     dim = RemIndex(expr.a, expr.b)
                 elif (
                     isinstance(expr, tirx.expr.FloorDiv)
-                    and isinstance(expr.a, tirx.expr.Var)
+                    and ir.is_prim_var(expr.a)
                     and isinstance(expr.b, tirx.expr.IntImm)
                 ):
                     dim = DivIndex(expr.a, expr.b)
-                elif isinstance(expr, tirx.expr.Var):
+                elif ir.is_prim_var(expr):
                     dim = Index(expr)
                 buf_index.append(dim)
             return buf_index
@@ -188,7 +188,7 @@ class SBlockInfo:
         self.iters = iters
         self._reduction_block = reduction_block
 
-    def dom(self) -> list[int | tirx.PrimExpr]:
+    def dom(self) -> list[int | tirx.Expr]:
         """The iteration domain of the block."""
         return [i.dom for i in self.iters]
 
@@ -415,19 +415,19 @@ def collect_block_iter_vars_used_in_access_region(
     return tir_vars
 
 
-def collect_vars_used_in_prim_expr(expr: tirx.PrimExpr) -> set[tirx.Var]:
-    """Collect the variables used in the PrimExpr."""
+def collect_vars_used_in_prim_expr(expr: tirx.Expr) -> set[tirx.Var]:
+    """Collect the variables used in the Expr."""
     tir_vars = set()
 
     def _collect_tir_var(expr):
-        if isinstance(expr, tirx.Var):
+        if ir.is_prim_var(expr):
             tir_vars.add(expr)
 
     tirx.stmt_functor.post_order_visit(expr, _collect_tir_var)
     return tir_vars
 
 
-def detect_dominant_read(block: tirx.SBlock) -> tirx.PrimExpr:
+def detect_dominant_read(block: tirx.SBlock) -> tirx.Expr:
     """Detect the dominant read indices in the block."""
     dominant_read = None
     num_read_iters = -1

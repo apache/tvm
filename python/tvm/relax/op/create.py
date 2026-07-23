@@ -17,13 +17,12 @@
 """Creation operators."""
 
 from tvm import DataType, DataTypeCode
-from tvm.ir import PrimType
-from tvm.ir.expr import PrimExpr
+from tvm.ir import PrimType, is_prim_expr
 
 from ..expr import Expr, ShapeExpr, prim_value
 from . import _ffi_api
 
-PrimExprLike = int | PrimExpr
+PrimExprLike = int | Expr
 
 
 def _raw_dtype(dtype):
@@ -33,7 +32,7 @@ def _raw_dtype(dtype):
 def _normalize_shape(shape):
     if isinstance(shape, tuple | list):
         return ShapeExpr(shape)
-    if isinstance(shape, PrimExpr):
+    if not isinstance(shape, Expr) or is_prim_expr(shape):
         raise TypeError("shape must be a tuple/list or a Relax shape expression")
     return shape
 
@@ -246,7 +245,7 @@ def arange(
     start: PrimExprLike,
     end: PrimExprLike | None = None,
     step: PrimExprLike = 1,
-    dtype: str | DataType | None = None,
+    dtype: str | DataType | PrimType | None = None,
 ) -> Expr:
     """Construct a tensor with evenly spaced elements.
 
@@ -262,7 +261,7 @@ def arange(
     step : PrimExprLike
         The step size.
 
-    dtype : Optional[str | DataType]
+    dtype : Optional[str | DataType | PrimType]
         The data type of the created tensor.
 
     Returns
@@ -277,7 +276,7 @@ def arange(
     def is_int(expr):
         if isinstance(expr, int):
             return True
-        if isinstance(expr, PrimExpr):
+        if is_prim_expr(expr):
             return expr.ty.matches_code(DataTypeCode.INT)
         return False
 
@@ -289,7 +288,7 @@ def arange(
     start = prim_value(start)
     end = prim_value(end)
     step = prim_value(step)
-    return _ffi_api.arange(start, end, step, dtype)  # type: ignore
+    return _ffi_api.arange(start, end, step, _raw_dtype(dtype))  # type: ignore
 
 
 def hamming_window(window_size, periodic, alpha, beta, dtype):
@@ -297,17 +296,17 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
 
     Parameters
     ----------
-    window_size : PrimExpr
+    window_size : Expr
         The size of returned window.
 
-    periodic : PrimExpr
+    periodic : Expr
         If True, returns a window to be used as periodic function.
         If False, return a symmetric window.
 
-    alpha : PrimExpr
+    alpha : Expr
         The co-efficient alpha.
 
-    beta : PrimExpr
+    beta : Expr
         The co-efficient beta.
 
     Returns
@@ -315,19 +314,19 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
     ret : relax.Expr
         The result tensor.
     """
-    if not isinstance(window_size, Expr):
+    if not is_prim_expr(window_size):
         window_size = prim_value(window_size)
-    if not isinstance(periodic, Expr):
+    if not is_prim_expr(periodic):
         periodic = prim_value(periodic)
-    if not isinstance(alpha, Expr):
+    if not is_prim_expr(alpha):
         alpha = prim_value(alpha)
-    if not isinstance(beta, Expr):
+    if not is_prim_expr(beta):
         beta = prim_value(beta)
 
     return _ffi_api.hamming_window(window_size, periodic, alpha, beta, dtype)
 
 
-def tril(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
+def tril(x: Expr, k: int | Expr = 0) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -347,13 +346,13 @@ def tril(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
     ret : relax.Expr
         The result tensor.
     """
-    if not isinstance(k, Expr):
+    if not is_prim_expr(k):
         k = prim_value(k)
 
     return _ffi_api.tril(x, k)  # type: ignore
 
 
-def triu(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
+def triu(x: Expr, k: int | Expr = 0) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters
@@ -373,7 +372,7 @@ def triu(x: Expr, k: int | PrimExpr | Expr = 0) -> Expr:
     ret : relax.Expr
         The result tensor.
     """
-    if not isinstance(k, Expr):
+    if not is_prim_expr(k):
         k = prim_value(k)
 
     return _ffi_api.triu(x, k)  # type: ignore

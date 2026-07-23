@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 
-from tvm import arith, s_tir, tirx
+from tvm import arith, ir, s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import normalize_prim_func
@@ -134,8 +134,8 @@ class GeneralReduction(GPUScheduleRule):
             for block_iter, loop_rv in zip(spatial_block.iter_vars, loops):
                 block_var_to_loop_var[block_iter.var] = sch.get(loop_rv).loop_var
 
-            def _visit_expr(e: tirx.PrimExpr):
-                if isinstance(e, tirx.Var) and e in block_var_to_loop_var:
+            def _visit_expr(e: tirx.Expr):
+                if ir.is_prim_var(e) and e in block_var_to_loop_var:
                     spatial_loops.add(block_var_to_loop_var[e])
 
             for buffer_read in spatial_block.reads:

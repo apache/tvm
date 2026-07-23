@@ -32,7 +32,7 @@ from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 
 def _alignment_ok(vec_len: int, terms) -> bool:
     """Every term must be a multiple of ``vec_len``. Constants checked
-    directly; PrimExpr / symbolic terms checked via ``arith.Analyzer``.
+    directly; Expr / symbolic terms checked via ``arith.Analyzer``.
 
     ``vec_len=1`` always passes (the scalar fallback). When a symbolic
     term can't be proved divisible, returns ``False`` conservatively —
@@ -538,3 +538,19 @@ def _outer_offsets(outer_iters_s, outer_iters_g, flat_idx):
     ds = sum(c * int(it.stride) for c, it in zip(coords, outer_iters_s))
     dg = sum(c * int(it.stride) for c, it in zip(coords, outer_iters_g))
     return ds, dg
+
+
+def copy_ptx_form(num_bytes: int) -> tuple[str, str]:
+    """Map copy width (bytes) to PTX ``(vec, ptx_type)`` for ``T.ptx.ld`` / ``T.ptx.st``."""
+    return {
+        16: ("v4", "u32"),
+        8: ("v2", "u32"),
+        4: ("", "u32"),
+        2: ("", "u16"),
+        1: ("", "u8"),
+    }[num_bytes]
+
+
+def copy_ptx_ld_return_type(ptx_type: str) -> str:
+    """TVM dtype string for ``T.ptx.ld``'s ``return_type`` argument."""
+    return {"u32": "uint32", "u16": "uint16", "u8": "uint32"}[ptx_type]

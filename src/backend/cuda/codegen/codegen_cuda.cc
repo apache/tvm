@@ -26,6 +26,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -48,7 +49,7 @@ namespace codegen {
 
 namespace {
 
-bool IsOp(const tirx::CallNode* call, const Op& compat_op, const char* canonical_name) {
+bool IsOp(const CallNode* call, const Op& compat_op, const char* canonical_name) {
   if (call->op.same_as(compat_op)) {
     return true;
   }
@@ -197,22 +198,22 @@ class ThreadIdxExtractor : public tirx::StmtVisitor {
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent) {
       IterVar iv = op->node.as_or_throw<IterVar>();
-      if (iv->var->name_hint == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
+      if (iv->var->name == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
         threadIdx_x_ext = op->value;
       }
-      if (iv->var->name_hint == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
+      if (iv->var->name == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
         threadIdx_y_ext = op->value;
       }
-      if (iv->var->name_hint == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
+      if (iv->var->name == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
         threadIdx_z_ext = op->value;
       }
-      if (iv->var->name_hint == "clusterCtaIdx.x" || iv->thread_tag == "clusterCtaIdx.x") {
+      if (iv->var->name == "clusterCtaIdx.x" || iv->thread_tag == "clusterCtaIdx.x") {
         clusterCtaIdx_x_ext = op->value;
       }
-      if (iv->var->name_hint == "clusterCtaIdx.y" || iv->thread_tag == "clusterCtaIdx.y") {
+      if (iv->var->name == "clusterCtaIdx.y" || iv->thread_tag == "clusterCtaIdx.y") {
         clusterCtaIdx_y_ext = op->value;
       }
-      if (iv->var->name_hint == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
+      if (iv->var->name == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
         clusterCtaIdx_z_ext = op->value;
       }
     }
@@ -326,12 +327,6 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
 
 void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
-  if (t.IsHandle()) {
-    TVM_FFI_ICHECK(t.IsScalar()) << "do not yet support vector types";
-    os << "void*";
-    return;
-  }
-
   if (t.IsVoid()) {
     os << "void";
     return;
@@ -424,7 +419,7 @@ void CodeGenCUDA::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)
       fail = true;
     }
     return;
-  } else if (t->dtype == DLDataType{kDLBool, 8, 1}) {
+  } else if (t == PrimType::Bool()) {
     os << "bool";
     return;
   } else if (t.MatchesCode(DLDataTypeCode::kDLBool) && lanes > 1) {
@@ -818,7 +813,7 @@ void CodeGenCUDA::AddUtilFunction(const std::string& func_name, const std::strin
 
 void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   PrimType from_ty = op->value.ty();
-  PrimType target_ty = op->ty();
+  PrimType target_ty = op->ty.as_or_throw<PrimType>();
   TVM_FFI_ICHECK_EQ(target_ty.lanes(), from_ty.lanes());
 
   // Emit simple C-style type conversion.
@@ -859,11 +854,11 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
-                                  const ffi::Array<PrimExpr>& args, bool skip_first_arg,
+                                  const ffi::Array<Expr>& args, bool skip_first_arg,
                                   std::ostream& os) {  // NOLINT(*)
-  DLDataType ret_dtype = GetRuntimeDataType(ret_type);
-  PrimType ret_ty(ret_dtype);
-  if (ret_ty.IsFixedLengthVector()) {
+  auto ret_prim_type = ret_type.as<PrimType>();
+  if (ret_prim_type && ret_prim_type.value().IsFixedLengthVector()) {
+    PrimType ret_ty = ret_prim_type.value();
     //
     // Emit an unsupported vector call
     //
@@ -892,7 +887,8 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
       std::vector<std::string> sargs;
       size_t arg_begin = static_cast<size_t>(skip_first_arg);
       for (size_t i = arg_begin; i < args.size(); ++i) {
-        std::string val = SSAGetID(PrintExpr(args[i]), args[i].ty());
+        Expr arg = args[i];
+        std::string val = SSAGetID(PrintExpr(arg), arg->ty);
         sargs.push_back(std::move(val));
       }
 
@@ -902,7 +898,13 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, ffi::String global_symbol,
         scall << global_symbol << "(";
         for (size_t j = 0; j < sargs.size(); ++j) {
           if (j > 0) scall << ", ";
-          PrintVecElemLoad(sargs[j], args[arg_begin + j].ty(), i, scall);
+          Type arg_type = args[arg_begin + j]->ty;
+          if (auto prim_type = arg_type.as<PrimType>()) {
+            PrintVecElemLoad(sargs[j], prim_type.value(), i, scall);
+          } else {
+            TVM_FFI_ICHECK(arg_type.as<PointerTypeNode>());
+            scall << sargs[j];
+          }
         }
         scall << ")";
         PrintVecElemStore(sret, ret_ty, i, scall.str());
@@ -1120,7 +1122,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
-    PrimExpr stride = op->args[5];
+    PrimExpr stride = op->args[5].as_or_throw<PrimExpr>();
 
     TVM_FFI_ICHECK(m == 16 && n == 16) << "Only m == 16 && n == 16 case supported for now";
 
@@ -1146,11 +1148,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // to the plain ones here.
     class LowerFloorDivMod : public ExprMutator {
      public:
-      PrimExpr VisitExpr_(const FloorDivNode* op) {
-        return tirx::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorDivNode* op) {
+        return tirx::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      PrimExpr VisitExpr_(const FloorModNode* op) {
-        return tirx::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorModNode* op) {
+        return tirx::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
 
@@ -1207,7 +1209,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string local_ptr = this->PrintExpr(op->args[3]);
     std::string local_offset = this->PrintExpr(op->args[4]);
     std::string smem_ptr = this->PrintExpr(op->args[5]);
-    if (trans && op->ty().bits() == 8) {
+    PrimType res_ty = op->ty.as_or_throw<PrimType>();
+    if (trans && res_ty.bits() == 8) {
       // ldmatrix can't transpose 8-bit elements (it assumes 16-bit), so
       // synthesize the equivalent manual gather loop. args[6] is the
       // shared-memory stride for this fallback.
@@ -1232,7 +1235,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string dst = this->PrintExpr(op->args[2]);
     std::string src = this->PrintExpr(op->args[3]);
     std::string src_offset = this->PrintExpr(op->args[4]);
-    PrimExpr stride = op->args[5];
+    PrimExpr stride = op->args[5].as_or_throw<PrimExpr>();
 
     TVM_FFI_ICHECK(m == 16 && n == 16) << "Only m == 16 && n == 16 case supported for now";
 
@@ -1247,11 +1250,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     class LowerFloorDivMod : public ExprMutator {
      public:
-      PrimExpr VisitExpr_(const FloorDivNode* op) {
-        return tirx::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorDivNode* op) {
+        return tirx::Div(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
-      PrimExpr VisitExpr_(const FloorModNode* op) {
-        return tirx::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      Expr VisitExpr_(const FloorModNode* op) {
+        return tirx::Mod(this->VisitPrimExpr(op->a), this->VisitPrimExpr(op->b));
       }
     };
 
@@ -1328,24 +1331,26 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
            << guard << ")\n";
     stream << ");\n";
   } else if (op->op.same_as(builtin::reinterpret())) {
-    PrimType tgt_ty = op->ty();
-    PrimType src_ty = op->args[0].ty();
-    PrimExpr value = op->args[0];
+    auto tgt_prim_type = op->ty.as<PrimType>();
+    auto src_prim_type = op->args[0]->ty.as<PrimType>();
 
-    if (src_ty.IsHandle() && tgt_ty.IsScalar() &&
-        tgt_ty.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
-        tgt_ty.bits() == 64) {
+    if (op->args[0]->ty.as<PointerTypeNode>() && tgt_prim_type &&
+        tgt_prim_type.value().IsScalar() &&
+        tgt_prim_type.value().MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
+        tgt_prim_type.value().bits() == 64) {
       os << "reinterpret_cast<";
-      this->PrintType(tgt_ty, os);
-      os << ">(" << PrintExpr(value) << ")";
+      this->PrintType(tgt_prim_type.value(), os);
+      os << ">(" << PrintExpr(op->args[0]) << ")";
       return;
     }
-    if (tgt_ty.IsHandle() && src_ty.IsScalar() &&
-        src_ty.MatchesCode(DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt) &&
-        src_ty.bits() == 64) {
-      os << "reinterpret_cast<void*>(" << PrintExpr(value) << ")";
-      return;
+
+    if (!tgt_prim_type || !src_prim_type) {
+      return CodeGenC::VisitExpr_(op, os);
     }
+
+    PrimType tgt_ty = op->ty.as_or_throw<PrimType>();
+    PrimExpr value = op->args[0].as_or_throw<PrimExpr>();
+    PrimType src_ty = value.ty();
 
     // Handle float4_e2m1fn reinterpret
     if (!IsFloat4(src_ty) && !IsFloat4(tgt_ty)) {
@@ -1375,27 +1380,30 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       if (IsFloat4(tgt_ty)) {
         // We view the source as an uint16, and then extract bits of two fp4 numbers,
         // and finally reinterpret the result as fp4x2.
-        value = tirx::Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value});
-        tirx::Var temp_var("temp_var", PrimType::UInt(16));
+        value =
+            Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = tirx::Let(temp_var, value,
                           tirx::Cast(PrimType::UInt(8),
                                      (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                                          ((temp_var >> 4) & IntImm(PrimType::UInt(16), 0xF0))));
       } else {
-        value = tirx::Cast(PrimType::UInt(16),
-                           tirx::Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}));
-        tirx::Var temp_var("temp_var", PrimType::UInt(16));
+        value = tirx::Cast(
+            PrimType::UInt(16),
+            Call(PrimType::UInt(8), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(16));
         value = tirx::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(16), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(16), 0xF0)) << 4));
       }
-      os << PrintExpr(tirx::Call(tgt_ty, tirx::builtin::reinterpret(), {value}));
+      os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
     } else if (lanes == 4) {
       if (IsFloat4(tgt_ty)) {
         // We view the source as an uint32, and then extract bits of four fp4 numbers,
         // and finally reinterpret the result as fp4x4.
-        value = tirx::Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value});
-        tirx::Var temp_var("temp_var", PrimType::UInt(32));
+        value =
+            Call(PrimType::UInt(32), tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>();
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = tirx::Let(temp_var, value,
                           tirx::Cast(PrimType::UInt(16),
                                      (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
@@ -1404,15 +1412,16 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
                                          ((temp_var >> 12) & IntImm(PrimType::UInt(32), 0xF000))));
       } else {
         value = tirx::Cast(PrimType::UInt(32),
-                           tirx::Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value}));
-        tirx::Var temp_var("temp_var", PrimType::UInt(32));
+                           Call(PrimType::UInt(16), tirx::builtin::reinterpret(), {value})
+                               .as_or_throw<PrimExpr>());
+        tirx::PrimVar temp_var("temp_var", PrimType::UInt(32));
         value = tirx::Let(temp_var, value,
                           (temp_var & IntImm(PrimType::UInt(32), 0xF)) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF0)) << 4) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF00)) << 8) |
                               ((temp_var & IntImm(PrimType::UInt(32), 0xF000)) << 12));
       }
-      os << PrintExpr(tirx::Call(tgt_ty, tirx::builtin::reinterpret(), {value}));
+      os << PrintExpr(Call(tgt_ty, tirx::builtin::reinterpret(), {value}).as_or_throw<PrimExpr>());
     } else {
       TVM_FFI_THROW(InternalError)
           << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
@@ -1421,9 +1430,9 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(builtin::print_buffer())) {
     TVM_FFI_ICHECK_GE(op->args.size(), 5U) << "Print operation expects at least 5 arguments";
 
-    const PrimExpr& arg = op->args[0];
+    Expr arg = op->args[0];
     const auto* var_node = arg.as<VarNode>();
-    PrimType dtype_ty = op->ty();
+    PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
     bool is_string = op->args[2].as<IntImmNode>()->value;
     bool is_scalar = op->args[3].as<IntImmNode>()->value;
     int num_dims = op->args[4].as<IntImmNode>()->value;
@@ -1467,7 +1476,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     Array<PrimExpr> shape;
     for (size_t i = 5; i < op->args.size(); ++i) {
-      shape.push_back(op->args[i]);
+      shape.push_back(op->args[i].as_or_throw<PrimExpr>());
     }
 
     std::string format_specifier;
@@ -1570,33 +1579,35 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tirx::attr::fragment_shape) {
+  if (op->attr_key == s_tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_shapes[buffer] = shape_str->value;
-  } else if (op->attr_key == tirx::attr::fragment_layout) {
+  } else if (op->attr_key == s_tir::attr::fragment_layout) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;
-  } else if (op->attr_key == tirx::attr::async_commit_queue_scope) {
+  } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     this->VisitStmt(op->body);
     static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
-    auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op, {});
+    auto commit_group =
+        Call(PrimType::Void(), ptx_cp_async_commit_group_op, {}).as_or_throw<PrimExpr>();
     this->PrintIndent();
     this->VisitExpr(commit_group, this->stream);
     this->stream << ";\n";
     return;
-  } else if (op->attr_key == tirx::attr::async_wait_queue_scope) {
+  } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
     auto wait_attrs = GetAsyncWaitAttributes(op);
     auto queue_id = wait_attrs.first.as<IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     auto wait_cnt = wait_attrs.second;
     static const Op& ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
-    auto wait_group = Call(PrimType::Void(), ptx_cp_async_wait_group_op, {wait_cnt});
+    auto wait_group =
+        Call(PrimType::Void(), ptx_cp_async_wait_group_op, {wait_cnt}).as_or_throw<PrimExpr>();
     this->PrintIndent();
     this->VisitExpr(wait_group, this->stream);
     this->stream << ";\n";
@@ -1625,17 +1636,15 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
 
   this->PrintIndent();
   std::string scope = GetPtrStorageScope(op->buffer->data);
-  const VarNode* buffer = op->buffer->data.as<VarNode>();
+  const VarNode* buffer = op->buffer->data.get();
   PrimType dtype = op->buffer->dtype;
 
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
       bool supported_wmma_input_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Int(8) ||
-                                        dtype == PrimType::UInt(8) ||
-                                        dtype == PrimType(DLDataType{kDLInt, 4, 1}) ||
-                                        dtype == PrimType(DLDataType{kDLUInt, 4, 1}) ||
-                                        dtype == PrimType(DLDataType{kDLInt, 1, 1}) ||
-                                        dtype == PrimType(DLDataType{kDLBfloat, 16, 1});
+                                        dtype == PrimType::UInt(8) || dtype == PrimType::Int(4) ||
+                                        dtype == PrimType::UInt(4) || dtype == PrimType::Int(1) ||
+                                        dtype == PrimType::BFloat(16);
       TVM_FFI_ICHECK(supported_wmma_input_dtype)
           << "Matrix_a and matrix_b only support half or char or unsigned char "
           << "or uint4 or int4 or int1 type for now";
@@ -1679,9 +1688,8 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
     if (scope.find("wmma.") == 0) {
       constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
     }
-    bool is_packed_integer_dtype = dtype == PrimType(DLDataType{kDLInt, 4, 1}) ||
-                                   dtype == PrimType(DLDataType{kDLUInt, 4, 1}) ||
-                                   dtype == PrimType(DLDataType{kDLInt, 1, 1});
+    bool is_packed_integer_dtype =
+        dtype == PrimType::Int(4) || dtype == PrimType::UInt(4) || dtype == PrimType::Int(1);
     if (is_packed_integer_dtype && scope == "shared") {
       constant_size = constant_size / (32 / dtype.bits());
     }
@@ -1695,7 +1703,7 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
-  if (is_const_int(op->value)) return;
+  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call && call->op.same_as(builtin::tvm_global_barrier_kinit())) {
     PrintIndent();
@@ -1712,7 +1720,7 @@ void CodeGenCUDA::VisitStmt_(const EvaluateNode* op) {
 }
 
 void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   int lanes = op_ty.lanes();
   if (lanes <= 4) {
     PrintVecConstructor(op_ty, os);
@@ -1747,7 +1755,7 @@ void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   int lanes = op_ty.lanes();
   if ((op_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && op_ty.bits() == 8 &&
       lanes == 4) {
@@ -1870,7 +1878,7 @@ void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NO
 }
 
 void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   // Non-vector cases.
   if (!op_ty.IsFixedLengthVector()) {
     CodeGenC::VisitExpr_(op, os);
@@ -1892,7 +1900,7 @@ void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
 
     // The condition is stored as an ushort vector.
     int lanes = op_ty.lanes();
-    PrimType memory_ty(DLDataType{kDLUInt, 16, static_cast<uint16_t>(lanes)});
+    PrimType memory_ty = PrimType::UInt(16, lanes);
 
     for (int i = 0; i < lanes; ++i) {
       std::ostringstream item;
@@ -1910,7 +1918,7 @@ void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream& os) {
 }
 
 inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p) {  // NOLINT(*)
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   // Type code is kBFloat
   if (op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) {
     os << "__float2bfloat16_rn";
@@ -1987,7 +1995,7 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
   std::stringstream type;
   PrintType(t, type);
   TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name_hint;
+      << "Cannot find shape of the wmma fragment " << variable->name;
   std::string shape_str = fragment_shapes.at(variable);
   if ((t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && t.bits() < 8 &&
       t.lanes() == 1) {
@@ -2039,7 +2047,7 @@ int stoi(const std::string& str) {
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
                                          int32_t size) {
   TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name_hint;
+      << "Cannot find shape of the wmma fragment " << variable->name;
   std::string shape_str = fragment_shapes.at(variable);
   std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
   if (dim.first * dim.second != 0)
@@ -2053,7 +2061,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoad
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
   //
-  PrimType op_ty = op->ty();
+  PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if ((op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
        op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) &&
       IsVolatile(op->buffer->data.get())) {

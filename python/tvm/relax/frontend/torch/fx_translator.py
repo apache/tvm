@@ -177,7 +177,10 @@ class TorchFXImporter(BaseFXGraphImporter):
                 return self.block_builder.emit(op(lhs, rhs))
 
             lhs, rhs = self.retrieve_args(node)
-            if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+
+            if (isinstance(lhs, tvm.ir.Var) and isinstance(lhs.ty, relax.TensorType)) or (
+                isinstance(rhs, tvm.ir.Var) and isinstance(rhs.ty, relax.TensorType)
+            ):
                 output = call_binary_op(relax_op, lhs, rhs)
                 self.env[node.args[0]] = output
                 return output
@@ -1093,6 +1096,10 @@ class TorchFXImporter(BaseFXGraphImporter):
         # Find all the missing function types
         self._check_unsupported_func_type(graph.nodes)
 
+        sym_vars = {
+            v.name: v for shape, _ in input_info for v in shape if isinstance(v, tvm.ir.Var)
+        }
+
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
@@ -1108,11 +1115,13 @@ class TorchFXImporter(BaseFXGraphImporter):
                 # Translate the model.
                 for node in graph.nodes:
                     if node.op == "placeholder":
-                        assert len(inputs) > 0, "Provided inputs is less than actual inputs"
                         if "grapharg" in node.meta and node.meta["grapharg"].fake_tensor is None:
-                            # Ignore sym input
+                            # Sym input: bind to the matching shape var if referenced
+                            if node.name in sym_vars:
+                                self.env[node] = sym_vars[node.name]
                             continue
 
+                        assert len(inputs) > 0, "Provided inputs is less than actual inputs"
                         self.env[node] = inputs.pop(0)
                     elif node.op == "output":
                         args = self.retrieve_args(node)

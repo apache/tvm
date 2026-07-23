@@ -397,11 +397,11 @@ Expr NestedMsgToExpr(NestedMsg<T> msg, FType fmapleaf) {
         if (node == nullptr || node->index != static_cast<int>(i)) {
           simplified_flag = false;
         } else {
-          if (simplified_tuple.defined()) {
-            simplified_flag &= (simplified_tuple == node->tuple);
+          if (simplified_tuple.has_value()) {
+            simplified_flag &= simplified_tuple.value().same_as(node->tuple);
           } else {
             simplified_tuple = node->tuple;
-            TVM_FFI_ICHECK(simplified_tuple.defined());
+            TVM_FFI_ICHECK(simplified_tuple.has_value());
           }
         }
       }

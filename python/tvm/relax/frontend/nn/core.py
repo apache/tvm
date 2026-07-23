@@ -144,14 +144,14 @@ class Tensor(_TensorOp):
         """
         return Tensor(
             _expr=rx.Var(
-                name_hint=name,
+                name=name,
                 ty=ty,
             )
         )
 
     @staticmethod
     def placeholder(
-        shape: Sequence[int | str | tirx.PrimExpr],
+        shape: Sequence[int | str | tirx.Expr],
         dtype: str,
         name: str = "tensor",
     ) -> "Tensor":
@@ -172,13 +172,13 @@ class Tensor(_TensorOp):
                 expr = tirx.Var(expr, "int64")
                 new_shape.append(expr)
                 continue
-            if not isinstance(expr, tirx.PrimExpr):
+            if not tvm.ir.is_prim_expr(expr):
                 raise TypeError(f"Invalid shape: {shape}")
             assert expr.ty == tvm.ir.PrimType("int64")
             new_shape.append(expr)
         return Tensor(
             _expr=rx.Var(
-                name_hint=name,
+                name=name,
                 ty=TensorType(
                     shape=new_shape,  # type: ignore[arg-type]
                     dtype=dtype,
@@ -187,20 +187,20 @@ class Tensor(_TensorOp):
         )
 
     @property
-    def shape(self) -> list[int | tirx.PrimExpr]:
+    def shape(self) -> list[int | tirx.Expr]:
         """Returns the shape of the tensor as a list of integers.
 
-        An integer can be a python int or tvm.tirx.PrimExpr, depending on whether the shape is
-        fully static, for example, [1, 2, tvm.tirx.Var("n")] is a valid shape where the last
-        dimension is dynamic while the first two dimensions are always static constants.
+        An integer can be a python int or tvm.tirx.Expr, depending on whether the shape is
+        fully static, for example, [1, 2, tvm.tirx.Var("n", "int64")] is a valid shape where
+        the last dimension is dynamic while the first two dimensions are always static constants.
 
         Returns
         -------
-        shape : List[Union[int, tirx.PrimExpr]]
+        shape : List[Union[int, tirx.Expr]]
             The shape of the tensor
         """
 
-        def _simplify(expr: tirx.PrimExpr):
+        def _simplify(expr: tirx.Expr):
             return expr.value if isinstance(expr, tirx.IntImm) else expr
 
         shape_ty: ShapeType = self._expr.ty.shape.ty
@@ -243,7 +243,7 @@ class Parameter(Tensor):
 
     def __init__(
         self,
-        shape: Sequence[int | str | tirx.PrimExpr],
+        shape: Sequence[int | str | tirx.Expr],
         dtype: str | None = None,
     ) -> None:
         """Create a parameter with given shape and dtype. The parameter is not bound to any
@@ -251,7 +251,7 @@ class Parameter(Tensor):
 
         Parameters
         ----------
-        shape : Sequence[Union[int, str, tirx.PrimExpr]]
+        shape : Sequence[Union[int, str, tirx.Expr]]
             The shape of the parameter. If it is a string `name`, we create a symbolic shape
             `tvm.tirx.Var(name, "int64")`.
         dtype : Optional[str]

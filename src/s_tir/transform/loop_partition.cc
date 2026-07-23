@@ -146,7 +146,8 @@ class CandidateSelector final : public StmtExprVisitor {
         return;
       }
       runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-      if ((scope.rank == 0) && (!is_const_int(op->value) || partition_const_loop_)) {
+      auto value = op->value.as<PrimExpr>();
+      if ((scope.rank == 0) && (!value || !is_const_int(value.value()) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         StmtExprVisitor::VisitStmt_(op);
         if (record_.at(var.get()) && !no_split_) {
@@ -274,7 +275,7 @@ class PartitionFinder : public StmtExprVisitor {
 
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
-      DeduceCondition(op->args[0]);
+      DeduceCondition(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(builtin::ignore_loop_partition())) {
       return;
     } else {
@@ -297,7 +298,8 @@ class PartitionFinder : public StmtExprVisitor {
     // true. Also find the interval, if exists, in which we can prove that cond is
     // false.
     if (UsesVar(cond, [this](const VarNode* var) { return var == current_var_.get(); })) {
-      IntSet interval = DeduceBound(current_var_, cond, hint_map_, relax_map_);
+      IntSet interval =
+          DeduceBound(current_var_.as_or_throw<PrimExpr>(), cond, hint_map_, relax_map_);
       if (!interval.IsNothing()) {
         // cond is true within interval
         partitions[{cond, true}] = interval;
@@ -307,8 +309,10 @@ class PartitionFinder : public StmtExprVisitor {
         // `DeduceBound` do not support NE now, thus when
         // deduce l==r failed, just only try (l<=r && l>=r)
         if (const EQNode* op = cond.as<EQNode>()) {
-          IntSet part1 = DeduceBound(current_var_, GE(op->a, op->b), hint_map_, relax_map_);
-          IntSet part2 = DeduceBound(current_var_, LE(op->a, op->b), hint_map_, relax_map_);
+          IntSet part1 = DeduceBound(current_var_.as_or_throw<PrimExpr>(), GE(op->a, op->b),
+                                     hint_map_, relax_map_);
+          IntSet part2 = DeduceBound(current_var_.as_or_throw<PrimExpr>(), LE(op->a, op->b),
+                                     hint_map_, relax_map_);
           interval = arith::Intersect({part1, part2});
           if (!interval.IsNothing()) {
             // cond is true within interval
@@ -320,7 +324,8 @@ class PartitionFinder : public StmtExprVisitor {
 
       PrimExpr inverse_cond = InverseCond(cond);
       if (inverse_cond.defined()) {
-        IntSet interval = DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_);
+        IntSet interval =
+            DeduceBound(current_var_.as_or_throw<PrimExpr>(), inverse_cond, hint_map_, relax_map_);
         if (!interval.IsNothing()) {
           // cond is false within interval
           partitions[{cond, false}] = interval;
@@ -366,9 +371,9 @@ class ConditionEliminator : public StmtExprMutator {
   explicit ConditionEliminator(const ExpressionSet& ps, bool cond_value = true)
       : ps_(ps), cond_value_(cond_value) {}
 
-  PrimExpr VisitExpr(const PrimExpr& e) final {
-    if (ps_.find(e) != ps_.end()) {
-      return VisitExpr(cond_value_ ? IntImm::Bool(true) : IntImm::Bool(false));
+  Expr VisitExpr(const Expr& e) final {
+    if (auto prim_expr = e.as<PrimExpr>(); prim_expr && ps_.find(prim_expr.value()) != ps_.end()) {
+      return cond_value_ ? IntImm::Bool(true) : IntImm::Bool(false);
     }
     return StmtExprMutator::VisitExpr(e);
   }
@@ -392,7 +397,7 @@ class ThreadPartitionInserter : public StmtMutator {
       if (innermost_thread_scope_) {
         Stmt simplified_body = ConditionEliminator(ps_)(op->body);
         Stmt body = IfThenElse(cond_, simplified_body, op->body);
-        PrimExpr value = this->VisitExpr(op->value);
+        PrimExpr value = this->VisitPrimExpr(op->value);
         stmt = AttrStmt(op->node, op->attr_key, value, body);
       }
       innermost_thread_scope_ = false;
@@ -458,11 +463,13 @@ class LoopPartitioner : public StmtMutator {
     Stmt res;
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
-      relax_map_.insert({var.get(), IntSet::Interval(IntImm(var.ty(), 0), op->value - 1)});
+      relax_map_.insert(
+          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       relax_map_.erase(var.get());
     } else {
-      hint_map_.insert({var.get(), IntSet::Interval(IntImm(var.ty(), 0), op->value - 1)});
+      hint_map_.insert(
+          {var.get(), IntSet::Interval(IntImm(var->ty.as_or_throw<PrimType>(), 0), op->value - 1)});
       res = StmtMutator::VisitStmt_(op);
       hint_map_.erase(var.get());
     }
@@ -665,7 +672,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
         analyzer_->CanProve(max - min > 0)) {
       auto new_body = VisitAndMutate(body);
-      return For(var, min, max - min + 1, ForKind::kUnrolled, new_body);
+      return For(var.as_or_throw<PrimVar>(), min, max - min + 1, ForKind::kUnrolled, new_body);
     }
     return Stmt();
   }
@@ -693,7 +700,8 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       }
       if (!analyzer_->CanProve(extent <= 0)) {
         if (!partition_thread_scope) {
-          Stmt pre_body = Substitute(body, {{Var{var}, var + min}});
+          Stmt pre_body =
+              Substitute(body, ffi::Map<Var, Expr>{{var, var.as_or_throw<PrimExpr>() + min}});
           pre_stmt = MakeFor(stmt.get(), body_begin - min, pre_body);
         }
       }
@@ -719,7 +727,8 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       }
       if (!analyzer_->CanProve(extent <= 0)) {
         if (!partition_thread_scope) {
-          Stmt post_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
+          Stmt post_body = Substitute(
+              body, ffi::Map<Var, Expr>{{var, var.as_or_throw<PrimExpr>() + post_doubt_begin}});
           post_stmt = MakeFor(stmt.get(), extent, post_body);
         }
       }
@@ -736,7 +745,8 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     if (!analyzer_->CanProve(body_begin >= post_doubt_begin)) {
       // [body_begin, post_doubt_begin)
       Stmt simplified_body = ConditionEliminator(cond_set, cond_value)(body);
-      Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
+      Stmt new_body = Substitute(
+          simplified_body, ffi::Map<Var, Expr>{{var, var.as_or_throw<PrimExpr>() + body_begin}});
       mid_stmt = MakeFor(stmt.get(), post_doubt_begin - body_begin, new_body);
       // Recurse until partitions is empty
       mid_stmt = VisitAndMutate(mid_stmt);
@@ -754,9 +764,11 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     s = SeqStmt::Flatten(pre_stmt, mid_stmt, post_stmt);
   } else {
     PrimExpr cond = IntImm::Bool(true);
-    if (!analyzer_->CanProve(body_begin == min)) cond = cond && (var >= body_begin);
+    if (!analyzer_->CanProve(body_begin == min)) {
+      cond = cond && (var.as_or_throw<PrimExpr>() >= body_begin);
+    }
     if (!analyzer_->CanProve(post_doubt_begin == (max + 1)))
-      cond = cond && (var < post_doubt_begin);
+      cond = cond && (var.as_or_throw<PrimExpr>() < post_doubt_begin);
     s = ThreadPartitionInserter(cond_set, cond)(stmt);
   }
   s = ConvertSSA(s);
@@ -783,13 +795,13 @@ inline Stmt LoopPartitioner::MakeFor(const ffi::Object* node, PrimExpr extent, S
 
 class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      return StmtExprMutator::VisitExpr(op->args[0]);
+      return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else if (op->op.same_as(builtin::ignore_loop_partition())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      return StmtExprMutator::VisitExpr(op->args[0]);
+      return StmtExprMutator::VisitExpr(op->args[0].as_or_throw<PrimExpr>());
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
@@ -818,7 +830,7 @@ Pass LoopPartition() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
-    if (!cfg.defined()) {
+    if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<LoopPartitionConfig>();
     }
     n->body = s_tir::LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,

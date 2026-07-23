@@ -170,7 +170,7 @@ class TestDeduplicateBlockName(BaseTestCase):
 class TestInlineCallOccurringInExpression(BaseTestCase):
     """Inline a Call node that is used in a function
 
-    The current implementation only replaces `tirx.Call` instances that
+    The current implementation only replaces `ir.Call` instances that
     occur in a `tirx.Evaluate` context.  This is the primary use case,
     used in destination-passing style.
 
@@ -195,7 +195,7 @@ class TestInlineCallOccurringInExpression(BaseTestCase):
             cos = T.cos(T.cast(i, "float32"))
             sin = T.sin(T.cast(i, "float32"))
             retval = cos * cos + sin * sin
-            T.ret(retval)
+            return retval
 
     @I.ir_module(s_tir=True)
     class Expected:

@@ -489,8 +489,8 @@ def test_match_cast():
 
     x = relax.Var("x", R.Tensor("float32"))
     y = relax.Var("y", R.Tensor("float32"))
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     y2 = relax.Var("y", R.Tensor([n], "float32"))
     bb = relax.BlockBuilder()
     with bb.function("foo", (x, y)):
@@ -631,8 +631,8 @@ def test_dataflow_block_advanced():
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    m = tirx.Var("m", dtype="int64")
-    n = tirx.Var("n", dtype="int64")
+    m = tirx.Var("m", ty="int64")
+    n = tirx.Var("n", ty="int64")
     with bb.function("foo", (x,)):
         gv0 = bb.emit(
             relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
@@ -982,11 +982,11 @@ def test_call_tir_with_tir_var():
         ) -> R.Tensor(("n * 2",), "float32"):
             n = T.int64()
             cls = Module
-            y = R.call_tir(cls.copy, x, R.Tensor((n * 2,), dtype="float32"), tir_vars=(n,))
+            y = R.call_tir(cls.copy, (x, n), R.Tensor((n * 2,), dtype="float32"))
             return y
 
         @T.prim_func(s_tir=True)
-        def copy(var_x: T.handle, var_y: T.handle, n: T.int64):
+        def copy(var_x: T.handle, n: T.int64, var_y: T.handle):
             X = T.match_buffer(var_x, (n * 2,), dtype="float32")
             Y = T.match_buffer(var_y, (n * 2,), dtype="float32")
             for i in T.grid(n * 2):
@@ -1197,7 +1197,7 @@ def test_if_branch():
     y, ite = y_bind.var, y_bind.value
 
     assert isinstance(y, relax.Var)
-    assert y.name_hint == "y"
+    assert y.name == "y"
 
     assert isinstance(ite, relax.If)
     assert isinstance(ite.true_branch, relax.SeqExpr)
@@ -1215,13 +1215,13 @@ def test_if_branch():
     # the seq exprts in the branches are normalized to bind any call
     # in the seq expr "body" to a var
     y_bind = ite.true_branch.blocks[-1].bindings[-1]
-    assert w_bind.var.name_hint == "w"
+    assert w_bind.var.name == "w"
     check_call(w_bind.value, "relax.add", [x, x])
     check_call(y_bind.value, "relax.multiply", [w_bind.var, w_bind.var])
 
     w_bind = ite.false_branch.blocks[0].bindings[0]
     y_bind = ite.false_branch.blocks[-1].bindings[-1]
-    assert w_bind.var.name_hint == "w"
+    assert w_bind.var.name == "w"
     check_call(w_bind.value, "relax.multiply", [x, x])
     check_call(y_bind.value, "relax.add", [w_bind.var, w_bind.var])
 
@@ -1249,7 +1249,7 @@ def test_if_branch_with_match_cast():
 
     B_var = B_binding.var
     assert isinstance(B_var, relax.Var)
-    assert B_var.name_hint == "B"
+    assert B_var.name == "B"
 
     if_then_else = B_binding.value
     assert isinstance(if_then_else, relax.If)
@@ -1313,6 +1313,14 @@ def test_scalar_tensor_as_branch_condition():
     tvm.ir.assert_structural_equal(if_else.cond.ty, R.Tensor([], "bool"))
 
 
+def test_prim_annotation_requires_dtype():
+    with pytest.raises(TypeError, match="missing 1 required positional argument: 'dtype'"):
+        R.Prim()
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'value'"):
+        R.Prim(value="n")
+
+
 def test_prim_value_as_branch_condition():
     """In addition to scalar tensor, can use R.Prim condition"""
 
@@ -1343,13 +1351,13 @@ def test_computed_prim_value_as_branch_condition():
 
     N = func.params[0].ty.shape[0]
     if_else = func.body.blocks[0].bindings[0].value
-    assert isinstance(if_else.cond, tvm.tirx.PrimExpr)
+    assert tvm.ir.is_prim_expr(if_else.cond)
     tvm.ir.assert_structural_equal(N % 16 == 0, if_else.cond)
     tvm.ir.assert_structural_equal(if_else.cond.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_branch_condition():
-    """Syntactic sugar, use PrimExpr directly"""
+    """Syntactic sugar, use Expr directly"""
 
     @R.function(private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
@@ -1415,13 +1423,13 @@ def test_computed_prim_value_as_assert_condition():
     N = func.params[0].ty.shape[0]
     assert_op = func.body.blocks[0].bindings[0].value
     condition = assert_op.args[0]
-    assert isinstance(condition, tvm.tirx.PrimExpr)
+    assert tvm.ir.is_prim_expr(condition)
     tvm.ir.assert_structural_equal(N % 16 == 0, condition)
     tvm.ir.assert_structural_equal(condition.ty, R.Prim("bool"))
 
 
 def test_tir_expr_as_assert_condition():
-    """Syntactic sugar, use PrimExpr directly"""
+    """Syntactic sugar, use Expr directly"""
 
     @R.function(pure=False, private=True)
     def sugared(x: R.Tensor(["N"], "float32")):
@@ -1563,6 +1571,100 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
         bb.emit_func_output(z)
 
     _check(bar, bb.get()["bar"])
+
+
+def test_bound_prim_param_reused_in_dependent_annotations():
+    func = tvm.script.from_source(
+        """
+@R.function
+def main(
+    n: R.Prim("int64"),
+    direct: R.Tensor([n], "float32"),
+    string_direct: R.Tensor(["n"], "float32"),
+    shape: R.Shape(["n"]),
+    compound: R.Tensor(["n + 1"], "float32"),
+) -> R.Tensor(["n + 1"], "float32"):
+    return compound
+"""
+    )
+
+    n, direct, string_direct, shape, compound = func.params
+    assert direct.ty.shape[0].same_as(n)
+    assert string_direct.ty.shape[0].same_as(n)
+    assert shape.ty.values[0].same_as(n)
+    assert compound.ty.shape[0].a.same_as(n)
+    assert func.ret_ty.shape[0].a.same_as(n)
+    _check(func)
+
+
+def test_bound_prim_param_reused_in_declared_function_signature():
+    mod = tvm.script.from_source(
+        """
+@I.ir_module
+class Module:
+    @R.function
+    def main(n: R.Prim("int64"), x: R.Tensor(["n + 1"], "float32")) -> R.Tensor(
+        ["n + 1"], "float32"
+    ):
+        return x
+"""
+    )
+
+    func = mod["main"]
+    n, x = func.params
+    assert x.ty.shape[0].a.same_as(n)
+    assert func.ret_ty.shape[0].a.same_as(n)
+    _check(mod)
+
+
+def test_later_prim_param_not_adopted_by_usage_first_symbol():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@R.function
+def main(x: R.Tensor(["n"], "float32"), n: R.Prim("int64")):
+    return x
+"""
+        )
+
+
+def test_non_int64_prim_param_rejected_in_shape_annotation():
+    with pytest.raises(tvm.error.DiagnosticError):
+        tvm.script.from_source(
+            """
+@R.function
+def main(n: R.Prim("int32"), x: R.Tensor(["n"], "float32")):
+    return x
+"""
+        )
+
+
+def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
+    func = tvm.script.from_source(
+        """
+@R.function
+def main(n: R.Prim("int64"), x: R.Tensor([n], "float32")):
+    @R.function
+    def recurse(current: R.Prim("int64"), value: R.Tensor([current], "float32")) -> R.Tensor(
+        [current], "float32"
+    ):
+        return recurse(current, value)
+
+    return recurse(n, x)
+"""
+    )
+
+    recursive_binding = next(
+        binding
+        for block in func.body.blocks
+        for binding in block.bindings
+        if isinstance(binding.value, relax.Function)
+    )
+    recursive_func = recursive_binding.value
+    current, value = recursive_func.params
+    assert value.ty.shape[0].same_as(current)
+    assert recursive_func.ret_ty.shape[0].same_as(current)
+    relax.analysis.well_formed(func)
 
 
 def test_symbolic_vars_in_shape():
@@ -2296,16 +2398,125 @@ def test_function_symbolic_variables_are_annotated():
     tvm.ir.assert_structural_equal(inferred_ty, expected)
 
 
-def test_constant_prim_expr_alias_is_not_symbolic_declaration():
-    """Constant PrimExpr locals are constants, not declarations."""
+def test_non_declaration_prim_expr_emits_binding():
+    """Only zero-argument dtype calls declare symbolic variables."""
 
     @R.function(private=True)
-    def func(A: R.Tensor([4], "float32")):
+    def func(A: R.Tensor(["extent"], "float32")):
         extent = T.int64(4)
-        output: R.Tensor([extent], "float32") = A
+        output = A
         return output
 
-    tvm.ir.assert_structural_equal(func.ret_ty.shape.values[0], T.int64(4))
+    symbolic_extent = func.params[0].ty.shape[0]
+    extent_binding = func.body.blocks[0].bindings[0]
+    assert isinstance(extent_binding, relax.VarBinding)
+    assert tvm.ir.is_prim_var(symbolic_extent)
+    assert tvm.ir.is_prim_var(extent_binding.var)
+    assert not symbolic_extent.same_as(extent_binding.var)
+    tvm.ir.assert_structural_equal(extent_binding.value, T.int64(4))
+    _check(func)
+
+
+def test_primitive_assignments_emit_fresh_bindings():
+    """Primitive expressions follow ordinary Relax assignment semantics."""
+
+    @R.function(private=True)
+    def func(scalar: R.Prim("int64"), tensor: R.Tensor([1], "float32")):
+        alias = scalar
+        arithmetic = alias + 1
+        integer: R.Prim("int32") = 2
+        floating: R.Prim("float32") = 2.5
+        boolean: R.Prim("bool") = True
+        compatibility = R.prim_value(arithmetic)
+        tensor_alias = tensor
+        return tensor_alias
+
+    bindings = func.body.blocks[0].bindings
+    assert len(bindings) == 7
+    for binding in bindings:
+        assert isinstance(binding, relax.VarBinding)
+        assert not binding.var.same_as(binding.value)
+
+    alias, arithmetic, integer, floating, boolean, compatibility, tensor_alias = bindings
+    assert alias.value.same_as(func.params[0])
+    assert compatibility.value.same_as(arithmetic.var)
+    assert tensor_alias.value.same_as(func.params[1])
+    for binding, dtype in [
+        (integer, "int32"),
+        (floating, "float32"),
+        (boolean, "bool"),
+    ]:
+        assert isinstance(binding.var.ty, tvm.ir.PrimType)
+        assert binding.var.ty.dtype == dtype
+        assert tvm.ir.is_prim_expr(binding.value)
+        assert not isinstance(binding.value, relax.Constant)
+
+    source = func.script(show_all_ty=False)
+    assert "R.prim_value" not in source
+    for annotation in [
+        "alias: T.int64",
+        "integer: T.int32",
+        "floating: T.float32",
+        "boolean: T.bool",
+    ]:
+        assert annotation in source
+    _check(func)
+
+
+def test_shared_meta_var_skips_relax_bindings():
+    """I.meta_var and T.meta_var are one explicit parser-time escape."""
+
+    assert I.meta_var is T.meta_var
+
+    @R.function(private=True)
+    def func(A: R.Tensor(["N"], "float32")):
+        N: R.Prim("int64") = T.int64()
+        via_i = I.meta_var(N)
+        via_t = T.meta_var(via_i)
+        output = R.reshape(A, R.shape([via_t]))
+        return output
+
+    assert len(func.body.blocks[0].bindings) == 1
+    source = func.script(show_all_ty=False)
+    assert "meta_var" not in source
+    _check(func)
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function(private=True)
+        def mismatched_declaration():
+            value: R.Prim("float32") = T.int64()
+            return value
+
+
+def test_primitive_if_emits_fresh_result():
+    """A primitive If has a fresh Relax result and typed branch terminators."""
+
+    @R.function(private=True)
+    def func(cond: R.Prim("bool"), lhs: R.Prim("int64"), rhs: R.Prim("int64")):
+        if cond:
+            output = lhs
+        else:
+            output = rhs
+        return output
+
+    outer_binding = func.body.blocks[0].bindings[0]
+    assert isinstance(outer_binding, relax.VarBinding)
+    assert isinstance(outer_binding.value, relax.If)
+    assert isinstance(outer_binding.var.ty, tvm.ir.PrimType)
+    assert not outer_binding.var.same_as(func.params[1])
+    assert not outer_binding.var.same_as(func.params[2])
+    for branch, param in [
+        (outer_binding.value.true_branch, func.params[1]),
+        (outer_binding.value.false_branch, func.params[2]),
+    ]:
+        assert not branch.blocks
+        assert branch.body.same_as(param)
+
+    source = func.script(show_all_ty=False)
+    assert "R.prim_value" not in source
+    assert source.count("output: T.int64") == 2
+    _check(func)
 
 
 def test_conditional_may_use_symbolic_variables_from_function_scope():

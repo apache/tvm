@@ -200,7 +200,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return store;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  Expr VisitExpr_(const BufferLoadNode* op) final {
     // Rewrite load from shared or shared.dyn to global
     auto load = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<BufferLoad>();
 
@@ -218,8 +218,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return load;
   }
 
-  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr,
-                                    ffi::Optional<PrimExpr> offset = std::nullopt) {
+  Expr HandleAccessPtrAndOffset(Expr access_ptr, ffi::Optional<PrimExpr> offset = std::nullopt) {
     // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
     TVM_FFI_ICHECK(access_ptr->IsInstance<CallNode>())
@@ -233,7 +232,8 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
         << "The buffer corresponding to data Var " << access_ptr_call->args[1] << " is not found";
     int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
 
-    PrimExpr smem_offset = access_ptr_call->args[2] + (offset.defined() ? offset.value() : 0);
+    PrimExpr smem_offset = access_ptr_call->args[2].as_or_throw<PrimExpr>() +
+                           (offset.has_value() ? offset.value() : 0);
 
     // Convert offset to 2-dimension, reindex it and convert it back
     PrimExpr row_idx = floordiv(smem_offset, buffer_row_size);
@@ -247,7 +247,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return access_ptr_call;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     // Rewrite from/to shared or shared.dyn to/from local
     auto call = IRMutatorWithAnalyzer::VisitExpr_(op).as_or_throw<Call>();
 
@@ -264,8 +264,8 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     if (call->op.same_as(ptx_ldmatrix_op)) {
       // form: T.ptx.ldmatrix_legacy(..., smem_ptr, smem_offset)
       // smem_ptr: T.tvm_access_ptr(ptype, data, offset, extent, rw_mask)
-      auto access_ptr = call->args[5];
-      PrimExpr smem_offset = call->args[6];
+      Expr access_ptr = call->args[5];
+      PrimExpr smem_offset = call->args[6].as_or_throw<PrimExpr>();
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, smem_offset);
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(5, new_access_ptr);
@@ -274,7 +274,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet
       // because we will directly store result to Buffer instead of calling mma_store now
-      auto access_ptr = call->args[2];
+      Expr access_ptr = call->args[2];
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr);
       auto new_call = call.CopyOnWrite();
       new_call->args.Set(2, new_access_ptr);

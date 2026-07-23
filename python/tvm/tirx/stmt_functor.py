@@ -19,7 +19,7 @@
 from typing import TypeVar
 
 import tvm
-from tvm.ir import PrimExpr, Range
+from tvm.ir import Range
 
 from . import _ffi_api
 from .expr_functor import ExprMutator, ExprVisitor, _visit_array
@@ -38,6 +38,7 @@ class StmtFunctor:
             "tirx.IfThenElse": self.visit_if_then_else_,
             "tirx.For": self.visit_for_,
             "tirx.While": self.visit_while_,
+            "tirx.Return": self.visit_return_,
             "tirx.Break": self.visit_break_,
             "tirx.Continue": self.visit_continue_,
             "tirx.Allocate": self.visit_allocate_,
@@ -110,6 +111,10 @@ class StmtFunctor:
 
     def visit_while_(self, op):
         """Visitor for While nodes."""
+        return self.visit_stmt_default_(op)
+
+    def visit_return_(self, op):
+        """Visitor for Return nodes."""
         return self.visit_stmt_default_(op)
 
     def visit_break_(self, op):
@@ -219,7 +224,7 @@ class StmtVisitor(StmtFunctor):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
         """
         pass
@@ -252,6 +257,10 @@ class StmtVisitor(StmtFunctor):
         """Visitor implementation for While."""
         self.visit_expr(op.condition)
         self.visit_stmt(op.body)
+
+    def visit_return_(self, op):
+        """Visitor implementation for Return."""
+        self.visit_expr(op.value)
 
     def visit_break_(self, op):
         """Visitor implementation for Break."""
@@ -290,7 +299,7 @@ class StmtVisitor(StmtFunctor):
         """Visitor implementation for AssertStmt."""
         self.visit_expr(op.condition)
         for message_part in op.message_parts:
-            if isinstance(message_part, PrimExpr):
+            if tvm.ir.is_prim_expr(message_part):
                 self.visit_expr(message_part)
 
     def visit_seqstmt_(self, op):
@@ -354,14 +363,14 @@ class StmtVisitor(StmtFunctor):
     def visit_op_call_(self, op):
         """Visitor implementation for TilePrimitiveCall."""
         for arg in op.args:
-            if isinstance(arg, PrimExpr):
+            if tvm.ir.is_prim_expr(arg):
                 self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 self.visit_stmt(arg)
             elif isinstance(arg, tvm.tirx.BufferRegion):
                 self.visit_buffer_region_(arg)
         for value in op.config.values():
-            if isinstance(value, PrimExpr):
+            if tvm.ir.is_prim_expr(value):
                 self.visit_expr(value)
             elif isinstance(value, tvm.tirx.Stmt):
                 self.visit_stmt(value)
@@ -398,12 +407,12 @@ class StmtMutator(StmtFunctor):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
 
         Returns
         -------
-        result : PrimExpr
+        result : Expr
             The mutated expression.
         """
         return expr
@@ -469,6 +478,15 @@ class StmtMutator(StmtFunctor):
             return op
 
         return tvm.tirx.While(condition, body, op.span)
+
+    def visit_return_(self, op):
+        """Mutator implementation for Return."""
+        value = self.visit_expr(op.value)
+
+        if value is op.value:
+            return op
+
+        return tvm.tirx.Return(value, op.span)
 
     def visit_break_(self, op):
         """Mutator implementation for Break."""
@@ -566,7 +584,7 @@ class StmtMutator(StmtFunctor):
         message_parts = []
         message_parts_changed = False
         for message_part in op.message_parts:
-            if isinstance(message_part, PrimExpr):
+            if tvm.ir.is_prim_expr(message_part):
                 new_message_part = self.visit_expr(message_part)
                 if new_message_part is not message_part:
                     message_parts_changed = True
@@ -824,7 +842,7 @@ class StmtMutator(StmtFunctor):
         args_changed = False
 
         for arg in op.args:
-            if isinstance(arg, PrimExpr):
+            if tvm.ir.is_prim_expr(arg):
                 new_arg = self.visit_expr(arg)
             elif isinstance(arg, tvm.tirx.Stmt):
                 new_arg = self.visit_stmt(arg)
@@ -837,11 +855,11 @@ class StmtMutator(StmtFunctor):
                 args_changed = True
             new_args.append(new_arg)
 
-        # Also mutate PrimExpr values in the config map
+        # Also mutate Expr values in the config map
         new_config = {}
         config_changed = False
         for key, value in op.config.items():
-            if isinstance(value, PrimExpr):
+            if tvm.ir.is_prim_expr(value):
                 new_value = self.visit_expr(value)
             elif isinstance(value, tvm.tirx.Stmt):
                 new_value = self.visit_stmt(value)
@@ -928,7 +946,7 @@ class StmtExprVisitor(StmtVisitor, ExprVisitor):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be visited.
         """
         return ExprVisitor.visit_expr(self, expr)
@@ -955,12 +973,12 @@ class StmtExprMutator(StmtMutator, ExprMutator):
 
         Parameters
         ----------
-        expr : PrimExpr
+        expr : Expr
             The expression to be mutated.
 
         Returns
         -------
-        result : PrimExpr
+        result : Expr
             The mutated expression.
         """
         return ExprMutator.visit_expr(self, expr)
@@ -994,28 +1012,34 @@ def ir_transform(stmt, preorder, postorder, only_enable=None):
     return _ffi_api.IRTransform(stmt, preorder, postorder, only_enable)  # type: ignore
 
 
-def post_order_visit(stmt, fvisit):
-    """Recursively visit the ir in post DFS order node, apply fvisit
+def post_order_visit(node, fvisit):
+    """Recursively visit a statement or expression in post DFS order, applying fvisit.
        Each node is guaranteed to be visited only once.
 
     Parameters
     ----------
+    node : tvm.tirx.Stmt or tvm.ir.Expr
+        The statement or expression to visit.
+
     fvisit: function
         The visitor function.
     """
-    return _ffi_api.PostOrderVisit(stmt, fvisit)  # type: ignore
+    return _ffi_api.PostOrderVisit(node, fvisit)  # type: ignore
 
 
-def pre_order_visit(stmt, fvisit):
-    """Recursive pre-order visit on stmt AST, applying fvisit on each node.
+def pre_order_visit(node, fvisit):
+    """Recursively visit a statement or expression in pre-order, applying fvisit.
        If fvisit returns False, it won't visit the children of the node.
 
     Parameters
     ----------
+    node : tvm.tirx.Stmt or tvm.ir.Expr
+        The statement or expression to visit.
+
     fvisit: function of the signature Object -> bool
         The visitor function.
     """
-    return _ffi_api.PreOrderVisit(stmt, fvisit)  # type: ignore
+    return _ffi_api.PreOrderVisit(node, fvisit)  # type: ignore
 
 
 def substitute(node, vmap):
@@ -1026,7 +1050,7 @@ def substitute(node, vmap):
     node: ObjectRef
         The input.
 
-    vmap : Dict[Var, PrimExpr]
+    vmap : Dict[Var, Expr]
         The variable mapping.
 
     Returns

@@ -56,7 +56,7 @@ inline tvm::te::Tensor relu(const tvm::te::Tensor& t, T threshold = static_cast<
                             std::string name = "T_relu", std::string tag = kElementWise) {
   return tvm::te::compute(
       t->shape,
-      [&](const tvm::ffi::Array<tvm::tirx::Var>& i) {
+      [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& i) {
         auto threshold_const = tvm::tirx::MakeConst(tvm::PrimType(t->dtype), threshold);
         return tvm::max(t(i), threshold_const);
       },
@@ -78,7 +78,7 @@ inline tvm::te::Tensor leaky_relu(const tvm::te::Tensor& t, double alpha = 0.1,
                                   std::string tag = kElementWise) {
   return tvm::te::compute(
       t->shape,
-      [&](const tvm::ffi::Array<tvm::tirx::Var>& i) {
+      [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& i) {
         auto value = t(i);
         auto calpha = tvm::tirx::MakeConst(value.ty(), alpha);
         return tvm::tirx::Select(value > 0, value, value * calpha);
@@ -107,7 +107,7 @@ inline tvm::te::Tensor prelu(const tvm::te::Tensor& x, const tvm::te::Tensor& sl
 
   return tvm::te::compute(
       x->shape,
-      [&](const tvm::ffi::Array<tvm::tirx::Var>& indices) {
+      [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& indices) {
         auto xval = x(indices);
         return tvm::tirx::Select(xval > 0, xval, xval * slope(indices[axis]));
       },
@@ -197,7 +197,7 @@ inline tvm::te::Tensor pad(
     pad_value = tvm::tirx::MakeConst(tvm::PrimType(t->dtype), 0);
   }
 
-  auto l = [&](tvm::ffi::Array<tvm::tirx::Var> ovars) {
+  auto l = [&](tvm::ffi::Array<tvm::tirx::PrimVar> ovars) {
     tvm::ffi::Array<tvm::PrimExpr> indices;
     tvm::ffi::Array<tvm::PrimExpr> sel;
     tvm::ffi::Array<tvm::PrimExpr> pad_idx;
@@ -213,19 +213,20 @@ inline tvm::te::Tensor pad(
         indices.push_back(ovars[i]);
       }
       if (!topi::detail::EqualCheck(pad_after_int32[i], 0)) {
-        sel.push_back(analyzer->Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
+        sel.push_back(analyzer->Simplify(ovars[i].as_or_throw<PrimExpr>() <
+                                         pad_before_int32[i] + t->shape[i]));
       }
       if (pad_mode == "edge") {
         pad_idx.push_back(
-            tvm::if_then_else(ovars[i] < pad_before[i], 0,
+            tvm::if_then_else(ovars[i].as_or_throw<PrimExpr>() < pad_before[i], 0,
                               tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
                                                 t->shape[i] - 1, ovars[i] - pad_before[i])));
       } else if (pad_mode == "reflect") {
-        pad_idx.push_back(
-            tvm::if_then_else(ovars[i] < pad_before[i], pad_before[i] - ovars[i],
-                              tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
-                                                t->shape[i] * 2 - ovars[i] + pad_before[i] - 2,
-                                                ovars[i] - pad_before[i])));
+        pad_idx.push_back(tvm::if_then_else(
+            ovars[i].as_or_throw<PrimExpr>() < pad_before[i], pad_before[i] - ovars[i],
+            tvm::if_then_else(ovars[i] >= pad_before[i] + t->shape[i],
+                              t->shape[i] * 2 - ovars[i] + pad_before[i] - 2,
+                              ovars[i] - pad_before[i])));
       }
     }
     if (sel.size() != 0) {
@@ -285,7 +286,8 @@ inline tvm::te::Tensor conv2d_nchw(const tvm::te::Tensor& I, const tvm::te::Tens
   auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
-  auto l = [&](tvm::tirx::Var b, tvm::tirx::Var o, tvm::tirx::Var h, tvm::tirx::Var w) {
+  auto l = [&](tvm::tirx::PrimVar b, tvm::tirx::PrimVar o, tvm::tirx::PrimVar h,
+               tvm::tirx::PrimVar w) {
     return tvm::sum(T(b, i, stride_h * h + kh, stride_w * w + kw) * W(o, i, kh, kw), {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
@@ -328,7 +330,8 @@ inline tvm::te::Tensor conv2d_hwcn(const tvm::te::Tensor& I, const tvm::te::Tens
   auto kh = tvm::te::reduce_axis(tvm::Range{0, W->shape[0]}, "kh");
   auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0) ? I : pad(I, {pad_h, pad_w});
-  auto l = [&](tvm::tirx::Var b, tvm::tirx::Var o, tvm::tirx::Var h, tvm::tirx::Var w) {
+  auto l = [&](tvm::tirx::PrimVar b, tvm::tirx::PrimVar o, tvm::tirx::PrimVar h,
+               tvm::tirx::PrimVar w) {
     return tvm::sum(T(stride_h * h + kh, stride_w * w + kw, i, b) * W(kh, kw, i, o), {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
@@ -375,7 +378,8 @@ inline tvm::te::Tensor depthwise_conv2d_nchw(const tvm::te::Tensor& I, const tvm
   auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[3]}, "kw");
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
-  auto l = [&](tvm::tirx::Var b, tvm::tirx::Var o, tvm::tirx::Var h, tvm::tirx::Var w) {
+  auto l = [&](tvm::tirx::PrimVar b, tvm::tirx::PrimVar o, tvm::tirx::PrimVar h,
+               tvm::tirx::PrimVar w) {
     return tvm::sum(T(b, indexdiv(i, pCM), stride_h * h + kh, stride_w * w + kw) *
                         W(indexdiv(i, pCM), indexmod(o, pCM), kh, kw),
                     {i, kh, kw});
@@ -404,7 +408,8 @@ inline tvm::te::Tensor depthwise_conv2d_nhwc(const tvm::te::Tensor& I, const tvm
   auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), pad_h, pad_w, tvm::PrimExpr(0)});
-  auto l = [&](tvm::tirx::Var b, tvm::tirx::Var h, tvm::tirx::Var w, tvm::tirx::Var o) {
+  auto l = [&](tvm::tirx::PrimVar b, tvm::tirx::PrimVar h, tvm::tirx::PrimVar w,
+               tvm::tirx::PrimVar o) {
     return tvm::sum(T(b, stride_h * h + kh, stride_w * w + kw, indexdiv(i, pCM)) *
                         W(kh, kw, indexdiv(i, pCM), indexmod(o, pCM)),
                     {kh, kw, i});
@@ -455,12 +460,12 @@ inline tvm::te::Tensor group_conv2d_ngchw(const tvm::te::Tensor& I, const tvm::t
   auto T = (pad_h == 0 && pad_w == 0)
                ? I
                : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
-  auto l = [&](tvm::ffi::Array<tvm::tirx::Var> args) {
-    tvm::tirx::Var b = args[0];
-    tvm::tirx::Var g = args[1];
-    tvm::tirx::Var o = args[2];
-    tvm::tirx::Var h = args[3];
-    tvm::tirx::Var w = args[4];
+  auto l = [&](tvm::ffi::Array<tvm::tirx::PrimVar> args) {
+    tvm::tirx::PrimVar b = args[0];
+    tvm::tirx::PrimVar g = args[1];
+    tvm::tirx::PrimVar o = args[2];
+    tvm::tirx::PrimVar h = args[3];
+    tvm::tirx::PrimVar w = args[4];
     return tvm::sum(I(b, g, i, stride_h * h + kh, stride_w * w + kw) * W(g, i, o, kh, kw),
                     {i, kh, kw});
   };
@@ -674,7 +679,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
     // prediction->shape = (C,), targets->shape = (), weights->shape = (C,)
     auto T = tvm::te::compute(
         {},
-        [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
+        [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& target_indices) {
           auto c = targets();
           return tvm::tirx::Select(c != ignore_index, -predictions(c) * weights(c),
                                    tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
@@ -683,7 +688,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
     if (reduction == "mean") {
       auto W = tvm::te::compute(
           {},
-          [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
+          [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& target_indices) {
             auto c = targets();
             return tvm::tirx::Select(c != ignore_index, weights(c),
                                      tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));
@@ -696,7 +701,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
   }
   auto T = tvm::te::compute(
       targets->shape,
-      [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
+      [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& target_indices) {
         auto c = targets(target_indices);
         tvm::ffi::Array<tvm::PrimExpr> pred_indices;
         pred_indices.push_back(target_indices[0]);  // batch index
@@ -712,7 +717,7 @@ inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const T
   if (reduction == "mean") {
     auto W = tvm::te::compute(
         targets->shape,
-        [&](const tvm::ffi::Array<tvm::tirx::Var>& target_indices) {
+        [&](const tvm::ffi::Array<tvm::tirx::PrimVar>& target_indices) {
           auto c = targets(target_indices);
           return tvm::tirx::Select(c != ignore_index, weights(c),
                                    tvm::tirx::MakeConst(tvm::PrimType(predictions->dtype), 0));

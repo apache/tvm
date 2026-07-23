@@ -21,7 +21,7 @@ from collections.abc import Callable
 
 import tvm.tirx.operator as tirx_op
 from tvm.ir import Op
-from tvm.tirx import Buffer, BufferRegion, PrimExpr
+from tvm.tirx import Buffer, BufferRegion, Expr
 from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool, TMEMStages
@@ -405,8 +405,8 @@ def fdiv(
 def fma(
     dst: BufferRegion | Buffer,
     src: BufferRegion | Buffer,
-    scale: BufferRegion | Buffer | PrimExpr,
-    bias: BufferRegion | Buffer | PrimExpr,
+    scale: BufferRegion | Buffer | Expr,
+    bias: BufferRegion | Buffer | Expr,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
@@ -422,10 +422,10 @@ def fma(
     src : Union[BufferRegion, Buffer]
         The input buffer region.
 
-    scale : Union[BufferRegion, Buffer, PrimExpr]
+    scale : Union[BufferRegion, Buffer, Expr]
         The scale factor (buffer region or scalar).
 
-    bias : Union[BufferRegion, Buffer, PrimExpr]
+    bias : Union[BufferRegion, Buffer, Expr]
         The bias term (buffer region or scalar).
 
     workspace : Optional[Dict[str, Buffer]]
@@ -635,7 +635,7 @@ def gemm_async(
 @ScopedOp
 def fill(
     dst: BufferRegion | Buffer,
-    value: PrimExpr,
+    value: Expr,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
@@ -648,7 +648,7 @@ def fill(
     dst : Union[BufferRegion, Buffer]
         The destination buffer region.
 
-    value : PrimExpr
+    value : Expr
         The value to be filled.
 
     workspace : Optional[Dict[str, Buffer]]
@@ -671,8 +671,8 @@ def gemm(
     C: BufferRegion | Buffer,
     transpose_A: bool = False,
     transpose_B: bool = False,
-    alpha: PrimExpr = 1.0,
-    beta: PrimExpr = 0.0,
+    alpha: Expr = 1.0,
+    beta: Expr = 0.0,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
@@ -702,10 +702,10 @@ def gemm(
     transpose_B : bool
         Whether to transpose B.
 
-    alpha : PrimExpr
+    alpha : Expr
         The scalar alpha.
 
-    beta : PrimExpr
+    beta : Expr
         The scalar beta.
 
     workspace : Optional[Dict[str, Buffer]]
@@ -950,7 +950,7 @@ def silu(
 @ScopedOp
 def memset(
     dst: BufferRegion | Buffer,
-    value: PrimExpr,
+    value: Expr,
     workspace: dict[str, Buffer] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
@@ -963,7 +963,7 @@ def memset(
     dst : Union[BufferRegion, Buffer]
         The destination buffer region for memset.
 
-    value : PrimExpr
+    value : Expr
         The value to be set.
 
     workspace : Optional[Dict[str, Buffer]]
@@ -1513,7 +1513,7 @@ def select(
     dst: BufferRegion | Buffer,
     true_value: BufferRegion | Buffer | FloatImm,
     false_value: BufferRegion | Buffer | FloatImm,
-    pred: Predicate | Callable[..., PrimExpr],
+    pred: Predicate | Callable[..., Expr],
     scope: ExecScope | None = None,
 ):
     """Select between two values based on a predicate.
@@ -1529,7 +1529,7 @@ def select(
     false_value : Union[BufferRegion, Buffer, FloatImm]
         The value to select if the predicate is false.
 
-    pred : Union[Predicate, Callable[..., PrimExpr]]
+    pred : Union[Predicate, Callable[..., Expr]]
         The predicate to evaluate. The callable should take the same number of arguments as the dimensions of the destination buffer.
     """  # noqa: E501
     dst = _to_region(dst)
@@ -1542,7 +1542,7 @@ def select(
     return f_insert(tirx_op.Select(dst, true_value, false_value, pred, scope=scope))
 
 
-def reshape(buffer: Buffer, shape: list[PrimExpr]):
+def reshape(buffer: Buffer, shape: list[Expr]):
     # auto-infer the shape if shape has only one -1
     # for example, if buffer.shape is (1024, 1024) and shape is (128, -1, 2), then the new shape will be (128, 4, 2)  # noqa: E501
     shape = list(shape)
@@ -1561,7 +1561,6 @@ def reshape(buffer: Buffer, shape: list[PrimExpr]):
             + " are not compatible"
         )
 
-    assert buffer.buffer_type == 1
     return decl_buffer(
         shape,
         buffer.dtype,
@@ -1572,8 +1571,6 @@ def reshape(buffer: Buffer, shape: list[PrimExpr]):
         buffer.scope(),
         buffer.data_alignment,
         buffer.offset_factor,
-        "",
-        buffer.axis_separators,
         buffer.layout,
     )
 

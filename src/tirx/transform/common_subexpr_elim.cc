@@ -322,15 +322,15 @@ class CSEPlanner : public StmtExprVisitor {
     struct Replacer : public ExprMutator {
       ExprDeepEqual eq;
       PrimExpr target, replacement;
-      PrimExpr VisitExpr(const PrimExpr& e) final {
-        if (eq(e, target)) return replacement;
+      Expr VisitExpr(const Expr& e) final {
+        if (auto prim = e.as<PrimExpr>(); prim && eq(prim.value(), target)) return replacement;
         return ExprMutator::VisitExpr(e);
       }
     };
     Replacer r;
     r.target = target;
     r.replacement = replacement;
-    return r.VisitExpr(body);
+    return r.VisitExpr(body).as_or_throw<PrimExpr>();
   }
 
   // ------------------------------------------------------------------
@@ -677,7 +677,8 @@ class CSEPlanner : public StmtExprVisitor {
       // recomputing the sub-expression.
       for (auto& [other_expr, other_entry] : all_entries) {
         if (other_entry->expr_depth <= entry->expr_depth) continue;
-        other_entry->repr = SubstituteSubexpr(other_entry->repr, entry->repr, cse_var);
+        other_entry->repr =
+            SubstituteSubexpr(other_entry->repr, entry->repr, cse_var.as_or_throw<PrimExpr>());
       }
     }
 
@@ -746,9 +747,11 @@ class CSERewriter : public StmtExprMutator {
    * Checks the remap table before recursing — if the full expression matches,
    * it is replaced without visiting children.
    */
-  PrimExpr VisitExpr(const PrimExpr& e) override {
-    auto it = expr_remap_.find(e);
-    if (it != expr_remap_.end()) return it->second;
+  Expr VisitExpr(const Expr& e) override {
+    if (auto prim_expr = e.as<PrimExpr>()) {
+      auto it = expr_remap_.find(prim_expr.value());
+      if (it != expr_remap_.end()) return it->second;
+    }
     return StmtExprMutator::VisitExpr(e);
   }
 

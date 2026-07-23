@@ -126,12 +126,12 @@ def test_image_affine_grid():
             with T.sblock("root"):
                 T.reads()
                 T.writes()
-                for n, dim, i, j in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
+                for n, dim, i0, i1 in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
                     with T.sblock("compute"):
-                        v_n, v_dim, v_i, v_j = T.axis.remap("SSSS", [n, dim, i, j])
+                        v_n, v_dim, v_i0, v_i1 = T.axis.remap("SSSS", [n, dim, i0, i1])
                         T.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
-                        T.writes(compute[v_n, v_dim, v_i, v_j])
-                        compute[v_n, v_dim, v_i, v_j] = theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_j) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(2)]
+                        T.writes(compute[v_n, v_dim, v_i0, v_i1])
+                        compute[v_n, v_dim, v_i0, v_i1] = theta[v_n, v_dim, T.int64(2)] + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i0) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_i1) * T.float32(0.13333332666666667))
     # fmt: on
 
     mod = LegalizeOps()(AffineGrid)

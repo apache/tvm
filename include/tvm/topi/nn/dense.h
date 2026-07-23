@@ -60,7 +60,7 @@ inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor&
   auto k = tvm::te::reduce_axis(Range(0, in_dim), "k");
   auto matmul = tvm::te::compute(
       {batch, out_dim},
-      [&](Var i, Var j) {
+      [&](PrimVar i, PrimVar j) {
         return tvm::sum(tvm::cast(out_dtype, data(i, k)) * tvm::cast(out_dtype, weight(j, k)), {k});
       },
       "tensor", "dense");
@@ -68,8 +68,8 @@ inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor&
   if (bias.defined()) {
     matmul = tvm::te::compute(
         {batch, out_dim},
-        [&](Var i, Var j) { return matmul(i, j) + tvm::cast(out_dtype, bias(j)); }, "tensor",
-        kBroadcast);
+        [&](PrimVar i, PrimVar j) { return matmul(i, j) + tvm::cast(out_dtype, bias(j)); },
+        "tensor", kBroadcast);
   }
 
   return matmul;

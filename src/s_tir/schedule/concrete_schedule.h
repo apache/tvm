@@ -181,9 +181,6 @@ class ConcreteScheduleNode : public ScheduleNode {
                        const ffi::Optional<IndexMap>& pad_value,
                        bool assume_injective_transform = false) override;
   void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) override;
-  void SetAxisSeparator(const SBlockRV& block_rv, int buffer_index,
-                        BufferIndexType buffer_index_type,
-                        const ffi::Array<IntImm>& axis_separators) override;
   /******** Schedule: Padding decomposition ********/
   SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) override;
   /******** Schedule: Buffer transformation ********/
@@ -261,7 +258,7 @@ inline For ConcreteScheduleNode::Get(const LoopRV& loop_rv) const {
 }
 
 inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
-  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> ffi::Optional<PrimExpr> {
+  PrimExpr transformed = Substitute(expr_rv, [this](const Var& var) -> ffi::Optional<Expr> {
     auto it = this->symbol_table_.find(var);
     if (it == this->symbol_table_.end()) {
       TVM_FFI_THROW(IndexError) << "Cannot find corresponding ExprRV: " << var;
@@ -371,7 +368,7 @@ inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), PrimType::Int(32));
   this->symbol_table_.Set(rv, IntImm::Int32(static_cast<int32_t>(value)));
-  return rv;
+  return rv.as_or_throw<PrimExpr>();
 }
 
 inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,

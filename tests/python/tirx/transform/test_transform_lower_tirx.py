@@ -583,7 +583,7 @@ def test_lower_decl_buffer_access_ptr():
         T.thread_id([128])
         buf = T.alloc_buffer([1024], "uint8", scope="shared.dyn")
         A = T.decl_buffer([128], "float16", buf.data, elem_offset=32)
-        T.evaluate(A.access_ptr("rw", offset=A.elem_offset_of([64])))
+        T.evaluate(A.access_ptr("rw", ptr_type="float16", offset=A.elem_offset_of([64])))
 
     @T.prim_func(private=True)
     def after():

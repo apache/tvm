@@ -26,9 +26,10 @@ because operand-shape branching is now Python-level (outside any
 
 from __future__ import annotations
 
-from tvm.ir.expr import PrimExpr
+from tvm.ir.expr import Expr
 from tvm.script import tirx as T
 
+from .._common import dtype_name, scalar_dtype
 from ..ops import VecImpl
 
 
@@ -49,7 +50,7 @@ def _f32x2_applies(op_name):
     def applies(op_call, sctx, plan):
         from ...common import sm_version_ok
 
-        if plan.dst.buffer.dtype != "float32":
+        if dtype_name(plan.dst.buffer.dtype) != "float32":
             return False, "dst dtype not f32"
         if not sm_version_ok(op_call, sctx, min_version=100)[0]:
             return False, "sm version < 100"
@@ -57,10 +58,10 @@ def _f32x2_applies(op_name):
             return False, "binary requires 2 srcs"
         for s in plan.srcs:
             if s.is_scalar:
-                if s.scalar.dtype != "float32":
+                if scalar_dtype(s.scalar) != "float32":
                     return False, "scalar src dtype not f32"
             else:
-                if s.buf_region.buffer.dtype != "float32":
+                if dtype_name(s.buf_region.buffer.dtype) != "float32":
                     return False, "buffer src dtype not f32"
                 if s.index_fn is not None:
                     return False, "broadcasting src not supported by f32x2 packed"
@@ -72,7 +73,7 @@ def _f32x2_applies(op_name):
 def _emit_binary_f32x2_for(op_name):
     op_func = getattr(T.ptx, f"{op_name}_f32x2")
 
-    def emit(dst_buf, dst_lane_indices, src_args, extras) -> PrimExpr:
+    def emit(dst_buf, dst_lane_indices, src_args, extras) -> Expr:
         a_arg, b_arg = src_args
         rm = extras.get("rounding_mode", "rz")
         return op_func(

@@ -293,6 +293,43 @@ def test_extern():
     _check_workload(te_extern, tir_extern)
 
 
+def te_extern_epilogue():
+    A = te.placeholder((4, 3), name="A")
+    B = te.placeholder((3, 2), name="B")
+    C = te.extern(
+        (4, 2),
+        [A, B],
+        lambda ins, outs: tvm.tirx.call_packed("testing.echo", ins[0], ins[1], outs[0]),
+        name="C",
+    )
+    D = te.compute(C.shape, lambda i, j: C[i, j] + 1.0, name="D")
+    return [A, B, D]
+
+
+@T.prim_func(s_tir=True)
+def tir_extern_epilogue(var_A: T.handle, var_B: T.handle, D: T.Buffer((4, 2), "float32")):
+    T.func_attr({"global_symbol": "main", "tirx.noalias": True})
+    A = T.match_buffer(var_A, (4, 3), offset_factor=1)
+    B = T.match_buffer(var_B, (3, 2), offset_factor=1)
+    C = T.sblock_alloc_buffer((4, 2), elem_offset=0, offset_factor=1)
+    with T.sblock("C"):
+        T.reads()
+        T.writes()
+        T.call_packed("testing.echo", A, B, C)
+    for i, j in T.grid(4, 2):
+        with T.sblock("D"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(C[vi, vj])
+            T.writes(D[vi, vj])
+            D[vi, vj] = C[vi, vj] + T.float32(1)
+
+
+def test_extern_epilogue():
+    _check_workload(te_extern_epilogue, tir_extern_epilogue)
+    func = te.create_prim_func(te_extern_epilogue()).with_attr("global_symbol", "extern_epilogue")
+    tvm.compile(func, target="llvm")
+
+
 def te_reordered_matmul():
     k = te.reduce_axis((0, 128), "k")
     A = te.placeholder((128, 128), name="A")
@@ -884,11 +921,11 @@ def test_adaptive_pooling_window():
         # fmt: off
         adaptive_pool_sum = T.sblock_alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
-            with T.sblock("adaptive_pool_sum_1"):
+            with T.sblock("adaptive_pool_sum_l1"):
                 v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                 T.reads(x[v_ax0, v_ax1, v_ax2 * 16 // 12:v_ax2 * 16 // 12 + ((v_ax2 % 3 * 4 + 16) // 12 + 1), v_ax3 * 40 // 30:v_ax3 * 40 // 30 + ((v_ax3 % 3 * 10 + 40) // 30 + 1)])
                 T.writes(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
-                for rv0, rv1 in T.grid((v_ax2 % 3 * 4 + 16) // 12 + 1, (v_ax3 % 3 * 10 + 40) // 30 + 1):
+                for rv0, rv1 in T.grid(T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30):
                     with T.sblock("adaptive_pool_sum"):
                         v_ax0_1 = T.axis.spatial((v_ax0, v_ax0 + 1), v_ax0)
                         v_ax1_1 = T.axis.spatial((v_ax1, v_ax1 + 1), v_ax1)
@@ -906,7 +943,7 @@ def test_adaptive_pooling_window():
                 T.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
                 T.sblock_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
-                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", (v_ax2 % 3 * 4 + 16) // 12 + 1) * T.Cast("float32", (v_ax3 % 3 * 10 + 40) // 30 + 1))
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 16 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 40 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
         # fmt: on
 
     def te_workload():

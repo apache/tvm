@@ -26,14 +26,13 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-/*! \brief Find the outmost Relax function frame. If not exist, the outmost Relax frame. */
+/*! \brief Find the innermost Relax function frame, or the innermost Relax frame. */
 RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
   RelaxFrameNode* f = nullptr;
-  for (const Frame& frame : d->frames) {
-    if (const auto* relax_frame = frame.as<RelaxFrameNode>()) {
+  for (auto it = d->frames.rbegin(); it != d->frames.rend(); ++it) {
+    if (const auto* relax_frame = (*it).as<RelaxFrameNode>()) {
       if (relax_frame->is_func) {
-        f = const_cast<RelaxFrameNode*>(relax_frame);
-        break;
+        return const_cast<RelaxFrameNode*>(relax_frame);
       } else if (f == nullptr) {
         f = const_cast<RelaxFrameNode*>(relax_frame);
       }
@@ -42,13 +41,16 @@ RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
   return f;
 }
 
-Doc PrintTIRVar(tirx::Var n, AccessPath n_p, IRDocsifier d) {
-  PrimType n_ty = n.ty();
-  TVM_FFI_CHECK(!n_ty.IsScalableVector() && !n_ty.IsFixedLengthVector(), TypeError)
-      << "Relax only uses scalar TIR variables,"
-      << "but received TIR variable " << n << " with dtype " << n_ty->dtype;
-
+Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
+  if (!n->ty.as<PrimTypeNode>()) {
+    return PrintRelaxVar(n, n_p, d);
+  }
+  tirx::PrimVar prim_var = n.as_or_throw<tirx::PrimVar>();
   if (!d->IsVarDefined(n)) {
+    PrimType n_ty = n->ty.as_or_throw<PrimType>();
+    TVM_FFI_CHECK(!n_ty.IsScalableVector() && !n_ty.IsFixedLengthVector(), TypeError)
+        << "Relax only uses scalar TIR variables,"
+        << "but received TIR variable " << n << " with dtype " << n_ty->dtype;
     RelaxFrameNode* f = GetRelaxFrame(d);
     // There should be at least one Relax frame
     if (f == nullptr) {
@@ -60,9 +62,9 @@ Doc PrintTIRVar(tirx::Var n, AccessPath n_p, IRDocsifier d) {
       TVM_FFI_ICHECK(f->is_func);
       f->func_vars->insert(n.get());
     }
-    IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
+    IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name.empty() ? "v" : n->name);
     var->source_paths.push_back(n_p);
-    f->stmts.push_back(AssignDoc(var, PrintVarCreation(n, n_p, d), std::nullopt));
+    f->stmts.push_back(AssignDoc(var, PrintVarCreation(prim_var, n_p, d), std::nullopt));
   }
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
     return doc.value();
@@ -71,14 +73,13 @@ Doc PrintTIRVar(tirx::Var n, AccessPath n_p, IRDocsifier d) {
   TVM_FFI_UNREACHABLE();
 }
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::Var>("relax", PrintTIRVar);
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tirx::SizeVar>("relax", PrintTIRVar);
+TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<Var>("relax", PrintCanonicalVar);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //
         "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
           // TODO(@junrushao): support non-int64 cases
-          if (n->ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
+          if (n->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
             return LiteralDoc::Boolean(n->value, n_p);
           } else {
             return LiteralDoc::Int(n->value, n_p);

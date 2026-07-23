@@ -23,13 +23,13 @@ from functools import partial
 from typing import Any
 
 import tvm
-from tvm.ir import GlobalVar, PrimType
+from tvm.ir import Expr, GlobalVar, PrimType
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
 from tvm.script.parser._core import Parser, dispatch, doc
 from tvm.script.parser.core.doc import from_doc
-from tvm.tirx import Buffer, IterVar, Layout, PrimExpr, Var
+from tvm.tirx import Buffer, IterVar, Layout
 from tvm.tirx.script import builder as T
 from tvm.tirx.script.builder.ir import name_meta_class_value
 from tvm.tirx.stmt import BufferRegion
@@ -64,8 +64,6 @@ def slice_buffer_from_region(br: BufferRegion) -> Buffer:
             buf.scope(),
             buf.data_alignment,
             buf.offset_factor,
-            "",
-            buf.axis_separators,
             sliced_layout,
         )
     # Fallback: compute elem_offset for default/no layout
@@ -89,8 +87,6 @@ def slice_buffer_from_region(br: BufferRegion) -> Buffer:
         buf.scope(),
         buf.data_alignment,
         buf.offset_factor,
-        "",
-        buf.axis_separators,
         buf.layout,
     )
 
@@ -123,7 +119,7 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
         for i, v in enumerate(value):
             bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, Buffer | Var):
+    elif isinstance(value, Buffer | tvm.ir.Var):
         IRBuilder.name(var_name, value)
         return value
     else:
@@ -159,7 +155,7 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
         for i, v in enumerate(value):
             bind_for_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, Var):
+    elif isinstance(value, tvm.ir.Var):
         IRBuilder.name(var_name, value)
         return value
     else:
@@ -196,7 +192,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         assert isinstance(value.scalar, T.BufferLoad)
         IRBuilder.name(var_name, value.scalar.buffer)
         return value.scalar
-    if isinstance(value, T.meta_var):
+    if isinstance(value, I.meta_var):
         return value.value
     elif getattr(type(value), "_is_meta_class", False):
         name_meta_class_value(var_name, value)
@@ -216,12 +212,12 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         IRBuilder.name(var_name, res)
         return res
     elif isinstance(value, Buffer | IterVar | Layout) or (
-        isinstance(value, Var) and not self.var_table.exist(value)
+        isinstance(value, tvm.ir.Var) and not self.var_table.exist(value)
     ):
         IRBuilder.name(var_name, value)
         return value
     else:
-        if not isinstance(value, PrimExpr):
+        if not tvm.ir.is_prim_expr(value):
             value = tvm.tirx.const(value)
         if not isinstance(value, tvm.tirx.StringImm):
             # x = expr -> scalar (auto-typed from value)
@@ -410,7 +406,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         # Buffer check and store are intentionally outside the try/except so
         # that genuine errors (e.g. wrong shape, bad store) are not swallowed.
         # Only TypeError from FFI type mismatch (e.g. rhs is a meta_var, not
-        # a PrimExpr or auto-convertible scalar) triggers fallthrough.
+        # a Expr or auto-convertible scalar) triggers fallthrough.
         if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad | tvm.tirx.Buffer):
             if isinstance(lhs_value, T.scalar_wrapper):
                 buffer = lhs_value.scalar.buffer
@@ -418,7 +414,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
                 buffer = lhs_value.buffer if isinstance(lhs_value, T.BufferLoad) else lhs_value
             if len(buffer.shape) == 1 and bool(buffer.shape[0] == 1):
                 # only 1-dim buffer with shape (1,) can be assigned directly
-                # Note that shape can be a PrimExpr, so we only judge by
+                # Note that shape can be a Expr, so we only judge by
                 # bool(shape[0] == 1) rather than int(shape[0]) == 1.
                 try:
                     T.buffer_store(buffer, rhs, [0])
@@ -531,7 +527,7 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
         # T.let or T.let[type] -> immutable Bind var
         if rhs is None:
             self.report_error(node, "T.let annotation requires a value")
-        if not isinstance(rhs, PrimExpr):
+        if not isinstance(rhs, Expr):
             if isinstance(rhs, str):
                 rhs = tvm.tirx.StringImm(rhs)
             else:
@@ -540,15 +536,15 @@ def visit_ann_assign(self: Parser, node: doc.AnnAssign) -> None:
             ann_var = raw_ann.as_var()
         else:
             ann_var = raw_ann.as_var(rhs_dtype=rhs.ty)
-        if not isinstance(ann_var, Var):
+        if not isinstance(ann_var, tvm.ir.Var):
             self.report_error(node.annotation, "Annotation should resolve to Var")
         self.eval_assign(target=lhs, source=ann_var, bind_value=bind_assign_value)
         T.Bind(rhs, var=ann_var)
     else:
-        ann_var = raw_ann() if callable(raw_ann) else raw_ann
-        if not isinstance(ann_var, Var):
+        ann_var = raw_ann() if callable(raw_ann) and not isinstance(raw_ann, Expr) else raw_ann
+        if not isinstance(ann_var, tvm.ir.Var):
             self.report_error(node.annotation, "Annotation should resolve to Var")
-        if not isinstance(ann_var.type_annotation, PrimType):
+        if not isinstance(ann_var.ty, PrimType):
             self.report_error(
                 node.annotation,
                 "Use T.let[...] for non-PrimType annotations (e.g. PointerType, handle)",
@@ -618,8 +614,10 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
             T.func_name(node.name)
             if node.returns is not None:
                 ret_type = self.eval_expr(node.returns)
-                if callable(ret_type):
-                    ret_type = ret_type().ty
+                if callable(ret_type) and not isinstance(ret_type, Expr):
+                    ret_type = ret_type()
+                if isinstance(ret_type, Expr):
+                    ret_type = ret_type.ty
                 T.func_ret(ret_type)
             with self.with_dispatch_token("tirx"):
                 # TODO: handle different types of arguments:
@@ -634,7 +632,11 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                         self.report_error(arg, "Type annotation required for function parameters.")
                     try:
                         ann = self.eval_expr(arg.annotation)
-                        if callable(ann) and ann is not _constexpr_sentinel:
+                        if (
+                            callable(ann)
+                            and not isinstance(ann, Expr)
+                            and ann is not _constexpr_sentinel
+                        ):
                             ann = ann()
                     except Exception:  # pylint: disable=broad-except
                         ann = func_annotation.get(arg.arg, None)
@@ -706,7 +708,7 @@ def visit_tvm_annotation(self: Parser, node: doc.expr):
         The doc AST expr node.
     """
     annotation = self.eval_expr(node)
-    if callable(annotation):
+    if callable(annotation) and not isinstance(annotation, Expr):
         annotation = annotation()
     return annotation
 
@@ -735,20 +737,24 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         for f in res.frames:
             f.add_callback(partial(f.__exit__, None, None, None))
             f.__enter__()
-    elif isinstance(res, Var):
+    elif isinstance(res, tvm.ir.Var):
         # Standalone Var expression (e.g. from T.bind(value, var=v)) --
         # the Bind statement was already emitted to the parent frame by the FFI call,
         # so just discard the returned Var.
         pass
-    elif isinstance(res, PrimExpr):
+    elif tvm.ir.is_prim_expr(res):
         T.evaluate(res)
     elif isinstance(res, int | bool):
         T.evaluate(tvm.tirx.const(res))
-    elif isinstance(res, tvm.relax.Call) and not res.args:
-        # Using GlobalVar.__call__ with no arguments is ambiguous, as
-        # each IR has a different function Call representation.  If
-        # this occurs, convert to the TIR representation.
-        T.evaluate(tvm.tirx.call_tir(res.op))
+    elif isinstance(res, tvm.ir.Call) and not tvm.ir.is_prim_expr(res):
+        if isinstance(res.op, tvm.ir.GlobalVar) and res.ty.is_missing():
+            # GlobalVar calls with a missing return type are ambiguous, as each IR has a
+            # different function Call representation. Convert to the TIR representation.
+            T.evaluate(tvm.tirx.call_tir(res.op, *res.args))
+        else:
+            # Pointer-valued TIR calls are general Expr rather than PrimExpr,
+            # but are still valid standalone Evaluate statements.
+            T.evaluate(res)
     elif isinstance(res, str):
         # Ignore docstrings
         pass
@@ -777,7 +783,7 @@ def visit_if(self: Parser, node: doc.If) -> None:
     """
     with self.var_table.with_frame():
         predicate = self.eval_expr(node.test)
-        if isinstance(predicate, PrimExpr | tvm.tirx.expr.ExprOp):
+        if tvm.ir.is_prim_expr(predicate) or isinstance(predicate, tvm.tirx.expr.ExprOp):
             with T.If(self.eval_expr(node.test)):
                 with T.Then():
                     with self.var_table.with_frame():
@@ -863,8 +869,8 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     """
     value = self.eval_expr(node.value)
     if value is None:
-        self.report_error(node, "Expression to be returned must be a PrimExpr")
-    T.evaluate(tvm.tirx.ret(value))
+        self.report_error(node, "Expression to be returned must be a Expr")
+    T.Return(value)
 
 
 @dispatch.register(token="tirx", type_name="tvm_declare_function")
@@ -887,8 +893,10 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
     with self.var_table.with_frame():
         if node.returns is not None:
             ret_type = self.eval_expr(node.returns)
-            if callable(ret_type):
-                ret_type = ret_type().ty
+            if callable(ret_type) and not isinstance(ret_type, Expr):
+                ret_type = ret_type()
+            if isinstance(ret_type, Expr):
+                ret_type = ret_type.ty
 
         arg_annotations = []
         for arg in node.args.args:
@@ -896,7 +904,7 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
                 self.report_error(arg, "Type annotation required for function parameters.")
             try:
                 ann = self.eval_expr(arg.annotation)
-                if callable(ann):
+                if callable(ann) and not isinstance(ann, Expr):
                     ann = ann()
             except Exception:  # pylint: disable=broad-except
                 ann = func_annotation.get(arg.arg, None)

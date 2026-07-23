@@ -59,6 +59,8 @@ void StmtVisitor::VisitStmt_(const WhileNode* op) {
   this->VisitStmt(op->body);
 }
 
+void StmtVisitor::VisitStmt_(const ReturnNode* op) { this->VisitExpr(op->value); }
+
 void StmtVisitor::VisitStmt_(const BreakNode* op) {}
 
 void StmtVisitor::VisitStmt_(const ContinueNode* op) {}
@@ -135,7 +137,7 @@ void StmtVisitor::VisitStmt_(const SBlockNode* op) {
                this->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
                fvisit_buffer_region(match_buffer_region->source);
              });
-  if (op->init.defined()) {
+  if (op->init.has_value()) {
     this->VisitStmt(op->init.value());
   }
   this->VisitStmt(op->body);
@@ -218,8 +220,8 @@ class StmtMutator::Internal {
 
   static ffi::Array<IterVar> Mutate(StmtMutator* self, const ffi::Array<IterVar>& arr) {
     auto fmutate = [self](const IterVar& iter_var) {
-      PrimExpr min = self->VisitExpr(iter_var->dom->min);
-      PrimExpr extent = self->VisitExpr(iter_var->dom->extent);
+      PrimExpr min = self->VisitPrimExpr(iter_var->dom->min);
+      PrimExpr extent = self->VisitPrimExpr(iter_var->dom->extent);
       if (min.same_as(iter_var->dom->min) && extent.same_as(iter_var->dom->extent)) {
         return iter_var;
       } else {
@@ -231,7 +233,7 @@ class StmtMutator::Internal {
   }
 
   static ffi::Array<PrimExpr> Mutate(StmtMutator* self, const ffi::Array<PrimExpr>& arr) {
-    auto fmutate = [self](const PrimExpr& e) { return self->VisitExpr(e); };
+    auto fmutate = [self](const PrimExpr& e) { return self->VisitPrimExpr(e); };
     return MutateArray(self, arr, fmutate);
   }
 
@@ -242,8 +244,8 @@ class StmtMutator::Internal {
 
   static ffi::Array<Range> Mutate(StmtMutator* self, const ffi::Array<Range>& arr) {
     auto fmutate = [self](const Range& r) {
-      PrimExpr min = self->VisitExpr(r->min);
-      PrimExpr extent = self->VisitExpr(r->extent);
+      PrimExpr min = self->VisitPrimExpr(r->min);
+      PrimExpr extent = self->VisitPrimExpr(r->extent);
       if (min.same_as(r->min) && extent.same_as(r->extent)) {
         return r;
       } else {
@@ -287,7 +289,7 @@ class StmtMutator::Internal {
 
 Stmt StmtMutator::VisitStmt_(const BindNode* op) {
   // Bind has no body -- only mutate the value expression.
-  PrimExpr value = this->VisitExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -298,7 +300,7 @@ Stmt StmtMutator::VisitStmt_(const BindNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AttrStmtNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
+  PrimExpr value = this->VisitPrimExpr(op->value);
   Stmt body = this->VisitStmt(op->body);
   if (value.same_as(op->value) && body.same_as(op->body)) {
     return ffi::GetRef<Stmt>(op);
@@ -311,11 +313,11 @@ Stmt StmtMutator::VisitStmt_(const AttrStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const ForNode* op) {
-  PrimExpr min = this->VisitExpr(op->min);
-  PrimExpr extent = this->VisitExpr(op->extent);
+  PrimExpr min = this->VisitPrimExpr(op->min);
+  PrimExpr extent = this->VisitPrimExpr(op->extent);
   ffi::Optional<PrimExpr> step{std::nullopt};
   if (op->step.has_value()) {
-    step = this->VisitExpr(*op->step);
+    step = this->VisitPrimExpr(*op->step);
   }
   Stmt body = this->VisitStmt(op->body);
   if (min.same_as(op->min) && extent.same_as(op->extent) && body.same_as(op->body) &&
@@ -332,7 +334,7 @@ Stmt StmtMutator::VisitStmt_(const ForNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
-  PrimExpr condition = this->VisitExpr(op->condition);
+  PrimExpr condition = this->VisitPrimExpr(op->condition);
   Stmt body = this->VisitStmt(op->body);
   if (condition.same_as(op->condition) && body.same_as(op->body)) {
     return ffi::GetRef<Stmt>(op);
@@ -340,6 +342,17 @@ Stmt StmtMutator::VisitStmt_(const WhileNode* op) {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
     n->body = std::move(body);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const ReturnNode* op) {
+  Expr value = this->VisitExpr(op->value);
+  if (value.same_as(op->value)) {
+    return ffi::GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->value = std::move(value);
     return Stmt(n);
   }
 }
@@ -356,9 +369,9 @@ Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   // Visit expression fields (shape, strides, elem_offset) but NOT data.
   // data is a Var definition owned by this buffer, not an expression use.
   // Subclasses that need to remap data (e.g., IRSubstitute) can override.
-  auto shape = buffer->shape.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
-  auto strides = buffer->strides.Map([this](const PrimExpr& e) { return this->VisitExpr(e); });
-  PrimExpr elem_offset = this->VisitExpr(buffer->elem_offset);
+  auto shape = buffer->shape.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+  auto strides = buffer->strides.Map([this](const PrimExpr& e) { return this->VisitPrimExpr(e); });
+  PrimExpr elem_offset = this->VisitPrimExpr(buffer->elem_offset);
 
   // Visit the layout's per-iter extent/stride PrimExprs too: they share dtype
   // semantics with the shape, e.g. ``IndexDataTypeRewriter`` (int32 -> int64)
@@ -366,11 +379,11 @@ Buffer StmtMutator::VisitBufferDef(const Buffer& buffer, bool alloc_data) {
   // diverges from the rewritten shape and structural-equal mismatches occur.
   ffi::Optional<Layout> new_layout = buffer->layout;
   bool layout_changed = false;
-  if (buffer->layout.defined()) {
+  if (buffer->layout.has_value()) {
     if (auto opt_tile = buffer->layout.value().as<TileLayoutNode>()) {
       auto remap_iter = [this](const Iter& it) -> Iter {
-        PrimExpr new_extent = this->VisitExpr(it->extent);
-        PrimExpr new_stride = this->VisitExpr(it->stride);
+        PrimExpr new_extent = this->VisitPrimExpr(it->extent);
+        PrimExpr new_stride = this->VisitPrimExpr(it->stride);
         if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
           return it;
         }
@@ -408,9 +421,9 @@ Buffer StmtMutator::VisitBufferUse(const Buffer& buffer) {
   return buffer;
 }
 
-PrimExpr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
+Expr StmtExprMutator::VisitExpr_(const BufferLoadNode* op) {
   Buffer new_buf = this->VisitBufferUse(op->buffer);
-  PrimExpr expr = ExprMutator::VisitExpr_(op);
+  PrimExpr expr = ExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
   op = expr.as<BufferLoadNode>();
   TVM_FFI_ICHECK(op != nullptr);
   if (!new_buf.same_as(op->buffer)) {
@@ -446,7 +459,7 @@ Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
-  PrimExpr condition = this->VisitExpr(op->condition);
+  PrimExpr condition = this->VisitPrimExpr(op->condition);
   Stmt then_case = this->VisitStmt(op->then_case);
   ffi::Optional<Stmt> else_case = std::nullopt;
   if (op->else_case) {
@@ -466,7 +479,7 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
   Buffer new_buf = this->VisitBufferUse(op->buffer);
-  PrimExpr value = this->VisitExpr(op->value);
+  PrimExpr value = this->VisitPrimExpr(op->value);
   ffi::Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
 
   if (new_buf.same_as(op->buffer) && value.same_as(op->value) && indices.same_as(op->indices)) {
@@ -535,11 +548,11 @@ Stmt StmtMutator::VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit
 }
 
 Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
-  PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr error_kind = this->VisitExpr(op->error_kind);
+  PrimExpr condition = this->VisitPrimExpr(op->condition);
+  PrimExpr error_kind = this->VisitPrimExpr(op->error_kind);
   ffi::Array<StringImm> message_parts = Internal::MutateArray(
       this, op->message_parts,
-      [this](const StringImm& e) { return this->VisitExpr(e).as_or_throw<StringImm>(); });
+      [this](const StringImm& e) { return this->VisitPrimExpr(e).as_or_throw<StringImm>(); });
 
   if (condition.same_as(op->condition) && error_kind.same_as(op->error_kind) &&
       message_parts.same_as(op->message_parts)) {
@@ -554,7 +567,7 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
-  PrimExpr value = this->VisitExpr(op->value);
+  Expr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
     return ffi::GetRef<Stmt>(op);
   } else {
@@ -596,7 +609,7 @@ Stmt StmtMutator::VisitStmt_(const SBlockNode* op) {
 
 Stmt StmtMutator::VisitStmt_(const SBlockRealizeNode* op) {
   ffi::Array<PrimExpr> v = Internal::Mutate(this, op->iter_values);
-  PrimExpr pred = this->VisitExpr(op->predicate);
+  PrimExpr pred = this->VisitPrimExpr(op->predicate);
   Stmt block = this->VisitStmt(op->block);
   if (v.same_as(op->iter_values) && pred.same_as(op->predicate) && block.same_as(op->block)) {
     return ffi::GetRef<Stmt>(op);
@@ -617,7 +630,7 @@ Stmt StmtMutator::VisitStmt_(const ScopeIdDefStmtNode* op) {
   if (op->def->extents.has_value()) {
     ffi::Array<PrimExpr> new_arr;
     for (const auto& e : op->def->extents.value()) {
-      PrimExpr ne = this->VisitExpr(e);
+      PrimExpr ne = this->VisitPrimExpr(e);
       if (!ne.same_as(e)) changed = true;
       new_arr.push_back(ne);
     }
@@ -627,7 +640,7 @@ Stmt StmtMutator::VisitStmt_(const ScopeIdDefStmtNode* op) {
   if (op->def->preferred_extents.has_value()) {
     ffi::Array<PrimExpr> new_arr;
     for (const auto& e : op->def->preferred_extents.value()) {
-      PrimExpr ne = this->VisitExpr(e);
+      PrimExpr ne = this->VisitPrimExpr(e);
       if (!ne.same_as(e)) changed = true;
       new_arr.push_back(ne);
     }
@@ -646,7 +659,7 @@ Stmt StmtMutator::VisitStmt_(const tirx::TilePrimitiveCallNode* op) {
     if (auto buffer_region = e.as<BufferRegion>()) {
       return Internal::Mutate(this, {buffer_region.value()})[0];
     } else if (auto expr = e.as<PrimExpr>()) {
-      return this->VisitExpr(expr.value());
+      return this->VisitPrimExpr(expr.value());
     } else if (auto stmt = e.as<Stmt>()) {
       return this->VisitStmt(stmt.value());
     }
@@ -678,7 +691,7 @@ class IRApplyVisit : public StmtExprVisitor {
  public:
   explicit IRApplyVisit(std::function<void(const ffi::ObjectRef&)> f) : f_(f) {}
 
-  void VisitExpr(const PrimExpr& node) final {
+  void VisitExpr(const Expr& node) final {
     if (visited_.count(node.get()) != 0) return;
     visited_.insert(node.get());
     ExprVisitor::VisitExpr(node);
@@ -706,7 +719,7 @@ void PostOrderVisit(const ffi::ObjectRef& node, std::function<void(const ffi::Ob
     visitor(node.as_or_throw<Stmt>());
   } else {
     IRApplyVisit visitor(fvisit);
-    visitor(node.as_or_throw<PrimExpr>());
+    visitor(node.as_or_throw<Expr>());
   }
 }
 
@@ -719,16 +732,15 @@ class IRTransformer final : public StmtExprMutator {
   Stmt VisitStmt(const Stmt& stmt) final {
     return MutateInternal<Stmt>(stmt, [this](const Stmt& s) { return this->BaseVisitStmt(s); });
   }
-  PrimExpr VisitExpr(const PrimExpr& expr) final {
-    return MutateInternal<PrimExpr>(expr,
-                                    [this](const PrimExpr& e) { return this->BaseVisitExpr(e); });
+  Expr VisitExpr(const Expr& expr) final {
+    return MutateInternal<Expr>(expr, [this](const Expr& e) { return this->BaseVisitExpr(e); });
   }
 
  private:
   // NOTE: redirect to parent's call
   // This is used to get around limitation of gcc-4.8
   Stmt BaseVisitStmt(const Stmt& s) { return StmtMutator::VisitStmt(s); }
-  PrimExpr BaseVisitExpr(const PrimExpr& e) { return ExprMutator::VisitExpr(e); }
+  Expr BaseVisitExpr(const Expr& e) { return ExprMutator::VisitExpr(e); }
 
   template <typename T, typename F>
   T MutateInternal(const T& node, F fmutate) {
@@ -756,7 +768,7 @@ class IRTransformer final : public StmtExprMutator {
 Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Function& f_postorder,
                  ffi::Optional<ffi::Array<ffi::String>> only_enable) {
   std::unordered_set<uint32_t> only_type_index;
-  if (only_enable.defined()) {
+  if (only_enable.has_value()) {
     for (auto s : only_enable.value()) {
       only_type_index.insert(ffi::TypeKeyToIndex(s.c_str()));
     }
@@ -767,18 +779,19 @@ Stmt IRTransform(Stmt ir_node, const ffi::Function& f_preorder, const ffi::Funct
 
 class IRSubstitute : public StmtExprMutator {
  public:
-  explicit IRSubstitute(std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) : vmap_(vmap) {}
+  explicit IRSubstitute(std::function<ffi::Optional<Expr>(const Var&)> vmap) : vmap_(vmap) {}
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto ret = vmap_(var);
-    if (ret.defined()) {
+    if (ret.has_value()) {
       // Allow substitution of void variables with any expression. The TVM script parser
       // uses void variables for lambda parameters (since exact types are not known yet).
-      if (!var.ty().IsVoid()) {
-        PrimExpr ret_ex = ret.value().as_or_throw<PrimExpr>();
-        TVM_FFI_ICHECK(ret_ex.ty() == var.ty()) << "substituting " << var << ":" << var.ty()->dtype
-                                                << " -> " << ret_ex << ":" << ret_ex.ty()->dtype;
+      if (auto var_prim_type = var->ty.as<PrimType>();
+          !var_prim_type.has_value() || !var_prim_type.value().IsVoid()) {
+        TVM_FFI_ICHECK(ffi::StructuralEqual()(ret.value()->ty, var->ty))
+            << "substituting " << var << ":" << var->ty << " -> " << ret.value() << ":"
+            << ret.value()->ty;
       }
       return ret.value();
     }
@@ -790,12 +803,12 @@ class IRSubstitute : public StmtExprMutator {
   Buffer VisitBufferDef(const Buffer& buffer, bool alloc_data) final {
     Buffer new_buf = StmtExprMutator::VisitBufferDef(buffer, alloc_data);
     // Additionally handle data var substitution (base does not visit data).
-    PrimExpr new_data_expr = VisitExpr(new_buf->data);
-    TVM_FFI_ICHECK(new_data_expr->IsInstance<VarNode>())
-        << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
-        << ", which was substituted into the expression " << new_data_expr
-        << " and the backing allocation must be a tirx::Var";
-    Var data = new_data_expr.as_or_throw<Var>();
+    Expr new_data_expr = VisitExpr(new_buf->data);
+    auto new_data = new_data_expr.as<Var>();
+    TVM_FFI_ICHECK(new_data) << "Buffer " << new_buf << " uses backing allocation " << new_buf->data
+                             << ", which was substituted into the expression " << new_data_expr
+                             << " and the backing allocation must be a tirx::Var";
+    Var data = new_data.value();
     if (!data.same_as(new_buf->data)) {
       auto* n = new_buf.CopyOnWrite();
       n->data = std::move(data);
@@ -818,15 +831,15 @@ class IRSubstitute : public StmtExprMutator {
 
  private:
   // Caller provided function that defines the variables to be remapped.
-  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
 };
 
-Stmt Substitute(Stmt stmt, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(stmt));
+Stmt Substitute(Stmt stmt, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(stmt));
 }
 
-PrimExpr Substitute(PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstitute(vmap)(std::move(expr));
+Expr Substitute(Expr expr, std::function<ffi::Optional<Expr>(const Var&)> vmap) {
+  return IRSubstitute(std::move(vmap))(std::move(expr));
 }
 
 void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
@@ -836,8 +849,8 @@ void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
     explicit PreOrderVisitor(const std::function<bool(const ffi::ObjectRef&)>& f) : f_(f) {}
 
    private:
-    void VisitExpr(const PrimExpr& expr) final {
-      const PrimExprNode* p_expr = expr.get();
+    void VisitExpr(const Expr& expr) final {
+      const ExprNode* p_expr = expr.get();
       if (visited_.count(p_expr) == 0) {
         visited_.insert(p_expr);
         if (f_(expr)) {
@@ -863,7 +876,7 @@ void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
   PreOrderVisitor visitor(fvisit);
   if (auto stmt = stmt_or_expr.as<Stmt>()) {
     visitor(stmt.value());
-  } else if (auto expr = stmt_or_expr.as<PrimExpr>()) {
+  } else if (auto expr = stmt_or_expr.as<Expr>()) {
     visitor(expr.value());
   } else {
     TVM_FFI_THROW(InternalError) << "PreOrderVisit does not accept object with type: "
@@ -873,17 +886,16 @@ void PreOrderVisit(const ffi::ObjectRef& stmt_or_expr,
 
 class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
  public:
-  explicit IRSubstituteWithDataTypeLegalization(
-      std::function<ffi::Optional<PrimExpr>(const Var&)> vmap)
+  explicit IRSubstituteWithDataTypeLegalization(std::function<ffi::Optional<Expr>(const Var&)> vmap)
       : vmap_(vmap) {}
 
   using DataTypeLegalizer::VisitExpr_;
   using DataTypeLegalizer::VisitStmt_;
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  Expr VisitExpr_(const VarNode* op) final {
     Var var = ffi::GetRef<Var>(op);
     auto ret = vmap_(var);
-    if (ret.defined()) {
+    if (ret.has_value()) {
       return ret.value();
     }
     return var;
@@ -903,17 +915,26 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
 
  private:
   // Caller provided function that defines the variables to be remapped.
-  std::function<ffi::Optional<PrimExpr>(const Var&)> vmap_;
+  std::function<ffi::Optional<Expr>(const Var&)> vmap_;
 };
 
 Stmt SubstituteWithDataTypeLegalization(Stmt stmt,
                                         std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(stmt));
+  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap(var)) return Expr(replacement.value());
+    return std::nullopt;
+  };
+  return IRSubstituteWithDataTypeLegalization(std::move(general_vmap))(std::move(stmt));
 }
 
 PrimExpr SubstituteWithDataTypeLegalization(
     PrimExpr expr, std::function<ffi::Optional<PrimExpr>(const Var&)> vmap) {
-  return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr));
+  auto general_vmap = [vmap = std::move(vmap)](const Var& var) -> ffi::Optional<Expr> {
+    if (auto replacement = vmap(var)) return Expr(replacement.value());
+    return std::nullopt;
+  };
+  return IRSubstituteWithDataTypeLegalization(std::move(general_vmap))(std::move(expr))
+      .as_or_throw<PrimExpr>();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -928,14 +949,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::ObjectRef node, ffi::Function f) {
              tirx::PreOrderVisit(node, [f](const ffi::ObjectRef& n) { return f(n).cast<bool>(); });
            })
-      .def("tirx.Substitute",
-           [](ffi::ObjectRef node, ffi::Map<Var, PrimExpr> vmap) -> ffi::ObjectRef {
-             if (node->IsInstance<StmtNode>()) {
-               return Substitute(node.as_or_throw<Stmt>(), vmap);
-             } else {
-               return Substitute(node.as_or_throw<PrimExpr>(), vmap);
-             }
-           });
+      .def("tirx.Substitute", [](ffi::ObjectRef node, ffi::Map<Var, Expr> vmap) -> ffi::ObjectRef {
+        if (node->IsInstance<StmtNode>()) {
+          return Substitute(node.as_or_throw<Stmt>(), vmap);
+        } else {
+          return Substitute(node.as_or_throw<Expr>(), vmap);
+        }
+      });
 }
 
 }  // namespace tirx

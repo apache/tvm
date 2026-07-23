@@ -94,11 +94,20 @@ class VarVisitor : protected ExprVisitor {
     vars_.Insert(v);
   }
 
+  void MarkTypeDefinitionsBound(const Type& type) {
+    for (const Var& var : DefinableTIRVarsInType(type)) {
+      MarkBounded(var);
+    }
+  }
+
+  void VisitExprDepTypeField(const Type&) final {}
+
   void VisitExpr_(const VarNode* var) final { vars_.Insert(ffi::GetRef<Var>(var)); }
 
   void VisitExpr_(const FunctionNode* op) final {
     for (const auto& param : op->params) {
       MarkBounded(param);
+      MarkTypeDefinitionsBound(GetType(param));
     }
     VisitExpr(op->body);
   }
@@ -128,6 +137,7 @@ class VarVisitor : protected ExprVisitor {
 
   void VisitBinding_(const MatchCastNode* binding) final {
     MarkBounded(binding->var);
+    MarkTypeDefinitionsBound(binding->ty);
     ExprVisitor::VisitBinding_(binding);
   }
 
@@ -171,6 +181,12 @@ ffi::Optional<Expr> FindImpureCall(const Expr& expr, const ffi::Optional<Expr>& 
       // does *not* mean the outer function contains an impure call
     }
 
+    void VisitExprDepTypeField(const Type&) final {
+      // Purity is a property of runtime value computation.  Dependent type
+      // expressions may contain TIRX calls, but those calls are not executed
+      // as part of the Relax expression being checked.
+    }
+
     void VisitExpr_(const CallNode* call) override {
       // ignore recursive calls if we find one
       bool is_recursive = (own_name_ && own_name_.value().same_as(call->op));
@@ -200,7 +216,7 @@ ffi::Optional<Expr> FindImpureCall(const Expr& expr, const ffi::Optional<Expr>& 
 }
 
 bool ContainsImpureCall(const Expr& expr, const ffi::Optional<Expr>& own_name) {
-  return FindImpureCall(expr, own_name).defined();
+  return FindImpureCall(expr, own_name).has_value();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

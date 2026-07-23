@@ -80,12 +80,12 @@ void DebugPrint(const std::vector<PrimExpr>& current_ineq_set,
  */
 class NormalizeComparisons : public ExprMutator {
  public:
-  PrimExpr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
-  PrimExpr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
-  PrimExpr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
-  PrimExpr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
-  PrimExpr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
+  Expr VisitExpr_(const EQNode* op) override { return Make<EQ>(op->a, op->b); }
+  Expr VisitExpr_(const NENode* op) override { return Make<NE>(op->a, op->b); }
+  Expr VisitExpr_(const LTNode* op) override { return Make<LT>(op->a, op->b); }
+  Expr VisitExpr_(const LENode* op) override { return Make<LE>(op->a, op->b); }
+  Expr VisitExpr_(const GTNode* op) override { return Make<LT>(op->b, op->a); }
+  Expr VisitExpr_(const GENode* op) override { return Make<LE>(op->b, op->a); }
 
  private:
   template <class T>
@@ -127,7 +127,7 @@ void AddInequality(std::vector<PrimExpr>* inequality_set, const PrimExpr& new_in
   inequality_set->push_back(new_ineq);
 }
 
-void ClassifyByPolarity(const Var& var, const std::vector<PrimExpr>& current_ineq_set,
+void ClassifyByPolarity(const PrimVar& var, const std::vector<PrimExpr>& current_ineq_set,
                         std::vector<PrimExpr>* next_ineq_set, std::vector<PrimExpr>* rest,
                         std::vector<std::pair<int64_t, PrimExpr>>* coef_pos,
                         std::vector<std::pair<int64_t, PrimExpr>>* coef_neg,
@@ -216,14 +216,14 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
 
   // Simplify each inequality into the form `expr <= 0` and add to current formulas
   for (const PrimExpr& ineq : system_to_solve->relations) {
-    AddInequality(
-        &current_ineq_set_to_solve,
-        NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite)),
-        analyzer.get());
+    AddInequality(&current_ineq_set_to_solve,
+                  NormalizeComparisons()(analyzer->Simplify(ineq, kSimplifyRewriteCanonicalRewrite))
+                      .as_or_throw<PrimExpr>(),
+                  analyzer.get());
   }
 
   ffi::Map<Var, IntGroupBounds> res_bounds;
-  for (const Var& v : system_to_solve->variables) {
+  for (const PrimVar& v : system_to_solve->variables) {
     TVM_FFI_ICHECK(!res_bounds.count(v))
         << "Variable " << v
         << " appears more than one time in the `variables` which might be a bug";
@@ -252,7 +252,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         auto first_gcd = ExtendedEuclidean(pos.first, -neg.first, &gcd_x, &gcd_y);
         PrimType v_ty = v.ty();
         PrimExpr c_pos = MakeConst(v_ty, neg.first / first_gcd);
-        PrimExpr c_neg = MakeConst(v_ty, pos.first / first_gcd);
+        PrimExpr c_neg = IntImm(v_ty, pos.first / first_gcd);
         // eliminate the current variable
         PrimExpr new_lhs = c_neg * neg.second - c_pos * pos.second;
         PrimExpr new_ineq = LE(new_lhs, IntImm(pos.second.ty(), 0));
@@ -260,7 +260,8 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
         // to help simplify things like (((y + 10) - (-1*(y - 20))) <= 0) => y - 5 <= 0
         // with steps = 2 it's (y*2) - 10 <= 0
         new_ineq =
-            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite));
+            NormalizeComparisons()(analyzer->Simplify(new_ineq, kSimplifyRewriteCanonicalRewrite))
+                .as_or_throw<PrimExpr>();
         AddInequality(&next_ineq_set_to_solve, new_ineq, analyzer.get());
       }
     }
@@ -333,7 +334,7 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
     std::sort(equal_list.begin(), equal_list.end(), ExprLess());
 
     // Write it to the result.
-    IntGroupBounds bnds(MakeConst(v.ty(), coef_lcm),
+    IntGroupBounds bnds(MakeConst(v->ty.as_or_throw<PrimType>(), coef_lcm),
                         ffi::Array<PrimExpr>(lower_bounds.begin(), lower_bounds.end()),
                         ffi::Array<PrimExpr>(equal_list.begin(), equal_list.end()),
                         ffi::Array<PrimExpr>(upper_bounds.begin(), upper_bounds.end()));
@@ -392,7 +393,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     arith::Analyzer analyzer;
     analyzer->Bind(vranges);
 
-    const Var& var = *it;
+    const PrimVar& var = *it;
     TVM_FFI_ICHECK(solved_bounds.count(var));
     auto bnd = solved_bounds[var];
     if (is_one(bnd->coef) && !bnd->equal.empty()) {
@@ -456,7 +457,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
   ffi::Map<Var, PrimExpr> res_src_to_dst;
   ffi::Map<Var, PrimExpr> res_dst_to_src;
-  ffi::Array<Var> res_variables;
+  ffi::Array<PrimVar> res_variables;
   ffi::Array<PrimExpr> res_relations;
 
   // this keeps being updated during determining the range of each variable.
@@ -469,7 +470,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   // We process variables in the reverse direction to start with the most independent one.
   // This order is needed to compute new ranges.
   for (auto it = inequalities->variables.rbegin(); it != inequalities->variables.rend(); ++it) {
-    const Var& var = *it;
+    const PrimVar& var = *it;
     auto bnd = solved_bounds[var];
     // Note that we replace old vars with new ones
     bnd = bnd.Substitute(res_src_to_dst);
@@ -487,10 +488,10 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 
       auto best_range = bnd.FindBestRange(vranges);
 
-      Var new_var = var.copy_with_suffix(".shifted");
+      PrimVar new_var = var.CopyWithSuffix(".shifted");
       if (!best_range.defined()) {
-        res_src_to_dst.Set(var, var);
-        res_dst_to_src.Set(var, var);
+        res_src_to_dst.Set(var, var.as_or_throw<PrimExpr>());
+        res_dst_to_src.Set(var, var.as_or_throw<PrimExpr>());
         res_variables.push_back(var);
       } else if (is_const_int(best_range->extent, 1)) {
         // Don't create an itervar, just replace it everywhere with its min
@@ -505,14 +506,15 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
                                        {}, {});
       } else {
         // created new_var starts from 0
-        res_src_to_dst.Set(var, new_var + best_range->min);
+        res_src_to_dst.Set(var, new_var.as_or_throw<PrimExpr>() + best_range->min);
         // Note that we are substituting old with new, so best_range contains new var,
         // that is we have to substitute new with old in best_range here
         res_dst_to_src.Set(new_var,
-                           analyzer->Simplify(var - Substitute(best_range->min, res_dst_to_src)));
+                           analyzer->Simplify(var.as_or_throw<PrimExpr>() -
+                                              Substitute(best_range->min, res_dst_to_src)));
 
         // Add the new var to the resulting axis
-        auto range = Range(IntImm(new_var.ty(), 0), best_range->extent);
+        auto range = Range(IntImm(new_var->ty.as_or_throw<PrimType>(), 0), best_range->extent);
         res_variables.push_back(new_var);
         res_ranges.Set(new_var, range);
 
@@ -533,7 +535,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   }
 
   // Reverse the axis so that it matches the order of the original variables
-  res_variables = ffi::Array<Var>(res_variables.rbegin(), res_variables.rend());
+  res_variables = ffi::Array<PrimVar>(res_variables.rbegin(), res_variables.rend());
 
   IntConstraints new_inequalities(res_variables, res_ranges, res_relations);
   IntConstraintsTransform transform(inequalities, new_inequalities, res_src_to_dst, res_dst_to_src);
@@ -552,7 +554,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                       problem = args[0].cast<IntConstraints>();
                       ret_ineq = SolveLinearInequalities(problem);
                     } else if (args.size() == 3) {
-                      problem = IntConstraints(args[0].cast<ffi::Array<Var>>(),
+                      problem = IntConstraints(args[0].cast<ffi::Array<PrimVar>>(),
                                                args[1].cast<ffi::Map<Var, Range>>(),
                                                args[2].cast<ffi::Array<PrimExpr>>());
                       ret_ineq = SolveLinearInequalities(problem);
@@ -569,7 +571,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                       *ret = SolveInequalitiesToRange(args[0].cast<IntConstraints>());
                     } else if (args.size() == 3) {
                       auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
-                      IntConstraints problem(args[0].cast<ffi::Array<Var>>(), opt_map.value_or({}),
+                      IntConstraints problem(args[0].cast<ffi::Array<PrimVar>>(),
+                                             opt_map.value_or({}),
                                              args[2].cast<ffi::Array<PrimExpr>>());
                       *ret = SolveInequalitiesToRange(problem);
                     } else {
@@ -583,7 +586,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           *ret = SolveInequalitiesDeskewRange(args[0].cast<IntConstraints>());
         } else if (args.size() == 3) {
           auto opt_map = args[1].cast<ffi::Optional<ffi::Map<Var, Range>>>();
-          IntConstraints problem(args[0].cast<ffi::Array<Var>>(), opt_map.value_or({}),
+          IntConstraints problem(args[0].cast<ffi::Array<PrimVar>>(), opt_map.value_or({}),
                                  args[2].cast<ffi::Array<PrimExpr>>());
           *ret = SolveInequalitiesDeskewRange(problem);
         } else {

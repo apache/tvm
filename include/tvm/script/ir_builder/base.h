@@ -295,7 +295,7 @@ inline ffi::Optional<TFrame> IRBuilderNode::GetLastFrame() const {
 template <typename TObjectRef>
 inline TObjectRef IRBuilderNode::Get() const {
   using TObject = typename TObjectRef::ContainerType;
-  TVM_FFI_CHECK(result.defined(), IndexError) << "No result exists in IRBuilder yet";
+  TVM_FFI_CHECK(result.has_value(), IndexError) << "No result exists in IRBuilder yet";
   const auto* n = result.as<TObject>();
   TVM_FFI_CHECK(n != nullptr, TypeError)
       << "IRBuilder result is not of type: " << TObject::_type_key;

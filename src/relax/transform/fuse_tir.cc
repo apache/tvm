@@ -39,7 +39,7 @@ namespace tirx {
  * \brief Match symbolic vars according to the given PrimExpr, and update the var_remap.
  * Will throw errors if there is a mismatch.
  */
-class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& other)> {
+class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> {
  public:
   explicit SymbolicMatcher(arith::AnalyzerObj* analyzer, ffi::Map<tirx::Var, PrimExpr>* var_remap)
       : analyzer_(analyzer), var_remap_(var_remap) {}
@@ -57,7 +57,8 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
   }
 
  private:
-  void VisitExpr(const PrimExpr& node, const PrimExpr& other) {
+  void VisitExpr(const Expr& expr, const PrimExpr& other) final {
+    PrimExpr node = expr.as_or_throw<PrimExpr>();
     if (node.same_as(other)) {
       return;
     } else if (node.ty().code() != other.ty().code()) {
@@ -65,7 +66,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
           << "Parameter expression " << node << " with dtype " << node.ty()->dtype
           << " cannot match to argument " << other << " with dtype " << other.ty()->dtype;
     } else {
-      ExprFunctor::VisitExpr(node, other);
+      ExprFunctor::VisitExpr(expr, other);
     }
   }
 
@@ -122,7 +123,7 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
     if (!rhs) {
       TVM_FFI_THROW(InternalError)
           << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " expected an cast to "
-          << op->ty()->dtype << " as the argument, "
+          << op->ty.as_or_throw<PrimType>()->dtype << " as the argument, "
           << "but was provided with the argument " << other;
     }
     VisitExpr(op->value, rhs->value);
@@ -130,14 +131,14 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
 
   void VisitExpr_(const VarNode* op, const PrimExpr& rhs) {
     auto lhs = ffi::GetRef<Var>(op);
+    PrimType lhs_ty = op->ty.as_or_throw<PrimType>();
 
     if (lhs.same_as(rhs)) {
       // Reference identity, no further checks needed.
-    } else if (op->ty().code() != rhs.ty().code()) {
+    } else if (lhs_ty.code() != rhs.ty().code()) {
       TVM_FFI_THROW(InternalError)
-          << "Parameter expression " << ffi::GetRef<PrimExpr>(op) << " with dtype "
-          << op->ty()->dtype << " cannot match to argument " << rhs << " with dtype "
-          << rhs.ty()->dtype;
+          << "Parameter expression " << lhs << " with dtype " << lhs_ty->dtype
+          << " cannot match to argument " << rhs << " with dtype " << rhs.ty()->dtype;
     } else if (auto it = var_remap_->find(lhs); it != var_remap_->end()) {
       VisitExpr((*it).second, rhs);
     } else {
@@ -168,7 +169,9 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   explicit FuseTIRBufferSubstitutor(const ffi::Map<Buffer, Buffer>& buffer_map,
                                     const ffi::Map<Var, PrimExpr>& var_map) {
     buffer_remap_ = buffer_map;
-    var_remap_ = var_map;
+    for (const auto& [var, value] : var_map) {
+      var_remap_.Set(var, value);
+    }
     for (const auto& [src, tgt] : buffer_map) {
       var_remap_.Set(src->data, tgt->data);
     }
@@ -178,11 +181,11 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
   Buffer SubstituteAllocatedBuffer(Buffer buffer) {
     TVM_FFI_ICHECK(buffer_remap_.find(buffer) == buffer_remap_.end());
-    ffi::Array<PrimExpr> shape =
-        MutateArray(buffer->shape, [this](const PrimExpr& expr) { return this->VisitExpr(expr); });
+    ffi::Array<PrimExpr> shape = MutateArray(
+        buffer->shape, [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); });
     ffi::Array<PrimExpr> strides = MutateArray(
-        buffer->strides, [this](const PrimExpr& expr) { return this->VisitExpr(expr); });
-    PrimExpr elem_offset = this->VisitExpr(buffer->elem_offset);
+        buffer->strides, [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); });
+    PrimExpr elem_offset = this->VisitPrimExpr(buffer->elem_offset);
     if (shape.same_as(buffer->shape) && strides.same_as(buffer->strides) &&
         elem_offset.same_as(buffer->elem_offset)) {
       return buffer;
@@ -198,15 +201,15 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   }
 
  private:
-  PrimExpr VisitExpr_(const VarNode* _op) final {
+  Expr VisitExpr_(const VarNode* _op) final {
     if (auto it = var_remap_.find(ffi::GetRef<Var>(_op)); it != var_remap_.end()) {
       return (*it).second;
     } else {
-      return ffi::GetRef<PrimExpr>(_op);
+      return ffi::GetRef<Var>(_op);
     }
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
+  Expr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
     const Buffer& buffer = SubstituteBuffer(load->buffer);
     if (buffer.same_as(load->buffer)) {
@@ -297,7 +300,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   /*! \brief Mapping from src buffer to tgt buffer. */
   ffi::Map<tirx::Buffer, tirx::Buffer> buffer_remap_;
   /*! \brief Mapping from src tirx var to tgt var. */
-  ffi::Map<tirx::Var, PrimExpr> var_remap_;
+  ffi::Map<tirx::Var, Expr> var_remap_;
 
   ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
     // For now we only allow Buffer access the same elements.
@@ -333,8 +336,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
   inline ffi::Array<Range> MutateRegion(const ffi::Array<Range>& region) {
     return MutateArray(region, [this](const Range& range) {
-      const PrimExpr& min = this->VisitExpr(range->min);
-      const PrimExpr& extent = this->VisitExpr(range->extent);
+      PrimExpr min = this->VisitPrimExpr(range->min);
+      PrimExpr extent = this->VisitPrimExpr(range->extent);
       if (min.same_as(range->min) && extent.same_as(range->extent)) {
         return range;
       } else {
@@ -454,10 +457,10 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
-    TVM_FFI_ICHECK(call->op == call_tir_op_ || call->op == call_tir_inplace_op_)
+    TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
         << ffi::GetRef<Expr>(call);
-    CollectVarMapping(call, current_var_, call->op == call_tir_inplace_op_);
+    CollectVarMapping(call, current_var_, call->op.same_as(call_tir_inplace_op_));
   }
 
   void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
@@ -557,7 +560,7 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const FunctionNode* func) final {
     auto relax_to_tir_var_map =
         RelaxToTIRVarMapCollector::Collect(mod_, ffi::GetRef<Function>(func));
-    std::vector<ffi::Variant<tirx::Var, tirx::Buffer>> prim_func_params;
+    std::vector<ffi::Variant<tirx::PrimVar, tirx::Buffer>> prim_func_params;
     for (const Var& relax_param : func->params) {
       size_t size_before = prim_func_params.size();
       CollectPrimFuncParams(relax_param, &prim_func_params, relax_to_tir_var_map.Get(relax_param));
@@ -575,16 +578,9 @@ class FusedTIRConstructor : public ExprVisitor {
       func_info_.expr2buffers.Set(relax_param, param_buffers);
     }
 
-    // Move all scalar params after buffer params.  To ensure that the
-    // order is deterministic and predictable for testing purposes,
-    // std::stable_sort is used instead of std::sort.
-    std::stable_sort(prim_func_params.begin(), prim_func_params.end(),
-                     [](const auto& a, const auto& b) {
-                       bool a_is_var = a.template as<tirx::VarNode>();
-                       bool b_is_var = b.template as<tirx::VarNode>();
-                       return a_is_var < b_is_var;
-                     });
-
+    // Preserve the Relax function's parameter order.  Tensor and primitive
+    // parameters are both explicit call_tir arguments, while output buffers
+    // are appended after the complete explicit argument prefix.
     for (const auto& param : prim_func_params) {
       if (auto opt = param.as<tirx::Buffer>()) {
         auto buffer = opt.value();
@@ -594,9 +590,11 @@ class FusedTIRConstructor : public ExprVisitor {
         // printed, it's more readable when done explicitly.  Since
         // Buffer is used more than param it gets the name with better
         // readability.
-        tirx::Var param = tirx::Var("p_" + buffer->name, tvm::PrimType::Handle());
+        tirx::Var param = tirx::Var("p_" + buffer->name, PointerType::VoidPointerTy());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
+      } else if (auto var = param.as<tirx::PrimVar>()) {
+        func_info_.params.push_back(var.value());
       }
     }
 
@@ -638,21 +636,15 @@ class FusedTIRConstructor : public ExprVisitor {
         continue;
       }
 
-      tirx::Var param = tirx::Var("p_output" + std::to_string(out_idx), tvm::PrimType::Handle());
+      tirx::Var param =
+          tirx::Var("p_output" + std::to_string(out_idx), PointerType::VoidPointerTy());
       out_idx++;
       func_info_.buffer_map.Set(param, buffers[i]);
       func_info_.params.push_back(param);
       func_info_.output_buffers.insert(buffers[i].get());
     }
 
-    // Step 4. Append symbolic vars
-    for (const auto& param : prim_func_params) {
-      if (auto var = param.as<tirx::Var>()) {
-        func_info_.params.push_back(var.value());
-      }
-    }
-
-    // Step 5. Create PrimFunc
+    // Step 4. Create PrimFunc
     fused_tir_ = ConstructFunc();
   }
 
@@ -677,7 +669,7 @@ class FusedTIRConstructor : public ExprVisitor {
     static const Op& call_tir_op_ = Op::Get("relax.call_tir");
     static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
-    TVM_FFI_ICHECK(call->op == call_tir_op_ || call->op == call_tir_inplace_op_)
+    TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
         << ffi::GetRef<Expr>(call);
 
@@ -707,23 +699,6 @@ class FusedTIRConstructor : public ExprVisitor {
 
     AllocateIntermediateBuffer(call, prim_func, output_buffer_shapes);
 
-    // Step 6. Update tir_vars
-    if (call->args.size() > 2) {
-      TVM_FFI_ICHECK(call->args.size() == 3);
-      const Expr& tir_vars = call->args[2];
-      if (const auto* shape_expr = tir_vars.as<ShapeExprNode>()) {
-        const auto& args = shape_expr->values;
-        size_t num_params = prim_func->params.size();
-        TVM_FFI_ICHECK_GE(num_params, args.size());
-        for (size_t i = 0; i < args.size(); ++i) {
-          const tirx::Var& param = prim_func->params[num_params - args.size() + i];
-          func_info_.symbolic_var_matcher.Match(param, args[i]);
-        }
-      } else {
-        TVM_FFI_THROW(InternalError)
-            << "TIR vars should be a shape expr, but got: " << tir_vars->GetTypeKey();
-      }
-    }
     // Update fused func name
     func_info_.global_name += "_" + gv->name_hint;
   }
@@ -829,17 +804,23 @@ class FusedTIRConstructor : public ExprVisitor {
   void MapInputBuffer(const tirx::PrimFunc& func, const relax::Expr& args) {
     ffi::Array<Expr> arg_list;
     ffi::Array<tirx::Buffer> buffer_list;
-    if (const auto* arg_tuple = args.as<TupleNode>()) {
-      arg_list = arg_tuple->fields;
-    } else {
-      arg_list = {args};
-    }
+    ffi::Array<Expr> call_args = args.as_or_throw<Tuple>()->fields;
 
-    TVM_FFI_ICHECK_GE(func->params.size(), arg_list.size());
-    for (size_t i = 0; i < arg_list.size(); ++i) {
+    TVM_FFI_ICHECK_GE(func->params.size(), call_args.size());
+    for (size_t i = 0; i < call_args.size(); ++i) {
+      const Expr& arg = call_args[i];
       const tirx::Var& param = func->params[i];
-      const tirx::Buffer& buffer = func->buffer_map.at(param);
-      buffer_list.push_back(buffer);
+      if (func->buffer_map.count(param)) {
+        arg_list.push_back(arg);
+        buffer_list.push_back(func->buffer_map.at(param));
+      } else {
+        auto prim_arg = arg.as<PrimExpr>();
+        TVM_FFI_CHECK(prim_arg.has_value(), TypeError)
+            << "Expected scalar parameter " << param
+            << " to receive an individual primitive expression, but " << arg << " has type "
+            << GetType(arg);
+        func_info_.symbolic_var_matcher.Match(param.as_or_throw<PrimExpr>(), prim_arg.value());
+      }
     }
 
     MapArgsToBuffer(arg_list, buffer_list);
@@ -848,7 +829,6 @@ class FusedTIRConstructor : public ExprVisitor {
   static ffi::Array<tirx::Var> GetPrimFuncOutputParams(const tirx::PrimFunc& func,
                                                        const ffi::Array<int64_t>& output_indices) {
     size_t n = func->params.size();
-    int symbolic_var_index = -1;
     size_t output_size = output_indices.size();
     TVM_FFI_ICHECK_GE(n, output_size);
 
@@ -856,23 +836,11 @@ class FusedTIRConstructor : public ExprVisitor {
     for (int64_t idx : output_indices) {
       int i = static_cast<int>(idx);
       const tirx::Var& param = func->params[static_cast<size_t>(i)];
-      tvm::PrimType param_ty = param.ty();
-      if (param_ty.code() == DLDataTypeCode::kDLInt || param_ty.code() == DLDataTypeCode::kDLUInt) {
-        if (symbolic_var_index == -1) symbolic_var_index = i;
-      } else if (param_ty.IsHandle()) {
-        TVM_FFI_ICHECK(symbolic_var_index == -1)
-            << "The scalar input should be at the ending of the "
-               "parameter list.";
-        ret.push_back(param);
-      } else {
-        TVM_FFI_THROW(InternalError)
-            << "The params of PrimFunc are expected to be Buffer handle or scalar, but got: "
-            << param_ty->dtype;
-      }
+      TVM_FFI_ICHECK(param->ty.as<PointerTypeNode>())
+          << "The output params of a PrimFunc must be buffer handles, but parameter " << i
+          << " has type " << param->ty;
+      ret.push_back(param);
     }
-
-    size_t end_index = symbolic_var_index == -1 ? n : symbolic_var_index;
-    TVM_FFI_ICHECK_GE(end_index, output_size);
     return ret;
   }
 
@@ -885,7 +853,7 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   void AllocateIntermediateBuffer(const CallNode* call, const tirx::PrimFunc& func,
                                   const ffi::Array<ffi::Array<PrimExpr>>& output_shapes) {
-    bool is_inplace = (call->op == Op::Get("relax.call_tir_inplace"));
+    bool is_inplace = call->op.same_as(Op::Get("relax.call_tir_inplace"));
 
     size_t n = func->params.size();
     int num_inputs = call->args[1].as_or_throw<Tuple>()->fields.size();
@@ -904,16 +872,16 @@ class FusedTIRConstructor : public ExprVisitor {
     }
 
     ffi::Array<tirx::Var> output_params = GetPrimFuncOutputParams(func, output_idxs);
-    auto input_buffers = func_info_.expr2buffers.Get(call->args[1]);
     for (size_t i = 0; i < output_size; ++i) {
       const tirx::Var& param = output_params[i];
       const tirx::Buffer& buffer = func->buffer_map.at(param);
 
       // if this is an inplace output, do not do an intermediate allocation
       if (output_idxs[i] < num_inputs) {
-        TVM_FFI_ICHECK(input_buffers.has_value())
-            << "Inplace functions must have some defined input";
-        output_buffers.push_back(input_buffers.value()[output_idxs[i]]);
+        auto it = func_info_.buffer_subst_map.find(buffer);
+        TVM_FFI_ICHECK(it != func_info_.buffer_subst_map.end())
+            << "Inplace output buffer " << buffer << " must be mapped to a defined input";
+        output_buffers.push_back((*it).second);
         continue;
       }
 
@@ -955,7 +923,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param out The vector into which to collect the params/buffers
    */
   static void CollectPrimFuncParams(const Var& relax_param,
-                                    std::vector<ffi::Variant<tirx::Var, tirx::Buffer>>* out,
+                                    std::vector<ffi::Variant<tirx::PrimVar, tirx::Buffer>>* out,
                                     const ffi::Optional<tirx::Buffer>& tir_buffer_param) {
     auto ty = GetType(relax_param);
 
@@ -963,7 +931,7 @@ class FusedTIRConstructor : public ExprVisitor {
         << "All tuple parameters should be expanded before this point in FuseTIR.  "
         << "However, parameter " << relax_param << " has type " << ty;
 
-    auto name_hint = relax_param->name_hint();
+    auto name_hint = relax_param->name;
 
     if (const auto* tensor = ty.as<TensorTypeNode>()) {
       // Case 1. The relax param is a Tensor, we directly create a tirx var and buffer
@@ -971,24 +939,24 @@ class FusedTIRConstructor : public ExprVisitor {
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
       PrimType dtype = tensor->dtype.value();
       tirx::Buffer buffer;
-      if (tir_buffer_param.defined()) {
+      if (tir_buffer_param.has_value()) {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
-                                   tir_buffer_param.value().scope(),
-                                   tir_buffer_param.value()->axis_separators);
+                                   tir_buffer_param.value().scope());
       } else {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint);
       }
       out->push_back(std::move(buffer));
 
-    } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
-      // Case 2. The relax param is a scalar, we directly create a tirx var
-      out->push_back(tirx::Var(name_hint, tvm::PrimType(prim_value->dtype)));
+    } else if (ty.as<PrimTypeNode>()) {
+      // Case 2. The relax param is a scalar, so its canonical Var is a TIR parameter.
+      out->push_back(relax_param.as_or_throw<tirx::PrimVar>());
 
     } else if (const auto* shape_expr = ty.as<ShapeTypeNode>()) {
       // Case 3. The relax param is a tuple of scalars, each represented as a tirx var
       for (const auto& var : shape_expr->values.value()) {
-        TVM_FFI_ICHECK(var->IsInstance<tirx::VarNode>());
-        out->push_back(var.as_or_throw<tirx::Var>());
+        auto prim_var = var.as<tirx::PrimVar>();
+        TVM_FFI_ICHECK(prim_var.has_value());
+        out->push_back(prim_var.value());
       }
     } else {
       TVM_FFI_THROW(TypeError) << "The param type of PrimFunc is expected to be "
@@ -1235,7 +1203,6 @@ class TIRFuseMutator : public ExprMutator {
     // are not supported by PrimFunc, so this step verifies that
     // ExpandTupleArguments has already removed them.
     ffi::Array<Expr> arg_list;
-    ffi::Array<PrimExpr> tir_vars;
     for (size_t i = 0; i < call->args.size(); ++i) {
       auto arg = call->args[i];
       auto ty = GetType(arg);
@@ -1249,19 +1216,18 @@ class TIRFuseMutator : public ExprMutator {
           << relax_func->params[i] << " to have type " << relax_func->params[i]->ty;
 
       if (const auto* shape = ty.as<ShapeTypeNode>()) {
-        TVM_FFI_ICHECK(shape->values.defined()) << "FuseTIR requires all shape input has ty value.";
+        TVM_FFI_ICHECK(shape->values.has_value())
+            << "FuseTIR requires all shape input has ty value.";
         for (const PrimExpr& prim_value : shape->values.value()) {
-          TVM_FFI_ICHECK(prim_value->IsInstance<tirx::VarNode>())
+          TVM_FFI_ICHECK(prim_value.as<tirx::PrimVar>())
               << "All shape inputs are expected to be single tirx var.";
-          tir_vars.push_back(prim_value);
+          arg_list.push_back(prim_value);
         }
-      } else if (const auto* prim_value = ty.as<PrimTypeNode>()) {
-        if (const auto* literal = arg.as<PrimExprNode>()) {
-          tir_vars.push_back(ffi::GetRef<PrimExpr>(literal));
-        } else if (const auto* var = arg.as<VarNode>()) {
-          tir_vars.push_back(tirx::Var(var->name_hint(), tvm::PrimType(prim_value->dtype)));
+      } else if (ty.as<PrimTypeNode>()) {
+        if (auto literal = arg.as<PrimExpr>()) {
+          arg_list.push_back(literal.value());
         } else {
-          TVM_FFI_THROW(TypeError) << "FuseTIR expects scalar arguments to be PrimExpr or Var, "
+          TVM_FFI_THROW(TypeError) << "FuseTIR expects scalar arguments to be PrimExpr, "
                                    << "but received " << arg;
         }
 
@@ -1272,9 +1238,6 @@ class TIRFuseMutator : public ExprMutator {
 
     // Step b. Create call_tir or call_tir_inplace
     ffi::Array<Expr> call_args = {fused_tir_gv, Tuple(arg_list)};
-    if (!tir_vars.empty()) {
-      call_args.push_back(ShapeExpr(tir_vars));
-    }
     Op call_op = call_tir_op_;
     Attrs call_attrs = call->attrs;
     if (replacement.inplace_indices.size()) {
@@ -1283,7 +1246,7 @@ class TIRFuseMutator : public ExprMutator {
       inplace_attrs->inplace_indices = replacement.inplace_indices;
       call_attrs = Attrs(inplace_attrs);
     }
-    return Call(call_op, call_args, call_attrs, {GetType(call)});
+    return Call(Type::Missing(), call_op, call_args, call_attrs, {GetType(call)});
   }
 
  private:

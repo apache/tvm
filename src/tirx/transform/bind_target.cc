@@ -171,7 +171,7 @@ class CallSubstitutor : public StmtExprMutator {
  private:
   using StmtExprMutator::VisitStmt_;
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  Expr VisitExpr_(const CallNode* op) final {
     auto call = StmtExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     // Only substitute calls when not under GPU scope

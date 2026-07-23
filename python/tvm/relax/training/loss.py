@@ -37,7 +37,7 @@ def _create_param_var(param: Var | Type, param_name: str) -> Var:
         param = Var(param_name, param)
     if not isinstance(param, Var):
         raise TypeError("The type of param should be Var or Type, but got " + type(param))
-    return Var(param.name_hint, param.ty)
+    return Var(param.name, param.ty)
 
 
 class Loss:
@@ -275,7 +275,7 @@ class CrossEntropyLoss(Loss):
         targets = _create_param_var(targets, "targets")
 
         arg_list = [predictions, targets]
-        if weights:
+        if weights is not None:
             weights = _create_param_var(weights, "weights")
             arg_list.append(weights)
 
@@ -355,7 +355,7 @@ class CategoricalCrossEntropyLoss(Loss):
         targets = _create_param_var(targets, "targets")
 
         arg_list = [predictions, targets]
-        if weights:
+        if weights is not None:
             weights = _create_param_var(weights, "weights")
             arg_list.append(weights)
 
@@ -374,7 +374,7 @@ class CategoricalCrossEntropyLoss(Loss):
                     )
                 else:
                     lv = bb.emit(-logits * targets.astype("float32"))
-                    if weights:
+                    if weights is not None:
                         lv = bb.emit(lv * weights)
                     loss = bb.emit_output(self._with_reduction(lv))
             bb.emit_func_output(loss)

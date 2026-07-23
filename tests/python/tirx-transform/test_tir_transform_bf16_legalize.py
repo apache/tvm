@@ -262,7 +262,7 @@ def test_bf16_reduce_will_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -291,7 +291,7 @@ def test_bf16_reduce_will_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -326,7 +326,7 @@ def test_bf16_reduce_will_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -370,7 +370,7 @@ def test_bf16_reduce_wont_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -399,7 +399,7 @@ def test_bf16_reduce_wont_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
@@ -428,7 +428,7 @@ def test_bf16_reduce_wont_legalize():
                     with T.attr(
                         T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
                         "reduce_scope",
-                        T.reinterpret("handle", T.uint64(0)),
+                        T.int32(0),
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),

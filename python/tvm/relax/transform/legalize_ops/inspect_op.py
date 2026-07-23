@@ -19,11 +19,12 @@
 
 import enum
 
+from tvm.ir import Call
 from tvm.script import tirx as T
 
 from ... import op
 from ...block_builder import BlockBuilder
-from ...expr import Call, Expr
+from ...expr import Expr
 from .common import register_legalize
 
 
@@ -64,12 +65,12 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
             "Specified axis may not be larger than the tensor's dimensionality"
         )
         stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
-            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorStrides), "handle"
+            dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorStrides), T.handle("int64").ty
         )
 
         if T.isnullptr(stride_ptr):
             shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
-                dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorShape), "handle"
+                dlpack_handle, 0, int(TVMStructFieldKind.kDLTensorShape), T.handle("int64").ty
             )
             shape = T.decl_buffer(ndim, "int64", data=shape_ptr)
 

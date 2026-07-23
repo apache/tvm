@@ -30,6 +30,21 @@ TVM wheel from PyPI:
 This installs the Python package, including modules such as ``tvm.tirx``, and
 is suitable for trying tutorials that do not require a custom build.
 
+CUDA environments
+-----------------
+
+Some CUDA workflows use NVIDIA's Python CUDA bindings for runtime compilation.
+Install the CUDA extra in the same environment as TVM when you need this path:
+
+.. code-block:: bash
+
+   pip install "apache-tvm[cuda]"
+
+This extra installs Python-side CUDA bindings only. It does not make the PyPI
+wheel a CUDA-enabled TVM build, and it does not install NVIDIA drivers or a CUDA
+toolkit. If you need CUDA support in TVM itself, build TVM from source with
+``USE_CUDA=ON``.
+
 For more details on installing the TIRx compiler and optional kernel library,
 visit the :doc:`TIRx installation </tirx/install>` page. If you need to
 customize TVM's build configuration, visit the

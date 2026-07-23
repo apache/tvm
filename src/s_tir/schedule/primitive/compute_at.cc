@@ -271,8 +271,9 @@ class ScopeReconstructor : private StmtMutator {
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
         loop_extents.push_back(analyzer->Simplify(iter_dom->extent));
-        iter_values.push_back(iter_dom->min + var);
-        analyzer->Bind(var, Range::FromMinExtent(IntImm(var.ty(), 0), iter_dom->extent));
+        iter_values.push_back(iter_dom->min + var.as_or_throw<PrimExpr>());
+        analyzer->Bind(var, Range::FromMinExtent(IntImm(var->ty.as_or_throw<PrimType>(), 0),
+                                                 iter_dom->extent));
       } else {
         iter_values.push_back(iter_dom->min);
       }
@@ -299,7 +300,7 @@ class ScopeReconstructor : private StmtMutator {
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
-      new_subtree = For(/*loop_var=*/loop_var,
+      new_subtree = For(/*loop_var=*/loop_var.as_or_throw<PrimVar>(),
                         /*min=*/IntImm::Int32(0),
                         /*extent=*/loop_extent,
                         /*ForKind=*/ForKind::kSerial,
@@ -384,7 +385,7 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
     runtime::StorageScope scope =
         relax_storage_scope ? runtime::StorageScope::Create(buffer.scope()) : global_scope;
     runtime::StorageRank rank = scope.rank;
-    if (rank != previous_rank || !var_dom.defined()) {
+    if (rank != previous_rank || !var_dom.has_value()) {
       previous_rank = rank;
       var_dom = arith::AsIntSet(LoopDomainOfSRefTreePath(
           /*low_inclusive=*/relax_path_low_inclusive,
@@ -434,7 +435,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         PrimExpr var_expr = p_f1.Eval();
         PrimExpr fac = p_f2.Eval();
         if (analyzer->CanProveGreaterEqual(fac, 1)) {
-          if (var_expr->IsInstance<VarNode>()) {
+          if (var_expr.as<PrimVar>()) {
             // a <= (x // factor) <= b, fac > 0 ==> (a * fac) <= x <= (b * fac + fac - 1)
             var = var_expr.as_or_throw<Var>();
             var_dom = arith::IntSet::Interval(required_min * fac,
@@ -449,7 +450,7 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
         }
       } else if ((floormod(p_f1, p_f2).Match(provided_min))) {
         PrimExpr var_expr = p_f1.Eval();
-        if (var_expr->IsInstance<VarNode>()) {
+        if (var_expr.as<PrimVar>()) {
           // generally domain of (x % fac) enforce no constraints to domain of x
           Var var_mod = var_expr.as_or_throw<Var>();
           return {var_mod, BlockVarDomainInfo()};
@@ -469,7 +470,8 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const arith::IntSet& prov
       }
     }
   }
-  TVM_FFI_CHECK(var.defined(), ValueError) << "BufferRegion pattern match failed: " << provided_min;
+  TVM_FFI_CHECK(var.has_value(), ValueError)
+      << "BufferRegion pattern match failed: " << provided_min;
   return {var.value(), BlockVarDomainInfo{var_dom, var_bound}};
 }
 
@@ -559,7 +561,7 @@ bool UpdateBlockVarDomainAffine(const BufferNode* buffer, const ffi::Array<IterV
     if (!intset.CanProveSinglePoint(analyzer_ref)) return false;
   }
   // calculate forward mapping (block vars -> provided region point)
-  ffi::Map<Var, Range> dom_map;
+  ffi::Map<PrimVar, Range> dom_map;
   for (const IterVar& iter_var : iter_vars) {
     dom_map.Set(iter_var->var, iter_var->dom);
   }

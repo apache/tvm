@@ -91,7 +91,7 @@ using namespace tirx;
 /*!
  * \brief A base class to generate a LLVM.
  */
-class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
+class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
                     public StmtFunctor<void(const Stmt&)> {
  public:
   CodeGenLLVM();           // Do not make it default here.
@@ -182,6 +182,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return created value.
    */
   llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const Expr& e) {
+    if (auto prim = e.as<PrimExpr>()) return MakeValue(prim.value());
+    if (const auto* var = e.as<VarNode>()) return GetVarValue(var);
+    if (const auto* call = e.as<CallNode>()) return VisitExpr_(call);
+    TVM_FFI_THROW(TypeError) << "Cannot lower non-primitive expression " << e->GetTypeKey();
+    TVM_FFI_UNREACHABLE();
+  }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -223,6 +230,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const WhileNode* op) override;
+  void VisitStmt_(const ReturnNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const AllocBufferNode* op) override;
   void VisitStmt_(const AttrStmtNode* op) override;
@@ -285,7 +293,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // create extern function call
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,
-                                        const ffi::Array<PrimExpr>& args, bool skip_first_arg);
+                                        const ffi::Array<Expr>& args, bool skip_first_arg);
 
   /*! \brief Insert a printf() call to the generated LLVM
    *
@@ -470,8 +478,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateAdd(PrimType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateSub(PrimType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(PrimType t, llvm::Value* a, llvm::Value* b);
-  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, PrimType buffer_element_dtype,
-                                       llvm::ArrayRef<llvm::Value*> indices, PrimType value_dtype);
+  virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, Type buffer_element_type,
+                                       llvm::ArrayRef<llvm::Value*> indices, Type value_type);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -479,7 +487,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateVecPad(llvm::Value* vec, int target_lanes);
   // Create serial for
   void CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Value* stride,
-                       const Var& loop_var, const Stmt& body);
+                       const PrimVar& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* inst, const VarNode* buffer_var, PrimExpr index,
                     PrimType access_dtype);

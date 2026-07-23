@@ -24,12 +24,11 @@ import tvm_ffi
 
 import tvm
 from tvm.contrib import coreml_runtime
-from tvm.ir import PrimType
+from tvm.ir import Call, PrimType
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr import (
     BindingBlock,
-    Call,
     Constant,
     Function,
     SeqExpr,
@@ -282,7 +281,7 @@ _convert_map = {
 @visitor
 class CallNodeInfoCollector(PyExprVisitor):
     """
-    Collect PrimExpr, Constant and attributes in the inner function
+    Collect Expr, Constant and attributes in the inner function
     """
 
     def __init__(self, op_name):
@@ -294,7 +293,7 @@ class CallNodeInfoCollector(PyExprVisitor):
     def visit_call_(self, call: Call) -> None:
         self.attrs.append(call.attrs)
         for arg in call.args:
-            if isinstance(arg, tvm.tirx.PrimExpr):
+            if tvm.ir.is_prim_expr(arg):
                 self.primvals.append(arg)
             if isinstance(arg, Constant):
                 self.consts.append(arg)
@@ -354,7 +353,7 @@ class CodegenCoreML(PyExprVisitor):
 
     def visit_function_(self, op) -> None:
         for var in op.params:
-            name = var.name_hint
+            name = var.name
             ty = var.ty
             if isinstance(ty, TensorType):
                 shape = [int(v) for v in list(ty.shape)]
@@ -368,7 +367,7 @@ class CodegenCoreML(PyExprVisitor):
         self.visit_expr(op.body)
 
     def visit_var_(self, var):
-        self.out_map[var] = [var.name_hint]
+        self.out_map[var] = [var.name]
         prev_binding_var = self.cur_binding_var
         self.cur_binding_var = var
         if var in self.var2val:

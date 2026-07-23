@@ -132,18 +132,29 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
 
   static ffi::String IndexMap2GenNewRangesLambda(const IndexMap& index_map) {
     std::ostringstream oss;
+    auto print_expr = [&oss](const PrimExpr& expr) {
+      if (auto var = expr.as<PrimVar>()) {
+        oss << var.value()->name;
+      } else {
+        oss << expr;
+      }
+    };
     oss << "lambda ";
     for (size_t i = 0; i < index_map->initial_indices.size(); ++i) {
       if (i != 0) oss << ", ";
-      oss << index_map->initial_indices[i];
+      oss << index_map->initial_indices[i]->name;
     }
     oss << ": [";
     for (size_t i = 0; i < index_map->final_indices.size(); i += 2) {
       if (i != 0) oss << ", ";
       if (index_map->final_indices[i].same_as(index_map->final_indices[i + 1])) {
-        oss << index_map->final_indices[i];
+        print_expr(index_map->final_indices[i]);
       } else {
-        oss << "(" << index_map->final_indices[i] << ", " << index_map->final_indices[i + 1] << ")";
+        oss << "(";
+        print_expr(index_map->final_indices[i]);
+        oss << ", ";
+        print_expr(index_map->final_indices[i + 1]);
+        oss << ")";
       }
     }
     oss << "]";

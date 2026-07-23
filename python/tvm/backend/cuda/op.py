@@ -20,9 +20,8 @@
 from __future__ import annotations
 
 from tvm import tirx
-from tvm.ir import Op, PrimExpr
+from tvm.ir import Call, Op, is_prim_expr
 from tvm.runtime import const
-from tvm.tirx.expr import Call
 from tvm.tirx.op import bitwise_and, call_intrin, tvm_access_ptr
 from tvm.tirx.operator.intrinsics._common import CLUSTER_BARRIER_SEM as _CLUSTER_BARRIER_SEM
 from tvm.tirx.operator.intrinsics._common import (
@@ -61,7 +60,7 @@ def cuda_func_call(func_name, *args, source_code, return_type="void"):
     func_name: str
         The name of the CUDA function.
 
-    args: PrimExpr
+    args: Expr
         The arguments to the CUDA function.
 
     source_code: str
@@ -82,7 +81,7 @@ def cuda_warp_reduce(value, op, width=32):
 
     Parameters
     ----------
-    value : PrimExpr
+    value : Expr
         The per-thread scalar value to reduce.
 
     op : str
@@ -94,7 +93,7 @@ def cuda_warp_reduce(value, op, width=32):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The reduced value (same dtype as *value*).
     """
     return call_intrin(value.ty, "tirx.cuda.warp_reduce", value, op, width)
@@ -124,7 +123,7 @@ def cuda_cta_reduce(value, op, num_warps, scratch):
 
     Parameters
     ----------
-    value : PrimExpr
+    value : Expr
         Per-thread scalar value to reduce.
 
     op : str
@@ -138,7 +137,7 @@ def cuda_cta_reduce(value, op, num_warps, scratch):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The reduced value broadcast to all threads (same dtype as *value*).
     """
     return call_intrin(value.ty, "tirx.cuda.cta_reduce", value, op, num_warps, scratch)
@@ -159,57 +158,6 @@ def cuda_cta_min(value, num_warps, scratch):
     return cuda_cta_reduce(value, "min", num_warps, scratch)
 
 
-def cuda_copy_bytes(dst, src, num_bytes):
-    """Typed load/store copy of ``num_bytes`` bytes.
-
-    Copies ``num_bytes`` bytes from ``src`` to ``dst`` using a single
-    typed load/store instruction.  Codegen selects the appropriate C++
-    vector type (``uint4``, ``uint2``, ``unsigned int``, etc.).
-
-    Parameters
-    ----------
-    dst : Var
-        Destination pointer.
-
-    src : Var
-        Source pointer.
-
-    num_bytes : int
-        Number of bytes to copy.  Must be one of {1, 2, 4, 8, 16}.
-
-    Returns
-    -------
-    call : PrimExpr
-        A void call expression.
-    """
-    return call_intrin("void", "tirx.cuda.copy_bytes", dst, src, num_bytes)
-
-
-def cuda_copy_128b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 16)`` — copies 128 bits."""
-    return cuda_copy_bytes(dst, src, 16)
-
-
-def cuda_copy_64b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 8)`` — copies 64 bits."""
-    return cuda_copy_bytes(dst, src, 8)
-
-
-def cuda_copy_32b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 4)`` — copies 32 bits."""
-    return cuda_copy_bytes(dst, src, 4)
-
-
-def cuda_copy_16b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 2)`` — copies 16 bits."""
-    return cuda_copy_bytes(dst, src, 2)
-
-
-def cuda_copy_8b(dst, src):
-    """Convenience wrapper: ``cuda_copy_bytes(dst, src, 1)`` — copies 8 bits."""
-    return cuda_copy_bytes(dst, src, 1)
-
-
 def cuda_warp_sync():
     """TVM intrinsic to synchronize threads within the current warp.
 
@@ -217,7 +165,7 @@ def cuda_warp_sync():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.warp_sync")
@@ -228,7 +176,7 @@ def cuda_cta_sync():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.cta_sync")
@@ -239,7 +187,7 @@ def cuda_grid_sync():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.grid_sync")
@@ -250,7 +198,7 @@ def cuda_cluster_sync():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.cluster_sync")
@@ -268,7 +216,7 @@ def cuda_thread_rank():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression (``int32``).
     """
     return call_intrin("int32", "tirx.cuda.thread_rank")
@@ -279,12 +227,12 @@ def cuda_half2float(src):
 
     Parameters
     ----------
-    src : PrimExpr
+    src : Expr
         Source pointer.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("float32", "tirx.cuda.half2float", src)
@@ -295,12 +243,12 @@ def cuda_bfloat162float(src):
 
     Parameters
     ----------
-    src : PrimExpr
+    src : Expr
         Source pointer.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("float32", "tirx.cuda.bfloat162float", src)
@@ -311,15 +259,15 @@ def cuda_float22half2(dst, src):
 
     Parameters
     ----------
-    dst : PrimExpr
+    dst : Expr
         Destination pointer.
 
-    src : PrimExpr
+    src : Expr
         Source pointer.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.float22half2", dst, src)
@@ -330,12 +278,12 @@ def cuda_trap_when_assert_failed(cond):
 
     Parameters
     ----------
-    cond : PrimExpr
+    cond : Expr
         Condition to check.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.trap_when_assert_failed", cond)
@@ -346,15 +294,15 @@ def cuda_runtime_instr_desc(desc, sf_id):
 
     Parameters
     ----------
-    desc : PrimExpr
+    desc : Expr
         Pointer to the descriptor (uint32*).
 
-    sf_id : PrimExpr
+    sf_id : Expr
         The subfragment id.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.runtime_instr_desc", desc, sf_id)
@@ -365,15 +313,15 @@ def cuda_half8tofloat8(src_addr, dst_addr):
 
     Parameters
     ----------
-    src_addr : PrimExpr
+    src_addr : Expr
         Source pointer.
 
-    dst_addr : PrimExpr
+    dst_addr : Expr
         Destination pointer.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.half8tofloat8", src_addr, dst_addr)
@@ -384,15 +332,15 @@ def cuda_float8tohalf8(src_addr, dst_addr):
 
     Parameters
     ----------
-    src_addr : PrimExpr
+    src_addr : Expr
         Source pointer.
 
-    dst_addr : PrimExpr
+    dst_addr : Expr
         Destination pointer.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.float8tohalf8", src_addr, dst_addr)
@@ -475,7 +423,7 @@ def ptx_mma_sp(
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -531,7 +479,7 @@ def ptx_cp_async_bulk(
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin(
@@ -554,22 +502,22 @@ def ptx_cp_async_bulk_shared_to_cluster(dst_ptr, src_ptr, size, mbar):
 
     Parameters
     ----------
-    dst_ptr : PrimExpr
+    dst_ptr : Expr
         Destination pointer in shared::cluster address space (remote CTA).
 
-    src_ptr : PrimExpr
+    src_ptr : Expr
         Source pointer in shared::cta address space (local CTA).
 
-    size : PrimExpr
+    size : Expr
         Number of bytes to copy (must be multiple of 16).
 
-    mbar : PrimExpr
+    mbar : Expr
         Mbarrier address in shared::cluster space for completion signaling,
         usually produced by ``T.ptx.map_shared_rank``.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.cp_async_bulk_shared_to_cluster", dst_ptr, src_ptr, size, mbar)
@@ -586,7 +534,7 @@ def ptx_cp_async_mbarrier_arrive(barrier_id):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.cp_async_mbarrier_arrive", barrier_id)
@@ -606,7 +554,7 @@ def ptx_fence(sem: str, scope: str):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     _choice("sem", sem, _FENCE_SEM)
@@ -627,7 +575,7 @@ def ptx_fence_proxy_async(space: str = ""):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     _choice("space", space, _FENCE_PROXY_ASYNC_SPACE)
@@ -647,7 +595,7 @@ def ptx_mbarrier_init(bar, thread_count):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.mbarrier_init", bar, thread_count)
@@ -665,13 +613,13 @@ def ptx_mbarrier_arrive(bar, cta_id=None, pred=None, count=None):
     bar : Var
         The pointer to barrier variable.
 
-    cta_id : Optional[PrimExpr]
+    cta_id : Optional[Expr]
         The cta id.
 
-    pred : Optional[PrimExpr]
+    pred : Optional[Expr]
         The predicate to guard the operation.
 
-    count : Optional[PrimExpr]
+    count : Optional[Expr]
         Explicit arrival count operand for the cross-CTA (cluster) form. When
         ``None`` the implicit count-of-1 form is emitted; when given, emits
         ``mbarrier.arrive.shared::cluster.b64 _, [addr], count``.
@@ -710,15 +658,15 @@ def ptx_mbarrier_arrive_expect_tx(bar, byte_count, cta_id=None, pred=None):
         Increases the tx count of the mbarrier object to track completion of
         addtional async transactions.
 
-    cta_id : Optional[PrimExpr]
+    cta_id : Optional[Expr]
         The cta id.
 
-    pred : Optional[PrimExpr]
+    pred : Optional[Expr]
         The predicate to guard the operation.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     if cta_id is None and pred is None:
@@ -744,7 +692,7 @@ def ptx_mbarrier_try_wait(bar, phase):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.mbarrier_try_wait", bar, phase)
@@ -790,7 +738,7 @@ def ptx_bar_arrive(name_bar_id, thread_count):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.bar_arrive", name_bar_id, thread_count)
@@ -809,7 +757,7 @@ def ptx_bar_sync(name_bar_id, thread_count):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.bar_sync", name_bar_id, thread_count)
@@ -839,10 +787,10 @@ def ptx_cp_async(
 
     Parameters
     ----------
-    shared_ptr : PrimExpr
+    shared_ptr : Expr
         The pointer to the shared memory.
 
-    global_ptr : PrimExpr
+    global_ptr : Expr
         The pointer to the global memory.
 
     cp_size : int
@@ -854,7 +802,7 @@ def ptx_cp_async(
     prefetch_size : int[-1, 64, 128, 256]
         The prefetch size.
 
-    predicate : PrimExpr
+    predicate : Expr
         The predicate to guard the operation.
 
     fill_mode : str["zero", ""]
@@ -862,7 +810,7 @@ def ptx_cp_async(
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
@@ -907,8 +855,8 @@ def ptx_cp_async_legacy(*all_args):
             f"prepended); got {len(all_args)}"
         )
     dst_ptr, dst_offset, src_ptr, src_offset, cp_size = args
-    dst_ptr = tvm_access_ptr(elem_dtype, dst_ptr, dst_offset, 1, 1)
-    src_ptr = tvm_access_ptr(elem_dtype, src_ptr, src_offset, 1, 1)
+    dst_ptr = _wrap_or_fold_access_ptr(dst_ptr, dst_offset, elem_dtype)
+    src_ptr = _wrap_or_fold_access_ptr(src_ptr, src_offset, elem_dtype)
     return ptx_cp_async(dst_ptr, src_ptr, cp_size)
 
 
@@ -918,7 +866,7 @@ def ptx_cp_async_commit_group():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.cp_async_commit_group")
@@ -935,7 +883,7 @@ def ptx_cp_async_wait_group(num=0):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.cp_async_wait_group", num)
@@ -951,13 +899,13 @@ def ptx_cp_async_bulk_tensor_global_to_cluster(
     dim : int
         The dimension of the source tensor.
 
-    dst_ptr : PrimExpr
+    dst_ptr : Expr
         The destination pointer to the shared memory.
 
-    bar : PrimExpr
+    bar : Expr
         The pointer to mbarrier variable.
 
-    tensormap_addr : PrimExpr
+    tensormap_addr : Expr
         The generic address of the tensor map object.
 
     cta_mask : int
@@ -973,16 +921,16 @@ def ptx_cp_async_bulk_tensor_global_to_cluster(
     cache_hint : str
         The cache hint.
 
-    coords : List[PrimExpr]
+    coords : List[Expr]
         specifies the starting coordinates in the tensor data in the global memory
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
     _choice("cta_group", cta_group, _TCGEN05_CTA_GROUP)
-    if isinstance(cache_hint, PrimExpr):
+    if is_prim_expr(cache_hint):
         has_cache_policy, *coords = coords
         return call_intrin(
             "",
@@ -1024,13 +972,13 @@ def ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster(
     dim : int
         The dimension of the source tensor.
 
-    dst_ptr : PrimExpr
+    dst_ptr : Expr
         The destination pointer to the shared memory.
 
-    bar : PrimExpr
+    bar : Expr
         The pointer to mbarrier variable.
 
-    tensormap_addr : PrimExpr
+    tensormap_addr : Expr
         The generic address of the tensor map object.
 
     cta_mask : int
@@ -1042,16 +990,16 @@ def ptx_cp_async_bulk_tensor_tile_gather4_global_to_cluster(
     cache_hint : str
         The cache hint.
 
-    coords : List[PrimExpr]
+    coords : List[Expr]
         The TMA coordinates followed by the 4 gather row indices.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     _choice("cta_group", cta_group, _TCGEN05_CTA_GROUP)
-    if isinstance(cache_hint, PrimExpr):
+    if is_prim_expr(cache_hint):
         has_cache_policy, *coords = coords
         return call_intrin(
             "",
@@ -1092,24 +1040,24 @@ def ptx_cp_async_bulk_tensor_shared_to_global(
     dim : int
         The dimension of the copy tensor.
 
-    src_ptr : PrimExpr
+    src_ptr : Expr
         The source pointer to the shared memory.
 
-    tensormap_addr : PrimExpr
+    tensormap_addr : Expr
         The generic address of the tensor map object.
 
     cache_hint : str
         The cache hint.
 
-    coords : List[PrimExpr]
+    coords : List[Expr]
         specifies the starting coordinates in the tensor data in the global memory
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
-    if isinstance(cache_hint, PrimExpr):
+    if is_prim_expr(cache_hint):
         has_cache_policy, *coords = coords
         return call_intrin(
             "",
@@ -1144,21 +1092,21 @@ def ptx_cp_async_bulk_tensor_global_to_cluster_prefetch(
     dim : int
         The dimension of the source tensor.
 
-    tensormap_addr : PrimExpr
+    tensormap_addr : Expr
         The generic address of the tensor map object.
 
     cache_hint : str
         The cache hint.
 
-    coords : List[PrimExpr]
+    coords : List[Expr]
         specifies the starting coordinates in the tensor data in the global memory
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
-    if isinstance(cache_hint, PrimExpr):
+    if is_prim_expr(cache_hint):
         has_cache_policy, *coords = coords
         return call_intrin(
             "",
@@ -1191,10 +1139,10 @@ def ptx_cp_async_bulk_tensor_shared_to_global_reduce(
     dim : int
         The dimension of the copy tensor.
 
-    src_ptr : PrimExpr
+    src_ptr : Expr
         The source pointer to the shared memory.
 
-    tensormap_addr : PrimExpr
+    tensormap_addr : Expr
         The generic address of the tensor map object.
 
     cache_hint: str
@@ -1203,15 +1151,15 @@ def ptx_cp_async_bulk_tensor_shared_to_global_reduce(
     red_op: str
         The reduction operator.
 
-    coords: List[PrimExpr]
+    coords: List[Expr]
         The coordinates of the tensor.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
-    if isinstance(cache_hint, PrimExpr):
+    if is_prim_expr(cache_hint):
         has_cache_policy = red_op
         red_op, *coords = coords
         _choice("red_op", red_op, _CP_ASYNC_BULK_RED_OP)
@@ -1246,7 +1194,7 @@ def ptx_cp_async_bulk_commit_group():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.cp_async_bulk_commit_group")
@@ -1265,7 +1213,7 @@ def ptx_cp_async_bulk_wait_group(n=0, read=True):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.cp_async_bulk_wait_group", n, read)
@@ -1309,10 +1257,10 @@ def ptx_clc_try_cancel(handle, mbar):
 
     Parameters
     ----------
-    handle : PrimExpr
+    handle : Expr
         Pointer to the 16B (uint4) smem response handle.
 
-    mbar : PrimExpr
+    mbar : Expr
         Pointer to the mbarrier signalled when the handle lands.
     """
     return call_intrin("", "tirx.ptx.clc_try_cancel", handle, mbar)
@@ -1326,7 +1274,7 @@ def ptx_clc_query_cancel(handle):
 
     Parameters
     ----------
-    handle : PrimExpr
+    handle : Expr
         Pointer to the 16B (uint4) smem response handle.
     """
     return call_intrin("uint32", "tirx.ptx.clc_query_cancel", handle)
@@ -1344,7 +1292,7 @@ def ptx_fence_mbarrier_init():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.fence_mbarrier_init")
@@ -1363,7 +1311,7 @@ def ptx_fetch_register(bits, reg_name):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int" + str(bits), "tirx.ptx.fetch_register", bits, reg_name)
@@ -1422,16 +1370,16 @@ def ptx_mma(
     c_type : str
         The data type of accumulator fragment C.
 
-    d_ptrs : List[PrimExpr]
+    d_ptrs : List[Expr]
         One pointer per result-fragment D register, in PTX order.
 
-    a_ptrs : List[PrimExpr]
+    a_ptrs : List[Expr]
         One pointer per multiplicand-A register, in PTX order.
 
-    b_ptrs : List[PrimExpr]
+    b_ptrs : List[Expr]
         One pointer per multiplicand-B register, in PTX order.
 
-    c_ptrs : Optional[List[PrimExpr]]
+    c_ptrs : Optional[List[Expr]]
         One pointer per accumulator-C register, in PTX order. ``None`` (the
         default) means the accumulator is not used (beta == 0): codegen feeds
         a literal 0 for each C slot.
@@ -1444,7 +1392,7 @@ def ptx_mma(
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     d_ptrs = list(d_ptrs)
@@ -1662,9 +1610,9 @@ def ptx_ldmatrix(trans, num, dtype, smem_ptr, *dst_handles):
         One of 1, 2, 4 — number of m8n8 fragments.
     dtype : str
         ``"b16"`` (4 bytes per fragment register) or ``"b8"`` (2 bytes per).
-    smem_ptr : PrimExpr
+    smem_ptr : Expr
         Generic pointer to source shared memory.
-    *dst_handles : PrimExpr
+    *dst_handles : Expr
         N pointer-to-uint32 destinations, where
         ``N = num if dtype == "b16" else num // 2``.
 
@@ -1736,7 +1684,7 @@ def _wrap_or_fold_access_ptr(ptr, offset, elem_dtype):
         inner_offset = inner_args[2]
         rw_mask = inner_args[4]
         return call_intrin(
-            "handle",
+            ptr.ty,
             "tirx.tvm_access_ptr",
             inner_marker,
             inner_var,
@@ -1800,9 +1748,9 @@ def ptx_stmatrix(trans, num, dtype, smem_ptr, *src_handles, shape="m8n8", space=
         One of 1, 2, 4 — number of m8n8 fragments per warp.
     dtype : str
         ``".b16"`` (4 bytes per fragment register) or ``".b8"`` (2 bytes per).
-    smem_ptr : PrimExpr
+    smem_ptr : Expr
         Destination pointer in shared memory.
-    *src_handles : PrimExpr
+    *src_handles : Expr
         ``num`` pointer-to-uint32 sources.
     shape : str, keyword-only, default "m8n8"
         ``"m8n8"`` or ``"m16n8"``.
@@ -1836,16 +1784,16 @@ def ptx_wgmma_encode_matrix_descriptor(desc, addr, ldo, sdo, swizzle):
 
     Parameters
     ----------
-    desc : PrimExpr
+    desc : Expr
         The pointer to the shared memory descriptor.
 
-    addr : PrimExpr
+    addr : Expr
         The address of the matrix.
 
-    ldo : PrimExpr
+    ldo : Expr
         The leading dimension offset.
 
-    sdo : PrimExpr
+    sdo : Expr
         The stride dimension offset.
 
     swizzle : int
@@ -1859,12 +1807,12 @@ def ptx_wgmma_noop_barrier(reg):
 
     Parameters
     ----------
-    reg : PrimExpr
+    reg : Expr
         The register to fence.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.wgmma_noop_barrier", reg)
@@ -1904,13 +1852,13 @@ def ptx_wgmma_mma_async_ss(
     scaleB : float
         The scaling factor for matrix B.
 
-    scaleD : PrimExpr
+    scaleD : Expr
         True: D = A * B + D, False: D = A * B.
 
-    descA : PrimExpr
+    descA : Expr
         The SMEM descriptor of matrix A
 
-    descB : PrimExpr
+    descB : Expr
         The SMEM descriptor of matrix B
 
     accums : list
@@ -1970,10 +1918,10 @@ def ptx_wgmma_mma_async_rs(
     scaleB : float
         The scaling factor for matrix B.
 
-    scaleD : PrimExpr
+    scaleD : Expr
         True: D = A * B + D, False: D = A * B.
 
-    descB : PrimExpr
+    descB : Expr
         The SMEM descriptor of matrix B
 
     reg_list : list
@@ -2002,7 +1950,7 @@ def ptx_wgmma_fence():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.wgmma_fence")
@@ -2013,7 +1961,7 @@ def ptx_wgmma_commit_group():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.wgmma_commit_group")
@@ -2029,7 +1977,7 @@ def ptx_wgmma_wait_group(n):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.wgmma_wait_group", n)
@@ -2078,7 +2026,7 @@ def ptx_tcgen05_dealloc(taddr, n_cols, cta_group=1):
 
     Parameters
     ----------
-    taddr : PrimExpr
+    taddr : Expr
         The address of previously allocated tensor memory, should be uint32_t.
 
     n_cols : int
@@ -2115,16 +2063,16 @@ def ptx_tcgen05_encode_matrix_descriptor(desc, addr, ldo, sdo, swizzle):
 
     Parameters
     ----------
-    desc : PrimExpr
+    desc : Expr
         The pointer to the shared memory descriptor.
 
-    addr : PrimExpr
+    addr : Expr
         The address of the matrix.
 
-    ldo : PrimExpr
+    ldo : Expr
         The leading dimension offset.
 
-    sdo : PrimExpr
+    sdo : Expr
         The stride dimension offset.
 
     swizzle : int
@@ -2156,7 +2104,7 @@ def ptx_tcgen05_encode_instr_descriptor(
 
     Parameters
     ----------
-    desc : PrimExpr
+    desc : Expr
         The pointer to the instruction descriptor.
 
     d_dtype : str
@@ -2245,7 +2193,7 @@ def ptx_tcgen05_encode_instr_descriptor_block_scaled(
 
     Parameters
     ----------
-    desc : PrimExpr
+    desc : Expr
         The pointer to the instruction descriptor.
 
     d_dtype : str
@@ -2263,10 +2211,10 @@ def ptx_tcgen05_encode_instr_descriptor_block_scaled(
     sfb_dtype : str
         The datatype of scale factor matrix B.
 
-    sfa_tmem_addr : PrimExpr
+    sfa_tmem_addr : Expr
         The address of the scale factor matrix A in tensor memory, should be uint32_t.
 
-    sfb_tmem_addr : PrimExpr
+    sfb_tmem_addr : Expr
         The address of the scale factor matrix B in tensor memory, should be uint32_t.
 
     M : int
@@ -2350,17 +2298,17 @@ def ptx_tcgen05_mma(
     b_dtype : str
         The datatype of multiplicand matrix B.
 
-    d_tmem_addr : PrimExpr
+    d_tmem_addr : Expr
         The address of the resultant matrix D in tensor memory, should be uint32_t.
 
-    a_operand : PrimExpr
+    a_operand : Expr
         Either the matrix descriptor of multiplicand matrix A in shared memory,
         or the address of the multiplicand matrix A in tensor memory (uint32_t).
 
-    b_desc : PrimExpr
+    b_desc : Expr
         The matrix descriptor of multiplicand matrix B in shared memory.
 
-    i_desc : PrimExpr
+    i_desc : Expr
         The instruction descriptor of the MMA operation.
 
     use_a_tmem : bool
@@ -2369,7 +2317,7 @@ def ptx_tcgen05_mma(
     cta_group : int
         The number of CTA groups involved in the MMA operation.
 
-    enable_input_d : PrimExpr
+    enable_input_d : Expr
         Scale operand for the input accumulator C/D. The inline asm tests
         `enable_input_d != 0`: zero means D = A*B, non-zero means D = A*B + D.
 
@@ -2380,7 +2328,7 @@ def ptx_tcgen05_mma(
     disable_output_lane : list
         The lanes that should not be updated in the resultant matrix D.
 
-    pred : Optional[PrimExpr]
+    pred : Optional[Expr]
         Runtime ``uint32`` instruction-level predicate. When given, emit
         ``@p_issue tcgen05.mma...`` with ``p_issue = (pred != 0)``. Preserves
         PTX-level predicate semantics (single predicated SASS instruction).
@@ -2449,23 +2397,23 @@ def ptx_tcgen05_mma_block_scale(
     sfb_dtype : str
         The datatype of scale factor matrix B.
 
-    d_tmem_addr : PrimExpr
+    d_tmem_addr : Expr
         The address of the resultant matrix D in tensor memory, should be uint32_t.
 
-    a_operand : PrimExpr
+    a_operand : Expr
         Either the matrix descriptor of multiplicand matrix A in shared memory,
         or the address of the multiplicand matrix A in tensor memory (uint32_t).
 
-    b_desc : PrimExpr
+    b_desc : Expr
         The matrix descriptor of multiplicand matrix B in shared memory.
 
-    sfa_tmem_addr : PrimExpr
+    sfa_tmem_addr : Expr
         The address of the scale factor matrix A in tensor memory, should be uint32_t.
 
-    sfb_tmem_addr : PrimExpr
+    sfb_tmem_addr : Expr
         The address of the scale factor matrix B in tensor memory, should be uint32_t.
 
-    i_desc : PrimExpr
+    i_desc : Expr
         The instruction descriptor of the MMA operation.
 
     use_a_tmem : bool
@@ -2474,7 +2422,7 @@ def ptx_tcgen05_mma_block_scale(
     cta_group : int
         The number of CTA groups involved in the MMA operation.
 
-    enable_input_d : PrimExpr
+    enable_input_d : Expr
         Scale operand for the input accumulator C/D. Zero means D = A*B,
         non-zero means D = A*B + D.
     """
@@ -2528,20 +2476,20 @@ def ptx_tcgen05_mma_sp(
     b_dtype : str
         The datatype of multiplicand matrix B.
 
-    d_tmem_addr : PrimExpr
+    d_tmem_addr : Expr
         The address of the resultant matrix D in tensor memory, should be uint32_t.
 
-    a_operand : PrimExpr
+    a_operand : Expr
         Either the matrix descriptor of multiplicand matrix A in shared memory,
         or the address of the multiplicand matrix A in tensor memory (uint32_t).
 
-    b_desc : PrimExpr
+    b_desc : Expr
         The matrix descriptor of multiplicand matrix B in shared memory.
 
-    sp_tmem_addr : PrimExpr
+    sp_tmem_addr : Expr
         The address of the metadata of sparse matrix in tensor memory, should be uint32_t.
 
-    i_desc : PrimExpr
+    i_desc : Expr
         The instruction descriptor of the MMA operation.
 
     use_a_tmem : bool
@@ -2550,7 +2498,7 @@ def ptx_tcgen05_mma_sp(
     cta_group : int
         The number of CTA groups involved in the MMA operation.
 
-    enable_input_d : PrimExpr
+    enable_input_d : Expr
         Scale operand for the input accumulator C/D. The inline asm tests
         `enable_input_d != 0`: zero means D = A*B, non-zero means D = A*B + D.
 
@@ -2626,26 +2574,26 @@ def ptx_tcgen05_mma_sp_block_scale(
     sfb_dtype : str
         The datatype of scale factor matrix B.
 
-    d_tmem_addr : PrimExpr
+    d_tmem_addr : Expr
         The address of the resultant matrix D in tensor memory, should be uint32_t.
 
-    a_operand : PrimExpr
+    a_operand : Expr
         Either the matrix descriptor of multiplicand matrix A in shared memory,
         or the address of the multiplicand matrix A in tensor memory (uint32_t).
 
-    b_desc : PrimExpr
+    b_desc : Expr
         The matrix descriptor of multiplicand matrix B in shared memory.
 
-    sfa_tmem_addr : PrimExpr
+    sfa_tmem_addr : Expr
         The address of the scale factor matrix A in tensor memory, should be uint32_t.
 
-    sfb_tmem_addr : PrimExpr
+    sfb_tmem_addr : Expr
         The address of the scale factor matrix B in tensor memory, should be uint32_t.
 
-    sp_tmem_addr : PrimExpr
+    sp_tmem_addr : Expr
         The address of the metadata of sparse matrix in tensor memory, should be uint32_t.
 
-    i_desc : PrimExpr
+    i_desc : Expr
         The instruction descriptor of the MMA operation.
 
     use_a_tmem : bool
@@ -2654,7 +2602,7 @@ def ptx_tcgen05_mma_sp_block_scale(
     cta_group : int
         The number of CTA groups involved in the MMA operation.
 
-    enable_input_d : PrimExpr
+    enable_input_d : Expr
         Scale operand for the input accumulator C/D. Zero means D = A*B,
         non-zero means D = A*B + D.
     """
@@ -2697,7 +2645,7 @@ def ptx_tcgen05_fence_after_thread_sync():
 def _choice(name: str, value, options):
     """Validate `value` is one of `options`. Raise a clear ValueError otherwise.
 
-    Symbolic values (Var, non-constant PrimExpr) are accepted without
+    Symbolic values (Var, non-constant Expr) are accepted without
     validation; specialization later replaces them with concrete values
     that the C-side intrinsic body re-checks.
     """
@@ -2729,14 +2677,14 @@ def ptx_tcgen05_cp(
 
     Parameters
     ----------
-    taddr : PrimExpr
+    taddr : Expr
         Destination tensor-memory address (uint32). Callers typically pass
         ``tmem_base + column_offset_in_uint32s`` directly. Use the optional
         ``row`` / ``col`` keyword arguments only when the address needs
         runtime row/col composition via ``get_tmem_addr`` (high 16 bits row,
         low 16 bits col).
 
-    src_desc : PrimExpr
+    src_desc : Expr
         The 64-bit shared-memory matrix descriptor.
 
     shape : str
@@ -2755,7 +2703,7 @@ def ptx_tcgen05_cp(
         Trailing PTX suffix for fp4/fp6 → fp8 on-the-fly decompression.
         One of ``""``, ``"b8x16.b4x16_p64"``, ``"b8x16.b6x16_p32"``.
 
-    row, col : PrimExpr
+    row, col : Expr
         Optional row/col offsets added to ``taddr`` at runtime. Default 0.
     """
     _choice("shape", shape, _TCGEN05_CP_SHAPES)
@@ -2789,7 +2737,7 @@ def ptx_tcgen05_shift(taddr, cta_group=1):
 
     Parameters
     ----------
-    taddr : PrimExpr
+    taddr : Expr
         The address of matrix in tensor memory, should be uint32_t.
 
     cta_group : int
@@ -2809,10 +2757,10 @@ def ptx_tcgen05_ld(src_addr, *regs, shape, num, row=0, col=0, pack=False):
 
     Parameters
     ----------
-    src_addr : PrimExpr
+    src_addr : Expr
         Tensor-memory source address (uint32).
 
-    regs : list[PrimExpr]
+    regs : list[Expr]
         Destination registers. Count depends on shape x num.
 
     shape : str
@@ -2821,7 +2769,7 @@ def ptx_tcgen05_ld(src_addr, *regs, shape, num, row=0, col=0, pack=False):
     num : int
         Repeat factor along the columns. Power-of-two in [1, 128].
 
-    row, col : PrimExpr
+    row, col : Expr
         Optional TMEM row/col offsets added to ``src_addr`` at runtime (row must be
         a multiple of 32). Default 0.
 
@@ -2839,10 +2787,10 @@ def ptx_tcgen05_st(dst_addr, *regs, shape, num, row=0, col=0, unpack=False):
 
     Parameters
     ----------
-    dst_addr : PrimExpr
+    dst_addr : Expr
         Tensor-memory destination address (uint32).
 
-    regs : list[PrimExpr]
+    regs : list[Expr]
         Source registers. Count depends on shape x num.
 
     shape : str
@@ -2851,7 +2799,7 @@ def ptx_tcgen05_st(dst_addr, *regs, shape, num, row=0, col=0, unpack=False):
     num : int
         Repeat factor along the columns. Power-of-two in [1, 128].
 
-    row, col : PrimExpr
+    row, col : Expr
         Optional TMEM row/col offsets added to ``dst_addr`` at runtime (row must be
         a multiple of 32). Default 0.
 
@@ -2881,7 +2829,7 @@ def ptx_tcgen05_commit(bar, cta_group=1, cta_mask=0, *, pred=None):
 
     Parameters
     ----------
-    bar : PrimExpr
+    bar : Expr
         The pointer to mbarrier variable.
 
     cta_group: int
@@ -2890,7 +2838,7 @@ def ptx_tcgen05_commit(bar, cta_group=1, cta_mask=0, *, pred=None):
     cta_mask : int
         The mask of the CTAs in the cluster, used for multicast.
 
-    pred : Optional[PrimExpr]
+    pred : Optional[Expr]
         Runtime ``uint32`` predicate. When given, emit
         ``@p tcgen05.commit...`` with ``p = (pred != 0)``. This preserves
         PTX-level instruction predicate semantics (single predicated
@@ -2898,7 +2846,7 @@ def ptx_tcgen05_commit(bar, cta_group=1, cta_mask=0, *, pred=None):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     _choice("cta_group", cta_group, _TCGEN05_CTA_GROUP)
@@ -2926,17 +2874,17 @@ def timer_init_cuda(profiler_buffer, profiler_tag, profiler_write_offset, num_gr
     num_groups: int
         The number of groups in the profiler.
 
-    group_id: PrimExpr
+    group_id: Expr
         The group id of the current thread.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_init_cuda",
         profiler_buffer,
         profiler_tag,
@@ -2974,17 +2922,17 @@ def timer_start_cuda(
     profiler_write_stride: int
         The stride to advance in buffer in the next write.
 
-    leader_cond: PrimExpr
+    leader_cond: Expr
         The condition to check if the current thread is the leader.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_start_cuda",
         event_type.value,
         profiler_buffer,
@@ -3023,17 +2971,17 @@ def timer_end_cuda(
     profiler_write_stride: int
         The stride to advance in buffer in the next write.
 
-    leader_cond: PrimExpr
+    leader_cond: Expr
         The condition to check if the current thread is the leader.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_end_cuda",
         event_type.value,
         profiler_buffer,
@@ -3064,17 +3012,17 @@ def timer_finalize_cuda(
     profiler_write_stride: int
         The stride to advance in buffer in the next write.
 
-    leader_cond: PrimExpr
+    leader_cond: Expr
         The condition to check if the current thread is the leader.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
     return call_intrin(
-        "handle",
+        "void",
         "tirx.timer_finalize_cuda",
         profiler_buffer,
         profiler_tag,
@@ -3089,15 +3037,15 @@ def cuda_atomic_add(res_addr, value):
 
     Parameters
     ----------
-    res_addr : PrimExpr
+    res_addr : Expr
         The result address.
 
-    value: PrimExpr
+    value: Expr
         The value to add.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     value = tir.convert(value)
@@ -3109,7 +3057,7 @@ def cuda_thread_fence():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.thread_fence")
@@ -3120,7 +3068,7 @@ def cuda_warpgroup_sync(bar_no):
 
     Parameters
     ----------
-    bar_no : PrimExpr
+    bar_no : Expr
         The named barrier id to use for the warpgroup.
 
     Notes
@@ -3129,7 +3077,7 @@ def cuda_warpgroup_sync(bar_no):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.warpgroup_sync", bar_no)
@@ -3140,12 +3088,12 @@ def cuda_syncthreads_and(cond):
 
     Parameters
     ----------
-    cond: PrimExpr
+    cond: Expr
         The condition.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int64", "tirx.cuda.syncthreads_and", cond)
@@ -3156,12 +3104,12 @@ def cuda_syncthreads_or(cond):
 
     Parameters
     ----------
-    cond: PrimExpr
+    cond: Expr
         The condition.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("int64", "tirx.cuda.syncthreads_or", cond)
@@ -3172,12 +3120,12 @@ def cuda_nano_sleep(time):
 
     Parameters
     ----------
-    time: PrimExpr
+    time: Expr
         The time to sleep.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.nano_sleep", time)
@@ -3196,7 +3144,7 @@ def cuda_printf(fmt, *args):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.cuda.printf", fmt, *args)
@@ -3207,7 +3155,7 @@ def cuda_ldg(addr, dtype):
 
     Parameters
     ----------
-    addr : PrimExpr
+    addr : Expr
         The memory address to load.
 
     dtype : str
@@ -3223,18 +3171,18 @@ def cuda_get_tmem_addr(addr, row_offset, col_offset):
 
     Parameters
     ----------
-    addr: PrimExpr
+    addr: Expr
         The memory address to calculate.
 
-    row_offset: PrimExpr
+    row_offset: Expr
         The row offset to calculate.
 
-    col_offset: PrimExpr
+    col_offset: Expr
         The column offset to calculate.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("uint32", "tirx.cuda.get_tmem_addr", addr, row_offset, col_offset)
@@ -3269,12 +3217,12 @@ def ptx_exp2(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         The float32 input value.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression returning 2^x (approximate).
     """
     return call_intrin("float32", "tirx.ptx.exp2", x)
@@ -3285,12 +3233,12 @@ def ptx_rcp(x):
 
     Parameters
     ----------
-    x : PrimExpr
+    x : Expr
         The float32 input value.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression returning 1/x (approximate).
     """
     return call_intrin("float32", "tirx.ptx.rcp", x)
@@ -3301,14 +3249,14 @@ def ptx_any_sync(mask, pred):
 
     Parameters
     ----------
-    mask : PrimExpr
+    mask : Expr
         The thread mask (uint32).
-    pred : PrimExpr
+    pred : Expr
         The predicate value (int32).
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression returning 1 if any thread in mask has pred != 0.
     """
     return call_intrin("int32", "tirx.ptx.any_sync", mask, pred)
@@ -3319,12 +3267,12 @@ def ptx_reduce3_max_f32(a, b, c):
 
     Parameters
     ----------
-    a, b, c : PrimExpr
+    a, b, c : Expr
         The three float32 values to compare.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression returning max(a, b, c).
     """
     return call_intrin("float32", "tirx.ptx.reduce3_max_f32", a, b, c)
@@ -3335,12 +3283,12 @@ def ptx_reduce3_min_f32(a, b, c):
 
     Parameters
     ----------
-    a, b, c : PrimExpr
+    a, b, c : Expr
         The three float32 values to compare.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression returning min(a, b, c).
     """
     return call_intrin("float32", "tirx.ptx.reduce3_min_f32", a, b, c)
@@ -3460,7 +3408,7 @@ def ptx_max_f32(a, b, *, ftz=False, nan=False):
 
     Parameters
     ----------
-    a, b : PrimExpr
+    a, b : Expr
         Float32 inputs.
     ftz : bool
         If True, flush subnormals to zero (``.ftz``).
@@ -3492,11 +3440,37 @@ def ptx_griddepcontrol_launch_dependents():
 _PTX_LD_SCOPE = {"cta", "cluster", "gpu", "sys"}
 _PTX_LD_SPACE = {"global", "shared", "shared::cta", "shared::cluster", "local"}
 _PTX_LD_VOLATILE_SPACE = _PTX_LD_SPACE | {"const"}
-_PTX_LD_TYPE = {"b32", "u32", "u64", "s32", "f32"}
+_PTX_SCALAR_TYPE = {
+    "b8",
+    "u8",
+    "s8",
+    "b16",
+    "u16",
+    "s16",
+    "b32",
+    "b64",
+    "u32",
+    "u64",
+    "s32",
+    "s64",
+    "f32",
+    "f64",
+}
+_PTX_LD_TYPE = set(_PTX_SCALAR_TYPE)
 _PTX_LD_COP = {"", "ca", "cg", "cs", "lu", "cv"}
+_PTX_LD_VEC = {"", "v2", "v4", "v8"}
+_PTX_L1_EVICT = {
+    "",
+    "L1::evict_normal",
+    "L1::evict_unchanged",
+    "L1::evict_first",
+    "L1::evict_last",
+    "L1::no_allocate",
+}
+_PTX_L2_EVICT = {"", "L2::evict_normal", "L2::evict_first", "L2::evict_last"}
+_PTX_PREFETCH = {"", "L2::64B", "L2::128B", "L2::256B"}
 _PTX_MEM_SCOPE = {"", "cta", "cluster", "gpu", "sys"}
 _PTX_MEM_SPACE = {"global", "shared", "shared::cta", "shared::cluster"}
-_PTX_SCALAR_TYPE = {"b32", "b64", "u32", "u64", "s32", "s64", "f32", "f64"}
 _PTX_RED_OP = {"and", "or", "xor", "add", "inc", "dec", "min", "max"}
 _PTX_ATOM_OP = {"and", "or", "xor", "exch", "add", "inc", "dec", "min", "max"}
 _PTX_ST_VEC = {"", "v2", "v4", "v8"}
@@ -3532,17 +3506,31 @@ def _resolve_cache_policy(cache_hint, cache_policy, choices=_CP_ASYNC_BULK_CACHE
     return const(0, dtype="uint64"), False
 
 
-def ptx_ld_acquire(addr, return_type, ptx_type, *, scope="gpu", space="global"):
-    """TVM intrinsic for scalar PTX ``ld.acquire.scope{.ss}.type`` loads.
+def ptx_ld_acquire(
+    addr,
+    return_type,
+    ptx_type,
+    *,
+    scope="gpu",
+    space="global",
+    vec="",
+    dst=None,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+    prefetch_size="",
+):
+    """TVM intrinsic for PTX ``ld.acquire.scope{.ss}...`` loads.
 
-    This wrapper covers the scalar no-cache-policy/no-vector instances of the
-    PTX ISA ``ld.acquire`` form. ``scope``, state ``space``, PTX ``type`` and
-    TVM ``return_type`` are explicit so callers can request either raw-bit or
-    typed loads.
+    ``scope``, state ``space``, PTX ``type`` and TVM ``return_type`` are
+    explicit so callers can request either raw-bit or typed loads.  The
+    optional ``vec``/``dst`` and cache arguments cover vector and cache-policy
+    forms of the same PTX instruction.
 
     Parameters
     ----------
-    addr : PrimExpr
+    addr : Expr
         The memory address to load.
 
     return_type : str
@@ -3559,14 +3547,49 @@ def ptx_ld_acquire(addr, return_type, ptx_type, *, scope="gpu", space="global"):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The loaded value.
     """
     _choice("scope", scope, _PTX_LD_SCOPE)
     _choice("space", space, _PTX_LD_SPACE)
     _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    _choice("vec", vec, _PTX_LD_VEC)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld.acquire requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_acquire",
+            dst,
+            addr,
+            cache_policy,
+            return_type,
+            scope,
+            space,
+            vec,
+            ptx_type,
+            int(has_cache_policy),
+            to_dst,
+            l1_evict,
+            l2_evict,
+            prefetch_size,
+        )
     return call_intrin(
-        return_type, "tirx.ptx.ld_acquire", addr, return_type, ptx_type, scope, space
+        return_type,
+        "tirx.ptx.ld_acquire",
+        addr,
+        return_type,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        0,
+        l1_evict,
+        l2_evict,
+        prefetch_size,
     )
 
 
@@ -3575,21 +3598,45 @@ def ptx_ld(
     return_type,
     ptx_type,
     *,
+    dst=None,
     weak=False,
     space="global",
     cop="",
+    vec="",
     cache_hint="",
     cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+    prefetch_size="",
 ):
-    """TVM intrinsic for scalar PTX ``ld{.weak}{.ss}{.cop}{.level::cache_hint}.type``.
-
-    This wrapper covers scalar no-prefetch/no-vector instances of the weak
-    generic load form.
-    """
+    """TVM intrinsic for PTX ``ld{.weak}{.ss}{.cop}...`` loads."""
     _choice("space", space, _PTX_LD_SPACE | {"const", "param::entry", "param::func"})
     _choice("cop", cop, _PTX_LD_COP)
     _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    _choice("vec", vec, _PTX_LD_VEC)
     cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld",
+            dst,
+            addr,
+            cache_policy,
+            return_type,
+            int(bool(weak)),
+            space,
+            cop,
+            vec,
+            ptx_type,
+            int(has_cache_policy),
+            to_dst,
+            l1_evict,
+            l2_evict,
+            prefetch_size,
+        )
     return call_intrin(
         return_type,
         "tirx.ptx.ld",
@@ -3599,19 +3646,147 @@ def ptx_ld(
         int(bool(weak)),
         space,
         cop,
+        "",
         ptx_type,
         int(has_cache_policy),
+        0,
+        l1_evict,
+        l2_evict,
+        prefetch_size,
     )
 
 
-def ptx_ld_volatile(addr, return_type, ptx_type, *, space="global"):
-    """TVM intrinsic for scalar PTX ``ld.volatile{.ss}.type`` loads.
+def ptx_ld_relaxed(
+    addr,
+    return_type,
+    ptx_type,
+    *,
+    scope="gpu",
+    space="global",
+    vec="",
+    dst=None,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+    prefetch_size="",
+):
+    _choice("scope", scope, _PTX_LD_SCOPE)
+    _choice("space", space, _PTX_LD_SPACE)
+    _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    _choice("vec", vec, _PTX_LD_VEC)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld.relaxed requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_relaxed",
+            dst,
+            addr,
+            cache_policy,
+            return_type,
+            scope,
+            space,
+            vec,
+            ptx_type,
+            int(has_cache_policy),
+            to_dst,
+            l1_evict,
+            l2_evict,
+            prefetch_size,
+        )
+    return call_intrin(
+        return_type,
+        "tirx.ptx.ld_relaxed",
+        addr,
+        cache_policy,
+        return_type,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        0,
+        l1_evict,
+        l2_evict,
+        prefetch_size,
+    )
 
-    This wrapper covers scalar no-prefetch/no-vector instances.
-    """
+
+def ptx_ld_volatile(
+    addr,
+    return_type,
+    ptx_type,
+    *,
+    space="global",
+    vec="",
+    dst=None,
+    prefetch_size="",
+):
+    """TVM intrinsic for PTX ``ld.volatile{.ss}...`` loads."""
     _choice("space", space, _PTX_LD_VOLATILE_SPACE)
     _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
-    return call_intrin(return_type, "tirx.ptx.ld_volatile", addr, return_type, ptx_type, space)
+    _choice("vec", vec, _PTX_LD_VEC)
+    to_dst = int(dst is not None)
+    if vec and dst is None:
+        raise ValueError("vec ld.volatile requires dst")
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_volatile",
+            dst,
+            addr,
+            return_type,
+            space,
+            vec,
+            ptx_type,
+            to_dst,
+            prefetch_size,
+        )
+    return call_intrin(
+        return_type,
+        "tirx.ptx.ld_volatile",
+        addr,
+        return_type,
+        space,
+        vec,
+        ptx_type,
+        0,
+        prefetch_size,
+    )
+
+
+def ptx_ld_mmio(addr, return_type, ptx_type, *, sem="acquire", dst=None):
+    if sem not in ("acquire", "relaxed"):
+        raise ValueError(f"Unsupported PTX ld.mmio sem {sem!r}")
+    _choice("ptx_type", ptx_type, _PTX_LD_TYPE)
+    to_dst = int(dst is not None)
+    if to_dst:
+        return call_intrin(
+            "",
+            "tirx.ptx.ld_mmio",
+            dst,
+            addr,
+            return_type,
+            sem,
+            "sys",
+            "global",
+            ptx_type,
+            1,
+        )
+    return call_intrin(
+        return_type,
+        "tirx.ptx.ld_mmio",
+        addr,
+        return_type,
+        sem,
+        "sys",
+        "global",
+        ptx_type,
+        0,
+    )
 
 
 def ptx_ld_global_acquire(res, addr):
@@ -3619,15 +3794,15 @@ def ptx_ld_global_acquire(res, addr):
 
     Parameters
     ----------
-    res : PrimExpr
+    res : Expr
         The result of the load.
 
-    addr : PrimExpr
+    addr : Expr
         The memory address to load.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     return call_intrin("", "tirx.ptx.ld_global_acquire", res, addr)
@@ -3706,6 +3881,7 @@ def ptx_atom_scalar(
 def ptx_st(
     address,
     *values,
+    src=None,
     weak=False,
     space="shared",
     cop="",
@@ -3713,17 +3889,15 @@ def ptx_st(
     ptx_type,
     cache_hint="",
     cache_policy=None,
+    l1_evict="",
+    l2_evict="",
 ):
     _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
     _choice("cop", cop, _PTX_ST_COP)
     _choice("vec", vec, _PTX_ST_VEC)
     _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
     cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
-    return call_intrin(
-        "",
-        "tirx.ptx.st",
-        address,
-        *values,
+    attrs = (
         cache_policy,
         int(bool(weak)),
         space,
@@ -3731,7 +3905,106 @@ def ptx_st(
         vec,
         ptx_type,
         int(has_cache_policy),
+        l1_evict,
+        l2_evict,
+        int(src is not None),
     )
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st", address, *values, *attrs)
+
+
+def ptx_st_relaxed(
+    address,
+    *values,
+    src=None,
+    scope="gpu",
+    space="global",
+    vec="",
+    ptx_type,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+):
+    _choice("scope", scope, _PTX_LD_SCOPE)
+    _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
+    _choice("vec", vec, _PTX_ST_VEC)
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    attrs = (
+        cache_policy,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        l1_evict,
+        l2_evict,
+        int(src is not None),
+    )
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st_relaxed expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st_relaxed", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st_relaxed", address, *values, *attrs)
+
+
+def ptx_st_release(
+    address,
+    *values,
+    src=None,
+    scope="gpu",
+    space="global",
+    vec="",
+    ptx_type,
+    cache_hint="",
+    cache_policy=None,
+    l1_evict="",
+    l2_evict="",
+):
+    _choice("scope", scope, _PTX_LD_SCOPE)
+    _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
+    _choice("vec", vec, _PTX_ST_VEC)
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    cache_policy, has_cache_policy = _resolve_cache_policy(cache_hint, cache_policy)
+    attrs = (
+        cache_policy,
+        scope,
+        space,
+        vec,
+        ptx_type,
+        int(has_cache_policy),
+        l1_evict,
+        l2_evict,
+        int(src is not None),
+    )
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st_release expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st_release", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st_release", address, *values, *attrs)
+
+
+def ptx_st_volatile(address, *values, src=None, space="global", vec="", ptx_type):
+    _choice("space", space, _PTX_MEM_SPACE | {"local", "param::func"})
+    _choice("vec", vec, _PTX_ST_VEC)
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    attrs = (space, vec, ptx_type, int(src is not None))
+    if src is not None:
+        if values:
+            raise ValueError("ptx_st_volatile expects values or src, not both")
+        return call_intrin("", "tirx.ptx.st_volatile", address, src, *attrs)
+    return call_intrin("", "tirx.ptx.st_volatile", address, *values, *attrs)
+
+
+def ptx_st_mmio(address, value, *, sem="release", ptx_type):
+    if sem not in ("release", "relaxed"):
+        raise ValueError(f"Unsupported PTX st.mmio sem {sem!r}")
+    _choice("ptx_type", ptx_type, _PTX_SCALAR_TYPE)
+    return call_intrin("", "tirx.ptx.st_mmio", address, value, sem, "sys", "global", ptx_type)
 
 
 def ptx_st_bulk(ptr, num_bytes, *, weak=False, space="shared::cta"):
@@ -3921,7 +4194,7 @@ def ptx_map_shared_rank(ptr, rank):
 
     Parameters
     ----------
-    ptr: PrimExpr
+    ptr: Expr
         The generic pointer to the local shared memory, handle type
 
     rank: int
@@ -3929,7 +4202,7 @@ def ptx_map_shared_rank(ptr, rank):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -3950,18 +4223,18 @@ def cuda_atomic_cas(ptr, old_val, new_val):
 
     Parameters
     ----------
-    ptr: PrimExpr
+    ptr: Expr
         The pointer to the memory location.
 
-    old_val: PrimExpr
+    old_val: Expr
         The old value.
 
-    new_val: PrimExpr
+    new_val: Expr
         The new value.
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
     old_val = tir.convert(old_val)
@@ -3978,7 +4251,7 @@ def nvshmem_my_pe():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -3990,7 +4263,7 @@ def nvshmem_n_pes():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4002,10 +4275,10 @@ def nvshmem_getmem_nbi(dst, src, nelems, pe):
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address or host/device address of the data object to be updated.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address of the source data object.
 
     nelems: int
@@ -4016,7 +4289,7 @@ def nvshmem_getmem_nbi(dst, src, nelems, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
@@ -4028,10 +4301,10 @@ def nvshmem_putmem_nbi(dst, src, nelems, pe):
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address of the destination data object.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address or host/device address of the data object to be copied.
 
     nelems: int
@@ -4042,7 +4315,7 @@ def nvshmem_putmem_nbi(dst, src, nelems, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4054,10 +4327,10 @@ def nvshmem_getmem_nbi_warp(dst, src, nelems, pe):
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address or host/device address of the data object to be updated.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address of the source data object.
 
     nelems: int
@@ -4068,7 +4341,7 @@ def nvshmem_getmem_nbi_warp(dst, src, nelems, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
@@ -4080,10 +4353,10 @@ def nvshmem_putmem_nbi_warp(dst, src, nelems, pe):
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address of the destination data object.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address or host/device address of the data object to be copied.
 
     nelems: int
@@ -4094,7 +4367,7 @@ def nvshmem_putmem_nbi_warp(dst, src, nelems, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4106,10 +4379,10 @@ def nvshmem_getmem_nbi_block(dst, src, nelems, pe):
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address or host/device address of the data object to be updated.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address of the source data object.
 
     nelems: int
@@ -4120,7 +4393,7 @@ def nvshmem_getmem_nbi_block(dst, src, nelems, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
@@ -4132,10 +4405,10 @@ def nvshmem_putmem_nbi_block(dst, src, nelems, pe):
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address of the destination data object.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address or host/device address of the data object to be copied.
 
     nelems: int
@@ -4146,7 +4419,7 @@ def nvshmem_putmem_nbi_block(dst, src, nelems, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4158,7 +4431,7 @@ def nvshmem_signal_op(sig_addr, signal, sig_op, pe):
 
     Parameters
     ----------
-    sig_addr: PrimExpr
+    sig_addr: Expr
         The pointer to the symmetric address of the signal word to be updated, must be uint64_t*.
 
     signal: uint64_t
@@ -4172,7 +4445,7 @@ def nvshmem_signal_op(sig_addr, signal, sig_op, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4185,7 +4458,7 @@ def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t"):
 
     Parameters
     ----------
-    ivar: PrimExpr
+    ivar: Expr
         The pointer to the symmetric address of a remotely accessible data object, must be TYPE*.
 
     cmp: str
@@ -4199,7 +4472,7 @@ def nvshmem_wait_until(ivar, cmp, cmp_value, type="uint64_t"):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4212,7 +4485,7 @@ def nvshmem_quiet():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4224,16 +4497,16 @@ def nvshmem_putmem_signal_nbi(dst, src, nelems, sig_addr, signal, sig_op, pe):
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address of the data object to be updated on the remote PE.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address or host/device address of data object containing the data to be copied.
 
     nelems: int
         The number of bytes to put per thread.
 
-    sig_addr: PrimExpr
+    sig_addr: Expr
         The pointer to the symmetric address of the signal data object to be updated on the remote PE as a signal, must be uint64_t*.
 
     signal: uint64_t
@@ -4247,7 +4520,7 @@ def nvshmem_putmem_signal_nbi(dst, src, nelems, sig_addr, signal, sig_op, pe):
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
@@ -4261,16 +4534,16 @@ def nvshmem_putmem_signal_nbi_warp(dst, src, nelems, sig_addr, signal, sig_op, p
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address of the data object to be updated on the remote PE.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address or host/device address of data object containing the data to be copied.
 
     nelems: int
         The number of bytes to put per warp.
 
-    sig_addr: PrimExpr
+    sig_addr: Expr
         The pointer to the symmetric address of the signal data object to be updated on the remote PE as a signal, must be uint64_t*.
 
     signal: uint64_t
@@ -4284,7 +4557,7 @@ def nvshmem_putmem_signal_nbi_warp(dst, src, nelems, sig_addr, signal, sig_op, p
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
@@ -4298,16 +4571,16 @@ def nvshmem_putmem_signal_nbi_block(dst, src, nelems, sig_addr, signal, sig_op, 
 
     Parameters
     ----------
-    dst: PrimExpr
+    dst: Expr
         The pointer to the symmetric address of the data object to be updated on the remote PE.
 
-    src: PrimExpr
+    src: Expr
         The pointer to the symmetric address or host/device address of data object containing the data to be copied.
 
     nelems: int
         The number of bytes to put per block.
 
-    sig_addr: PrimExpr
+    sig_addr: Expr
         The pointer to the symmetric address of the signal data object to be updated on the remote PE as a signal, must be uint64_t*.
 
     signal: uint64_t
@@ -4321,7 +4594,7 @@ def nvshmem_putmem_signal_nbi_block(dst, src, nelems, sig_addr, signal, sig_op, 
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """  # noqa: E501
 
@@ -4335,7 +4608,7 @@ def nvshmem_fence():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 
@@ -4347,7 +4620,7 @@ def nvshmem_barrier_all():
 
     Returns
     -------
-    call : PrimExpr
+    call : Expr
         The call expression.
     """
 

@@ -95,10 +95,14 @@ inline ffi::Array<T> UpdateArray(ffi::Array<T> arr, F fupdate) {
  * \param kind The data kind.
  * \return the get expression.
  */
-inline PrimExpr TVMStructGet(PrimType dtype, Var handle, int index,
+inline Expr TVMStructGet(Type type, Var handle, int index, builtin::TVMStructFieldKind kind) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
+  return Call(std::move(type), builtin::tvm_struct_get(), args);
+}
+
+inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
                              builtin::TVMStructFieldKind kind) {
-  ffi::Array<PrimExpr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind))};
-  return Call(dtype, builtin::tvm_struct_get(), args);
+  return TVMStructGet(Type(type), std::move(handle), index, kind).as_or_throw<PrimExpr>();
 }
 
 /*!
@@ -107,14 +111,13 @@ inline PrimExpr TVMStructGet(PrimType dtype, Var handle, int index,
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, PrimType dtype, int offset) {
+inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
-  Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name_hint, 0, 0, kDefault, {}, Span(),
-                   std::nullopt);
+  Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name, 0, 0, Span(), std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset_expr});
 
-  return Call(PrimType::Handle(), builtin::address_of(), {buf_load});
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -123,19 +126,19 @@ inline PrimExpr AddressOffset(Var handle, PrimType dtype, int offset) {
  * \param dtype The data type.
  * \param offset the offset index.
  */
-inline PrimExpr AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
+inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   if (dtype.lanes() != 1) {
     PrimType offset_ty = offset.ty();
-    offset = offset * MakeConst(offset_ty, dtype.lanes());
-    offset = Ramp(offset, MakeConst(offset_ty, 1), dtype.lanes());
+    offset = offset * IntImm(offset_ty, dtype.lanes());
+    offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
-  Buffer dummy_buf(handle, dtype.WithLanes(1), shape, {}, 0, handle->name_hint, 0, 0, kDefault, {},
-                   Span(), std::nullopt);
+  Buffer dummy_buf(handle, dtype.WithLanes(1), shape, {}, 0, handle->name, 0, 0, Span(),
+                   std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset});
 
-  return Call(PrimType::Handle(), builtin::address_of(), {buf_load});
+  return Call(handle->ty, builtin::address_of(), {buf_load});
 }
 
 /*!
@@ -146,10 +149,10 @@ inline PrimExpr AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
  * \param value The value to be set.
  * \return the set stmt.
  */
-inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, PrimExpr value) {
-  ffi::Array<PrimExpr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
-                               value};
-  return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args));
+inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind, Expr value) {
+  ffi::Array<Expr> args = {handle, IntImm::Int32(index), IntImm::Int32(static_cast<int>(kind)),
+                           value};
+  return Evaluate(Call(PrimType::Int(32), builtin::tvm_struct_set(), args).as_or_throw<PrimExpr>());
 }
 
 /*!
@@ -159,7 +162,6 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
  */
 inline PrimType APIType(const PrimType& t) {
   TVM_FFI_ICHECK(!t.IsVoid()) << "Cannot pass void type through packed API.";
-  if (t.IsHandle()) return t;
   TVM_FFI_ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
   if (t.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLInt)) {
     return PrimType::Int(64);
@@ -197,13 +199,14 @@ inline PrimExpr ConstInt32(size_t index) {
 
 /*!
  * \brief Allocate TVMValues on the stack
+ * \param ret_type exact pointer type returned by the allocation
  * \param type type of allocation
  * \param num number of TVMValues to allocate
- * \return PrimExpr representing the TVMValue
+ * \return Call representing the allocated pointer
  */
-inline PrimExpr StackAlloca(std::string type, size_t num) {
+inline Call StackAlloca(Type ret_type, std::string type, size_t num) {
   ffi::Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
-  return Call(PrimType::Handle(), builtin::tvm_stack_alloca(), args);
+  return Call(std::move(ret_type), builtin::tvm_stack_alloca(), args);
 }
 
 /*!

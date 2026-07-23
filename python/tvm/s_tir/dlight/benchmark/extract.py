@@ -129,12 +129,12 @@ def extract_dynamic_var(
                 for arg in flattened_arg_list:
                     if isinstance(arg, relax.TensorType):
                         for val in arg.shape.values:
-                            if isinstance(val, tvm.tirx.Var):
-                                dym_var_dict[gv][str(val)] = str(val.ty)
+                            if tvm.ir.is_prim_var(val):
+                                dym_var_dict[gv][val.name] = str(val.ty)
                     elif isinstance(arg, relax.ShapeType):
                         for val in arg.values:
-                            if isinstance(val, tvm.tirx.Var):
-                                dym_var_dict[gv][str(val)] = str(val.ty)
+                            if tvm.ir.is_prim_var(val):
+                                dym_var_dict[gv][val.name] = str(val.ty)
                     else:
                         raise NotImplementedError
     return dym_var_dict
@@ -185,8 +185,8 @@ def extract_func_info_from_prim_func(
         for dim in buffer.shape:
             if isinstance(dim, tvm.tirx.IntImm):
                 shape.append(dim.value)
-            elif isinstance(dim, tvm.tirx.Var):
-                dym_var[str(dim)] = str(dim.ty)
+            elif tvm.ir.is_prim_var(dim):
+                dym_var[dim.name] = str(dim.ty)
                 shape.append(dim)
             else:
                 raise ValueError(f"Unknown shape: {buffer.shape}")
@@ -220,7 +220,7 @@ def extract_all_func_info_from_relax(
         if isinstance(func, tvm.relax.Function):
             for block in func.body.blocks:
                 for binding in block.bindings:
-                    if isinstance(binding.value, tvm.relax.expr.Call):
+                    if isinstance(binding.value, tvm.ir.Call):
                         raw_args = binding.value.args
                         functor = raw_args[0]
                         if isinstance(functor, tvm.ir.GlobalVar) and isinstance(
@@ -243,7 +243,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
     prim_func_name: str,
     func: tvm.tirx.PrimFunc,
     *,
-    func_args: list[tuple[tuple[tvm.relax.expr.Call | int, ...], str]] | None = None,
+    func_args: list[tuple[tuple[tvm.ir.Call | int, ...], str]] | None = None,
     dym_var_dict: dict[str, str] | None = None,
     weight: int = 1,
     sample_number: int = 5,
@@ -261,7 +261,7 @@ def extract_prim_func(  # pylint: disable=too-many-arguments
         The name of the prim function.
     func: tvm.tirx.PrimFunc
         The PrimFunc to be extracted.
-    func_args: Optional[List[Tuple[Tuple[Union[tvm.relax.expr.Call, int], ...], str]]]
+    func_args: Optional[List[Tuple[Tuple[Union[tvm.ir.Call, int], ...], str]]]
         The arguments of the prim function, including both static and dynamic shape arguments.
         Given in format [ ..., ((1, n, 128), "float32"), ... ].
         If not given, the arguments will be extracted from the PrimFunc.

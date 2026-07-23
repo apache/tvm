@@ -29,6 +29,14 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
+using tvm::script::ir_builder::details::Namer;
+
+TVM_STATIC_IR_FUNCTOR(Namer, vtable)
+    .set_dispatch<tvm::VarNode>([](const ffi::ObjectRef& node, ffi::String name) -> void {
+      VarNode* var = const_cast<VarNode*>(node.as<VarNode>());
+      var->name = name;
+    });
+
 IRModuleFrame IRModule() {
   ffi::ObjectPtr<IRModuleFrameNode> n = ffi::make_object<IRModuleFrameNode>();
   n->global_var_map.clear();
@@ -43,7 +51,7 @@ IRModuleFrame IRModule() {
 // each dialect registers its own handler that maps a function of that
 // type to the appropriate ty.
 inline ffi::Optional<Type> GetGlobalVarType(const BaseFunc& func) {
-  if (func->ty.defined()) {
+  if (!func->ty.IsMissing()) {
     return func->ty;
   }
   // Registry: "script.ir_builder.decl_function.<type-key>" — per-function-kind
@@ -52,7 +60,7 @@ inline ffi::Optional<Type> GetGlobalVarType(const BaseFunc& func) {
   const std::string key = "script.ir_builder.decl_function." + func->GetTypeKey();
   if (auto fn = tvm::ffi::Function::GetGlobal(key)) {
     ffi::Optional<ffi::ObjectRef> result = (*fn)(func).cast<ffi::Optional<ffi::ObjectRef>>();
-    if (result.defined()) {
+    if (result.has_value()) {
       return result.value().as_or_throw<Type>();
     }
   }
@@ -116,10 +124,10 @@ void ModuleSetAttr(const ffi::String& key, const ffi::Optional<ffi::ObjectRef>& 
                    bool allow_override) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
-    if (!allow_override && frame->attrs.find(key) != frame->attrs.end() && value.defined()) {
+    if (!allow_override && frame->attrs.find(key) != frame->attrs.end() && value.has_value()) {
       TVM_FFI_THROW(ValueError) << "Duplicate module attr " << key;
     }
-    if (value.defined()) {
+    if (value.has_value()) {
       frame->attrs.Set(key, value.value());
     } else {
       frame->attrs.erase(key);

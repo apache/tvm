@@ -171,27 +171,27 @@ def build_and_run(mod, inputs, tgt):
 
     ex = tvm.compile(mod, tgt, tir_pipeline=tir_pipeline)
 
-    with SessionManager() as sess:
-        rexec = sess.load_module(ex)
-        dev = sess.device(tgt.kind.name)
+    def run_and_check():
+        with SessionManager() as sess:
+            rexec = sess.load_module(ex)
+            dev = sess.device(tgt.kind.name)
 
-        if "vdevice" in mod.global_infos:
-            device_arr = [dev for ii in range(len(mod.global_infos["vdevice"]))]
-        else:
-            device_arr = [dev]
-        vm = relax.VirtualMachine(rexec, device_arr)
-        inputs = [tvm.runtime.tensor(ip, dev) for ip in inputs]
-        vm.set_input("main", *inputs)
+            if "vdevice" in mod.global_infos:
+                device_arr = [dev for _ in range(len(mod.global_infos["vdevice"]))]
+            else:
+                device_arr = [dev]
+            vm = relax.VirtualMachine(rexec, device_arr)
+            device_inputs = [tvm.runtime.tensor(ip, dev) for ip in inputs]
+            vm.set_input("main", *device_inputs)
+            vm.invoke_stateful("main")
+            tvm_output = vm.get_outputs("main")
+            if isinstance(tvm_output, tuple):
+                return tuple(out.numpy() for out in tvm_output)
+            return (tvm_output.numpy(),)
 
-        vm.invoke_stateful("main")
-
-        tvm_output = vm.get_outputs("main")
-        if isinstance(tvm_output, tuple):
-            tvm_output = tuple(out.numpy() for out in tvm_output)
-        else:
-            tvm_output = (tvm_output.numpy(),)
-
-    return tvm_output
+    if SessionManager.is_target_rpc():
+        return run_and_check()
+    return tvm.testing.run_with_gpu_lock(run_and_check)
 
 
 def verify_results(mod, target, ref_target):
