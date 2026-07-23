@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -31,7 +32,11 @@
 #include <tvm/support/cuda/nvtx.h>
 
 #include <algorithm>
+#include <iomanip>
+#include <limits>
+#include <locale>
 #include <numeric>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -43,6 +48,71 @@
 namespace tvm {
 namespace runtime {
 namespace vm {
+
+namespace {
+
+constexpr const char* kPagedKVCacheCheckpointRuntime = "relax.vm.PagedAttentionKVCache";
+
+const char* AttnKindToString(AttnKind attn_kind) {
+  switch (attn_kind) {
+    case AttnKind::kMHA:
+      return "mha";
+    case AttnKind::kMLA:
+      return "mla";
+    case AttnKind::kLinearAttn:
+      return "linear";
+    case AttnKind::kMHASliding:
+      return "mha_sliding";
+  }
+  TVM_FFI_ICHECK(false) << "Unknown attention kind: " << static_cast<int>(attn_kind);
+  return "unknown";
+}
+
+const char* RoPEModeToString(RoPEMode rope_mode) {
+  switch (rope_mode) {
+    case RoPEMode::kNone:
+      return "none";
+    case RoPEMode::kNormal:
+      return "normal";
+    case RoPEMode::kInline:
+      return "inline";
+  }
+  TVM_FFI_ICHECK(false) << "Unknown RoPE mode: " << static_cast<int>(rope_mode);
+  return "unknown";
+}
+
+ffi::json::Array ShapeToJSON(const int64_t* shape, int ndim) {
+  ffi::json::Array result;
+  for (int i = 0; i < ndim; ++i) {
+    result.push_back(shape[i]);
+  }
+  return result;
+}
+
+ffi::json::Array IntArrayToJSON(const std::vector<int32_t>& values) {
+  ffi::json::Array result;
+  for (int32_t value : values) {
+    result.push_back(static_cast<int64_t>(value));
+  }
+  return result;
+}
+
+std::string Uint64ToHex(uint64_t value) {
+  std::ostringstream os;
+  os << std::hex << std::setw(16) << std::setfill('0') << value;
+  return os.str();
+}
+
+uint64_t FNV1a64(const std::string& value) {
+  uint64_t hash = 14695981039346656037ULL;
+  for (unsigned char c : value) {
+    hash ^= c;
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+}  // namespace
 
 //-------------------------------------------
 // We keep the implementation private as
@@ -856,6 +926,138 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       total_seq_len += it.second.seq_length;
     }
     return total_seq_len;
+  }
+
+  ffi::String GetCheckpointMetadata(int64_t seq_id) const final {
+    CheckCheckpointSequenceSupported(seq_id);
+    const Sequence& seq = seq_map_.at(seq_id);
+
+    namespace json = tvm::ffi::json;
+    json::Object metadata = MakeLayoutMetadata();
+    metadata.Set("layoutHash", GetLayoutHash());
+    metadata.Set("seqId", seq_id);
+    metadata.Set("seqLength", static_cast<int64_t>(seq.seq_length));
+    metadata.Set("blocks", MakeBlockMetadata(seq));
+    metadata.Set("logicalPages", MakeLogicalPageMetadata(seq));
+    metadata.Set("groups", MakePageGroupMetadata(seq));
+    return json::Stringify(metadata);
+  }
+
+  ffi::String GetLayoutHash() const final {
+    CheckCheckpointLayoutSupported();
+    return ffi::String(Uint64ToHex(FNV1a64(GetLayoutDescriptor())));
+  }
+
+  void ExportPageGroup(int64_t seq_id, int64_t group_id, Tensor dst) final {
+    CheckCheckpointSequenceSupported(seq_id);
+    const Sequence& seq = seq_map_.at(seq_id);
+    TVM_FFI_ICHECK_GE(group_id, 0)
+        << "PagedAttentionKVCache checkpoint export got invalid group id " << group_id << ".";
+    TVM_FFI_ICHECK_LT(group_id, num_layers_)
+        << "PagedAttentionKVCache checkpoint export got invalid group id " << group_id
+        << ", but only " << num_layers_ << " groups are available.";
+
+    int64_t num_logical_pages = GetNumLogicalPages(seq);
+    CheckExportPageGroupTensor(dst, num_logical_pages);
+
+    if (copy_stream_ != nullptr) {
+      DeviceAPI::Get(device_)->SyncStreamFromTo(device_, copy_stream_, compute_stream_);
+    }
+
+    int64_t bytes_per_page = 2 * num_kv_heads_ * page_size_ * qk_head_dim_ *
+                             ((static_cast<int64_t>(kv_dtype_.bits) * kv_dtype_.lanes + 7) / 8);
+    Tensor layer_pages = pages_[group_id];
+    int64_t logical_page_index = 0;
+    for (int32_t block_id : seq.GetBlockTrace(global_block_pool_)) {
+      const Block& block = global_block_pool_[block_id];
+      for (int32_t page_id : block.page_ids) {
+        TVM_FFI_ICHECK_GE(page_id, 0)
+            << "PagedAttentionKVCache checkpoint export found invalid page id " << page_id << ".";
+        TVM_FFI_ICHECK_LT(page_id, num_total_pages_)
+            << "PagedAttentionKVCache checkpoint export found out-of-range page id " << page_id
+            << ".";
+        Tensor src_page =
+            layer_pages.CreateView({2, num_kv_heads_, page_size_, qk_head_dim_}, layer_pages->dtype,
+                                   static_cast<uint64_t>(page_id * bytes_per_page));
+        Tensor dst_page =
+            dst.CreateView({2, num_kv_heads_, page_size_, qk_head_dim_}, dst->dtype,
+                           static_cast<uint64_t>(logical_page_index * bytes_per_page));
+        DLTensor dst_page_view = *dst_page.operator->();
+        Tensor::CopyFromTo(src_page.operator->(), &dst_page_view, compute_stream_);
+        ++logical_page_index;
+      }
+    }
+    TVM_FFI_ICHECK_EQ(logical_page_index, num_logical_pages);
+  }
+
+  void PrepareImport(int64_t seq_id, ffi::String metadata_json) final {
+    CheckCheckpointLayoutSupported();
+    TVM_FFI_ICHECK_EQ(seq_id, 0)
+        << "PagedAttentionKVCache checkpoint import only supports sequence id 0, got " << seq_id
+        << ".";
+    ffi::json::Object metadata = ParseCheckpointMetadata(metadata_json);
+    int64_t seq_length = CheckCheckpointImportMetadata(seq_id, metadata);
+    int64_t num_logical_pages = GetExpectedNumLogicalPages(seq_length);
+
+    Clear();
+    int32_t block_idx = GetFreeBlock();
+    Block& block = global_block_pool_[block_idx];
+    block.start_pos = 0;
+    block.seq_length = static_cast<int32_t>(seq_length);
+    for (int64_t page_index = 0; page_index < num_logical_pages; ++page_index) {
+      block.page_ids.push_back(GetFreePage());
+    }
+    seq_map_.insert({seq_id, Sequence(&global_block_pool_, block_idx)});
+    dirty_aux_data_device_ = true;
+  }
+
+  void ImportPageGroup(int64_t seq_id, int64_t group_id, Tensor src) final {
+    CheckCheckpointSequenceSupported(seq_id);
+    const Sequence& seq = seq_map_.at(seq_id);
+    TVM_FFI_ICHECK_GE(group_id, 0)
+        << "PagedAttentionKVCache checkpoint import got invalid group id " << group_id << ".";
+    TVM_FFI_ICHECK_LT(group_id, num_layers_)
+        << "PagedAttentionKVCache checkpoint import got invalid group id " << group_id
+        << ", but only " << num_layers_ << " groups are available.";
+
+    int64_t num_logical_pages = GetNumLogicalPages(seq);
+    CheckImportPageGroupTensor(src, num_logical_pages);
+
+    if (copy_stream_ != nullptr) {
+      DeviceAPI::Get(device_)->SyncStreamFromTo(device_, copy_stream_, compute_stream_);
+    }
+
+    int64_t bytes_per_page = 2 * num_kv_heads_ * page_size_ * qk_head_dim_ *
+                             ((static_cast<int64_t>(kv_dtype_.bits) * kv_dtype_.lanes + 7) / 8);
+    Tensor layer_pages = pages_[group_id];
+    int64_t logical_page_index = 0;
+    for (int32_t block_id : seq.GetBlockTrace(global_block_pool_)) {
+      const Block& block = global_block_pool_[block_id];
+      for (int32_t page_id : block.page_ids) {
+        TVM_FFI_ICHECK_GE(page_id, 0)
+            << "PagedAttentionKVCache checkpoint import found invalid page id " << page_id << ".";
+        TVM_FFI_ICHECK_LT(page_id, num_total_pages_)
+            << "PagedAttentionKVCache checkpoint import found out-of-range page id " << page_id
+            << ".";
+        Tensor src_page =
+            src.CreateView({2, num_kv_heads_, page_size_, qk_head_dim_}, src->dtype,
+                           static_cast<uint64_t>(logical_page_index * bytes_per_page));
+        Tensor dst_page =
+            layer_pages.CreateView({2, num_kv_heads_, page_size_, qk_head_dim_}, layer_pages->dtype,
+                                   static_cast<uint64_t>(page_id * bytes_per_page));
+        DLTensor dst_page_view = *dst_page.operator->();
+        Tensor::CopyFromTo(src_page.operator->(), &dst_page_view, compute_stream_);
+        ++logical_page_index;
+      }
+    }
+    TVM_FFI_ICHECK_EQ(logical_page_index, num_logical_pages);
+  }
+
+  int32_t GetSequenceLength(int64_t seq_id) const final {
+    auto it = seq_map_.find(seq_id);
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
+    return it->second.seq_length;
   }
 
   /************** Attention **************/
@@ -1721,6 +1923,390 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                                     AttentionKVCacheObj);
 
  private:
+  void CheckCheckpointLayoutSupported() const {
+    for (int64_t layer_id = layer_id_begin_offset_; layer_id < layer_id_end_offset_; ++layer_id) {
+      AttnKind attn_kind = attn_kinds_[layer_id];
+      TVM_FFI_ICHECK(attn_kind == AttnKind::kMHA)
+          << "PagedAttentionKVCache checkpointing only supports full-context MHA/GQA layers.";
+    }
+    TVM_FFI_ICHECK_EQ(qk_head_dim_, v_head_dim_)
+        << "PagedAttentionKVCache checkpointing requires qk_head_dim to equal v_head_dim.";
+    TVM_FFI_ICHECK(!support_sliding_window_ && !support_layer_sliding_window_)
+        << "PagedAttentionKVCache checkpointing does not support sliding-window cache layouts.";
+    TVM_FFI_ICHECK(!f_transfer_kv_.has_value() && !f_transfer_kv_page_to_page_.has_value())
+        << "PagedAttentionKVCache checkpointing does not support KV transfer/disaggregation.";
+  }
+
+  void CheckCheckpointSequenceSupported(int64_t seq_id) const {
+    CheckCheckpointLayoutSupported();
+    TVM_FFI_ICHECK_EQ(seq_id, 0)
+        << "PagedAttentionKVCache checkpointing only supports sequence id 0, got " << seq_id << ".";
+    auto it = seq_map_.find(seq_id);
+    TVM_FFI_ICHECK(it != seq_map_.end())
+        << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
+    const Sequence& seq = it->second;
+    TVM_FFI_ICHECK(seq.accepted_indices_committed && seq.is_chain)
+        << "PagedAttentionKVCache checkpointing requires committed token-chain state.";
+    TVM_FFI_ICHECK_EQ(seq.sliding_window_size, -1)
+        << "PagedAttentionKVCache checkpointing does not support sequences with sliding window.";
+  }
+
+  int64_t GetExpectedNumLogicalPages(int64_t seq_length) const {
+    return (seq_length + page_size_ - 1) / page_size_;
+  }
+
+  ffi::json::Object ParseCheckpointMetadata(const ffi::String& metadata_json) const {
+    ffi::String error_msg;
+    ffi::json::Value json_info = ffi::json::Parse(metadata_json, &error_msg);
+    TVM_FFI_ICHECK(error_msg.empty())
+        << "Failed to parse PagedAttentionKVCache checkpoint metadata JSON: " << error_msg << ".";
+    TVM_FFI_ICHECK(json_info.as<ffi::json::Object>())
+        << "PagedAttentionKVCache checkpoint metadata should be a JSON object.";
+    return json_info.cast<ffi::json::Object>();
+  }
+
+  ffi::json::Value GetJSONField(const ffi::json::Object& object, const char* field,
+                                const char* context) const {
+    auto it = object.find(field);
+    TVM_FFI_ICHECK(it != object.end()) << context << " missing field \"" << field << "\".";
+    return (*it).second;
+  }
+
+  int64_t GetJSONIntegerField(const ffi::json::Object& object, const char* field,
+                              const char* context) const {
+    return GetJSONField(object, field, context).cast<int64_t>();
+  }
+
+  bool GetJSONBoolField(const ffi::json::Object& object, const char* field,
+                        const char* context) const {
+    return GetJSONField(object, field, context).cast<bool>();
+  }
+
+  std::string GetJSONStringField(const ffi::json::Object& object, const char* field,
+                                 const char* context) const {
+    return std::string(GetJSONField(object, field, context).cast<ffi::String>());
+  }
+
+  ffi::json::Array GetJSONArrayField(const ffi::json::Object& object, const char* field,
+                                     const char* context) const {
+    return GetJSONField(object, field, context).cast<ffi::json::Array>();
+  }
+
+  void CheckJSONIntegerField(const ffi::json::Object& object, const char* field, int64_t expected,
+                             const char* context) const {
+    int64_t value = GetJSONIntegerField(object, field, context);
+    TVM_FFI_ICHECK_EQ(value, expected)
+        << context << " field \"" << field << "\" mismatch: expected " << expected << ", got "
+        << value << ".";
+  }
+
+  void CheckJSONStringField(const ffi::json::Object& object, const char* field,
+                            const std::string& expected, const char* context) const {
+    std::string value = GetJSONStringField(object, field, context);
+    TVM_FFI_ICHECK_EQ(value, expected)
+        << context << " field \"" << field << "\" mismatch: expected " << expected << ", got "
+        << value << ".";
+  }
+
+  void CheckJSONBoolField(const ffi::json::Object& object, const char* field, bool expected,
+                          const char* context) const {
+    bool value = GetJSONBoolField(object, field, context);
+    TVM_FFI_ICHECK_EQ(value, expected)
+        << context << " field \"" << field << "\" mismatch: expected " << expected << ", got "
+        << value << ".";
+  }
+
+  void CheckCheckpointImportLayout(const ffi::json::Object& metadata) const {
+    static constexpr const char* context = "PagedAttentionKVCache checkpoint import metadata";
+    CheckJSONStringField(metadata, "cacheType", kPagedKVCacheCheckpointRuntime, context);
+    CheckJSONIntegerField(metadata, "pageSize", page_size_, context);
+    CheckJSONIntegerField(metadata, "numLayers", num_layers_, context);
+    CheckJSONIntegerField(metadata, "layerBegin", layer_id_begin_offset_, context);
+    CheckJSONIntegerField(metadata, "layerEnd", layer_id_end_offset_, context);
+    CheckJSONIntegerField(metadata, "numQOHeads", num_qo_heads_, context);
+    CheckJSONIntegerField(metadata, "numKVHeads", num_kv_heads_, context);
+    CheckJSONIntegerField(metadata, "qkHeadDim", qk_head_dim_, context);
+    CheckJSONIntegerField(metadata, "vHeadDim", v_head_dim_, context);
+    CheckJSONIntegerField(metadata, "numTotalPages", num_total_pages_, context);
+    CheckJSONIntegerField(metadata, "prefillChunkSize", prefill_chunk_size_, context);
+    CheckJSONStringField(metadata, "dtype", std::string(ffi::DLDataTypeToString(kv_dtype_)),
+                         context);
+    CheckJSONStringField(metadata, "ropeMode", RoPEModeToString(rope_mode_), context);
+    CheckJSONBoolField(metadata, "hasRopeExtFactors", rope_ext_factors_.has_value(), context);
+    CheckJSONBoolField(metadata, "supportSlidingWindow", support_sliding_window_, context);
+    CheckJSONBoolField(metadata, "supportLayerSlidingWindow", support_layer_sliding_window_,
+                       context);
+    CheckJSONStringField(metadata, "pageTensorLayout",
+                         "num_total_pages,2,num_kv_heads,page_size,qk_head_dim", context);
+
+    ffi::String expected_layout_hash = GetLayoutHash();
+    std::string layout_hash = GetJSONStringField(metadata, "layoutHash", context);
+    TVM_FFI_ICHECK_EQ(layout_hash, std::string(expected_layout_hash))
+        << "PagedAttentionKVCache checkpoint import layout hash mismatch: expected "
+        << expected_layout_hash << ", got " << layout_hash << ".";
+
+    ffi::json::Array attn_kinds = GetJSONArrayField(metadata, "attnKinds", context);
+    TVM_FFI_ICHECK_EQ(attn_kinds.size(), num_layers_)
+        << context << " field \"attnKinds\" size mismatch.";
+    for (int64_t local_layer = 0; local_layer < num_layers_; ++local_layer) {
+      std::string attn_kind = std::string(attn_kinds[local_layer].cast<ffi::String>());
+      std::string expected = AttnKindToString(attn_kinds_[layer_id_begin_offset_ + local_layer]);
+      TVM_FFI_ICHECK_EQ(attn_kind, expected)
+          << context << " field \"attnKinds\" mismatch at local layer " << local_layer
+          << ": expected " << expected << ", got " << attn_kind << ".";
+    }
+  }
+
+  void CheckCheckpointImportLogicalPages(const ffi::json::Object& metadata,
+                                         int64_t seq_length) const {
+    static constexpr const char* context = "PagedAttentionKVCache checkpoint import metadata";
+    int64_t num_logical_pages = GetExpectedNumLogicalPages(seq_length);
+    ffi::json::Array logical_pages = GetJSONArrayField(metadata, "logicalPages", context);
+    TVM_FFI_ICHECK_EQ(static_cast<int64_t>(logical_pages.size()), num_logical_pages)
+        << "PagedAttentionKVCache checkpoint import sequence length mismatch: seqLength "
+        << seq_length << " requires " << num_logical_pages << " logical pages, but metadata has "
+        << logical_pages.size() << ".";
+
+    int64_t expected_start = 0;
+    for (int64_t i = 0; i < num_logical_pages; ++i) {
+      ffi::json::Object page = logical_pages[i].cast<ffi::json::Object>();
+      int64_t expected_length = std::min<int64_t>(page_size_, seq_length - expected_start);
+      CheckJSONIntegerField(page, "logicalPageIndex", i, context);
+      CheckJSONIntegerField(page, "startPos", expected_start, context);
+      CheckJSONIntegerField(page, "length", expected_length, context);
+      expected_start += expected_length;
+    }
+    TVM_FFI_ICHECK_EQ(expected_start, seq_length)
+        << "PagedAttentionKVCache checkpoint import logical pages do not cover seqLength "
+        << seq_length << ".";
+  }
+
+  void CheckPageGroupMetadataShape(const ffi::json::Object& group, int64_t num_logical_pages,
+                                   const char* context) const {
+    ffi::json::Array shape = GetJSONArrayField(group, "shape", context);
+    std::vector<int64_t> expected_shape = {1,          num_logical_pages, 2, num_kv_heads_,
+                                           page_size_, qk_head_dim_};
+    TVM_FFI_ICHECK_EQ(shape.size(), expected_shape.size())
+        << context << " field \"shape\" rank mismatch.";
+    for (int64_t i = 0; i < static_cast<int64_t>(expected_shape.size()); ++i) {
+      int64_t dim = shape[i].cast<int64_t>();
+      TVM_FFI_ICHECK_EQ(dim, expected_shape[i])
+          << context << " field \"shape\" mismatch at dim " << i << ": expected "
+          << expected_shape[i] << ", got " << dim << ".";
+    }
+  }
+
+  void CheckCheckpointImportGroups(const ffi::json::Object& metadata,
+                                   int64_t num_logical_pages) const {
+    static constexpr const char* context = "PagedAttentionKVCache checkpoint import group metadata";
+    ffi::json::Array groups = GetJSONArrayField(metadata, "groups", context);
+    TVM_FFI_ICHECK_EQ(static_cast<int64_t>(groups.size()), num_layers_)
+        << context << " size mismatch: expected " << num_layers_ << ", got " << groups.size()
+        << ".";
+    for (int64_t local_layer = 0; local_layer < num_layers_; ++local_layer) {
+      ffi::json::Object group = groups[local_layer].cast<ffi::json::Object>();
+      CheckJSONIntegerField(group, "groupIndex", local_layer, context);
+      CheckJSONIntegerField(group, "layerBegin", layer_id_begin_offset_ + local_layer, context);
+      CheckJSONIntegerField(group, "layerEnd", layer_id_begin_offset_ + local_layer + 1, context);
+      CheckJSONIntegerField(group, "numLogicalPages", num_logical_pages, context);
+      CheckJSONStringField(group, "dtype", std::string(ffi::DLDataTypeToString(kv_dtype_)),
+                           context);
+      CheckPageGroupMetadataShape(group, num_logical_pages, context);
+    }
+  }
+
+  int64_t CheckCheckpointImportMetadata(int64_t seq_id, const ffi::json::Object& metadata) const {
+    CheckCheckpointImportLayout(metadata);
+    CheckJSONIntegerField(metadata, "seqId", seq_id,
+                          "PagedAttentionKVCache checkpoint import metadata");
+    int64_t seq_length = GetJSONIntegerField(metadata, "seqLength",
+                                             "PagedAttentionKVCache checkpoint import metadata");
+    TVM_FFI_ICHECK_GE(seq_length, 0)
+        << "PagedAttentionKVCache checkpoint import seqLength cannot be negative.";
+    TVM_FFI_ICHECK_LE(seq_length, std::numeric_limits<int32_t>::max())
+        << "PagedAttentionKVCache checkpoint import seqLength exceeds int32 range.";
+    int64_t num_logical_pages = GetExpectedNumLogicalPages(seq_length);
+    TVM_FFI_ICHECK_LE(num_logical_pages, num_total_pages_)
+        << "PagedAttentionKVCache checkpoint import requires " << num_logical_pages
+        << " pages, but this cache only has " << num_total_pages_ << " pages.";
+    CheckCheckpointImportLogicalPages(metadata, seq_length);
+    CheckCheckpointImportGroups(metadata, num_logical_pages);
+    return seq_length;
+  }
+
+  void CheckPageGroupTensor(const Tensor& tensor, int64_t num_logical_pages,
+                            const char* api_name) const {
+    std::string error_msg = std::string(api_name) +
+                            " expects the tensor in layout "
+                            "(1,num_logical_pages,2,num_kv_heads,page_size,qk_head_dim).";
+    TVM_FFI_ICHECK(tensor.defined()) << error_msg;
+    TVM_FFI_ICHECK(tensor.DataType() == kv_dtype_)
+        << error_msg << " The dtype mismatches, expected " << kv_dtype_ << ", got "
+        << tensor.DataType() << ".";
+    TVM_FFI_ICHECK_EQ(tensor->ndim, 6) << error_msg;
+    TVM_FFI_ICHECK_EQ(tensor->shape[0], 1) << error_msg << " The group count mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor->shape[1], num_logical_pages)
+        << error_msg << " The number of logical pages mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor->shape[2], 2) << error_msg << " The K/V axis mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor->shape[3], num_kv_heads_)
+        << error_msg << " The number of KV heads mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor->shape[4], page_size_) << error_msg << " The page size mismatches.";
+    TVM_FFI_ICHECK_EQ(tensor->shape[5], qk_head_dim_)
+        << error_msg << " The head dimension mismatches.";
+  }
+
+  void CheckExportPageGroupTensor(const Tensor& dst, int64_t num_logical_pages) const {
+    CheckPageGroupTensor(dst, num_logical_pages, "ExportPageGroup");
+  }
+
+  void CheckImportPageGroupTensor(const Tensor& src, int64_t num_logical_pages) const {
+    CheckPageGroupTensor(src, num_logical_pages, "ImportPageGroup");
+  }
+
+  ffi::json::Array MakeAttnKindsMetadata() const {
+    ffi::json::Array result;
+    for (int64_t layer_id = layer_id_begin_offset_; layer_id < layer_id_end_offset_; ++layer_id) {
+      AttnKind attn_kind = attn_kinds_[layer_id];
+      result.push_back(ffi::String(AttnKindToString(attn_kind)));
+    }
+    return result;
+  }
+
+  ffi::json::Object MakeLayoutMetadata() const {
+    namespace json = tvm::ffi::json;
+    json::Object metadata;
+    metadata.Set("cacheType", ffi::String(kPagedKVCacheCheckpointRuntime));
+    metadata.Set("pageSize", page_size_);
+    metadata.Set("numLayers", num_layers_);
+    metadata.Set("layerBegin", layer_id_begin_offset_);
+    metadata.Set("layerEnd", layer_id_end_offset_);
+    metadata.Set("numQOHeads", num_qo_heads_);
+    metadata.Set("numKVHeads", num_kv_heads_);
+    metadata.Set("qkHeadDim", qk_head_dim_);
+    metadata.Set("vHeadDim", v_head_dim_);
+    metadata.Set("numTotalPages", num_total_pages_);
+    metadata.Set("prefillChunkSize", prefill_chunk_size_);
+    metadata.Set("dtype", ffi::DLDataTypeToString(kv_dtype_));
+    metadata.Set("attnKinds", MakeAttnKindsMetadata());
+    metadata.Set("ropeMode", ffi::String(RoPEModeToString(rope_mode_)));
+    metadata.Set("rotaryScale", rotary_scale_);
+    metadata.Set("rotaryTheta", rotary_theta_);
+    metadata.Set("hasRopeExtFactors", rope_ext_factors_.has_value());
+    metadata.Set("supportSlidingWindow", support_sliding_window_);
+    metadata.Set("supportLayerSlidingWindow", support_layer_sliding_window_);
+    metadata.Set("pageTensorLayout",
+                 ffi::String("num_total_pages,2,num_kv_heads,page_size,qk_head_dim"));
+    if (!pages_.empty()) {
+      metadata.Set("pageTensorShape", ShapeToJSON(pages_[0]->shape, pages_[0]->ndim));
+    }
+    return metadata;
+  }
+
+  std::string GetLayoutDescriptor() const {
+    std::ostringstream os;
+    os.imbue(std::locale::classic());
+    os << std::setprecision(std::numeric_limits<double>::max_digits10);
+    os << "cacheType=" << kPagedKVCacheCheckpointRuntime << ";";
+    os << "pageSize=" << page_size_ << ";";
+    os << "numLayers=" << num_layers_ << ";";
+    os << "layerBegin=" << layer_id_begin_offset_ << ";";
+    os << "layerEnd=" << layer_id_end_offset_ << ";";
+    os << "numQOHeads=" << num_qo_heads_ << ";";
+    os << "numKVHeads=" << num_kv_heads_ << ";";
+    os << "qkHeadDim=" << qk_head_dim_ << ";";
+    os << "vHeadDim=" << v_head_dim_ << ";";
+    os << "numTotalPages=" << num_total_pages_ << ";";
+    os << "prefillChunkSize=" << prefill_chunk_size_ << ";";
+    os << "dtype=" << std::string(ffi::DLDataTypeToString(kv_dtype_)) << ";";
+    os << "ropeMode=" << RoPEModeToString(rope_mode_) << ";";
+    os << "rotaryScale=" << rotary_scale_ << ";";
+    os << "rotaryTheta=" << rotary_theta_ << ";";
+    os << "hasRopeExtFactors=" << rope_ext_factors_.has_value() << ";";
+    os << "supportSlidingWindow=" << support_sliding_window_ << ";";
+    os << "supportLayerSlidingWindow=" << support_layer_sliding_window_ << ";";
+    os << "pageTensorLayout=num_total_pages,2,num_kv_heads,page_size,qk_head_dim;";
+    os << "attnKinds=";
+    for (int64_t layer_id = layer_id_begin_offset_; layer_id < layer_id_end_offset_; ++layer_id) {
+      if (layer_id != layer_id_begin_offset_) {
+        os << ",";
+      }
+      os << AttnKindToString(attn_kinds_[layer_id]);
+    }
+    return os.str();
+  }
+
+  ffi::json::Array MakeBlockMetadata(const Sequence& seq) const {
+    namespace json = tvm::ffi::json;
+    json::Array blocks;
+    for (int32_t block_id : seq.GetBlockTrace(global_block_pool_)) {
+      const Block& block = global_block_pool_[block_id];
+      json::Object block_json;
+      block_json.Set("blockIndex", static_cast<int64_t>(block.index));
+      block_json.Set("parentBlockIndex", static_cast<int64_t>(block.parent_idx));
+      block_json.Set("startPos", static_cast<int64_t>(block.start_pos));
+      block_json.Set("seqLength", static_cast<int64_t>(block.seq_length));
+      block_json.Set("sinkLength", static_cast<int64_t>(block.sink_length));
+      block_json.Set("slidingWindowOffset", static_cast<int64_t>(block.sliding_window_offset));
+      block_json.Set("pageIds", IntArrayToJSON(block.page_ids));
+      blocks.push_back(block_json);
+    }
+    return blocks;
+  }
+
+  ffi::json::Array MakeLogicalPageMetadata(const Sequence& seq) const {
+    namespace json = tvm::ffi::json;
+    json::Array pages;
+    int64_t logical_page_index = 0;
+    for (int32_t block_id : seq.GetBlockTrace(global_block_pool_)) {
+      const Block& block = global_block_pool_[block_id];
+      for (int64_t page_index = 0; page_index < static_cast<int64_t>(block.page_ids.size());
+           ++page_index) {
+        int64_t page_start = block.start_pos + page_index * page_size_;
+        int64_t page_length =
+            std::min<int64_t>(page_size_, block.seq_length - page_index * page_size_);
+        TVM_FFI_ICHECK_GT(page_length, 0);
+        json::Object page_json;
+        page_json.Set("logicalPageIndex", logical_page_index++);
+        page_json.Set("blockIndex", static_cast<int64_t>(block.index));
+        page_json.Set("pageIndexInBlock", page_index);
+        page_json.Set("pageId", static_cast<int64_t>(block.page_ids[page_index]));
+        page_json.Set("startPos", page_start);
+        page_json.Set("length", page_length);
+        pages.push_back(page_json);
+      }
+    }
+    return pages;
+  }
+
+  int64_t GetNumLogicalPages(const Sequence& seq) const {
+    int64_t num_pages = 0;
+    for (int32_t block_id : seq.GetBlockTrace(global_block_pool_)) {
+      num_pages += global_block_pool_[block_id].page_ids.size();
+    }
+    return num_pages;
+  }
+
+  ffi::json::Array MakePageGroupMetadata(const Sequence& seq) const {
+    namespace json = tvm::ffi::json;
+    json::Array groups;
+    int64_t num_logical_pages = GetNumLogicalPages(seq);
+    int64_t bytes_per_scalar = (static_cast<int64_t>(kv_dtype_.bits) * kv_dtype_.lanes + 7) / 8;
+    for (int64_t local_layer = 0; local_layer < num_layers_; ++local_layer) {
+      json::Object group;
+      group.Set("groupIndex", local_layer);
+      group.Set("layerBegin", layer_id_begin_offset_ + local_layer);
+      group.Set("layerEnd", layer_id_begin_offset_ + local_layer + 1);
+      group.Set("numLogicalPages", num_logical_pages);
+      group.Set("dtype", ffi::DLDataTypeToString(kv_dtype_));
+      group.Set("shape",
+                json::Array{1, num_logical_pages, 2, num_kv_heads_, page_size_, qk_head_dim_});
+      group.Set("nbytes", num_logical_pages * 2 * num_kv_heads_ * page_size_ * qk_head_dim_ *
+                              bytes_per_scalar);
+      groups.push_back(group);
+    }
+    return groups;
+  }
+
   /*! \brief Get a new free page and return its id. */
   int32_t GetFreePage() {
     // Find a page from the free page pools.
