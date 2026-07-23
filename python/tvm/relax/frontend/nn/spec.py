@@ -18,6 +18,7 @@
 
 import inspect
 import typing
+from .llm.kv_cache import PagedKVCache as _PagedKVCache
 
 if typing.TYPE_CHECKING:
     from .core import Module as nn_module_class
@@ -65,6 +66,14 @@ class Object:  # pylint: disable=too-few-public-methods
         return "object"
 
 
+class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
+    """A specialized spec that extends Object for a paged key-value cache."""
+
+    def __init__(self) -> None:
+        # Pass the type of this class to the Object constructor.
+        super().__init__(object_type=_PagedKVCache)
+
+
 class Tuple:  # pylint: disable=too-few-public-methods
     """A tuple input or a list input"""
 
@@ -93,7 +102,7 @@ class MethodSpec:
     param_mode: str  # "plain", "packed", "none"
     effect_mode: str  # "plain", "packed", "none"
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-positional-arguments,too-many-arguments
         self,
         method: typing.Callable,
         arg_names: list[str],
