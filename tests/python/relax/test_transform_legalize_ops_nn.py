@@ -435,6 +435,55 @@ def test_conv2d_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_conv2d_symbolic_group():
+    # fmt: off
+    @tvm.script.ir_module
+    class Conv2d:
+        @R.function
+        def main(x: R.Tensor(("n", "c", 28, 28), "float32"), w: R.Tensor(("f", "c_div_8", 3, 3), "float32")) -> R.Tensor(("n", "f", 26, 26), "float32"):
+            n = T.int64()
+            f = T.int64()
+            gv: R.Tensor((n, f, 26, 26), "float32") = R.nn.conv2d(x, w, groups=8)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("n", "c", 28, 28), dtype="float32"), w: R.Tensor(("f", "c_div_8", 3, 3), dtype="float32")) -> R.Tensor(("n", "f", 26, 26), dtype="float32"):
+            n = T.int64()
+            f = T.int64()
+            gv = R.call_tir(Expected.conv2d, (x, w), out_ty=R.Tensor((n, f, 26, 26), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True, s_tir=True)
+        def conv2d(var_x: T.handle, var_w: T.handle, var_group_conv2d_nchw: T.handle):
+            T.func_attr({"tirx.noalias": True})
+            n, c = T.int64(), T.int64()
+            x = T.match_buffer(var_x, (n, c, T.int64(28), T.int64(28)))
+            f, c_div_8 = T.int64(), T.int64()
+            w = T.match_buffer(var_w, (f, c_div_8, T.int64(3), T.int64(3)))
+            group_conv2d_nchw = T.match_buffer(var_group_conv2d_nchw, (n, f, T.int64(26), T.int64(26)))
+            pad_temp = T.sblock_alloc_buffer((n, c, T.int64(28), T.int64(28)))
+            for i0, i1, i2, i3 in T.grid(n, c, T.int64(28), T.int64(28)):
+                with T.sblock("pad_temp"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(x[v_i0, v_i1, v_i2, v_i3])
+                    T.writes(pad_temp[v_i0, v_i1, v_i2, v_i3])
+                    pad_temp[v_i0, v_i1, v_i2, v_i3] = x[v_i0, v_i1, v_i2, v_i3]
+            for nn, ff, yy, xx, rc, ry, rx in T.grid(n, f, T.int64(26), T.int64(26), c // T.int64(8), T.int64(3), T.int64(3)):
+                with T.sblock("group_conv2d_nchw"):
+                    v_nn, v_ff, v_yy, v_xx, v_rc, v_ry, v_rx = T.axis.remap("SSSSRRR", [nn, ff, yy, xx, rc, ry, rx])
+                    T.reads(pad_temp[v_nn, v_ff // (f // T.int64(8)) * (c // T.int64(8)) + v_rc, v_yy + v_ry, v_xx + v_rx], w[v_ff, v_rc, v_ry, v_rx])
+                    T.writes(group_conv2d_nchw[v_nn, v_ff, v_yy, v_xx])
+                    with T.init():
+                        group_conv2d_nchw[v_nn, v_ff, v_yy, v_xx] = T.float32(0.0)
+                    group_conv2d_nchw[v_nn, v_ff, v_yy, v_xx] = group_conv2d_nchw[v_nn, v_ff, v_yy, v_xx] + pad_temp[v_nn, v_ff // (f // T.int64(8)) * (c // T.int64(8)) + v_rc, v_yy + v_ry, v_xx + v_rx] * w[v_ff, v_rc, v_ry, v_rx]
+    # fmt: on
+
+    mod = LegalizeOps()(Conv2d)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_conv2d_transpose():
     # fmt: off
     @I.ir_module(s_tir=True)
