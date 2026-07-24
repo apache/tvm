@@ -8391,6 +8391,35 @@ def test_scatter_value():
     verify_model(ScatterValue(), example_args, {}, Expected)
 
 
+def test_scatter_src():
+    class ScatterSrc(Module):
+        def forward(self, x, index, src):
+            return x.scatter(1, index, src)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((4, 8), dtype="float32"),
+            index: R.Tensor((4, 2), dtype="int64"),
+            src: R.Tensor((4, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 8), dtype="float32") = R.scatter_elements(
+                    x, index, src, axis=1
+                )
+                gv: R.Tuple(R.Tensor((4, 8), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(4, 8, dtype=torch.float32),
+        torch.randint(0, 8, (4, 2), dtype=torch.int64),
+        torch.randn(4, 2, dtype=torch.float32),
+    )
+    verify_model(ScatterSrc(), example_args, {}, Expected)
+
+
 def test_grid_sample():
     class GridSample(Module):
         def forward(self, input, grid):
