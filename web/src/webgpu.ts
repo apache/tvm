@@ -425,8 +425,8 @@ export class WebGPUContext {
   // the heavier onSubmittedWorkDone). Reset to null after any non-copy
   // queue submission so we fall back to onSubmittedWorkDone.
   private pendingGPUToCPUCopy: Promise<void> | null = null;
-  // Batched command encoding: accumulate compute passes in a single encoder,
-  // submit only on flush to reduce JS-native transition overhead.
+  // Batched command encoding: accumulate compute passes and GPU copies in a
+  // single encoder, and submit only on flush to reduce JS-native transition overhead.
   private pendingEncoder: GPUCommandEncoder | null = null;
   // Pool of uniform buffers reused across flushes. Each dispatch in a batch
   // gets its own buffer (indexed by pendingDispatchCount). The pool grows
@@ -455,13 +455,12 @@ export class WebGPUContext {
   }
 
   /**
-   * Flush all pending compute passes by finishing and submitting the
+   * Flush all pending GPU commands by finishing and submitting the
    * accumulated command encoder.
    *
    * Must be called before:
    * - GPU→CPU readback (deviceCopyFromGPU)
    * - CPU→GPU writes (deviceCopyToGPU, copyRawBytesToBuffer)
-   * - GPU↔GPU copies (deviceCopyWithinGPU)
    * - Buffer deallocation (deviceFreeDataSpace)
    * - Queue sync (sync)
    */
@@ -470,7 +469,7 @@ export class WebGPUContext {
       this.device.queue.submit([this.pendingEncoder.finish()]);
       this.pendingEncoder = null;
       this.pendingDispatchCount = 0;
-      // A compute submission is now the last queue operation, so the
+      // A command submission is now the last queue operation, so the
       // GPU→CPU copy fast path in sync() is no longer valid.
       this.pendingGPUToCPUCopy = null;
     }
@@ -1038,18 +1037,19 @@ export class WebGPUContext {
     toOffset: number,
     nbytes: number
   ): void {
-    // Flush batched compute passes before the GPU-to-GPU copy.
-    this.flushCommands();
-    const copyEncoder = this.device.createCommandEncoder();
-    copyEncoder.copyBufferToBuffer(
+    // Keep copies in the same command encoder as compute dispatches. Command
+    // ordering within the encoder preserves dependencies, while a later
+    // readback, CPU write, deallocation, or sync provides the flush point.
+    if (!this.pendingEncoder) {
+      this.pendingEncoder = this.device.createCommandEncoder();
+    }
+    this.pendingEncoder.copyBufferToBuffer(
       this.gpuBufferFromPtr(from),
       fromOffset,
       this.gpuBufferFromPtr(to),
       toOffset,
       nbytes
     );
-    const copyCommands = copyEncoder.finish();
-    this.device.queue.submit([copyCommands]);
   }
 
   private gpuBufferFromPtr(ptr: GPUPointer): GPUBuffer {
