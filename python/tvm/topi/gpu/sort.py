@@ -30,10 +30,12 @@ from ..utils import ceil_div, prod, swap
 
 
 def _get_threads(nthread_tx, nthread_bx, nthread_by):
+    # Fuse bx and by into a single blockIdx.x so that neither the batch
+    # dimension nor the chunk dimension can overflow the 65535 gridDim.y
+    # hardware limit (see github.com/apache/tvm/issues/19549).
     tx = te.thread_axis("threadIdx.x")
-    bx = te.thread_axis("blockIdx.x")
-    by = te.thread_axis("blockIdx.y")
-    return tx, bx, by, nthread_tx, nthread_bx, nthread_by
+    b_fused = te.thread_axis("blockIdx.x")
+    return tx, b_fused, nthread_tx, nthread_bx, nthread_by
 
 
 def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
@@ -55,14 +57,15 @@ def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=
     nthread_by = axis_mul_before * axis_mul_after
 
     # Copy the keys_in to initial output
-    tx, bx, by, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
+    tx, b_fused, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
     with T.frame_scope(
         [
             T.attr(tx, "thread_extent", ntx),
-            T.attr(bx, "thread_extent", nbx),
-            T.attr(by, "thread_extent", nby),
+            T.attr(b_fused, "thread_extent", nbx * nby),
         ]
     ):
+        bx = b_fused % nbx
+        by = b_fused // nbx
         tid = bx * nthread_tx + tx
         by_val = by % axis_mul_before
         bz = by // axis_mul_before
@@ -96,15 +99,16 @@ def _odd_even_sort(
     nthread_bx = ceil_div(size, block_size)
     nthread_by = axis_mul_before * axis_mul_after
 
-    tx, bx, by, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
+    tx, b_fused, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
     with T.frame_scope(
         [
             T.attr(tvm.tirx.const(0), "hand_threaded", 0),
             T.attr(tx, "thread_extent", ntx),
-            T.attr(bx, "thread_extent", nbx),
-            T.attr(by, "thread_extent", nby),
+            T.attr(b_fused, "thread_extent", nbx * nby),
         ]
     ):
+        bx = b_fused % nbx
+        by = b_fused // nbx
         by_val = by % axis_mul_before
         bz = by // axis_mul_before
         tid = 2 * tx
@@ -501,14 +505,15 @@ def _sort_common(
             nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
             nbz = cast(ceil_div(size, width), "int32")
 
-        tx, bx, by, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
+        tx, b_fused, _, _, _ = _get_threads(ntx, nbx, nthread_by * nbz)
         with T.frame_scope(
             [
                 T.attr(tx, "thread_extent", ntx),
-                T.attr(bx, "thread_extent", nbx),
-                T.attr(by, "thread_extent", nthread_by * nbz),
+                T.attr(b_fused, "thread_extent", nbx * nthread_by * nbz),
             ]
         ):
+            bx = b_fused % nbx
+            by = b_fused // nbx
             by_val = by % nthread_by
             bz = by // nthread_by
             base_idx = by_val * size
@@ -563,14 +568,15 @@ def _sort_common(
         tvm.tirx.all(upper_lim > lower_lim, tvm.tirx.indexmod(upper_lim - lower_lim, 2) == 1)
     ):
         with T.Then():
-            tx2, bx2, by2, _, _, _ = _get_threads(nthread_tx, nthread_bx, nthread_by)
+            tx2, b_fused2, _, _, _ = _get_threads(nthread_tx, nthread_bx, nthread_by)
             with T.frame_scope(
                 [
                     T.attr(tx2, "thread_extent", nthread_tx),
-                    T.attr(bx2, "thread_extent", nthread_bx),
-                    T.attr(by2, "thread_extent", nthread_by),
+                    T.attr(b_fused2, "thread_extent", nthread_bx * nthread_by),
                 ]
             ):
+                bx2 = b_fused2 % nthread_bx
+                by2 = b_fused2 // nthread_bx
                 tid = bx2 * nthread_tx + tx2
                 idx = by2 * size + tid
                 with T.If(tid < size):
