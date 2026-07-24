@@ -51,7 +51,8 @@ class StmtNode : public ffi::Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span);
+    refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span,
+                                       refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
