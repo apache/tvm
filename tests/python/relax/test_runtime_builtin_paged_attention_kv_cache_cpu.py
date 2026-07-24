@@ -77,6 +77,7 @@ fget_checkpoint_metadata = None
 fexport_page_group = None
 fprepare_import = None
 fimport_page_group = None
+ffinish_import = None
 fget_sequence_length = None
 
 ftranspose_append = None
@@ -102,7 +103,7 @@ def set_global_func(head_dim, dtype):
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
     global fget_checkpoint_metadata, fexport_page_group
-    global fprepare_import, fimport_page_group, fget_sequence_length
+    global fprepare_import, fimport_page_group, ffinish_import, fget_sequence_length
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
     global \
         fattn_prefill_ragged, \
@@ -135,6 +136,7 @@ def set_global_func(head_dim, dtype):
     fexport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
     fprepare_import = tvm.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
     fimport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm.get_global_func("vm.builtin.attention_kv_cache_finish_import")
     fget_sequence_length = tvm.get_global_func("vm.builtin.attention_kv_cache_get_sequence_length")
 
     target = tvm.target.Target.from_device(device)
@@ -295,7 +297,7 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
 
 def verify_exported_page_groups(kv_cache, seq_id):
     metadata = json.loads(fget_checkpoint_metadata(kv_cache, seq_id))
-    seq_length = metadata["seqLength"]
+    seq_length = metadata["seq_length"]
     keys = tvm.runtime.empty(
         (num_layers, seq_length, num_kv_heads, head_dim), dtype=dtype, device=device
     )
@@ -308,12 +310,12 @@ def verify_exported_page_groups(kv_cache, seq_id):
 
     for group in metadata["groups"]:
         group_data = tvm.runtime.empty(tuple(group["shape"]), dtype=dtype, device=device)
-        fexport_page_group(kv_cache, seq_id, group["groupIndex"], group_data)
+        fexport_page_group(kv_cache, seq_id, group["group_index"], group_data)
         group_np = group_data.numpy()
-        layer = group["groupIndex"]
-        for page in metadata["logicalPages"]:
-            logical_page_index = page["logicalPageIndex"]
-            start_pos = page["startPos"]
+        layer = group["group_index"]
+        for page in metadata["logical_pages"]:
+            logical_page_index = page["logical_page_index"]
+            start_pos = page["start_pos"]
             length = page["length"]
             exported_k = group_np[0, logical_page_index, 0, :, :length, :].transpose(1, 0, 2)
             exported_v = group_np[0, logical_page_index, 1, :, :length, :].transpose(1, 0, 2)
@@ -329,7 +331,7 @@ def export_page_groups(kv_cache, metadata):
     groups = []
     for group in metadata["groups"]:
         group_data = tvm.runtime.empty(tuple(group["shape"]), dtype=dtype, device=device)
-        fexport_page_group(kv_cache, metadata["seqId"], group["groupIndex"], group_data)
+        fexport_page_group(kv_cache, metadata["seq_id"], group["group_index"], group_data)
         groups.append(group_data)
     return groups
 
@@ -680,6 +682,20 @@ def test_paged_attention_kv_cache_export_page_group():
     apply_attention(kv_cache, RopeMode.NONE, [(0, page_size * 2 + 3)], cached_k, cached_v)
     verify_exported_page_groups(kv_cache, 0)
 
+    # Reuse a page whose unused slots contain old KV values. A checkpoint must
+    # zero the unused tail rather than expose those stale values.
+    fclear(kv_cache)
+    cached_k = {}
+    cached_v = {}
+    apply_attention(kv_cache, RopeMode.NONE, [(0, page_size)], cached_k, cached_v)
+    fclear(kv_cache)
+    cached_k = {}
+    cached_v = {}
+    apply_attention(kv_cache, RopeMode.NONE, [(0, 1)], cached_k, cached_v)
+    metadata = json.loads(fget_checkpoint_metadata(kv_cache, 0))
+    group_data = export_page_groups(kv_cache, metadata)[0].numpy()
+    np.testing.assert_array_equal(group_data[0, 0, :, :, 1:, :], 0)
+
 
 def test_paged_attention_kv_cache_import_page_group_round_trip():
     global head_dim, sm_scale, dtype
@@ -699,11 +715,22 @@ def test_paged_attention_kv_cache_import_page_group_round_trip():
 
     dst_cache = create_kv_cache(head_dim, dtype, RopeMode.NONE, False)
     fprepare_import(dst_cache, 0, metadata_json)
-    assert fget_sequence_length(dst_cache, 0) == metadata["seqLength"]
     for group, group_data in zip(metadata["groups"], groups):
-        fimport_page_group(dst_cache, 0, group["groupIndex"], group_data)
+        fimport_page_group(dst_cache, 0, group["group_index"], group_data)
+    ffinish_import(dst_cache, 0)
+    assert fget_sequence_length(dst_cache, 0) == metadata["seq_length"]
 
-    verify_debug_kv_equal(src_cache, dst_cache, 0, metadata["seqLength"])
+    verify_debug_kv_equal(src_cache, dst_cache, 0, metadata["seq_length"])
+
+    # Continue decoding from both caches with identical inputs. This exercises
+    # the restored page table and the partially filled final page.
+    dst_cached_k = {0: cached_k[0].copy()}
+    dst_cached_v = {0: cached_v[0].copy()}
+    random_state = np.random.get_state()
+    apply_attention(src_cache, RopeMode.NONE, [(0, 1)], cached_k, cached_v)
+    np.random.set_state(random_state)
+    apply_attention(dst_cache, RopeMode.NONE, [(0, 1)], dst_cached_k, dst_cached_v)
+    verify_debug_kv_equal(src_cache, dst_cache, 0, metadata["seq_length"] + 1)
 
 
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):

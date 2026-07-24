@@ -173,6 +173,12 @@ class AttentionKVCacheObj : public KVStateObj {
   virtual void ImportPageGroup(int64_t seq_id, int64_t group_id, Tensor src) = 0;
 
   /*!
+   * \brief Finish a checkpoint import after all page groups have been restored.
+   * \param seq_id The id of the sequence being imported.
+   */
+  virtual void FinishImport(int64_t seq_id) = 0;
+
+  /*!
    * \brief Get the sequence length for a sequence in the KV cache.
    * \param seq_id The id of the sequence whose length is requested.
    * \return The sequence length.
