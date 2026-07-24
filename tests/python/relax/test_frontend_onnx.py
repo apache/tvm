@@ -7887,6 +7887,36 @@ def test_range():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+def test_range_with_primexpr_limit():
+    shape = helper.make_node("Shape", ["x"], ["x_shape"])
+    axis = make_constant_node("axis", TensorProto.INT64, [], [0])
+    limit = helper.make_node("Gather", ["x_shape", "axis"], ["limit"])
+    start = make_constant_node("start", TensorProto.INT64, [], [0])
+    delta = make_constant_node("delta", TensorProto.INT64, [], [1])
+    range_node = helper.make_node("Range", ["start", "limit", "delta"], ["output"])
+    graph = helper.make_graph(
+        [shape, axis, limit, start, delta, range_node],
+        "range_primexpr_limit_test",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, [5])],
+        [helper.make_tensor_value_info("output", TensorProto.INT64, [5])],
+    )
+    model = helper.make_model(graph, producer_name="range_primexpr_limit_test")
+
+    tvm_model = from_onnx(model)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5,), dtype="float32")) -> R.Tensor((5,), dtype="int64"):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((5,), dtype="int64") = R.arange(0, 5, 1, dtype="int64")
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
 def test_batch_norm():
     batch_norm_node = helper.make_node(
         "BatchNormalization", ["x", "s", "bias", "mean", "var"], ["y"], epsilon=1e-2

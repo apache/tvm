@@ -3682,7 +3682,7 @@ class Range(OnnxOpConverter):
         start = get_constant(inputs[0], params)
         limit = get_constant(inputs[1], params)
         delta = get_constant(inputs[2], params)
-        out_dtype = start.ty.dtype
+        out_dtype = start.ty.dtype.dtype
 
         if isinstance(start, relax.Constant):
             start = start.data.numpy().tolist()
