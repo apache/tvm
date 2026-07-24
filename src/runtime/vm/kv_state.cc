@@ -65,6 +65,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   &AttentionKVCacheObj::EnableSlidingWindowForSeq)
       .def_method("vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes",
                   &AttentionKVCacheObj::CommitAcceptedTokenTreeNodes)
+      .def_method("vm.builtin.attention_kv_cache_set_sequence_lora_adapter",
+                  &AttentionKVCacheObj::SetSequenceLoraAdapter)
+      .def_method("vm.builtin.attention_kv_cache_get_sequence_lora_adapter",
+                  &AttentionKVCacheObj::GetSequenceLoraAdapter)
+      .def_method("vm.builtin.attention_kv_cache_get_current_lora_adapter_ids",
+                  &AttentionKVCacheObj::GetCurrentLoraAdapterIds)
       .def_method("vm.builtin.attention_kv_cache_empty", &AttentionKVCacheObj::Empty)
       .def_method("vm.builtin.attention_kv_cache_get_num_available_pages",
                   &AttentionKVCacheObj::GetNumAvailablePages)
