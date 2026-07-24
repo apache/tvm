@@ -118,6 +118,16 @@ def test_return_accepts_expr_and_roundtrips():
         tirx.Return(None)
 
 
+def test_stmt_span_not_structural():
+    span_a = tvm.ir.Span(tvm.ir.SourceName("a.py"), 1, 1, 1, 2)
+    span_b = tvm.ir.Span(tvm.ir.SourceName("b.py"), 10, 10, 3, 4)
+    stmt_a = tirx.Evaluate(tirx.IntImm("int32", 0), span_a)
+    stmt_b = tirx.Evaluate(tirx.IntImm("int32", 0), span_b)
+
+    assert tvm_ffi.structural_equal(stmt_a, stmt_b)
+    assert tvm_ffi.structural_hash(stmt_a) == tvm_ffi.structural_hash(stmt_b)
+
+
 def test_return_stmt_functor_traversal_and_mutation():
     x = tirx.Var("x", "int32")
     span = tvm.ir.Span(tvm.ir.SourceName("return_test"), 1, 1, 1, 9)
