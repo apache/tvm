@@ -90,12 +90,20 @@ import tvm.tirx
 from tvm.contrib import cudnn
 from tvm.support import nvcc
 
-SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
-IS_IN_CI = os.getenv("CI", "") == "true"
+_TRUTHY_ENV_VALUES = frozenset({"true", "1", "yes"})
+
+
+def _env_truthy(name: str, default: str = "") -> bool:
+    """Return whether an environment variable is set to a truthy value."""
+    return os.getenv(name, default).strip().lower() in _TRUTHY_ENV_VALUES
+
+
+SKIP_SLOW_TESTS = _env_truthy("SKIP_SLOW_TESTS")
+IS_IN_CI = os.getenv("CI", "").strip().lower() == "true"
 _REQUEST_HOOK_INITIALIZERS = {}
 
 skip_if_wheel_test = pytest.mark.skipif(
-    os.getenv("WHEEL_TEST", "").lower() in {"true", "1", "yes"},
+    _env_truthy("WHEEL_TEST"),
     reason="Test not supported in wheel.",
 )
 
