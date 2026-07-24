@@ -40,6 +40,7 @@ import {
   TensorShardEntry,
   createArtifactCache,
 } from "./artifact_cache";
+import { TensorCacheChunkPlan, planTensorCacheChunks } from "./tensor_cache_plan";
 import * as compact from "./compact";
 import * as ctypes from "./ctypes";
 
@@ -1015,9 +1016,11 @@ export class Instance implements Disposable {
    */
   withNewScope<T>(action: () => T): T {
     this.beginScope();
-    const val = action();
-    this.endScope();
-    return val;
+    try {
+      return action();
+    } finally {
+      this.endScope();
+    }
   }
 
   /**
@@ -1328,6 +1331,10 @@ export class Instance implements Disposable {
     artifactCache: ArtifactCacheTemplate,
     signal?: AbortSignal,
   ) {
+    // CachedCallStack grows geometrically and retains its backing allocation.
+    // Cap each tensor-cache payload at 128 MiB so the retained staging
+    // allocation stays bounded independently of the final tensor.
+    const maxTensorCacheChunkBytes = 128 * 1024 * 1024;
     const perf = compact.getPerformance();
     const tstart = perf.now();
     let totalBytes = 0;
@@ -1426,9 +1433,72 @@ export class Instance implements Disposable {
               this.empty(rec.shape, rec.dtype, this.cpu())
             )
           });
-          const recSource = buffer.slice(rec.byteOffset, rec.byteOffset + rec.nbytes);
+          const shardBytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+          const recSource =
+            rec.byteOffset === 0 && rec.nbytes === shardBytes.byteLength
+              ? shardBytes
+              : shardBytes.subarray(rec.byteOffset, rec.byteOffset + rec.nbytes);
+          let decodeChunkPlan: TensorCacheChunkPlan | undefined;
+          let gpuCopyChunkPlan: TensorCacheChunkPlan | undefined;
+          const decodedBytes =
+            rec.format === "f32-to-bf16" && rec.dtype === "float32"
+              ? rec.nbytes * 2
+              : rec.nbytes;
+          if (
+            Number.isSafeInteger(decodedBytes) &&
+            Math.max(rec.nbytes, decodedBytes) > maxTensorCacheChunkBytes
+          ) {
+            decodeChunkPlan = planTensorCacheChunks(
+              rec.shape,
+              rec.nbytes,
+              decodedBytes,
+              maxTensorCacheChunkBytes,
+            );
+            if (device.deviceType !== DeviceStrToEnum.cpu) {
+              gpuCopyChunkPlan = planTensorCacheChunks(
+                rec.shape,
+                rec.nbytes,
+                decodedBytes,
+                maxTensorCacheChunkBytes,
+                4,
+              );
+            }
+          }
+          const decodeRecordIntoTensor = (
+            targetTensor: Tensor,
+            sourceBytes: Uint8Array,
+          ) => {
+            if (decodeChunkPlan === undefined) {
+              this.ctx.arrayDecodeStorage(targetTensor, sourceBytes, rec.format, rec.dtype);
+              return;
+            }
+            for (const chunk of decodeChunkPlan.chunks) {
+              const chunkShape = rec.shape.slice();
+              chunkShape[0] = chunk.outerCount;
+              const chunkView = this.withNewScope(() => {
+                const chunkShapeTuple = this.makeShapeTuple(chunkShape);
+                return this.detachFromCurrentScope(
+                  this.ctx.tensorCreateView(
+                    targetTensor,
+                    chunkShapeTuple,
+                    rec.dtype,
+                    new Scalar(chunk.targetByteOffset, "int"),
+                  )
+                );
+              });
+              const chunkSource = sourceBytes.subarray(
+                chunk.sourceByteOffset,
+                chunk.sourceByteOffset + chunk.sourceByteLength,
+              );
+              try {
+                this.ctx.arrayDecodeStorage(chunkView, chunkSource, rec.format, rec.dtype);
+              } finally {
+                chunkView.dispose();
+              }
+            }
+          };
           // first sync copy to cpu.
-          this.ctx.arrayDecodeStorage(cpu_arr, new Uint8Array(recSource), rec.format, rec.dtype);
+          decodeRecordIntoTensor(cpu_arr, recSource);
           // then async stream into GPU if needed
           if (device.deviceType === DeviceStrToEnum.cpu) {
             this.tensorCacheUpdate(rec.name, cpu_arr, false);
@@ -1440,7 +1510,39 @@ export class Instance implements Disposable {
                 this.empty(rec.shape, rec.dtype, device)
               )
             });
-            gpu_arr.copyFrom(cpu_arr);
+            if (gpuCopyChunkPlan === undefined) {
+              gpu_arr.copyFrom(cpu_arr);
+            } else {
+              for (const chunk of gpuCopyChunkPlan.chunks) {
+                const chunkShape = rec.shape.slice();
+                chunkShape[0] = chunk.outerCount;
+                const [cpuView, gpuView] = this.withNewScope(() => {
+                  const chunkShapeTuple = this.makeShapeTuple(chunkShape);
+                  const cView = this.ctx.tensorCreateView(
+                    cpu_arr,
+                    chunkShapeTuple,
+                    rec.dtype,
+                    new Scalar(chunk.targetByteOffset, "int"),
+                  );
+                  const gView = this.ctx.tensorCreateView(
+                    gpu_arr,
+                    chunkShapeTuple,
+                    rec.dtype,
+                    new Scalar(chunk.targetByteOffset, "int"),
+                  );
+                  return [
+                    this.detachFromCurrentScope(cView),
+                    this.detachFromCurrentScope(gView),
+                  ];
+                });
+                try {
+                  gpuView.copyFrom(cpuView);
+                } finally {
+                  cpuView.dispose();
+                  gpuView.dispose();
+                }
+              }
+            }
             await device.sync();
             this.tensorCacheUpdate(rec.name, gpu_arr, false);
             cpu_arr.dispose();

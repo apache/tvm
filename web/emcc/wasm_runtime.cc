@@ -132,7 +132,8 @@ void ArrayDecodeStorage(Tensor cpu_arr, TVMFFIByteArray* bytes, const std::strin
   const size_t byte_size = bytes->size;
   if (format == "f32-to-bf16" && dtype == "float32") {
     const uint16_t* bf16 = reinterpret_cast<const uint16_t*>(byte_data);
-    uint32_t* data = static_cast<uint32_t*>(cpu_arr->data);
+    uint32_t* data =
+        reinterpret_cast<uint32_t*>(static_cast<char*>(cpu_arr->data) + cpu_arr->byte_offset);
     TVM_FFI_ICHECK(cpu_arr.IsContiguous());
     size_t size = 1;
     for (int i = 0; i < cpu_arr->ndim; ++i) {
