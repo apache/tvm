@@ -52,15 +52,19 @@ def create_kv_cache(
     rope_mode=RopeMode.NORMAL,
     attn_kind=AttnKind.MHA,
     support_sliding_window=False,
+    reserved_nseq_value=reserved_nseq,
+    maximum_total_seq_length_value=maximum_total_seq_length,
+    prefill_chunk_size_value=prefill_chunk_size,
+    rope_ext_factors=None,
 ):
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     dummy_func = tvm.runtime.convert(_nop)
     return fcreate(
         tvm_ffi.Shape(
             [
-                reserved_nseq,
-                maximum_total_seq_length,
-                prefill_chunk_size,
+                reserved_nseq_value,
+                maximum_total_seq_length_value,
+                prefill_chunk_size_value,
                 page_size_value,
                 int(support_sliding_window),
             ]
@@ -75,7 +79,7 @@ def create_kv_cache(
         int(rope_mode),
         rope_scale,
         rope_theta,
-        None,  # rope_ext_factors
+        rope_ext_factors,
         tvm.runtime.empty((), dtype, device=device),
         dummy_func,  # f_transpose_append_mha
         None,  # f_transpose_append_mla
@@ -112,6 +116,7 @@ def test_checkpoint_metadata_reports_layout_pages_and_groups():
     fexport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
     fprepare_import = tvm.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
     fimport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm.get_global_func("vm.builtin.attention_kv_cache_finish_import")
     fget_sequence_length = tvm.get_global_func("vm.builtin.attention_kv_cache_get_sequence_length")
 
     kv_cache = create_kv_cache()
@@ -119,46 +124,56 @@ def test_checkpoint_metadata_reports_layout_pages_and_groups():
     metadata_json = fget_checkpoint_metadata(kv_cache, 0)
     metadata = json.loads(metadata_json)
 
-    assert metadata["cacheType"] == "relax.vm.PagedAttentionKVCache"
-    assert metadata["layoutHash"] == fget_layout_hash(kv_cache)
-    assert metadata["seqId"] == 0
-    assert metadata["seqLength"] == page_size + 1
-    assert metadata["pageSize"] == page_size
+    assert metadata["format_version"] == 1
+    assert metadata["cache_type"] == "relax.vm.PagedAttentionKVCache"
+    assert metadata["layout_hash"] == fget_layout_hash(kv_cache)
+    assert metadata["seq_id"] == 0
+    assert metadata["seq_length"] == page_size + 1
+    assert metadata["page_size"] == page_size
     assert metadata["dtype"] == "float16"
-    assert metadata["layerBegin"] == 0
-    assert metadata["layerEnd"] == num_layers
-    assert metadata["numKVHeads"] == num_kv_heads
-    assert metadata["qkHeadDim"] == head_dim
-    assert metadata["vHeadDim"] == head_dim
-    assert metadata["attnKinds"] == ["mha"] * num_layers
-    assert metadata["pageTensorLayout"] == "num_total_pages,2,num_kv_heads,page_size,qk_head_dim"
-    assert metadata["pageTensorShape"] == [
-        metadata["numTotalPages"],
-        2,
-        num_kv_heads,
-        page_size,
-        head_dim,
-    ]
-    assert len(metadata["blocks"]) == 1
-    assert metadata["blocks"][0]["seqLength"] == page_size + 1
-    assert len(metadata["logicalPages"]) == 2
-    assert metadata["logicalPages"][0]["startPos"] == 0
-    assert metadata["logicalPages"][0]["length"] == page_size
-    assert metadata["logicalPages"][1]["startPos"] == page_size
-    assert metadata["logicalPages"][1]["length"] == 1
+    assert metadata["layer_begin"] == 0
+    assert metadata["layer_end"] == num_layers
+    assert metadata["num_kv_heads"] == num_kv_heads
+    assert metadata["qk_head_dim"] == head_dim
+    assert metadata["v_head_dim"] == head_dim
+    assert metadata["reserved_num_seqs"] == reserved_nseq
+    assert metadata["attn_kinds"] == ["mha"] * num_layers
+    assert (
+        metadata["page_group_layout"] == "1,num_logical_pages,2,num_kv_heads,page_size,qk_head_dim"
+    )
+    assert "blocks" not in metadata
+    assert len(metadata["logical_pages"]) == 2
+    assert metadata["logical_pages"][0]["start_pos"] == 0
+    assert metadata["logical_pages"][0]["length"] == page_size
+    assert metadata["logical_pages"][1]["start_pos"] == page_size
+    assert metadata["logical_pages"][1]["length"] == 1
+    assert "page_id" not in metadata["logical_pages"][0]
+    assert "block_index" not in metadata["logical_pages"][0]
     assert len(metadata["groups"]) == num_layers
-    assert metadata["groups"][0]["layerBegin"] == 0
-    assert metadata["groups"][0]["layerEnd"] == 1
-    assert metadata["groups"][0]["numLogicalPages"] == 2
+    assert metadata["groups"][0]["layer_begin"] == 0
+    assert metadata["groups"][0]["layer_end"] == 1
+    assert metadata["groups"][0]["num_logical_pages"] == 2
     assert metadata["groups"][0]["dtype"] == "float16"
     assert metadata["groups"][0]["shape"] == [1, 2, 2, num_kv_heads, page_size, head_dim]
 
-    group = tvm.runtime.empty(tuple(metadata["groups"][0]["shape"]), "float16", device=device)
-    fexport_page_group(kv_cache, 0, 0, group)
-    import_cache = create_kv_cache()
+    exported_groups = []
+    for group_metadata in metadata["groups"]:
+        group = tvm.runtime.empty(tuple(group_metadata["shape"]), "float16", device=device)
+        fexport_page_group(kv_cache, 0, group_metadata["group_index"], group)
+        exported_groups.append(group)
+
+    import_cache = create_kv_cache(
+        reserved_nseq_value=reserved_nseq * 2,
+        maximum_total_seq_length_value=maximum_total_seq_length * 2,
+        prefill_chunk_size_value=prefill_chunk_size // 2,
+    )
     fprepare_import(import_cache, 0, metadata_json)
+    with pytest.raises(InternalError, match="until checkpoint import is finished"):
+        fget_sequence_length(import_cache, 0)
+    for group_metadata, group in zip(metadata["groups"], exported_groups):
+        fimport_page_group(import_cache, 0, group_metadata["group_index"], group)
+    ffinish_import(import_cache, 0)
     assert fget_sequence_length(import_cache, 0) == page_size + 1
-    fimport_page_group(import_cache, 0, 0, group)
 
 
 def test_checkpoint_layout_hash_is_stable_and_layout_sensitive():
@@ -171,6 +186,11 @@ def test_checkpoint_layout_hash_is_stable_and_layout_sensitive():
     different_head_dim = create_kv_cache(head_dim_value=128)
     different_dtype = create_kv_cache(dtype="float32")
     different_rope = create_kv_cache(rope_mode=RopeMode.NONE)
+    different_operational_limits = create_kv_cache(
+        reserved_nseq_value=reserved_nseq * 2,
+        maximum_total_seq_length_value=maximum_total_seq_length * 2,
+        prefill_chunk_size_value=prefill_chunk_size // 2,
+    )
 
     layout_hash = fget_layout_hash(kv_cache)
     assert layout_hash == fget_layout_hash(kv_cache)
@@ -180,6 +200,7 @@ def test_checkpoint_layout_hash_is_stable_and_layout_sensitive():
     assert layout_hash != fget_layout_hash(different_head_dim)
     assert layout_hash != fget_layout_hash(different_dtype)
     assert layout_hash != fget_layout_hash(different_rope)
+    assert layout_hash == fget_layout_hash(different_operational_limits)
 
 
 def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
@@ -193,6 +214,9 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
     append_tokens(sliding_cache)
     mla_cache = create_kv_cache(attn_kind=AttnKind.MLA)
     asymmetric_cache = create_kv_cache(v_head_dim_value=head_dim // 2)
+    rope_ext_cache = create_kv_cache(
+        rope_ext_factors=tvm.runtime.empty((head_dim // 2,), "float32", device=device)
+    )
     dst = tvm.runtime.empty((1, 1, 2, num_kv_heads, page_size, head_dim), "float16", device=device)
 
     with pytest.raises(InternalError, match="sliding-window"):
@@ -209,6 +233,8 @@ def test_checkpoint_metadata_rejects_unsupported_layouts_and_sequence_ids():
         fexport_page_group(mla_cache, 0, 0, dst)
     with pytest.raises(InternalError, match="qk_head_dim to equal v_head_dim"):
         fget_layout_hash(asymmetric_cache)
+    with pytest.raises(InternalError, match="RoPE extension factors"):
+        fget_layout_hash(rope_ext_cache)
 
     tree_cache = create_kv_cache()
     tvm.get_global_func("vm.builtin.kv_state_add_sequence")(tree_cache, 0)
@@ -275,7 +301,7 @@ def test_checkpoint_prepare_import_validates_metadata():
         fprepare_import(create_kv_cache(dtype="float32"), 0, metadata_json)
 
     bad_length = json.loads(metadata_json)
-    bad_length["seqLength"] = page_size * 2 + 1
+    bad_length["seq_length"] = page_size * 2 + 1
     with pytest.raises(InternalError, match="sequence length"):
         fprepare_import(create_kv_cache(), 0, json.dumps(bad_length))
 
@@ -284,7 +310,24 @@ def test_checkpoint_prepare_import_validates_metadata():
     with pytest.raises(InternalError, match="shape"):
         fprepare_import(create_kv_cache(), 0, json.dumps(bad_group))
 
-    metadata["layoutHash"] = "bad-layout-hash"
+    bad_nbytes = json.loads(metadata_json)
+    bad_nbytes["groups"][0]["nbytes"] += 1
+    with pytest.raises(InternalError, match="nbytes"):
+        fprepare_import(create_kv_cache(), 0, json.dumps(bad_nbytes))
+
+    bad_version = json.loads(metadata_json)
+    bad_version["format_version"] += 1
+    with pytest.raises(InternalError, match="format_version"):
+        fprepare_import(create_kv_cache(), 0, json.dumps(bad_version))
+
+    with pytest.raises(InternalError, match="only has 1 pages"):
+        fprepare_import(
+            create_kv_cache(maximum_total_seq_length_value=0),
+            0,
+            metadata_json,
+        )
+
+    metadata["layout_hash"] = "bad-layout-hash"
     with pytest.raises(InternalError, match="layout hash mismatch"):
         fprepare_import(create_kv_cache(), 0, json.dumps(metadata))
 
@@ -330,6 +373,44 @@ def test_checkpoint_import_page_group_validates_group_shape():
             0,
             tvm.runtime.empty(tuple(shape), "float32", device=device),
         )
+
+
+def test_checkpoint_import_requires_all_groups_and_explicit_finish():
+    fget_checkpoint_metadata = tvm.get_global_func(
+        "vm.builtin.attention_kv_cache_get_checkpoint_metadata"
+    )
+    fexport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_export_page_group")
+    fprepare_import = tvm.get_global_func("vm.builtin.attention_kv_cache_prepare_import")
+    fimport_page_group = tvm.get_global_func("vm.builtin.attention_kv_cache_import_page_group")
+    ffinish_import = tvm.get_global_func("vm.builtin.attention_kv_cache_finish_import")
+    fbegin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
+
+    source_cache = create_kv_cache()
+    append_tokens(source_cache)
+    metadata_json = fget_checkpoint_metadata(source_cache, 0)
+    metadata = json.loads(metadata_json)
+    groups = []
+    for group_metadata in metadata["groups"]:
+        group = tvm.runtime.empty(tuple(group_metadata["shape"]), "float16", device=device)
+        fexport_page_group(source_cache, 0, group_metadata["group_index"], group)
+        groups.append(group)
+
+    import_cache = create_kv_cache()
+    fprepare_import(import_cache, 0, metadata_json)
+    fimport_page_group(import_cache, 0, 0, groups[0])
+
+    with pytest.raises(InternalError, match="already imported"):
+        fimport_page_group(import_cache, 0, 0, groups[0])
+    with pytest.raises(InternalError, match="missing group 1"):
+        ffinish_import(import_cache, 0)
+    with pytest.raises(InternalError, match="before checkpoint import is finished"):
+        fbegin_forward(import_cache, Shape([0]), Shape([1]), None)
+
+    for group_id in range(1, num_layers):
+        fimport_page_group(import_cache, 0, group_id, groups[group_id])
+    ffinish_import(import_cache, 0)
+    with pytest.raises(InternalError, match="has not been prepared"):
+        ffinish_import(import_cache, 0)
 
 
 if __name__ == "__main__":

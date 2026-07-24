@@ -80,6 +80,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                   &AttentionKVCacheObj::PrepareImport)
       .def_method("vm.builtin.attention_kv_cache_import_page_group",
                   &AttentionKVCacheObj::ImportPageGroup)
+      .def_method("vm.builtin.attention_kv_cache_finish_import", &AttentionKVCacheObj::FinishImport)
       .def_method("vm.builtin.attention_kv_cache_get_sequence_length",
                   &AttentionKVCacheObj::GetSequenceLength)
       .def_method("vm.builtin.attention_kv_cache_get_query_positions",
