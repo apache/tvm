@@ -19,13 +19,13 @@
 ONNX Backend Tests
 ===================
 Systematically verify the Relax ONNX importer using the official ONNX
-Backend Test Suite (node-level tests only).  Each test loads a small
-ONNX model with protobuf reference inputs/outputs and checks that the
-Relax-imported model produces numerically correct results.
+Backend Test Suite.  Each test loads a small ONNX model with protobuf
+reference inputs/outputs and checks that the Relax-imported model
+produces numerically correct results.
 
-Only ``onnx.backend.test.data.node`` tests are registered here; real,
-simple, and PyTorch model tests are out of scope for importer-level
-semantic verification.
+Currently ``_INCLUDE_OPS`` selects node-level operator tests.  Other
+test classes (real/simple/PyTorch models) remain available in
+``backend_test.test_cases`` and can be enabled explicitly in the future.
 
 """
 
@@ -83,9 +83,9 @@ class TVMRelaxBackendRep(BackendRep):
         self._vm.invoke_stateful("main")
         output = self._vm.get_outputs("main")
 
-        if isinstance(output, (tvm.runtime.Tensor, np.ndarray)):  # noqa: UP038
+        if isinstance(output, tvm.runtime.Tensor | np.ndarray):
             return (output.numpy() if hasattr(output, "numpy") else output,)
-        if isinstance(output, (tuple, list)):  # noqa: UP038
+        if isinstance(output, tuple | list):
             return tuple(o.numpy() if hasattr(o, "numpy") else np.array(o) for o in output)
         return (np.array(output),)
 
@@ -168,6 +168,7 @@ _INCLUDE_OPS = [
     "less",
     "less_equal",
     "lrn",
+    "logsoftmax",
     "matmul",
     "matmulinteger",
     "mean",
@@ -179,6 +180,7 @@ _INCLUDE_OPS = [
     "not",
     "or",
     "reciprocal",
+    "relu",
     "round",
     "scatternd",
     "sigmoid",
@@ -187,6 +189,7 @@ _INCLUDE_OPS = [
     "sinh",
     "size",
     "slice",
+    "softmax",
     "spacetodepth",
     "sqrt",
     "squeeze",
@@ -196,6 +199,8 @@ _INCLUDE_OPS = [
     "tanh",
     "tile",
     "transpose",
+    "tril",
+    "triu",
     "unique",
     "unsqueeze",
     "where",
@@ -233,5 +238,16 @@ class _AllowlistedBackendTest(onnx.backend.test.BackendTest):
 
 
 backend_test = _AllowlistedBackendTest(TVMRelaxBackend, __name__)
+
+# A small number of model-level tests (e.g. from PyTorch converted models)
+# have names that collide with the node-level include patterns above.  The
+# current adapter is focused on node-level protobuf test cases, so exclude
+# those known collisions explicitly rather than limiting the test classes.
+_EXCLUDE_PATTERNS = [
+    r"^test_softmax_functional_dim3_cpu$",
+    r"^test_softmax_lastdim_cpu$",
+]
+for _pattern in _EXCLUDE_PATTERNS:
+    backend_test.exclude(_pattern)
 
 globals().update(backend_test.test_cases)
