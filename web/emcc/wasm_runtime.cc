@@ -49,6 +49,7 @@
 // relax setup
 #include "3rdparty/tvm-ffi/src/ffi/backtrace.cc"
 #include "3rdparty/tvm-ffi/src/ffi/container.cc"
+#include "3rdparty/tvm-ffi/src/ffi/custom_allocator.cc"
 #include "3rdparty/tvm-ffi/src/ffi/dtype.cc"
 #include "3rdparty/tvm-ffi/src/ffi/error.cc"
 #include "3rdparty/tvm-ffi/src/ffi/extra/env_c_api.cc"
