@@ -108,9 +108,11 @@ class Reduction(GPUScheduleRule):
                 sch, target, block, c_factor, epilogue, loop_order, s_split_index
             )
         else:
-            self._sch_inner_spatial(
+            result = self._sch_inner_spatial(
                 sch, target, block, block_info, c_factor, epilogue, loop_order, s_split_index
             )
+            if result is None:
+                return None
         return sch
 
     def _normalize(  # pylint: disable=too-many-branches
@@ -268,10 +270,36 @@ class Reduction(GPUScheduleRule):
         sch.decompose_reduction(rf, r)
         # Schedule the write back block
         sch.reverse_compute_at(block, bx, preserve_unit_loops=True)
-        _, r, *s = sch.get_loops(block)
+
+        all_loops = sch.get_loops(block)[1:]
+        all_iter_vars = sch.get(block).iter_vars
+
+        if len(all_loops) != len(all_iter_vars):
+            return None
+
+        s_loops = []
+        r_loops = []
+        for loop_rv, iter_var in zip(all_loops, all_iter_vars):
+            if iter_var.iter_type == tirx.IterVar.DataPar:
+                s_loops.append(loop_rv)
+            elif iter_var.iter_type == tirx.IterVar.CommReduce:
+                r_loops.append(loop_rv)
+
+        if not s_loops or not r_loops:
+            return None
+
+        r = r_loops[0]  # Use first (usually only) reduction loop
+
         if unroll_spatial_factor:
-            assert len(s) == len(loop_order)
-            new_order_s = [s[loop_order[i]] for i in range(len(s))]
+            num_original_spatial = len([i for i in block_info.iters if i.kind == "S"])
+            if len(s_loops) != num_original_spatial:
+                return None
+            # Safe to apply loop_order reordering (assumes write-back block spatial loops
+            # correspond to original block spatial loops)
+            assert len(s_loops) == len(loop_order), (
+                f"loop_order size {len(loop_order)} != s_loops size {len(s_loops)}"
+            )
+            new_order_s = [s_loops[loop_order[i]] for i in range(len(s_loops))]
             sch.reorder(*new_order_s)
             new_order_s[s_split_index], c = sch.split(
                 new_order_s[s_split_index], factors=[None, unroll_spatial_factor]
@@ -280,8 +308,9 @@ class Reduction(GPUScheduleRule):
             s = sch.fuse(*new_order_s)
             sch.reorder(s, c, r)
         else:
-            s = sch.fuse(*s)
+            s = sch.fuse(*s_loops)
             sch.reorder(s, r)
+
         sch.bind(s, "threadIdx.x")
         sch.bind(r, "threadIdx.y")
 
@@ -303,3 +332,4 @@ class Reduction(GPUScheduleRule):
                 tx, _ = sch.split(sch.fuse(*s), factors=[len_tx, None])
                 sch.bind(tx, "threadIdx.x")
         # pylint: enable=invalid-name
+        return sch
