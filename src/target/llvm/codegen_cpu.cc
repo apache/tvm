@@ -714,10 +714,10 @@ llvm::Function* CodeGenCPU::CreatePackedFuncInit(const std::string& fname) {
   llvm::IRBuilderBase::InsertPoint saved_ip = builder_->saveIP();
   llvm::Function* saved_function = function_;
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
+  // Internal linkage is sufficient and avoids an ORCJIT error on Mach-O.
   llvm::Function* init_func =
       llvm::Function::Create(ftype_tvm_ffi_handle_init_callback_, llvm::Function::InternalLinkage,
                              "__tvm_func_handle_init." + fname, module_.get());
-  init_func->setVisibility(llvm::GlobalValue::HiddenVisibility);
   SetTargetAttributes(init_func);
   function_ = init_func;
   builder_->SetInsertPoint(llvm::BasicBlock::Create(*ctx, "entry", init_func));
