@@ -3067,6 +3067,176 @@ def test_shape():
     tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
+@pytest.mark.parametrize(
+    "attrs,expected_shape",
+    [
+        ({"start": 1}, (4, 5, 6)),
+        ({"end": -1}, (3, 4, 5)),
+        ({"start": -2}, (5, 6)),
+        ({"start": 1, "end": 3}, (4, 5)),
+        ({"start": -10, "end": 10}, (3, 4, 5, 6)),
+        ({"start": 3, "end": 2}, ()),
+    ],
+)
+def test_shape_start_end(attrs, expected_shape):
+    expected_shape = list(expected_shape)
+    shape_node = helper.make_node("Shape", ["data"], ["output"], **attrs)
+
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_start_end_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "data",
+                TensorProto.FLOAT,
+                [3, 4, 5, 6],
+            ),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "output",
+                TensorProto.INT64,
+                [len(expected_shape)],
+            )
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="shape_start_end_test",
+        opset_imports=[helper.make_opsetid("", 15)],
+    )
+    tvm_model = from_onnx(
+        model,
+        opset=15,
+        keep_params_in_input=True,
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((3, 4, 5, 6), dtype="float32"),
+        ) -> R.Shape(expected_shape):
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape(expected_shape) = R.shape(expected_shape)
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_start_end_symbolic():
+    shape_node = helper.make_node(
+        "Shape",
+        ["data"],
+        ["output"],
+        start=1,
+        end=3,
+    )
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_start_end_symbolic_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "data",
+                TensorProto.FLOAT,
+                [3, "B", 5, 6],
+            ),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "output",
+                TensorProto.INT64,
+                [2],
+            )
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="shape_start_end_symbolic_test",
+        opset_imports=[helper.make_opsetid("", 15)],
+    )
+    tvm_model = from_onnx(
+        model,
+        opset=15,
+        keep_params_in_input=True,
+    )
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((3, "B", 5, 6), dtype="float32"),
+        ) -> R.Shape(ndim=2):
+            B = T.int64()
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Shape([B, 5]) = R.shape([B, 5])
+                R.output(gv)
+            return gv
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_start_end_scalar():
+    shape_node = helper.make_node(
+        "Shape",
+        ["data"],
+        ["output"],
+        start=1,
+    )
+
+    graph = helper.make_graph(
+        [shape_node],
+        "shape_start_end_scalar_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "data",
+                TensorProto.FLOAT,
+                [],
+            ),
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "output",
+                TensorProto.INT64,
+                [0],
+            )
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="shape_start_end_scalar_test",
+        opset_imports=[helper.make_opsetid("", 15)],
+    )
+    tvm_model = from_onnx(
+        model,
+        opset=15,
+        keep_params_in_input=True,
+    )
+
+    assert relax.analysis.check_well_formed(tvm_model)
+
+    op_names = []
+
+    def collect_ops(expr):
+        if isinstance(expr, relax.Call) and isinstance(expr.op, tvm.ir.Op):
+            op_names.append(expr.op.name)
+
+    relax.analysis.post_order_visit(tvm_model["main"], collect_ops)
+
+    assert op_names == [
+        "relax.shape_of",
+        "relax.shape_to_tensor",
+        "relax.strided_slice",
+        "relax.tensor_to_shape",
+    ]
+
+
 def test_trilu():
     def verify_trilu(upper: bool):
         node = helper.make_node("Trilu", ["x"], ["y"], upper=upper)

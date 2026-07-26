@@ -1629,7 +1629,7 @@ class Clip(OnnxOpConverter):
 
 
 class Shape(OnnxOpConverter):
-    """Converts an onnx Equal node into an equivalent Relax expression."""
+    """Converts an onnx Shape node into an equivalent Relax expression."""
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -1646,6 +1646,31 @@ class Shape(OnnxOpConverter):
             return data_shape
 
         return data_info.shape
+
+    @classmethod
+    def _impl_v15(cls, bb, inputs, attr, params):
+        shape = cls._impl_v13(bb, inputs, attr, params)
+        start = attr.get("start", 0)
+        end = attr.get("end")
+
+        if start == 0 and end is None:
+            return shape
+
+        if isinstance(shape, relax.ShapeExpr):
+            return relax.ShapeExpr(list(shape.values)[start:end])
+
+        shape_tensor = bb.normalize(relax.op.shape_to_tensor(shape))
+        sliced_shape = bb.normalize(
+            relax.op.strided_slice(
+                shape_tensor,
+                axes=[0],
+                begin=[start],
+                end=[end if end is not None else 2**63 - 1],
+                strides=[1],
+                assume_inbound=False,
+            )
+        )
+        return bb.normalize(relax.op.tensor_to_shape(sliced_shape))
 
 
 class Trilu(OnnxOpConverter):
