@@ -226,7 +226,7 @@ class Tensor(_TensorOp):
         dtype : str
             The data type of the tensor
         """
-        return self._expr.ty.dtype
+        return self._expr.ty.dtype.dtype
 
     def __repr__(self) -> str:
         return f'Tensor({self.shape}, "{self.dtype}")'
