@@ -162,5 +162,46 @@ def test_codegen_loop_step(target):
             assert c_result[i] == 0.0
 
 
+@pytest.mark.parametrize(
+    "target,dtype,uint_dtype,nan_a,nan_b",
+    [
+        ("llvm", "float16", "uint16", 0x7E11, 0x7E22),
+        ("c", "float32", "uint32", 0x7FC00011, 0x7FC00022),
+        ("llvm", "float32", "uint32", 0x7FC00011, 0x7FC00022),
+        ("c", "float64", "uint64", 0x7FF8000000000011, 0x7FF8000000000022),
+        ("llvm", "float64", "uint64", 0x7FF8000000000011, 0x7FF8000000000022),
+    ],
+)
+def test_max_nan_preserving(target, dtype, uint_dtype, nan_a, nan_b):
+    if target != "c" and not tvm.testing.device_enabled(target):
+        pytest.skip(f"{target} not enabled")
+
+    @T.prim_func(s_tir=True)
+    def max_func(
+        A: T.Buffer((8,), dtype),
+        B: T.Buffer((8,), dtype),
+        C: T.Buffer((8,), dtype),
+    ):
+        T.func_attr({"tirx.noalias": True})
+        for i in range(8):
+            C[i] = T.max(A[i], B[i])
+
+    a_np = np.array([0.0, 1.0, 0.0, 0.0, -0.0, 3.0, 2.0, -5.0], dtype=dtype)
+    b_np = np.array([1.0, 0.0, 0.0, -0.0, 0.0, 2.0, 2.0, -4.0], dtype=dtype)
+    a_bits = a_np.view(uint_dtype)
+    b_bits = b_np.view(uint_dtype)
+    a_bits[[0, 2]] = nan_a
+    b_bits[[1, 2]] = nan_b
+
+    dev = tvm.cpu()
+    a = tvm.runtime.tensor(a_np, dev)
+    b = tvm.runtime.tensor(b_np, dev)
+    c = tvm.runtime.empty((8,), dtype, dev)
+    tvm.compile(max_func, target=target)(a, b, c)
+
+    expected = np.where((a_np > b_np) | np.isnan(a_np), a_np, b_np)
+    np.testing.assert_array_equal(c.numpy().view(uint_dtype), expected.view(uint_dtype))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -351,7 +351,23 @@ void CodeGenCHost::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(
 }
 
 void CodeGenCHost::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
-  PrintTernaryCondExpr(op, ">", os);
+  PrimType dtype = op->ty.as_or_throw<PrimType>();
+  if (!dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    PrintTernaryCondExpr(op, ">", os);
+    return;
+  }
+
+  std::ostringstream temp_a;
+  VisitExpr(op->a, temp_a);
+  std::string a_id = SSAGetID(temp_a.str(), op->a.ty());
+  std::ostringstream temp_b;
+  VisitExpr(op->b, temp_b);
+  std::string b_id = SSAGetID(temp_b.str(), op->b.ty());
+
+  // Preserve NaNs from either operand while retaining the existing behavior
+  // of selecting the second operand when both operands compare equal.
+  os << "((" << a_id << ") > (" << b_id << ") ? (" << a_id << ") : ((" << a_id << ") == (" << a_id
+     << ") ? (" << b_id << ") : (" << a_id << ")))";
 }
 
 template <typename T>

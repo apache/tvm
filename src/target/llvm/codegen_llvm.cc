@@ -1656,7 +1656,15 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const MinNode* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const MaxNode* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
-  return builder_->CreateSelect(CreateGT(PrimType(op->a.ty()->dtype), a, b), a, b);
+  PrimType dtype(op->a.ty()->dtype);
+  llvm::Value* take_a = CreateGT(dtype, a, b);
+  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
+    // Keep the ordered comparison so a NaN in b selects b, then explicitly
+    // select a when a is NaN.  This also retains the existing second-operand
+    // tie behavior, including for signed zero.
+    take_a = builder_->CreateOr(take_a, builder_->CreateFCmpUNO(a, a));
+  }
+  return builder_->CreateSelect(take_a, a, b);
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const EQNode* op) {
