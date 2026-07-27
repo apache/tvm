@@ -48,7 +48,7 @@ using runtime::IsTextureStorage;
 
 class TextureLoweringBase : public StmtExprMutator {
  public:
-  explicit TextureLoweringBase(const ffi::Map<Var, Buffer>& extern_buffer_map,
+  explicit TextureLoweringBase(const ffi::Map<Var, BufferVar>& extern_buffer_map,
                                IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_{bound_analyzer} {
     for (auto kv : extern_buffer_map) {
@@ -71,14 +71,14 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
  protected:
-  std::string GetStorageScope(const Buffer& buffer) {
-    auto* ptr = buffer->data->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+  std::string GetStorageScope(const BufferVar& buffer) {
+    auto* ptr = buffer->data_pointer_type.as<PointerTypeNode>();
+    TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
 
   // Set of all external input and output buffers
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_buf_;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_buf_;
   // Bound analzer
   IRVisitorWithAnalyzer* bound_analyzer_;
 };
@@ -88,7 +88,7 @@ class TextureLoweringBase : public StmtExprMutator {
 class TextureFlattener : public TextureLoweringBase {
  public:
   using StmtExprMutator::VisitStmt_;
-  explicit TextureFlattener(const ffi::Map<Var, Buffer>& extern_buffer_map,
+  explicit TextureFlattener(const ffi::Map<Var, BufferVar>& extern_buffer_map,
                             IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(extern_buffer_map, bound_analyzer) {}
 
@@ -122,12 +122,12 @@ class TextureFlattener : public TextureLoweringBase {
 
  protected:
   template <typename T>
-  ffi::Array<Expr> GetTextureAccessArgs(const T* op, const Buffer& buffer) {
+  ffi::Array<Expr> GetTextureAccessArgs(const T* op, const BufferVar& buffer) {
     ffi::Array<Expr> args;
-    if (let_binding_.count(op->buffer->data)) {
-      args.push_back(let_binding_[op->buffer->data]);
+    if (let_binding_.count(op->buffer.var())) {
+      args.push_back(let_binding_[op->buffer.var()]);
     } else {
-      args.push_back(buffer->data);
+      args.push_back(buffer.data());
     }
     ffi::Array<PrimExpr> row_dims, row_indices, col_dims, col_indices, depth_dims, depth_indices;
     size_t axis = DefaultTextureLayoutSeparator(op->buffer->shape.size(), GetStorageScope(buffer));

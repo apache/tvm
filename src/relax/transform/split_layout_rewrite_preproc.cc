@@ -62,14 +62,14 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
 
     // Step 2: Create the params for the new PrimFunc
     ffi::Array<Var> params;
-    ffi::Map<Var, Buffer> buffer_map;
+    ffi::Map<Var, BufferVar> buffer_map;
 
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.pre_rewrite_buffer->name, PointerType::VoidPointerTy()));
+      params.push_back(Var(info.pre_rewrite_buffer.name(), PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.pre_rewrite_buffer);
     }
     for (const auto& info : rewrite_infos_) {
-      params.push_back(Var(info.post_rewrite_buffer->name, PointerType::VoidPointerTy()));
+      params.push_back(Var(info.post_rewrite_buffer.name(), PointerType::VoidPointerTy()));
       buffer_map.Set(params.back(), info.post_rewrite_buffer);
     }
 
@@ -102,7 +102,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
   PrimFunc create_compute_func() const {
     // Step 1: Create the params for the new PrimFunc
     ffi::Array<Var> params = original_func_->params;
-    ffi::Map<Var, Buffer> buffer_map = original_func_->buffer_map;
+    ffi::Map<Var, BufferVar> buffer_map = original_func_->buffer_map;
     for (const auto& info : rewrite_infos_) {
       const Var& param = params[info.buffer_index];
       TVM_FFI_ICHECK(buffer_map[param] == info.pre_rewrite_buffer);
@@ -112,7 +112,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     // Step 2: Create the body for the new PrimFunc
     Stmt body = compute_stmts_.size() == 1 ? compute_stmts_[0] : SeqStmt(compute_stmts_);
     SBlock original_block = original_func_->body.as<SBlockRealizeNode>()->block;
-    ffi::Array<Buffer> alloc_buffers;
+    ffi::Array<BufferVar> alloc_buffers;
     for (const auto& buffer : original_block->alloc_buffers) {
       auto it =
           std::find_if(rewrite_infos_.begin(), rewrite_infos_.end(),
@@ -190,10 +190,10 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
           << "There should be no alloc buffer in the layout rewrite";
       TVM_FFI_ICHECK(op->match_buffers.empty())
           << "There should be no match buffer in the layout rewrite";
-      const Buffer& preproc_buffer = op->reads[0]->buffer;
+      const BufferVar& preproc_buffer = op->reads[0]->buffer;
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
-        const Buffer& buffer = original_func_->buffer_map[original_func_->params[i]];
+        const BufferVar& buffer = original_func_->buffer_map[original_func_->params[i]];
         if (buffer == preproc_buffer) {
           buffer_index = i;
           break;
@@ -216,8 +216,8 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
  public:
   struct RewriteInfo {
     int buffer_index;
-    Buffer pre_rewrite_buffer;
-    Buffer post_rewrite_buffer;
+    BufferVar pre_rewrite_buffer;
+    BufferVar post_rewrite_buffer;
   };
   std::vector<RewriteInfo> rewrite_infos_;
 
@@ -303,7 +303,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     ffi::Array<Type> preproc_ty_list;
     for (const auto& info : rewrite_infos) {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
-      tirx::Buffer rewritten_buffer = info.post_rewrite_buffer;
+      tirx::BufferVar rewritten_buffer = info.post_rewrite_buffer;
       for (const auto& shape_expr : rewritten_buffer->shape) {
         TVM_FFI_ICHECK(shape_expr.as<tirx::IntImmNode>())
             << "Currently does not support rewrite buffer with "

@@ -37,7 +37,7 @@
 namespace tvm {
 namespace relax {
 
-using tvm::tirx::Buffer;
+using tvm::tirx::BufferVar;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();
@@ -80,7 +80,7 @@ class SpecializeTIRCallArgs : ExprMutator {
     auto gv = call->args[0].as_or_throw<GlobalVar>();
     auto pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
     auto args = call->args[1].as_or_throw<Tuple>()->fields;
-    ffi::Map<tirx::Var, ffi::Variant<Buffer, Expr>> param_map;
+    ffi::Map<tirx::Var, ffi::Variant<BufferVar, Expr>> param_map;
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);
@@ -99,7 +99,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(tensor_ty),
+      const BufferVar& buffer = tirx::decl_buffer(GetShapeFromTensorType(tensor_ty),
                                                tensor_ty->dtype.value(), name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
@@ -110,7 +110,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       if (ty->vdevice.has_value()) {
         scope = ty->vdevice.value()->memory_scope;
       }
-      const Buffer& buffer =
+      const BufferVar& buffer =
           tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(), "ret_val", scope);
       param_map.Set(pfunc->params[pfunc->params.size() - 1], buffer);
     } else {
@@ -132,7 +132,7 @@ class SpecializeTIRCallArgs : ExprMutator {
           scope = ty->vdevice.value()->memory_scope;
         }
 
-        const Buffer& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(),
+        const BufferVar& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(),
                                                  "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;
@@ -141,8 +141,8 @@ class SpecializeTIRCallArgs : ExprMutator {
 
     auto new_pfunc = Specialize(pfunc, param_map);
     for (const auto& [var, buffer] : new_pfunc->buffer_map) {
-      auto* ptr = buffer->data->ty.as<PointerTypeNode>();
-      TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+      auto* ptr = buffer->data_pointer_type.as<PointerTypeNode>();
+      TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
     }
     auto new_prim_func = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));
     updates_->Add(gv, new_prim_func);

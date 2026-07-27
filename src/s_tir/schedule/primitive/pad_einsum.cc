@@ -123,18 +123,18 @@ class NonEinsumError : public ScheduleError {
 /*! \brief Data structure that represents a Einsum computation. */
 struct Einsum {
   // The output buffer
-  ffi::Array<Buffer> output_buffers;
+  ffi::Array<BufferVar> output_buffers;
   // The indices of the output buffer
-  ffi::Map<Buffer, ffi::Array<Var>> output_indices;
+  ffi::Map<BufferVar, ffi::Array<Var>> output_indices;
   // The input buffers
-  ffi::Array<Buffer> input_buffers;
+  ffi::Array<BufferVar> input_buffers;
   // The indices of the input buffers
-  ffi::Map<Buffer, ffi::Array<Var>> input_indices;
+  ffi::Map<BufferVar, ffi::Array<Var>> input_indices;
 };
 
 struct BufferPadding {
-  Buffer buffer;
-  Buffer padded_buffer;
+  BufferVar buffer;
+  BufferVar padded_buffer;
 
   static BufferPadding FromBufferRegion(const BufferRegion& buffer_region,
                                         const ffi::Map<Var, PrimExpr>& iter_extents) {
@@ -154,7 +154,7 @@ struct BufferPadding {
         shape.push_back(buffer_region->buffer->shape[i]);
       }
     }
-    result.padded_buffer = decl_buffer(shape, result.buffer->dtype, result.buffer->name + "_pad",
+    result.padded_buffer = decl_buffer(shape, result.buffer->dtype, result.buffer.name() + "_pad",
                                        result.buffer.scope());
     return result;
   }
@@ -200,7 +200,7 @@ struct BufferPadding {
     if (!is_read) {
       std::swap(read_region, write_region);
     }
-    SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer->name,
+    SBlock new_block(iter_vars, {read_region}, {write_region}, padded_buffer.name(),
                      std::move(body));
     blocks->push_back(new_block);
     ffi::Array<PrimExpr> prim_loop_vars;
@@ -217,10 +217,10 @@ struct BufferPadding {
 
 Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   Einsum result;
-  std::unordered_set<const BufferNode*> buffer_used;
+  std::unordered_set<const VarNode*> buffer_used;
   int n_reads = block->reads.size();
   for (int i = 0; i < n_reads; ++i) {
-    const Buffer& buffer = block->reads[i]->buffer;
+    const BufferVar& buffer = block->reads[i]->buffer;
     if (buffer_used.count(buffer.get()) != 0) {
       throw NonEinsumError(self->mod, block);
     }
@@ -234,7 +234,7 @@ Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
   }
   int n_writes = block->writes.size();
   for (int i = 0; i < n_writes; ++i) {
-    const Buffer& buffer = block->writes[i]->buffer;
+    const BufferVar& buffer = block->writes[i]->buffer;
     if (buffer_used.count(buffer.get()) != 0) {
       throw NonEinsumError(self->mod, block);
     }
@@ -251,7 +251,7 @@ Einsum ExtractEinsum(const ScheduleState& self, const SBlock& block) {
 
 class BufferNotAllocatedInScopeError : public ScheduleError {
  public:
-  explicit BufferNotAllocatedInScopeError(IRModule mod, Buffer buffer)
+  explicit BufferNotAllocatedInScopeError(IRModule mod, BufferVar buffer)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {}
 
   ffi::String FastErrorString() const final {
@@ -261,7 +261,7 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The buffer " << buffer_->name
+    os << "The buffer " << buffer_.name()
        << " is not allocated as an intermediate buffer in current PrimFunc.";
     return os.str();
   }
@@ -271,7 +271,7 @@ class BufferNotAllocatedInScopeError : public ScheduleError {
 
  private:
   IRModule mod_;
-  Buffer buffer_;
+  BufferVar buffer_;
 };
 
 /*! \brief The schedule error class when the producer block cannot be padded. */
@@ -296,7 +296,7 @@ class InvalidProducerError : public ScheduleError {
 
  private:
   IRModule mod_;
-  Buffer buffer_;
+  BufferVar buffer_;
   SBlock producer_;
 };
 
@@ -319,7 +319,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     ffi::Array<BufferRegion> reads;
     reads.reserve(block->reads.size());
     for (const BufferRegion& read : block->reads) {
-      if (ffi::Optional<Buffer> buffer = buffer_map_.Get(read->buffer)) {
+      if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(read->buffer)) {
         reads.push_back(BufferRegion(buffer.value(), read->region));
       } else {
         reads.push_back(read);
@@ -328,7 +328,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
     ffi::Array<BufferRegion> writes;
     writes.reserve(block->writes.size());
     for (const BufferRegion& write : block->writes) {
-      if (ffi::Optional<Buffer> buffer = buffer_map_.Get(write->buffer)) {
+      if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(write->buffer)) {
         writes.push_back(BufferRegion(buffer.value(), write->region));
       } else {
         writes.push_back(write);
@@ -354,7 +354,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* old_store_ptr) final {
     BufferStore store = StmtMutator::VisitStmt_(old_store_ptr).as_or_throw<BufferStore>();
-    if (ffi::Optional<Buffer> buffer = buffer_map_.Get(store->buffer)) {
+    if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(store->buffer)) {
       return BufferStore(buffer.value(), store->value, store->indices);
     } else {
       return store;
@@ -363,7 +363,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   Expr VisitExpr_(const BufferLoadNode* old_load_ptr) final {
     BufferLoad load = ExprMutator::VisitExpr_(old_load_ptr).as_or_throw<BufferLoad>();
-    if (ffi::Optional<Buffer> buffer = buffer_map_.Get(load->buffer)) {
+    if (ffi::Optional<BufferVar> buffer = buffer_map_.Get(load->buffer)) {
       return BufferLoad(buffer.value(), load->indices);
     } else {
       return load;
@@ -372,7 +372,7 @@ class PadEinsumBufferReplacer : public StmtExprMutator {
 
   ffi::Map<Var, PrimExpr> iter2padded_extents;
   ffi::Map<Var, PrimExpr> loop_var2padded_extent;
-  ffi::Map<Buffer, Buffer> buffer_map_;
+  ffi::Map<BufferVar, BufferVar> buffer_map_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
 };
 
@@ -437,7 +437,7 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
   ffi::Array<Stmt> read_blocks;
   ffi::Array<Stmt> write_blocks;
   ffi::Array<SBlock> new_copy_blocks;
-  ffi::Array<Buffer> alloc_buffers;
+  ffi::Array<BufferVar> alloc_buffers;
   for (const BufferRegion& buffer_region : block->reads) {
     if (f_needs_padding(buffer_region->region)) {
       BufferPadding bp =

@@ -256,18 +256,8 @@ namespace {
  * \param d The IRDocsifier.
  * \return A list of candidate parent buffers.
  */
-std::vector<tirx::Buffer> FindParentBuffers(const tirx::Buffer& child, const IRDocsifier& d) {
-  std::vector<tirx::Buffer> results;
-  for (const auto& [obj, info] : d->obj2info) {
-    if (const auto* buf = obj.as<tirx::BufferNode>()) {
-      tirx::Buffer parent = ffi::GetRef<tirx::Buffer>(buf);
-      if (parent.same_as(child)) continue;
-      if (parent->data.same_as(child->data)) {
-        results.push_back(parent);
-      }
-    }
-  }
-  return results;
+std::vector<tirx::BufferVar> FindParentBuffers(const tirx::BufferVar& child, const IRDocsifier& d) {
+  return {};
 }
 
 /*!
@@ -284,9 +274,9 @@ bool IsDefaultLayout(const ffi::Optional<tirx::Layout>& layout, const ffi::Array
  *
  * Returns std::nullopt if no sugar pattern matches.
  */
-ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, const AccessPath& p,
+ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child, const AccessPath& p,
                                                     const IRDocsifier& d,
-                                                    const tirx::Buffer& parent) {
+                                                    const tirx::BufferVar& parent) {
   ffi::Optional<ExprDoc> parent_doc = d->GetVarDoc(parent);
   if (!parent_doc.has_value()) return std::nullopt;
   ExprDoc pdoc = parent_doc.value();
@@ -615,7 +605,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
 
   // --- (f) View(*shape, layout=L): different shape/layout, same dtype and elem_offset ---
   if (same_elem_offset && same_dtype && !same_shape) {
-    // Buffer.view(...) copies the parent's strides onto the child (see
+    // BufferVar.view(...) copies the parent's strides onto the child (see
     // python/tvm/tirx/buffer.py:view). If parent has strides but child
     // doesn't (or vice versa), the sugar can't faithfully round-trip
     // through view — fall back to T.decl_buffer where strides is an
@@ -659,7 +649,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::Buffer& child, c
 /*!
  * \brief Try to produce a DeclBuffer sugar expression, trying all parent buffer candidates.
  */
-ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::Buffer& child, const AccessPath& p,
+ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::BufferVar& child, const AccessPath& p,
                                           const IRDocsifier& d) {
   auto parents = FindParentBuffers(child, d);
   for (const auto& parent : parents) {
@@ -676,18 +666,12 @@ Doc DeclBufferDoc(tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d,
   if (d->cfg->syntax_sugar) {
     if (auto sugar = TryDeclBufferSugar(stmt->buffer, p, d)) {
       ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-      // Define data pointer inline if needed
-      if (!d->IsVarDefined(stmt->buffer->data)) {
-        tirx::Buffer buf = stmt->buffer;
-        d->Define(stmt->buffer->data, d->frames.back(), [d, buf, p]() {
-          return d->AsDoc<ExprDoc>(buf, p->Attr("buffer"))->Attr("data");
-        });
-      }
       return AssignDoc(lhs, sugar.value(), std::nullopt);
     }
   }
-  ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
-                           var_definitions);
+  ExprDoc rhs =
+      BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
+                 var_definitions, stmt->data);
   ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
   return AssignDoc(lhs, rhs, std::nullopt);
 }
@@ -703,11 +687,6 @@ namespace {
 Doc AllocBufferDoc(tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) {
   if (d->cfg->syntax_sugar && stmt->buffer.IsScalar(true)) {
     ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-    if (!d->IsVarDefined(stmt->buffer->data)) {
-      tirx::Buffer buf = stmt->buffer;
-      d->Define(stmt->buffer->data, d->frames.back(),
-                [d, buf, p]() { return d->AsDoc<ExprDoc>(buf, p->Attr("buffer"))->Attr("data"); });
-    }
     ExprDoc type_ann = TIR(d, DType2Str(stmt->buffer->dtype->dtype));
     return AssignDoc(lhs, std::nullopt, type_ann);
   }

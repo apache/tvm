@@ -360,7 +360,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
 void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock block,
                              const ffi::Array<Stmt>& stmts, int n_buffers,
                              ffi::Array<BufferStore>* updates,
-                             std::unordered_map<const BufferNode*, int>* buf2index) {
+                             std::unordered_map<const VarNode*, int>* buf2index) {
   std::unordered_map<const VarNode*, int> var2index;
   ffi::Array<PrimExpr> let_values;
   let_values.reserve(n_buffers);
@@ -441,7 +441,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   if (auto init = block->init.as<BufferStore>()) {
     inits.push_back(init.value());
   } else if (const auto* seq_init = block->init.as<SeqStmtNode>()) {
-    std::unordered_set<const BufferNode*> init_buffers;
+    std::unordered_set<const VarNode*> init_buffers;
     for (const Stmt& stmt : seq_init->seq) {
       auto init = stmt.as<BufferStore>();
       if (!init) {
@@ -459,7 +459,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
 
   // Step 2. Extract the block updates, in the form of BufferStores.
   int n_buffers = inits.size();
-  std::unordered_map<const BufferNode*, int> buf2index;
+  std::unordered_map<const VarNode*, int> buf2index;
   if (const auto* update = block->body.as<BufferStoreNode>()) {
     updates.push_back(ffi::GetRef<BufferStore>(update));
     buf2index[update->buffer.get()] = 0;
@@ -537,15 +537,15 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     }
   }
   // Step 2. Check if the reduction block iters are used to index the output buffer.
-  std::unordered_set<const BufferNode*> buffer_written;
+  std::unordered_set<const VarNode*> buffer_written;
   buffer_written.reserve(block->writes.size());
   for (const BufferRegion& write_region : block->writes) {
     buffer_written.insert(write_region->buffer.get());
   }
 
-  std::unordered_set<const BufferNode*> buffer_allocated;
+  std::unordered_set<const VarNode*> buffer_allocated;
   buffer_allocated.reserve(block->alloc_buffers.size());
-  for (const Buffer& buffer : block->alloc_buffers) {
+  for (const BufferVar& buffer : block->alloc_buffers) {
     buffer_allocated.insert(buffer.get());
   }
 
@@ -555,7 +555,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     });
   };
 
-  std::unordered_map<const BufferNode*, const BufferNode*> match_buffer_sources;
+  std::unordered_map<const VarNode*, const VarNode*> match_buffer_sources;
   for (const MatchBufferRegion& region : block->match_buffers) {
     match_buffer_sources[region->buffer.get()] = region->source->buffer.get();
   }

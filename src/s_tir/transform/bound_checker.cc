@@ -72,8 +72,8 @@ class BoundChecker : public StmtExprMutator {
       : mem_to_shape_(mem_to_shape) {}
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    if (UpdateIsNeeded(op->buffer->data)) {
-      Update(op->buffer->data, op->buffer->shape, op->buffer->dtype);
+    if (UpdateIsNeeded(op->buffer.var())) {
+      Update(op->buffer.var(), op->buffer->shape, op->buffer->dtype);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -91,8 +91,8 @@ class BoundChecker : public StmtExprMutator {
     unsafe_rewritten_ = false;
     StmtExprMutator::VisitStmt_(op);
     process_store_ = false;
-    if (CanInstrument(op->indices, op->buffer->data)) {
-      Collect(op->indices, op->buffer->data);
+    if (CanInstrument(op->indices, op->buffer.var())) {
+      Collect(op->indices, op->buffer.var());
     }
     // The collector should has at least one item.
     if (store_scope_bound_collector_.size()) {
@@ -109,8 +109,8 @@ class BoundChecker : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const BufferLoadNode* op) final {
-    if (CanInstrument(op->indices, op->buffer->data)) {
-      Collect(op->indices, op->buffer->data);
+    if (CanInstrument(op->indices, op->buffer.var())) {
+      Collect(op->indices, op->buffer.var());
     }
     return StmtExprMutator::VisitExpr_(op);
   }

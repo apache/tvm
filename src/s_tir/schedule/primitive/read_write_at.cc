@@ -30,7 +30,7 @@ using namespace tvm::tirx;
 
 using support::NDIntSet;
 
-bool HasBuffer(const ffi::Array<BufferRegion>& buffer_regions, const Buffer& buffer) {
+bool HasBuffer(const ffi::Array<BufferRegion>& buffer_regions, const BufferVar& buffer) {
   for (const BufferRegion& buffer_region : buffer_regions) {
     if (buffer_region->buffer.same_as(buffer)) {
       return true;
@@ -40,7 +40,7 @@ bool HasBuffer(const ffi::Array<BufferRegion>& buffer_regions, const Buffer& buf
 }
 
 void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
-                        const Buffer& buffer,                         //
+                        const BufferVar& buffer,                         //
                         const ffi::Map<Var, arith::IntSet>& var_dom,  //
                         const ffi::Map<Var, PrimExpr>& bindings,      //
                         std::vector<NDIntSet>* relaxed_regions) {
@@ -55,7 +55,7 @@ void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
 
 class ScopeReplacer : public StmtMutator {
  public:
-  static SBlock Replace(const SBlockNode* scope_block, const Buffer& dst, const ForNode* old_loop,
+  static SBlock Replace(const SBlockNode* scope_block, const BufferVar& dst, const ForNode* old_loop,
                         const ForNode* new_loop) {
     ffi::ObjectPtr<SBlockNode> new_scope_block = ffi::make_object<SBlockNode>(*scope_block);
     new_scope_block->body = ScopeReplacer(old_loop, new_loop)(std::move(new_scope_block->body));
@@ -84,7 +84,7 @@ class ScopeReplacer : public StmtMutator {
 
 class ReadWriteAtBufferReplacer : public StmtExprMutator {
  public:
-  explicit ReadWriteAtBufferReplacer(const Buffer& src, const Buffer& dst,
+  explicit ReadWriteAtBufferReplacer(const BufferVar& src, const BufferVar& dst,
                                      ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : src_(src), dst_(dst), block_sref_reuse_(block_sref_reuse) {}
 
@@ -119,8 +119,8 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
     return SBlock(new_block);
   }
 
-  const Buffer& src_;
-  const Buffer& dst_;
+  const BufferVar& src_;
+  const BufferVar& dst_;
   ffi::Map<SBlock, SBlock>* block_sref_reuse_;
 };
 
@@ -130,12 +130,12 @@ struct ReadWriteAtImpl {
                        int buffer_index, const ffi::String& storage_scope,
                        ffi::Map<ffi::String, Any> annotations) {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-    Buffer src = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index,
+    BufferVar src = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index,
                                     is_read ? BufferIndexType::kRead : BufferIndexType::kWrite);
-    Buffer dst = WithScope(src, storage_scope);
+    BufferVar dst = WithScope(src, storage_scope);
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =
-        impl.MakeLoopAndBlock<is_read>(src->name + "_" + storage_scope);
+        impl.MakeLoopAndBlock<is_read>(src.name() + "_" + storage_scope);
     StmtSRef result_block_sref =
         impl.ReplaceScopeBlock(new_loop_block.first.get(), new_loop_block.second->block.get());
     impl.UpdateSBlockInfo(result_block_sref, !new_loop_block.second->iter_values.empty());
@@ -225,7 +225,7 @@ struct ReadWriteAtImpl {
       TVM_FFI_ICHECK(w_pos.empty() || w_pos.back() < r_pos.front());
       // Can be inserted at [0, r_pos.front()], i.e. before the first read
       insert_pos = r_pos.front();
-      // Buffer reads in [insert_pos, +oo) is rewritten
+      // BufferVar reads in [insert_pos, +oo) is rewritten
       st = insert_pos;
       ed = n_subtrees;
     } else {
@@ -265,7 +265,7 @@ struct ReadWriteAtImpl {
     return {For(new_loop), realize};
   }
 
-  SBlockRealize MakeSBlock(const Buffer& copy_from, const Buffer& copy_to,
+  SBlockRealize MakeSBlock(const BufferVar& copy_from, const BufferVar& copy_to,
                            const ffi::String& name_hint, const ffi::Map<Var, Range>& loop_domain,
                            ffi::Array<Range> domain) const {
     int n = domain.size();
@@ -322,8 +322,8 @@ struct ReadWriteAtImpl {
                /*annotations=*/annotations_));
   }
 
-  explicit ReadWriteAtImpl(ScheduleState self, const StmtSRef& loop_sref, const Buffer& src,
-                           const Buffer& dst, ffi::Map<ffi::String, Any> annotations)
+  explicit ReadWriteAtImpl(ScheduleState self, const StmtSRef& loop_sref, const BufferVar& src,
+                           const BufferVar& dst, ffi::Map<ffi::String, Any> annotations)
       : self_(self),
         loop_sref_(loop_sref),
         loop_(nullptr),
@@ -338,8 +338,8 @@ struct ReadWriteAtImpl {
   ScheduleState self_;
   const StmtSRef& loop_sref_;
   const ForNode* loop_;
-  const Buffer& src_;
-  const Buffer& dst_;
+  const BufferVar& src_;
+  const BufferVar& dst_;
   ffi::Map<ffi::String, Any> annotations_;
   ffi::Map<SBlock, SBlock> block_sref_reuse_;
   arith::Analyzer analyzer_;

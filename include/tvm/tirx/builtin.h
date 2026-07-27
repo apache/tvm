@@ -780,6 +780,14 @@ TVM_DLL const Op& ignore_loop_partition();
  */
 TVM_DLL const Op& buffer_offset();
 
+/*!
+ * \brief Project the physical pointer associated with a BufferVar definition.
+ *
+ * The result type is the BufferType::data_pointer_type of the sole BufferVar
+ * argument.  This operation is consumed by TIRx lowering and code generation.
+ */
+TVM_DLL const Op& buffer_data();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // DLTensor fields

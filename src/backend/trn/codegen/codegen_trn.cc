@@ -79,7 +79,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // We can switch to follow the flow with inter-function call process
   // after the Trainium function declaration is properly printed.
   // In Trainium, for PrimFuncs with signature
-  //    def func(A: Buffer, B: Buffer, x: int, y: float) -> None
+  //    def func(A: BufferVar, B: BufferVar, x: int, y: float) -> None
   // where there are trailing pod parameters, the codegen emits a struct
   //    struct func_params{ x: int; y: float; }
   // for the function. In the flow of inter-function call process,
@@ -103,7 +103,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // Function header.
   this->stream << "def " << static_cast<std::string>(global_symbol.value()) << "(";
 
-  // Buffer arguments
+  // BufferVar arguments
   auto num_inputs = func->GetAttr<int64_t>(tvm::attr::kNumInputs);
   TVM_FFI_ICHECK(num_inputs.has_value());
   std::vector<std::string> output_vids;
@@ -209,10 +209,10 @@ std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // 
 
 void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer->data.get());
+  std::string vid = AllocVarID(op->buffer.get());
 
   this->PrintIndent();
-  auto scope = GetPtrStorageScope(op->buffer->data);
+  auto scope = op->buffer.scope();
   std::ostringstream dtype_os;
   PrintType(op->buffer->dtype, dtype_os);
   std::string dtype_str = dtype_os.str();
@@ -229,7 +229,7 @@ void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
   if (auto allocated_addr = op->annotations.Get(tirx::attr::buffer_allocated_addr)) {
     addr = allocated_addr.value().as_or_throw<Array<PrimExpr>>();
   } else {
-    // AllocBuffer is a leaf stmt after rebase; in that path allocated_addr is carried by Buffer.
+    // AllocBuffer is a leaf stmt after rebase; in that path allocated_addr is carried by BufferVar.
     addr = op->buffer->allocated_addr;
   }
   if (addr.empty()) {
@@ -342,7 +342,7 @@ void CodeGenTrainium::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {
   if (buffer_idmap_.count(op->buffer)) {
     buffer_str = buffer_idmap_[op->buffer];
   } else {
-    buffer_str = GetVarID(op->buffer->data.get());
+    buffer_str = GetVarID(op->buffer.get());
   }
   os << buffer_str << "[";
   os << PrintIndices(op->indices);
@@ -607,10 +607,10 @@ void CodeGenTrainium::VisitStmt_(const DeclBufferNode* op) {
   if (op->buffer.scope() == "trn.psum" || op->buffer.scope() == "trn.sbuf") {
     return;
   }
-  const VarNode* data = op->buffer->data.get();
+  const VarNode* data = op->buffer.get();
   auto it = data_buffer_idmap_.find(data);
   if (it != data_buffer_idmap_.end()) {
-    const Buffer& prev_buffer = data_decl_buffer_map_.at(data);
+    const BufferVar& prev_buffer = data_decl_buffer_map_.at(data);
     if (ffi::StructuralEqual()(prev_buffer->shape, op->buffer->shape) &&
         prev_buffer->dtype == op->buffer->dtype) {
       buffer_idmap_[op->buffer] = it->second;

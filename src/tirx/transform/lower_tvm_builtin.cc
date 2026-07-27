@@ -106,7 +106,7 @@ class BuiltinLower : public StmtExprMutator {
 
   // Record stack frame for existing scope.
   struct AllocaScope {
-    Buffer stack_shape;
+    BufferVar stack_shape;
     Var stack_array = Var("stack_array", PointerType::VoidPointerTy());
     Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointerTy());
 
@@ -161,7 +161,7 @@ class BuiltinLower : public StmtExprMutator {
       auto& scope = alloca_scope_.back();
 
       // Initial check to identify maximum stack sizes.  These are used
-      // to construct Buffer objects to hold the stack, which are then
+      // to construct BufferVar objects to hold the stack, which are then
       // used when mutating.
       scope.max_sizes = GetMaxStack(stmt);
 
@@ -181,10 +181,11 @@ class BuiltinLower : public StmtExprMutator {
       if (scope.max_sizes.shape_stack != -1) {
         scope.stack_shape = decl_buffer({IntImm::Int64(scope.max_sizes.shape_stack)},
                                         PrimType::Int(64), "stack_shape");
-        alloca_stmts.push_back(
-            Bind(scope.stack_shape->data,
-                 StackAlloca(scope.stack_shape->data->ty, "shape", scope.max_sizes.shape_stack)));
-        stmt = SeqStmt::Flatten(DeclBuffer(scope.stack_shape), stmt);
+        stmt = SeqStmt::Flatten(
+            DeclBuffer(scope.stack_shape,
+                       StackAlloca(scope.stack_shape->data_pointer_type, "shape",
+                                   scope.max_sizes.shape_stack)),
+            stmt);
       }
 
       if (!alloca_stmts.empty()) {
@@ -261,7 +262,7 @@ class BuiltinLower : public StmtExprMutator {
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
-      auto storage_scope = op->buffer->data->ty.as_or_throw<PointerType>()->storage_scope;
+      auto storage_scope = op->buffer->data_pointer_type.as_or_throw<PointerType>()->storage_scope;
       if (storage_scope == "global") {
         auto constant_size = stmt.as_or_throw<AllocBuffer>().ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
@@ -280,26 +281,27 @@ class BuiltinLower : public StmtExprMutator {
         Call(PrimType::Int(32), builtin::tvm_throw_last_error(), {}).as_or_throw<PrimExpr>());
 
     Stmt alloc_nullptr_check = IfThenElse(
-        Call(PrimType::Bool(), builtin::isnullptr(), {op->buffer->data}).as_or_throw<PrimExpr>(),
+        Call(PrimType::Bool(), builtin::isnullptr(), {op->buffer.data()})
+            .as_or_throw<PrimExpr>(),
         throw_last_error);
 
     static const Op& free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
     static const Op& alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
     PrimExpr free_op = Call(PrimType::Int(32), free_workspace_op,
-                            {cast(PrimType::Int(32), device_type_.value()),
-                             cast(PrimType::Int(32), device_id_.value()), op->buffer->data})
+                             {cast(PrimType::Int(32), device_type_.value()),
+                             cast(PrimType::Int(32), device_id_.value()), op->buffer.data()})
                            .as_or_throw<PrimExpr>();
     Stmt free_stmt = IfThenElse(free_op != IntImm::Int32(0), throw_last_error);
 
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
 
-    Stmt alloc_bind = Bind(
-        op->buffer->data,
-        Call(op->buffer->data->ty, alloc_workspace_op,
-             {cast(PrimType::Int(32), device_type_.value()),
-              cast(PrimType::Int(32), device_id_.value()), total_bytes,
-              IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())}));
+    Stmt alloc_bind = DeclBuffer(
+        op->buffer, Call(op->buffer->data_pointer_type, alloc_workspace_op,
+                         {cast(PrimType::Int(32), device_type_.value()),
+                          cast(PrimType::Int(32), device_id_.value()), total_bytes,
+                          IntImm::Int32(op->buffer->dtype.code()),
+                          IntImm::Int32(op->buffer->dtype.bits())}));
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -488,7 +490,9 @@ class BuiltinLower : public StmtExprMutator {
           scope.stack_shape, cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
           {ConstInt32(stack_begin + i)}));
     }
-    return AddressOffset(scope.stack_shape->data, PrimType::Int(64), stack_begin);
+    PrimExpr offset = ConstInt32(stack_begin);
+    BufferLoad load(scope.stack_shape, {offset});
+    return Call(scope.stack_shape->data_pointer_type, builtin::address_of(), {load});
   }
   // make array
   Expr MakeArray(const CallNode* op) {

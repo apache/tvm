@@ -61,7 +61,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
         if (pass.buffers_used_.count(old_buf)) {
           auto new_buf = pass.GetFlattenedBuffer(old_buf);
           if (!old_buf.same_as(new_buf)) {
-            body = SeqStmt::Flatten(DeclBuffer(new_buf), std::move(body));
+            body = SeqStmt::Flatten(DeclBuffer(new_buf, old_buf.data()), std::move(body));
           }
         }
       }
@@ -88,8 +88,8 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
 
     SBlock block = ffi::GetRef<SBlock>(op);
 
-    ffi::Array<Buffer> alloc_buffers = op->alloc_buffers;
-    alloc_buffers.MutateByApply([this](Buffer buf) { return GetFlattenedBuffer(buf); });
+    ffi::Array<BufferVar> alloc_buffers = op->alloc_buffers;
+    alloc_buffers.MutateByApply([this](BufferVar buf) { return GetFlattenedBuffer(buf); });
     if (!alloc_buffers.same_as(op->alloc_buffers)) {
       block.CopyOnWrite()->alloc_buffers = alloc_buffers;
     }
@@ -131,48 +131,50 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     return std::move(node);
   }
 
-  Buffer GetFlattenedBuffer(Buffer buf) {
-    auto it = buffer_remap_.find(buf);
-    if (it != buffer_remap_.end()) {
-      return it->second;
+  BufferVar GetFlattenedBuffer(BufferVar buf) {
+    if (auto remapped = buffer_remap_.Get(buf)) {
+      return remapped.value();
     }
     auto flattened = buf.GetFlattenedBuffer();
-    auto writer = flattened.CopyOnWrite();
+    ffi::ObjectPtr<BufferTypeNode> type = CopyBufferType(flattened);
 
     // canonicalize shape
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
-      writer->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
+      type->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
     }
-    writer->layout = std::nullopt;
+    type->layout = std::nullopt;
+    flattened = RebuildBufferVar(flattened, std::move(type));
 
-    buffer_remap_[buf] = flattened;
+    buffer_remap_.Set(buf, flattened);
     return flattened;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
+    BufferVar original_buffer = op->buffer;
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
-    store = VisitBufferAccess(store);
+    store = VisitBufferAccess(store, original_buffer);
     return store;
   }
 
   Expr VisitExpr_(const BufferLoadNode* op) final {
+    BufferVar original_buffer = op->buffer;
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
-    load = VisitBufferAccess(load);
+    load = VisitBufferAccess(load, original_buffer);
     return load;
   }
 
-  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const Buffer& buffer,
+  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const BufferVar& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
     auto flattened_indices = buffer->ElemOffset(indices);
     return this->IterMapSimplifyWithContext(flattened_indices, false);
   }
 
   template <typename Node>
-  Node VisitBufferAccess(Node node) {
+  Node VisitBufferAccess(Node node, const BufferVar& original_buffer) {
     TVM_FFI_ICHECK(node->buffer.defined());
-    buffers_used_.insert(node->buffer);
-    auto flattened_indices = GetSimplifiedElemOffset(node->buffer, node->indices);
-    Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
+    buffers_used_.insert(original_buffer);
+    auto flattened_indices = GetSimplifiedElemOffset(original_buffer, node->indices);
+    BufferVar flattened_buffer = GetFlattenedBuffer(original_buffer);
 
     auto writer = node.CopyOnWrite();
     writer->buffer = flattened_buffer;
@@ -181,8 +183,8 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   BufferRegion MutateBufferRegion(BufferRegion region) {
-    Buffer orig_buf = region->buffer;
-    Buffer flattened_buf = GetFlattenedBuffer(orig_buf);
+    BufferVar orig_buf = region->buffer;
+    BufferVar flattened_buf = GetFlattenedBuffer(orig_buf);
     if (flattened_buf.same_as(orig_buf)) {
       return region;
     }
@@ -206,15 +208,12 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     return BufferRegion(flattened_buf, flattened_ranges);
   }
 
-  /*! \brief Map of buffers being remapped. */
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_remap_;
-
   /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers).
    */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers_used_;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers_used_;
 
   /*! \brief The updated external buffer map. */
-  ffi::Map<Var, Buffer> updated_extern_buffer_map_;
+  ffi::Map<Var, BufferVar> updated_extern_buffer_map_;
 };
 
 PrimFunc FlattenBuffer(PrimFunc f) { return BufferFlattener::Flatten(f); }

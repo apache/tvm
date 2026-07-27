@@ -62,8 +62,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
       const int bytes = indices_lanes * static_cast<int>(load->buffer->dtype.StorageBytes());
 
       if (bytes == 4 || bytes == 8 || bytes == 16) {
-        auto dst_elem_type = GetPointerType(store->buffer->data->ty);
-        auto src_elem_type = GetPointerType(load->buffer->data->ty);
+        auto dst_elem_type = GetPointerType(store->buffer->data_pointer_type);
+        auto src_elem_type = GetPointerType(load->buffer->data_pointer_type);
         TVM_FFI_ICHECK(dst_elem_type.has_value() && src_elem_type.has_value())
             << "Both store and load buffer should have a pointer type annotation.";
 
@@ -84,8 +84,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
         if (indices_lanes == 1) {
           auto src_offset = load->indices[0];
           auto dst_offset = store->indices[0];
-          ffi::Array<Expr> args = {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
-                                   load->buffer->data, src_offset, PrimExpr(bytes)};
+          ffi::Array<Expr> args = {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
+                                   load->buffer.data(), src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) {
             args.push_back(predicate_value);
@@ -122,8 +122,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (src_offset.defined() && dst_offset.defined()) {
             static const Op& ptx_cp_async_op = Op::Get("tirx.ptx.cp_async_raw");
             return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
-                                 {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
-                                  load->buffer->data, src_offset, PrimExpr(bytes)})
+                                 {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
+                                  load->buffer.data(), src_offset, PrimExpr(bytes)})
                                 .as_or_throw<PrimExpr>());
           }
         } else {
@@ -153,8 +153,8 @@ class PTXAsyncCopyInjector : public StmtMutator {
           if (src_offset.defined() && dst_offset.defined()) {
             static const Op& ptx_cp_async_op = Op::Get("tirx.ptx.cp_async_raw");
             return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
-                                 {store->buffer->data, mul(dst_offset, PrimExpr(index_factor)),
-                                  load->buffer->data, src_offset, PrimExpr(bytes), predicate_value})
+                                 {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
+                                  load->buffer.data(), src_offset, PrimExpr(bytes), predicate_value})
                                 .as_or_throw<PrimExpr>());
           }
         }

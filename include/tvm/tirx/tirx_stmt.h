@@ -35,7 +35,7 @@ namespace tirx {
 class TilePrimitiveCallNode : public StmtNode {
  public:
   TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
-                        ffi::Map<ffi::String, Buffer> workspace,
+                        ffi::Map<ffi::String, BufferVar> workspace,
                         ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
                         ExecScope scope)
       : op(std::move(op)),
@@ -52,7 +52,7 @@ class TilePrimitiveCallNode : public StmtNode {
   ffi::Array<ffi::Any> args;
 
   // Workspace (pre-allocated buffers) for the operator.
-  ffi::Map<ffi::String, Buffer> workspace;
+  ffi::Map<ffi::String, BufferVar> workspace;
 
   // Config for the operator/scheduler.
   ffi::Map<ffi::String, ffi::Any> config;
@@ -84,7 +84,7 @@ class TilePrimitiveCallNode : public StmtNode {
 class TilePrimitiveCall : public Stmt {
  public:
   TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
-                            ffi::Map<ffi::String, Buffer> workspace = {},
+                            ffi::Map<ffi::String, BufferVar> workspace = {},
                             ffi::Map<ffi::String, ffi::Any> config = {},
                             ffi::Optional<ffi::String> dispatch = std::nullopt,
                             ExecScope scope = ExecScope(ScopeKind::kThread));

@@ -166,20 +166,20 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
  */
 class FuseTIRBufferSubstitutor : private StmtExprMutator {
  public:
-  explicit FuseTIRBufferSubstitutor(const ffi::Map<Buffer, Buffer>& buffer_map,
+  explicit FuseTIRBufferSubstitutor(const ffi::Map<BufferVar, BufferVar>& buffer_map,
                                     const ffi::Map<Var, PrimExpr>& var_map) {
     buffer_remap_ = buffer_map;
     for (const auto& [var, value] : var_map) {
       var_remap_.Set(var, value);
     }
     for (const auto& [src, tgt] : buffer_map) {
-      var_remap_.Set(src->data, tgt->data);
+      var_remap_.Set(src.var(), tgt.var());
     }
   }
 
   Stmt Substitute(Stmt stmt) { return this->VisitStmt(std::move(stmt)); }
 
-  Buffer SubstituteAllocatedBuffer(Buffer buffer) {
+  BufferVar SubstituteAllocatedBuffer(BufferVar buffer) {
     TVM_FFI_ICHECK(buffer_remap_.find(buffer) == buffer_remap_.end());
     ffi::Array<PrimExpr> shape = MutateArray(
         buffer->shape, [this](const PrimExpr& expr) { return this->VisitPrimExpr(expr); });
@@ -190,11 +190,11 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
         elem_offset.same_as(buffer->elem_offset)) {
       return buffer;
     } else {
-      auto n = ffi::make_object<BufferNode>(*buffer.get());
-      n->shape = std::move(shape);
-      n->strides = std::move(strides);
-      n->elem_offset = std::move(elem_offset);
-      Buffer new_buffer(n);
+      BufferType new_type(
+          buffer->data_pointer_type, buffer->dtype, std::move(shape),
+          std::move(strides), std::move(elem_offset), buffer->data_alignment,
+          buffer->offset_factor, buffer->layout, buffer->allocated_addr);
+      BufferVar new_buffer(buffer.name(), std::move(new_type), buffer.span());
       this->buffer_remap_.Set(buffer, new_buffer);
       return new_buffer;
     }
@@ -211,7 +211,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
   Expr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
-    const Buffer& buffer = SubstituteBuffer(load->buffer);
+    const BufferVar& buffer = SubstituteBuffer(load->buffer);
     if (buffer.same_as(load->buffer)) {
       return load;
 
@@ -224,7 +224,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
     BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
-    const Buffer& buffer = SubstituteBuffer(store->buffer);
+    const BufferVar& buffer = SubstituteBuffer(store->buffer);
     if (buffer.same_as(store->buffer)) {
       return store;
 
@@ -241,8 +241,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     // Define the mutation functions.
 
     auto f_mutate_match_buffers = [this](const MatchBufferRegion& match_buffer) {
-      const Buffer& src_buffer = SubstituteBuffer(match_buffer->source->buffer);
-      const Buffer& tgt_buffer = SubstituteAllocatedBuffer(match_buffer->buffer);
+      const BufferVar& src_buffer = SubstituteBuffer(match_buffer->source->buffer);
+      const BufferVar& tgt_buffer = SubstituteAllocatedBuffer(match_buffer->buffer);
       ffi::Array<Range> region = MutateRegion(match_buffer->source->region);
       if (src_buffer.same_as(match_buffer->source->buffer) &&
           tgt_buffer.same_as(match_buffer->buffer) &&
@@ -257,7 +257,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     };
 
     auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-      const Buffer& buffer = SubstituteBuffer(buffer_region->buffer);
+      const BufferVar& buffer = SubstituteBuffer(buffer_region->buffer);
       const ffi::Array<Range>& region = MutateRegion(buffer_region->region);
       if (buffer.same_as(buffer_region->buffer) && region.same_as(buffer_region->region)) {
         return buffer_region;
@@ -273,9 +273,9 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     ffi::Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
     ffi::Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
     // Step 3. Mutate the Allocate Buffers.
-    ffi::Array<Buffer> alloc_buffers =
+    ffi::Array<BufferVar> alloc_buffers =
         MutateArray(block->alloc_buffers,
-                    [this](const Buffer& buffer) { return SubstituteAllocatedBuffer(buffer); });
+                    [this](const BufferVar& buffer) { return SubstituteAllocatedBuffer(buffer); });
 
     reads = UnionAccessRegion(reads);
     writes = UnionAccessRegion(writes);
@@ -298,17 +298,17 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
 
  private:
   /*! \brief Mapping from src buffer to tgt buffer. */
-  ffi::Map<tirx::Buffer, tirx::Buffer> buffer_remap_;
+  ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_remap_;
   /*! \brief Mapping from src tirx var to tgt var. */
   ffi::Map<tirx::Var, Expr> var_remap_;
 
   ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
-    // For now we only allow Buffer access the same elements.
+    // For now we only allow BufferVar access the same elements.
     // e.g. `[A[vi, vj], A[vi, vj]]` is a legal pattern but need to union to `A[vi, vj]`
     // However, `A[vi, vj], A[vi, vj + 1]` is not allow for now.
     // Note: the order of return region should remain the same as the first occurrence of the region
     ffi::Array<BufferRegion> ret;
-    std::unordered_map<const BufferNode*, ffi::Array<Range>> buffer_region_set;
+    std::unordered_map<const VarNode*, ffi::Array<Range>> buffer_region_set;
 
     for (const BufferRegion& region : regions) {
       auto it = buffer_region_set.find(region->buffer.get());
@@ -325,7 +325,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     }
   }
 
-  inline Buffer SubstituteBuffer(const Buffer& buffer) const {
+  inline BufferVar SubstituteBuffer(const BufferVar& buffer) const {
     auto it = buffer_remap_.find(buffer);
     if (it != buffer_remap_.end()) {
       return (*it).second;
@@ -441,7 +441,7 @@ static ffi::Array<int64_t> GetInplaceOutputIndices(const ffi::Array<int64_t>& in
 class RelaxToTIRVarMapCollector : public ExprVisitor {
  public:
   explicit RelaxToTIRVarMapCollector(const IRModule& mod) : mod_(mod) {}
-  static ffi::Map<Expr, tirx::Buffer> Collect(const IRModule& mod, const Function& func) {
+  static ffi::Map<Expr, tirx::BufferVar> Collect(const IRModule& mod, const Function& func) {
     RelaxToTIRVarMapCollector visitor(mod);
     visitor(func->body);
     return visitor.relax_to_tir_var_map_;
@@ -496,7 +496,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
 
     // If the `expr` is already seen (present in the map), validate whether the mapped buffer is
     // structurally equal to the `new_buf` passed
-    auto ValidateBufferCompatibility = [this](tirx::Buffer new_buf, Expr expr) {
+    auto ValidateBufferCompatibility = [this](tirx::BufferVar new_buf, Expr expr) {
       if (auto it = relax_to_tir_var_map_.find(expr); it != relax_to_tir_var_map_.end()) {
         TVM_FFI_ICHECK(ffi::StructuralEqual()((*it).second, new_buf))
             << "Inconsistent buffers " << (*it).second << " and " << new_buf
@@ -525,7 +525,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
  private:
   /*! \brief The IRModule */
   const IRModule& mod_;
-  ffi::Map<Expr, tirx::Buffer> relax_to_tir_var_map_;
+  ffi::Map<Expr, tirx::BufferVar> relax_to_tir_var_map_;
   Var current_var_;
 };
 
@@ -560,15 +560,15 @@ class FusedTIRConstructor : public ExprVisitor {
   void VisitExpr_(const FunctionNode* func) final {
     auto relax_to_tir_var_map =
         RelaxToTIRVarMapCollector::Collect(mod_, ffi::GetRef<Function>(func));
-    std::vector<ffi::Variant<tirx::PrimVar, tirx::Buffer>> prim_func_params;
+    std::vector<ffi::Variant<tirx::PrimVar, tirx::BufferVar>> prim_func_params;
     for (const Var& relax_param : func->params) {
       size_t size_before = prim_func_params.size();
       CollectPrimFuncParams(relax_param, &prim_func_params, relax_to_tir_var_map.Get(relax_param));
 
-      auto param_buffers = [&]() -> ffi::Array<tirx::Buffer> {
-        ffi::Array<tirx::Buffer> out;
+      auto param_buffers = [&]() -> ffi::Array<tirx::BufferVar> {
+        ffi::Array<tirx::BufferVar> out;
         for (size_t i = size_before; i < prim_func_params.size(); i++) {
-          if (auto buf = prim_func_params[i].as<tirx::Buffer>()) {
+          if (auto buf = prim_func_params[i].as<tirx::BufferVar>()) {
             out.push_back(buf.value());
           }
         }
@@ -582,15 +582,15 @@ class FusedTIRConstructor : public ExprVisitor {
     // parameters are both explicit call_tir arguments, while output buffers
     // are appended after the complete explicit argument prefix.
     for (const auto& param : prim_func_params) {
-      if (auto opt = param.as<tirx::Buffer>()) {
+      if (auto opt = param.as<tirx::BufferVar>()) {
         auto buffer = opt.value();
         // Differentiate buffer name and param name by adding prefix
         // `p_` to the buffer name.  Every symbol should be unique in
         // TVMScript, and while they can be de-deplicated when
         // printed, it's more readable when done explicitly.  Since
-        // Buffer is used more than param it gets the name with better
+        // BufferVar is used more than param it gets the name with better
         // readability.
-        tirx::Var param = tirx::Var("p_" + buffer->name, PointerType::VoidPointerTy());
+        tirx::Var param = tirx::Var("p_" + buffer.name(), PointerType::VoidPointerTy());
         func_info_.params.push_back(param);
         func_info_.buffer_map.Set(param, buffer);
       } else if (auto var = param.as<tirx::PrimVar>()) {
@@ -607,10 +607,10 @@ class FusedTIRConstructor : public ExprVisitor {
     TVM_FFI_ICHECK(it != func_info_.expr2buffers.end())
         << "Fail to detect output buffers for function body";
 
-    const ffi::Array<tirx::Buffer>& buffers = (*it).second;
+    const ffi::Array<tirx::BufferVar>& buffers = (*it).second;
 
     // map of input buffers to indices (helpful for detecting in-place inputs)
-    std::unordered_map<tirx::Buffer, size_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_to_idx;
+    std::unordered_map<tirx::BufferVar, size_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_to_idx;
     std::unordered_map<tirx::Var, size_t> input_to_idx;
     for (size_t i = 0; i < func_info_.params.size(); i++) {
       input_to_idx[func_info_.params[i]] = i;
@@ -722,7 +722,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const TupleNode* tuple) final {
     ExprVisitor::VisitExpr_(tuple);
-    ffi::Array<tirx::Buffer> buffers;
+    ffi::Array<tirx::BufferVar> buffers;
     for (const Expr& expr : tuple->fields) {
       auto it = func_info_.expr2buffers.find(expr);
       if (it != func_info_.expr2buffers.end()) {
@@ -775,16 +775,16 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   /*! \brief Map old TIR func param buffer to new buffer, and then update `buffer_subst_map` */
-  void MapArgsToBuffer(const ffi::Array<Expr> args, const ffi::Array<tirx::Buffer>& buffers) {
+  void MapArgsToBuffer(const ffi::Array<Expr> args, const ffi::Array<tirx::BufferVar>& buffers) {
     size_t buffer_idx = 0;
     for (const Expr& arg : args) {
       if (const auto* v = arg.as<VarNode>()) {
         auto it = func_info_.expr2buffers.find(ffi::GetRef<Var>(v));
         // Substitute the buffer with the already allocated one if it is an intermediate var
         if (it != func_info_.expr2buffers.end()) {
-          for (const tirx::Buffer& target_buffer : (*it).second) {
+          for (const tirx::BufferVar& target_buffer : (*it).second) {
             TVM_FFI_ICHECK_LT(buffer_idx, buffers.size());
-            const tirx::Buffer& buffer = buffers[buffer_idx];
+            const tirx::BufferVar& buffer = buffers[buffer_idx];
             func_info_.symbolic_var_matcher.Match(buffer->shape, target_buffer->shape);
             func_info_.buffer_subst_map.Set(buffer, target_buffer);
             buffer_idx++;
@@ -803,7 +803,7 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   void MapInputBuffer(const tirx::PrimFunc& func, const relax::Expr& args) {
     ffi::Array<Expr> arg_list;
-    ffi::Array<tirx::Buffer> buffer_list;
+    ffi::Array<tirx::BufferVar> buffer_list;
     ffi::Array<Expr> call_args = args.as_or_throw<Tuple>()->fields;
 
     TVM_FFI_ICHECK_GE(func->params.size(), call_args.size());
@@ -859,7 +859,7 @@ class FusedTIRConstructor : public ExprVisitor {
     int num_inputs = call->args[1].as_or_throw<Tuple>()->fields.size();
     size_t output_size = output_shapes.size();
     TVM_FFI_ICHECK_GE(n, output_size);
-    ffi::Array<tirx::Buffer> output_buffers;
+    ffi::Array<tirx::BufferVar> output_buffers;
     ffi::Array<int64_t> output_idxs;
     if (is_inplace) {
       const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
@@ -874,7 +874,7 @@ class FusedTIRConstructor : public ExprVisitor {
     ffi::Array<tirx::Var> output_params = GetPrimFuncOutputParams(func, output_idxs);
     for (size_t i = 0; i < output_size; ++i) {
       const tirx::Var& param = output_params[i];
-      const tirx::Buffer& buffer = func->buffer_map.at(param);
+      const tirx::BufferVar& buffer = func->buffer_map.at(param);
 
       // if this is an inplace output, do not do an intermediate allocation
       if (output_idxs[i] < num_inputs) {
@@ -886,13 +886,13 @@ class FusedTIRConstructor : public ExprVisitor {
       }
 
       auto unify_name_hints = [this, &buffer]() {
-        ffi::String base_name = buffer->name;
+        ffi::String base_name = buffer.name();
         ffi::String unique_name = base_name + "_intermediate";
         size_t unique_id = 0;
         std::unordered_set<std::string> names;
 
         for (auto& _buffer : func_info_.alloc_buffers) {
-          names.insert(_buffer->name);
+          names.insert(_buffer.name());
         }
 
         while (names.find(unique_name) != names.end()) {
@@ -901,15 +901,17 @@ class FusedTIRConstructor : public ExprVisitor {
         return unique_name;
       };
       // Update buffer with new symbolic shape according to the ty
-      auto n = ffi::make_object<tirx::BufferNode>(*buffer.get());
-      n->shape = output_shapes[i];
-      n->name = unify_name_hints();
-      tirx::Buffer new_buffer(n);
+      tirx::BufferType new_type(
+          buffer->data_pointer_type, buffer->dtype, output_shapes[i],
+          buffer->strides, buffer->elem_offset, buffer->data_alignment,
+          buffer->offset_factor, buffer->layout, buffer->allocated_addr);
+      tirx::BufferVar new_buffer(unify_name_hints(), std::move(new_type),
+                                 buffer.span());
       func_info_.alloc_buffers.push_back(new_buffer);
       output_buffers.push_back(new_buffer);
 
       // Match the shape of the output buffer with the shape
-      func_info_.symbolic_var_matcher.Match(buffer->shape, n->shape);
+      func_info_.symbolic_var_matcher.Match(buffer->shape, new_buffer->shape);
       func_info_.buffer_subst_map.Set(buffer, new_buffer);
     }
     // Update expr2buffers
@@ -923,8 +925,8 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param out The vector into which to collect the params/buffers
    */
   static void CollectPrimFuncParams(const Var& relax_param,
-                                    std::vector<ffi::Variant<tirx::PrimVar, tirx::Buffer>>* out,
-                                    const ffi::Optional<tirx::Buffer>& tir_buffer_param) {
+                                    std::vector<ffi::Variant<tirx::PrimVar, tirx::BufferVar>>* out,
+                                    const ffi::Optional<tirx::BufferVar>& tir_buffer_param) {
     auto ty = GetType(relax_param);
 
     TVM_FFI_CHECK(!ty.as<TupleTypeNode>(), InternalError)
@@ -938,7 +940,7 @@ class FusedTIRConstructor : public ExprVisitor {
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
       PrimType dtype = tensor->dtype.value();
-      tirx::Buffer buffer;
+      tirx::BufferVar buffer;
       if (tir_buffer_param.has_value()) {
         buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
                                    tir_buffer_param.value().scope());
@@ -977,8 +979,8 @@ class FusedTIRConstructor : public ExprVisitor {
                                          func_info_.symbolic_var_remap);
     TVM_FFI_ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
-    ffi::Array<tirx::Buffer> alloc_buffers;
-    for (const tirx::Buffer& buf : func_info_.alloc_buffers) {
+    ffi::Array<tirx::BufferVar> alloc_buffers;
+    for (const tirx::BufferVar& buf : func_info_.alloc_buffers) {
       if (func_info_.output_buffers.count(buf.get()) == 0) {
         alloc_buffers.push_back(subst.SubstituteAllocatedBuffer(buf));
       }
@@ -1020,9 +1022,9 @@ class FusedTIRConstructor : public ExprVisitor {
      * \brief The map from each dataflow var (intermediate var) to the corresponding buffers
      * allocated in the fused func
      */
-    ffi::Map<Expr, ffi::Array<tirx::Buffer>> expr2buffers;
+    ffi::Map<Expr, ffi::Array<tirx::BufferVar>> expr2buffers;
     /*! \brief The buffers to allocate in the fused func*/
-    ffi::Array<tirx::Buffer> alloc_buffers;
+    ffi::Array<tirx::BufferVar> alloc_buffers;
     /*! \brief The bodies of the original funcs, which is also the body of the fused func. */
     ffi::Array<tirx::Stmt> bodies;
     /*! \brief The params of the fused function*/
@@ -1031,11 +1033,11 @@ class FusedTIRConstructor : public ExprVisitor {
      * \brief The map from buffer in original functions to corresponding buffer in the fused
      * function
      */
-    ffi::Map<tirx::Buffer, tirx::Buffer> buffer_subst_map;
+    ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_subst_map;
     /*! \brief The `buffer_map` in the fused function*/
-    ffi::Map<tirx::Var, tirx::Buffer> buffer_map;
+    ffi::Map<tirx::Var, tirx::BufferVar> buffer_map;
     /*! \brief The output buffers in the function buffer_map*/
-    std::unordered_set<const tirx::BufferNode*> output_buffers;
+    std::unordered_set<const tirx::VarNode*> output_buffers;
     /*! \brief The name of the fused function */
     std::string global_name = "fused";
 

@@ -94,10 +94,10 @@ class AutoPadder {
    * \param buffers the given buffers
    * \return the list of new padded buffers
    */
-  ffi::Array<Buffer> PadSharedMemory(const ffi::Array<Buffer>& buffers) {
-    ffi::Array<Buffer> result;
+  ffi::Array<BufferVar> PadSharedMemory(const ffi::Array<BufferVar>& buffers) {
+    ffi::Array<BufferVar> result;
 
-    for (const Buffer& buffer : buffers) {
+    for (const BufferVar& buffer : buffers) {
       runtime::StorageScope scope = runtime::StorageScope::Create(buffer.scope());
       if (scope.rank == runtime::StorageRank::kShared) {
         auto iter_spaces = iter_spaces_[buffer.get()];
@@ -169,14 +169,14 @@ class AutoPadder {
           reverse_strides.push_back(stride);
         }
         // Step 3. create the new padded buffer
-        ffi::ObjectPtr<BufferNode> b = ffi::make_object<BufferNode>(*buffer.get());
+        ffi::ObjectPtr<BufferTypeNode> b = CopyBufferType(buffer);
         ffi::Array<PrimExpr> strides;
         for (int i = static_cast<int>(reverse_strides.size()) - 1; i >= 0; i--) {
           strides.push_back(reverse_strides[i]);
         }
         strides.push_back(1);
         b->strides = strides;
-        Buffer new_buffer(b);
+        BufferVar new_buffer = RebuildBufferVar(buffer, std::move(b));
         result.push_back(new_buffer);
         padded_buffer_map_.Set(buffer, new_buffer);
       } else {
@@ -194,7 +194,7 @@ class AutoPadder {
   Stmt RewriteBufferAccess(const Stmt& stmt) {
     class Rewriter : public StmtExprMutator {
      public:
-      explicit Rewriter(const ffi::Map<Buffer, Buffer>& buffer_map) : buffer_map_(buffer_map) {}
+      explicit Rewriter(const ffi::Map<BufferVar, BufferVar>& buffer_map) : buffer_map_(buffer_map) {}
 
      private:
       Expr VisitExpr_(const BufferLoadNode* _op) final {
@@ -246,7 +246,7 @@ class AutoPadder {
         for (const MatchBufferRegion& match_buffer : op->match_buffers) {
           if (buffer_map_.count(match_buffer->source->buffer)) {
             changed = true;
-            Buffer new_buffer = buffer_map_[match_buffer->source->buffer];
+            BufferVar new_buffer = buffer_map_[match_buffer->source->buffer];
             match_buffers.push_back(MatchBufferRegion(
                 match_buffer->buffer, BufferRegion(new_buffer, match_buffer->source->region)));
           } else {
@@ -269,7 +269,7 @@ class AutoPadder {
           return ffi::GetRef<SBlock>(op);
         }
       }
-      const ffi::Map<Buffer, Buffer>& buffer_map_;
+      const ffi::Map<BufferVar, BufferVar>& buffer_map_;
     };
     Rewriter rewriter(padded_buffer_map_);
     return rewriter(stmt);
@@ -573,7 +573,7 @@ class AutoPadder {
           if (call->op.same_as(tvm_load_matrix_sync_op) ||
               call->op.same_as(tvm_store_matrix_sync_op)) {
             for (const MatchBufferRegion& r : op->match_buffers) {
-              Buffer src_buffer = r->source->buffer;
+              BufferVar src_buffer = r->source->buffer;
               runtime::StorageScope scope = runtime::StorageScope::Create(src_buffer.scope());
               if (scope.rank == runtime::StorageRank::kShared) {
                 Region region = r->source->region;
@@ -644,11 +644,11 @@ class AutoPadder {
 
  private:
   /*! \brief A map from the old buffers to the new padded buffers */
-  ffi::Map<Buffer, Buffer> padded_buffer_map_;
+  ffi::Map<BufferVar, BufferVar> padded_buffer_map_;
   /*! \brief A map from each buffer to the iteration spaces of the accesses*/
-  std::unordered_map<const BufferNode*, std::vector<std::vector<std::vector<int>>>> iter_spaces_;
+  std::unordered_map<const VarNode*, std::vector<std::vector<std::vector<int>>>> iter_spaces_;
   /*! \brief A map from each buffer to their minimal padding size */
-  ffi::Map<Buffer, int64_t> padding_min_;
+  ffi::Map<BufferVar, int64_t> padding_min_;
   /*! \brief max padding size in relative to the original shape*/
   const double max_pad_factor_ = 0.25;
 
@@ -702,7 +702,7 @@ class AutoCopyMutator : public StmtExprMutator {
     for (RewriteRule* rule : rules) {
       n->body = rule->Apply(std::move(n->body), constraints, &outputs);
     }
-    for (const Buffer& buffer : outputs.alloc_buffer) {
+    for (const BufferVar& buffer : outputs.alloc_buffer) {
       n->alloc_buffers.push_back(buffer);
     }
     for (const auto& p : outputs.padding_min) {

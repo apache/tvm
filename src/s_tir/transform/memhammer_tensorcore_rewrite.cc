@@ -131,10 +131,10 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   const BufferLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, BufferLoadNode);
 
-  Buffer src_buffer = buf_load->buffer;
-  Buffer tgt_buffer = buf_store->buffer;
+  BufferVar src_buffer = buf_load->buffer;
+  BufferVar tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
-  Buffer new_src_buffer(
+  BufferVar new_src_buffer(
       /*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
       /*dtype=*/dtype,
       /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
@@ -143,7 +143,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       /*name=*/"src",
       /*data_alignment=*/64,
       /*offset_factor=*/16);
-  Buffer new_tgt_buffer(
+  BufferVar new_tgt_buffer(
       /*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
       /*dtype=*/dtype,
       /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
@@ -168,7 +168,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
               /*data=*/PrimType::Void(),
               /*op=*/tvm_load_matrix_sync_op,
               ffi::Array<Expr>{
-                  /*0:*/ new_tgt_buffer->data,
+                  /*0:*/ new_tgt_buffer.data(),
                   /*1:*/ PrimExpr(16),
                   /*2:*/ PrimExpr(16),
                   /*3:*/ PrimExpr(16),
@@ -176,12 +176,12 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                       floordiv(floormod(new_tgt_buffer->elem_offset, 256), 16),
                   /*5:*/
                   Call(
-                      /*dtype=*/new_src_buffer->data->ty,
+                      /*dtype=*/new_src_buffer.data()->ty,
                       /*op=*/builtin::tvm_access_ptr(),
                       /*args=*/
                       ffi::Array<Expr>{
                           /*0:*/ TypeAnnotation(new_src_buffer->dtype),
-                          /*1:*/ new_src_buffer->data,
+                          /*1:*/ new_src_buffer.data(),
                           /*2:*/ new_src_buffer->elem_offset,
                           /*3:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2] * 16,
                           /*4:*/ PrimExpr(1),
@@ -238,13 +238,13 @@ Stmt RewriteWmmaStore(Stmt stmt) {
     }
     return true;
   });
-  Buffer src_buffer = buf_load->buffer;
-  Buffer tgt_buffer = buf_store->buffer;
+  BufferVar src_buffer = buf_load->buffer;
+  BufferVar tgt_buffer = buf_store->buffer;
 
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
 
-  Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
+  BufferVar new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                         /*strides=*/{},
@@ -252,7 +252,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                         /*name=*/"src",
                         /*data_alignment=*/64,
                         /*offset_factor=*/16);
-  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
+  BufferVar new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                         /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
@@ -274,7 +274,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
              Evaluate(Call(
                  /*data=*/PrimType::Void(),
                  /*op=*/tvm_store_matrix_sync_op,
-                 ffi::Array<Expr>{/*0:*/ new_src_buffer->data,
+                 ffi::Array<Expr>{/*0:*/ new_src_buffer.data(),
                                   /*1:*/ PrimExpr(16),
                                   /*2:*/ PrimExpr(16),
                                   /*3:*/ PrimExpr(16),
@@ -282,11 +282,11 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                                       floordiv(floormod(new_src_buffer->elem_offset, 256), 16),
                                   /*5:*/
                                   Call(
-                                      /*data=*/new_tgt_buffer->data->ty,
+                                      /*data=*/new_tgt_buffer.data()->ty,
                                       /*op=*/builtin::tvm_access_ptr(),
                                       ffi::Array<Expr>{
                                           /*0:*/ TypeAnnotation(new_tgt_buffer->dtype),
-                                          /*1:*/ new_tgt_buffer->data,
+                                          /*1:*/ new_tgt_buffer.data(),
                                           /*2:*/ new_tgt_buffer->elem_offset,
                                           /*3:*/ new_tgt_buffer->strides[0] * 16,
                                           /*4:*/ PrimExpr(2),
@@ -350,7 +350,7 @@ Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   ffi::Optional<For> compute_location;
   std::tie(body, compute_location) = TileWmmaBlock(stmt);
   SeqStmt seq{nullptr};
-  Buffer cache_buffer;
+  BufferVar cache_buffer;
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);
@@ -466,11 +466,11 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // https://docs.nvidia.com/cuda/archive/11.1.0/pdf/ptx_isa_7.1.pdf
 
   // Step 3.1. Generate new buffer
-  Buffer src_buffer = buf_load->buffer;
-  Buffer tgt_buffer = buf_store->buffer;
+  BufferVar src_buffer = buf_load->buffer;
+  BufferVar tgt_buffer = buf_store->buffer;
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
-  Buffer new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
+  BufferVar new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
                         /*strides=*/{},
@@ -478,7 +478,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                         /*name=*/"src",
                         /*data_alignment=*/64,
                         /*offset_factor=*/8);
-  Buffer new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
+  BufferVar new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
                         /*dtype=*/dtype,
                         /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
                         /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
@@ -566,7 +566,7 @@ Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   ffi::Optional<For> compute_location;
   std::tie(body, compute_location) = TileMmaToGlobalBlock(stmt);
   SeqStmt seq{nullptr};
-  Buffer cache_buffer;
+  BufferVar cache_buffer;
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);

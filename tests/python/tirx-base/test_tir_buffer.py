@@ -32,9 +32,30 @@ def test_buffer():
     Ab = tvm.tirx.decl_buffer((m, n), "float32")
     Bb = tvm.tirx.decl_buffer((n, l), "float32")
 
-    assert isinstance(Ab, tvm.tirx.Buffer)
+    assert type(Ab) is tvm.ir.Var
+    assert tvm.tirx.is_buffer(Ab)
+    assert isinstance(Ab.ty, tvm.tirx.BufferType)
     assert Ab.dtype == tvm.ir.PrimType("float32")
     assert tuple(Ab.shape) == (m, n)
+    assert not tvm.tirx.is_buffer(m)
+
+
+def test_buffer_data_is_typed_projection():
+    buffer = tvm.tirx.decl_buffer((8,), "bool", scope="shared")
+
+    assert buffer.dtype == tvm.ir.PrimType("bool")
+    assert buffer.data_pointer_type == tvm.ir.PointerType(tvm.ir.PrimType("int8"), "shared")
+    assert buffer.data.op.name == "tirx.buffer_data"
+    assert buffer.data.args[0].same_as(buffer)
+    assert buffer.data.ty == buffer.data_pointer_type
+
+
+def test_buffer_logical_dtype_independent_of_pointer_type():
+    data = tvm.ir.Var("storage", tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "local"))
+    buffer = tvm.tirx.decl_buffer((8,), "float16", data=data)
+
+    assert buffer.dtype == tvm.ir.PrimType("float16")
+    assert buffer.data.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "local")
 
 
 def test_buffer_access_ptr():
@@ -191,7 +212,12 @@ def test_buffer_flatten():
     """A buffer should flatten to a 1-d shape"""
     buf = tvm.tirx.decl_buffer([16, 32])
     flat = buf.get_flattened_buffer()
-    assert buf.data.same_as(flat.data)
+    # A metadata-changing rewrite creates a fresh typed Var.  The physical
+    # pointer is always derived from that Var instead of being stored as a
+    # second buffer identity.
+    assert not buf.same_as(flat)
+    assert flat.data.args[0].same_as(flat)
+    assert flat.data.op.name == "tirx.buffer_data"
     tvm.ir.assert_structural_equal(flat.shape, [T.int32(16 * 32)])
 
 

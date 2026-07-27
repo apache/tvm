@@ -399,9 +399,8 @@ def test_let_buffer_rewrite():
             A_data: T.let[T.handle("int32x8")] = T.call_extern(
                 "dummy_func", dtype=T.handle("int32x8").ty
             )
-            A = T.decl_buffer([8], "int32", data=A_data)
-            A_1 = T.Buffer([1], "int32x8", data=A_data)
-            A_1[0] = T.broadcast(42, 8)
+            A = T.decl_buffer([1], "int32x8", data=A_data)
+            A[0] = T.broadcast(42, 8)
 
     After = tvm.tirx.transform.StorageRewrite()(Before)
     tvm.ir.assert_structural_equal(After, Expected)

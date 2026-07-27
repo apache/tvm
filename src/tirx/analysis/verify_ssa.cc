@@ -77,7 +77,7 @@ class SSAVerifier final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt_(op);
   }
   void VisitStmt_(const AllocBufferNode* op) final {
-    MarkDef(op->buffer->data, op->buffer->data);
+    MarkDef(op->buffer.var(), op->buffer.var());
     StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -99,9 +99,9 @@ class SSAVerifier final : public StmtExprVisitor {
     this->VisitStmt(func->body);
   }
 
-  void DefineBuffer(const Buffer& buffer) {
+  void DefineBuffer(const BufferVar& buffer) {
     match_scope_ = true;
-    this->VisitExpr(buffer->data);
+    this->VisitExpr(buffer.var());
     for (size_t i = 0; i < buffer->shape.size(); ++i) {
       this->VisitExpr(buffer->shape[i]);
     }

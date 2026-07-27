@@ -202,7 +202,7 @@ class AssertStmt : public Stmt {
 class BufferStoreNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
-  Buffer buffer;
+  BufferVar buffer;
   /*! \brief The value to be stored. */
   PrimExpr value;
   /*! \brief The indices location to be stored. */
@@ -227,7 +227,7 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+  TVM_DLL explicit BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                ffi::Optional<PrimExpr> predicate = std::nullopt,
                                Span span = Span());
 
@@ -239,11 +239,16 @@ class BufferStore : public Stmt {
 class DeclBufferNode : public StmtNode {
  public:
   /*! \brief The buffer being declared */
-  Buffer buffer;
+  BufferVar buffer;
+  /*! \brief Optional physical pointer expression backing the declaration. */
+  ffi::Optional<Expr> data;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>().def_ro("buffer", &DeclBufferNode::buffer);
+    refl::ObjectDef<DeclBufferNode>()
+        .def_ro("buffer", &DeclBufferNode::buffer,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("data", &DeclBufferNode::data);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.DeclBuffer", DeclBufferNode, StmtNode);
 };
@@ -251,7 +256,8 @@ class DeclBufferNode : public StmtNode {
 /*! \brief Managed reference to DeclBufferNode */
 class DeclBuffer : public Stmt {
  public:
-  TVM_DLL DeclBuffer(Buffer buffer, Span span = Span());
+  TVM_DLL DeclBuffer(BufferVar buffer, ffi::Optional<Expr> data = std::nullopt,
+                     Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
 };
@@ -260,7 +266,7 @@ class DeclBuffer : public Stmt {
 class AllocBufferNode : public StmtNode {
  public:
   /*! \brief The buffer being allocated and declared */
-  Buffer buffer;
+  BufferVar buffer;
   /*!
    * \brief Additional annotations about the allocation.
    *
@@ -283,7 +289,7 @@ class AllocBufferNode : public StmtNode {
 class AllocBuffer : public Stmt {
  public:
   TVM_DLL AllocBuffer(
-      Buffer buffer,
+      BufferVar buffer,
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
   /*!
@@ -772,7 +778,7 @@ class Continue : public Stmt {
 class BufferRegionNode : public PrimExprConvertibleNode {
  public:
   /*! \brief The buffer of the buffer region. */
-  Buffer buffer;
+  BufferVar buffer;
   /*! \brief The region array of the buffer region. */
   ffi::Array<Range> region;
 
@@ -795,14 +801,14 @@ class BufferRegionNode : public PrimExprConvertibleNode {
  */
 class BufferRegion : public PrimExprConvertible {
  public:
-  TVM_DLL explicit BufferRegion(Buffer buffer, ffi::Array<Range> region);
+  TVM_DLL explicit BufferRegion(BufferVar buffer, ffi::Array<Range> region);
 
   /*!
    * \brief Create a BufferRegion which is full region of the given buffer.
    * \param buffer The buffer to generate full BufferRegion.
    * \return The BufferRegion which covers all region of the given buffer
    */
-  TVM_DLL static BufferRegion FullRegion(Buffer buffer);
+  TVM_DLL static BufferRegion FullRegion(BufferVar buffer);
 
   /*!
    * \brief Create a BufferRegion which is a single point of the given buffer.
@@ -810,7 +816,7 @@ class BufferRegion : public PrimExprConvertible {
    * \param indices The access point indices of the buffer
    * \return The BufferRegion which is the single point of the given buffer.
    */
-  TVM_DLL static BufferRegion FromPoint(Buffer buffer, ffi::Array<PrimExpr> indices);
+  TVM_DLL static BufferRegion FromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferRegion, PrimExprConvertible, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
@@ -828,14 +834,15 @@ class BufferRegion : public PrimExprConvertible {
 class MatchBufferRegionNode : public ffi::Object {
  public:
   /*! \brief The target buffer. */
-  Buffer buffer;
+  BufferVar buffer;
   /*! \brief The source buffer region. */
   BufferRegion source;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MatchBufferRegionNode>()
-        .def_ro("buffer", &MatchBufferRegionNode::buffer)
+        .def_ro("buffer", &MatchBufferRegionNode::buffer,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("source", &MatchBufferRegionNode::source);
   }
 
@@ -849,7 +856,7 @@ class MatchBufferRegionNode : public ffi::Object {
  */
 class MatchBufferRegion : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit MatchBufferRegion(Buffer buffer, BufferRegion source);
+  TVM_DLL explicit MatchBufferRegion(BufferVar buffer, BufferRegion source);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
                                              MatchBufferRegionNode);
@@ -888,7 +895,7 @@ class SBlockNode : public StmtNode {
   /*! \brief The name_hint of the block. */
   ffi::String name_hint;
   /*! \brief The buffer allocated in the block. */
-  ffi::Array<Buffer> alloc_buffers;
+  ffi::Array<BufferVar> alloc_buffers;
   /*! \brief The match buffer regions. */
   ffi::Array<MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
@@ -911,7 +918,8 @@ class SBlockNode : public StmtNode {
         .def_ro("reads", &SBlockNode::reads)
         .def_ro("writes", &SBlockNode::writes)
         .def_ro("name_hint", &SBlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers)
+        .def_ro("alloc_buffers", &SBlockNode::alloc_buffers,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("match_buffers", &SBlockNode::match_buffers)
         .def_ro("annotations", &SBlockNode::annotations)
         .def_ro("init", &SBlockNode::init)
@@ -930,13 +938,13 @@ class SBlock : public Stmt {
       ffi::Array<IterVar> iter_vars, ffi::Array<BufferRegion> reads,
       ffi::Array<BufferRegion> writes, ffi::String name_hint, Stmt body,
       ffi::Optional<Stmt> init = std::nullopt,
-      ffi::Array<Buffer> alloc_buffers = ffi::Array<Buffer>(),
+      ffi::Array<BufferVar> alloc_buffers = ffi::Array<BufferVar>(),
       ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
 
   TVM_DLL explicit SBlock(ffi::String name_hint, Stmt body,
-                          ffi::Array<Buffer> alloc_buffers = ffi::Array<Buffer>(),
+                          ffi::Array<BufferVar> alloc_buffers = ffi::Array<BufferVar>(),
                           Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, Stmt, SBlockNode);

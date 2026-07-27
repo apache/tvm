@@ -55,7 +55,7 @@ class ExprTouched final : public StmtExprVisitor {
     StmtExprVisitor::VisitStmt(n);
   }
   void VisitExpr_(const BufferLoadNode* op) final {
-    HandleUseVar(op->buffer->data.get());
+    HandleUseVar(op->buffer.get());
     StmtExprVisitor::VisitExpr_(op);
   }
   void VisitExpr_(const VarNode* op) final { HandleUseVar(op); }
@@ -119,7 +119,7 @@ class VarTouchedAnalysis : public StmtVisitor {
     for (const auto& index : op->indices) {
       tc(index);
     }
-    Record(op->buffer->data.get(), tc);
+    Record(op->buffer.get(), tc);
   }
   void VisitStmt_(const ForNode* op) final {
     ExprTouched tc(touched_var_, false);
@@ -141,7 +141,7 @@ class VarTouchedAnalysis : public StmtVisitor {
     for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
       tc(op->buffer->shape[i]);
     }
-    Record(op->buffer->data.get(), tc);
+    Record(op->buffer.get(), tc);
     StmtVisitor::VisitStmt_(op);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
@@ -212,7 +212,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
   }
   // Variable
   Expr VisitExpr_(const VarNode* op) final {
-    TVM_FFI_ICHECK(!alloc_remap_.count(op)) << "Buffer address may get rewritten in virtual thread";
+    TVM_FFI_ICHECK(!alloc_remap_.count(op)) << "BufferVar address may get rewritten in virtual thread";
     if (touched_var_.count(op)) {
       visit_touched_var_ = true;
     }
@@ -263,11 +263,11 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
-    if (touched_var_.count(node->buffer->data.get())) {
+    if (touched_var_.count(node->buffer.get())) {
       visit_touched_var_ = true;
     }
 
-    auto it = alloc_remap_.find(node->buffer->data.get());
+    auto it = alloc_remap_.find(node->buffer.get());
     if (it != alloc_remap_.end()) {
       TVM_FFI_ICHECK_EQ(node->indices.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
@@ -279,7 +279,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
     return node;
   }
 
-  Buffer GetRemappedBuffer(Buffer buf, PrimExpr alloc_extent) {
+  BufferVar GetRemappedBuffer(BufferVar buf, PrimExpr alloc_extent) {
     auto key = buf.get();
     auto it = buf_remap_.find(key);
     if (it != buf_remap_.end()) {
@@ -288,8 +288,9 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
     TVM_FFI_ICHECK_EQ(buf->shape.size(), 1)
         << "Expected buffers being rewritten to already be flattened.";
-    auto writer = buf.CopyOnWrite();
+    auto writer = CopyBufferType(buf);
     writer->shape = {buf->shape[0] * alloc_extent};
+    buf = RebuildBufferVar(buf, std::move(writer));
 
     buf_remap_[key] = buf;
     return buf;
@@ -440,19 +441,20 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
 
     visit_touched_var_ = false;
 
-    if (touched_var_.count(op->buffer->data.get()) || !allow_share_) {
+    if (touched_var_.count(op->buffer.get()) || !allow_share_) {
       TVM_FFI_ICHECK_EQ(shape.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       PrimExpr stride = shape[0];
       shape = {stride * num_threads_};
-      alloc_remap_[op->buffer->data.get()] = stride;
+      alloc_remap_[op->buffer.get()] = stride;
     }
 
     if (shape.same_as(op->buffer->shape)) {
       return ffi::GetRef<Stmt>(op);
     } else {
-      Buffer new_buffer = op->buffer;
-      new_buffer.CopyOnWrite()->shape = shape;
+      auto type = CopyBufferType(op->buffer);
+      type->shape = shape;
+      BufferVar new_buffer = RebuildBufferVar(op->buffer, std::move(type));
       return AllocBuffer(new_buffer, op->annotations);
     }
   }
@@ -520,7 +522,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
    * the allocated buffer size, then modifying the indices at which
    * each virtual thread accesses the buffer.
    */
-  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
+  std::unordered_map<const VarNode*, BufferVar> buf_remap_;
 };
 
 class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {

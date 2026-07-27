@@ -80,9 +80,9 @@ class AsyncDMALowerer : public arith::IRMutatorWithAnalyzer {
     return Evaluate(
         Call(PrimType::Int(32), builtin::dma_copy(),
              ffi::Array<Expr>{PrimExpr(async_queue_id_.value()),
-                              Call(mem_copy->dest->buffer->data->ty, builtin::address_of(),
+                              Call(mem_copy->dest->buffer->data_pointer_type, builtin::address_of(),
                                    ffi::Array<Expr>{dst}, Attrs(), {}, Span()),
-                              Call(mem_copy->source->buffer->data->ty, builtin::address_of(),
+                              Call(mem_copy->source->buffer->data_pointer_type, builtin::address_of(),
                                    ffi::Array<Expr>{src}, Attrs(), {}, Span()),
                               dst_nbytes, PrimExpr(dma_bypass_cache_)},
              Attrs(), {}, Span())

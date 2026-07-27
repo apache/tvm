@@ -1317,7 +1317,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string guard = this->PrintExpr(op->args[1]);
     const BufferLoadNode* addr_buffer = op->args[2].as<BufferLoadNode>();
     std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
-    std::string global_buffer = this->PrintExpr(addr_buffer->buffer->data);
+    std::string global_buffer = this->PrintExpr(addr_buffer->buffer.data());
     std::string local_addr = this->PrintExpr(op->args[3]);
     this->stream << "asm volatile (\n";
     this->stream << "\"{.reg .pred p;\\n\"\n";
@@ -1632,11 +1632,11 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer->data.get());
+  std::string vid = AllocVarID(op->buffer.get());
 
   this->PrintIndent();
-  std::string scope = GetPtrStorageScope(op->buffer->data);
-  const VarNode* buffer = op->buffer->data.get();
+  std::string scope = op->buffer.scope();
+  const VarNode* buffer = op->buffer.get();
   PrimType dtype = op->buffer->dtype;
 
   if (scope.find("wmma.") == 0) {
@@ -1696,9 +1696,9 @@ void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer->data.get(), dtype);
+  RegisterHandleType(op->buffer.get(), dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer->data.get());
+    MarkVolatile(op->buffer.get());
   }
 }
 
@@ -2064,7 +2064,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const BufferLoad
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if ((op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
        op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) &&
-      IsVolatile(op->buffer->data.get())) {
+      IsVolatile(op->buffer.get())) {
     os << "(";
     PrintType(op_ty, os);
     os << ")(" << value << ")";

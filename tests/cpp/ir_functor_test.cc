@@ -154,7 +154,7 @@ TEST(IRF, StmtVisitor) {
     Stmt eval_body = Evaluate(z);
     PrimType dtype = PrimType::Float(32);
     tirx::Var data_var("b", PointerType(dtype));
-    Buffer buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0);
+    BufferVar buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0);
     // AllocBuffer is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({AllocBuffer(buf), eval_body});
   };
@@ -168,7 +168,7 @@ TEST(IRF, StmtVisitor) {
     Stmt body = fmaketest();
     PrimType dtype = PrimType::Float(32);
     tirx::Var buf_var("b", PointerType(dtype));
-    Buffer buffer = decl_buffer({16});
+    BufferVar buffer = decl_buffer({16});
     body = SeqStmt({DeclBuffer(buffer), std::move(body)});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
@@ -208,7 +208,7 @@ TEST(IRF, StmtMutator) {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
     tirx::Var data_var("b", PointerType(dtype));
-    Buffer buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0);
+    BufferVar buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0);
     return AllocBuffer(buf);
   };
 
@@ -299,7 +299,7 @@ TEST(IRF, StmtMutator) {
     // tests for block and block_realize
     // AllocBuffer and DeclBuffer are flat (no body), placed as siblings in SeqStmt
     Stmt eval_body = Evaluate(x + 1);
-    Buffer buffer = decl_buffer({16});
+    BufferVar buffer = decl_buffer({16});
     Stmt decl = DeclBuffer(buffer);
     Stmt alloc = fmakealloc();
     // body is: DeclBuffer, AllocBuffer, Evaluate
@@ -335,7 +335,7 @@ TEST(IRF, Substitute) {
   PrimVar n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {
-    return Buffer{/*data=*/x,
+    return BufferVar{/*data=*/x,
                   /*dtype=*/PrimType::Float(32),
                   /*shape=*/{n},
                   /*strides=*/{},
@@ -346,12 +346,14 @@ TEST(IRF, Substitute) {
   };
 
   {
-    // test substitute buffer data var and shape var via DeclBuffer
+    // Test substitution of an explicit DeclBuffer source and a dependent
+    // BufferType shape.  Changing the type creates one fresh Var identity
+    // that is shared by the declaration and every use.
     tirx::Var y = x.CopyWithSuffix("subst");
     PrimVar m("m", PrimType::Int(32));
-    Buffer buffer = fmakebuffer();
+    BufferVar buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
-    Stmt decl = SeqStmt({DeclBuffer(buffer), store});
+    Stmt decl = SeqStmt({DeclBuffer(buffer, x), store});
     auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> {
       if (var.same_as(x)) return Expr(y);
       if (var.same_as(n)) return Expr(m);
@@ -362,13 +364,17 @@ TEST(IRF, Substitute) {
     TVM_FFI_ICHECK(seq_node != nullptr);
     auto* decl_node = seq_node->seq[0].as<DeclBufferNode>();
     TVM_FFI_ICHECK(decl_node != nullptr);
-    TVM_FFI_ICHECK(decl_node->buffer->data.same_as(y));
+    TVM_FFI_ICHECK(decl_node->data.value().same_as(y));
     TVM_FFI_ICHECK(decl_node->buffer->shape[0].same_as(m));
+    TVM_FFI_ICHECK(!decl_node->buffer.same_as(buffer));
+    auto* store_node = seq_node->seq[1].as<BufferStoreNode>();
+    TVM_FFI_ICHECK(store_node != nullptr);
+    TVM_FFI_ICHECK(store_node->buffer.same_as(decl_node->buffer));
   }
 
   {
     // test identity substitution on expression
-    Buffer buffer = fmakebuffer();
+    BufferVar buffer = fmakebuffer();
     PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
     auto f_subst = [&](const tirx::Var& var) -> ffi::Optional<Expr> { return Expr(var); };
     PrimExpr new_expr = Substitute(expr, f_subst);

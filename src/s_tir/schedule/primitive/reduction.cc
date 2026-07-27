@@ -70,7 +70,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
       p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
       ffi::Array<BufferRegion> new_reads;
-      std::unordered_set<const BufferNode*> read_bufs;
+      std::unordered_set<const VarNode*> read_bufs;
       for (const BufferRegion& read_access : block->reads) {
         read_bufs.insert(read_access->buffer.get());
       }
@@ -500,7 +500,7 @@ class NotSerialLoopKindError : public ScheduleError {
 
 class FactorAxisOutOfRangeError : public ScheduleError {
  public:
-  explicit FactorAxisOutOfRangeError(IRModule mod, Buffer buffer, int factor_axis)
+  explicit FactorAxisOutOfRangeError(IRModule mod, BufferVar buffer, int factor_axis)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), factor_axis_(factor_axis) {}
 
   ffi::String FastErrorString() const final {
@@ -511,7 +511,7 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     int ndim = static_cast<int>(buffer_->shape.size());
-    os << "The write buffer " << buffer_->name << " has " << ndim
+    os << "The write buffer " << buffer_.name() << " has " << ndim
        << " dimension(s), so `factor_axis` is required to be in [" << -(ndim + 1) << ", " << ndim
        << "] for rfactor. However, the input `factor_axis` is " << factor_axis_
        << ", which is out of the expected range";
@@ -521,7 +521,7 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
-  static int CheckAndUpdate(const IRModule& mod, const Buffer& buffer, int factor_axis) {
+  static int CheckAndUpdate(const IRModule& mod, const BufferVar& buffer, int factor_axis) {
     int ndim = static_cast<int>(buffer->shape.size());
     if (factor_axis < -(ndim + 1) || factor_axis > ndim) {
       throw FactorAxisOutOfRangeError(mod, buffer, factor_axis);
@@ -534,7 +534,7 @@ class FactorAxisOutOfRangeError : public ScheduleError {
   }
 
   IRModule mod_;
-  Buffer buffer_;
+  BufferVar buffer_;
   int factor_axis_;
 };
 
@@ -654,20 +654,18 @@ std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const ffi::Array<For>
  * \param rf_loop The rfactor loop
  * \return The new created intermediate rfactor buffer
  */
-ffi::Array<Buffer> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_stores, int factor_axis,
+ffi::Array<BufferVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_stores, int factor_axis,
                                         const ForNode* rf_loop) {
-  ffi::Array<Buffer> rf_buffers;
+  ffi::Array<BufferVar> rf_buffers;
   rf_buffers.reserve(buf_stores.size());
   for (const BufferStore& buf_store : buf_stores) {
-    Buffer buffer = buf_store->buffer;
+    BufferVar buffer = buf_store->buffer;
     ffi::Array<PrimExpr> rf_shape = buffer->shape;
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
-    ffi::ObjectPtr<BufferNode> n = ffi::make_object<BufferNode>(*buffer.get());
+    ffi::ObjectPtr<BufferTypeNode> n = CopyBufferType(buffer);
     n->shape = rf_shape;
-    n->name = buffer->name + ".rf";
-    n->data = buffer->data.CopyWithSuffix(".rf");
-    rf_buffers.push_back(Buffer(n));
+    rf_buffers.push_back(RebuildBufferVar(buffer, std::move(n), buffer.name() + ".rf"));
   }
   return rf_buffers;
 }
@@ -684,7 +682,7 @@ class BaseBlockCreator {
  public:
   explicit BaseBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                             ffi::Array<BufferStore> old_reduction_updates, CommReducer reducer,
-                            ffi::Array<Buffer> rf_buffers, bool is_rf_block)
+                            ffi::Array<BufferVar> rf_buffers, bool is_rf_block)
       : old_block_realize_(std::move(old_block_realize)),
         rf_loop_(std::move(rf_loop)),
         old_reduction_updates_(std::move(old_reduction_updates)),
@@ -771,7 +769,7 @@ class BaseBlockCreator {
     ffi::Array<Var> let_vars;
     let_vars.reserve(n_buffers_);
     for (int i = 0; i < n_buffers_; ++i) {
-      Var var("v_" + update_buffers_[i]->name, stored_values[i].ty());
+      Var var("v_" + update_buffers_[i].name(), stored_values[i].ty());
       let_vars.push_back(var);
       buf_stores.push_back(
           BufferStore(update_buffers_[i], var.as_or_throw<PrimExpr>(), update_indices_[i]));
@@ -820,7 +818,7 @@ class BaseBlockCreator {
   /*! \brief The matched commutative reducer */
   CommReducer reducer_;
   /*! \brief The intermediate rfactor buffers */
-  ffi::Array<Buffer> rf_buffers_;
+  ffi::Array<BufferVar> rf_buffers_;
   /*! \brief The number of rfactor buffers. */
   const int n_buffers_;
   /*!
@@ -836,7 +834,7 @@ class BaseBlockCreator {
   /*! \brief The new block iter bindings of the new created block-realize */
   std::vector<PrimExpr> iter_values_;
   /*! \brief The buffers updated in this block */
-  ffi::Array<Buffer> update_buffers_;
+  ffi::Array<BufferVar> update_buffers_;
   /*! \brief The indices of the buffers updated in this block, respectively */
   ffi::Array<ffi::Array<PrimExpr>> update_indices_;
   /*! \brief The LHS values of the reduction in this block */
@@ -875,7 +873,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
  public:
   explicit RFactorBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                ffi::Array<BufferStore> old_reduction_updates, CommReducer reducer,
-                               ffi::Array<Buffer> rf_buffers,
+                               ffi::Array<BufferVar> rf_buffers,
                                std::unordered_map<const VarNode*, For> loop_vars2loop,
                                int factor_axis, ffi::Array<PrimExpr> combiner_rhs)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
@@ -948,7 +946,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
   }
 
   void CreateReadWriteRegions() final {
-    ffi::Map<Buffer, Buffer> buffer_map;
+    ffi::Map<BufferVar, BufferVar> buffer_map;
     for (int i = 0; i < n_buffers_; ++i) {
       buffer_map.Set(old_reduction_updates_[i]->buffer, rf_buffers_[i]);
     }
@@ -964,7 +962,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
       region.insert(
           region.begin() + factor_axis_,
           Range::FromMinExtent(additional_iter_->var, IntImm(additional_iter_->var.ty(), 1)));
-      ffi::Optional<Buffer> rf_buffer = buffer_map.Get(write_region->buffer);
+      ffi::Optional<BufferVar> rf_buffer = buffer_map.Get(write_region->buffer);
       TVM_FFI_ICHECK(rf_buffer.has_value());
       write_regions_.push_back(BufferRegion(rf_buffer.value(), Substitute(region, var_map_)));
     }
@@ -1000,7 +998,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
  public:
   explicit WriteBackBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                  ffi::Array<BufferStore> old_reduction_updates, CommReducer reducer,
-                                 ffi::Array<Buffer> rf_buffers, IterVar rf_additional_iter,
+                                 ffi::Array<BufferVar> rf_buffers, IterVar rf_additional_iter,
                                  ffi::Array<PrimExpr> combiner_lhs,
                                  ffi::Array<PrimExpr> rf_buf_access_indices)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
@@ -1141,14 +1139,14 @@ class BlockReplacer : public StmtMutator {
                         SBlockRealize wb_block_realize, SBlockRealize old_block_realize,
                         For rf_loop, std::unordered_set<const VarNode*> reduce_loop_vars,
                         std::unordered_map<const VarNode*, For> loop_vars2loop,
-                        const ffi::Array<Buffer>& rf_buffers) {
+                        const ffi::Array<BufferVar>& rf_buffers) {
     BlockReplacer replacer(std::move(rf_body), std::move(outermost_loop),
                            std::move(wb_block_realize), std::move(old_block_realize),
                            std::move(rf_loop), std::move(reduce_loop_vars),
                            std::move(loop_vars2loop));
     SBlock new_scope_root = replacer(std::move(scope_root_block)).as_or_throw<SBlock>();
     SBlockNode* p = new_scope_root.CopyOnWrite();
-    for (const Buffer& rf_buffer : rf_buffers) {
+    for (const BufferVar& rf_buffer : rf_buffers) {
       p->alloc_buffers.push_back(rf_buffer);
     }
     return new_scope_root;
@@ -1285,7 +1283,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 1. Create the intermediate buffer (a.k.a. rfactor buffer), which has an additional
   // dimension that specified by `factor_axis` and `rf_loop`.
-  ffi::Array<Buffer> rf_buffers = CreateRFactorBuffers(updates, factor_axis, rf_loop);
+  ffi::Array<BufferVar> rf_buffers = CreateRFactorBuffers(updates, factor_axis, rf_loop);
 
   // Step 2. Create the rfactor block.
   RFactorBlockCreator rf_block_creator(block_realize, ffi::GetRef<For>(rf_loop), updates, reducer,

@@ -97,7 +97,9 @@ def test_elementwise_without_decl_buffer():
                     C[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    tvm.ir.assert_structural_equal(After, Expected)
+    # This deliberately malformed input omits the DeclBuffer that would bind
+    # B_new.  Compare the resulting free buffer variables by mapping them.
+    tvm.ir.assert_structural_equal(After, Expected, map_free_vars=True)
 
 
 def test_gpu():

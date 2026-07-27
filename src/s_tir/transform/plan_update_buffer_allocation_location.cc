@@ -38,10 +38,10 @@ class CollectManagedAllocations : public StmtExprVisitor {
  public:
   void VisitStmt_(const SBlockNode* op) final {
     for (const auto& buf : op->alloc_buffers) {
-      managed_allocations.insert(buf->data.get());
+      managed_allocations.insert(buf.get());
     }
     for (const auto& buf : op->match_buffers) {
-      managed_allocations.insert(buf->buffer->data.get());
+      managed_allocations.insert(buf->buffer.get());
     }
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -54,7 +54,7 @@ class CollectManagedAllocations : public StmtExprVisitor {
 /*! \brief Collect the allocate buffer order. */
 class BufferAllocateOrderCollector : public StmtExprVisitor {
  public:
-  static ffi::Array<Buffer> Collect(const PrimFunc& func) {
+  static ffi::Array<BufferVar> Collect(const PrimFunc& func) {
     BufferAllocateOrderCollector collector;
     for (const auto& kv : func->buffer_map) {
       collector.buffer_alloc_recorder_.push_back(kv.second);
@@ -64,13 +64,13 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
   }
 
  private:
-  bool find(const Buffer& buf) {
+  bool find(const BufferVar& buf) {
     return std::find(buffer_alloc_recorder_.begin(), buffer_alloc_recorder_.end(), buf) !=
            buffer_alloc_recorder_.end();
   }
 
   void VisitStmt_(const SBlockNode* op) final {
-    for (const Buffer& buffer : op->alloc_buffers) {
+    for (const BufferVar& buffer : op->alloc_buffers) {
       buffer_alloc_recorder_.push_back(buffer);
     }
     // Also visit match_buffers to collect buffers that only appear in read and match_buffer
@@ -99,38 +99,38 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
   }
 
   /*! \brief The buffer allocated order recorder. */
-  ffi::Array<Buffer> buffer_alloc_recorder_;
+  ffi::Array<BufferVar> buffer_alloc_recorder_;
 };
 
 class BufferAllocationLocator : public StmtExprMutator {
  public:
   explicit BufferAllocationLocator(const PrimFunc& func) {
-    ffi::Map<Buffer, ffi::Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
+    ffi::Map<BufferVar, ffi::Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
     // The buffer_alloc_recorder Array is used to keep the buffer allocation order
     // since the buffer_lca Map is unordered.
-    ffi::Array<Buffer> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
+    ffi::Array<BufferVar> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
     std::unordered_set<const VarNode*> arg_buffer_vars;
     CollectManagedAllocations collector;
     collector(func->body);
     managed_allocations_ = collector.managed_allocations;
 
     for (const auto& kv : func->buffer_map) {
-      const Buffer& buffer = kv.second;
-      arg_buffer_vars.emplace(buffer->data.get());
-      buffer_data_to_buffer_.Set(buffer->data, buffer);
+      const BufferVar& buffer = kv.second;
+      arg_buffer_vars.emplace(buffer.get());
+      buffer_data_to_buffer_.Set(buffer.var(), buffer);
     }
     // create buffers to be allocated at each stmts
     for (const auto& buffer : buffer_alloc_recorder) {
       auto it = buffer_lca.find(buffer);
       if (it != buffer_lca.end()) {
         const StmtNode* stmt = (*it).second.has_value() ? (*it).second.value().get() : nullptr;
-        if (arg_buffer_vars.count(buffer->data.get())) {
+        if (arg_buffer_vars.count(buffer.get())) {
           continue;
         }
-        if (managed_allocations_.count(buffer->data.get())) {
+        if (managed_allocations_.count(buffer.get())) {
           alloc_buffers_[stmt].push_back(buffer);
         }
-        buffer_data_to_buffer_.Set(buffer->data, buffer);
+        buffer_data_to_buffer_.Set(buffer.var(), buffer);
       }
     }
   }
@@ -141,15 +141,15 @@ class BufferAllocationLocator : public StmtExprMutator {
     if (it == alloc_buffers_.end()) {
       return StmtMutator::VisitStmt_(op);
     }
-    for (const Buffer& buf : it->second) {
-      buffer_data_to_buffer_.Set(buf->data, buf);
+    for (const BufferVar& buf : it->second) {
+      buffer_data_to_buffer_.Set(buf.var(), buf);
     }
     auto node = StmtMutator::VisitStmt_(op).as_or_throw<For>();
 
-    ffi::Array<Buffer> new_block_alloc_bufs;
-    for (const Buffer& buf : it->second) {
-      if (managed_allocations_.count(buf->data.get())) {
-        buffer_data_to_buffer_.erase(buf->data);
+    ffi::Array<BufferVar> new_block_alloc_bufs;
+    for (const BufferVar& buf : it->second) {
+      if (managed_allocations_.count(buf.get())) {
+        buffer_data_to_buffer_.erase(buf.var());
         new_block_alloc_bufs.push_back(buf);
       }
     }
@@ -163,17 +163,17 @@ class BufferAllocationLocator : public StmtExprMutator {
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     TVM_FFI_ICHECK(!op->init.has_value());
-    ffi::Array<Buffer> alloc_buffers;
+    ffi::Array<BufferVar> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
       alloc_buffers = it->second;
-      for (const Buffer& buf : it->second) {
-        buffer_data_to_buffer_.Set(buf->data, buf);
+      for (const BufferVar& buf : it->second) {
+        buffer_data_to_buffer_.Set(buf.var(), buf);
       }
     }
     for (const MatchBufferRegion match_buffer : op->match_buffers) {
-      const Var& target_var = match_buffer->buffer->data;
-      const Var& source_var = match_buffer->source->buffer->data;
+      const Var target_var = match_buffer->buffer.var();
+      const Var source_var = match_buffer->source->buffer.var();
       TVM_FFI_ICHECK(buffer_data_to_buffer_.count(source_var));
       buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
     }
@@ -184,13 +184,13 @@ class BufferAllocationLocator : public StmtExprMutator {
     // No longer consider buffers created by match_buffer inside the block when updating access
     // region.
     for (const MatchBufferRegion match_buffer : op->match_buffers) {
-      const Var& target_var = match_buffer->buffer->data;
+      const Var target_var = match_buffer->buffer.var();
       buffer_data_to_buffer_.erase(target_var);
     }
     // No longer consider buffers allocated inside the block when updating access region.
     if (it != alloc_buffers_.end()) {
-      for (const Buffer& buf : it->second) {
-        buffer_data_to_buffer_.erase(buf->data);
+      for (const BufferVar& buf : it->second) {
+        buffer_data_to_buffer_.erase(buf.var());
       }
     }
 
@@ -202,7 +202,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     return Stmt(n);
   }
 
-  Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<Buffer>& alloc_buffers) {
+  Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<BufferVar>& alloc_buffers) {
     TVM_FFI_ICHECK(!alloc_buffers.empty());
     SBlock opaque_block(/*iter_vars=*/{},
                         /*reads=*/{},
@@ -224,7 +224,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       const ffi::Array<BufferRegion>& region) const {
     ffi::Array<BufferRegion> result;
     for (const BufferRegion& buffer_region : region) {
-      if (buffer_data_to_buffer_.count(buffer_region->buffer->data)) {
+      if (buffer_data_to_buffer_.count(buffer_region->buffer.var())) {
         result.push_back(buffer_region);
       }
     }
@@ -232,9 +232,9 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
   /*! \brief The map from stmt to the buffers to be allocated under it. */
-  std::unordered_map<const StmtNode*, ffi::Array<Buffer>> alloc_buffers_;
+  std::unordered_map<const StmtNode*, ffi::Array<BufferVar>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
-  ffi::Map<Var, Buffer> buffer_data_to_buffer_;
+  ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
   /*! \brief Buffers that are allocated within a BlockNode, and may be moved. */
   std::unordered_set<const VarNode*> managed_allocations_;
 };

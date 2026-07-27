@@ -30,7 +30,7 @@ using namespace tvm::tirx;
  * \param buffer The buffer
  * \return The strides
  */
-ffi::Array<PrimExpr> GetStrides(const Buffer& buffer) {
+ffi::Array<PrimExpr> GetStrides(const BufferVar& buffer) {
   if (!buffer->strides.empty()) {
     TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
     return buffer->strides;
@@ -129,7 +129,7 @@ class SplitExprCollector {
   std::vector<SplitExpr> exprs_;
 };
 
-ffi::Optional<IndexMap> SuggestIndexMap(const Buffer& buffer, const ffi::Array<PrimExpr>& indices,
+ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer, const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         arith::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
@@ -249,7 +249,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "s_tir.schedule.SuggestIndexMap",
-      [](Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops, PrimExpr predicate) {
+      [](BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops, PrimExpr predicate) {
         arith::Analyzer analyzer;
         return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
       });

@@ -179,7 +179,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   }
   // Step 5. Handle `alloc_buffer`
   for (int i = 0, n = block->alloc_buffers.size(); i < n; ++i) {
-    tirx::Buffer buffer = block->alloc_buffers[i];
+    tirx::BufferVar buffer = block->alloc_buffers[i];
     AccessPath buffer_p = block_p->Attr("alloc_buffers")->ArrayItem(i);
     IdDoc lhs = DefineBuffer(buffer, *frame, d);
     ExprDoc rhs = BufferDecl(buffer, "sblock_alloc_buffer", {}, buffer_p, *frame, d,

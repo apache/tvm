@@ -45,7 +45,7 @@ class PipelineNode : public ffi::Object {
   ffi::String name_hint;
 
   /*! \brief The workspace of the pipeline. */
-  ffi::Map<ffi::String, tvm::tirx::Buffer> workspace;
+  ffi::Map<ffi::String, tvm::tirx::BufferVar> workspace;
   /*! \brief The schedule config of the pipeline. */
   ffi::Map<ffi::String, ffi::Any> schedule_config;
 
@@ -68,7 +68,7 @@ class Pipeline : public ffi::ObjectRef {
  public:
   TVM_DLL explicit Pipeline(ExecScope thread_scope, size_t depth = 0, bool separate_pc = false,
                             ffi::String name_hint = "",
-                            ffi::Map<ffi::String, tvm::tirx::Buffer> workspace = {},
+                            ffi::Map<ffi::String, tvm::tirx::BufferVar> workspace = {},
                             ffi::Map<ffi::String, ffi::Any> schedule_config = {});
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Pipeline, ffi::ObjectRef, PipelineNode);
@@ -90,7 +90,7 @@ class CopyPipeline : public Pipeline {
  public:
   TVM_DLL explicit CopyPipeline(ExecScope thread_scope, size_t depth = 0, bool separate_pc = false,
                                 ffi::String name_hint = "",
-                                ffi::Map<ffi::String, tvm::tirx::Buffer> workspace = {},
+                                ffi::Map<ffi::String, tvm::tirx::BufferVar> workspace = {},
                                 ffi::Map<ffi::String, ffi::Any> schedule_config = {});
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(CopyPipeline, Pipeline, CopyPipelineNode);

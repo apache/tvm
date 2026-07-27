@@ -545,7 +545,7 @@ class Select : public PrimExpr {
 class BufferLoadNode : public ExprNode {
  public:
   /*! \brief The buffer variable. */
-  Buffer buffer;
+  BufferVar buffer;
   /*! \brief The indices location to be loaded. */
   ffi::Array<PrimExpr> indices;
   /*! \brief The predicate mask for loading values. */
@@ -582,7 +582,7 @@ class BufferLoadNode : public ExprNode {
  */
 class BufferLoad : public PrimExpr {
  public:
-  TVM_DLL explicit BufferLoad(Buffer buffer, ffi::Array<PrimExpr> indices,
+  TVM_DLL explicit BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices,
                               ffi::Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferLoad, PrimExpr, BufferLoadNode);
   static constexpr bool _type_container_is_exact = true;

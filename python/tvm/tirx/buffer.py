@@ -22,14 +22,34 @@ from numbers import Integral
 import tvm_ffi
 
 import tvm
-from tvm.ir import PointerType, PrimType, Range
+from tvm.ir import PointerType, PrimType, Range, Type
 from tvm.runtime import Object, Scriptable, convert
 
 from . import _ffi_api
 
 
-@tvm_ffi.register_object("tirx.Buffer")
-class Buffer(Object, Scriptable):
+@tvm_ffi.register_object("tirx.BufferType")
+class BufferType(Type):
+    """The structural type carried by an ordinary buffer variable."""
+
+    data_pointer_type: PointerType
+    dtype: PrimType
+    shape: list
+    strides: list
+    elem_offset: tvm.ir.Expr
+    data_alignment: int
+    offset_factor: int
+    layout: object | None
+    allocated_addr: list
+
+
+def is_buffer(value) -> bool:
+    """Return whether ``value`` is an ordinary Var carrying BufferType."""
+
+    return isinstance(value, tvm.ir.Var) and isinstance(value.ty, BufferType)
+
+
+class _BufferMethods:
     """Symbolic data buffer in TVM.
 
     Buffer provide a way to represent data layout
@@ -192,10 +212,6 @@ class Buffer(Object, Scriptable):
     def with_dtype(self, dtype):
         """Return a new buffer with the dtype."""
         return _ffi_api.BufferWithDtype(self, dtype)  # type: ignore
-
-    def with_data(self, data):
-        """Return a new buffer with the data."""
-        return _ffi_api.BufferWithData(self, data)  # type: ignore
 
     def offset_of(self, indices):
         """Determine the offset of the provided indices in the flattened buffer.
@@ -461,6 +477,9 @@ class Buffer(Object, Scriptable):
         )
 
     def __getitem__(self, indices):
+        if not is_buffer(self):
+            return _ORIGINAL_VAR_GETITEM(self, indices)
+
         from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
         from .expr import BufferLoad, Ramp  # pylint: disable=import-outside-toplevel
         from .stmt import BufferRegion  # pylint: disable=import-outside-toplevel
@@ -543,7 +562,7 @@ def decl_buffer(
         storage_type = dtype if isinstance(dtype, PrimType) else PrimType(dtype)
         storage_type = PrimType("int8") if storage_type.dtype == "bool" else storage_type
         data = Var(name, PointerType(storage_type, scope), span)
-    return _ffi_api.Buffer(  # type: ignore
+    return _ffi_api.BufferVar(  # type: ignore
         data,
         dtype,
         shape,
@@ -555,6 +574,50 @@ def decl_buffer(
         span,
         layout,
     )
+
+
+def _type_field(name):
+    def getter(self):
+        if not is_buffer(self):
+            raise AttributeError(f"{self.name} is not a Var with BufferType")
+        return getattr(self.ty, name)
+
+    return property(getter)
+
+
+# Buffer values intentionally retain runtime type key ``ir.Var``.  Install the
+# checked, type-directed convenience surface on that ordinary Python wrapper.
+_ORIGINAL_VAR_GETITEM = tvm.ir.Var.__getitem__
+for _name, _value in _BufferMethods.__dict__.items():
+    if _name.startswith("__") and _name != "__getitem__":
+        continue
+    if callable(_value) or isinstance(_value, property):
+        setattr(tvm.ir.Var, _name, _value)
+
+for _name in (
+    "data_pointer_type",
+    "dtype",
+    "shape",
+    "strides",
+    "elem_offset",
+    "data_alignment",
+    "offset_factor",
+    "layout",
+    "allocated_addr",
+):
+    setattr(tvm.ir.Var, _name, _type_field(_name))
+
+tvm.ir.Var.data = property(
+    lambda self: _ffi_api.BufferData(self)
+    if is_buffer(self)
+    else (_ for _ in ()).throw(AttributeError(f"{self.name} is not a Var with BufferType"))
+)
+tvm.ir.Var.READ = _BufferMethods.READ
+tvm.ir.Var.WRITE = _BufferMethods.WRITE
+
+# Source compatibility for annotations and imports only.  There is no
+# ``tirx.Buffer`` runtime object; constructors return ``tvm.ir.Var``.
+Buffer = tvm.ir.Var
 
 
 @tvm_ffi.register_object("tirx.DataProducer")

@@ -63,7 +63,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    std::string storage_scope = GetStorageScope(op->buffer->data);
+    std::string storage_scope = op->buffer.scope();
     if (IsTextureStorage(storage_scope)) {
       op = stmt.as<AllocBufferNode>();
       const auto& extents = op->buffer->shape;
@@ -82,8 +82,9 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
       args.push_back(Call(PointerType(PrimType::Int(64)), builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
-      stmt = Bind(op->buffer->data,
-                  Call(op->buffer->data->ty, builtin::nd_mem_alloc_with_scope(), args));
+      stmt = DeclBuffer(
+          op->buffer,
+          Call(op->buffer->data_pointer_type, builtin::nd_mem_alloc_with_scope(), args));
     }
     return stmt;
   }
@@ -91,7 +92,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
  protected:
   std::string GetStorageScope(const Var& buffer_var) {
     auto* ptr = buffer_var->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+    TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
 };
