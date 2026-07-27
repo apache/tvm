@@ -172,7 +172,8 @@ def test_codegen_loop_step(target):
         ("llvm", "float64", "uint64", 0x7FF8000000000011, 0x7FF8000000000022),
     ],
 )
-def test_max_nan_preserving(target, dtype, uint_dtype, nan_a, nan_b):
+@pytest.mark.parametrize("operation", ["min", "max"])
+def test_min_max_nan_preserving(target, dtype, uint_dtype, nan_a, nan_b, operation):
     if target != "c" and not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
@@ -186,6 +187,16 @@ def test_max_nan_preserving(target, dtype, uint_dtype, nan_a, nan_b):
         for i in range(8):
             C[i] = T.max(A[i], B[i])
 
+    @T.prim_func(s_tir=True)
+    def min_func(
+        A: T.Buffer((8,), dtype),
+        B: T.Buffer((8,), dtype),
+        C: T.Buffer((8,), dtype),
+    ):
+        T.func_attr({"tirx.noalias": True})
+        for i in range(8):
+            C[i] = T.min(A[i], B[i])
+
     a_np = np.array([0.0, 1.0, 0.0, 0.0, -0.0, 3.0, 2.0, -5.0], dtype=dtype)
     b_np = np.array([1.0, 0.0, 0.0, -0.0, 0.0, 2.0, 2.0, -4.0], dtype=dtype)
     a_bits = a_np.view(uint_dtype)
@@ -197,9 +208,11 @@ def test_max_nan_preserving(target, dtype, uint_dtype, nan_a, nan_b):
     a = tvm.runtime.tensor(a_np, dev)
     b = tvm.runtime.tensor(b_np, dev)
     c = tvm.runtime.empty((8,), dtype, dev)
-    tvm.compile(max_func, target=target)(a, b, c)
+    func = min_func if operation == "min" else max_func
+    tvm.compile(func, target=target)(a, b, c)
 
-    expected = np.where((a_np > b_np) | np.isnan(a_np), a_np, b_np)
+    compare = a_np < b_np if operation == "min" else a_np > b_np
+    expected = np.where(compare | np.isnan(a_np), a_np, b_np)
     np.testing.assert_array_equal(c.numpy().view(uint_dtype), expected.view(uint_dtype))
 
 
