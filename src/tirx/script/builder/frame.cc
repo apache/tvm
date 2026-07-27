@@ -37,11 +37,11 @@ namespace tirx {
 namespace {
 
 // In s_tir functions, buffer-typed parameters must not carry a layout (the
-// s_tir IR doesn't track per-buffer layouts on params). When `T.Buffer(...)` is
+// s_tir IR doesn't track per-buffer layouts on params). When `T.BufferVar(...)` is
 // used as a parameter annotation, the parser evaluates the annotation outside
 // the PrimFunc frame; if the annotation captures an outer-scope variable (e.g.
 // `dtype` in a closure-based generator), the evaluation happens *before*
-// `_current_s_tir()` becomes true, so the resulting Buffer is built with the
+// `_current_s_tir()` becomes true, so the resulting BufferVar is built with the
 // default tile layout instead of None. Direct annotations using only literals
 // are re-evaluated inside the frame and correctly get layout=None.
 //
@@ -51,11 +51,11 @@ namespace {
 // `buffer_remap_` machinery, so the body remains well-formed.
 class STirBufferLayoutNormalizer : public tvm::tirx::StmtExprMutator {
  public:
-  void Register(const tvm::tirx::Buffer& old_buf, const tvm::tirx::Buffer& new_buf) {
+  void Register(const tvm::tirx::BufferVar& old_buf, const tvm::tirx::BufferVar& new_buf) {
     this->buffer_remap_.Set(old_buf, new_buf);
   }
   bool Empty() const { return this->buffer_remap_.empty(); }
-  tvm::tirx::Buffer Lookup(const tvm::tirx::Buffer& buf) const {
+  tvm::tirx::BufferVar Lookup(const tvm::tirx::BufferVar& buf) const {
     auto it = this->buffer_remap_.find(buf);
     if (it != this->buffer_remap_.end()) {
       return (*it).second;
@@ -113,17 +113,19 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
   // s_tir-mode normalization: drop stale default layouts (see comment on
   // STirBufferLayoutNormalizer above) and rewrite body references coherently.
-  ffi::Map<tvm::tirx::Var, tvm::tirx::Buffer> effective_buffer_map = buffer_map;
-  ffi::Array<tvm::tirx::Buffer> effective_root_alloc_buffers = root_alloc_buffers;
+  ffi::Map<tvm::tirx::Var, tvm::tirx::BufferVar> effective_buffer_map = buffer_map;
+  ffi::Array<tvm::tirx::BufferVar> effective_root_alloc_buffers = root_alloc_buffers;
   tvm::tirx::Stmt body = AsStmt(stmts);
   if (s_tir) {
     STirBufferLayoutNormalizer normalizer;
-    ffi::Map<tvm::tirx::Var, tvm::tirx::Buffer> new_buffer_map;
+    ffi::Map<tvm::tirx::Var, tvm::tirx::BufferVar> new_buffer_map;
     for (const auto& kv : buffer_map) {
-      tvm::tirx::Buffer buf = kv.second;
+      tvm::tirx::BufferVar buf = kv.second;
       if (buf->layout.has_value()) {
-        tvm::tirx::Buffer new_buf = buf;
-        new_buf.CopyOnWrite()->layout = std::nullopt;
+        ffi::ObjectPtr<tvm::tirx::BufferTypeNode> type = tvm::tirx::CopyBufferType(buf);
+        type->layout = std::nullopt;
+        tvm::tirx::BufferVar new_buf =
+            tvm::tirx::RebuildBufferVar(buf, std::move(type));
         normalizer.Register(buf, new_buf);
         new_buffer_map.Set(kv.first, new_buf);
       } else {
@@ -132,8 +134,8 @@ void PrimFuncFrameNode::ExitWithScope() {
     }
     if (!normalizer.Empty()) {
       body = normalizer(std::move(body));
-      ffi::Array<tvm::tirx::Buffer> new_root_alloc_buffers;
-      for (const tvm::tirx::Buffer& buf : root_alloc_buffers) {
+      ffi::Array<tvm::tirx::BufferVar> new_root_alloc_buffers;
+      for (const tvm::tirx::BufferVar& buf : root_alloc_buffers) {
         new_root_alloc_buffers.push_back(normalizer.Lookup(buf));
       }
       effective_buffer_map = std::move(new_buffer_map);
@@ -177,8 +179,8 @@ void SBlockFrameNode::ExitWithScope() {
   // Allow SBlock construction in raw IRBuilder context (no enclosing PrimFuncFrame)
   // so test fixtures can construct blocks/block-realizes directly.
 
-  ffi::Array<tvm::tirx::Buffer> tir_alloc_buffers;
-  for (const tvm::tirx::Buffer& buffer : alloc_buffers) {
+  ffi::Array<tvm::tirx::BufferVar> tir_alloc_buffers;
+  for (const tvm::tirx::BufferVar& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
   }
   ffi::Map<ffi::String, Any> attrs = annotations.value_or({});
@@ -297,7 +299,7 @@ void ElseFrameNode::ExitWithScope() {
 void DeclBufferFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (allocated) {
-    AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::DeclBuffer(buffer), AsStmt(stmts)));
+    AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::DeclBuffer(buffer, data), AsStmt(stmts)));
   } else {
     // data is undefined in `decl_buffer(...)`, lower to `alloc_buffer(...)`.
     AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer), AsStmt(stmts)));

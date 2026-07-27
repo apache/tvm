@@ -464,9 +464,8 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     )
 
     prim_func = tvm.tirx.PrimFunc(
-        params=[A.data, B_data],
+        params=[A, B_data],
         body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.SERIAL, block_realize),
-        buffer_map={A.data: A},
         # Note: B is NOT in buffer_map, so its declaration scope is only
         # within a DeclBuffer node (which we intentionally omit here).
     )

@@ -27,7 +27,7 @@ using namespace tvm::tirx;
 
 class AnnotateRegionRewriter : public StmtExprMutator {
  public:
-  AnnotateRegionRewriter(Buffer buffer, int buffer_index, BufferRegion new_region,
+  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, BufferRegion new_region,
                          BufferIndexType buffer_index_type)
       : buffer_(buffer),
         buffer_index_(buffer_index),
@@ -39,9 +39,9 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 
     ffi::Array<BufferRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
-    TVM_FFI_ICHECK_GE(buffer_index_, 0) << "Buffer index must be non-negative";
+    TVM_FFI_ICHECK_GE(buffer_index_, 0) << "BufferVar index must be non-negative";
     TVM_FFI_ICHECK_LT(buffer_index_, static_cast<int>(regions.size()))
-        << "Buffer index out of range";
+        << "BufferVar index out of range";
     regions.Set(buffer_index_, new_region_);
 
     ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());
@@ -79,7 +79,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   }
 
  private:
-  Buffer buffer_;
+  BufferVar buffer_;
   int buffer_index_;
   BufferRegion new_region_;
   BufferIndexType buffer_index_type_;
@@ -88,7 +88,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           BufferIndexType buffer_index_type, const IndexMap& index_map) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  Buffer buffer =
+  BufferVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
 
   arith::Analyzer analyzer;

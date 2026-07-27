@@ -81,7 +81,7 @@ class ForMatcher : public TensorizeComparator {
   }
 
   std::vector<SymbolMap> evaluated_symbols;
-  std::vector<Buffer> evaluated_buffers;
+  std::vector<BufferVar> evaluated_buffers;
 
  private:
   using ExprComparator::VisitExpr_;
@@ -324,7 +324,7 @@ class ForMatcher : public TensorizeComparator {
     return CompareBufferAccess(op, rhs);
   }
 
-  bool CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
+  bool CompareBuffer(const BufferVar& lhs, const BufferVar& rhs) {
     if (lhs.same_as(rhs)) return true;
     auto it = rhs_buffer_map_.find(rhs);
     bool equal;
@@ -336,9 +336,8 @@ class ForMatcher : public TensorizeComparator {
       for (size_t i = 0; i < lhs->shape.size(); ++i) {
         if (!VisitExpr(lhs->shape[i], rhs->shape[i])) return false;
       }
-      // Remap both buffer itself and buffer data
-      equal =
-          DefEqual(lhs->data, rhs->data) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+      equal = DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype &&
+              lhs.scope() == rhs.scope();
       if (equal) {
         rhs_buffer_map_[rhs] = lhs;
       }
@@ -449,18 +448,18 @@ class FunctionPartitioner : public StmtExprVisitor {
  public:
   explicit FunctionPartitioner(int num_matched_ops) : num_matched_ops_(num_matched_ops) {}
   /*! \brief alloc_buffers for the first function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs1;
   /*! \brief alloc_buffers for the second function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs2;
   /*! \brief whether the current block is in the first function */
   ffi::Map<SBlock, bool> block_partition;
   /*! \brief input buffers for the first function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input1;
   /*! \brief input buffers for the second function */
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
   /*! \brief The output buffer for the first function, which is also the input buffer for the second
   function */
-  Buffer intermediate_buffer;
+  BufferVar intermediate_buffer;
   /*! \brief Indicate whether we have failed. If failed, we will not do any further analysis and
   directly return the original one. */
   bool fail = false;
@@ -506,7 +505,7 @@ class BlockRemover : public StmtExprMutator {
  public:
   static Stmt RemoveBlockByPartition(
       Stmt stmt, const ffi::Map<SBlock, bool>& block_partition,
-      const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
+      const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
       bool is_library_part) {
     BlockRemover remover(block_partition, allocs, is_library_part);
     return remover(stmt);
@@ -514,7 +513,7 @@ class BlockRemover : public StmtExprMutator {
 
  private:
   BlockRemover(const ffi::Map<SBlock, bool>& block_partition,
-               const std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
+               const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& allocs,
                bool is_library_part)
       : block_partition(block_partition), allocs_(allocs), is_library_part_(is_library_part) {}
 
@@ -530,8 +529,8 @@ class BlockRemover : public StmtExprMutator {
         erased_ = true;
       }
     }
-    ffi::Array<Buffer> alloc_buffers;
-    for (const Buffer& b : block->alloc_buffers) {
+    ffi::Array<BufferVar> alloc_buffers;
+    for (const BufferVar& b : block->alloc_buffers) {
       if (allocs_.count(b)) {
         alloc_buffers.push_back(b);
       }
@@ -555,7 +554,7 @@ class BlockRemover : public StmtExprMutator {
 
   bool erased_ = false;
   ffi::Map<SBlock, bool> block_partition;
-  std::unordered_set<Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> allocs_;
   bool is_library_part_ = false;
 };
 
@@ -583,7 +582,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   TVM_FFI_ICHECK(codegen_result.size() == 3);
   ffi::String library_code = codegen_result[0].as_or_throw<ffi::String>();
   int num_matched_ops = codegen_result[1].as_or_throw<IntImm>()->value;
-  ffi::Array<Buffer> func1_args = codegen_result[2].as_or_throw<ffi::Array<Buffer>>();
+  ffi::Array<BufferVar> func1_args = codegen_result[2].as_or_throw<ffi::Array<BufferVar>>();
   if (num_matched_ops == 0) {
     return {func, std::nullopt};
   }
@@ -624,7 +623,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   }
   arg_partition->push_back(arg_partition1);
   new_params1.push_back(Var("output", PointerType::VoidPointerTy()));
-  ffi::Map<Var, Buffer> new_buffer_map1;
+  ffi::Map<Var, BufferVar> new_buffer_map1;
   for (const auto& kv : func->buffer_map) {
     if (partitioner.input1.count(kv.second)) {
       new_buffer_map1.Set(kv.first, kv.second);
@@ -647,7 +646,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition2);
-  ffi::Map<Var, Buffer> new_buffer_map2;
+  ffi::Map<Var, BufferVar> new_buffer_map2;
   new_buffer_map2.Set(new_params2[0], partitioner.intermediate_buffer);
   for (const auto& kv : func->buffer_map) {
     if (partitioner.input2.count(kv.second)) {
@@ -752,7 +751,7 @@ class SplitMutator : public ExprMutator {
     if (lib_func->IsInstance<tirx::PrimFuncNode>()) return ffi::GetRef<Call>(op);
     TVM_FFI_ICHECK(lib_func->IsInstance<ExternFuncNode>());
     builder_->UpdateFunction(gv, lib_func);
-    tirx::Buffer intermediate_buffer = func1->buffer_map.at(func1->params.back());
+    tirx::BufferVar intermediate_buffer = func1->buffer_map.at(func1->params.back());
     PrimType dtype = intermediate_buffer->dtype;
     Call call1(Type::Missing(), call_dps_packed_, {lib_func, Tuple(args1)}, call->attrs,
                {TensorType(ShapeExpr(intermediate_buffer->shape), dtype)});

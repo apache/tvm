@@ -29,7 +29,7 @@ from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
 from tvm.script.parser._core import Parser, dispatch, doc
 from tvm.script.parser.core.doc import from_doc
-from tvm.tirx import Buffer, IterVar, Layout
+from tvm.tirx import Buffer, IterVar, Layout, is_buffer
 from tvm.tirx.script import builder as T
 from tvm.tirx.script.builder.ir import name_meta_class_value
 from tvm.tirx.stmt import BufferRegion
@@ -119,7 +119,7 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
         for i, v in enumerate(value):
             bind_with_value(self, node, f"{var_name}_{i}", v)
         return value
-    elif isinstance(value, Buffer | tvm.ir.Var):
+    elif isinstance(value, tvm.ir.Var):
         IRBuilder.name(var_name, value)
         return value
     else:
@@ -211,7 +211,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         res = value.__enter__()
         IRBuilder.name(var_name, res)
         return res
-    elif isinstance(value, Buffer | IterVar | Layout) or (
+    elif is_buffer(value) or isinstance(value, IterVar | Layout) or (
         isinstance(value, tvm.ir.Var) and not self.var_table.exist(value)
     ):
         IRBuilder.name(var_name, value)
@@ -416,7 +416,7 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         # that genuine errors (e.g. wrong shape, bad store) are not swallowed.
         # Only TypeError from FFI type mismatch (e.g. rhs is a meta_var, not
         # a Expr or auto-convertible scalar) triggers fallthrough.
-        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad | tvm.tirx.Buffer):
+        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad) or is_buffer(lhs_value):
             if isinstance(lhs_value, T.scalar_wrapper):
                 buffer = lhs_value.scalar.buffer
             else:
@@ -496,7 +496,7 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
             lhs_value = self.eval_expr(lhs_copy)
         except Exception:  # pylint: disable=broad-except
             pass
-        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad | tvm.tirx.Buffer):
+        if isinstance(lhs_value, T.scalar_wrapper | T.BufferLoad) or is_buffer(lhs_value):
             if isinstance(lhs_value, T.scalar_wrapper):
                 buffer = lhs_value.scalar.buffer
             else:
@@ -769,7 +769,7 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
         pass
     elif isinstance(res, tvm.tirx.stmt.BufferStore):
         T.buffer_store(res.buffer, res.value, res.indices, res.predicate)
-    elif isinstance(res, tvm.tirx.Buffer):
+    elif is_buffer(res):
         # ``T.match_buffer(...)`` used as a bare statement (no LHS) — the
         # buffer object is discarded; the underlying side effect (the
         # match_buffer node) has already been emitted into the frame.

@@ -257,9 +257,9 @@ class ExternOpNode : public OperationNode {
   /*! \brief The input tensors */
   ffi::Array<Tensor> inputs;
   /*! \brief Symbolic placeholder representation of inputs */
-  ffi::Array<Buffer> input_placeholders;
+  ffi::Array<BufferVar> input_placeholders;
   /*! \brief Symbolic placeholder representation of outputs */
-  ffi::Array<Buffer> output_placeholders;
+  ffi::Array<BufferVar> output_placeholders;
   /*! \brief the statement that generates the computation. */
   Stmt body;
 
@@ -289,8 +289,8 @@ class ExternOpNode : public OperationNode {
 class ExternOp : public Operation {
  public:
   TVM_DLL ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi::Any> attrs,
-                   ffi::Array<Tensor> inputs, ffi::Array<Buffer> input_placeholders,
-                   ffi::Array<Buffer> output_placeholders, Stmt body);
+                   ffi::Array<Tensor> inputs, ffi::Array<BufferVar> input_placeholders,
+                   ffi::Array<BufferVar> output_placeholders, Stmt body);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ExternOp, Operation, ExternOpNode);
 };

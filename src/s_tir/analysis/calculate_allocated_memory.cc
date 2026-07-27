@@ -41,7 +41,7 @@ using namespace tvm::tirx;
 
 std::string GetStorageScope(const Var& var) {
   auto* ptr = var->ty.as<PointerTypeNode>();
-  TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
+  TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
   return ptr->storage_scope;
 }
 
@@ -61,7 +61,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
 
  private:
   void VisitStmt_(const AllocBufferNode* op) override {
-    std::string storage_scope = GetStorageScope(op->buffer->data);
+    std::string storage_scope = op->buffer.scope();
     auto search = _current_size.find(storage_scope);
     if (search == _current_size.end()) {
       _current_size[storage_scope] = 0;

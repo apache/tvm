@@ -53,13 +53,13 @@ class PrimFuncNode : public BaseFuncNode {
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
   /*!
-   * \brief Maps some parameters to specific Buffer data structures.
+   * \brief Maps some parameters to specific BufferVar data structures.
    *
    *  buffer_map provides a way to express data structure's field and shape
    *  constraints. The provided information is used in the program analysis
    *  and the code generation.
    *
-   *  - It defines the vars in the Buffer (m, n) in the cases below when
+   *  - It defines the vars in the BufferVar (m, n) in the cases below when
    *    they appears in the buffer_map for the first time.
    *  - When a var appears multiple times, they translate into runtime
    *    assertion to check the field constraint.
@@ -97,7 +97,7 @@ class PrimFuncNode : public BaseFuncNode {
    *  all usage in the body of the function is done through a
    *  flattened alias of the buffer.
    */
-  ffi::Map<tirx::Var, Buffer> buffer_map;
+  ffi::Map<tirx::Var, BufferVar> buffer_map;
   /*! \brief The body of the function */
   tirx::Stmt body;
 
@@ -106,7 +106,8 @@ class PrimFuncNode : public BaseFuncNode {
     refl::ObjectDef<PrimFuncNode>()
         .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("ret_type", &PrimFuncNode::ret_type)
-        .def_ro("buffer_map", &PrimFuncNode::buffer_map)
+        .def_ro("buffer_map", &PrimFuncNode::buffer_map,
+                refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("body", &PrimFuncNode::body);
     refl::TypeAttrDef<PrimFuncNode>()
         .def("__s_equal__", &PrimFuncNode::SEqual)
@@ -121,7 +122,7 @@ class PrimFuncNode : public BaseFuncNode {
     return equal(attrs, other->attrs, false, "attrs") &&
            equal(params, other->params, true, "params") &&
            equal(ret_type, other->ret_type, false, "ret_type") &&
-           equal(buffer_map, other->buffer_map, false, "buffer_map") &&
+           equal(buffer_map, other->buffer_map, true, "buffer_map") &&
            equal(body, other->body, false, "body");
   }
 
@@ -130,7 +131,7 @@ class PrimFuncNode : public BaseFuncNode {
     hash_value = hash(attrs, hash_value, false);
     hash_value = hash(params, hash_value, true);
     hash_value = hash(ret_type, hash_value, false);
-    hash_value = hash(buffer_map, hash_value, false);
+    hash_value = hash(buffer_map, hash_value, true);
     hash_value = hash(body, hash_value, false);
     return hash_value;
   }
@@ -172,7 +173,7 @@ class PrimFunc : public BaseFunc {
    * \param span The location of this object in the source code.
    */
   TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type = VoidType(),
-                   ffi::Map<tirx::Var, Buffer> buffer_map = ffi::Map<tirx::Var, Buffer>(),
+                   ffi::Map<tirx::Var, BufferVar> buffer_map = ffi::Map<tirx::Var, BufferVar>(),
                    DictAttrs attrs = DictAttrs(), Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
@@ -273,7 +274,7 @@ class TensorIntrin : public ffi::ObjectRef {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<Buffer, Expr>>& param_map);
+PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<BufferVar, Expr>>& param_map);
 
 /*!
  * \brief PrimFunc specific attribute names.

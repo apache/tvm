@@ -48,7 +48,18 @@ Var WithStorageScope(const VarNode* buffer_var, ffi::String storage_scope) {
 UpdatePointerStorageScope::UpdatePointerStorageScope(
     const std::unordered_map<const VarNode*, ffi::String>& new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
-    new_var_remap_[kv.first] = WithStorageScope(kv.first, kv.second);
+    if (kv.first->ty.as<BufferTypeNode>()) {
+      BufferVar buffer = GetBufferVar(kv.first);
+      auto type = CopyBufferType(buffer);
+      const auto* pointer_type = type->data_pointer_type.as<PointerTypeNode>();
+      TVM_FFI_ICHECK(pointer_type);
+      type->data_pointer_type = PointerType(pointer_type->element_type, kv.second);
+      BufferVar replacement = RebuildBufferVar(buffer, std::move(type));
+      new_buffer_remap_[kv.first] = replacement;
+      new_var_remap_[kv.first] = replacement.var();
+    } else {
+      new_var_remap_[kv.first] = WithStorageScope(kv.first, kv.second);
+    }
   }
 }
 
@@ -70,19 +81,12 @@ Node UpdatePointerStorageScope::UpdateBufferAccess(Node node) {
   return node;
 }
 
-Buffer UpdatePointerStorageScope::GetUpdatedBuffer(Buffer buf) {
+BufferVar UpdatePointerStorageScope::GetUpdatedBuffer(BufferVar buf) {
   // Use the cached buffer, if it exists.
   auto key = buf.get();
   auto it = new_buffer_remap_.find(key);
   if (it != new_buffer_remap_.end()) {
     return it->second;
-  }
-
-  // Update the buffer's var, if needed.
-  auto remapped = StmtExprMutator::VisitExpr(buf->data).as_or_throw<Var>();
-  if (!remapped.same_as(buf->data)) {
-    auto writer = buf.CopyOnWrite();
-    writer->data = remapped;
   }
 
   // Update the cache and return

@@ -42,7 +42,7 @@ using namespace tvm::te;
  * function. The function expects two arguments: an array of Buffers holding the input
  * tensor values, and a pre-allocated array of Buffers to be filled with the outputs.
  */
-using FExtern = std::function<PrimExpr(ffi::Array<Buffer>, ffi::Array<Buffer>)>;
+using FExtern = std::function<PrimExpr(ffi::Array<BufferVar>, ffi::Array<BufferVar>)>;
 
 /*!
  * \brief Create tensors representing the result of invoking an external function.
@@ -69,11 +69,11 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
   TVM_FFI_ICHECK_EQ(out_shapes.size(), out_types.size())
       << "make_extern: out_shapes and out_types must have equal size";
 
-  ffi::Array<Buffer> input_placeholders;
+  ffi::Array<BufferVar> input_placeholders;
   for (auto t : inputs) {
     input_placeholders.push_back(tvm::tirx::decl_buffer(t->shape, t->dtype, t->op->name));
   }
-  ffi::Array<Buffer> output_placeholders;
+  ffi::Array<BufferVar> output_placeholders;
   for (size_t i = 0; i < out_shapes.size(); ++i) {
     output_placeholders.push_back(tvm::tirx::decl_buffer(out_shapes[i], out_types[i], name));
   }
@@ -98,7 +98,7 @@ inline ffi::Array<Tensor> make_extern(const ffi::Array<ffi::Array<PrimExpr>>& ou
  *
  * \return An expression representing the pack operation
  */
-inline Expr pack_buffer(Buffer buf) {
+inline Expr pack_buffer(BufferVar buf) {
   TVM_FFI_ICHECK_GT(buf->shape.size(), 0) << "buf shape must have at least one element";
   Expr shape =
       Call(PointerType(PrimType::Int(64)), tvm::tirx::builtin::tvm_stack_make_shape(), buf->shape);

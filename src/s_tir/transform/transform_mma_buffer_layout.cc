@@ -48,7 +48,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   Stmt VisitStmt_(const SBlockNode* op) {
     SBlock block = ffi::GetRef<SBlock>(op);
     auto* n = block.CopyOnWrite();
-    auto fmutate = [this](const Buffer& buffer) {
+    auto fmutate = [this](const BufferVar& buffer) {
       // m16n8k8.matrix[A/B/C] buffers are composed ofseveral small blocks. Assume the block's
       // shape is [bi, bj]. Inside each small block, we have 8 threads in stride dimension and 4
       // threads in contiguous dimension, so we change the buffer's shape from [i, j]
@@ -70,9 +70,9 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
-        Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local");
+        BufferVar new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         this->buffer_map_.insert({buffer, new_buffer});
-        this->buffer_var_map_.insert({buffer->data, new_buffer->data});
+        this->buffer_var_map_.insert({buffer.var(), new_buffer.var()});
         return new_buffer;
 
       } else if (buffer.scope() == "m16n8k8.matrixA") {
@@ -91,9 +91,9 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
-        Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local");
+        BufferVar new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         this->buffer_map_.insert({buffer, new_buffer});
-        this->buffer_var_map_.insert({buffer->data, new_buffer->data});
+        this->buffer_var_map_.insert({buffer.var(), new_buffer.var()});
         return new_buffer;
 
       } else if (buffer.scope() == "m16n8k8.matrixB") {
@@ -112,9 +112,9 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
-        Buffer new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer->name, "local");
+        BufferVar new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         this->buffer_map_.insert({buffer, new_buffer});
-        this->buffer_var_map_.insert({buffer->data, new_buffer->data});
+        this->buffer_var_map_.insert({buffer.var(), new_buffer.var()});
         return new_buffer;
       }
       return buffer;
@@ -170,7 +170,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
  private:
-  std::unordered_map<Buffer, Buffer, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_map_;
+  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_map_;
   std::unordered_map<Var, Var> buffer_var_map_;
   arith::Analyzer analyzer;
 };

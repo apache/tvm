@@ -38,7 +38,8 @@ from tvm.tirx.stmt_functor import StmtExprMutator, StmtMutator
 class BufferReplacer(StmtExprMutator):
     """
     Replace buffer with another buffer.
-    Also replace the data of the buffer with another var.
+    Buffer values are ordinary Vars, so the same mapping also rewrites
+    ``buffer_data`` projections.
     """
 
     def __init__(
@@ -49,7 +50,7 @@ class BufferReplacer(StmtExprMutator):
         self.var_map = var_map if var_map is not None else {}
         self.buffer_attr_var_mutated = False
         for old_buffer, new_buffer in self.buffer_map.items():
-            self.var_map[old_buffer.data] = new_buffer.data
+            self.var_map[old_buffer] = new_buffer
 
     def mutate_buffer(self, buffer: Buffer):
         if buffer in self.buffer_map:
@@ -59,7 +60,6 @@ class BufferReplacer(StmtExprMutator):
         # unrelated buffers can be spuriously cloned and introduce alias buffers.
         prev_mutated = self.buffer_attr_var_mutated
         self.buffer_attr_var_mutated = False
-        new_data = self.visit_expr(buffer.data)
         new_shape = [self.visit_expr(expr) for expr in buffer.shape]
         new_strides = [self.visit_expr(expr) for expr in buffer.strides]
         new_elem_offset = (
@@ -83,6 +83,7 @@ class BufferReplacer(StmtExprMutator):
             )
         else:
             new_layout = buffer.layout
+        new_allocated_addr = [self.visit_expr(expr) for expr in buffer.allocated_addr]
         buffer_attr_mutated = self.buffer_attr_var_mutated
         self.buffer_attr_var_mutated = prev_mutated or buffer_attr_mutated
         if not buffer_attr_mutated:
@@ -91,7 +92,7 @@ class BufferReplacer(StmtExprMutator):
             new_shape,
             buffer.dtype,
             buffer.name,
-            new_data,
+            Var(buffer.name, buffer.data_pointer_type),
             new_strides,
             new_elem_offset,
             buffer.scope(),
@@ -99,7 +100,10 @@ class BufferReplacer(StmtExprMutator):
             buffer.offset_factor,
             layout=new_layout,
         )
+        if new_allocated_addr:
+            new_buffer = new_buffer.with_allocated_addr(new_allocated_addr)
         self.buffer_map[buffer] = new_buffer
+        self.var_map[buffer] = new_buffer
         return new_buffer
 
     def visit_var_(self, op: Var):
@@ -134,7 +138,7 @@ class BufferReplacer(StmtExprMutator):
         new_buffer = self.mutate_buffer(op.buffer)
         op = super().visit_decl_buffer_(op)
         if new_buffer is not None:
-            return DeclBuffer(new_buffer, op.span)
+            return DeclBuffer(new_buffer, data=op.data, span=op.span)
         return op
 
     def visit_array_prim_expr_(self, op: list[Expr]):

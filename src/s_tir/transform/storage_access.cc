@@ -36,8 +36,8 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
-  Var buf = op->buffer->data;
-  StorageScope scope = GetScope(buf);
+  Var buf = op->buffer.var();
+  StorageScope scope = StorageScope::Create(op->buffer.scope());
   if (Enabled(buf.get(), scope)) {
     TVM_FFI_ICHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
@@ -60,8 +60,8 @@ void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
 
-  Var buf = op->buffer->data;
-  StorageScope scope = GetScope(buf);
+  Var buf = op->buffer.var();
+  StorageScope scope = StorageScope::Create(op->buffer.scope());
   if (Enabled(buf.get(), scope)) {
     AccessEntry e;
     e.threads = env_threads();

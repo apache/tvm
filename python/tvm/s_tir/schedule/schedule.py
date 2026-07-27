@@ -25,7 +25,7 @@ from tvm_ffi import register_object as _register_object
 from tvm.error import register_error
 from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
 from tvm.runtime import DataTypeCode, Object
-from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock
+from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock, is_buffer
 from tvm.tirx.function import IndexMap
 
 from . import _ffi_api
@@ -3272,7 +3272,7 @@ class Schedule(Object):
             )
             buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
 
-        elif isinstance(buffer, Buffer):
+        elif is_buffer(buffer):
             # Buffer lookup has unique id, can break out early
             found = False
             for buffer_index_type, buffer_index, buffer_obj in iter_buffers():

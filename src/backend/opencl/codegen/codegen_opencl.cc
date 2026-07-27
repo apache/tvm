@@ -284,9 +284,9 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   }
 }
 
-void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, const PrimType& t, PrimExpr base,
                                  std::ostream& os) {  // NOLINT(*)
-  const VarNode* buffer_var = buffer->data.get();
+  const VarNode* buffer_var = buffer;
   PrimType elem_type = t.WithLanes(1);
   if (!HandleTypeMatch(buffer_var, elem_type)) {
     os << '(';
@@ -300,7 +300,7 @@ void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, const PrimType& t, Pr
   os << GetVarID(buffer_var) << " + ";
   PrintExpr(base, os);
 }
-std::string CodeGenOpenCL::GetVecLoad(const PrimType& t, const BufferNode* buffer, PrimExpr base) {
+std::string CodeGenOpenCL::GetVecLoad(const PrimType& t, const VarNode* buffer, PrimExpr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -308,7 +308,7 @@ std::string CodeGenOpenCL::GetVecLoad(const PrimType& t, const BufferNode* buffe
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, const PrimType& t, PrimExpr base,
+void CodeGenOpenCL::PrintVecStore(const VarNode* buffer, const PrimType& t, PrimExpr base,
                                   const std::string& value) {
   this->PrintIndent();
   stream << "vstore" << t.lanes() << "(" << value << ", 0, ";
@@ -407,7 +407,7 @@ void CodeGenOpenCL::VisitStmt_(const AllocBufferNode* op) {
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value;
   }
-  allocation_size_.insert({op->buffer->data.get(), constant_size * op->buffer->dtype.lanes()});
+  allocation_size_.insert({op->buffer.get(), constant_size * op->buffer->dtype.lanes()});
   CodeGenC::VisitStmt_(op);
 }
 
@@ -419,12 +419,12 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
         << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
-    auto it = alloc_storage_scope_.find(load->buffer->data.get());
+    auto it = alloc_storage_scope_.find(load->buffer.get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     this->PrintType(load->ty.as_or_throw<PrimType>().WithLanes(1), os);
-    os << " *)" << this->GetVarID(load->buffer->data.get()) << " + ";
+    os << " *)" << this->GetVarID(load->buffer.get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {

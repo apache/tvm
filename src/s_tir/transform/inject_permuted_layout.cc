@@ -119,12 +119,12 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
-    // Record the mapping from buffer data var to buffer for later lookup
+    // Record the mapping from buffer identity to buffer for later lookup.
     for (auto buffer : op->alloc_buffers) {
-      buffer_map_.insert({buffer->data, buffer});
+      buffer_map_.insert({buffer.var(), buffer});
     }
     for (auto match_buffer : op->match_buffers) {
-      buffer_map_.insert({match_buffer->buffer->data, match_buffer->buffer});
+      buffer_map_.insert({match_buffer->buffer.var(), match_buffer->buffer});
     }
 
     if (op->annotations.count("permuted_layout") == 0 ||
@@ -145,9 +145,9 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return block;
   }
 
-  int CheckAndGetBufferRowSize(Buffer buffer) {
+  int CheckAndGetBufferRowSize(BufferVar buffer) {
     TVM_FFI_ICHECK(buffer->shape.size() >= 2)
-        << "The dimension of Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+        << "The dimension of BufferVar \"" << buffer.name() << "\" with shape " << buffer->shape
         << " should be at least 2";
 
     auto dim = buffer->shape.size();
@@ -156,10 +156,10 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     if (buffer_row_size % 64 != 0) {
       TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
-          << "Permuted SLayout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape " << buffer->shape
           << " is not supported since its second dimension is not divisible by 32";
       TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
-          << "Permuted SLayout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape " << buffer->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
     }
@@ -167,7 +167,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return buffer_row_size;
   }
 
-  ffi::Array<PrimExpr> HandleBufferIndices(Buffer buffer, ffi::Array<PrimExpr> indices) {
+  ffi::Array<PrimExpr> HandleBufferIndices(BufferVar buffer, ffi::Array<PrimExpr> indices) {
     auto buffer_row_size = CheckAndGetBufferRowSize(buffer);
 
     // Mutate the last two indices
@@ -190,7 +190,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return store;
     }
 
-    auto scope = StorageScope::Create(GetPtrStorageScope(store->buffer->data));
+    auto scope = StorageScope::Create(store->buffer.scope());
     if (scope.rank != StorageRank::kShared) {
       return store;
     }
@@ -208,7 +208,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return load;
     }
 
-    auto scope = StorageScope::Create(GetPtrStorageScope(load->buffer->data));
+    auto scope = StorageScope::Create(load->buffer.scope());
     if (scope.rank != StorageRank::kShared) {
       return load;
     }
@@ -273,7 +273,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return call;
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet
-      // because we will directly store result to Buffer instead of calling mma_store now
+      // because we will directly store result to BufferVar instead of calling mma_store now
       Expr access_ptr = call->args[2];
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr);
       auto new_call = call.CopyOnWrite();
@@ -287,8 +287,8 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   static constexpr size_t VECTORIZE_FACTOR = 8;
   static constexpr size_t BANK_SIZE_BYTES = 128;
 
-  // Mapping from data Var of a Buffer to Buffer, for lookup
-  std::unordered_map<Var, Buffer> buffer_map_;
+  // Mapping from data Var of a BufferVar to BufferVar, for lookup
+  std::unordered_map<Var, BufferVar> buffer_map_;
   bool permute_ = false;
 };
 

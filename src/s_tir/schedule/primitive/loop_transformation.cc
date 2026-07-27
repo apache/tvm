@@ -487,8 +487,8 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
       }
       indices.push_back(var.value()->name);
     }
-    if (buffer_indices_map.find(store->buffer->name) == buffer_indices_map.end() && !check_)
-      buffer_indices_map.Set(store->buffer->name, indices);
+    if (buffer_indices_map.find(store->buffer.name()) == buffer_indices_map.end() && !check_)
+      buffer_indices_map.Set(store->buffer.name(), indices);
     StmtExprVisitor::VisitStmt_(store);
   }
 
@@ -503,8 +503,8 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
       }
       indices.push_back(var.value()->name);
     }
-    if (buffer_indices_map.find(load->buffer->name) == buffer_indices_map.end() && !check_)
-      buffer_indices_map.Set(load->buffer->name, indices);
+    if (buffer_indices_map.find(load->buffer.name()) == buffer_indices_map.end() && !check_)
+      buffer_indices_map.Set(load->buffer.name(), indices);
     StmtExprVisitor::VisitExpr_(load);
   }
 
@@ -521,10 +521,10 @@ ffi::Array<BufferRegion> MutateBufferRegion(
   ffi::Array<BufferRegion> new_region_arr =
       MutateArray(region_arr, [&buffer_indices_map, &index_range_map](const BufferRegion& region) {
         BufferRegion new_region = region;
-        auto it = buffer_indices_map.find(new_region->buffer->name);
+        auto it = buffer_indices_map.find(new_region->buffer.name());
         if (it == buffer_indices_map.end()) return new_region;
 
-        ffi::Array<ffi::String> old_indices = buffer_indices_map[new_region->buffer->name];
+        ffi::Array<ffi::String> old_indices = buffer_indices_map[new_region->buffer.name()];
         ffi::Array<Range> new_ranges;
         for (size_t i = 0; i < old_indices.size(); i++) {
           new_ranges.push_back(index_range_map[old_indices[i]]);
@@ -582,7 +582,7 @@ class BlockMutator : public StmtExprMutator {
       index_range_map.Set(iter->var->name, iter->dom);
     }
 
-    // Get the (Buffer, indices) map
+    // Get the (BufferVar, indices) map
     ffi::Map<ffi::String, ffi::Array<ffi::String>> buffer_indices_map =
         BufferIndicesMapExtractor::Extract(new_loop_var_, new_block);
     ffi::Array<BufferRegion> new_writes =

@@ -245,7 +245,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     num_accesses_rewritten_ += 1;
     auto writer = node.CopyOnWrite();
     if (node->predicate.has_value() && allow_offset_predication_) {
-      // Buffer predicates are uint1 lane masks, so mask merging uses bitwise
+      // BufferVar predicates are uint1 lane masks, so mask merging uses bitwise
       // and rather than logical &&.
       writer->predicate = node->predicate.value() & lane_mask;
     } else {
@@ -298,12 +298,12 @@ class VecAllocAccess : public StmtExprMutator {
   template <typename Node>
   Node UpdateBufferAccess(Node node) {
     // Only update the buffer that's being replaced.
-    if (node->buffer->data.get() != buf_) {
+    if (node->buffer.get() != buf_) {
       return node;
     }
 
-    // Find/make a Buffer object with the correct updated shape.
-    Buffer buf;
+    // Find/make a BufferVar object with the correct updated shape.
+    BufferVar buf;
     auto it = buffer_map_.find(node->buffer.get());
     if (it != buffer_map_.end()) {
       buf = it->second;
@@ -321,21 +321,21 @@ class VecAllocAccess : public StmtExprMutator {
       // are updated for consistency.
 
       // Update strides if defined.
-      ffi::Array<PrimExpr> strides;
+      ffi::Array<PrimExpr> strides = node->buffer->strides;
       for (size_t i = 0; i < strides.size(); i++) {
         PrimExpr stride = strides[i];
         if (i != strides.size() - 1) {
           stride *= var_lanes_;
         }
-        strides.push_back(analyzer_->Simplify(stride));
+        strides.Set(i, analyzer_->Simplify(stride));
       }
 
       // Copy everything into the new buffer.
-      buf = node->buffer;
-      auto buf_writer = buf.CopyOnWrite();
-      buf_writer->shape = shape;
-      buf_writer->strides = strides;
-      buffer_map_[buf.get()] = buf;
+      auto type = CopyBufferType(node->buffer);
+      type->shape = shape;
+      type->strides = strides;
+      buf = RebuildBufferVar(node->buffer, std::move(type));
+      buffer_map_[node->buffer.get()] = buf;
     }
 
     // Extend the last index by the number of lanes in the vectorized
@@ -353,7 +353,7 @@ class VecAllocAccess : public StmtExprMutator {
   // buffer var
   const VarNode* buf_;
   // Updated buffer objects.
-  std::unordered_map<const BufferNode*, Buffer> buffer_map_;
+  std::unordered_map<const VarNode*, BufferVar> buffer_map_;
   // variable to be replaced
   Var var_;
   // the lanes.
@@ -864,7 +864,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
       int total_lanes = std::max(index_lanes, value_dtype_lanes);
 
       TVM_FFI_ICHECK_EQ(total_lanes % other_index_lanes, 0)
-          << "When storing to buffer " << op->buffer->name << ", cannot produce " << total_lanes
+          << "When storing to buffer " << op->buffer.name() << ", cannot produce " << total_lanes
           << " lanes of storage location by changing the last index.";
       int last_index_lanes = total_lanes / other_index_lanes;
 

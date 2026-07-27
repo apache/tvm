@@ -33,7 +33,7 @@ using namespace tvm::tirx;
 
 class NotSingleWriteBlock : public ScheduleError {
  public:
-  explicit NotSingleWriteBlock(IRModule mod, Buffer buffer, ffi::Array<StmtSRef> write_blocks)
+  explicit NotSingleWriteBlock(IRModule mod, BufferVar buffer, ffi::Array<StmtSRef> write_blocks)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {
     TVM_FFI_ICHECK_GT(write_blocks.size(), 1);
     write_blocks_.reserve(write_blocks.size());
@@ -49,7 +49,7 @@ class NotSingleWriteBlock : public ScheduleError {
 
   ffi::String DetailRenderTemplate() const final {
     size_t k = write_blocks_.size();
-    return "The buffer " + buffer_->name + " is expected to be written by single block, but got " +
+    return "The buffer " + buffer_.name() + " is expected to be written by single block, but got " +
            std::to_string(k) + " blocks who write it.";
   }
 
@@ -60,7 +60,7 @@ class NotSingleWriteBlock : public ScheduleError {
 
  private:
   IRModule mod_;
-  Buffer buffer_;
+  BufferVar buffer_;
   ffi::Array<SBlock> write_blocks_;
 };
 
@@ -69,11 +69,11 @@ class NotSingleWriteBlock : public ScheduleError {
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct CacheStageInfo {
   /*! \brief The buffer to be read. */
-  Buffer read_buffer;
+  BufferVar read_buffer;
   /*! \brief The buffer to be written. */
-  Buffer write_buffer;
+  BufferVar write_buffer;
   /*! \brief The buffer allocation to be inserted into the block signature. */
-  ffi::Optional<Buffer> alloc;
+  ffi::Optional<BufferVar> alloc;
   /*! \brief The AST node whose body is where the cache stage should be inserted. */
   StmtSRef loc_sref;
   /*! \brief The index to insert the cache_read/cache_write stage. */
@@ -90,7 +90,7 @@ struct CacheStageInfo {
 
 /*! \brief Return the buffer region related with the buffer */
 ffi::Optional<BufferRegion> GetBufferRegionFromBuffer(
-    const ffi::Array<BufferRegion>& buffer_regions, const Buffer& buffer) {
+    const ffi::Array<BufferRegion>& buffer_regions, const BufferVar& buffer) {
   ffi::Optional<BufferRegion> res = std::nullopt;
   for (const auto& region : buffer_regions) {
     if (region->buffer.same_as(buffer)) {
@@ -203,7 +203,7 @@ SBlock MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStage
       /*iter_vars*/ std::move(block_vars),
       /*reads=*/{BufferRegion(info->read_buffer, read_access_region)},
       /*writes=*/{BufferRegion(info->write_buffer, write_access_region)},
-      /*name_hint*/ cache_region->buffer->name + "_" + storage_scope,
+      /*name_hint*/ cache_region->buffer.name() + "_" + storage_scope,
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
@@ -303,7 +303,7 @@ SBlock MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
       /*iter_vars=*/std::move(block_vars),
       /*reads=*/{BufferRegion(info->read_buffer, read_access_region)},
       /*writes=*/{BufferRegion(info->write_buffer, write_access_region)},
-      /*name_hint=*/cache_region->buffer->name + "_" + storage_scope,
+      /*name_hint=*/cache_region->buffer.name() + "_" + storage_scope,
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
@@ -402,7 +402,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
       /*iter_vars=*/new_block_iters,
       /*reads=*/{BufferRegion::FromPoint(info->read_buffer, src_indices)},
       /*writes=*/{BufferRegion::FromPoint(info->write_buffer, dst_indices)},
-      /*name_hint=*/info->write_buffer->name + "_reindex",
+      /*name_hint=*/info->write_buffer.name() + "_reindex",
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, src_indices), dst_indices));
 
@@ -494,7 +494,7 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
  * \throw NotSingleWriteBlock if there are more than one interested block.
  */
 ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_sref,
-                                          const Buffer& buffer) {
+                                          const BufferVar& buffer) {
   SBlockScope scope = self->GetSBlockScope(scope_sref);
   auto it = scope->buffer_writers.find(buffer);
   if (it == scope->buffer_writers.end()) {
@@ -519,7 +519,7 @@ ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& sc
  * \return A boolean indicating if all the consumer blocks of the input buffer
  *         meet the requirement.
  */
-bool AllConsumersUnderStmt(ScheduleState self, Buffer buffer, StmtSRef scope_sref,
+bool AllConsumersUnderStmt(ScheduleState self, BufferVar buffer, StmtSRef scope_sref,
                            StmtSRef stmt_sref) {
   // Collect all children blocks of the target stmt.
   std::unordered_set<const SBlockNode*> blocks_under_target;
@@ -558,10 +558,10 @@ bool AllConsumersUnderStmt(ScheduleState self, Buffer buffer, StmtSRef scope_sre
  * \param index_type Whether to look for reads (kRead) or writes (kWrite).
  * \return The OR-combination of all nested block predicates found.
  */
-static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buffer,
+static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& buffer,
                                              BufferIndexType index_type) {
   struct Collector : public StmtVisitor {
-    Collector(const Buffer& buf, BufferIndexType idx_type)
+    Collector(const BufferVar& buf, BufferIndexType idx_type)
         : buffer_(buf), index_type_(idx_type), result_(IntImm::Bool(false)), found_(false) {}
 
     void VisitStmt_(const SBlockRealizeNode* realize) final {
@@ -594,7 +594,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const Buffer& buf
       StmtVisitor::VisitStmt_(realize);
     }
 
-    const Buffer& buffer_;
+    const BufferVar& buffer_;
     BufferIndexType index_type_;
     PrimExpr result_;
     bool found_;
@@ -624,7 +624,7 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
                                PrimExpr extra_predicate = IntImm::Bool(true)) {
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
-  const Buffer& buffer = buffer_region->buffer;
+  const BufferVar& buffer = buffer_region->buffer;
   arith::Analyzer analyzer;
   BufferRegion subst_region = BufferRegion(buffer, Substitute(buffer_region->region, binding));
   ffi::Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
@@ -1037,8 +1037,8 @@ class CacheReadRewriter : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
-    if (op == info_->read_buffer->data.get()) {
-      return info_->write_buffer->data;
+    if (op == info_->read_buffer.get()) {
+      return info_->write_buffer.var();
     }
     return ffi::GetRef<Var>(op);
   }
@@ -1321,8 +1321,8 @@ class CacheWriteRewriter : public StmtExprMutator {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
-    if (op == info_->write_buffer->data.get()) {
-      return info_->read_buffer->data;
+    if (op == info_->write_buffer.get()) {
+      return info_->read_buffer.var();
     }
     return ffi::GetRef<Var>(op);
   }
@@ -1439,10 +1439,9 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  * \param covered Set of block iter vars covered by the buffer access indices
  * \return The new buffer with target shape.
  */
-Buffer CreateReindexBuffer(const Buffer& buffer, const ffi::Array<IterVar>& block_iters,
+BufferVar CreateReindexBuffer(const BufferVar& buffer, const ffi::Array<IterVar>& block_iters,
                            const std::unordered_set<Var>& covered) {
-  ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*buffer.get());
-  ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*buffer->data.get());
+  ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(buffer);
   std::vector<PrimExpr> new_shape;
   std::vector<PrimExpr> new_strides;
   for (const auto& iter : block_iters) {
@@ -1453,9 +1452,7 @@ Buffer CreateReindexBuffer(const Buffer& buffer, const ffi::Array<IterVar>& bloc
   new_strides.clear();
   new_buffer->shape = new_shape;
   new_buffer->strides = new_strides;
-  new_buffer->data = buffer->data.CopyWithSuffix("_reindex");
-  new_buffer->name = buffer->name + "_reindex";
-  return Buffer(new_buffer);
+  return RebuildBufferVar(buffer, std::move(new_buffer), buffer.name() + "_reindex");
 }
 
 /*!
@@ -1487,7 +1484,7 @@ class InvalidBufferAccessError : public ScheduleError {
     kOpaqueAccess,     // opaque access to the buffer
   };
 
-  InvalidBufferAccessError(IRModule mod, Buffer buffer, SBlock block, ErrorKind kind)
+  InvalidBufferAccessError(IRModule mod, BufferVar buffer, SBlock block, ErrorKind kind)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), block_(std::move(block)), kind_(kind) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: The target buffer should be accessed via BufferLoad or BufferStore. The "
@@ -1496,7 +1493,7 @@ class InvalidBufferAccessError : public ScheduleError {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The target buffer " << buffer_->name
+    os << "The target buffer " << buffer_.name()
        << " should be accessed in the leaf block {0} via BufferLoad or BufferStore. The indices "
           "should be the same if there are multiple accesses to the target buffer. ";
     if (kind_ == ErrorKind::kNoAccess) {
@@ -1513,7 +1510,7 @@ class InvalidBufferAccessError : public ScheduleError {
 
  private:
   IRModule mod_;
-  Buffer buffer_;
+  BufferVar buffer_;
   SBlock block_;
   ErrorKind kind_;
 };
@@ -1521,7 +1518,7 @@ class InvalidBufferAccessError : public ScheduleError {
 /*! \brief Collect the related Load/Store to reindex */
 class ReIndexCollector : public StmtExprVisitor {
  public:
-  static ffi::Array<PrimExpr> Collect(const IRModule& mod, const Buffer& buffer,
+  static ffi::Array<PrimExpr> Collect(const IRModule& mod, const BufferVar& buffer,
                                       const SBlock& block) {
     ReIndexCollector collector(mod, buffer, block);
     collector(block->body);
@@ -1533,7 +1530,7 @@ class ReIndexCollector : public StmtExprVisitor {
   }
 
  private:
-  explicit ReIndexCollector(const IRModule& mod, const Buffer& buffer, const SBlock& block)
+  explicit ReIndexCollector(const IRModule& mod, const BufferVar& buffer, const SBlock& block)
       : mod_(mod), buffer_(buffer), block_(block) {}
 
   void VisitExpr_(const BufferLoadNode* load) final {
@@ -1568,7 +1565,7 @@ class ReIndexCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const VarNode* var) final {
-    if (var == buffer_->data.get()) {
+    if (var == buffer_.get()) {
       throw InvalidBufferAccessError(mod_, buffer_, block_,
                                      InvalidBufferAccessError::ErrorKind::kOpaqueAccess);
     }
@@ -1576,7 +1573,7 @@ class ReIndexCollector : public StmtExprVisitor {
   /*! \brief The IR module */
   IRModule mod_;
   /*! \brief The buffer to rewrite */
-  Buffer buffer_;
+  BufferVar buffer_;
   /*! \brief The block to visit */
   SBlock block_;
   /*! \brief The indices of buffer acess to rewrite */
@@ -1674,16 +1671,16 @@ class ReIndexRewriter : public StmtExprMutator {
   /*! \brief Whether the current block is scope block */
   bool is_scope_{true};
   /*! \brief The  buffer to be replaced */
-  Buffer old_buffer_;
+  BufferVar old_buffer_;
   /*! \brief The reindex buffer */
-  Buffer new_buffer_;
+  BufferVar new_buffer_;
   /*! \brief The new indices */
   ffi::Array<PrimExpr> indices_;
   /*! \brief The new region */
   Region region_;
 };
 
-void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, Buffer read_buffer) {
+void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, BufferVar read_buffer) {
   class NotRegionCoverError : public ScheduleError {
    public:
     explicit NotRegionCoverError(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
@@ -1734,7 +1731,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
 
   // Step 1. Check index, getting the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  Buffer read_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
+  BufferVar read_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
                                           BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   // Check required region cover for cache_read
@@ -1800,12 +1797,13 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   info.cache_region = cache_region;
   info.write_buffer = WithScope(read_buffer, storage_scope);
   if (!cache_full_region) {
-    auto* write_buffer = info.write_buffer.CopyOnWrite();
+    auto write_buffer = CopyBufferType(info.write_buffer);
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
     }
     write_buffer->shape = std::move(shape);
+    info.write_buffer = RebuildBufferVar(info.write_buffer, std::move(write_buffer));
   }
   info.alloc = info.write_buffer;
 
@@ -1843,7 +1841,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
 
   // Step 1. Checking index, getting the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  Buffer write_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), write_buffer_index,
+  BufferVar write_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), write_buffer_index,
                                            BufferIndexType::kWrite);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
@@ -1889,12 +1887,13 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   info.cache_region = cache_region;
   info.read_buffer = WithScope(write_buffer, storage_scope);
   if (!cache_full_region) {
-    auto* read_buffer = info.read_buffer.CopyOnWrite();
+    auto read_buffer_type = CopyBufferType(info.read_buffer);
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
     }
-    read_buffer->shape = std::move(shape);
+    read_buffer_type->shape = std::move(shape);
+    info.read_buffer = RebuildBufferVar(info.read_buffer, std::move(read_buffer_type));
   }
   info.alloc = info.read_buffer;
 
@@ -1985,7 +1984,7 @@ template <bool is_cache_read>
 void CollectReindexCacheStageInfoAndCreateBuffer(
     ReindexCacheStageInfo* info, const IRModule& mod, const StmtSRef& block_sref,
     const ffi::String& storage_scope, const IndexMap& index_map, const SBlock& block,
-    const SBlockRealize& realize, const Buffer& old_buffer, const BufferRegion& cache_region) {
+    const SBlockRealize& realize, const BufferVar& old_buffer, const BufferRegion& cache_region) {
   arith::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars, block_shape;
   for (const IterVar& iter_var : block->iter_vars) {
@@ -2035,19 +2034,18 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   }
 
   // Create new buffer
-  ffi::ObjectPtr<BufferNode> new_buffer = ffi::make_object<BufferNode>(*old_buffer.get());
-  ffi::ObjectPtr<VarNode> new_var = ffi::make_object<VarNode>(*old_buffer->data.get());
-  const auto* ptr_type = TVM_TYPE_AS(old_buffer->data->ty, PointerTypeNode);
-  new_var->ty = PointerType(ptr_type->element_type, storage_scope);
-  new_buffer->data = Var(new_var->name + "_" + storage_scope, new_var->ty);
-  new_buffer->name = old_buffer->name + "_" + storage_scope;
+  ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(old_buffer);
+  const auto* ptr_type = TVM_TYPE_AS(old_buffer->data_pointer_type, PointerTypeNode);
+  new_buffer->data_pointer_type = PointerType(ptr_type->element_type, storage_scope);
   new_buffer->shape = new_shape;
+  BufferVar rebuilt =
+      RebuildBufferVar(old_buffer, std::move(new_buffer), old_buffer.name() + "_" + storage_scope);
 
   if (is_cache_read) {
-    info->write_buffer = Buffer(new_buffer);
+    info->write_buffer = rebuilt;
     info->alloc = info->write_buffer;
   } else {
-    info->read_buffer = Buffer(new_buffer);
+    info->read_buffer = rebuilt;
     info->alloc = info->read_buffer;
   }
 }
@@ -2086,7 +2084,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   // Step 1. Check index, getting the target buffer and the parent scope
   SBlock block = ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(block_sref));
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
-  Buffer read_buffer = GetNthAccessBuffer(self, block, read_buffer_index, BufferIndexType::kRead);
+  BufferVar read_buffer = GetNthAccessBuffer(self, block, read_buffer_index, BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Create CacheStageInfo
@@ -2157,7 +2155,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   // Step 1. Checking index, getting the target buffer and the parent scope
   SBlock block = ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(block_sref));
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
-  Buffer write_buffer =
+  BufferVar write_buffer =
       GetNthAccessBuffer(self, block, write_buffer_index, BufferIndexType::kWrite);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
@@ -2208,7 +2206,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
 /*! \brief The schedule error that the target block doesn't both read&write target buffer. */
 class NotReadWriteError : public ScheduleError {
  public:
-  NotReadWriteError(IRModule mod, SBlock block, Buffer buffer)
+  NotReadWriteError(IRModule mod, SBlock block, BufferVar buffer)
       : mod_(std::move(mod)), block_(std::move(block)), buffer_(std::move(buffer)) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: The target block does not both read & write target buffer.";
@@ -2222,7 +2220,7 @@ class NotReadWriteError : public ScheduleError {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_, buffer_}; }
   IRModule mod_;
   SBlock block_;
-  Buffer buffer_;
+  BufferVar buffer_;
 };
 
 ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
@@ -2236,7 +2234,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
 
   // Check 1. Check index, get the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  Buffer buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
+  BufferVar buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
                                      BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
@@ -2252,7 +2250,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   }
 
   ffi::Array<StmtSRef> results_block_sref;
-  Buffer new_buffer = WithScope(buffer, storage_scope);
+  BufferVar new_buffer = WithScope(buffer, storage_scope);
 
   // Do cache read
   // Cache read step 0. Create CacheStageInfo
@@ -2318,7 +2316,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
                  BufferIndexType buffer_index_type) {
   const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
   SBlock block = ffi::GetRef<SBlock>(block_ptr);
-  Buffer buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
+  BufferVar buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   arith::Analyzer analyzer;
 

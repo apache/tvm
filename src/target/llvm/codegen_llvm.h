@@ -358,7 +358,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const Expr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+      BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
       PrimType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>

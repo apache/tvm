@@ -1341,6 +1341,18 @@ def _collect_buffers(func):
     return bufs
 
 
+def _collect_buffer_sources(func):
+    """Collect the explicit data source of each DeclBuffer."""
+    sources = {}
+
+    def _visit(node):
+        if isinstance(node, tvm.tirx.DeclBuffer):
+            sources[node.buffer.name] = node.data
+
+    tvm.tirx.stmt_functor.post_order_visit(func.body, _visit)
+    return sources
+
+
 def test_buffer_local_ir():
     """Verify .local() auto-infer: shape from storage shard extents, layout, shared data."""
 
@@ -1360,7 +1372,7 @@ def test_buffer_local_ir():
     b_buf = bufs["B"]
 
     # Shared data pointer
-    assert b_local.data.same_as(b_buf.data)
+    assert_structural_equal(_collect_buffer_sources(func)["B_local"], b_buf.data)
     # Shape: single dim matching storage shard total
     assert len(b_local.shape) == 1
     storage = b_buf.layout.storage()
@@ -1449,7 +1461,7 @@ def test_buffer_permute_ir():
     b_buf = bufs["B"]
 
     # Shared data pointer
-    assert b_buf.data.same_as(a_buf.data)
+    assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
     # Shape: [4, 8] from [8, 4]
     assert int(b_buf.shape[0]) == 4
     assert int(b_buf.shape[1]) == 8
@@ -1477,7 +1489,7 @@ def test_buffer_view_dtype_ir():
     b_buf = bufs["B"]
 
     # Shared data pointer
-    assert b_buf.data.same_as(a_buf.data)
+    assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
     # dtype
     assert str(b_buf.dtype) == "float32"
     # Shape: [8, 4] (last dim halved since float32 is 2x float16)

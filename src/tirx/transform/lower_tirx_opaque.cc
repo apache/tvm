@@ -83,22 +83,14 @@ class TIRxOpaqueLower : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocBufferNode>();
-    TVM_FFI_ICHECK(op);
-
-    Buffer alloc_buf = op->buffer;
-    auto it = pool_sizes_.find(op->buffer->data);
+    auto it = pool_sizes_.find(op->buffer.var());
     if (it != pool_sizes_.end()) {
-      auto* n = alloc_buf.CopyOnWrite();
-      n->shape = {IntImm::Int64(it->second)};
+      auto type = CopyBufferType(op->buffer);
+      type->shape = {IntImm::Int64(it->second)};
+      BufferVar alloc_buf = RebuildBufferVar(op->buffer, std::move(type));
+      buffer_remap_.Set(op->buffer, alloc_buf);
     }
-    if (alloc_buf.same_as(op->buffer)) {
-      return stmt;
-    }
-    auto n = CopyOnWrite(op);
-    n->buffer = std::move(alloc_buf);
-    return Stmt(n);
+    return StmtExprMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const ForNode* op) final {

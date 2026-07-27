@@ -48,7 +48,7 @@ namespace tirx {
  *           - third: opaque regions
  */
 TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
-    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map);
+    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
  * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
@@ -59,7 +59,7 @@ TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockAccessRegion(
  * \return An array only consisting of the read regions and write regions of the input block
  */
 TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
-    const SBlock& block, const ffi::Map<Var, Buffer>& buffer_var_map);
+    const SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
@@ -69,7 +69,7 @@ TVM_DLL ffi::Array<ffi::Array<BufferRegion>> GetSBlockReadWriteRegion(
  * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
  *         return stmt is std::nullopt.
  */
-TVM_DLL ffi::Map<Buffer, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
+TVM_DLL ffi::Map<BufferVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
 /*!
  * \brief Find the "anchor block" of the given module.

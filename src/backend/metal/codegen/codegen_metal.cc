@@ -310,7 +310,7 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
 
 void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer->data.get());
+  std::string vid = AllocVarID(op->buffer.get());
 
   this->PrintIndent();
   // Compute constant_size from buffer shape
@@ -322,8 +322,8 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-  auto scope = GetPtrStorageScope(op->buffer->data);
-  alloc_storage_scope_[op->buffer->data.get()] = scope;
+  auto scope = op->buffer.scope();
+  alloc_storage_scope_[op->buffer.get()] = scope;
   const PrimType& dtype = op->buffer->dtype;
   if (scope == "metal.simdgroup") {
     bool supported_simdgroup_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Float(32) ||
@@ -337,7 +337,7 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     std::ostringstream dtype_os;
     PrintType(dtype, dtype_os);
     std::string dtype_str = dtype_os.str();
-    simdgroup_dtype_[op->buffer->data.get()] = dtype_str;
+    simdgroup_dtype_[op->buffer.get()] = dtype_str;
     stream << "simdgroup_" << dtype_str << "8x8 " << vid << '[' << constant_size / 64 << "];\n";
   } else {
     PrintStorageScope(scope, stream);
@@ -345,9 +345,9 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer->data.get(), op->buffer->dtype);
+  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
   if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer->data.get());
+    MarkVolatile(op->buffer.get());
   }
 }
 

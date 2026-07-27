@@ -146,7 +146,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
   }
 
   void VisitStmt_(const BufferStoreNode* op) final {
-    if (op->buffer->data.get() != buffer_) {
+    if (op->buffer.get() != buffer_) {
       StmtVisitor::VisitStmt_(op);
       return;
     }
@@ -257,7 +257,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // \param op  The AllocBuffer node for warp memory.
   // \param body The remaining statements (siblings) that use this buffer.
   Stmt Rewrite(const AllocBufferNode* op, Stmt body) {
-    buffer_ = op->buffer->data.get();
+    buffer_ = op->buffer.get();
     int64_t alloc_size = 1;
     for (const auto& dim : op->buffer->shape) {
       if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
@@ -278,8 +278,13 @@ class WarpAccessRewriter : protected StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    Buffer new_buf(op->buffer->data, op->buffer->dtype, {IntImm::Int32(alloc_size / width_)}, {},
-                   PrimExpr(), op->buffer->data->name, 0, 0);
+    auto type = CopyBufferType(op->buffer);
+    type->data_pointer_type = PointerType(type->data_pointer_type->element_type, "local");
+    type->shape = {IntImm::Int32(alloc_size / width_)};
+    type->strides = {};
+    type->elem_offset = PrimExpr();
+    BufferVar new_buf = RebuildBufferVar(op->buffer, std::move(type));
+    new_buffer_ = new_buf;
     Stmt rewritten_body = this->VisitStmt(body);
     return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
   }
@@ -352,7 +357,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     auto store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
 
-    if (store->buffer->data.get() == buffer_) {
+    if (store->buffer.get() == buffer_) {
       TVM_FFI_ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
                                                   << "Has FlattenBuffer been run?";
 
@@ -360,6 +365,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
 
       auto writer = store.CopyOnWrite();
+      writer->buffer = new_buffer_;
       writer->indices = {local_index};
     }
 
@@ -369,7 +375,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   Expr VisitExpr_(const BufferLoadNode* op) override {
     auto load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
 
-    if (load->buffer->data.get() != buffer_) {
+    if (load->buffer.get() != buffer_) {
       return load;
     }
 
@@ -384,6 +390,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
         << " local_index=" << local_index;
 
     auto writer = load.CopyOnWrite();
+    writer->buffer = new_buffer_;
     writer->indices = {local_index};
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
@@ -433,6 +440,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
   int warp_size_{0};
   // The buffer variable
   const VarNode* buffer_;
+  // The fresh local buffer replacing the warp-scoped definition.
+  BufferVar new_buffer_;
   // number of threads involved in one shuffle
   int width_{0};
   // Warp index
@@ -500,8 +509,8 @@ class WarpMemoryRewriter : private StmtMutator {
     bool changed = false;
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<AllocBufferNode>();
-      if (alloc && GetPtrStorageScope(alloc->buffer->data) == "warp") {
-        new_storage_scopes_[alloc->buffer->data.get()] = "local";
+      if (alloc && alloc->buffer.scope() == "warp") {
+        new_storage_scopes_[alloc->buffer.get()] = "local";
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;
         for (size_t j = i + 1; j < op->seq.size(); ++j) {

@@ -131,9 +131,9 @@ class ScheduleCopier {
     return result;
   }
 
-  /*! \brief Copy SMap<Buffer, ffi::Array<StmtSRef>> */
-  SMap<Buffer, ffi::Array<StmtSRef>> Copy(const SMap<Buffer, ffi::Array<StmtSRef>>& map) {
-    SMap<Buffer, ffi::Array<StmtSRef>> result;
+  /*! \brief Copy SMap<BufferVar, ffi::Array<StmtSRef>> */
+  SMap<BufferVar, ffi::Array<StmtSRef>> Copy(const SMap<BufferVar, ffi::Array<StmtSRef>>& map) {
+    SMap<BufferVar, ffi::Array<StmtSRef>> result;
     result.reserve(map.size());
     for (const auto& kv : map) {
       result[kv.first] = Copy(kv.second);
@@ -1067,7 +1067,7 @@ void ConcreteScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<
   this->state_->DebugVerify();
 }
 
-/******** Schedule: Buffer Transformation ********/
+/******** Schedule: BufferVar Transformation ********/
 
 void ConcreteScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) {
   TVM_TIR_SCHEDULE_BEGIN();

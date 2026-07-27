@@ -209,7 +209,7 @@ def access_of_padding_pattern() -> None:
 def test_block_access_region_detector():
     block = func.body.block.body.block
     alloc_buffers = func.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
 
     tvm.ir.assert_structural_equal(block.reads, ret[0])
@@ -222,7 +222,7 @@ def test_block_access_region_detector():
 
 def test_opaque_block():
     alloc_buffers = opaque_block_func.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     block0 = opaque_block_func.body.block.body.body.block
     ret = s_tir.analysis.get_sblock_access_region(block0, buffer_var_map)
@@ -238,7 +238,7 @@ def test_opaque_block():
 def test_opaque_access():
     block = opaque_access_func.body.block.body.body.block
     alloc_buffers = opaque_access_func.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
     ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
@@ -251,7 +251,7 @@ def test_opaque_access():
 def test_opaque_access_with_tvm_access_ptr():
     block = opaque_access_with_tvm_access_ptr_func.body.block.body.block
     alloc_buffers = opaque_access_with_tvm_access_ptr_func.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
     ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
@@ -268,7 +268,7 @@ def test_match_buffer():
     block = root_block.body.body.body.block
     block_inner = block.body[0].body.body.block
     alloc_buffers = match_buffer_func.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     # Check block
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
@@ -284,7 +284,7 @@ def test_match_buffer():
     # Check inner block AAA
     for match_buffer in block.match_buffers:
         target_buffer = match_buffer.buffer
-        buffer_var_map[target_buffer.data] = target_buffer
+        buffer_var_map[target_buffer] = target_buffer
 
     ret = s_tir.analysis.get_sblock_access_region(block_inner, buffer_var_map)
     tvm.ir.assert_structural_equal(block_inner.reads, ret[0])
@@ -294,7 +294,7 @@ def test_match_buffer():
 def test_access_in_if_then_else_func():
     block = access_in_if_then_else_func.body.block.body.block
     alloc_buffers = access_in_if_then_else_func.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
     ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
     ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(ret0[0], ret1[0])
@@ -304,7 +304,7 @@ def test_access_in_if_then_else_func():
 def test_access_in_branch_func():
     block = access_in_branch_func.body.block.body.block
     alloc_buffers = access_in_branch_func.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
     ret0 = s_tir.analysis.get_sblock_read_write_region(block, buffer_var_map)
     ret1 = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(ret0[0], ret1[0])
@@ -314,7 +314,7 @@ def test_access_in_branch_func():
 def test_access_of_padding_pattern():
     s = tvm.s_tir.schedule.Schedule(access_of_padding_pattern)
     alloc_buffers = s.get_sref(s.get_sblock("root")).stmt.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     def do_compare_buffer_region(region, expect):
         assert region.buffer == expect.buffer
@@ -340,7 +340,7 @@ def test_access_of_padding_pattern():
 def test_access_of_reduction():
     block = gemm.body.block.body.body.body.body.body.body.block
     alloc_buffers = gemm.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
@@ -350,7 +350,7 @@ def test_access_of_decompose_reduction():
     init = decomposed_gemm.body.block.body.body.body[0].body.body.block
     update = decomposed_gemm.body.block.body.body.body[1].body.body.body.block
     alloc_buffers = decomposed_gemm.body.block.alloc_buffers
-    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    buffer_var_map = {buf: buf for buf in alloc_buffers}
     for block in [init, update]:
         ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
         tvm.ir.assert_structural_equal(block.reads, ret[0])
@@ -379,7 +379,7 @@ def test_buffer_access_with_let_binding():
                 output[vi, vs] = storage[seq_id, history_id, vs]
 
     block = func.body.block.body.body.body.block
-    buffer_var_map = {buf.data: buf for buf in func.buffer_map.values()}
+    buffer_var_map = {buf: buf for buf in func.buffer_map.values()}
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
@@ -405,7 +405,7 @@ def test_buffer_access_with_nested_let_binding():
                 C[vi, vs1] = A[vi1, vs2] + B[vi2, vs3]
 
     block = func.body.block.body.body.body.block
-    buffer_var_map = {buf.data: buf for buf in func.buffer_map.values()}
+    buffer_var_map = {buf: buf for buf in func.buffer_map.values()}
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])

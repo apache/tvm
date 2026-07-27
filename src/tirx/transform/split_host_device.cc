@@ -131,7 +131,7 @@ class HostDeviceSplitter : public StmtMutator {
 
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
-    auto [params, buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<Buffer>> {
+    auto [params, buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<BufferVar>> {
       VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
       use_def(body);
 
@@ -151,7 +151,7 @@ class HostDeviceSplitter : public StmtMutator {
       } else {
         std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
         for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->buffer_map[cur_func_->params[i]]->data] = i;
+          param_order[cur_func_->buffer_map[cur_func_->params[i]].var()] = i;
         }
         // sort by original order
         std::sort(params.begin(), params.end(),
@@ -159,6 +159,29 @@ class HostDeviceSplitter : public StmtMutator {
       }
       return {params, use_def.undefined_buffers_};
     }();
+
+    // Buffer Vars are compiler-side values, not ABI values.  Thread their
+    // physical pointer projection through the kernel call and recover the
+    // typed buffer at the kernel entry with an explicit DeclBuffer source.
+    ffi::Array<Var> kernel_params;
+    ffi::Array<Expr> call_args;
+    ffi::Map<Var, Var> buffer_data_params;
+    ffi::Map<Var, Expr> kernel_buffer_remap;
+    for (const Var& param : params) {
+      if (param->ty.as<BufferTypeNode>()) {
+        BufferVar buffer(param);
+        BufferVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
+        Var data_param(buffer.name() + "_data", buffer->data_pointer_type);
+        kernel_params.push_back(data_param);
+        call_args.push_back(buffer.data());
+        buffer_data_params.Set(param, data_param);
+        kernel_buffer_remap.Set(param, kernel_buffer.var());
+      } else {
+        kernel_params.push_back(param);
+        call_args.push_back(param);
+      }
+    }
+    body = Substitute(std::move(body), kernel_buffer_remap);
 
     // CodeGenCPU is used for some device-side targets, such as
     // "ext_dev", and expects to be able to return a int32_t status
@@ -177,12 +200,19 @@ class HostDeviceSplitter : public StmtMutator {
       kernel_ret_type = VoidType();
     }
 
-    for (Buffer buf : buffers_to_declare) {
-      body = SeqStmt::Flatten(DeclBuffer(buf), std::move(body));
+    for (BufferVar buf : buffers_to_declare) {
+      auto data_param = buffer_data_params.Get(buf.var());
+      auto kernel_buffer = kernel_buffer_remap.Get(buf.var());
+      TVM_FFI_ICHECK(data_param.has_value())
+          << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
+      TVM_FFI_ICHECK(kernel_buffer.has_value());
+      body = SeqStmt::Flatten(
+          DeclBuffer(BufferVar(kernel_buffer.value().as_or_throw<Var>()), data_param.value()),
+          std::move(body));
     }
     LaunchBoundsAttrExtractor launch_bounds_attr;
     body = launch_bounds_attr.Extract(std::move(body));
-    PrimFunc device_func(params, body, kernel_ret_type);
+    PrimFunc device_func(kernel_params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
@@ -200,11 +230,9 @@ class HostDeviceSplitter : public StmtMutator {
     }
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
-    ffi::Array<Expr> args = params.Map([](const Var& var) -> Expr { return var; });
-
     if (can_propagate_errors) {
       Var kernel_error_code("kernel_error_code", success.ty());
-      Call kernel_call(success.ty(), kernel_symbol_global, args);
+      Call kernel_call(success.ty(), kernel_symbol_global, call_args);
       AssertStmt assert_success(kernel_error_code.as_or_throw<PrimExpr>() == success,
                                 StringImm("RuntimeError"),
                                 {StringImm("Error executing compute kernel")});
@@ -212,7 +240,8 @@ class HostDeviceSplitter : public StmtMutator {
                                       assert_success});
 
     } else {
-      return Evaluate(Call(PrimType::Void(), kernel_symbol_global, args).as_or_throw<PrimExpr>());
+      return Evaluate(
+          Call(PrimType::Void(), kernel_symbol_global, call_args).as_or_throw<PrimExpr>());
     }
   }
 
@@ -352,7 +381,7 @@ class DeviceInfoCollector : public StmtVisitor {
   }
 
   void VisitStmt_(const AllocBufferNode* op) final {
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer->data));
+    auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!dyn_shmem_size.has_value())
           << "Only one dynamic shared memory allocation is allowed.";

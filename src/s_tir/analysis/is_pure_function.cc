@@ -46,14 +46,14 @@ class PurityChecker : TIRVisitorWithPath {
   explicit PurityChecker(bool assert_on_error) : assert_on_error_(assert_on_error) {}
 
   void VisitStmt_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override {
-    internal_allocations_.insert(op->buffer->data);
+    internal_allocations_.insert(op->buffer.var());
     TIRVisitorWithPath::VisitStmt_(op, path);
   }
 
   void VisitStmt_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override {
     TIRVisitorWithPath::VisitStmt_(op, path);
 
-    if (!internal_allocations_.count(op->buffer->data)) {
+    if (!internal_allocations_.count(op->buffer.var())) {
       is_pure_ = false;
       if (assert_on_error_) {
         TVM_FFI_THROW(AssertionError) << "Pure functions must not write to buffers, "

@@ -114,7 +114,7 @@ inline PrimExpr TVMStructGet(PrimType type, Var handle, int index,
 inline Call AddressOffset(Var handle, PrimType dtype, int offset) {
   PrimExpr offset_expr = IntImm::Int32(offset * dtype.lanes());
   ffi::Array<PrimExpr> shape = {offset_expr + 1};
-  Buffer dummy_buf(handle, dtype, shape, {}, 0, handle->name, 0, 0, Span(), std::nullopt);
+  BufferVar dummy_buf(handle, dtype, shape, {}, 0, handle->name, 0, 0, Span(), std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset_expr});
 
   return Call(handle->ty, builtin::address_of(), {buf_load});
@@ -134,7 +134,7 @@ inline Call AddressOffset(Var handle, PrimType dtype, PrimExpr offset) {
   }
 
   ffi::Array<PrimExpr> shape = {offset + 1};
-  Buffer dummy_buf(handle, dtype.WithLanes(1), shape, {}, 0, handle->name, 0, 0, Span(),
+  BufferVar dummy_buf(handle, dtype.WithLanes(1), shape, {}, 0, handle->name, 0, 0, Span(),
                    std::nullopt);
   BufferLoad buf_load(dummy_buf, {offset});
 
@@ -243,7 +243,7 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
  * \param buffer The buffer object.
  * \return shape The shape considering buffer strides.
  */
-ffi::Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer);
+ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer);
 
 /*!
  * \brief Context helper to update domain map within conditional scope.
