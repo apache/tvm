@@ -4016,12 +4016,12 @@ class LpPool(OnnxOpConverter):
         dtype = inputs[0].ty.dtype
         p = attr.get("p", 2.0)
         reci_p = relax.const(1.0 / p, dtype=dtype)
-        # emit for get ty
-        data = bb.emit(relax.op.power(inputs[0], relax.const(p, dtype=dtype)))
+
+        data = bb.emit(relax.op.power(relax.op.abs(inputs[0]), relax.const(p, dtype=dtype)))
         attr.update({"count_include_pad": True})
         avg_pool = AveragePool._impl_v1(bb, [data], attr, params)
         kernels = attr["kernel_shape"]
-        out = avg_pool * relax.const(_np.prod(kernels).astype(dtype))
+        out = avg_pool * relax.const(_np.prod(kernels), dtype=dtype)
         return relax.op.power(out, reci_p)
 
 

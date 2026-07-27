@@ -8326,9 +8326,10 @@ def test_pool():
             def main(x: R.Tensor(input_shape, dtype="float32")):
                 R.func_attr({"num_input": 1})
                 with R.dataflow():
-                    lv = R.power(x, R.const(2.0, "float32"))
-                    lv1 = pool_op(
-                        lv,
+                    lv = R.abs(x)
+                    lv1 = R.power(lv, R.const(2.0, "float32"))
+                    lv2 = pool_op(
+                        lv1,
                         pool_size=pool_size,
                         strides=strides,
                         dilation=dilation,
@@ -8338,8 +8339,8 @@ def test_pool():
                         layout=layout,
                         out_layout=layout,
                     )
-                    lv2 = R.multiply(lv1, R.const(kernel_elements, "float32"))
-                    gv = R.power(lv2, R.const(0.5, "float32"))
+                    lv3 = R.multiply(lv2, R.const(kernel_elements, "float32"))
+                    gv = R.power(lv3, R.const(0.5, "float32"))
                     R.output(gv)
                 return gv
 
@@ -8377,6 +8378,51 @@ def test_pool():
                 pads,
                 make_expected(pool_name, shape, auto_pad, kernel_shape, strides, pads),
             )
+
+
+@pytest.mark.parametrize("p", [1, 3])
+def test_lppool_negative_input(p: int):
+    input_data = np.array([[[-1.0, 2.0, -3.0, 4.0]]], dtype="float32")
+
+    node = helper.make_node(
+        "LpPool",
+        ["x"],
+        ["y"],
+        kernel_shape=[2],
+        strides=[1],
+        p=p,
+    )
+
+    graph = helper.make_graph(
+        [node],
+        "lppool_negative_input_test",
+        inputs=[
+            helper.make_tensor_value_info(
+                "x",
+                TensorProto.FLOAT,
+                [1, 1, 4],
+            )
+        ],
+        outputs=[
+            helper.make_tensor_value_info(
+                "y",
+                TensorProto.FLOAT,
+                [1, 1, 3],
+            )
+        ],
+    )
+
+    model = helper.make_model(
+        graph,
+        producer_name="lppool_negative_input_test",
+        opset_imports=[helper.make_opsetid("", 18)],
+    )
+
+    check_correctness(
+        model,
+        inputs={"x": input_data},
+        opset=18,
+    )
 
 
 def test_global_average_pool():
