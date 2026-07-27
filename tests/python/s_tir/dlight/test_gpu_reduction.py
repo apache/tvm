@@ -17,6 +17,8 @@
 # pylint: disable=missing-docstring,line-too-long,invalid-name,too-few-public-methods,too-many-locals
 # ruff: noqa: E501, F841
 
+import pytest
+
 import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
@@ -924,6 +926,170 @@ def test_reduction_inner_spatial_choose_perfect_factor():
     with Target("nvidia/geforce-rtx-3090-ti"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(Module)  # pylint: disable=not-callable
     assert_structural_equal(mod, Expected)
+
+
+def test_reduction_inner_spatial_non_affine_write_back_falls_back():
+    # `_sch_inner_spatial` derives its thread extent from the innermost spatial extent
+    # alone (20 -> len_tx=10) but fuses all three spatial loops. Recovering the original
+    # indices in the write-back block then needs three floordiv/floormod components,
+    # which is no longer quasi-affine, so `bind` would raise a ScheduleError. The rule
+    # must decline instead and let Fallback schedule the block.
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((2, 4, 20), "float32"),
+            W: T.Buffer((3,), "float32"),
+            C: T.Buffer((2, 2, 20), "float32"),
+        ):
+            for n, y, x, k in T.grid(2, 2, 20, 3):
+                with T.sblock("conv"):
+                    vn, vy, vx, vk = T.axis.remap("SSSR", [n, y, x, k])
+                    T.reads(A[vn, vy + vk, vx], W[vk])
+                    T.writes(C[vn, vy, vx])
+                    with T.init():
+                        C[vn, vy, vx] = T.float32(0)
+                    C[vn, vy, vx] += A[vn, vy + vk, vx] * W[vk]
+
+    @I.ir_module(s_tir=True)
+    class Expected:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((2, 4, 20), "float32"),
+            W: T.Buffer((3,), "float32"),
+            C: T.Buffer((2, 2, 20), "float32"),
+        ):
+            T.func_attr({"tirx.is_scheduled": True})
+            for ax0_ax1_ax2_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
+                for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+                    with T.sblock("conv_init"):
+                        v0 = T.axis.spatial(
+                            2, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 40
+                        )
+                        v1 = T.axis.spatial(
+                            2, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 40 // 20
+                        )
+                        v2 = T.axis.spatial(
+                            20, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 20
+                        )
+                        T.where(ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1 < 80)
+                        T.reads()
+                        T.writes(C[v0, v1, v2])
+                        C[v0, v1, v2] = T.float32(0)
+                    for ax3 in range(3):
+                        with T.sblock("conv_update"):
+                            v0 = T.axis.spatial(
+                                2, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // 40
+                            )
+                            v1 = T.axis.spatial(
+                                2,
+                                (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 40 // 20,
+                            )
+                            v2 = T.axis.spatial(
+                                20, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % 20
+                            )
+                            v3 = T.axis.reduce(3, ax3)
+                            T.where(ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1 < 80)
+                            T.reads(C[v0, v1, v2], A[v0, v1 + v3, v2], W[v3])
+                            T.writes(C[v0, v1, v2])
+                            C[v0, v1, v2] += A[v0, v1 + v3, v2] * W[v3]
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        # Check the rule contract directly.  The default-schedule pass also catches
+        # ScheduleError from a rule, so checking only the pass result would not prove
+        # that Reduction itself declined this shape before attempting `bind`.
+        assert dl.gpu.Reduction().apply(Before["main"], Target.current(), False) is None
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Reduction(),
+            dl.gpu.Fallback(),
+        )(Before)
+    assert_structural_equal(mod, Expected)
+
+
+def test_reduction_inner_spatial_non_affine_without_mixed_access():
+    # Same failure without any spatial/reduction mixing in the read indices: the trigger
+    # is the spatial extents, not the access pattern.
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((2, 2, 3, 20), "float32"),
+            C: T.Buffer((2, 2, 20), "float32"),
+        ):
+            for n, y, x, k in T.grid(2, 2, 20, 3):
+                with T.sblock("sum"):
+                    vn, vy, vx, vk = T.axis.remap("SSSR", [n, y, x, k])
+                    T.reads(A[vn, vy, vk, vx])
+                    T.writes(C[vn, vy, vx])
+                    with T.init():
+                        C[vn, vy, vx] = T.float32(0)
+                    C[vn, vy, vx] += A[vn, vy, vk, vx]
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        # This must be rejected by Reduction for the same geometric reason, even
+        # though none of the read indices mixes spatial and reduction variables.
+        assert dl.gpu.Reduction().apply(Before["main"], Target.current(), False) is None
+        # Must not raise, and must still end up scheduled by a later rule.
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Reduction(),
+            dl.gpu.GeneralReduction(),
+            dl.gpu.Fallback(),
+        )(Before)
+    assert "tirx.is_scheduled" in mod["main"].attrs
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="The affine guard uses block-iterator order instead of normalized access order",
+)
+def test_reduction_inner_spatial_reordered_access_declines():
+    # The block iterators are ordered n, y, x, k, but the dominant read is ordered
+    # n, x, k, y. `_normalize` therefore fuses the spatial loops as n, x, y, while
+    # the current guard incorrectly treats x=16 as the innermost spatial extent.
+    # Reduction must decline this shape instead of reaching a non-affine `bind`.
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((2, 16, 3, 20), "float32"),
+            C: T.Buffer((2, 20, 16), "float32"),
+        ):
+            for n, y, x, k in T.grid(2, 20, 16, 3):
+                with T.sblock("sum"):
+                    vn, vy, vx, vk = T.axis.remap("SSSR", [n, y, x, k])
+                    T.reads(A[vn, vx, vk, vy])
+                    T.writes(C[vn, vy, vx])
+                    with T.init():
+                        C[vn, vy, vx] = T.float32(0)
+                    C[vn, vy, vx] += A[vn, vx, vk, vy]
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        assert dl.gpu.Reduction().apply(Before["main"], Target.current(), False) is None
+
+
+def test_reduction_inner_spatial_affine_write_back_still_applies():
+    # len_tx == innermost spatial extent (16), so the write-back bindings stay affine and
+    # the dedicated Reduction rule must still claim the block.
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(
+            A: T.Buffer((2, 4, 16), "float32"),
+            W: T.Buffer((3,), "float32"),
+            C: T.Buffer((2, 2, 16), "float32"),
+        ):
+            for n, y, x, k in T.grid(2, 2, 16, 3):
+                with T.sblock("conv"):
+                    vn, vy, vx, vk = T.axis.remap("SSSR", [n, y, x, k])
+                    T.reads(A[vn, vy + vk, vx], W[vk])
+                    T.writes(C[vn, vy, vx])
+                    with T.init():
+                        C[vn, vy, vx] = T.float32(0)
+                    C[vn, vy, vx] += A[vn, vy + vk, vx] * W[vk]
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        sch = dl.gpu.Reduction().apply(Before["main"], Target.current(), False)
+    assert sch is not None, "Reduction rule should still handle affine write-back blocks"
 
 
 def test_repeat_transpose_gemv():

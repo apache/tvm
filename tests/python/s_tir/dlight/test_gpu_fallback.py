@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 # ruff: noqa: E501, E741, F841
 import tvm.testing
+from tvm import s_tir
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
@@ -256,6 +257,38 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             dl.gpu.Fallback(),
         )(Before)
     assert_structural_equal(mod, After)
+
+
+def test_schedule_error_falls_through_to_next_rule():
+    # Keep this synthetic failure focused on the transform-layer contract.  The
+    # reduction tests separately verify that Reduction declines the known bad shapes;
+    # this test verifies that an unexpected ScheduleError from any rule still lets the
+    # remaining rules schedule the original function.
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
+            for i in range(128):
+                with T.sblock("copy"):
+                    vi = T.axis.remap("S", [i])
+                    T.reads(A[vi])
+                    T.writes(C[vi])
+                    C[vi] = A[vi] * T.float32(2)
+
+    class BrokenRule(dl.base.ScheduleRule):
+        def apply(self, func, target, tunable):
+            sch = s_tir.Schedule(func)
+            # Looking up a block that does not exist raises a ScheduleError, standing in
+            # for a rule that misjudges the shape of the function it is given.
+            sch.get_sblock("no_such_block")
+            return sch
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            BrokenRule(),
+            dl.gpu.Fallback(),
+        )(Before)
+    assert mod["main"].attrs.get("tirx.is_scheduled") == 1
 
 
 if __name__ == "__main__":

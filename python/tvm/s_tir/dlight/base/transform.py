@@ -19,12 +19,16 @@ Apply ScheduleRules onto an IRModule to generate default schedules without tunin
 or a space for MetaSchedule tuning
 """
 
+import logging
+
 from tvm import s_tir, tirx
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.target import Target
 
 from .schedule_rule import ScheduleRule
+
+logger = logging.getLogger(__name__)
 
 
 def _is_scheduled(func: tirx.PrimFunc) -> bool:
@@ -85,7 +89,18 @@ def _apply_rules(
     tunable: bool,
 ) -> list[s_tir.Schedule] | None:
     for rule in rules:
-        space = rule.apply(func, target, tunable)
+        try:
+            space = rule.apply(func, target, tunable)
+        except s_tir.schedule.ScheduleError:
+            # A rule that mis-judges its own applicability must not abort the whole
+            # pass: fall through so the remaining rules still get a chance.
+            logger.debug(
+                "Schedule rule %s failed on %s; trying the next rule.",
+                type(rule).__name__,
+                func.attrs.get("global_symbol", "<unnamed>"),
+                exc_info=True,
+            )
+            continue
         if space is None:
             continue
         if isinstance(space, s_tir.Schedule):
