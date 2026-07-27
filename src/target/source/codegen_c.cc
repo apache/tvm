@@ -758,15 +758,20 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       if (load) {
         TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
             << "CodeGenC only supports flat memory allocations.";
+        PrimExpr index = load->indices[0];
+        // A vector BufferLoad uses a Ramp to describe its lane indices.  The
+        // address of that load is the address of its first lane.
+        if (const RampNode* ramp = index.as<RampNode>()) {
+          index = ramp->base;
+        }
         const VarNode* data = load->buffer->data.get();
         if (pointer_offset_vars_.count(data) && HandleTypeMatch(data, load->buffer->dtype) &&
             !IsVolatile(data)) {
           os << "(" << GetVarID(data) << " + ";
-          this->PrintExpr(load->indices[0], os);
+          this->PrintExpr(index, os);
           os << ")";
         } else {
-          os << "(&("
-             << GetBufferRef(load->ty.as_or_throw<PrimType>(), load->buffer.get(), load->indices[0])
+          os << "(&(" << GetBufferRef(load->ty.as_or_throw<PrimType>(), load->buffer.get(), index)
              << "))";
         }
       } else {
