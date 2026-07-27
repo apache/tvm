@@ -368,8 +368,8 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
   if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
     // Preserve NaNs from either operand while retaining the existing behavior
     // of selecting the second operand when both operands compare equal.
-    os << "((" << a_id << ") " << compare << " (" << b_id << ") ? (" << a_id << ") : ((" << a_id
-       << ") == (" << a_id << ") ? (" << b_id << ") : (" << a_id << ")))";
+    os << "(((" << a_id << ") " << compare << " (" << b_id << ") || (" << a_id << ") != (" << a_id
+       << ")) ? (" << a_id << ") : (" << b_id << "))";
   } else {
     os << "((" << a_id << ") " << compare << " (" << b_id << ") "
        << "? (" << a_id << ") : (" << b_id << "))";
