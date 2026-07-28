@@ -129,9 +129,7 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
 def _gather_to_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = []
     arg_ty = call.args[0].ty
-    assert isinstance(
-        arg_ty, TensorType
-    ), "The input type of gather_to_worker0 should be TensorType."
+    assert isinstance(arg_ty, TensorType), "The input of gather_to_worker0 should be TensorType."
     assert isinstance(arg_ty.shape.ty, ShapeType)
     arg_shape = arg_ty.shape.ty
     for i, shape_value in enumerate(arg_shape.values):

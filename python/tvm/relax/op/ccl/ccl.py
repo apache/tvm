@@ -107,7 +107,8 @@ def scatter_from_worker0(x: Expr, num_workers: int, axis: int = 0) -> Expr:
     """
     return _ffi_api.scatter_from_worker0(x, num_workers, axis)
 
-def gather_to_worker0(x: Expr, num_workers: int, in_group: bool = True) -> Expr:  # pylint: disable=invalid-name
+
+def gather_to_worker0(x: Expr, num_workers: int, in_group: bool = True) -> Expr:
     """Gather data from all workers to worker-0.
 
     Parameters
@@ -126,4 +127,4 @@ def gather_to_worker0(x: Expr, num_workers: int, in_group: bool = True) -> Expr:
     result : relax.Expr
       The concatenated tensor received by worker-0 only.
     """
-    return _ffi_api.gather_to_worker0(x, num_workers, in_group)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.gather_to_worker0(x, num_workers, in_group)

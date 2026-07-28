@@ -420,9 +420,9 @@ class RemoteSocketSession {
           ffi::PackedArgs wrapped(fwd.data(), static_cast<int>(fwd.size()));
 
           if (worker_id == -1) {
-            local_session_->BroadcastPacked(args);
+            local_session_->BroadcastPacked(wrapped);
           } else {
-            local_session_->SendPacked(local_worker_id, args);
+            local_session_->SendPacked(local_worker_id, wrapped);
           }
           break;
         }
