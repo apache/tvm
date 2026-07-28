@@ -164,6 +164,9 @@ Stmt DataTypeLegalizer::VisitStmt_(const BindNode* op) {
 }
 
 Expr DataTypeLegalizer::VisitExpr_(const VarNode* op) {
+  if (op->ty.as<BufferTypeNode>()) {
+    return VisitBufferUse(GetBufferVar(op)).var();
+  }
   if (auto it = var_remap_.find(op); it != var_remap_.end()) {
     return it->second;
   }
@@ -392,8 +395,8 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     if (obj == nullptr) {
       return obj;
     }
-    if (obj.as<BufferTypeNode>()) {
-      BufferVar buffer = obj.as_or_throw<BufferVar>();
+    if (auto var = obj.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
+      BufferVar buffer(var.value());
       if (BufferVar new_buffer = VisitBufferUse(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }

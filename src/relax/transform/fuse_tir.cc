@@ -497,7 +497,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
     // structurally equal to the `new_buf` passed
     auto ValidateBufferCompatibility = [this](tirx::BufferVar new_buf, Expr expr) {
       if (auto it = relax_to_tir_var_map_.find(expr); it != relax_to_tir_var_map_.end()) {
-        TVM_FFI_ICHECK(ffi::StructuralEqual()((*it).second, new_buf))
+        TVM_FFI_ICHECK(ffi::StructuralEqual()((*it).second.type(), new_buf.type()))
             << "Inconsistent buffers " << (*it).second << " and " << new_buf
             << " mapped to the same relax var: " << expr;
       }

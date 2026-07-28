@@ -241,6 +241,7 @@ void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 
 void CodeGenLLVM::InitFuncState() {
   var_map_.clear();
+  buffer_physical_root_.clear();
   alias_var_set_.clear();
   alloc_storage_info_.clear();
   volatile_buf_.clear();
@@ -1723,6 +1724,11 @@ bool CodeGenLLVM::HasAlignmentPadding(PrimType dtype) {
   return bytes != bytes_scalar * dtype.lanes();
 }
 
+const VarNode* CodeGenLLVM::GetBufferPhysicalRoot(const VarNode* buffer) const {
+  auto it = buffer_physical_root_.find(buffer);
+  return it == buffer_physical_root_.end() ? buffer : it->second;
+}
+
 void CodeGenLLVM::BufferAccessHelper(
     BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
     PrimType value_dtype,
@@ -1756,7 +1762,8 @@ void CodeGenLLVM::BufferAccessHelper(
   PrimExpr last_index_origin = last_index;
   PrimType buffer_element_dtype_origin = buffer_element_dtype;
 
-  bool is_volatile = volatile_buf_.count(buffer.get());
+  const VarNode* physical_root = GetBufferPhysicalRoot(buffer.get());
+  bool is_volatile = volatile_buf_.count(physical_root);
 
   // If the buffer index is a contiguous ramp node, we only need to
   // access the first element, then cast to the value type.
@@ -1784,7 +1791,7 @@ void CodeGenLLVM::BufferAccessHelper(
     // element being accessed may require more alignment than the
     // underlying data type.
     int native_bits;
-    GetAlignment(value_dtype, buffer.get(), last_index, &alignment, &native_bits);
+    GetAlignment(value_dtype, physical_root, last_index, &alignment, &native_bits);
   } else {
     // Otherwise, alignment is based on the return value's scalar
     // type.
@@ -1828,7 +1835,7 @@ void CodeGenLLVM::BufferAccessHelper(
                               value_dtype.WithLanes(value_dtype.lanes() / last_index_lanes));
     auto instruction =
         make_instruction(buffer_ptr, subelement_i, predicate_value, alignment, is_volatile);
-    AddAliasInfo(instruction, buffer.get(), last_index_origin, buffer_element_dtype_origin);
+    AddAliasInfo(instruction, physical_root, last_index_origin, buffer_element_dtype_origin);
   }
 }
 
@@ -2229,6 +2236,15 @@ void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
   }
 
   llvm::Value* value = MakeValue(op->data);
+  const VarNode* source = op->data.as<VarNode>();
+  if (const auto* call = op->data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    source = call->args[0].as<VarNode>();
+  }
+  if (source) {
+    buffer_physical_root_[buffer] = GetBufferPhysicalRoot(source);
+  }
+
   llvm::Type* expected_type = GetLLVMType(op->buffer.DataPointerType());
   if (value->getType() != expected_type) {
     value->setName((op->buffer.name() + "_source_ptr").c_str());
@@ -2237,9 +2253,11 @@ void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
 
   AddDebugInformation(value, op->buffer.var());
   var_map_[buffer] = value;
-  if (alloc_storage_info_.count(buffer) && alloc_storage_info_[buffer].alignment > 1) {
+  const VarNode* physical_root = GetBufferPhysicalRoot(buffer);
+  if (alloc_storage_info_.count(physical_root) &&
+      alloc_storage_info_[physical_root].alignment > 1) {
     builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(buffer),
-                                        alloc_storage_info_[buffer].alignment);
+                                        alloc_storage_info_[physical_root].alignment);
   }
 }
 

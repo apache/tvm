@@ -41,6 +41,17 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
+const VarNode* GetBufferVarFromData(const Expr& data) {
+  if (const auto* var = data.as<VarNode>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<VarNode>();
+  }
+  return nullptr;
+}
+
 // Get fragment information from tensor intrinsics
 class FragmentGetter : public StmtExprVisitor {
  public:
@@ -53,7 +64,7 @@ class FragmentGetter : public StmtExprVisitor {
     if (op->op.same_as(tvm_load_matrix_sync_op) || op->op.same_as(tvm_store_matrix_sync_op)) {
       // Get shape and layout information from load and store intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-      const VarNode* buffer_var = op->args[0].as<VarNode>();
+      const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
       TVM_FFI_ICHECK(buffer_var);
       // Get shape
       const IntImmNode* m = op->args[1].as<IntImmNode>();
@@ -88,7 +99,7 @@ class FragmentGetter : public StmtExprVisitor {
     } else if (op->op.same_as(tvm_fill_fragment_op)) {
       // Get shape information from fill intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
-      const VarNode* buffer_var = op->args[0].as<VarNode>();
+      const VarNode* buffer_var = GetBufferVarFromData(op->args[0]);
       TVM_FFI_ICHECK(buffer_var);
       // Get shape
       const IntImmNode* m = op->args[1].as<IntImmNode>();
@@ -143,10 +154,10 @@ class FragmentChecker : public StmtExprVisitor {
     static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
     if (op->op.same_as(tvm_mma_sync_op) || op->op.same_as(tvm_bmma_sync_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-      const VarNode* buffer_var_d = op->args[0].as<VarNode>();
-      const VarNode* buffer_var_a = op->args[2].as<VarNode>();
-      const VarNode* buffer_var_b = op->args[4].as<VarNode>();
-      const VarNode* buffer_var_c = op->args[6].as<VarNode>();
+      const VarNode* buffer_var_d = GetBufferVarFromData(op->args[0]);
+      const VarNode* buffer_var_a = GetBufferVarFromData(op->args[2]);
+      const VarNode* buffer_var_b = GetBufferVarFromData(op->args[4]);
+      const VarNode* buffer_var_c = GetBufferVarFromData(op->args[6]);
       TVM_FFI_ICHECK(buffer_var_d);
       TVM_FFI_ICHECK(buffer_var_a);
       TVM_FFI_ICHECK(buffer_var_b);

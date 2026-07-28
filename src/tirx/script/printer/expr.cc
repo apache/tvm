@@ -46,7 +46,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
       } else {
         ExprDoc element_type =
             LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-        if (ptr_type->storage_scope == "global") {
+        if (ptr_type->storage_scope.empty()) {
           rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
         } else {
           rhs = rhs->Call({element_type,

@@ -570,8 +570,8 @@ def decl_buffer(
         elem_offset = Var(f"{name}_elem_offset", shape_ty)
     storage_scope = scope
     if data is not None:
-        if not isinstance(data, tvm.ir.Var) or not isinstance(data.ty, PointerType):
-            raise TypeError("Buffer data must be a Var with PointerType")
+        if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PointerType):
+            raise TypeError("Buffer data must be an Expr with PointerType")
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Buffer data must point to a primitive type")
         storage_scope = data.ty.storage_scope

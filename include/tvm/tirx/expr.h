@@ -553,7 +553,7 @@ class BufferLoadNode : public ExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferLoadNode>()
-        .def_ro("buffer", &BufferLoadNode::buffer)
+        .def_ro("buffer", &BufferLoadNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("indices", &BufferLoadNode::indices)
         .def_ro("predicate", &BufferLoadNode::predicate);
   }

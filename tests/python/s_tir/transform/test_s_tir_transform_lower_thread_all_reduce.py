@@ -194,6 +194,86 @@ def test_multi_group_reduction():
     assert "tvm_warp_shuffle" in After_script
 
 
+def test_multi_group_reduction_consumed_through_alias():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            threadIdx_y = T.launch_thread("threadIdx.y", 4)
+            cross_thread_B = T.alloc_buffer((1,), scope="local")
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            cross_thread_B_alias = T.decl_buffer((1,), data=cross_thread_B.data, scope="local")
+            with T.attr(
+                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                "reduce_scope",
+                T.int32(0),
+            ):
+                A_flat = T.decl_buffer((512,), data=A.data)
+                T.tvm_thread_allreduce(
+                    T.uint32(1),
+                    A_flat[threadIdx_y * 128 + threadIdx_x],
+                    T.bool(True),
+                    cross_thread_B[0],
+                    threadIdx_x,
+                )
+            cross_thread_B_alias[0] = cross_thread_B[0]
+            if threadIdx_x == 0:
+                B_flat = T.decl_buffer((4,), data=B.data)
+                B_flat[threadIdx_y] = cross_thread_B_alias[0]
+
+    After = transform(Before)
+    assert tvm.tirx.analysis.verify_well_formed(After)
+    After_script = After.script()
+    assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[0]" not in After_script
+    assert "red_result[0] = red_result[threadIdx_y]" not in After_script
+    assert "cross_thread_B_alias" not in After_script
+
+
+def test_multi_group_reduction_with_alias_declared_after_allreduce():
+    transform = tvm.s_tir.transform.LowerThreadAllreduce()
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
+            T.func_attr({"target": T.target("cuda", host="llvm")})
+            threadIdx_y = T.launch_thread("threadIdx.y", 4)
+            cross_thread_B = T.alloc_buffer((1,), scope="local")
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
+            with T.attr(
+                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                "reduce_scope",
+                T.int32(0),
+            ):
+                A_flat = T.decl_buffer((512,), data=A.data)
+                T.tvm_thread_allreduce(
+                    T.uint32(1),
+                    A_flat[threadIdx_y * 128 + threadIdx_x],
+                    T.bool(True),
+                    cross_thread_B[0],
+                    threadIdx_x,
+                )
+            cross_thread_B_alias = T.decl_buffer((1,), data=cross_thread_B.data, scope="local")
+            cross_thread_B[0] = cross_thread_B_alias[0]
+            if threadIdx_x == 0:
+                B_flat = T.decl_buffer((4,), data=B.data)
+                B_flat[threadIdx_y] = cross_thread_B_alias[0]
+
+    After = transform(Before)
+    assert tvm.tirx.analysis.verify_well_formed(After)
+    After_script = After.script()
+    assert "red_result[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[threadIdx_y]" in After_script
+    assert "B_flat[threadIdx_y] = red_result[0]" not in After_script
+    assert "red_result[0] = red_result[threadIdx_y]" not in After_script
+    assert "cross_thread_B_alias" not in After_script
+
+
 def test_multi_group_mask1():
     transform = tvm.s_tir.transform.LowerThreadAllreduce()
 

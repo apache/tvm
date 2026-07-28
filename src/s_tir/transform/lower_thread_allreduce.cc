@@ -135,7 +135,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
-    if (auto it = var_remap_.find(buf.get()); it != var_remap_.end()) {
+    Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
+    if (auto it = var_remap_.find(root.get()); it != var_remap_.end()) {
       return BufferVar(it->second);
     }
 
@@ -144,15 +145,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
     RegisterBufferAlias(op->buffer, op->data);
-    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
-    if (auto buf = GetRemappedBuffer(node->buffer)) {
-      node.CopyOnWrite()->buffer = buf.value();
-    }
-    return node;
+    // Remap declarations only after the complete traversal has populated the
+    // physical-root maps.  Eagerly replacing an alias declared after its
+    // allreduce would retain the old source pointer on the new buffer.
+    return StmtExprMutator::VisitStmt_(op);
   }
 
   Expr VisitExpr_(const BufferLoadNode* op) final {
-    if (auto it = load_remap_.find(op->buffer.get()); it != load_remap_.end()) {
+    const VarNode* allocation = GetAllocationKey(op->buffer.get());
+    if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
       for (const auto& index : op->indices) {
         TVM_FFI_ICHECK(is_zero(index));
       }
@@ -169,9 +170,19 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
+    const VarNode* allocation = GetAllocationKey(op->buffer.get());
     BufferStore store = StmtExprMutator::VisitStmt_(op).as_or_throw<BufferStore>();
 
-    if (auto opt = GetRemappedBuffer(store->buffer)) {
+    if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
+      const auto* replacement = it->second.as<BufferLoadNode>();
+      TVM_FFI_ICHECK(replacement);
+      for (const auto& index : store->indices) {
+        TVM_FFI_ICHECK(is_zero(index));
+      }
+      auto* writer = store.CopyOnWrite();
+      writer->buffer = replacement->buffer;
+      writer->indices = replacement->indices;
+    } else if (auto opt = GetRemappedBuffer(store->buffer)) {
       store.CopyOnWrite()->buffer = opt.value();
     }
     return store;
@@ -415,14 +426,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
       // Write back allreduce results and update existing allocations.
       for (size_t i = 0; i < size; ++i) {
-        TVM_FFI_ICHECK(!load_remap_.count(buffers[i].get()));
+        const VarNode* alloc_key = GetAllocationKey(buffers[i].get());
+        TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
         BufferVar buf = reduce_results[i].as_or_throw<BufferLoad>()->buffer;
         TVM_FFI_ICHECK_EQ(reduce_results[i].ty(), dtypes[i]);
-        load_remap_[buffers[i].get()] = reduce_results[i];
+        load_remap_[alloc_key] = reduce_results[i];
 
         // The AllocBuffer doesn't need to be emitted here since alloc_remap_
         // will cause the existing allocation to be rewritten in VisitStmt_(AllocBufferNode*).
-        const VarNode* alloc_key = GetAllocationKey(buffers[i].get());
         alloc_remap_[alloc_key] = buf;
         var_remap_[alloc_key] = buf.var();
         var_remap_[buffers[i].get()] = buf.var();
@@ -450,13 +461,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       seq.emplace_back(MakeBufAllreduce(combiner, dtypes, shared_bufs, reduce_index, group_index,
                                         reduce_extent, group_extent, contiguous_reduce_extent));
       for (size_t idx = 0; idx < size; ++idx) {
-        TVM_FFI_ICHECK(!load_remap_.count(buffers[idx].get()));
+        const VarNode* alloc_key = GetAllocationKey(buffers[idx].get());
+        TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
         PrimExpr pred = MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
         BufferLoad load(shared_bufs[idx],
                         {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[idx]);
-        load_remap_[buffers[idx].get()] = load;
-        const VarNode* alloc_key = GetAllocationKey(buffers[idx].get());
+        load_remap_[alloc_key] = load;
         alloc_remap_[alloc_key] = shared_bufs[idx];
         var_remap_[alloc_key] = shared_bufs[idx].var();
         var_remap_[buffers[idx].get()] = shared_bufs[idx].var();
@@ -936,7 +947,8 @@ class DeferredRemapper : public StmtExprMutator {
 
  private:
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
-    if (auto it = var_remap_.find(buf.get()); it != var_remap_.end()) {
+    Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
+    if (auto it = var_remap_.find(root.get()); it != var_remap_.end()) {
       return BufferVar(it->second);
     }
     return std::nullopt;

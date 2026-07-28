@@ -122,6 +122,7 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const SBlockRealizeNode* op) override;
+  void VisitStmt_(const DeclBufferNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const BindNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
@@ -193,6 +194,12 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
     With<ConditionalBoundsContext> ctx(!op->condition, &dom_map_, &hint_map_, &pending_conditions_);
     StmtExprVisitor::VisitStmt(op->else_case.value());
   }
+}
+
+void BlockReadWriteDetector::VisitStmt_(const DeclBufferNode* op) {
+  // A DeclBuffer data expression defines the alias source.  It is not an
+  // opaque buffer access by the containing block.
+  VisitBufferDef(op->buffer, /*alloc_data=*/false);
 }
 
 void BlockReadWriteDetector::VisitStmt_(const BindNode* op) {

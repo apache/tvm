@@ -245,6 +245,33 @@ def test_workspace_allocation_cast():
     built.export_library(temp.relpath("workspace.so"))
 
 
+def test_local_alloc_buffer_uses_plain_c_pointer():
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((1,), "float32")):
+            B = T.alloc_buffer((1,), "float32", scope="local")
+            for i in range(1):
+                with T.sblock("copy"):
+                    vi = T.axis.spatial(1, i)
+                    T.reads(A[vi])
+                    T.writes(B[vi], A[vi])
+                    B[vi] = A[vi] + T.float32(1)
+                    A[vi] = B[vi]
+
+    built = tvm.tirx.build(Module, target="c")
+    assert "local float*" not in built.inspect_source()
+
+    temp = utils.tempdir()
+    path_dso = temp.relpath("local_alloc.so")
+    built.export_library(path_dso)
+    loaded = tvm.runtime.load_module(path_dso)
+
+    data = tvm.runtime.tensor(np.array([1.0], dtype="float32"))
+    loaded["main"](data)
+    tvm.testing.assert_allclose(data.numpy(), np.array([2.0], dtype="float32"))
+
+
 def test_vector_access_ptr_address_uses_ramp_base():
     buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)

@@ -176,7 +176,8 @@ TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tirx::Evaluate>("", [](tirx::Evaluate eval, AccessPath p, IRDocsifier d) -> Doc {
       ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
-      if (eval->value->IsInstance<CallNode>()) {
+      const auto* call = eval->value.as<CallNode>();
+      if (call && !call->op.same_as(tirx::builtin::buffer_data())) {
         return ExprStmtDoc(value);
       }
       return ExprStmtDoc(TIR(d, "evaluate")->Call({value}));

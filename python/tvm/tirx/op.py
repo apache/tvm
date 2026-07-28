@@ -1287,7 +1287,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     call_args = [_pack_buffer(x) if is_buffer_var(x) else x for x in args]
     call_args.insert(0, tvm.tirx.StringImm(trace_action))
     tracing_value = args[-1]
-    ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.ty.dtype
+    ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype
     return tvm.ir.Call(Op.get("tirx.tvm_call_trace_packed"), call_args, ret_ty=ret_ty)
 
 

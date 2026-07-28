@@ -121,6 +121,18 @@ def opaque_access_with_tvm_access_ptr_func() -> None:
 
 
 @T.prim_func(s_tir=True)
+def decl_buffer_alias_func(
+    A: T.Buffer((16,), "float32"),
+    B: T.Buffer((16,), "float32"),
+) -> None:
+    with T.sblock("alias"):
+        T.reads(A[0])
+        T.writes(B[0])
+        A_view = T.decl_buffer((16,), "float32", data=A.data)
+        B[0] = A[0] + A_view[0]
+
+
+@T.prim_func(s_tir=True)
 def access_in_if_then_else_func() -> None:
     A = T.sblock_alloc_buffer([8])
     B = T.sblock_alloc_buffer([8])
@@ -261,6 +273,16 @@ def test_opaque_access_with_tvm_access_ptr():
         tvm.ir.assert_structural_equal(ret0[0], ret1[0])
     with pytest.raises(ValueError):
         tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+
+
+def test_decl_buffer_alias_is_not_an_opaque_access():
+    block = decl_buffer_alias_func.body.block
+    buffer_var_map = {buf: buf for buf in decl_buffer_alias_func.buffer_map.values()}
+
+    reads, writes, opaque = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(block.reads, reads)
+    tvm.ir.assert_structural_equal(block.writes, writes)
+    tvm.ir.assert_structural_equal([], opaque)
 
 
 def test_match_buffer():

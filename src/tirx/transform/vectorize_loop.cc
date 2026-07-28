@@ -90,6 +90,12 @@ bool ContainsCallNode(const Stmt& stmt) {
   return CheckContains::StmtContains(
       stmt, [](const PrimExpr& expr) { return expr.as<CallNode>() != nullptr; });
 }
+
+PrimType GetTextureElementType(const Expr& texture) {
+  const auto* pointer_type = texture->ty.as<PointerTypeNode>();
+  TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PointerType";
+  return pointer_type->element_type.as_or_throw<PrimType>();
+}
 }  // namespace
 
 inline PrimExpr CreateNewLanes(bool is_scalable, int lanes_or_vscale_factor) {
@@ -636,12 +642,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
     } else if (op->op.same_as(builtin::texture2d_load())) {
       int lane = 0;
       ffi::Array<PrimExpr> fcd = MutateArray({op->args.back().as_or_throw<PrimExpr>()}, &lane);
-      DLDataType dtype = op->args[0]
-                             .as<VarNode>()
-                             ->ty.as<PointerTypeNode>()
-                             ->element_type.as<PrimTypeNode>()
-                             ->dtype;
-      TVM_FFI_ICHECK(lane * dtype.bits <= op->args[4].as<IntImmNode>()->value)
+      PrimType dtype = GetTextureElementType(op->args[0]);
+      TVM_FFI_ICHECK(lane * dtype.bits() <= op->args[4].as<IntImmNode>()->value)
           << "Expected Data to be Read is lesser than or equal to Texture Load length";
 
       auto new_args = op->args;
@@ -654,12 +656,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<Expr(const Expr&)> {
       // Vectorize the value to store
       ffi::Array<PrimExpr> value{op->args.back().as_or_throw<PrimExpr>()};
       ffi::Array<PrimExpr> mutated_value = MutateArray(value, &lane);
-      DLDataType dtype = op->args[0]
-                             .as<VarNode>()
-                             ->ty.as<PointerTypeNode>()
-                             ->element_type.as<PrimTypeNode>()
-                             ->dtype;
-      TVM_FFI_ICHECK(lane * dtype.bits == op->args[4].as<IntImmNode>()->value)
+      PrimType dtype = GetTextureElementType(op->args[0]);
+      TVM_FFI_ICHECK(lane * dtype.bits() == op->args[4].as<IntImmNode>()->value)
           << "Expected Data to be Written equal to Texture Store length";
       ffi::Array<Expr> new_args = op->args;
       new_args.Set(new_args.size() - 1, mutated_value[0]);

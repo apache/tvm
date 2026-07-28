@@ -382,6 +382,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Evaluate
 Evaluate::Evaluate(Expr value, Span span) {
   TVM_FFI_ICHECK(value.defined());
+  TVM_FFI_ICHECK(!(value->IsInstance<VarNode>() && value->ty.as<BufferTypeNode>()))
+      << "A buffer variable cannot be used as a scalar Evaluate value; "
+      << "use buffer.data to evaluate its physical pointer";
 
   ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
   node->value = std::move(value);

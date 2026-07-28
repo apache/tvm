@@ -655,6 +655,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       input_buffer_map[placeholder.get()] = output_buffer;
       info->root_alloc.push_back(output_buffer);
     }
+    var_map[placeholder.get()] = output_buffer.var();
     info->tensor2buffers[output_tensor] = output_buffer;
   }
 

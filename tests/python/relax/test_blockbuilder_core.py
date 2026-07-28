@@ -389,7 +389,7 @@ def test_call_te_unique_tensor_name():
     buffer_B = f_matmul.buffer_map[param_B]
     assert param_A.name != param_B.name
     assert buffer_A.name != buffer_B.name
-    assert buffer_A.data.name != buffer_B.data.name
+    assert not buffer_A.same_as(buffer_B)
 
 
 def test_call_te_with_unsupported_shape_arg():

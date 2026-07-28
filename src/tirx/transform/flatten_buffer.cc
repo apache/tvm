@@ -48,6 +48,9 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     arith::Analyzer ana;
     auto pass = BufferFlattener(ana);
     pass.MarkBufferMapShapes(func);
+    for (const auto& [param, buffer] : func->buffer_map) {
+      pass.extern_buffers_.insert(buffer);
+    }
     auto body = pass.VisitStmt(func->body);
 
     // The buffers in func->buffer_map are deliberately left
@@ -121,7 +124,17 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    Expr data = VisitExpr(op->data);
+    Expr data = op->data;
+    bool is_extern_buffer_source = false;
+    if (const auto* call = op->data.as<CallNode>();
+        call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+      if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<BufferTypeNode>()) {
+        is_extern_buffer_source = extern_buffers_.count(BufferVar(ffi::GetRef<Var>(var)));
+      }
+    }
+    if (!is_extern_buffer_source) {
+      data = VisitExpr(op->data);
+    }
     BufferVar flattened = GetFlattenedBuffer(op->buffer);
     if (flattened.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
@@ -223,8 +236,8 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
    */
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers_used_;
 
-  /*! \brief The updated external buffer map. */
-  ffi::Map<Var, BufferVar> updated_extern_buffer_map_;
+  /*! \brief Buffers whose storage is supplied by a PrimFunc parameter. */
+  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_buffers_;
 };
 
 PrimFunc FlattenBuffer(PrimFunc f) { return BufferFlattener::Flatten(f); }

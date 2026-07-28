@@ -90,6 +90,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // clear previous generated state.
   this->InitFuncState(func);
   buffer_idmap_.clear();
+  buffer_data_varmap_.clear();
   data_buffer_idmap_.clear();
   data_decl_buffer_map_.clear();
   // skip the first underscore, so SSA variable starts from _1
@@ -114,6 +115,9 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
       LOG(FATAL) << "Trainium codegen currently only support buffer arguments";
     };
     std::string vid = AllocVarID(v.get());
+    if (auto buffer = func->buffer_map.Get(v)) {
+      var_idmap_[buffer.value().get()] = vid;
+    }
     if (i >= static_cast<size_t>(num_inputs.value())) {
       this->stream << vid << ": nt.mutable_tensor, ";
       output_vids.push_back(vid);
@@ -209,7 +213,7 @@ std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // 
 
 void CodeGenTrainium::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get());
+  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
   this->PrintIndent();
   auto scope = op->buffer.scope();
@@ -607,7 +611,24 @@ void CodeGenTrainium::VisitStmt_(const DeclBufferNode* op) {
   if (op->buffer.scope() == "trn.psum" || op->buffer.scope() == "trn.sbuf") {
     return;
   }
-  const VarNode* data = op->buffer.get();
+  const VarNode* data = op->data.as<VarNode>();
+  if (const auto* call = op->data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    data = call->args[0].as<VarNode>();
+  }
+  TVM_FFI_ICHECK(data) << "Trainium codegen expects DeclBuffer data to be a buffer variable";
+  if (data->ty.as<PointerTypeNode>()) {
+    buffer_idmap_[op->buffer] = GetVarID(data);
+    buffer_data_varmap_[op->buffer] = data;
+    return;
+  }
+  TVM_FFI_ICHECK(data->ty.as<BufferTypeNode>());
+  BufferVar source_buffer(ffi::GetRef<Var>(data));
+  auto source_it = buffer_data_varmap_.find(source_buffer);
+  TVM_FFI_ICHECK(source_it != buffer_data_varmap_.end())
+      << "Trainium codegen expects the source buffer to be declared before its alias";
+  data = source_it->second;
+
   auto it = data_buffer_idmap_.find(data);
   if (it != data_buffer_idmap_.end()) {
     const BufferVar& prev_buffer = data_decl_buffer_map_.at(data);
@@ -620,6 +641,7 @@ void CodeGenTrainium::VisitStmt_(const DeclBufferNode* op) {
   std::string data_vid = GetVarID(data);
   std::string buffer_vid = name_supply_->FreshName(data_vid + "_buffer");
   buffer_idmap_[op->buffer] = buffer_vid;
+  buffer_data_varmap_[op->buffer] = data;
   data_buffer_idmap_[data] = buffer_vid;
   data_decl_buffer_map_[data] = op->buffer;
   PrintIndent();

@@ -57,6 +57,17 @@ const StringImmNode* AsStringImmNode(const Expr& expr) {
   return node;
 }
 
+const VarNode* AsBufferVarNode(const Expr& expr) {
+  if (const auto* var = expr.as<VarNode>()) {
+    return var;
+  }
+  if (const auto* call = expr.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<VarNode>();
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
@@ -434,7 +445,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
 
   if (op->op.same_as(tvm_fill_fragment_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 6U);
-    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
     TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     PrimType ele_dtype = GetElementDataType(buffer_node);
     TVM_FFI_ICHECK(ele_dtype.MatchesCode(DLDataTypeCode::kDLFloat))
@@ -454,7 +465,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
 
   } else if (op->op.same_as(tvm_load_matrix_sync_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
     TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     spirv::SType& fragment_type = fragment_info_[buffer_node].stype;
     PrimExpr dst_index = op->args[4].as_or_throw<PrimExpr>();
@@ -476,10 +487,12 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     builder_->MakeInst(spv::OpStore, dst_ptr, loaded, spv::MemoryAccessMaskNone);
     return spirv::Value();
   } else if (op->op.same_as(tvm_mma_sync_op)) {
-    const VarNode* buffer_d = op->args[0].as<VarNode>();
-    const VarNode* buffer_a = op->args[2].as<VarNode>();
-    const VarNode* buffer_b = op->args[4].as<VarNode>();
-    const VarNode* buffer_c = op->args[6].as<VarNode>();
+    const VarNode* buffer_d = AsBufferVarNode(op->args[0]);
+    const VarNode* buffer_a = AsBufferVarNode(op->args[2]);
+    const VarNode* buffer_b = AsBufferVarNode(op->args[4]);
+    const VarNode* buffer_c = AsBufferVarNode(op->args[6]);
+    TVM_FFI_ICHECK(buffer_d && buffer_a && buffer_b && buffer_c)
+        << "Cooperative matrix operands must be buffer variables";
     PrimExpr index_d = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr index_a = op->args[3].as_or_throw<PrimExpr>();
     PrimExpr index_b = op->args[5].as_or_throw<PrimExpr>();
@@ -514,7 +527,8 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const CallNode* op) {
     return spirv::Value();
   } else if (op->op.same_as(tvm_store_matrix_sync_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
-    const VarNode* buffer_node = op->args[0].as<VarNode>();
+    const VarNode* buffer_node = AsBufferVarNode(op->args[0]);
+    TVM_FFI_ICHECK(buffer_node && fragment_info_.count(buffer_node));
     PrimExpr index = op->args[4].as_or_throw<PrimExpr>();
     int stride = static_cast<int>(AsIntImmNode(op->args[6])->value);
     auto type_int = builder_->GetSType(PrimType::Int(32));
@@ -898,7 +912,35 @@ void CodeGenSPIRV::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const DeclBufferNode* op) {
-  // DeclBuffer is a flat statement with no body — nothing to emit.
+  const VarNode* buffer_var = op->buffer.get();
+  TVM_FFI_ICHECK(!var_map_.count(buffer_var))
+      << "Buffer variable " << op->buffer.name() << " is already defined";
+  TVM_FFI_ICHECK(!storage_info_.count(buffer_var))
+      << "Storage metadata for buffer variable " << op->buffer.name() << " is already defined";
+
+  spirv::Value data = MakeValue(op->data);
+
+  PrimType declared_storage_type = op->buffer->dtype;
+  if (declared_storage_type == PrimType::Bool()) {
+    declared_storage_type = boolean_storage_type_.WithLanes(declared_storage_type.lanes());
+  }
+
+  const VarNode* source = AsBufferVarNode(op->data);
+
+  StorageInfo info;
+  if (source) {
+    auto it = storage_info_.find(source);
+    if (it != storage_info_.end()) {
+      info = it->second;
+      info.name_hint = op->buffer.name();
+    }
+  }
+  if (!info.element_type_known) {
+    info.SetContentType(declared_storage_type, op->buffer.name());
+  }
+
+  var_map_[buffer_var] = data;
+  storage_info_[buffer_var] = std::move(info);
 }
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {

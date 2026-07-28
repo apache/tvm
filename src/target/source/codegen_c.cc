@@ -829,6 +829,9 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin::reinterpret())) {
       if (const auto* pointer_type = op->ty.as<PointerTypeNode>()) {
         os << "((";
+        if (IsScopePartOfType()) {
+          PrintStorageScope(pointer_type->storage_scope, os);
+        }
         if (const auto* element_type = pointer_type->element_type.as<PrimTypeNode>()) {
           this->PrintType(ffi::GetRef<PrimType>(element_type), os);
         } else {
@@ -918,11 +921,26 @@ void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
   if (source && var_idmap_.count(source)) {
     TVM_FFI_ICHECK(!var_idmap_.count(op->buffer.get()));
     var_idmap_[op->buffer.get()] = GetVarID(source);
-    RegisterHandleType(op->buffer.get(), op->buffer->dtype);
+    if (auto it = alloc_storage_scope_.find(source); it != alloc_storage_scope_.end()) {
+      alloc_storage_scope_[op->buffer.get()] = it->second;
+    } else {
+      alloc_storage_scope_[op->buffer.get()] = op->buffer.scope();
+    }
+    if (IsVolatile(source)) {
+      MarkVolatile(op->buffer.get());
+    }
+    auto it = handle_data_type_.find(source);
+    RegisterHandleType(op->buffer.get(),
+                       it == handle_data_type_.end() ? op->buffer->dtype : it->second);
     return;
   }
 
+  std::string scope = op->buffer.scope();
+  alloc_storage_scope_[op->buffer.get()] = scope;
   this->PrintIndent();
+  if (IsScopePartOfType()) {
+    PrintStorageScope(scope, stream);
+  }
   PrintType(op->buffer.DataPointerType(), stream);
   stream << ' ' << AllocVarID(op->buffer.get()) << " = ";
   PrintExpr(Call(op->buffer.DataPointerType(), builtin::reinterpret(), {op->data}), stream);

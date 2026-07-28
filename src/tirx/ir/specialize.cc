@@ -189,6 +189,16 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
  private:
   BufferVar MutateBuffer(const BufferVar& buffer) {
+    ffi::Optional<ffi::String> specialized_storage_scope;
+    if (auto it = var_map_.find(buffer.var()); it != var_map_.end()) {
+      if (const auto* new_var = it->second.as<VarNode>()) {
+        if (new_var->ty.as<BufferTypeNode>()) {
+          BufferVar replacement(ffi::GetRef<Var>(new_var));
+          specialized_storage_scope = replacement->storage_scope;
+        }
+      }
+    }
+
     ffi::Array<PrimExpr> shape =
         buffer->shape.Map([this](const PrimExpr& e) { return VisitPrimExpr(e); });
     ffi::Array<PrimExpr> strides =
@@ -220,8 +230,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
       }
     }
 
+    bool storage_scope_changed = specialized_storage_scope.has_value() &&
+                                 specialized_storage_scope.value() != buffer->storage_scope;
     if (buffer->elem_offset.same_as(elem_offset) && buffer->shape.same_as(shape) &&
-        buffer->strides.same_as(strides) && !layout_changed) {
+        buffer->strides.same_as(strides) && !layout_changed && !storage_scope_changed) {
       return buffer;
     } else {
       auto n = CopyBufferType(buffer);
@@ -230,6 +242,9 @@ class PrimFuncSpecializer : public StmtExprMutator {
       n->strides = std::move(strides);
       if (layout_changed) {
         n->layout = std::move(layout);
+      }
+      if (storage_scope_changed) {
+        n->storage_scope = specialized_storage_scope.value();
       }
       return RebuildBufferVar(buffer, std::move(n));
     }
