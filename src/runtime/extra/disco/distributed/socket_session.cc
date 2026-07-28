@@ -212,8 +212,9 @@ class SocketSessionObj : public BcastSessionObj {
         node_hosts_.push_back(ip);
         LOG(INFO) << "[Host] IP table : node " << (i + 1) << " ip=" << ip.c_str(); 
       }
+    }
 
-      if( build_ring_ && num_nodes_ > 1) {
+    if( build_ring_ && num_nodes_ > 1) {
 
         const int base_ring_port = port + 1;
 
@@ -227,14 +228,12 @@ class SocketSessionObj : public BcastSessionObj {
           }
           LOG(INFO) << "[Host] IP and port broadcast completed.";
         }
-
         ring_.Connect(/*node_id=*/0, num_nodes_, base_ring_port, node_hosts_, local_session_,"controller");
 
         const int num_workers = num_nodes_ * num_workers_per_node_;
         for (int worker_id = 1; worker_id < num_workers; ++worker_id) { this->SyncWorker(worker_id); }
         LOG(INFO) << "[Host] Controller: All workers are ready. Initialization complete.";
       }// build ring
-    }
   }
 
   int64_t GetNumWorkers() final { return num_nodes_ * num_workers_per_node_; }
@@ -480,6 +479,19 @@ class RemoteSocketSession {
         local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
     local_session_->CallPacked(f_init_workers, num_nodes_, node_id_, num_groups_,
                                num_workers_per_node_);
+    if( build_ring && num_nodes_ > 1)  {
+      // The controller broadcasts base_ring_port + the IP table on our control channel.
+      ffi::PackedArgs host_info = channel_->Recv();
+      TVM_FFI_ICHECK_EQ(host_info.size(), num_nodes_ + 1);
+      const int nNodes = host_info.size() - 1;
+      const int base_ring_port = host_info[0].cast<int>();
+      std::vector<ffi::String> node_hosts;
+      node_hosts.reserve(nNodes);
+      for (int i = 0; i < nNodes; ++i) node_hosts.push_back(host_info[1 + i].cast<ffi::String>());
+
+      ring_.Connect(node_id_, nNodes, base_ring_port, node_hosts, local_session_,
+                    "node_" + std::to_string(node_id_));
+    }//build ring
   }
 
   TCPSocket socket_;
