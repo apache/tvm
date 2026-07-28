@@ -114,6 +114,46 @@ def test_lower_nested_access_ptr():
     assert int(tvm.arith.Analyzer().simplify(load.indices[0])) == 5
 
 
+def test_lower_vector_access_ptr():
+    buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
+    access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
+
+    assert access_ptr.op.name == "tirx.tvm_access_ptr"
+    assert int(access_ptr.args[2]) == 2
+    assert int(access_ptr.args[3]) == 4
+    assert int(access_ptr.args[4]) == 3
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access_ptr)).with_attr(
+            "target", tvm.target.Target("llvm")
+        )
+    )
+    lowered = tvm.tirx.transform.LowerIntrin()(mod)["main"].body.value
+    assert lowered.op.name == "tirx.address_of"
+    assert lowered.ty == access_ptr.ty
+
+    load = lowered.args[0]
+    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert load.buffer.data.same_as(buffer.data)
+    assert load.buffer.dtype == tvm.ir.PrimType("float32")
+    assert len(load.indices) == 1
+    ramp = load.indices[0]
+    assert isinstance(ramp, tvm.tirx.Ramp)
+    assert int(ramp.base) == 4
+    assert int(ramp.stride) == 1
+    assert ramp.lanes == 2
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_lower_vector_access_ptr_with_padded_vector_dtype():
+    buffer = tvm.tirx.decl_buffer((8,), "float32x3", name="A")
+    access_ptr = buffer.access_ptr(access_mask=1, offset=2, extent=4)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
+
+    tvm.tirx.build(tvm.IRModule.from_expr(func), target="llvm")
+
+
 def get_ref_data():
     """Get reference data for every pairs"""
     import itertools

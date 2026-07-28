@@ -43,6 +43,26 @@ def _helper_source(src: str, helper_name: str) -> str:
     return src[start:next_helper]
 
 
+def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
+    buffer = tvm.tirx.decl_buffer((8,), "int4x4", name="A")
+    access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_80"})
+    func = (
+        tvm.tirx.PrimFunc([buffer.data], body)
+        .with_attr("global_symbol", "main")
+        .with_attr("target", target)
+    )
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))
+
+    monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
+    source = tvm.get_global_func("target.build.cuda")(lowered, target).inspect_source()
+    call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
+
+    assert "make_int4" not in call
+    assert " + 8 / 4" in call
+
+
 def test_tirx_launch_bounds_omits_min_blocks_without_persistent_schedule():
     @T.prim_func
     def main(A: T.Buffer((4,), "int32")):
