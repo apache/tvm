@@ -293,6 +293,20 @@ class Socket {
     if (err == EBADF || err == EINTR) return true;
     return false;
   }
+
+   /*!
+   * \brief Relinquish ownership of the underlying descriptor without closing it, and return it.
+   *        The caller becomes responsible for closing the returned fd (e.g. when handing it to
+   *        another owner). Mirrors std::unique_ptr::release. Prevents a later double-close.
+   * \return The descriptor previously held; INVALID_SOCKET afterwards.
+   */
+  SockType Release() {
+    SockType fd = sockfd;
+    sockfd = INVALID_SOCKET;
+    return fd;
+  }
+
+  
   /*! \brief check if socket is already closed */
   bool IsClosed() const { return sockfd == INVALID_SOCKET; }
   /*! \brief close the socket */

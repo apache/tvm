@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <dlpack/dlpack.h>
+#include <sys/stat.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -25,7 +26,11 @@
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/vm/vm.h>
 
+#include <fstream>
+#include <mutex>
 #include <sstream>
+#include <string>
+#include <unordered_map>
 
 #include "./utils.h"
 
@@ -69,6 +74,21 @@ ffi::Module LoadVMModule(std::string path, ffi::Optional<Device> device) {
                        static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
                        static_cast<int>(AllocatorType::kPooled));
   return mod;
+}
+
+static void MakeParentDirs(const std::string& path) {
+  for (size_t pos = path.find('/', 1); pos != std::string::npos; pos = path.find('/', pos + 1)) {
+    ::mkdir(path.substr(0, pos).c_str(), 0755);
+  }
+}
+
+void UploadModule(ffi::Bytes data, std::string path) {
+  if (DiscoWorker::ThreadLocal()->local_worker_id != 0) return;
+  MakeParentDirs(path);
+  std::ofstream fs(path, std::ios::binary | std::ios::trunc);
+  TVM_FFI_ICHECK(fs.is_open()) << "disco.upload_module: Cannot open " << path;
+  fs.write(data.data(), static_cast<std::streamsize>(data.size()));
+  TVM_FFI_ICHECK(fs.good()) << "disco.upload_module: Write failed for " << path;
 }
 
 Tensor DiscoEmptyTensor(ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device) {
@@ -130,6 +150,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.disco.load_vm_module", LoadVMModule)
+      .def("runtime.disco.upload_module", UploadModule)
       .def("runtime.disco.empty",
            [](ffi::Shape shape, DLDataType dtype, ffi::Optional<Device> device, bool worker0_only,
               bool in_group) -> ffi::Optional<Tensor> {
