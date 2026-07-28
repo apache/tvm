@@ -245,5 +245,18 @@ def test_workspace_allocation_cast():
     built.export_library(temp.relpath("workspace.so"))
 
 
+def test_vector_access_ptr_address_uses_ramp_base():
+    buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
+    access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
+    body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
+    func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
+
+    source = tvm.tirx.build(tvm.IRModule.from_expr(func), target="c").inspect_source()
+    call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
+    assert "int32_t2" not in call
+    assert "float2*" in call
+    assert " + 4" in call
+
+
 if __name__ == "__main__":
     tvm.testing.main()
