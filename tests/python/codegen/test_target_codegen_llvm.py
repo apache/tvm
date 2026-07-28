@@ -1143,6 +1143,22 @@ def test_debug_symbol_for_float64():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_debug_symbol_for_buffer_var():
+    """BufferVars use their physical data pointer type in LLVM debug info."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+            C = T.alloc_buffer((16,), "float32")
+            for i in T.parallel(16):
+                C[i] = A[i]
+                B[i] = C[i]
+
+    tvm.compile(Module, target="llvm")
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_subroutine_call():
     @I.ir_module(s_tir=True)
     class Module:

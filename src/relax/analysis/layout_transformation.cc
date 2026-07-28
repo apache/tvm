@@ -273,7 +273,7 @@ static ffi::Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& sr
                                                   });
     if (depends_on_initial_indices) {
       LOG(WARNING)
-          << "[LayoutInference] BufferVar access is dependent on both defined and undefined vars";
+          << "[LayoutInference] Buffer access is dependent on both defined and undefined vars";
       return {};
     }
     // It is ok to erase this final index expression as it only depends on undefined vars.
@@ -411,7 +411,7 @@ class BlockAnalyzer : public StmtExprVisitor {
       IndexMap read_transformation = maybe_read_transformation.value();
       if (buffer_transformation_cache_.count(r->buffer) != 0) {
         if (!AreIdenticalTransforms(read_transformation, buffer_transformation_cache_[r->buffer]))
-          LOG(WARNING) << "[LayoutInference] BufferVar: " << r->buffer
+          LOG(WARNING) << "[LayoutInference] Buffer: " << r->buffer
                        << " has conflicting transform proposals -- (preferred) "
                        << buffer_transformation_cache_[r->buffer] << " vs. " << read_transformation;
         continue;
@@ -526,7 +526,9 @@ class BlockAnalyzer : public StmtExprVisitor {
  public:
   bool CanBeTransformed() { return can_transform_block_; }
   IndexMap GetSBlockTransformation() { return block_transformation_; }
-  ffi::Map<BufferVar, IndexMap> GetReadBufferTransformations() { return read_buffer_transformations_; }
+  ffi::Map<BufferVar, IndexMap> GetReadBufferTransformations() {
+    return read_buffer_transformations_;
+  }
 
  private:
   bool can_transform_block_;

@@ -242,7 +242,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  std::vector<DefContext<Var>> WithMatchBufferDefs(BufferVar buf, ffi::reflection::AccessPath path) {
+  std::vector<DefContext<Var>> WithMatchBufferDefs(BufferVar buf,
+                                                   ffi::reflection::AccessPath path) {
     std::vector<DefContext<Var>> context;
 
     auto try_visit_implicit_var_def = [this, &context](const Expr& expr,

@@ -272,11 +272,12 @@ class SBlockInfoCollector : private StmtVisitor {
           continue;
         }
         // For each buffer, record the regions generated under this loop
-        std::unordered_map<const VarNode*, std::vector<ffi::Array<arith::IntSet>>>
+        std::unordered_map<BufferVar, std::vector<ffi::Array<arith::IntSet>>, ffi::ObjectPtrHash,
+                           ffi::ObjectPtrEqual>
             touched_regions;
         // Step 2.3.1. Find all the regions read by the consumer that we care about
         for (const BufferRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-          const VarNode* buffer = region->buffer.get();
+          BufferVar buffer = region->buffer;
           touched_regions[buffer] = {};
         }
         // Step 2.3.2. Find all the regions written by each producer
@@ -284,7 +285,7 @@ class SBlockInfoCollector : private StmtVisitor {
           const SBlockRealize& producer_realize = block2realize_.at(producer_block_sref->stmt);
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(producer_block_sref->parent);
           for (const BufferRegion& region : block_writes_unbound.at(producer_block_sref)) {
-            const VarNode* buffer = region->buffer.get();
+            BufferVar buffer = region->buffer;
             auto it = touched_regions.find(buffer);
             // Skip the regions that is not read by the consumer
             if (it != touched_regions.end()) {
@@ -306,7 +307,7 @@ class SBlockInfoCollector : private StmtVisitor {
         {
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(consumer_block_sref->parent);
           for (const BufferRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-            const VarNode* buffer = region->buffer.get();
+            BufferVar buffer = region->buffer;
             const std::vector<ffi::Array<arith::IntSet>>& touched_region =
                 touched_regions.at(buffer);
             if (!touched_region.empty()) {
@@ -318,8 +319,7 @@ class SBlockInfoCollector : private StmtVisitor {
                   /*dom_low_inclusive=*/parent_sref,
                   /*dom_high_exclusive=*/lca,
                   /*analyzer=*/analyzer_.get());
-              if (!ProducerCoversConsumer(GetBufferVar(buffer)->shape, produced_region,
-                                          consumed_region,
+              if (!ProducerCoversConsumer(buffer->shape, produced_region, consumed_region,
                                           analyzer_.get())) {
                 region_cover = false;
                 self_->block_info.at(consumer_block_sref).region_cover = region_cover;

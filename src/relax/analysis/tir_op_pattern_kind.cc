@@ -436,7 +436,8 @@ bool HasReshapePattern(const PrimFunc& func) {
       // This check requires at least one of the src/dst side is a trivial buffer
       // access (e.g., buf[ax0, ax1, ax2]).
 
-      auto f_calc_flattened_idx = [&](const BufferVar& buffer, const ffi::Array<PrimExpr>& indices) {
+      auto f_calc_flattened_idx = [&](const BufferVar& buffer,
+                                      const ffi::Array<PrimExpr>& indices) {
         TVM_FFI_ICHECK_EQ(indices.size(), buffer->shape.size());
         int ndim = indices.size();
         PrimExpr idx = 0;

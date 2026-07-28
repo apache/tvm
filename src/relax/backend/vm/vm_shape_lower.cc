@@ -263,7 +263,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
  * \code
  *
  * @T.prim_func
- * def shape_func(H: T.BufferVar([3], "int64")):
+ * def shape_func(H: T.Buffer([3], "int64")):
  *     H[1] = H[2] + 1
  *
  * \endcode

@@ -107,6 +107,7 @@ def test_basic_with_decl_buffer():
 
     After = transform(Before)
     assert After is not None
+    assert tvm.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "tvm_warp_shuffle" in After_script
 
@@ -443,6 +444,7 @@ def test_webgpu_warp_reduce():
 
                 reduce_data = T.alloc_buffer((1,), "float32", scope="local")
                 reduce = T.decl_buffer(1, data=reduce_data.data, scope="local")
+                reduce_alias = T.decl_buffer(1, data=reduce.data, scope="local")
 
                 with T.attr(
                     T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
@@ -453,14 +455,15 @@ def test_webgpu_warp_reduce():
                         T.uint32(1),
                         A_flat[0],
                         T.bool(True),
-                        reduce[0],
+                        reduce_alias[0],
                         threadIdx_x,
                     )
                 if threadIdx_x == 0:
-                    B[i] = reduce[0]
+                    B[i] = reduce_alias[0]
 
     After = transform(Before)
     assert After is not None
+    assert tvm.tirx.analysis.verify_well_formed(After)
     After_script = After.script()
     assert "tvm_warp_shuffle_down" in After_script
     assert "tvm_warp_shuffle(" in After_script

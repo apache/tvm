@@ -70,10 +70,10 @@ class Stmt;
  */
 class BufferTypeNode : public TypeNode {
  public:
-  /*! \brief Type of the physical pointer projected by buffer_data. */
-  PointerType data_pointer_type = PointerType::VoidPointerTy();
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
+  /*! \brief Storage scope/address space of the buffer. */
+  ffi::String storage_scope;
   /*! \brief The type of the buffer prior to flattening
    *
    * This contains the shape as it is accessed by
@@ -110,8 +110,8 @@ class BufferTypeNode : public TypeNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferTypeNode>()
-        .def_ro("data_pointer_type", &BufferTypeNode::data_pointer_type)
         .def_ro("dtype", &BufferTypeNode::dtype)
+        .def_ro("storage_scope", &BufferTypeNode::storage_scope)
         // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
         .def_ro("shape", &BufferTypeNode::shape, refl::AttachFieldFlag::SEqHashDefRecursive())
         // TODO(tqchen): use SEqHashDefNonRecursive after the next pypi tvm-ffi release
@@ -133,6 +133,9 @@ class BufferTypeNode : public TypeNode {
   /*! \return primitive element type for compiler-side uses. */
   PrimType ElementType() const { return dtype; }
 
+  /*! \return type of the physical pointer projected by buffer_data. */
+  PointerType DataPointerType() const { return PointerType(dtype, storage_scope); }
+
   /*! \brief Determine the offset in the buffer of the given index.
    *
    * Returns the buffer offset, in number of elements of type dtype,
@@ -152,7 +155,7 @@ class BufferTypeNode : public TypeNode {
  */
 class BufferType : public Type {
  public:
-  TVM_DLL BufferType(PointerType data_pointer_type, PrimType dtype, ffi::Array<PrimExpr> shape,
+  TVM_DLL BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                      ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
                      int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
                      ffi::Array<PrimExpr> allocated_addr = {}, Span span = Span());
@@ -175,21 +178,13 @@ class BufferType : public Type {
  */
 class BufferVar : public Var {
  public:
-  // User can specify data_alignment and offset_factor to be 0
-  // A default value will be picked.
-  TVM_DLL BufferVar(Var data, PrimType dtype, ffi::Array<PrimExpr> shape,
-                    ffi::Array<PrimExpr> strides, PrimExpr elem_offset, ffi::String name,
-                    int data_alignment, int offset_factor, Span span = Span(),
-                    ffi::Optional<Layout> layout = std::nullopt,
-                    ffi::Array<PrimExpr> allocated_addr = {});
-
   /*! \brief Construct a fresh buffer variable from an explicit BufferType. */
   TVM_DLL explicit BufferVar(ffi::String name, BufferType type, Span span = Span());
 
   /*! \brief Create a checked buffer view over an existing ordinary Var. */
   explicit BufferVar(Var var) : Var(std::move(var)) {
-    TVM_FFI_ICHECK(get() == nullptr || get()->ty.as<BufferTypeNode>())
-        << "Expected a Var with BufferType";
+    TVM_FFI_ICHECK(get() != nullptr && get()->ty.as<BufferTypeNode>())
+        << "Expected a non-null Var with BufferType";
   }
 
   /*! \brief Return the ordinary variable view over the same identity. */
@@ -203,11 +198,6 @@ class BufferVar : public Var {
 
   /*! \brief Return the source span carried by the ordinary Var. */
   const Span& span() const { return get()->span; }
-
-  /*! \brief Return a fresh buffer variable with the same type and a new name. */
-  BufferVar CopyWithName(ffi::String name) const {
-    return BufferVar(std::move(name), type(), span());
-  }
 
   /*! \brief Project the physical pointer established by the definition site. */
   TVM_DLL Expr data() const;
@@ -226,8 +216,7 @@ class BufferVar : public Var {
    *  If stride is not needed in the slice, it won't be presented
    * \return the result buffer.
    */
-  TVM_DLL BufferVar MakeSlice(ffi::Array<PrimExpr> begins,
-                              ffi::Array<PrimExpr> extents) const;
+  TVM_DLL BufferVar MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const;
   /*!
    * \brief Get access ptr to the entire buffer.
    * \param access_mask The access mask
@@ -259,7 +248,11 @@ class BufferVar : public Var {
                       ffi::Optional<PrimExpr> predicate = std::nullopt) const;
 
   /*!
-   * \brief Get a flattened version of the buffer
+   * \brief Get a flattened version of the buffer.
+   *
+   * If flattening changes the type, the result is a fresh BufferVar.  Callers
+   * that use it as a view over this buffer must bind the returned variable with
+   * `DeclBuffer(flattened, this->data())`.
    */
   BufferVar GetFlattenedBuffer() const;
 
@@ -303,6 +296,9 @@ class BufferVar : public Var {
   /*! \return primitive element type for compiler-side uses. */
   PrimType ElementType() const { return (*this)->ElementType(); }
 
+  /*! \return type of the physical pointer projected by buffer_data. */
+  PointerType DataPointerType() const { return (*this)->DataPointerType(); }
+
   BufferVar() = default;
   explicit BufferVar(ffi::ObjectPtr<VarNode> n) : Var(std::move(n)) {}
   explicit BufferVar(ffi::UnsafeInit tag) : Var(tag) {}
@@ -313,32 +309,25 @@ class BufferVar : public Var {
     TVM_FFI_ICHECK(var_node != nullptr);
     const auto* type_node = var_node->ty.as<BufferTypeNode>();
     TVM_FFI_ICHECK(type_node != nullptr)
-        << "Expected a Var with BufferType, but " << var_node->name << " has type "
-        << var_node->ty;
+        << "Expected a Var with BufferType, but " << var_node->name << " has type " << var_node->ty;
     return type_node;
   }
 
   const VarNode* get() const { return static_cast<const VarNode*>(data_.get()); }
 
-  [[maybe_unused]] static constexpr bool _type_is_nullable = true;
+  [[maybe_unused]] static constexpr bool _type_is_nullable = false;
   static constexpr bool _type_container_is_exact = false;
   using ContainerType = VarNode;
 };
 
-inline bool operator==(const BufferVar& lhs, const BufferVar& rhs) {
-  return lhs.same_as(rhs);
-}
+// Preserve ObjectRef-style identity comparison for exact BufferVar operands.
+// Comparisons widened to Var or Expr continue to build symbolic expressions.
+inline bool operator==(const BufferVar& lhs, const BufferVar& rhs) { return lhs.same_as(rhs); }
 
-inline bool operator!=(const BufferVar& lhs, const BufferVar& rhs) {
-  return !lhs.same_as(rhs);
-}
+inline bool operator!=(const BufferVar& lhs, const BufferVar& rhs) { return !lhs.same_as(rhs); }
 
 /*! \brief Recover a checked buffer view from an ordinary VarNode pointer. */
-inline BufferVar GetBufferVar(const VarNode* var) {
-  return BufferVar(ffi::GetRef<Var>(var));
-}
-
-inline const BufferVar& GetBufferVar(const BufferVar& var) { return var; }
+inline BufferVar GetBufferVar(const VarNode* var) { return BufferVar(ffi::GetRef<Var>(var)); }
 
 inline ffi::ObjectPtr<BufferTypeNode> CopyBufferType(const BufferVar& var) {
   return ffi::make_object<BufferTypeNode>(*var.operator->());
@@ -359,10 +348,9 @@ inline BufferVar RebuildBufferVar(const BufferVar& var, ffi::ObjectPtr<BufferTyp
  * \return The created buffer.
  * \sa BufferVar for complete constructor.
  */
-TVM_DLL BufferVar decl_buffer(ffi::Array<PrimExpr> shape,
-                              PrimType dtype = PrimType::Float(32),
-                              ffi::String name = "buffer",
-                              ffi::String storage_scope = "", Span span = Span());
+TVM_DLL BufferVar decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+                              ffi::String name = "buffer", ffi::String storage_scope = "",
+                              Span span = Span());
 
 /*!
  * \brief Base node for data producers.
@@ -408,7 +396,7 @@ class DataProducer : public PrimExprConvertible {
 };
 
 /*!
- * \brief Creates TIR BufferVar for provided parameters
+ * \brief Creates a TIR buffer for the provided parameters.
  * \param shape shape of the buffer
  * \param dtype data type
  * \param name buffer name
@@ -421,8 +409,7 @@ class DataProducer : public PrimExprConvertible {
  */
 TVM_DLL tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                   std::string name, int data_alignment,
-                                                  int offset_factor,
-                                                  std::string memory_scope = "");
+                                                  int offset_factor, std::string memory_scope = "");
 }  // namespace tirx
 }  // namespace tvm
 
@@ -444,7 +431,7 @@ struct TypeTraits<tirx::BufferVar> : public ObjectRefTypeTraitsBase<tirx::Buffer
 
   TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFINone) {
-      return tirx::BufferVar::_type_is_nullable;
+      return false;
     }
     if (src->type_index != tirx::VarNode::RuntimeTypeIndex()) {
       return false;
@@ -454,12 +441,8 @@ struct TypeTraits<tirx::BufferVar> : public ObjectRefTypeTraitsBase<tirx::Buffer
     return details::AnyUnsafe::CheckAnyStrict<tirx::BufferType>(var->ExprNode::ty);
   }
 
-  TVM_FFI_INLINE static std::optional<tirx::BufferVar> TryCastFromAnyView(
-      const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<tirx::BufferVar> TryCastFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyStrict(src)) {
-      if (src->type_index == TypeIndex::kTVMFFINone) {
-        return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::BufferVar>(nullptr);
-      }
       return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::BufferVar>(
           details::ObjectUnsafe::ObjectPtrFromUnowned<tirx::VarNode>(src->v_obj));
     }

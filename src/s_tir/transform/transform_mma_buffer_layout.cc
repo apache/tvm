@@ -70,7 +70,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
-        BufferVar new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
+        BufferVar new_buffer =
+            decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         this->buffer_map_.insert({buffer, new_buffer});
         this->buffer_var_map_.insert({buffer.var(), new_buffer.var()});
         return new_buffer;
@@ -91,7 +92,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
-        BufferVar new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
+        BufferVar new_buffer =
+            decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         this->buffer_map_.insert({buffer, new_buffer});
         this->buffer_var_map_.insert({buffer.var(), new_buffer.var()});
         return new_buffer;
@@ -112,7 +114,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
-        BufferVar new_buffer = decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
+        BufferVar new_buffer =
+            decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         this->buffer_map_.insert({buffer, new_buffer});
         this->buffer_var_map_.insert({buffer.var(), new_buffer.var()});
         return new_buffer;

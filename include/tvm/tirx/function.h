@@ -53,13 +53,13 @@ class PrimFuncNode : public BaseFuncNode {
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
   /*!
-   * \brief Maps some parameters to specific BufferVar data structures.
+   * \brief Maps some parameters to specific buffer data structures.
    *
    *  buffer_map provides a way to express data structure's field and shape
    *  constraints. The provided information is used in the program analysis
    *  and the code generation.
    *
-   *  - It defines the vars in the BufferVar (m, n) in the cases below when
+   *  - It defines the vars in the buffer (m, n) in the cases below when
    *    they appears in the buffer_map for the first time.
    *  - When a var appears multiple times, they translate into runtime
    *    assertion to check the field constraint.

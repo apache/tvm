@@ -850,7 +850,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   std::unordered_set<tirx::BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> visited_buffers;
 
   ffi::Map<tirx::BufferVar, tirx::IndexMap> buffer_sub_index_map;  // cache of the sub index map
-                                                                // associated with each buffer
+                                                                   // associated with each buffer
 
   auto f_transform_buffer_layout = [&](s_tir::BufferIndexType index_type, int buffer_index) {
     const tirx::BufferVar& lhs_buffer = s_tir::GetNthAccessBuffer(

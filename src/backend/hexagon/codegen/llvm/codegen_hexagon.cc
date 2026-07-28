@@ -107,7 +107,8 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   bool IsQHLFunction(const std::string& func);
 
-  llvm::Value* VectorLookupLoad(BufferVar buffer, PrimType buffer_type, ffi::Array<PrimExpr> indices);
+  llvm::Value* VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+                                ffi::Array<PrimExpr> indices);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
   std::vector<std::string> fqhl_list_ = {
       "tvm_vect_qhmath_hvx_cos_ahf",     "tvm_vect_qhmath_hvx_tanh_ahf",

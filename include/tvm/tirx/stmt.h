@@ -240,14 +240,13 @@ class DeclBufferNode : public StmtNode {
  public:
   /*! \brief The buffer being declared */
   BufferVar buffer;
-  /*! \brief Optional physical pointer expression backing the declaration. */
-  ffi::Optional<Expr> data;
+  /*! \brief Physical pointer expression backing the declaration. */
+  Expr data;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DeclBufferNode>()
-        .def_ro("buffer", &DeclBufferNode::buffer,
-                refl::AttachFieldFlag::SEqHashDefRecursive())
+        .def_ro("buffer", &DeclBufferNode::buffer, refl::AttachFieldFlag::SEqHashDefRecursive())
         .def_ro("data", &DeclBufferNode::data);
   }
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.DeclBuffer", DeclBufferNode, StmtNode);
@@ -256,8 +255,7 @@ class DeclBufferNode : public StmtNode {
 /*! \brief Managed reference to DeclBufferNode */
 class DeclBuffer : public Stmt {
  public:
-  TVM_DLL DeclBuffer(BufferVar buffer, ffi::Optional<Expr> data = std::nullopt,
-                     Span span = Span());
+  TVM_DLL DeclBuffer(BufferVar buffer, Expr data, Span span = Span());
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
 };

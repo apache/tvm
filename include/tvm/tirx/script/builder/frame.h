@@ -77,7 +77,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   bool is_private;
   /*! \brief The return type of the function. */
   ffi::Optional<Type> ret_type;
-  /*! \brief Maps some parameters to specific BufferVar data structures. */
+  /*! \brief Maps some parameters to specific buffer data structures. */
   ffi::Map<tvm::tirx::Var, tvm::tirx::BufferVar> buffer_map;
   /*! \brief Additional attributes storing the meta-data */
   ffi::Map<ffi::String, Any> attrs;
@@ -611,8 +611,8 @@ class DeclBufferFrameNode : public TIRFrameNode {
  public:
   /*! \brief The declared buffer. */
   tvm::tirx::BufferVar buffer;
-  /*! \brief Optional physical pointer expression backing the declaration. */
-  ffi::Optional<Expr> data;
+  /*! \brief Physical pointer expression backing the declaration. */
+  Expr data;
   /*! \brief The buffer allocated or not. */
   bool allocated;
 

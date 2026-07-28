@@ -100,7 +100,7 @@ class SpecializeTIRCallArgs : ExprMutator {
       }
 
       const BufferVar& buffer = tirx::decl_buffer(GetShapeFromTensorType(tensor_ty),
-                                               tensor_ty->dtype.value(), name, scope);
+                                                  tensor_ty->dtype.value(), name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
     ffi::String scope = "global";
@@ -133,17 +133,13 @@ class SpecializeTIRCallArgs : ExprMutator {
         }
 
         const BufferVar& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(),
-                                                 "ret_val_" + std::to_string(index), scope);
+                                                    "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;
       }
     }
 
     auto new_pfunc = Specialize(pfunc, param_map);
-    for (const auto& [var, buffer] : new_pfunc->buffer_map) {
-      auto* ptr = buffer->data_pointer_type.as<PointerTypeNode>();
-      TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
-    }
     auto new_prim_func = WithAttr(new_pfunc, "scoped", static_cast<int64_t>(1));
     updates_->Add(gv, new_prim_func);
     return call;

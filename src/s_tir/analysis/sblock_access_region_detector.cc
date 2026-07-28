@@ -44,7 +44,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
  public:
   explicit BlockReadWriteDetector(const ffi::Map<Var, BufferVar>& buffer_var_map)
       : buffer_var_map_(buffer_var_map) {
-    for (const auto& [raw_pointer, buffer] : buffer_var_map) {
+    for (const auto& item : buffer_var_map) {
+      const BufferVar& buffer = item.second;
       buffer_var_map_.Set(buffer.var(), buffer);
     }
   }
@@ -317,8 +318,8 @@ std::vector<arith::IntSet> BlockReadWriteDetector::ConvertMatchedRegion(
 }
 
 void BlockReadWriteDetector::Update(std::vector<BufferVar>* buffers,
-                                    std::vector<std::vector<arith::IntSet>>* regions, BufferVar buffer,
-                                    std::vector<arith::IntSet> region) {
+                                    std::vector<std::vector<arith::IntSet>>* regions,
+                                    BufferVar buffer, std::vector<arith::IntSet> region) {
   if (buffer_var_map_.find(buffer.var()) == buffer_var_map_.end()) return;
   // Handle match_buffer remap
   auto it = match_buffers_.find(buffer.get());
@@ -343,7 +344,8 @@ void BlockReadWriteDetector::Update(std::vector<BufferVar>* buffers,
 }
 
 ffi::Array<BufferRegion> BlockReadWriteDetector::CollectRegions(
-    const std::vector<BufferVar>& buffers, const std::vector<std::vector<tvm::arith::IntSet>>& regions,
+    const std::vector<BufferVar>& buffers,
+    const std::vector<std::vector<tvm::arith::IntSet>>& regions,
     const std::unordered_set<const VarNode*>* excluded_buffers) {
   TVM_FFI_ICHECK_EQ(buffers.size(), regions.size());
   ffi::Array<BufferRegion> res;

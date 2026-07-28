@@ -38,20 +38,18 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
   return SBlock(new_block);
 }
 
-/******** BufferVar Related ********/
+/******** Buffer Related ********/
 BufferVar WithScope(const BufferVar& buffer, const ffi::String& scope) {
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data_pointer_type, PointerTypeNode);
-  BufferType new_type(PointerType(ptr_type->element_type, scope), buffer->dtype, buffer->shape,
-                      buffer->strides, buffer->elem_offset, buffer->data_alignment,
-                      buffer->offset_factor, buffer->layout, buffer->allocated_addr);
+  BufferType new_type(scope, buffer->dtype, buffer->shape, buffer->strides, buffer->elem_offset,
+                      buffer->data_alignment, buffer->offset_factor, buffer->layout,
+                      buffer->allocated_addr);
   return BufferVar(buffer.name() + "_" + scope, new_type, buffer.span());
 }
 
 BufferVar WithDType(const BufferVar& buffer, PrimType dtype) {
-  const auto* ptr_type = TVM_TYPE_AS(buffer->data_pointer_type, PointerTypeNode);
-  BufferType new_type(PointerType(dtype, ptr_type->storage_scope), dtype, buffer->shape,
-                      buffer->strides, buffer->elem_offset, buffer->data_alignment,
-                      buffer->offset_factor, buffer->layout, buffer->allocated_addr);
+  BufferType new_type(buffer->storage_scope, dtype, buffer->shape, buffer->strides,
+                      buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
+                      buffer->layout, buffer->allocated_addr);
   return BufferVar(buffer.name(), new_type, buffer.span());
 }
 

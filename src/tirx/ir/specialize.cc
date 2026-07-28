@@ -364,6 +364,10 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
     build_var_mapping(specific_buf->strides[i], buf_to_specialize->strides[i]);
   }
   build_var_mapping(specific_buf->elem_offset, buf_to_specialize->elem_offset);
+  // The buffer identity owns the pointer projection instead of storing a
+  // separate data Var.  Remap the typed Var itself so buffer_data uses retain
+  // the alias relationship established by specialization.
+  build_var_mapping(specific_buf.var(), buf_to_specialize.var());
 
   // Check data_alignment and offset_factor.
   // These two signatures are int, so we do not need map them.

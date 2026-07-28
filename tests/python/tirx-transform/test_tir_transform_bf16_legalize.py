@@ -316,7 +316,7 @@ def test_bf16_reduce_will_legalize():
             def main(
                 Aptr: T.handle("uint16", storage_scope="shared"),
             ):
-                A_flat_1 = T.decl_buffer(4096, "uint16", data=Aptr)
+                A_flat = T.decl_buffer(4096, "uint16", data=Aptr)
 
                 for i in range(128):
                     threadIdx_x = T.launch_thread("threadIdx.x", 32)
@@ -333,7 +333,7 @@ def test_bf16_reduce_will_legalize():
                             T.reinterpret(
                                 "float32",
                                 T.shift_left(
-                                    T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])),
+                                    T.Cast("uint32", T.reinterpret("uint16", A_flat[0])),
                                     T.uint32(16),
                                 ),
                             ),

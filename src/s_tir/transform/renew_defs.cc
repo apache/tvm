@@ -19,7 +19,7 @@
 
 /*!
  * \file renew_defs.cc
- * \brief Renew the definition nodes for a TIR, including Var, BufferVar and IterVar.
+ * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
  */
 
 #include <tvm/ffi/cast.h>

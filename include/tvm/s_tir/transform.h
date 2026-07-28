@@ -35,7 +35,7 @@ namespace tvm {
 namespace s_tir {
 
 /*!
- * \brief Renew the definition nodes for a TIR, including Var, BufferVar and IterVar.
+ * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
  *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
  *        Buffers but the same behavior
  * \param func The input PrimFunc.

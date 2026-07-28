@@ -48,7 +48,8 @@ namespace tirx {
 /*! \brief The helper mutator that transforms ProducerLoad to BufferLoad */
 class ProducerToBufferTransformer : public StmtExprMutator {
  public:
-  explicit ProducerToBufferTransformer(const std::unordered_map<te::Tensor, BufferVar>& tensor2buffers)
+  explicit ProducerToBufferTransformer(
+      const std::unordered_map<te::Tensor, BufferVar>& tensor2buffers)
       : tensor2buffers_(tensor2buffers) {}
 
   Expr VisitExpr_(const ProducerLoadNode* op) final {

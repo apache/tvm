@@ -1440,7 +1440,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  * \return The new buffer with target shape.
  */
 BufferVar CreateReindexBuffer(const BufferVar& buffer, const ffi::Array<IterVar>& block_iters,
-                           const std::unordered_set<Var>& covered) {
+                              const std::unordered_set<Var>& covered) {
   ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(buffer);
   std::vector<PrimExpr> new_shape;
   std::vector<PrimExpr> new_strides;
@@ -1732,7 +1732,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   // Step 1. Check index, getting the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   BufferVar read_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
-                                          BufferIndexType::kRead);
+                                             BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   // Check required region cover for cache_read
   CheckRegionCover(self, scope_sref, read_buffer);
@@ -1842,7 +1842,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   // Step 1. Checking index, getting the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   BufferVar write_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), write_buffer_index,
-                                           BufferIndexType::kWrite);
+                                              BufferIndexType::kWrite);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
   // Step 2. Creating CacheStageInfo
@@ -2035,8 +2035,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
 
   // Create new buffer
   ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(old_buffer);
-  const auto* ptr_type = TVM_TYPE_AS(old_buffer->data_pointer_type, PointerTypeNode);
-  new_buffer->data_pointer_type = PointerType(ptr_type->element_type, storage_scope);
+  new_buffer->storage_scope = storage_scope;
   new_buffer->shape = new_shape;
   BufferVar rebuilt =
       RebuildBufferVar(old_buffer, std::move(new_buffer), old_buffer.name() + "_" + storage_scope);
@@ -2084,7 +2083,8 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   // Step 1. Check index, getting the target buffer and the parent scope
   SBlock block = ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(block_sref));
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
-  BufferVar read_buffer = GetNthAccessBuffer(self, block, read_buffer_index, BufferIndexType::kRead);
+  BufferVar read_buffer =
+      GetNthAccessBuffer(self, block, read_buffer_index, BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Create CacheStageInfo
@@ -2235,7 +2235,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   // Check 1. Check index, get the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   BufferVar buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
-                                     BufferIndexType::kRead);
+                                        BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
   // Check 3. Check required region cover for cache_read

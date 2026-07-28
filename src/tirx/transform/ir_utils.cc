@@ -377,16 +377,14 @@ class IRConvertSSA final : public StmtExprMutator {
     if (layout_changed) {
       type->layout = std::move(new_layout);
     }
-    BufferVar new_buf =
-        RebuildBufferVar(buf, std::move(type), new_buffer_var->name);
+    BufferVar new_buf = RebuildBufferVar(buf, std::move(type), new_buffer_var->name);
 
     // A BufferVar's metadata lives in its Var type.  If rewriting the
     // metadata required a fresh Var, make it the active remap as well.  This
     // keeps BufferLoad/BufferStore and ordinary Var uses (such as
     // buffer_data) on the same identity.
     auto it = var_remap_.find(buf.get());
-    if (it != var_remap_.end() && it->second.size() &&
-        it->second.back().same_as(new_buffer_var)) {
+    if (it != var_remap_.end() && it->second.size() && it->second.back().same_as(new_buffer_var)) {
       it->second.back() = new_buf.var();
     } else if (auto function_it = function_scope_var_remap_.find(buf.get());
                function_it != function_scope_var_remap_.end() &&
@@ -572,8 +570,7 @@ class IRConvertSSA final : public StmtExprMutator {
   /*! \brief Pop a single variable remap (used for expression-level Let scoping). */
   void PopVarRemap(const Var& old_var, const Var& new_var) {
     var_remap_[old_var.get()].pop_back();
-    if (auto it = buf_remap_.find(old_var.get());
-        it != buf_remap_.end() && it->second.size()) {
+    if (auto it = buf_remap_.find(old_var.get()); it != buf_remap_.end() && it->second.size()) {
       it->second.pop_back();
     }
     // Also remove from the current scope's tracking vector
@@ -672,7 +669,7 @@ Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
   if (const auto* buffer_type = buffer_var->ty.as<BufferTypeNode>()) {
-    return buffer_type->data_pointer_type->storage_scope;
+    return buffer_type->storage_scope;
   }
   const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(ptr_type)

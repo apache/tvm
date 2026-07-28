@@ -487,9 +487,18 @@ bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& r
   if (it != rhs_buffer_map_.end()) {
     equal = (*it).second.same_as(lhs);
   } else {
-    // Remap the buffer variable definition, skipping buffer shape.
-    equal =
-        DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+    // Remap the buffer variable definition without recursively comparing its
+    // BufferType.  Tensorization intentionally matches a region of a larger
+    // workload buffer against the intrinsic's smaller descriptor buffer.
+    auto data_it = equal_map_.find(lhs.var());
+    if (data_it != equal_map_.end()) {
+      equal = data_it->second.same_as(rhs.var());
+    } else {
+      equal = lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
+      if (equal) {
+        equal_map_[lhs.var()] = rhs.var();
+      }
+    }
     if (equal) {
       rhs_buffer_map_[rhs] = lhs;
     } else {
@@ -741,22 +750,18 @@ bool AutoTensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVa
   if (it != rhs_buffer_map_.end()) {
     equal = (*it).second.same_as(lhs);
   } else {
-    // Remap both buffer itself and buffer data, skipping buffer shape and storage scope.  Auto
-    // tensorization inserts the cache stages that move workload buffers into an intrinsic's
-    // required scope, while the pointer element type must still agree.
+    // Remap the buffer itself, skipping buffer shape and storage scope.  Auto
+    // tensorization inserts the cache stages that move workload buffers into
+    // an intrinsic's required scope, while the element dtype must still agree.
     auto data_it = equal_map_.find(lhs.var());
     if (data_it != equal_map_.end()) {
       equal = data_it->second.same_as(rhs.var());
     } else {
-      const auto* lhs_ptr = lhs->data_pointer_type.as<PointerTypeNode>();
-      const auto* rhs_ptr = rhs->data_pointer_type.as<PointerTypeNode>();
-      equal = lhs_ptr && rhs_ptr &&
-              ffi::StructuralEqual()(lhs_ptr->element_type, rhs_ptr->element_type);
+      equal = lhs->dtype == rhs->dtype;
       if (equal) {
         equal_map_[lhs.var()] = rhs.var();
       }
     }
-    equal = equal && lhs->dtype == rhs->dtype;
     if (equal) {
       rhs_buffer_map_[rhs] = lhs;
       lhs_buffer_map_[lhs] = rhs;

@@ -227,7 +227,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
                   int factor, int offset) {
   const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
   BufferVar buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block_ptr), buffer_index,
-                                     BufferIndexType::kWrite);
+                                        BufferIndexType::kWrite);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
   axis = StorageAlignAxisOutOfRangeError::CheckAndUpdate(self->mod, buffer, axis);
   NonAllocatedBufferError::CheckAndGetBufferAllocationSite(self->mod, block_sref, buffer);

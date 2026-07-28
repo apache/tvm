@@ -277,7 +277,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // DeclBuffer
-DeclBuffer::DeclBuffer(BufferVar buffer, ffi::Optional<Expr> data, Span span) {
+DeclBuffer::DeclBuffer(BufferVar buffer, Expr data, Span span) {
   // Enforce storage scope rules for DeclBuffer.
   std::string scope = static_cast<std::string>(buffer.scope());
   if (scope.empty()) {
@@ -300,10 +300,9 @@ DeclBuffer::DeclBuffer(BufferVar buffer, ffi::Optional<Expr> data, Span span) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.DeclBuffer", [](BufferVar buffer, ffi::Optional<Expr> data, Span span) {
-        return DeclBuffer(buffer, data, span);
-      });
+  refl::GlobalDef().def("tirx.DeclBuffer", [](BufferVar buffer, Expr data, Span span) {
+    return DeclBuffer(buffer, data, span);
+  });
 }
 
 // AllocBuffer

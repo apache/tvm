@@ -85,7 +85,8 @@ def test_ir2():
     st = tvm.tirx.BufferStore(buf, x + 1, [1])
     assert isinstance(st, tvm.tirx.BufferStore)
     assert st.buffer == buf
-    assert st.buffer.data == array
+    assert st.buffer.data.args[0].same_as(buf)
+    assert st.buffer.data.ty == array.ty
 
 
 def test_let():

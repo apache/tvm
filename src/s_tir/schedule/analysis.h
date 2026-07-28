@@ -451,7 +451,7 @@ struct ProducerConsumerSplit {
  * \throw ScheduleError If the buffer index is out of bound.
  */
 BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
-                          BufferIndexType index_type);
+                             BufferIndexType index_type);
 
 /*!
  * \brief Get the n-th read or write buffer of the given block.
@@ -600,7 +600,8 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
  * \param predicate The predicate of the access
  * \param analyzer Arithmetic analyzer
  */
-ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer, const ffi::Array<PrimExpr>& indices,
+ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+                                        const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         arith::AnalyzerObj* analyzer);
 

@@ -71,11 +71,7 @@ class TextureLoweringBase : public StmtExprMutator {
   }
 
  protected:
-  std::string GetStorageScope(const BufferVar& buffer) {
-    auto* ptr = buffer->data_pointer_type.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
-    return ptr->storage_scope;
-  }
+  std::string GetStorageScope(const BufferVar& buffer) { return buffer->storage_scope; }
 
   // Set of all external input and output buffers
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_buf_;

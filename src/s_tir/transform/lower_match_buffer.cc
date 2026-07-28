@@ -106,6 +106,19 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
+  Expr VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+      if (auto var = op->args[0].as<Var>();
+          var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
+        auto it = match_buffers_.find(BufferVar(var.value()));
+        if (it != match_buffers_.end()) {
+          return (*it).second->buffer.data();
+        }
+      }
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     // Save the original buffer before base class mutation may remap it
     BufferVar orig_buffer = op->buffer;

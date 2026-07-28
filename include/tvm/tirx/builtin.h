@@ -783,8 +783,9 @@ TVM_DLL const Op& buffer_offset();
 /*!
  * \brief Project the physical pointer associated with a BufferVar definition.
  *
- * The result type is the BufferType::data_pointer_type of the sole BufferVar
- * argument.  This operation is consumed by TIRx lowering and code generation.
+ * The result pointer type is derived from the BufferType dtype and storage
+ * scope of the sole BufferVar argument.  This operation is consumed by TIRx
+ * lowering and code generation.
  */
 TVM_DLL const Op& buffer_data();
 

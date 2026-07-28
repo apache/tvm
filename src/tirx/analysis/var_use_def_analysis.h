@@ -80,8 +80,6 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
 
   void HandleDef(const BufferVar& buf);
   void HandleUse(const BufferVar& buf);
-
-  void VisitBuffer(const BufferVar& buffer);
 };
 
 }  // namespace tirx

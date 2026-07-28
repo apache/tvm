@@ -273,8 +273,8 @@ class TVMFFIABIBuilder {
    * \param base_path Base ffi::reflection::AccessPath for the buffer parameter.
    * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
-  void BindBuffer(const BufferVar& arg, const BufferVar& value, ffi::reflection::AccessPath base_path,
-                  bool fuzzy_match);
+  void BindBuffer(const BufferVar& arg, const BufferVar& value,
+                  ffi::reflection::AccessPath base_path, bool fuzzy_match);
 
   /*!
    * \brief DLTensor bind: ndim/dtype/shape/strides/data/device assertions.

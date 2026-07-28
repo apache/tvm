@@ -100,9 +100,7 @@ void StmtVisitor::VisitStmt_(const AllocBufferNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const DeclBufferNode* op) {
-  if (op->data.has_value()) {
-    this->VisitExpr(op->data.value());
-  }
+  this->VisitExpr(op->data);
   this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
 }
 
@@ -417,15 +415,13 @@ BufferVar StmtMutator::VisitBufferDef(const BufferVar& buffer, bool alloc_data) 
   }
 
   if (shape.same_as(buffer->shape) && strides.same_as(buffer->strides) &&
-      elem_offset.same_as(buffer->elem_offset) &&
-      allocated_addr.same_as(buffer->allocated_addr) && !layout_changed) {
+      elem_offset.same_as(buffer->elem_offset) && allocated_addr.same_as(buffer->allocated_addr) &&
+      !layout_changed) {
     return buffer;
   }
-  BufferType new_type(
-      buffer->data_pointer_type, buffer->dtype, std::move(shape),
-      std::move(strides), std::move(elem_offset), buffer->data_alignment,
-      buffer->offset_factor, std::move(new_layout), std::move(allocated_addr),
-      buffer->span);
+  BufferType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), std::move(strides),
+                      std::move(elem_offset), buffer->data_alignment, buffer->offset_factor,
+                      std::move(new_layout), std::move(allocated_addr), buffer->span);
   BufferVar new_buf(buffer.name(), std::move(new_type), buffer.span());
   buffer_remap_.Set(buffer, new_buf);
   return new_buf;
@@ -472,10 +468,7 @@ Stmt StmtMutator::VisitStmt_(const AllocBufferNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
-  ffi::Optional<Expr> data = std::nullopt;
-  if (op->data.has_value()) {
-    data = this->VisitExpr(op->data.value());
-  }
+  Expr data = this->VisitExpr(op->data);
   BufferVar new_buf = this->VisitBufferDef(op->buffer, /*alloc_data=*/false);
 
   if (new_buf.same_as(op->buffer) && data.same_as(op->data)) {
@@ -836,8 +829,8 @@ class IRSubstitute : public StmtExprMutator {
     if (auto mapped = vmap_(new_buf.var())) {
       auto mapped_var = mapped.value().as<Var>();
       TVM_FFI_ICHECK(mapped_var && mapped_var.value()->ty.as<BufferTypeNode>())
-          << "BufferVar " << new_buf << " was substituted into "
-          << mapped.value() << ", which is not a Var with BufferType";
+          << "BufferVar " << new_buf << " was substituted into " << mapped.value()
+          << ", which is not a Var with BufferType";
       new_buf = BufferVar(mapped_var.value());
       buffer_remap_.Set(buffer, new_buf);
     }
@@ -849,8 +842,8 @@ class IRSubstitute : public StmtExprMutator {
     if (auto mapped = vmap_(new_buf.var())) {
       auto mapped_var = mapped.value().as<Var>();
       TVM_FFI_ICHECK(mapped_var && mapped_var.value()->ty.as<BufferTypeNode>())
-          << "BufferVar " << new_buf << " was substituted into "
-          << mapped.value() << ", which is not a Var with BufferType";
+          << "BufferVar " << new_buf << " was substituted into " << mapped.value()
+          << ", which is not a Var with BufferType";
       new_buf = BufferVar(mapped_var.value());
     }
     return new_buf;

@@ -190,10 +190,9 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
         elem_offset.same_as(buffer->elem_offset)) {
       return buffer;
     } else {
-      BufferType new_type(
-          buffer->data_pointer_type, buffer->dtype, std::move(shape),
-          std::move(strides), std::move(elem_offset), buffer->data_alignment,
-          buffer->offset_factor, buffer->layout, buffer->allocated_addr);
+      BufferType new_type(buffer->storage_scope, buffer->dtype, std::move(shape),
+                          std::move(strides), std::move(elem_offset), buffer->data_alignment,
+                          buffer->offset_factor, buffer->layout, buffer->allocated_addr);
       BufferVar new_buffer(buffer.name(), std::move(new_type), buffer.span());
       this->buffer_remap_.Set(buffer, new_buffer);
       return new_buffer;
@@ -303,7 +302,7 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
   ffi::Map<tirx::Var, Expr> var_remap_;
 
   ffi::Array<tirx::BufferRegion> UnionAccessRegion(const ffi::Array<BufferRegion>& regions) const {
-    // For now we only allow BufferVar access the same elements.
+    // For now we only allow buffers to access the same elements.
     // e.g. `[A[vi, vj], A[vi, vj]]` is a legal pattern but need to union to `A[vi, vj]`
     // However, `A[vi, vj], A[vi, vj + 1]` is not allow for now.
     // Note: the order of return region should remain the same as the first occurrence of the region
@@ -610,7 +609,8 @@ class FusedTIRConstructor : public ExprVisitor {
     const ffi::Array<tirx::BufferVar>& buffers = (*it).second;
 
     // map of input buffers to indices (helpful for detecting in-place inputs)
-    std::unordered_map<tirx::BufferVar, size_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_to_idx;
+    std::unordered_map<tirx::BufferVar, size_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+        buffer_to_idx;
     std::unordered_map<tirx::Var, size_t> input_to_idx;
     for (size_t i = 0; i < func_info_.params.size(); i++) {
       input_to_idx[func_info_.params[i]] = i;
@@ -901,12 +901,10 @@ class FusedTIRConstructor : public ExprVisitor {
         return unique_name;
       };
       // Update buffer with new symbolic shape according to the ty
-      tirx::BufferType new_type(
-          buffer->data_pointer_type, buffer->dtype, output_shapes[i],
-          buffer->strides, buffer->elem_offset, buffer->data_alignment,
-          buffer->offset_factor, buffer->layout, buffer->allocated_addr);
-      tirx::BufferVar new_buffer(unify_name_hints(), std::move(new_type),
-                                 buffer.span());
+      tirx::BufferType new_type(buffer->storage_scope, buffer->dtype, output_shapes[i],
+                                buffer->strides, buffer->elem_offset, buffer->data_alignment,
+                                buffer->offset_factor, buffer->layout, buffer->allocated_addr);
+      tirx::BufferVar new_buffer(unify_name_hints(), std::move(new_type), buffer.span());
       func_info_.alloc_buffers.push_back(new_buffer);
       output_buffers.push_back(new_buffer);
 

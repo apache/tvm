@@ -83,8 +83,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = DeclBuffer(
-          op->buffer,
-          Call(op->buffer->data_pointer_type, builtin::nd_mem_alloc_with_scope(), args));
+          op->buffer, Call(op->buffer.DataPointerType(), builtin::nd_mem_alloc_with_scope(), args));
     }
     return stmt;
   }
@@ -92,7 +91,7 @@ class TextureAllocInjector : public arith::IRMutatorWithAnalyzer {
  protected:
   std::string GetStorageScope(const Var& buffer_var) {
     auto* ptr = buffer_var->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
+    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
 };

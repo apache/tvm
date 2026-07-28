@@ -92,9 +92,10 @@ class NotSingleReadWriteBuffer : public ScheduleError {
   SBlock block_;
 
   static BufferVar GetSingleRead(const ScheduleState& self, const SBlock& block,
-                              const StmtSRef& scope_root_sref) {
-    const std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
-        buffer_writers = self->block_info.at(scope_root_sref).scope->buffer_writers;
+                                 const StmtSRef& scope_root_sref) {
+    const std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash,
+                             ffi::ObjectPtrEqual>& buffer_writers =
+        self->block_info.at(scope_root_sref).scope->buffer_writers;
     const VarNode* read_buffer = nullptr;
     for (const BufferRegion& read_region : block->reads) {
       const VarNode* buffer = read_region->buffer.get();
@@ -184,8 +185,8 @@ class NonSingleProducerError : public ScheduleError {
     class ProducerFinder : public StmtVisitor {
      public:
       static std::vector<SBlock> GetProducer(const ScheduleState& self,
-                                             const StmtSRef& scope_root_sref, const BufferVar& buffer,
-                                             const SBlock& scope_block) {
+                                             const StmtSRef& scope_root_sref,
+                                             const BufferVar& buffer, const SBlock& scope_block) {
         ProducerFinder finder(self, scope_root_sref, buffer);
         finder(scope_block);
         return finder.producer_across_scope_.back();
@@ -996,7 +997,8 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
  */
 class ReductionEpilogueFuser : public BaseInliner {
  public:
-  explicit ReductionEpilogueFuser(const BufferVar& reduction_buffer, const SBlockNode* reduction_block,
+  explicit ReductionEpilogueFuser(const BufferVar& reduction_buffer,
+                                  const SBlockNode* reduction_block,
                                   const SBlockRealize& epilogue_block_realize,
                                   const StmtSRef& scope_root_sref)
       : BaseInliner(reduction_buffer, epilogue_block_realize->block, scope_root_sref),
@@ -1053,11 +1055,11 @@ class ReductionEpilogueFuser : public BaseInliner {
   PrimExpr epilogue_expression_{
       nullptr};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
   const BufferLoadNode* reduction_buffer_load_{
-      nullptr};                             // The reduction buffer load in epilogue expression
+      nullptr};                                // The reduction buffer load in epilogue expression
   BufferVar epilogue_output_buffer_{nullptr};  // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
   BufferRegion epilogue_output_region_{nullptr};           // Write region of D
-  BufferVar epilogue_addend_buffer_{nullptr};        // Additional buffer (e.g., bias buffer C)
+  BufferVar epilogue_addend_buffer_{nullptr};     // Additional buffer (e.g., bias buffer C)
   BufferRegion epilogue_addend_region_{nullptr};  // Read region of additional buffer
 };
 
@@ -1312,8 +1314,9 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
   // remove that operand (bias addend) from update expression
   class UpdateSubstituter : public StmtExprMutator {
    public:
-    UpdateSubstituter(const BufferVar& old_buf, const BufferVar& new_buf, const BufferVar& reduction_buf,
-                      const PrimExpr& epilogue_expr, const std::unordered_map<Var, Var>& var_map)
+    UpdateSubstituter(const BufferVar& old_buf, const BufferVar& new_buf,
+                      const BufferVar& reduction_buf, const PrimExpr& epilogue_expr,
+                      const std::unordered_map<Var, Var>& var_map)
         : old_buffer_(old_buf),
           new_buffer_(new_buf),
           reduction_buffer_(reduction_buf),

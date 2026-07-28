@@ -35,6 +35,21 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
   Var buf = op->buffer.var();
   StorageScope scope = StorageScope::Create(op->buffer.scope());
@@ -111,7 +126,10 @@ void StorageAccessVisitor::VisitStmt_(const BindNode* op) {
 void StorageAccessVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == s_tir::attr::double_buffer_write) {
     TVM_FFI_ICHECK(double_buffer_write_ == nullptr);
-    double_buffer_write_ = op->node.as<VarNode>();
+    auto buffer = GetBufferDataVar(op->node);
+    TVM_FFI_ICHECK(buffer.has_value())
+        << "Expected a buffer data expression for double-buffer writes, but received " << op->node;
+    double_buffer_write_ = buffer.value().get();
     scope_.push_back(std::vector<StmtEntry>());
     StmtExprVisitor::VisitStmt_(op);
     StmtEntry s;
@@ -248,8 +266,8 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
     PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
-    const VarNode* buffer = op->args[1].as<VarNode>();
-    if (buffer == nullptr) {
+    auto buffer_var = GetBufferDataVar(op->args[1]);
+    if (!buffer_var.has_value()) {
       // args[1] is not a raw Var — e.g. a nested tvm_access_ptr or some
       // other PrimExpr. Recurse into sub-exprs so any inner buffer var
       // refs still get visited, but don't try to record an access entry
@@ -257,10 +275,11 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
       StmtExprVisitor::VisitExpr_(op);
       return;
     }
+    const VarNode* buffer = buffer_var.value().get();
     PrimExpr offset = op->args[2].as_or_throw<PrimExpr>();
     PrimExpr extent = op->args[3].as_or_throw<PrimExpr>();
     const IntImmNode* flag = op->args[4].as<IntImmNode>();
-    StorageScope scope = GetScope(ffi::GetRef<Var>(buffer));
+    StorageScope scope = GetScope(buffer_var.value());
     // The buffer scope.
     if (Enabled(buffer, scope)) {
       TVM_FFI_ICHECK(allow_append_);
@@ -297,6 +316,9 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
+  if (auto buffer_type = buffer_var->ty.as<BufferType>()) {
+    return StorageScope::Create(buffer_type.value()->storage_scope);
+  }
   if (buffer_var->ty.as<PointerTypeNode>()) {
     return StorageScope::Create(GetPtrStorageScope(buffer_var));
   }

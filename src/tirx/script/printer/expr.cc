@@ -46,7 +46,7 @@ ExprDoc PrintVarCreation(const tirx::Var& var, const AccessPath& var_p, const IR
       } else {
         ExprDoc element_type =
             LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-        if (ptr_type->storage_scope == "") {
+        if (ptr_type->storage_scope == "global") {
           rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
         } else {
           rhs = rhs->Call({element_type,
@@ -287,8 +287,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   if (call->op.same_as(tirx::builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-    return d->AsDoc<ExprDoc>(call->args[0], call_p->Attr("args")->ArrayItem(0))
-        ->Attr("data");
+    return d->AsDoc<ExprDoc>(call->args[0], call_p->Attr("args")->ArrayItem(0))->Attr("data");
   }
   ffi::Optional<PrimType> call_prim_type = call->ty.as<PrimType>();
   auto get_call_type_doc = [&](AccessPath type_p) -> ExprDoc {

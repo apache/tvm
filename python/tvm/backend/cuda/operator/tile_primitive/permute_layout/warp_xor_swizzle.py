@@ -75,7 +75,7 @@ import math
 
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, BufferRegion, IntImm, PrimFunc
+from tvm.tirx import BufferRegion, IntImm, PrimFunc, is_buffer_var
 from tvm.tirx.layout import TileLayout, _flatten_coord
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail, register_dispatch
 from tvm.tirx.stmt import TilePrimitiveCall
@@ -87,9 +87,9 @@ from ..common import get_indices, get_st_extent
 
 def _as_buffer_and_region(arg):
     """Normalize a Buffer or BufferRegion to (buffer, start_list, extent_list)."""
-    if isinstance(arg, Buffer):
+    if is_buffer_var(arg):
         buf = arg
-        extent = list(buf.shape)
+        extent = list(buf.ty.shape)
         st = [0] * len(extent)
     elif isinstance(arg, BufferRegion):
         buf = arg.buffer

@@ -43,6 +43,21 @@ using namespace tvm::tirx;
 
 namespace software_pipeline {
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 /*!
  * \brief Create a block and infer the access region with the given body.
  *
@@ -114,11 +129,12 @@ class PipelineOpaqueAccessRewriter {
     static const Op& ptx_ldmatrix_legacy = Op::Get("tirx.ptx.ldmatrix_legacy");
     static const Op& ptx_mma_legacy = Op::Get("tirx.ptx.mma_legacy");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
-      const BufferVar& buffer = buffer_data_to_buffer_.at(call->args[0].as_or_throw<Var>());
+      const BufferVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[0]).value());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
         ffi::Array<Expr> new_args = call->args;
         const BufferVar& new_buffer = (*it).second;
+        new_args.Set(0, new_buffer.data());
         new_args.Set(
             4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4].as_or_throw<PrimExpr>()));
         return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
@@ -126,12 +142,14 @@ class PipelineOpaqueAccessRewriter {
     } else if (call->op.same_as(mma_sync)) {
       ffi::Array<Expr> new_args = call->args;
       for (int i = 0; i < 4; i++) {
-        const Var& buffer_var = call->args[i * 2].as_or_throw<Var>();
+        const Var& buffer_var = GetBufferDataVar(call->args[i * 2]).value();
         PrimExpr index = call->args[i * 2 + 1].as_or_throw<PrimExpr>();
         const BufferVar& buffer = buffer_data_to_buffer_.at(buffer_var);
         auto it = buffer_remap_.find(buffer);
         if (it != buffer_remap_.end()) {
+          const BufferVar& new_buffer = (*it).second;
           PrimExpr new_index = RewriteWmmaFragmentIndex(buffer, (*it).second, index);
+          new_args.Set(i * 2, new_buffer.data());
           new_args.Set(i * 2 + 1, new_index);
         }
       }
@@ -175,10 +193,11 @@ class PipelineOpaqueAccessRewriter {
     };
     ffi::Array<Expr> new_args = call->args;
     for (int i : arg_indices) {
-      const BufferVar& buffer = buffer_data_to_buffer_.at(call->args[i].as_or_throw<Var>());
+      const BufferVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[i]).value());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
         const BufferVar& new_buffer = (*it).second;
+        new_args.Set(i, new_buffer.data());
         PrimExpr old_index = call->args[i + 1].as_or_throw<PrimExpr>();
         PrimExpr offset;
         if (new_buffer->strides.empty()) {
@@ -233,7 +252,11 @@ class PipelineBodyRewriter : public StmtExprMutator {
         pipeline_loop_(pipeline_loop),
         access_all_versions_(access_all_versions),
         opaque_access_rewriter_(buffer_data_to_buffer_, buffer_remap_, pipeline_loop_,
-                                fragment_info) {}
+                                fragment_info) {
+    for (const auto& [_, remapped] : buffer_remap_) {
+      buffer_data_to_buffer_.Set(remapped.var(), remapped);
+    }
+  }
 
  private:
   BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) const {
@@ -360,6 +383,9 @@ class PipelineRewriter : public StmtExprMutator {
         buffer_remap_.Set(buffer, RewriteAllocBuffer(buffer, num_versions));
       }
     }
+    for (const auto& [_, remapped] : buffer_remap_) {
+      buffer_data_to_buffer_.Set(remapped.var(), remapped);
+    }
 
     ordered_stmts_.resize(pipeline_info_.size());
     for (const auto& pair : pipeline_info_) {
@@ -394,8 +420,10 @@ class PipelineRewriter : public StmtExprMutator {
     // Step 3: Make a new block that contains new buffer allocations after pipeline rewriting.
     ffi::Array<BufferVar> alloc_buffers;
     for (const auto& alloc : pipeline_allocs_) {
-      alloc_buffers.push_back(buffer_remap_.Get(alloc).value_or(alloc));
+      BufferVar remapped = buffer_remap_.Get(alloc).value_or(alloc);
+      alloc_buffers.push_back(remapped);
       buffer_data_to_buffer_.erase(alloc.var());
+      buffer_data_to_buffer_.erase(remapped.var());
     }
     SBlock block = MakeSBlock(stmt, buffer_data_to_buffer_);
     block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);

@@ -56,8 +56,7 @@ using tvm::tirx::Var;
  * \return The declared buffer.
  */
 BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data,
-                     ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
                      ffi::Array<PrimExpr> allocated_addr = {});
@@ -117,11 +116,9 @@ Type FuncRet(Type ret_type);
  * \return The matched buffer.
  */
 BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
-                      PrimType dtype = PrimType::Float(32),
-                      ffi::Optional<Expr> data = std::nullopt,
+                      PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
                       ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
-                      ffi::String storage_scope = "global", int align = -1,
-                      int offset_factor = 0,
+                      ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
                       ffi::Optional<Layout> layout = std::nullopt);
 
 /*!
@@ -409,8 +406,7 @@ ElseFrame Else();
  * \return The declaration frame.
  */
 DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Expr> data,
-                           ffi::Optional<ffi::Array<PrimExpr>> strides,
+                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                            int align, int offset_factor,
                            ffi::Optional<Layout> layout = std::nullopt,
@@ -425,8 +421,8 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
  * \return The allocated buffer.
  */
 BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
-                   ffi::String storage_scope = "global",
-                   ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
+                      ffi::String storage_scope = "global",
+                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
  * \brief Launch a thread.

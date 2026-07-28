@@ -603,7 +603,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
                                                    ->Extend(AccessStep::ArrayItem(i))
                                                    ->Attr(ffi::String(buffer.name()));
       Expr data = DecodeParamDLTensor(buffer, device_type_, device_id_, param,
-                                     func_name_ + "." + param->name, param_path);
+                                      func_name_ + "." + param->name, param_path);
       decl_buffers_.push_back(DeclBuffer(buffer, data));
     }
   }
@@ -682,9 +682,9 @@ void TVMFFIABIBuilder::BindRegularStrides(const BufferVar& buffer, const Var& st
 // ============================================================
 
 Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimExpr& device_type,
-                                          const PrimExpr& device_id, const Var& handle,
-                                          const std::string& arg_name,
-                                          ffi::reflection::AccessPath base_path) {
+                                           const PrimExpr& device_id, const Var& handle,
+                                           const std::string& arg_name,
+                                           ffi::reflection::AccessPath base_path) {
   const PrimType tvm_ndim_type = PrimType::Int(32);
 
   std::string buf_name = buffer.name();
@@ -806,7 +806,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimEx
   {
     ffi::reflection::AccessPath data_path = param_path->Attr(ffi::String("data"));
     Expr raw_data = TVMStructGet(PointerType::VoidPointerTy(), handle, 0, builtin::kDLTensorData);
-    Expr typed_data = Call(buffer->data_pointer_type, builtin::reinterpret(), {raw_data});
+    Expr typed_data = Call(buffer.DataPointerType(), builtin::reinterpret(), {raw_data});
     {
       Expr vptr = typed_data;
 
@@ -850,11 +850,11 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimEx
         }
         // mark alignment of external bufs — must be after the alignment assertion
         // so the compiler does not emit aligned loads before the check fires.
-        asserts_.emplace_back(AttrStmt(vptr, tirx::attr::storage_alignment,
+        asserts_.emplace_back(AttrStmt(buffer.var(), tirx::attr::storage_alignment,
                                        IntImm::Int32(buffer->data_alignment), Evaluate(0)));
       } else {
         // Even without alignment check, mark alignment for the compiler.
-        init_nest_.emplace_back(AttrStmt(vptr, tirx::attr::storage_alignment,
+        init_nest_.emplace_back(AttrStmt(buffer.var(), tirx::attr::storage_alignment,
                                          IntImm::Int32(buffer->data_alignment), Evaluate(0)));
       }
     }

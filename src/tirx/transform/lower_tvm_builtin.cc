@@ -161,7 +161,7 @@ class BuiltinLower : public StmtExprMutator {
       auto& scope = alloca_scope_.back();
 
       // Initial check to identify maximum stack sizes.  These are used
-      // to construct BufferVar objects to hold the stack, which are then
+      // to construct buffers to hold the stack, which are then
       // used when mutating.
       scope.max_sizes = GetMaxStack(stmt);
 
@@ -182,9 +182,8 @@ class BuiltinLower : public StmtExprMutator {
         scope.stack_shape = decl_buffer({IntImm::Int64(scope.max_sizes.shape_stack)},
                                         PrimType::Int(64), "stack_shape");
         stmt = SeqStmt::Flatten(
-            DeclBuffer(scope.stack_shape,
-                       StackAlloca(scope.stack_shape->data_pointer_type, "shape",
-                                   scope.max_sizes.shape_stack)),
+            DeclBuffer(scope.stack_shape, StackAlloca(scope.stack_shape.DataPointerType(), "shape",
+                                                      scope.max_sizes.shape_stack)),
             stmt);
       }
 
@@ -262,7 +261,7 @@ class BuiltinLower : public StmtExprMutator {
     int64_t nbytes = GetVectorBytes(op->buffer->dtype);
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
-      auto storage_scope = op->buffer->data_pointer_type.as_or_throw<PointerType>()->storage_scope;
+      auto storage_scope = op->buffer->storage_scope;
       if (storage_scope == "global") {
         auto constant_size = stmt.as_or_throw<AllocBuffer>().ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
@@ -281,14 +280,13 @@ class BuiltinLower : public StmtExprMutator {
         Call(PrimType::Int(32), builtin::tvm_throw_last_error(), {}).as_or_throw<PrimExpr>());
 
     Stmt alloc_nullptr_check = IfThenElse(
-        Call(PrimType::Bool(), builtin::isnullptr(), {op->buffer.data()})
-            .as_or_throw<PrimExpr>(),
+        Call(PrimType::Bool(), builtin::isnullptr(), {op->buffer.data()}).as_or_throw<PrimExpr>(),
         throw_last_error);
 
     static const Op& free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
     static const Op& alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
     PrimExpr free_op = Call(PrimType::Int(32), free_workspace_op,
-                             {cast(PrimType::Int(32), device_type_.value()),
+                            {cast(PrimType::Int(32), device_type_.value()),
                              cast(PrimType::Int(32), device_id_.value()), op->buffer.data()})
                            .as_or_throw<PrimExpr>();
     Stmt free_stmt = IfThenElse(free_op != IntImm::Int32(0), throw_last_error);
@@ -297,11 +295,11 @@ class BuiltinLower : public StmtExprMutator {
     scope_.Current().pending_frees.push_back(free_stmt);
 
     Stmt alloc_bind = DeclBuffer(
-        op->buffer, Call(op->buffer->data_pointer_type, alloc_workspace_op,
-                         {cast(PrimType::Int(32), device_type_.value()),
-                          cast(PrimType::Int(32), device_id_.value()), total_bytes,
-                          IntImm::Int32(op->buffer->dtype.code()),
-                          IntImm::Int32(op->buffer->dtype.bits())}));
+        op->buffer,
+        Call(op->buffer.DataPointerType(), alloc_workspace_op,
+             {cast(PrimType::Int(32), device_type_.value()),
+              cast(PrimType::Int(32), device_id_.value()), total_bytes,
+              IntImm::Int32(op->buffer->dtype.code()), IntImm::Int32(op->buffer->dtype.bits())}));
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
@@ -492,7 +490,7 @@ class BuiltinLower : public StmtExprMutator {
     }
     PrimExpr offset = ConstInt32(stack_begin);
     BufferLoad load(scope.stack_shape, {offset});
-    return Call(scope.stack_shape->data_pointer_type, builtin::address_of(), {load});
+    return Call(scope.stack_shape.DataPointerType(), builtin::address_of(), {load});
   }
   // make array
   Expr MakeArray(const CallNode* op) {

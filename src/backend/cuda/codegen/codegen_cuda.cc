@@ -1432,6 +1432,12 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 
     Expr arg = op->args[0];
     const auto* var_node = arg.as<VarNode>();
+    if (const auto* call = arg.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
+      var_node = call->args[0].as<VarNode>();
+      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::BufferTypeNode>())
+          << "print_buffer expects buffer_data to project a BufferVar";
+    }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
     bool is_string = op->args[2].as<IntImmNode>()->value;
     bool is_scalar = op->args[3].as<IntImmNode>()->value;
@@ -1632,7 +1638,7 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
 
 void CodeGenCUDA::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get());
+  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
   this->PrintIndent();
   std::string scope = op->buffer.scope();

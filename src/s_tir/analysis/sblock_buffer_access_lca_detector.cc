@@ -34,7 +34,7 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief Detect the lowest common ancestor(LCA) position of BufferVar access.
+ * \brief Detect the lowest common ancestor(LCA) position of buffer access.
  * \note
  * - Only consider BlockNode and ForNode to be the LCA nodes.
  * - In the LCA locator, we are aware of the buffer scope and CUDA hierarchy so that any buffer in

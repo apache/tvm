@@ -654,8 +654,8 @@ std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const ffi::Array<For>
  * \param rf_loop The rfactor loop
  * \return The new created intermediate rfactor buffer
  */
-ffi::Array<BufferVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_stores, int factor_axis,
-                                        const ForNode* rf_loop) {
+ffi::Array<BufferVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_stores,
+                                           int factor_axis, const ForNode* rf_loop) {
   ffi::Array<BufferVar> rf_buffers;
   rf_buffers.reserve(buf_stores.size());
   for (const BufferStore& buf_store : buf_stores) {

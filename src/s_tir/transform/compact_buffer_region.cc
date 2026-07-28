@@ -243,7 +243,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     TVM_FFI_ICHECK(!op->init.has_value());
     TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
-    std::unordered_map<BufferVar, std::vector<BufferRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+    std::unordered_map<BufferVar, std::vector<BufferRegion>, ffi::ObjectPtrHash,
+                       ffi::ObjectPtrEqual>
         cur_access_annotations;
     for (const BufferRegion& region : op->reads) {
       cur_access_annotations[region->buffer].push_back(region);
@@ -526,14 +527,16 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /*! \brief The analyzer aware of loop domains. */
   arith::Analyzer dom_analyzer_;
   /*! \brief The map from BufferVar to it's relaxed access set. */
-  std::unordered_map<BufferVar, NDIntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> relaxed_accesses_;
+  std::unordered_map<BufferVar, NDIntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      relaxed_accesses_;
 
   /*!
    * \brief The map from BufferVar to it entire access region, used for returning.
    * The entire access region should get updated on the buffer's define point
    * and we sanity check that every buffer is defined only once.
    */
-  std::unordered_map<BufferVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_access_region_;
+  std::unordered_map<BufferVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+      buffer_access_region_;
 
   /*! \brief The map from BufferVar to it's access regions annotated by current block. */
   std::unordered_map<BufferVar, std::vector<BufferRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
@@ -567,47 +570,35 @@ struct BufferAllocInfo {
 class BufferCompactor : public StmtExprMutator {
  public:
   explicit BufferCompactor(std::unordered_map<Var, BufferAllocInfo> buffer_info)
-      : buffer_info_(std::move(buffer_info)) {
-    std::vector<std::pair<Var, BufferAllocInfo>> remapped_entries;
-    for (const auto& [old_buffer, info] : buffer_info_) {
-      if (!old_buffer.same_as(info.new_buffer.var())) {
-        remapped_entries.emplace_back(info.new_buffer.var(), info);
-      }
-    }
-    for (auto& [new_buffer, info] : remapped_entries) {
-      buffer_info_.emplace(std::move(new_buffer), std::move(info));
-    }
-  }
+      : buffer_info_(std::move(buffer_info)) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
     BufferStore store = StmtExprMutator::VisitStmt_(_op).as_or_throw<BufferStore>();
     BufferStoreNode* op = store.CopyOnWrite();
-    RewriteBufferAccess(&op->buffer, &op->indices);
+    RewriteBufferAccess(_op->buffer, &op->buffer, &op->indices);
     return store;
   }
 
   Expr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = StmtExprMutator::VisitExpr_(_op).as_or_throw<BufferLoad>();
     BufferLoadNode* op = load.CopyOnWrite();
-    RewriteBufferAccess(&op->buffer, &op->indices);
+    RewriteBufferAccess(_op->buffer, &op->buffer, &op->indices);
     return load;
   }
 
   Stmt VisitStmt_(const SBlockNode* op) final {
     // Step 0. Check there is no Init part.
     TVM_FFI_ICHECK(!op->init.has_value());
-    // Step 1. Reallocate and rewrite alloc_buffers, also update BufferAllocInfo.
-    ffi::Array<BufferVar> alloc_buffers =
-        op->alloc_buffers.Map([this](const BufferVar& buf) { return RewriteAllocBuffer(buf); });
-    // Step 2. Recursively rewrite BufferLoad/BufferStore.
-    SBlock block = StmtExprMutator::VisitStmt_(op).as_or_throw<SBlock>();
-    // Step 3. Update block signature.
+    // Rewrite the signature while its buffer identities still match buffer_info_.
+    SBlock block = ffi::GetRef<SBlock>(op);
     SBlockNode* n = block.CopyOnWrite();
     RewriteBufferRegions(&n->reads);
     RewriteBufferRegions(&n->writes);
     RewriteMatchBuffers(&n->match_buffers);
-    n->alloc_buffers = std::move(alloc_buffers);
-    return block;
+    n->alloc_buffers =
+        op->alloc_buffers.Map([this](const BufferVar& buf) { return RewriteAllocBuffer(buf); });
+    // Recursively rewrite the body after installing the allocation remaps.
+    return StmtExprMutator::VisitStmt_(block.get());
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -618,7 +609,7 @@ class BufferCompactor : public StmtExprMutator {
   Stmt VisitStmt_(const AllocBufferNode* op) final {
     RewriteAllocBuffer(op->buffer);
     AllocBuffer alloc_buf = StmtExprMutator::VisitStmt_(op).as_or_throw<AllocBuffer>();
-    auto it = buffer_info_.find(alloc_buf->buffer.var());
+    auto it = buffer_info_.find(op->buffer.var());
     if (it == buffer_info_.end()) {
       return alloc_buf;
     }
@@ -642,8 +633,9 @@ class BufferCompactor : public StmtExprMutator {
     return buffer;
   }
 
-  void RewriteBufferAccess(BufferVar* buffer, ffi::Array<PrimExpr>* indices) const {
-    auto it = buffer_info_.find((*buffer).var());
+  void RewriteBufferAccess(const BufferVar& original_buffer, BufferVar* buffer,
+                           ffi::Array<PrimExpr>* indices) const {
+    auto it = buffer_info_.find(original_buffer.var());
     if (it == buffer_info_.end()) {
       return;
     }

@@ -129,7 +129,8 @@ class SplitExprCollector {
   std::vector<SplitExpr> exprs_;
 };
 
-ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer, const ffi::Array<PrimExpr>& indices,
+ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+                                        const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         arith::AnalyzerObj* analyzer) {
   int ndim = buffer->shape.size();
@@ -247,12 +248,12 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer, const ffi::Arra
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "s_tir.schedule.SuggestIndexMap",
-      [](BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops, PrimExpr predicate) {
-        arith::Analyzer analyzer;
-        return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
-      });
+  refl::GlobalDef().def("s_tir.schedule.SuggestIndexMap",
+                        [](BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
+                           PrimExpr predicate) {
+                          arith::Analyzer analyzer;
+                          return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());
+                        });
 }
 
 }  // namespace s_tir

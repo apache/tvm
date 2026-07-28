@@ -224,7 +224,7 @@ def test_tir_op_mma_store():
         16,
         buffer.access_ptr("w"),
         buffer_w.data,
-        buffer_w.elem_offset,
+        buffer_w.ty.elem_offset,
         x,
     )
     assert expr.op.name == "tirx.mma_store"
@@ -232,7 +232,7 @@ def test_tir_op_mma_store():
 
 def test_tir_op_mma_fill():
     buffer_w = tirx.decl_buffer([16, 8], dtype="int32", scope="warp", offset_factor=1)
-    expr = _cuda_op.mma_fill("int32", 8, buffer_w.data, buffer_w.elem_offset)
+    expr = _cuda_op.mma_fill("int32", 8, buffer_w.data, buffer_w.ty.elem_offset)
     assert expr.op.name == "tirx.mma_fill"
 
 

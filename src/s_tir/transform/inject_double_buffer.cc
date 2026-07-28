@@ -36,6 +36,21 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 struct InjectDoubleBufferConfigNode : public ffi::Object {
   int split_loop;
 
@@ -64,7 +79,9 @@ class DoubleBufferDetector : public StmtExprVisitor {
  public:
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == s_tir::attr::double_buffer_scope) {
-      touched_.insert(op->node.as<VarNode>());
+      if (auto buffer = GetBufferDataVar(op->node)) {
+        touched_.insert(buffer.value().get());
+      }
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
@@ -269,7 +286,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
  private:
   Stmt MakeProducer(const AttrStmtNode* op) {
-    const Var buffer = op->node.as_or_throw<Var>();
+    const Var buffer = GetBufferDataVar(op->node).value();
     TVM_FFI_ICHECK_NE(loop_nest_.size(), 0U) << "Double buffer scope must be inside a loop";
     auto it = dbuffer_info_.find(buffer.get());
     if (it == dbuffer_info_.end()) {
@@ -294,7 +311,8 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.loop->loop_var.get()] = loop_shift;
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = Substitute(body, vmap);
-    body = AttrStmt(buffer, s_tir::attr::double_buffer_write, 1, body);
+    body = AttrStmt(GetRemappedBuffer(BufferVar(buffer), e.stride).data(),
+                    s_tir::attr::double_buffer_write, 1, body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
   }
