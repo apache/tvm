@@ -753,7 +753,7 @@ class ScheduleNode : public ffi::Object {
   /*!
    * \brief Apply a transformation represented by IndexMap to buffer
    * \details The indices and the access region to the target buffer is transformed by the given
-   * index_map. The index_map is used to infer the new shape of the buffer. BufferVar must be either
+   * index_map. The index_map is used to infer the new shape of the buffer. Buffer must be either
    * a function parameter, or allocated in a block (it cannot be a buffer subregion created via
    * 'match_buffer').
    * \param block_rv The block that accesses the target buffer.
@@ -825,7 +825,7 @@ class ScheduleNode : public ffi::Object {
    */
   virtual void PadEinsum(const SBlockRV& block_rv, const ffi::Array<int64_t>& padding) = 0;
 
-  /******** Schedule: BufferVar transformation ********/
+  /******** Schedule: Buffer transformation ********/
   /*!
    * \brief Compute the target buffer via rolling buffering.
    * \details This primitive selects the outermost rollable axis with a positive bound overlap that

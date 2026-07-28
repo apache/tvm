@@ -579,8 +579,8 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   // calculate backward mapping (required region point -> block vars)
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
-    required_bound.push_back(
-        arith::IntSet::Interval(IntImm(GetBufferVar(buffer)->shape[i].ty(), 0), max(GetBufferVar(buffer)->shape[i] - 1, 0)));
+    required_bound.push_back(arith::IntSet::Interval(IntImm(GetBufferVar(buffer)->shape[i].ty(), 0),
+                                                     max(GetBufferVar(buffer)->shape[i] - 1, 0)));
   }
   ffi::Map<Var, arith::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);

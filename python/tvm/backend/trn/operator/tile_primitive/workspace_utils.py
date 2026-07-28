@@ -41,14 +41,14 @@ def check_workspace_buffer(buffer: Buffer, shape: tuple[int], scope: str):
         If the buffer is invalid
     """
     assert buffer.scope() == scope, f"workspace buffer must be a {scope} buffer"
-    assert buffer.layout is None, "workspace buffer must not have a layout"
+    assert buffer.ty.layout is None, "workspace buffer must not have a layout"
     if scope == "trn.psum":
         # the number of psum banks used is inferred from the shape
         # only check p and f dims
-        assert all(x >= y for x, y in zip(buffer.shape[1:], shape)), (
-            f"workspace buffer must have enough size, {buffer.shape[1:]} cannot cover {shape}"
+        assert all(x >= y for x, y in zip(buffer.ty.shape[1:], shape)), (
+            f"workspace buffer must have enough size, {buffer.ty.shape[1:]} cannot cover {shape}"
         )
     else:
-        assert all(x >= y for x, y in zip(buffer.shape, shape)), (
-            f"workspace buffer must have enough size, {buffer.shape} cannot cover {shape}"
+        assert all(x >= y for x, y in zip(buffer.ty.shape, shape)), (
+            f"workspace buffer must have enough size, {buffer.ty.shape} cannot cover {shape}"
         )

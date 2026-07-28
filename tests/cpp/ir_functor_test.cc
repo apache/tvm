@@ -153,8 +153,7 @@ TEST(IRF, StmtVisitor) {
     auto z = x + 1;
     Stmt eval_body = Evaluate(z);
     PrimType dtype = PrimType::Float(32);
-    tirx::Var data_var("b", PointerType(dtype));
-    BufferVar buf(data_var, dtype, {z, z}, {}, PrimExpr(), "b", 0, 0);
+    BufferVar buf("b", BufferType("global", dtype, {z, z}, {}, PrimExpr(), 0, 0));
     // AllocBuffer is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({AllocBuffer(buf), eval_body});
   };
@@ -169,7 +168,7 @@ TEST(IRF, StmtVisitor) {
     PrimType dtype = PrimType::Float(32);
     tirx::Var buf_var("b", PointerType(dtype));
     BufferVar buffer = decl_buffer({16});
-    body = SeqStmt({DeclBuffer(buffer), std::move(body)});
+    body = SeqStmt({DeclBuffer(buffer, buf_var), std::move(body)});
     BufferRegion buffer_region(buffer, {Range::FromMinExtent(x + 1, 1)});
     MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
@@ -183,8 +182,10 @@ TEST(IRF, StmtVisitor) {
     // x visited in: reads range (1), writes range (1), match_buffers range (1),
     // init DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3,
     // body DeclBuffer(0) + AllocBuffer shape(2) + Evaluate(1) = 3.
-    // Total: 1 + 1 + 1 + 3 + 3 = 9.
-    TVM_FFI_ICHECK_EQ(v.count, 9);
+    // The block's read/write BufferTypes each visit their dependent shape once,
+    // in addition to the ranges, match buffer, init, and body.
+    // Total: 2 + 2 + 1 + 3 + 3 = 11.
+    TVM_FFI_ICHECK_EQ(v.count, 11);
   }
 }
 
@@ -207,8 +208,7 @@ TEST(IRF, StmtMutator) {
   auto fmakealloc = [&]() {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
-    tirx::Var data_var("b", PointerType(dtype));
-    BufferVar buf(data_var, dtype, {1, z}, {}, PrimExpr(), "b", 0, 0);
+    BufferVar buf("b", BufferType("global", dtype, {1, z}, {}, PrimExpr(), 0, 0));
     return AllocBuffer(buf);
   };
 
@@ -300,7 +300,8 @@ TEST(IRF, StmtMutator) {
     // AllocBuffer and DeclBuffer are flat (no body), placed as siblings in SeqStmt
     Stmt eval_body = Evaluate(x + 1);
     BufferVar buffer = decl_buffer({16});
-    Stmt decl = DeclBuffer(buffer);
+    tirx::Var buffer_data("buffer_data", buffer.DataPointerType());
+    Stmt decl = DeclBuffer(buffer, buffer_data);
     Stmt alloc = fmakealloc();
     // body is: DeclBuffer, AllocBuffer, Evaluate
     Stmt body = SeqStmt({decl, alloc, eval_body});
@@ -335,14 +336,13 @@ TEST(IRF, Substitute) {
   PrimVar n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {
-    return BufferVar{/*data=*/x,
-                  /*dtype=*/PrimType::Float(32),
-                  /*shape=*/{n},
-                  /*strides=*/{},
-                  /*elem_offset=*/PrimExpr(),
-                  /*name=*/"buf",
-                  /*data_alignment=*/1,
-                  /*offset_factor=*/1};
+    return BufferVar("buf", BufferType(/*storage_scope=*/"global",
+                                       /*dtype=*/PrimType::Float(32),
+                                       /*shape=*/{n},
+                                       /*strides=*/{},
+                                       /*elem_offset=*/PrimExpr(),
+                                       /*data_alignment=*/1,
+                                       /*offset_factor=*/1));
   };
 
   {
@@ -364,7 +364,7 @@ TEST(IRF, Substitute) {
     TVM_FFI_ICHECK(seq_node != nullptr);
     auto* decl_node = seq_node->seq[0].as<DeclBufferNode>();
     TVM_FFI_ICHECK(decl_node != nullptr);
-    TVM_FFI_ICHECK(decl_node->data.value().same_as(y));
+    TVM_FFI_ICHECK(decl_node->data.same_as(y));
     TVM_FFI_ICHECK(decl_node->buffer->shape[0].same_as(m));
     TVM_FFI_ICHECK(!decl_node->buffer.same_as(buffer));
     auto* store_node = seq_node->seq[1].as<BufferStoreNode>();

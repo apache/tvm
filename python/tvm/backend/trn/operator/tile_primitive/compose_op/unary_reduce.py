@@ -42,7 +42,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     analyzer = init_analyzer(sctx)
 
     # Normalize axes and default values
-    reduce_axes = [i if i >= 0 else len(unary_output.buffer.shape) + i for i in op.reduce_axes]
+    reduce_axes = [i if i >= 0 else len(unary_output.buffer.ty.shape) + i for i in op.reduce_axes]
     scale = 1.0 if scale is None else scale
     bias = 0.0 if bias is None else bias
 
@@ -72,7 +72,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     f_var = T.Var("F", "int32")
     reduction_b_var = T.Var("rB", "int32")
     spatial_b_var = T.Var("sB", "int32")
-    p_size = unary_output.buffer.layout.size("P")
+    p_size = unary_output.buffer.ty.layout.size("P")
     inst_gen.bind_inst_iter(unary_output, p_var, p_size, 1, False)
     inst_gen.bind_inst_iter(unary_output, f_var, inst_repr.size, inst_repr.stride, True)
     reduction_b_extent = inst_gen.fill_in_block_dim(unary_output, reduction_b_var, reduce_axes)
@@ -90,7 +90,9 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     bias_buffer = (
         bias.buffer
         if isinstance(bias, BufferRegion)
-        else get_const_bias_tensor(bias, (p_size, inst_repr.size), dst1.dtype, op.workspace, sctx)
+        else get_const_bias_tensor(
+            bias, (p_size, inst_repr.size), dst1.ty.dtype, op.workspace, sctx
+        )
     )
 
     # Create appropriate implementation based on intermediate buffer requirement

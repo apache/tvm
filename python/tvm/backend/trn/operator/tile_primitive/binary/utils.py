@@ -72,9 +72,9 @@ def try_find_inst_nary(
 
     valid_buffers = all(
         [
-            dst.layout and all(src.layout for src in srcs if src is not None),
-            is_trainium_layout(dst.layout),
-            all(is_trainium_layout(src.layout) for src in srcs if src is not None),
+            dst.ty.layout and all(src.ty.layout for src in srcs if src is not None),
+            is_trainium_layout(dst.ty.layout),
+            all(is_trainium_layout(src.ty.layout) for src in srcs if src is not None),
             dst.scope() == "trn.sbuf",
             all(src.scope() in ["trn.sbuf", "trn.psum"] for src in srcs if src is not None),
         ]

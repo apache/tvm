@@ -45,7 +45,7 @@ using namespace tvm::tirx;
 SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
                       const ffi::ObjectRef& attr_value);
 
-/******** BufferVar Related ********/
+/******** Buffer Related ********/
 
 /*!
  * \brief Create a new buffer by changing the storage scope.

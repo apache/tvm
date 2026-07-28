@@ -183,7 +183,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   void TransformBlockLayout(const SBlockRV& block_rv, const IndexMap& index_map) override;
   /******** Schedule: Padding decomposition ********/
   SBlockRV DecomposePadding(const SBlockRV& block_rv, const LoopRV& loop_rv) override;
-  /******** Schedule: BufferVar transformation ********/
+  /******** Schedule: Buffer transformation ********/
   void RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}

@@ -194,7 +194,8 @@ class AutoPadder {
   Stmt RewriteBufferAccess(const Stmt& stmt) {
     class Rewriter : public StmtExprMutator {
      public:
-      explicit Rewriter(const ffi::Map<BufferVar, BufferVar>& buffer_map) : buffer_map_(buffer_map) {}
+      explicit Rewriter(const ffi::Map<BufferVar, BufferVar>& buffer_map)
+          : buffer_map_(buffer_map) {}
 
      private:
       Expr VisitExpr_(const BufferLoadNode* _op) final {
@@ -467,14 +468,14 @@ class AutoPadder {
         if (v.same_as(var)) {
           return IntImm::Int32(0);
         } else {
-          return v.as_or_throw<PrimExpr>();
+          return std::nullopt;
         }
       });
       PrimExpr e2 = Substitute(e, [var](const Var& v) -> ffi::Optional<Expr> {
         if (v.same_as(var)) {
           return IntImm::Int32(1);
         } else {
-          return v.as_or_throw<PrimExpr>();
+          return std::nullopt;
         }
       });
       arith::Analyzer analyzer;

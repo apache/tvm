@@ -336,11 +336,13 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockRealizeNode* op) {
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const SBlockNode* op) {
-  ffi::Array<BufferVar> new_alloc_buffers = op->alloc_buffers.Map(
-      [this](const BufferVar& buffer) { return this->VisitBufferDef(buffer, /*alloc_data=*/true); });
+  ffi::Array<BufferVar> new_alloc_buffers = op->alloc_buffers.Map([this](const BufferVar& buffer) {
+    return this->VisitBufferDef(buffer, /*alloc_data=*/true);
+  });
   ffi::Array<MatchBufferRegion> new_match_buffers =
       op->match_buffers.Map([this](const MatchBufferRegion& match_buffer_region) {
-        BufferVar new_buffer = this->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
+        BufferVar new_buffer =
+            this->VisitBufferDef(match_buffer_region->buffer, /*alloc_data=*/true);
         BufferRegion new_buffer_region = this->VisitBufferRegion(match_buffer_region->source);
         if (!new_buffer.same_as(match_buffer_region->buffer) ||
             !new_buffer_region.same_as(match_buffer_region->source)) {

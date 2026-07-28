@@ -121,14 +121,12 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
-
-    auto new_buf = GetFlattenedBuffer(node->buffer);
-    if (!node->buffer.same_as(new_buf)) {
-      node.CopyOnWrite()->buffer = new_buf;
+    Expr data = VisitExpr(op->data);
+    BufferVar flattened = GetFlattenedBuffer(op->buffer);
+    if (flattened.same_as(op->buffer) && data.same_as(op->data)) {
+      return ffi::GetRef<Stmt>(op);
     }
-
-    return std::move(node);
+    return DeclBuffer(flattened, std::move(data), op->span);
   }
 
   BufferVar GetFlattenedBuffer(BufferVar buf) {
@@ -161,6 +159,19 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
     BufferLoad load = StmtExprMutator::VisitExpr_(op).as_or_throw<BufferLoad>();
     load = VisitBufferAccess(load, original_buffer);
     return load;
+  }
+
+  Expr VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
+      if (auto var = op->args[0].as<Var>()) {
+        if (var.value()->ty.as<BufferTypeNode>()) {
+          BufferVar original(var.value());
+          buffers_used_.insert(original);
+          return GetFlattenedBuffer(original).data();
+        }
+      }
+    }
+    return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
   ffi::Array<PrimExpr> GetSimplifiedElemOffset(const BufferVar& buffer,

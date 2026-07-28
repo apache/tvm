@@ -134,8 +134,8 @@ def test_lower_vector_access_ptr():
 
     load = lowered.args[0]
     assert isinstance(load, tvm.tirx.BufferLoad)
-    assert load.buffer.data.same_as(buffer.data)
-    assert load.buffer.dtype == tvm.ir.PrimType("float32")
+    assert load.buffer.same_as(buffer)
+    assert load.buffer.ty.dtype == tvm.ir.PrimType("float32")
     assert len(load.indices) == 1
     ramp = load.indices[0]
     assert isinstance(ramp, tvm.tirx.Ramp)
@@ -152,6 +152,22 @@ def test_lower_vector_access_ptr_with_padded_vector_dtype():
     func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
 
     tvm.tirx.build(tvm.IRModule.from_expr(func), target="llvm")
+
+
+def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
+    buffer = tvm.tirx.decl_buffer((16,), "float32", "buffer")
+    access = tvm.tirx.tvm_access_ptr("float32", buffer.data, 3, 8, 1)
+
+    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access)).with_attr(
+        "target", tvm.target.Target("llvm")
+    )
+    lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body.value
+    assert isinstance(lowered, tvm.ir.Call)
+    assert lowered.op.name == "tirx.address_of"
+    load = lowered.args[0]
+    assert isinstance(load, tvm.tirx.BufferLoad)
+    assert load.buffer.same_as(buffer)
+    assert int(load.indices[0]) == 3
 
 
 def get_ref_data():

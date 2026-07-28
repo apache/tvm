@@ -211,8 +211,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
     if (const BufferLoadNode* load = store->value.as<BufferLoadNode>()) {
-      if (load->buffer.same_as(store->buffer) &&
-          ArrayDeepEqual(load->indices, store->indices) &&
+      if (load->buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
           tirx::ExprDeepEqual()(load->buffer->elem_offset, store->buffer->elem_offset) &&
           ArrayDeepEqual(load->buffer->shape, store->buffer->shape) &&
           ArrayDeepEqual(load->buffer->strides, store->buffer->strides)) {

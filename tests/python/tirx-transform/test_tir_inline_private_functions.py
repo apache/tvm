@@ -57,10 +57,8 @@ class TestSimple(BaseTestCase):
         @T.prim_func(s_tir=True)
         def main(A: T.Buffer([80, 16], "float32"), B: T.Buffer([64, 16], "float32")):
             for i in range(64):
-                A_view_data: T.let[T.handle("float32")] = T.address_of(A[i, 0])
-                Aview = T.decl_buffer([16, 16], "float32", data=A_view_data)
-                B_view_data: T.let[T.handle("float32")] = T.address_of(B[i, 0])
-                Bview = T.decl_buffer([16], "float32", data=B_view_data)
+                Aview = T.decl_buffer([16, 16], "float32", data=T.address_of(A[i, 0]))
+                Bview = T.decl_buffer([16], "float32", data=T.address_of(B[i, 0]))
                 for j in range(16):
                     Bview[j] = 0.0
                     for k in range(16):
@@ -229,11 +227,11 @@ class TestInlineFunctionWithBufferArguments(BaseTestCase):
             Before.subroutine(
                 T.tvm_stack_make_array(
                     A.data,
-                    T.tvm_stack_make_shape(*A.shape, dtype="handle"),
+                    T.tvm_stack_make_shape(*A.ty.shape, dtype="handle"),
                     0,
-                    len(A.shape),
+                    len(A.ty.shape),
                     0.0,
-                    A.elem_offset,
+                    A.ty.elem_offset,
                     dtype="handle",
                 )
             )

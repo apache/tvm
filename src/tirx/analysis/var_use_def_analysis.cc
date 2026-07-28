@@ -91,7 +91,12 @@ void VarUseDefAnalyzer::VisitExpr_(const LetNode* op) {
 }
 
 void VarUseDefAnalyzer::VisitExpr_(const VarNode* op) {
-  this->HandleUse(ffi::GetRef<Var>(op));
+  Var var = ffi::GetRef<Var>(op);
+  if (var->ty.as<BufferTypeNode>()) {
+    this->VisitBufferUse(BufferVar(var));
+  } else {
+    this->HandleUse(var);
+  }
   StmtExprVisitor::VisitExpr_(op);
 }
 
@@ -109,9 +114,6 @@ void VarUseDefAnalyzer::VisitBufferDef(const BufferVar& buffer, bool alloc_data)
     auto it = use_count_.find(buffer.get());
     if (it == use_count_.end()) {
       HandleDef(buffer.var());
-    } else {
-      TVM_FFI_ICHECK_GE(it->second, 0)
-          << "variable " << buffer.name() << " has been used before definition!";
     }
   }
   // Visit shape/strides/elem_offset as uses of vars from the enclosing scope.
@@ -123,17 +125,6 @@ void VarUseDefAnalyzer::VisitBufferDef(const BufferVar& buffer, bool alloc_data)
 void VarUseDefAnalyzer::VisitBufferUse(const BufferVar& buffer) {
   HandleUse(buffer);
   HandleUse(buffer.var());
-}
-
-void VarUseDefAnalyzer::VisitBuffer(const BufferVar& buffer) {
-  auto visit_arr = [&](ffi::Array<PrimExpr> arr) {
-    for (const auto& element : arr) {
-      this->VisitExpr(element);
-    }
-  };
-
-  visit_arr(buffer->shape);
-  visit_arr(buffer->strides);
 }
 
 void VarUseDefAnalyzer::HandleDef(const Var& var) {
@@ -165,12 +156,11 @@ void VarUseDefAnalyzer::HandleDef(const BufferVar& buf) {
   // reference the same BufferVar object. Treat repeated definition of the same
   // buffer object as idempotent.
   if (buffer_def_count_.count(ptr)) {
-    VisitBuffer(buf);
     return;
   }
-  TVM_FFI_ICHECK(!buffer_use_count_.count(ptr))
-      << "buffer " << ptr->name << " has been used before definition!";
-  buffer_use_count_[ptr] = 0;
+  if (!buffer_use_count_.count(ptr)) {
+    buffer_use_count_[ptr] = 0;
+  }
   buffer_def_count_[ptr] = 1;
   // BufferVar fields (data, shape, strides) are visited by the caller
   // (VisitBufferDef) via the base class, not here.

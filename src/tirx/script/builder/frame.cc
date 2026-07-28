@@ -37,7 +37,7 @@ namespace tirx {
 namespace {
 
 // In s_tir functions, buffer-typed parameters must not carry a layout (the
-// s_tir IR doesn't track per-buffer layouts on params). When `T.BufferVar(...)` is
+// s_tir IR doesn't track per-buffer layouts on params). When `T.Buffer(...)` is
 // used as a parameter annotation, the parser evaluates the annotation outside
 // the PrimFunc frame; if the annotation captures an outer-scope variable (e.g.
 // `dtype` in a closure-based generator), the evaluation happens *before*
@@ -124,8 +124,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       if (buf->layout.has_value()) {
         ffi::ObjectPtr<tvm::tirx::BufferTypeNode> type = tvm::tirx::CopyBufferType(buf);
         type->layout = std::nullopt;
-        tvm::tirx::BufferVar new_buf =
-            tvm::tirx::RebuildBufferVar(buf, std::move(type));
+        tvm::tirx::BufferVar new_buf = tvm::tirx::RebuildBufferVar(buf, std::move(type));
         normalizer.Register(buf, new_buf);
         new_buffer_map.Set(kv.first, new_buf);
       } else {

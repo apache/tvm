@@ -141,20 +141,19 @@ bool IsReductionBlock(const SBlockRealize& realize, const ffi::Map<Var, Range>& 
  * \return The created buffers
  */
 ffi::Array<BufferVar> MakeScratchpads(const ffi::Array<BufferVar>& reduction_buffers,
-                                   bool is_cross_thread_buffer) {
+                                      bool is_cross_thread_buffer) {
   ffi::Array<BufferVar> new_buffers;
   new_buffers.reserve(reduction_buffers.size());
   for (const BufferVar& buffer : reduction_buffers) {
     ffi::String name = is_cross_thread_buffer ? "cross" : "in";
     name = name + "_thread_" + buffer.name();
-    new_buffers.push_back(BufferVar(/*ptr=*/Var(name, PointerType(buffer->dtype, "local")),
-                                 /*dtype=*/buffer->dtype,
-                                 /*shape=*/{IntImm::Int32(1)},
-                                 /*strides=*/{IntImm::Int32(1)},
-                                 /*elem_offset=*/PrimExpr{nullptr},
-                                 /*name=*/name,
-                                 /*data_alignment=*/0,
-                                 /*offset_factor=*/0));
+    new_buffers.push_back(BufferVar(name, BufferType(/*storage_scope=*/"local",
+                                                     /*dtype=*/buffer->dtype,
+                                                     /*shape=*/{IntImm::Int32(1)},
+                                                     /*strides=*/{IntImm::Int32(1)},
+                                                     /*elem_offset=*/PrimExpr{nullptr},
+                                                     /*data_alignment=*/0,
+                                                     /*offset_factor=*/0)));
   }
   return new_buffers;
 }
@@ -297,13 +296,13 @@ class InThreadReducerMaker : private StmtMutator {
  * \param combiner_rhs The RHS values of the combiner
  * \param reduction_loops The reduction loops
  */
-Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                     //
+Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                        //
                              const ffi::Optional<ffi::Array<BufferVar>>& it_buffers,  //
                              const ffi::Array<BufferVar>& ct_buffers,                 //
                              const ffi::Array<BufferVar>& wb_buffers,                 //
-                             const ffi::Array<PrimExpr>& old_wb_indices,           //
-                             const CommReducer& reducer,                           //
-                             const ffi::Array<PrimExpr>& combiner_rhs,             //
+                             const ffi::Array<PrimExpr>& old_wb_indices,              //
+                             const CommReducer& reducer,                              //
+                             const ffi::Array<PrimExpr>& combiner_rhs,                //
                              const std::vector<const ForNode*>& reduction_loops) {
   int n_buffers = wb_buffers.size();
   const SBlockNode* block = realize->block.get();
@@ -928,8 +927,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
   int block_idx_depth = 0;
   int thread_idx_depth = 0;
-  std::unordered_map<const VarNode*, std::vector<std::pair<ThreadScope, Range>>>
-      crt_buf2threads_;
+  std::unordered_map<const VarNode*, std::vector<std::pair<ThreadScope, Range>>> crt_buf2threads_;
 };
 
 namespace transform {

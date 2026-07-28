@@ -66,6 +66,12 @@ static Expr LowerAccessPtr(const CallNode* call) {
     buffer = inner->args[1];
   }
 
+  const auto* buffer_data = buffer.as<CallNode>();
+  if (buffer_data && buffer_data->op.same_as(builtin::buffer_data())) {
+    TVM_FFI_ICHECK_EQ(buffer_data->args.size(), 1U);
+    buffer = buffer_data->args[0];
+  }
+
   const auto* buffer_node = buffer.as<VarNode>();
   TVM_FFI_ICHECK(buffer_node)
       << "tvm_access_ptr expects a buffer Var or nested tvm_access_ptr as args[1], but got "
@@ -76,8 +82,18 @@ static Expr LowerAccessPtr(const CallNode* call) {
     offset = offset * IntImm(offset_ty, dtype.lanes());
     offset = Ramp(offset, IntImm(offset_ty, 1), dtype.lanes());
   }
-  BufferVar dummy_buf(buffer_var, dtype.WithLanes(1), {offset + 1}, {}, 0, buffer_var->name, 0, 0);
-  BufferLoad buf_load(dummy_buf, {offset});
+  BufferVar access_buffer{nullptr};
+  if (buffer_var->ty.as<BufferTypeNode>()) {
+    access_buffer = BufferVar(buffer_var);
+    TVM_FFI_ICHECK_EQ(access_buffer->dtype, dtype.WithLanes(1))
+        << "tvm_access_ptr element type must match the source buffer";
+  } else {
+    auto pointer_type = buffer_var->ty.as_or_throw<PointerType>();
+    access_buffer = BufferVar(
+        buffer_var->name,
+        BufferType(pointer_type->storage_scope, dtype.WithLanes(1), {offset + 1}, {}, 0, 0, 0));
+  }
+  BufferLoad buf_load(access_buffer, {offset});
   return Call(call->ty, builtin::address_of(), {buf_load});
 }
 

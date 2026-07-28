@@ -430,12 +430,15 @@ class DeclBuffer(Stmt):
     buffer: Buffer
         The buffer being declared.
 
+    data: Expr
+        The physical data expression bound to the buffer view.
+
     span: Optional[Span]
         The location of this DeclBuffer in the source code.
     """
 
     buffer: Buffer
-    data: Expr | None
+    data: Expr
     span: Span | None
 
     def __init__(self, buffer: Buffer, *args, **kwargs) -> None:
@@ -481,6 +484,8 @@ class DeclBuffer(Stmt):
                     raise TypeError("DeclBuffer span specified by both args and kwargs")
                 span = kw_span if kw_span is not None else span
 
+        if data is None:
+            raise TypeError("DeclBuffer requires a physical data binding")
         self.__init_handle_by_constructor__(_ffi_api.DeclBuffer, buffer, data, span)
         # Legacy compatibility. Body is carried on python side only.
         if body is not None:

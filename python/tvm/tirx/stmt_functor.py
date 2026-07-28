@@ -539,7 +539,7 @@ class StmtMutator(StmtFunctor):
             body = self.visit_stmt(op.body)
             if body is op.body:
                 return op
-            return tvm.tirx.DeclBuffer(op.buffer, body, op.span)
+            return tvm.tirx.DeclBuffer(op.buffer, body, op.span, data=op.data)
         return op
 
     def visit_buffer_store_(self, op):

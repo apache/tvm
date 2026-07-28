@@ -95,8 +95,8 @@ class TransformLayoutPlanner : private StmtExprVisitor {
   using TransformPlan =
       std::variant<ProloguePlan, ReplacementPlan, EpiloguePlan, NoPaddingRequired>;
 
-  static TransformPlan Plan(SBlock block, BufferVar old_buffer, BufferVar new_buffer, IndexMap index_map,
-                            IndexMap inverse, PrimExpr padding_predicate,
+  static TransformPlan Plan(SBlock block, BufferVar old_buffer, BufferVar new_buffer,
+                            IndexMap index_map, IndexMap inverse, PrimExpr padding_predicate,
                             ffi::Optional<IndexMap> pad_value, arith::AnalyzerObj* analyzer) {
     TVM_FFI_ICHECK(!pad_value.has_value() || pad_value.value()->final_indices.size() == 1)
         << "Internal error: Should be caught by ScheduleError checks prior to this point";
@@ -222,8 +222,9 @@ class TransformLayoutPlanner : private StmtExprVisitor {
 
   class BufferStoreReplacer : public StmtExprMutator {
    public:
-    BufferStoreReplacer(const WriteInfo& info, const BufferVar& new_buffer, PrimExpr padding_predicate,
-                        const IndexMap& inverse, const ffi::Optional<IndexMap>& pad_value,
+    BufferStoreReplacer(const WriteInfo& info, const BufferVar& new_buffer,
+                        PrimExpr padding_predicate, const IndexMap& inverse,
+                        const ffi::Optional<IndexMap>& pad_value,
                         ffi::Map<SBlock, SBlock>* new_block_to_old, arith::AnalyzerObj* analyzer)
         : info(info),
           new_buffer(new_buffer),
@@ -951,7 +952,8 @@ class BufferIsSubregionError : public ScheduleError {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "ScheduleError: The input buffer " << buffer_.name() << " is defined in `match_buffer` of "
+    os << "ScheduleError: The input buffer " << buffer_.name()
+       << " is defined in `match_buffer` of "
        << "a block, it is expected to be a function parameter or allocated by a block.";
     return os.str();
   }
@@ -1007,7 +1009,7 @@ class TransformationPaddingTypeError : public ScheduleError {
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream ss;
-    ss << "ScheduleError: BufferVar " << buffer_.name() << " has elements of type " << buffer_->dtype
+    ss << "ScheduleError: Buffer " << buffer_.name() << " has elements of type " << buffer_->dtype
        << ", but the transformation fills padding with " << pad_value_ << ", which is of type "
        << pad_value_dtype_;
     return ss.str();
@@ -1127,7 +1129,7 @@ IndexMap LegalizeIndexMapDType(const IndexMap& index_map, const ffi::Array<PrimE
     DLDataType arg_dtype = args[i].ty()->dtype;
     if (index_dtype.has_value()) {
       TVM_FFI_ICHECK_EQ(*index_dtype, arg_dtype)
-          << "BufferVar index " << args[i] << " has dtype " << arg_dtype
+          << "Buffer index " << args[i] << " has dtype " << arg_dtype
           << ", but previous index for the same buffer access used index type " << *index_dtype;
     } else {
       index_dtype = arg_dtype;

@@ -18,11 +18,9 @@
 
 import functools
 
-from tvm.tirx import Buffer, BufferRegion
+from tvm.tirx import BufferRegion, is_buffer_var
 
 from .builder import tirx as _builder
-
-_TILE_ARG_TYPES = (Buffer, BufferRegion)
 
 
 def _get_arg(args, kwargs, index, name):
@@ -32,7 +30,7 @@ def _get_arg(args, kwargs, index, name):
 
 
 def _require_buffer_arg(op_name, arg_name, value):
-    if not isinstance(value, _TILE_ARG_TYPES):
+    if not (is_buffer_var(value) or isinstance(value, BufferRegion)):
         raise TypeError(
             f"Tx.{op_name} is tile-only and expects `{arg_name}` to be a Buffer "
             f"or BufferRegion; use T.{op_name} for expression/builtin calls"

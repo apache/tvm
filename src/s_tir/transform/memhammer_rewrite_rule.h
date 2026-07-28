@@ -251,7 +251,8 @@ class WmmaToShared : public RewriteRule {
  */
 std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
                                           ffi::Optional<For> compute_location,
-                                          const ffi::Array<For>& outer_loops, BufferVar* alloc_buffer);
+                                          const ffi::Array<For>& outer_loops,
+                                          BufferVar* alloc_buffer);
 
 }  // namespace s_tir
 }  // namespace tvm

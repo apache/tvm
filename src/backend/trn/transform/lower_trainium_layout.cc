@@ -115,13 +115,12 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
+    Expr data = VisitExpr(op->data);
     auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer)) {
+    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
       return ffi::GetRef<Stmt>(op);
     }
-    auto n = CopyOnWrite(op);
-    n->buffer = buffer;
-    return Stmt(n);
+    return DeclBuffer(buffer, std::move(data), op->span);
   }
 
   BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {
@@ -177,7 +176,6 @@ class TrainiumLayoutApplier : public arith::IRMutatorWithAnalyzer {
     }
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
       type->dtype = PrimType::Int(8);
-      type->data_pointer_type = PointerType(PrimType::Int(8), flattened.scope());
     }
     for (size_t i = 0; i < flattened->shape.size(); ++i) {
       type->shape.Set(i, analyzer_->canonical_simplify(flattened->shape[i]));
@@ -300,17 +298,17 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
   Stmt VisitStmt_(const DeclBufferNode* op) {
     auto buffer = op->buffer;
     auto elem_offset = this->VisitPrimExpr(buffer->elem_offset);
-    if (elem_offset.same_as(buffer->elem_offset)) {
-      return StmtExprMutator::VisitStmt_(op);
-    } else {
+    Expr data = VisitExpr(op->data);
+    if (!elem_offset.same_as(buffer->elem_offset)) {
       auto type = CopyBufferType(buffer);
       type->elem_offset = std::move(elem_offset);
       buffer = RebuildBufferVar(buffer, std::move(type));
       buffer_remap_[op->buffer] = buffer;
-      auto n = CopyOnWrite(op);
-      n->buffer = buffer;
-      return Stmt(n);
     }
+    if (buffer.same_as(op->buffer) && data.same_as(op->data)) {
+      return ffi::GetRef<Stmt>(op);
+    }
+    return DeclBuffer(buffer, std::move(data), op->span);
   }
 
   using StmtExprMutator::VisitExpr_;

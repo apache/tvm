@@ -462,5 +462,30 @@ def test_forward_reference_symbolic_variable():
     assert len(After["main"].params) == 4
 
 
+def test_buffer_alignment_attached_to_buffer_var():
+    """Packed ABI alignment metadata remains keyed by the logical BufferVar."""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func(s_tir=True)
+        def main(A: T.Buffer((16,), "float32", align=64)):
+            T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
+            T.evaluate(A[0])
+
+    after = tvm.tirx.transform.MakePackedAPI()(Before)["main"]
+    alignment_nodes = []
+    declared_buffers = []
+
+    def collect(node):
+        if isinstance(node, tirx.AttrStmt) and node.attr_key == "storage_alignment":
+            alignment_nodes.append(node.node)
+        if isinstance(node, tirx.DeclBuffer):
+            declared_buffers.append(node.buffer)
+
+    tirx.stmt_functor.post_order_visit(after.body, collect)
+    assert len(alignment_nodes) == 1
+    assert any(alignment_nodes[0].same_as(buffer) for buffer in declared_buffers)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

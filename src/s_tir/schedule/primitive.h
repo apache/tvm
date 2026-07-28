@@ -640,7 +640,7 @@ TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const ffi::Str
 /*!
  * \brief Apply a transformation represented by IndexMap to buffer
  * \details The indices and the access region to the target buffer is transformed by the given
- * index_map. The index_map is also used to infer the new shape of the buffer. BufferVar must be
+ * index_map. The index_map is also used to infer the new shape of the buffer. Buffer must be
  * one of the parameter of the function, or allocated in some blocks (it cannot be a buffer
  * subregion created via match_buffer).
  * \param self The state of the schedule
@@ -691,7 +691,7 @@ TVM_DLL StmtSRef DecomposePadding(ScheduleState self, const StmtSRef& block_sref
  */
 TVM_DLL void PadEinsum(ScheduleState self, const StmtSRef& block_sref,
                        const ffi::Array<int64_t>& padding);
-/******** Schedule: BufferVar transformation ********/
+/******** Schedule: Buffer transformation ********/
 /*!
  * \brief Compute the target buffer via rolling buffering.
  * \details This primitive selects the outermost rollable axis with a positive bound overlap that

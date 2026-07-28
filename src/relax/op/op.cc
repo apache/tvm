@@ -263,8 +263,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * For dynamic shapes, it is not always possible to infer the output
  * of a TIR PrimFunc from its inputs.  For example, a PrimFunc that
- * accepts input buffer `T.BufferVar([16], "float32")` and output buffer
- * `T.BufferVar([M, N], "float32")` infers the values of `M` and `N` from
+ * accepts input buffer `T.Buffer([16], "float32")` and output buffer
+ * `T.Buffer([M, N], "float32")` infers the values of `M` and `N` from
  * the shape of the provided output buffer.
  *
  * If the arguments provided are not compatible with the PrimFunc's

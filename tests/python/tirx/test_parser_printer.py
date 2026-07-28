@@ -1374,14 +1374,14 @@ def test_buffer_local_ir():
     # Shared data pointer
     assert_structural_equal(_collect_buffer_sources(func)["B_local"], b_buf.data)
     # Shape: single dim matching storage shard total
-    assert len(b_local.shape) == 1
-    storage = b_buf.layout.storage()
+    assert len(b_local.ty.shape) == 1
+    storage = b_buf.ty.layout.storage()
     expected_total = 1
     for it in storage.shard:
         expected_total *= int(it.extent)
-    assert int(b_local.shape[0]) == expected_total
+    assert int(b_local.ty.shape[0]) == expected_total
     # Layout: storage layout (parent layout with thread axes removed)
-    assert_structural_equal(b_local.layout, storage)
+    assert_structural_equal(b_local.ty.layout, storage)
 
     # Round-trip
     code = func.script()
@@ -1463,10 +1463,10 @@ def test_buffer_permute_ir():
     # Shared data pointer
     assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
     # Shape: [4, 8] from [8, 4]
-    assert int(b_buf.shape[0]) == 4
-    assert int(b_buf.shape[1]) == 8
+    assert int(b_buf.ty.shape[0]) == 4
+    assert int(b_buf.ty.shape[1]) == 8
     # Layout: permuted
-    assert_structural_equal(b_buf.layout, a_buf.layout.permute_dims([1, 0]))
+    assert_structural_equal(b_buf.ty.layout, a_buf.ty.layout.permute_dims([1, 0]))
 
     code = func.script()
     assert from_source(code).script() == code
@@ -1491,10 +1491,10 @@ def test_buffer_view_dtype_ir():
     # Shared data pointer
     assert_structural_equal(_collect_buffer_sources(func)["B"], a_buf.data)
     # dtype
-    assert str(b_buf.dtype) == "float32"
+    assert str(b_buf.ty.dtype) == "float32"
     # Shape: [8, 4] (last dim halved since float32 is 2x float16)
-    assert int(b_buf.shape[0]) == 8
-    assert int(b_buf.shape[1]) == 4
+    assert int(b_buf.ty.shape[0]) == 8
+    assert int(b_buf.ty.shape[1]) == 4
 
     code = func.script()
     assert from_source(code).script() == code
@@ -1866,6 +1866,14 @@ def test_roundtrip_tmem_decl_buffer():
     code = func.script()
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
+    decls = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        func.body,
+        lambda node: decls.append(node) if isinstance(node, tvm.tirx.DeclBuffer) else None,
+    )
+    assert len(decls) == 1
+    tmem_decl = next(decl for decl in decls if decl.buffer.scope() == "tmem")
+    assert tmem_decl.data.op.name == "tirx.reinterpret"
 
 
 def test_roundtrip_cuda_func_call_source_code():

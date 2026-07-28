@@ -46,8 +46,7 @@ class VtcmAllocator : public StmtExprMutator {
       args.push_back(
           Call(PointerType(PrimType::Int(64)), builtin::tvm_stack_make_shape(), op->buffer->shape));
       return DeclBuffer(
-          op->buffer,
-          Call(op->buffer->data_pointer_type, builtin::nd_mem_alloc_with_scope(), args));
+          op->buffer, Call(op->buffer.DataPointerType(), builtin::nd_mem_alloc_with_scope(), args));
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -55,7 +54,7 @@ class VtcmAllocator : public StmtExprMutator {
  protected:
   std::string GetStorageScope(const Var& var) {
     auto* ptr = var->ty.as<PointerTypeNode>();
-    TVM_FFI_ICHECK(ptr) << "BufferVar Var's type annotation must be of PointerType";
+    TVM_FFI_ICHECK(ptr) << "Buffer Var's type annotation must be of PointerType";
     return ptr->storage_scope;
   }
 };

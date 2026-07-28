@@ -681,7 +681,9 @@ def create_test_statements():
             continue
 
     # DeclBuffer
-    buffer_decl = tir.DeclBuffer(T.buffer((10,), "int32"), evaluate_stmt)
+    buffer = T.buffer((10,), "int32")
+    buffer_data = tir.Var("buffer_data", buffer.data.ty)
+    buffer_decl = tir.DeclBuffer(buffer, evaluate_stmt, data=buffer_data)
 
     # TilePrimitiveCall — extract the TilePrimitiveCall from the kernel body, then wrap in an SBlock
     @T.prim_func

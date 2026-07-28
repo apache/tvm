@@ -1264,7 +1264,7 @@ BufferRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
 }
 
 BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
-                          BufferIndexType index_type) {
+                             BufferIndexType index_type) {
   return GetNthAccessBufferRegion(self, block, n, index_type)->buffer;
 }
 
@@ -2006,7 +2006,7 @@ class AutoTensorizeMappingProposer {
           update_mask(var.value().get(), &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
         } else {
           TVM_FFI_THROW(ValueError)
-              << "BufferVar index " << rhs_index
+              << "Buffer index " << rhs_index
               << " other that variables in tensor intrinsics is not supported.";
         }
       }

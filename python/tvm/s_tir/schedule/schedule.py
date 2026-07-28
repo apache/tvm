@@ -25,7 +25,7 @@ from tvm_ffi import register_object as _register_object
 from tvm.error import register_error
 from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
 from tvm.runtime import DataTypeCode, Object
-from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock, is_buffer
+from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock, is_buffer_var
 from tvm.tirx.function import IndexMap
 
 from . import _ffi_api
@@ -3272,7 +3272,7 @@ class Schedule(Object):
             )
             buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
 
-        elif is_buffer(buffer):
+        elif is_buffer_var(buffer):
             # Buffer lookup has unique id, can break out early
             found = False
             for buffer_index_type, buffer_index, buffer_obj in iter_buffers():
@@ -3437,7 +3437,7 @@ class Schedule(Object):
         block = self._normalize_block_arg(block)
         buffer_index_type, buffer_index, buffer_obj = self._normalize_buffer_arg(block, buffer)
 
-        ndim = len(buffer_obj.shape)
+        ndim = len(buffer_obj.ty.shape)
         if callable(index_map):
             index_map = IndexMap.from_func(
                 index_map,
@@ -3458,14 +3458,14 @@ class Schedule(Object):
             # buffer's type.  If the default `tvm.runtime.convert`
             # behavior is applied, these would be converted to
             # int32/float32, which may not match the buffer's type.
-            if buffer_obj.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
+            if buffer_obj.ty.dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) and isinstance(
                 pad_value, int
             ):
-                pad_value = IntImm(buffer_obj.dtype.dtype, pad_value)
-            elif buffer_obj.dtype.matches_code(DataTypeCode.FLOAT, DataTypeCode.BFLOAT) and (
-                isinstance(pad_value, float)
-            ):
-                pad_value = FloatImm(buffer_obj.dtype.dtype, pad_value)
+                pad_value = IntImm(buffer_obj.ty.dtype.dtype, pad_value)
+            elif buffer_obj.ty.dtype.matches_code(
+                DataTypeCode.FLOAT, DataTypeCode.BFLOAT
+            ) and isinstance(pad_value, float):
+                pad_value = FloatImm(buffer_obj.ty.dtype.dtype, pad_value)
             pad_value = IndexMap.from_func(
                 lambda *indices: pad_value,
                 ndim=len(index_map.final_indices),

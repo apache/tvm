@@ -76,7 +76,7 @@ def test_elementwise_without_decl_buffer():
         def main(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((1, 16), "float32")
-                B_new = T.Buffer([1, 16], "float32", data=B_new_buf.data)
+                B_new = T.decl_buffer([1, 16], "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[0, j] = A[i, j] + 1.0
                 for j in T.serial(0, 16):
@@ -90,16 +90,14 @@ def test_elementwise_without_decl_buffer():
             C = T.decl_buffer(256, dtype="float32", data=input_C.data)
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_buffer((16,), "float32")
-                B_new = T.Buffer(16, "float32", data=B_new_buf.data)
+                B_new = T.decl_buffer(16, "float32", data=B_new_buf.data)
                 for j in T.serial(0, 16):
                     B_new[j] = A[((i * 16) + j)] + 1.0
                 for j in T.serial(0, 16):
                     C[((i * 16) + j)] = B_new[j] * 2.0
 
     After = _transform()(Before)
-    # This deliberately malformed input omits the DeclBuffer that would bind
-    # B_new.  Compare the resulting free buffer variables by mapping them.
-    tvm.ir.assert_structural_equal(After, Expected, map_free_vars=True)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_gpu():

@@ -135,23 +135,21 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   BufferVar tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
   BufferVar new_src_buffer(
-      /*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
-      /*dtype=*/dtype,
-      /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
-      /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-      /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
-      /*name=*/"src",
-      /*data_alignment=*/64,
-      /*offset_factor=*/16);
+      /*name=*/"src", BufferType(/*storage_scope=*/src_buffer.scope(),
+                                 /*dtype=*/dtype,
+                                 /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+                                 /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
+                                 /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
+                                 /*data_alignment=*/64,
+                                 /*offset_factor=*/16));
   BufferVar new_tgt_buffer(
-      /*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
-      /*dtype=*/dtype,
-      /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
-      /*strides=*/{},
-      /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
-      /*name=*/"tgt",
-      /*data_alignment=*/64,
-      /*offset_factor=*/16);
+      /*name=*/"tgt", BufferType(/*storage_scope=*/tgt_buffer.scope(),
+                                 /*dtype=*/dtype,
+                                 /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
+                                 /*strides=*/{},
+                                 /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
+                                 /*data_alignment=*/64,
+                                 /*offset_factor=*/16));
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
   static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
@@ -244,22 +242,13 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
 
-  BufferVar new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
-                        /*dtype=*/dtype,
-                        /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
-                        /*strides=*/{},
-                        /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
-                        /*name=*/"src",
-                        /*data_alignment=*/64,
-                        /*offset_factor=*/16);
-  BufferVar new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
-                        /*dtype=*/dtype,
-                        /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
-                        /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
-                        /*name=*/"tgt",
-                        /*data_alignment=*/64,
-                        /*offset_factor=*/16);
+  BufferVar new_src_buffer(
+      "src", BufferType(src_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)}, {},
+                        PrimVar("src_elem_offset", int32_ty), 64, 16));
+  BufferVar new_tgt_buffer(
+      "tgt", BufferType(tgt_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)},
+                        {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
+                        PrimVar("tgt_elem_offset", int32_ty), 64, 16));
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
@@ -470,22 +459,13 @@ Stmt RewriteMmaStore(Stmt stmt) {
   BufferVar tgt_buffer = buf_store->buffer;
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
-  BufferVar new_src_buffer(/*data=*/Var("src", PointerType(dtype_ty, src_buffer.scope())),
-                        /*dtype=*/dtype,
-                        /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
-                        /*strides=*/{},
-                        /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
-                        /*name=*/"src",
-                        /*data_alignment=*/64,
-                        /*offset_factor=*/8);
-  BufferVar new_tgt_buffer(/*data=*/Var("tgt", PointerType(dtype_ty, tgt_buffer.scope())),
-                        /*dtype=*/dtype,
-                        /*shape=*/{IntImm::Int32(8), IntImm::Int32(8)},
-                        /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
-                        /*elem_offset=*/PrimVar("tgt_elem_offset", int32_ty),
-                        /*name=*/"tgt",
-                        /*data_alignment=*/64,
-                        /*offset_factor=*/8);
+  BufferVar new_src_buffer(
+      "src", BufferType(src_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)}, {},
+                        PrimVar("src_elem_offset", int32_ty), 64, 8));
+  BufferVar new_tgt_buffer(
+      "tgt", BufferType(tgt_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)},
+                        {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
+                        PrimVar("tgt_elem_offset", int32_ty), 64, 8));
 
   // Step 3.2. Generate new r/w region
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);

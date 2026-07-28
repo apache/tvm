@@ -131,7 +131,8 @@ class HostDeviceSplitter : public StmtMutator {
 
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
-    auto [params, buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<BufferVar>> {
+    auto [params,
+          buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<BufferVar>> {
       VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
       use_def(body);
 
@@ -140,7 +141,8 @@ class HostDeviceSplitter : public StmtMutator {
       if (device_target->kind->name != "trn") {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
-            bool is_handle = var->ty.as<PointerTypeNode>() != nullptr;
+            bool is_handle =
+                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<BufferTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
                 var->name,
@@ -171,7 +173,7 @@ class HostDeviceSplitter : public StmtMutator {
       if (param->ty.as<BufferTypeNode>()) {
         BufferVar buffer(param);
         BufferVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
-        Var data_param(buffer.name() + "_data", buffer->data_pointer_type);
+        Var data_param(buffer.name() + "_ptr", buffer.DataPointerType());
         kernel_params.push_back(data_param);
         call_args.push_back(buffer.data());
         buffer_data_params.Set(param, data_param);

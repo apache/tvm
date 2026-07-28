@@ -40,7 +40,7 @@ bool HasBuffer(const ffi::Array<BufferRegion>& buffer_regions, const BufferVar& 
 }
 
 void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
-                        const BufferVar& buffer,                         //
+                        const BufferVar& buffer,                      //
                         const ffi::Map<Var, arith::IntSet>& var_dom,  //
                         const ffi::Map<Var, PrimExpr>& bindings,      //
                         std::vector<NDIntSet>* relaxed_regions) {
@@ -55,8 +55,8 @@ void RelaxBufferRegions(const ffi::Array<BufferRegion>& buffer_regions,
 
 class ScopeReplacer : public StmtMutator {
  public:
-  static SBlock Replace(const SBlockNode* scope_block, const BufferVar& dst, const ForNode* old_loop,
-                        const ForNode* new_loop) {
+  static SBlock Replace(const SBlockNode* scope_block, const BufferVar& dst,
+                        const ForNode* old_loop, const ForNode* new_loop) {
     ffi::ObjectPtr<SBlockNode> new_scope_block = ffi::make_object<SBlockNode>(*scope_block);
     new_scope_block->body = ScopeReplacer(old_loop, new_loop)(std::move(new_scope_block->body));
     new_scope_block->alloc_buffers.push_back(dst);
@@ -131,7 +131,7 @@ struct ReadWriteAtImpl {
                        ffi::Map<ffi::String, Any> annotations) {
     const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
     BufferVar src = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index,
-                                    is_read ? BufferIndexType::kRead : BufferIndexType::kWrite);
+                                       is_read ? BufferIndexType::kRead : BufferIndexType::kWrite);
     BufferVar dst = WithScope(src, storage_scope);
     ReadWriteAtImpl impl(self, loop_sref, src, dst, annotations);
     std::pair<For, SBlockRealize> new_loop_block =

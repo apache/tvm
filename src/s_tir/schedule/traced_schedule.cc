@@ -759,7 +759,7 @@ void TracedScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<in
       /*outputs=*/{}));
 }
 
-/******** Schedule: BufferVar transformation ********/
+/******** Schedule: Buffer transformation ********/
 
 void TracedScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) {
   ConcreteScheduleNode::RollingBuffer(block_rv, write_buffer_index);

@@ -79,7 +79,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // We can switch to follow the flow with inter-function call process
   // after the Trainium function declaration is properly printed.
   // In Trainium, for PrimFuncs with signature
-  //    def func(A: BufferVar, B: BufferVar, x: int, y: float) -> None
+  //    def func(A: Buffer, B: Buffer, x: int, y: float) -> None
   // where there are trailing pod parameters, the codegen emits a struct
   //    struct func_params{ x: int; y: float; }
   // for the function. In the flow of inter-function call process,
@@ -103,7 +103,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // Function header.
   this->stream << "def " << static_cast<std::string>(global_symbol.value()) << "(";
 
-  // BufferVar arguments
+  // Buffer arguments
   auto num_inputs = func->GetAttr<int64_t>(tvm::attr::kNumInputs);
   TVM_FFI_ICHECK(num_inputs.has_value());
   std::vector<std::string> output_vids;

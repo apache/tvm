@@ -135,8 +135,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   std::vector<PrimExpr> conditions_;
 
   // Storing all the buffer assumptions data in map
-  std::unordered_map<tirx::BufferVar, assume_struct, ffi::ObjectPtrHash,
-                     ffi::ObjectPtrEqual>
+  std::unordered_map<tirx::BufferVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       map_buffer_assumption;
   tirx::BufferVar current_bufferstorenode_name;
 

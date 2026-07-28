@@ -333,7 +333,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_method("s_tir.schedule.ScheduleDecomposePadding", &ScheduleNode::DecomposePadding)
       .def_method("s_tir.schedule.SchedulePadEinsum", &ScheduleNode::PadEinsum);
 }
-/******** (FFI) BufferVar transformation ********/
+/******** (FFI) Buffer transformation ********/
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_method("s_tir.schedule.ScheduleRollingBuffer",

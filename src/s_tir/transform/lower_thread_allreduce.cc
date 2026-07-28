@@ -41,12 +41,37 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
-  explicit ThreadAllreduceBuilder(const TargetNode* target)
+  explicit ThreadAllreduceBuilder(const TargetNode* target, const ffi::Array<Var>& params,
+                                  const ffi::Map<Var, BufferVar>& buffer_map)
       : target_(target),
         warp_size_(target->GetAttr<int64_t>("thread_warp_size", 1).value()),
-        max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {}
+        max_num_threads_(target->GetAttr<int64_t>("max_num_threads", -1).value()) {
+    for (const auto& [_, buffer] : buffer_map) {
+      buffer_aliases_.Set(buffer.var(), buffer.var());
+    }
+    for (const Var& param : params) {
+      if (param->ty.as<BufferTypeNode>()) {
+        buffer_aliases_.Set(param, param);
+      }
+    }
+  }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tirx::attr::thread_extent) {
@@ -76,6 +101,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
   }
   Stmt VisitStmt_(const AllocBufferNode* op) final {
+    buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
     // In flat IR, alloc_remap_ may not yet be populated when this AllocBuffer is visited
     // (the remap is set up by MakeAllreduce which runs during AttrStmt/Evaluate visit
     // that appears later in the sequence). We record the original data pointer and
@@ -109,20 +135,15 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
-    if (auto it = buf_remap_.find(buf.get()); it != buf_remap_.end()) {
-      return it->second;
-    }
-
     if (auto it = var_remap_.find(buf.get()); it != var_remap_.end()) {
-      BufferVar new_buf(it->second);
-      buf_remap_[buf.get()] = new_buf;
-      return new_buf;
+      return BufferVar(it->second);
     }
 
     return std::nullopt;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
+    RegisterBufferAlias(op->buffer, op->data);
     auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
     if (auto buf = GetRemappedBuffer(node->buffer)) {
       node.CopyOnWrite()->buffer = buf.value();
@@ -401,9 +422,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
         // The AllocBuffer doesn't need to be emitted here since alloc_remap_
         // will cause the existing allocation to be rewritten in VisitStmt_(AllocBufferNode*).
-        alloc_remap_[buffers[i].get()] = buf;
+        const VarNode* alloc_key = GetAllocationKey(buffers[i].get());
+        alloc_remap_[alloc_key] = buf;
+        var_remap_[alloc_key] = buf.var();
         var_remap_[buffers[i].get()] = buf.var();
-        buf_remap_[buffers[i].get()] = buf;
       }
     } else {
       std::vector<BufferVar> shared_bufs(size);
@@ -434,9 +456,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
                         {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[idx]);
         load_remap_[buffers[idx].get()] = load;
-        alloc_remap_[buffers[idx].get()] = shared_bufs[idx];
+        const VarNode* alloc_key = GetAllocationKey(buffers[idx].get());
+        alloc_remap_[alloc_key] = shared_bufs[idx];
+        var_remap_[alloc_key] = shared_bufs[idx].var();
         var_remap_[buffers[idx].get()] = shared_bufs[idx].var();
-        buf_remap_[buffers[idx].get()] = shared_bufs[idx];
       }
     }
 
@@ -801,6 +824,19 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
   }
 
+ private:
+  void RegisterBufferAlias(BufferVar buffer, const Expr& data) {
+    Var root = buffer.var();
+    if (auto source = GetBufferDataVar(data);
+        source.has_value() && source.value()->ty.as<BufferTypeNode>()) {
+      auto source_root = buffer_aliases_.Get(source.value());
+      TVM_FFI_ICHECK(source_root.has_value()) << "Buffer alias source " << source.value()->name
+                                              << " must be registered before its DeclBuffer alias";
+      root = source_root.value();
+    }
+    buffer_aliases_.Set(buffer.var(), root);
+  }
+
   // The target.
   const TargetNode* target_ = nullptr;
 
@@ -820,15 +856,23 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   arith::Analyzer analyzer_;
 
  public:
+  const VarNode* GetAllocationKey(const VarNode* buffer) const {
+    if (buffer->ty.as<BufferTypeNode>()) {
+      Var var = ffi::GetRef<Var>(buffer);
+      return buffer_aliases_.Get(var).value_or(var).get();
+    }
+    return buffer;
+  }
+
   // These members are public for post-processing by DeferredRemapper.
   // Allocate remap
   std::unordered_map<const VarNode*, BufferVar> alloc_remap_;
   // BufferVar remap
   std::unordered_map<const VarNode*, Var> var_remap_;
-  // BufferVar remap
-  std::unordered_map<const VarNode*, BufferVar> buf_remap_;
   // Pending AllocBuffer original data pointers (for flat IR deferred remapping)
   std::vector<const VarNode*> pending_alloc_buffers_;
+  // Physical roots of buffer aliases, flattened at each declaration.
+  ffi::Map<Var, Var> buffer_aliases_;
 };
 
 namespace transform {
@@ -845,9 +889,9 @@ class DeferredRemapper : public StmtExprMutator {
  public:
   DeferredRemapper(const std::unordered_map<const VarNode*, BufferVar>& alloc_remap,
                    const std::unordered_map<const VarNode*, Var>& var_remap,
-                   const std::unordered_map<const VarNode*, BufferVar>& buf_remap,
+                   const ffi::Map<Var, Var>& buffer_aliases,
                    const std::vector<const VarNode*>& pending)
-      : alloc_remap_(alloc_remap), var_remap_(var_remap), buf_remap_(buf_remap) {
+      : alloc_remap_(alloc_remap), var_remap_(var_remap), buffer_aliases_(buffer_aliases) {
     for (const VarNode* ptr : pending) {
       pending_set_.insert(ptr);
     }
@@ -879,11 +923,8 @@ class DeferredRemapper : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
-    // If the DeclBuffer's original data var was remapped by alloc_remap_,
-    // the corresponding AllocBuffer was also remapped, making this DeclBuffer
-    // redundant. Remove it by replacing with a no-op.
-    const VarNode* orig_data = op->buffer.get();
-    if (pending_set_.count(orig_data) && alloc_remap_.count(orig_data)) {
+    const VarNode* root = buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
+    if (pending_set_.count(root) && alloc_remap_.count(root)) {
       return Evaluate(0);
     }
     auto node = StmtExprMutator::VisitStmt_(op).as_or_throw<DeclBuffer>();
@@ -895,9 +936,6 @@ class DeferredRemapper : public StmtExprMutator {
 
  private:
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
-    if (auto it = buf_remap_.find(buf.get()); it != buf_remap_.end()) {
-      return it->second;
-    }
     if (auto it = var_remap_.find(buf.get()); it != var_remap_.end()) {
       return BufferVar(it->second);
     }
@@ -906,7 +944,7 @@ class DeferredRemapper : public StmtExprMutator {
 
   const std::unordered_map<const VarNode*, BufferVar>& alloc_remap_;
   const std::unordered_map<const VarNode*, Var>& var_remap_;
-  const std::unordered_map<const VarNode*, BufferVar>& buf_remap_;
+  const ffi::Map<Var, Var>& buffer_aliases_;
   std::unordered_set<const VarNode*> pending_set_;
 };
 
@@ -916,11 +954,11 @@ Pass LowerThreadAllreduce() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
-    ThreadAllreduceBuilder thread_all_reduce(target_node);
+    ThreadAllreduceBuilder thread_all_reduce(target_node, f->params, f->buffer_map);
     n->body = thread_all_reduce(n->body);
     // Post-process: apply deferred remappings for flat IR
     DeferredRemapper remapper(thread_all_reduce.alloc_remap_, thread_all_reduce.var_remap_,
-                              thread_all_reduce.buf_remap_,
+                              thread_all_reduce.buffer_aliases_,
                               thread_all_reduce.pending_alloc_buffers_);
     if (remapper.HasPendingRemaps()) {
       n->body = remapper(n->body);

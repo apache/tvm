@@ -266,7 +266,7 @@ def _build_expected_impl(direction, dtype, s_shape, s_layout, impl_spec):
 
     # Wrap: DeclBuffer -> nested For loops (skipped when total extent is 1,
     # matching the implementation's always-unroll single-loop emission).
-    body = DeclBuffer(s_buf, eval_stmt)
+    body = DeclBuffer(s_buf, eval_stmt, data=s_buf_ptr)
     for i in range(n_loops - 1, -1, -1):
         body = tvm.tirx.For(
             loop_vars[i],

@@ -59,7 +59,7 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     p_var = T.Var("P", "int32")
     b_var = T.Var("B", "int32")
     f_var = T.Var("F", "int32")
-    p_size = output.buffer.layout.size("P")
+    p_size = output.buffer.ty.layout.size("P")
     inst_size_limit = op.config.get("max_inst_size", 512)
     inst_repr.bound_inst_size(inst_size_limit, analyzer)
     inst_gen.bind_inst_iter(output, p_var, p_size, 1, False)

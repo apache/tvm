@@ -910,13 +910,22 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
 }
 
 void CodeGenC::VisitStmt_(const DeclBufferNode* op) {
-  if (!op->data.has_value()) {
+  const VarNode* source = op->data.as<VarNode>();
+  if (const auto* call = op->data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    source = call->args[0].as<VarNode>();
+  }
+  if (source && var_idmap_.count(source)) {
+    TVM_FFI_ICHECK(!var_idmap_.count(op->buffer.get()));
+    var_idmap_[op->buffer.get()] = GetVarID(source);
+    RegisterHandleType(op->buffer.get(), op->buffer->dtype);
     return;
   }
+
   this->PrintIndent();
-  PrintType(op->buffer->data_pointer_type, stream);
+  PrintType(op->buffer.DataPointerType(), stream);
   stream << ' ' << AllocVarID(op->buffer.get()) << " = ";
-  PrintExpr(op->data.value(), stream);
+  PrintExpr(Call(op->buffer.DataPointerType(), builtin::reinterpret(), {op->data}), stream);
   stream << ";\n";
   RegisterHandleType(op->buffer.get(), op->buffer->dtype);
 }
@@ -1209,7 +1218,7 @@ void CodeGenC::VisitStmt_(const BindNode* op) {
 
 void CodeGenC::VisitStmt_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get());
+  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
 
   this->PrintIndent();
   const auto& shape = op->buffer->shape;

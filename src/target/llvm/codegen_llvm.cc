@@ -109,7 +109,7 @@ PrimType WithScalableVScaleFactor(const PrimType& dtype, int vscale_factor) {
   return PrimType::ScalableVector(dtype.code(), dtype.bits(), vscale_factor);
 }
 
-// Underlying access type for a BufferVar: bool is backed by int8 so vectorized
+// Underlying access type for a buffer: bool is backed by int8 so vectorized
 // accesses lower to real loads/stores instead of i1 predicate registers.
 PrimType BufferAccessType(const PrimType& dtype) {
   if (!dtype.MatchesCode(DLDataTypeCode::kDLBool)) return dtype;
@@ -1007,7 +1007,7 @@ CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(llvm::Value* buffer_ptr,
            "no padding for alignment.";
   } else {
     TVM_FFI_ICHECK(buffer_element_type.as<PointerTypeNode>())
-        << "BufferVar elements must have primitive or pointer type, but got " << buffer_element_type;
+        << "Buffer elements must have primitive or pointer type, but got " << buffer_element_type;
   }
   llvm::Value* value_ptr = builder_->CreateInBoundsGEP(llvm_element_type, buffer_ptr, index);
 
@@ -1732,7 +1732,7 @@ void CodeGenLLVM::BufferAccessHelper(
   PrimType buffer_element_dtype = BufferAccessType(buffer->dtype);
 
   TVM_FFI_ICHECK_GE(indices.size(), 1)
-      << "BufferVar " << buffer.name() << " is accessed with no indices.  "
+      << "Buffer " << buffer.name() << " is accessed with no indices.  "
       << "0-d scalar buffers are expected to be flattened to 1-d buffers prior to codegen.";
 
   // Only the last index is allowed to be multi-lane.  All earlier
@@ -1742,7 +1742,7 @@ void CodeGenLLVM::BufferAccessHelper(
   std::vector<llvm::Value*> earlier_index_values;
   for (size_t i = 0; i < indices.size() - 1; i++) {
     TVM_FFI_ICHECK_EQ(PrimType(indices[i].ty()->dtype).lanes(), 1)
-        << "BufferVar " << buffer.name() << " is accessed with a multi-lane index at position " << i
+        << "Buffer " << buffer.name() << " is accessed with a multi-lane index at position " << i
         << ".  Multi-lane indices are only supported as the last index.";
     earlier_index_values.push_back(MakeValue(indices[i]));
   }
@@ -2220,7 +2220,28 @@ void CodeGenLLVM::VisitStmt_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) { EmitDebugLocation(op); }
+void CodeGenLLVM::VisitStmt_(const DeclBufferNode* op) {
+  EmitDebugLocation(op);
+  const VarNode* buffer = op->buffer.get();
+  TVM_FFI_ICHECK(!var_map_.count(buffer));
+  if (!is_restricted_) {
+    alias_var_set_.insert(buffer);
+  }
+
+  llvm::Value* value = MakeValue(op->data);
+  llvm::Type* expected_type = GetLLVMType(op->buffer.DataPointerType());
+  if (value->getType() != expected_type) {
+    value->setName((op->buffer.name() + "_source_ptr").c_str());
+    value = builder_->CreatePointerCast(value, expected_type);
+  }
+
+  AddDebugInformation(value, op->buffer.var());
+  var_map_[buffer] = value;
+  if (alloc_storage_info_.count(buffer) && alloc_storage_info_[buffer].alignment > 1) {
+    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(buffer),
+                                        alloc_storage_info_[buffer].alignment);
+  }
+}
 
 void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   EmitDebugLocation(op);
@@ -2309,7 +2330,13 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
 
   if (!di_subprogram_) return;
 
-  auto dbg_dtype = GetDebugType(tir_var->ty);
+  Type debug_type = tir_var->ty;
+  if (const auto* buffer_type = debug_type.as<BufferTypeNode>()) {
+    // A BufferVar is a compiler-side identity.  Its LLVM value is the physical
+    // data pointer installed by AllocBuffer or DeclBuffer.
+    debug_type = buffer_type->DataPointerType();
+  }
+  auto dbg_dtype = GetDebugType(debug_type);
   // no invalid dtypes
   if (!dbg_dtype) return;
   auto local_var = dbg_info_->di_builder_->createAutoVariable(

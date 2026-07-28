@@ -105,6 +105,17 @@ namespace tirx {
 
 // Visitor to find m in pattern
 // store warp_mem[m * warp_index + (width * m) * y + x]
+const VarNode* GetBufferVar(const Expr& expr) {
+  if (const auto* var = expr.as<VarNode>()) {
+    return var;
+  }
+  if (const auto* call = expr.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<VarNode>();
+  }
+  return nullptr;
+}
+
 class WarpStoreCoeffFinder : private StmtExprVisitor {
  public:
   WarpStoreCoeffFinder(const VarNode* buffer, Var warp_index, arith::AnalyzerObj* analyzer)
@@ -122,18 +133,18 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
     static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx.ldmatrix_legacy");
     static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-    if (op->op.same_as(ptx_ldmatrix_op) && op->args[3].as<VarNode>() == buffer_) {
+    if (op->op.same_as(ptx_ldmatrix_op) && GetBufferVar(op->args[3]) == buffer_) {
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(mma_fill_op) && op->args[1].as<VarNode>() == buffer_) {
+    } else if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       warp_coeff_ = local_size->value;
-    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && op->args[3].as<VarNode>() == buffer_) {
+    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetBufferVar(op->args[3]) == buffer_) {
       // ldmatrix writes the warp buffer; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
       // is derived.
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(mma_fill_legacy_op) && op->args[1].as<VarNode>() == buffer_) {
+    } else if (op->op.same_as(mma_fill_legacy_op) && GetBufferVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
       warp_coeff_ = local_size->value;
@@ -279,10 +290,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
     alloc_size = warp_group_ * factor;
 
     auto type = CopyBufferType(op->buffer);
-    type->data_pointer_type = PointerType(type->data_pointer_type->element_type, "local");
+    type->storage_scope = "local";
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
-    type->elem_offset = PrimExpr();
+    type->elem_offset = IntImm(op->buffer->elem_offset.ty(), 0);
     BufferVar new_buf = RebuildBufferVar(op->buffer, std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->VisitStmt(body);
@@ -294,8 +305,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
     ffi::Array<Expr> new_args = op->args;
     for (int i : indices) {
       // Preserve the pointer operand as an Expr and narrow only its scalar index.
-      if (op->args[i].as<VarNode>() == buffer_) {
+      if (GetBufferVar(op->args[i]) == buffer_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1].as_or_throw<PrimExpr>()).first;
+        new_args.Set(i, new_buffer_.data());
         new_args.Set(i + 1, local_index);
       }
     }

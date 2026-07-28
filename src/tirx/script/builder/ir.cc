@@ -25,6 +25,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
@@ -42,8 +43,7 @@ using tvm::tirx::IterVar;
 using tvm::tirx::Layout;
 
 BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data,
-                     ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout,
                      ffi::Array<PrimExpr> allocated_addr) {
@@ -52,26 +52,17 @@ BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
         << "ValueError: `allocated_addr` can only be used with `data`, `elem_offset`, and "
            "`offset_factor` undefined";
   }
-  PointerType data_pointer_type = PointerType::VoidPointerTy();
-  if (!data.has_value()) {
-    DLDataType storage_dtype = dtype->dtype;
-    if (storage_dtype == DLDataType{kDLBool, 8, 1}) {
-      storage_dtype = DLDataType{kDLInt, 8, 1};
-    }
-    data_pointer_type = PointerType(PrimType(storage_dtype), storage_scope);
-  } else {
-    data_pointer_type = data.value()->ty.as_or_throw<PointerType>();
+  if (data.has_value()) {
+    storage_scope = data.value()->ty.as_or_throw<PointerType>()->storage_scope;
   }
   if (!elem_offset.has_value() && offset_factor) {
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::tirx::PrimVar("elem_offset", shape_dtype);
   }
-  return BufferVar(
-      buffer_name,
-      tvm::tirx::BufferType(data_pointer_type, dtype, shape,
-                            strides.value_or(ffi::Array<PrimExpr>()),
-                            elem_offset.value_or(PrimExpr()), align, offset_factor, layout,
-                            allocated_addr));
+  return BufferVar(buffer_name, tvm::tirx::BufferType(storage_scope, dtype, shape,
+                                                      strides.value_or(ffi::Array<PrimExpr>()),
+                                                      elem_offset.value_or(PrimExpr()), align,
+                                                      offset_factor, layout, allocated_addr));
 }
 
 PrimFuncFrame PrimFunc(bool is_private, bool s_tir, bool persistent) {
@@ -99,7 +90,7 @@ Var Arg(ffi::String name, Var var) {
 BufferVar Arg(ffi::String name, BufferVar buffer) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
   details::Namer::Name(buffer, name);
-  // A BufferVar parameter is an opaque ABI handle.  The BufferVar's data Var
+  // A buffer parameter is an opaque ABI handle.  The buffer's data pointer
   // carries the exact pointee type used within the function body.
   Var handle(buffer.name() + "_handle", PointerType::VoidPointerTy());
   frame->args.push_back(handle);
@@ -150,11 +141,11 @@ tvm::Type FuncRet(tvm::Type ret_type) {
 }
 
 BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
-                      ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
-                      PrimExpr elem_offset, ffi::String storage_scope, int align,
-                      int offset_factor, ffi::Optional<Layout> layout) {
+                      ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides, PrimExpr elem_offset,
+                      ffi::String storage_scope, int align, int offset_factor,
+                      ffi::Optional<Layout> layout) {
   BufferVar buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
-                             offset_factor, layout, {});
+                                offset_factor, layout, {});
   if (auto var = param.as<tvm::tirx::Var>()) {
     PrimFuncFrame frame = FindPrimFuncFrame("T.match_buffer");
     Var v = var.value();
@@ -386,7 +377,7 @@ ffi::Variant<BufferVar, AllocBufferFrame> SBlockAllocBuffer(
   ffi::Optional<PrimExpr> opt_elem_offset =
       elem_offset.defined() ? ffi::Optional<PrimExpr>(elem_offset) : std::nullopt;
   BufferVar buffer = BufferDecl(shape, dtype, "", std::nullopt, strides, opt_elem_offset,
-                             storage_scope, align, offset_factor, layout, allocated_addr);
+                                storage_scope, align, offset_factor, layout, allocated_addr);
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<PrimFuncFrame>();
   if (opt_func_frame.has_value()) {
@@ -812,8 +803,7 @@ void BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
 }
 
 DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Expr> data,
-                           ffi::Optional<ffi::Array<PrimExpr>> strides,
+                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                            int align, int offset_factor, ffi::Optional<Layout> layout,
                            ffi::Optional<PrimExpr> allocated_addr) {
@@ -849,6 +839,12 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
                          align, offset_factor, layout, allocated_addr_arr);
   if (data.has_value()) {
     n->data = data.value();
+  } else if (scope == "tmem") {
+    // Tensor memory is an externally allocated address space.  Make that
+    // address-to-pointer relationship explicit so every DeclBuffer has a
+    // physical data binding.
+    n->data = Call(n->buffer.DataPointerType(), tvm::tirx::builtin::reinterpret(),
+                   {allocated_addr.value()});
   }
   // For tmem, even without `data`, we should not emit an Allocate node.
   n->allocated = (scope == "tmem") || data.has_value();
@@ -856,9 +852,9 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
 }
 
 BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
-                   ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
+                      ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
   BufferVar buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
-                             storage_scope, 0, 0, std::nullopt, {});
+                                storage_scope, 0, 0, std::nullopt, {});
   AddToParent(
       tvm::tirx::AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, ffi::Any>())));
   return buffer;
@@ -898,10 +894,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.tirx.Buffer",
-           static_cast<BufferVar (*)(
-               ffi::Array<PrimExpr>, PrimType, ffi::String, ffi::Optional<Expr>,
-               ffi::Optional<ffi::Array<PrimExpr>>, ffi::Optional<PrimExpr>, ffi::String, int,
-               int, ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(BufferDecl))
+           static_cast<BufferVar (*)(ffi::Array<PrimExpr>, PrimType, ffi::String,
+                                     ffi::Optional<Expr>, ffi::Optional<ffi::Array<PrimExpr>>,
+                                     ffi::Optional<PrimExpr>, ffi::String, int, int,
+                                     ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(BufferDecl))
       .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {

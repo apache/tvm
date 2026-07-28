@@ -336,8 +336,8 @@ class ForMatcher : public TensorizeComparator {
       for (size_t i = 0; i < lhs->shape.size(); ++i) {
         if (!VisitExpr(lhs->shape[i], rhs->shape[i])) return false;
       }
-      equal = DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype &&
-              lhs.scope() == rhs.scope();
+      equal =
+          DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
       if (equal) {
         rhs_buffer_map_[rhs] = lhs;
       }

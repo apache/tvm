@@ -45,7 +45,8 @@ class DistBufferReplacer : public StmtExprMutator {
   }
 
  private:
-  explicit DistBufferReplacer(ffi::Map<BufferVar, BufferVar> buffer_map) : buffer_map_(buffer_map) {}
+  explicit DistBufferReplacer(ffi::Map<BufferVar, BufferVar> buffer_map)
+      : buffer_map_(buffer_map) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
     BufferStore store = StmtExprMutator::VisitStmt_(_store).as_or_throw<BufferStore>();
@@ -270,9 +271,9 @@ class DistributedBufferCompactor : StmtExprMutator {
         shape.push_back(buffer->shape[i]);
       }
     }
-    BufferType new_type(buffer->data_pointer_type, buffer->dtype, std::move(shape),
-                        buffer->strides, buffer->elem_offset, buffer->data_alignment,
-                        buffer->offset_factor, buffer->layout, buffer->allocated_addr);
+    BufferType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), buffer->strides,
+                        buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
+                        buffer->layout, buffer->allocated_addr);
     return BufferVar(buffer.name(), std::move(new_type), buffer.span());
   }
 

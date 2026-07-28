@@ -199,7 +199,7 @@ def test_specialize_elemwise():
     func = element_wise.specialize({a: tvm.tirx.decl_buffer((128, 64))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_64)
     # partially specialized
-    func = element_wise.specialize({c: tvm.tirx.decl_buffer((128, C.shape[1]))})
+    func = element_wise.specialize({c: tvm.tirx.decl_buffer((128, C.ty.shape[1]))})
     assert_structural_equal_ignore_global_symbol(func, element_wise_128_n)
 
 
@@ -299,14 +299,7 @@ def test_specialize_buffer_var_to_var():
 
 
 def test_specialize_buffer_var_to_expr():
-    """Handle specialization of buffer var
-
-    The `tirx::Buffer::data` field must be an explicit `tirx::Var`, and
-    cannot be replaced with a handle-typed `tirx::Expr`.  However,
-    these substitutions are useful
-    when lowering.  If these occur, a binding of the `tirx::Var` is
-    included in the specialized function.
-    """
+    """A DeclBuffer source expression may be specialized directly."""
 
     @T.prim_func(private=True, s_tir=True)
     def before(A_data: T.handle("float32"), B_data: T.handle("float32")):
@@ -318,8 +311,7 @@ def test_specialize_buffer_var_to_expr():
     @T.prim_func(private=True, s_tir=True)
     def expected(A_data: T.handle("float32")):
         A_buf = T.decl_buffer(32, "float32", data=A_data)
-        B_data: T.let[T.Ptr[T.float32]] = T.address_of(A_buf[16])
-        B_buf = T.decl_buffer(16, "float32", data=B_data)
+        B_buf = T.decl_buffer(16, "float32", data=T.address_of(A_buf[16]))
         for i in range(16):
             B_buf[i] = A_buf[i] * 2.0
 

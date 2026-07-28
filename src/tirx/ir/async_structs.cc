@@ -51,9 +51,9 @@ Pipeline::Pipeline(ExecScope thread_scope, size_t depth, bool separate_pc, ffi::
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
-      "tirx.Pipeline",
-      [](ExecScope thread_scope, size_t depth, bool separate_pc, ffi::String name_hint,
-         ffi::Map<ffi::String, BufferVar> workspace, ffi::Map<ffi::String, ffi::Any> schedule_config) {
+      "tirx.Pipeline", [](ExecScope thread_scope, size_t depth, bool separate_pc,
+                          ffi::String name_hint, ffi::Map<ffi::String, BufferVar> workspace,
+                          ffi::Map<ffi::String, ffi::Any> schedule_config) {
         return Pipeline(thread_scope, depth, separate_pc, name_hint, workspace, schedule_config);
       });
 }

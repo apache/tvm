@@ -41,6 +41,21 @@ using namespace tvm::tirx;
 using namespace arith;
 using namespace runtime;
 
+namespace {
+
+ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
+  if (auto var = data.as<Var>()) {
+    return var;
+  }
+  if (const auto* call = data.as<CallNode>();
+      call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
+    return call->args[0].as<Var>();
+  }
+  return std::nullopt;
+}
+
+}  // namespace
+
 class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
  public:
   static PrimFunc Transform(PrimFunc func) {
@@ -56,6 +71,9 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   explicit PermutedLayoutInjector(PrimFunc func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     buffer_map_.insert(func->buffer_map.begin(), func->buffer_map.end());
+    for (const auto& [_, buffer] : func->buffer_map) {
+      buffer_map_.insert({buffer.var(), buffer});
+    }
   }
 
   using IRMutatorWithAnalyzer::VisitExpr_;
@@ -156,10 +174,11 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
 
     if (buffer_row_size % 64 != 0) {
       TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
-          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape " << buffer->shape
-          << " is not supported since its second dimension is not divisible by 32";
+          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape "
+          << buffer->shape << " is not supported since its second dimension is not divisible by 32";
       TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
-          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape " << buffer->shape
+          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape "
+          << buffer->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
     }
@@ -227,7 +246,10 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK(access_ptr_call->op.same_as(builtin::tvm_access_ptr()))
         << "Invalid access ptr for permuted layout: " << access_ptr;
 
-    auto buffer_map_iter = buffer_map_.find(access_ptr_call->args[1].as_or_throw<Var>());
+    auto data_var = GetBufferDataVar(access_ptr_call->args[1]);
+    TVM_FFI_ICHECK(data_var.has_value())
+        << "Expected a buffer data expression, but received " << access_ptr_call->args[1];
+    auto buffer_map_iter = buffer_map_.find(data_var.value());
     TVM_FFI_ICHECK(buffer_map_iter != buffer_map_.end())
         << "The buffer corresponding to data Var " << access_ptr_call->args[1] << " is not found";
     int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);

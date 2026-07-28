@@ -27,14 +27,14 @@ from tvm.script.parser import tirx as T
 def test_tir_buffer_proxy():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
-        isinstance(buffer_0, tirx.Buffer)
+        tirx.is_buffer_var(buffer_0)
         and list(buffer_0.shape) == [128, 128]
         and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
-        isinstance(buffer_1, tirx.Buffer)
+        tirx.is_buffer_var(buffer_1)
         and list(buffer_1.shape) == [64, 64, 64]
         and buffer_1.dtype == ir.PrimType("int32")
     )

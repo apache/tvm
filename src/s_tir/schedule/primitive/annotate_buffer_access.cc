@@ -39,9 +39,9 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 
     ffi::Array<BufferRegion> regions =
         buffer_index_type_ == BufferIndexType::kWrite ? block->writes : block->reads;
-    TVM_FFI_ICHECK_GE(buffer_index_, 0) << "BufferVar index must be non-negative";
+    TVM_FFI_ICHECK_GE(buffer_index_, 0) << "Buffer index must be non-negative";
     TVM_FFI_ICHECK_LT(buffer_index_, static_cast<int>(regions.size()))
-        << "BufferVar index out of range";
+        << "Buffer index out of range";
     regions.Set(buffer_index_, new_region_);
 
     ffi::ObjectPtr<SBlockNode> n = CopyOnWrite(block.get());

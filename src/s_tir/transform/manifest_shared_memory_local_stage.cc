@@ -269,8 +269,9 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
   std::vector<Stmt> ancestor_loop_or_blocks_;  // ancestor loops or block realize
   ffi::Map<BufferVar, BufferVar>
       buffer_remap_;  // mapping from the target buffer to the intermediate buffer
-  ffi::Map<BufferVar, Stmt> buffer_local_stage_;  // mapping from the target buffer to the local stage
-  ffi::Array<BufferVar> target_buffers_;          // the target buffers for rewriting
+  ffi::Map<BufferVar, Stmt>
+      buffer_local_stage_;                // mapping from the target buffer to the local stage
+  ffi::Array<BufferVar> target_buffers_;  // the target buffers for rewriting
 };
 
 namespace transform {

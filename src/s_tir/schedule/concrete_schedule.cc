@@ -1067,7 +1067,7 @@ void ConcreteScheduleNode::PadEinsum(const SBlockRV& block_rv, const ffi::Array<
   this->state_->DebugVerify();
 }
 
-/******** Schedule: BufferVar Transformation ********/
+/******** Schedule: Buffer Transformation ********/
 
 void ConcreteScheduleNode::RollingBuffer(const SBlockRV& block_rv, int write_buffer_index) {
   TVM_TIR_SCHEDULE_BEGIN();
