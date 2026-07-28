@@ -182,8 +182,11 @@ void AllReduce(Tensor send, ReduceKind reduce_kind, bool /*in_group*/, Tensor re
 
 void AllGather(Tensor send, bool /*in_group*/, Tensor recv) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
-  TVM_FFI_ICHECK(worker->ring_in != nullptr && worker->ring_out != nullptr)
-      << "Ring not initialized";
+
+  if (worker->num_workers > 1) {
+    TVM_FFI_ICHECK(worker->ring_in != nullptr && worker->ring_out != nullptr)
+        << "Ring not initialized";
+  }
 
   int num_workers = worker->num_workers;
   int rank = worker->worker_id;
@@ -274,6 +277,11 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool /*in_group*/, Tensor re
 void GatherToWorker0(Tensor send, bool /*in_group*/, ffi::Optional<Tensor> recv) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
 
+  if (worker->num_workers > 1) {
+    TVM_FFI_ICHECK(worker->ring_in != nullptr && worker->ring_out != nullptr)
+        << "Ring not initialized";
+  }
+
   int rank = worker->worker_id;
   int num_workers = worker->num_workers;
   int64_t chunk_bytes = send.Shape().Product() * DTypeBytes(send->dtype);
@@ -284,9 +292,6 @@ void GatherToWorker0(Tensor send, bool /*in_group*/, ffi::Optional<Tensor> recv)
     std::memcpy(recv.value()->data, send->data, static_cast<size_t>(chunk_bytes));
     return;
   }
-
-  TVM_FFI_ICHECK(worker->ring_in != nullptr && worker->ring_out != nullptr)
-      << "Ring not initialized";
 
   if (rank == 0) {
     TVM_FFI_CHECK(recv.has_value(), ValueError)
