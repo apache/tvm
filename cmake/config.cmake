@@ -322,3 +322,8 @@ SET(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x64")
 
 # Enable Qualcomm OpenCL extension support
 set(USE_OPENCL_EXTN_QCOM OFF)
+
+# Whether to enable CPU CCL support:
+# - ON: enable CPU collectives over a pipe ring between disco workers
+# - OFF: disable CPU CCL
+set(USE_CPU_CCL OFF)

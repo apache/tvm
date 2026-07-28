@@ -527,6 +527,7 @@ endif()
 
 # CPUCCL.
 if(USE_CPU_CCL)
+  message(STATUS "Build with CPU CCL support...")
   tvm_file_glob(GLOB _cpu_ccl_srcs src/runtime/extra/disco/cpuccl/*.cc)
   add_library(tvm_cpu_ccl_objs OBJECT ${_cpu_ccl_srcs})
   target_link_libraries(tvm_cpu_ccl_objs PRIVATE tvm_runtime_extra_defs)
