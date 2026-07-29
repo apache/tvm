@@ -33,6 +33,38 @@ def _get_source(func: tvm.tirx.PrimFunc) -> str:
     return src, mod
 
 
+def _assert_remote_mbarrier_ir(func, arrive_op_name, cta_arg_index):
+    bindings = []
+    buffers = []
+    mapa_calls = []
+    arrive_calls = []
+
+    def visit(node):
+        if isinstance(node, tvm.tirx.Bind) and node.var.name == "remote_mbar_ptr":
+            bindings.append(node)
+        if isinstance(node, tvm.tirx.DeclBuffer) and node.buffer.data.name == "remote_mbar_ptr":
+            buffers.append(node.buffer)
+        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mapa":
+            mapa_calls.append(node)
+        if isinstance(node, tvm.ir.Call) and node.op.name == arrive_op_name:
+            arrive_calls.append(node)
+
+    tvm.tirx.stmt_functor.post_order_visit(func.body, visit)
+    assert len(bindings) == 1
+    assert len(buffers) == 1
+    assert len(mapa_calls) == 1
+    assert arrive_calls
+    assert isinstance(bindings[0].var.ty, tvm.ir.PointerType)
+    assert bindings[0].var.ty.storage_scope == "shared"
+    assert bindings[0].value.ty.storage_scope == "shared"
+    assert buffers[0].data.same_as(bindings[0].var)
+    assert buffers[0].data.ty.storage_scope == "shared"
+    assert buffers[0].scope() == "shared"
+    for arrive in arrive_calls:
+        tvm.ir.assert_structural_equal(arrive.args[0], mapa_calls[0].args[0])
+        tvm.ir.assert_structural_equal(arrive.args[cta_arg_index], mapa_calls[0].args[1])
+
+
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
 def test_tmem_alloc_dealloc_relinquish():
@@ -87,6 +119,130 @@ def test_mbarrier_try_wait_once_codegen():
         src, _ = _get_source(test_try_wait_once)
         assert "mbarrier.try_wait.parity.shared::cta.b64" in src
         assert "selp.u32" in src
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_mbarrier_remote_view_codegen():
+    from tvm.tirx.lang.pipeline import MBarrier
+
+    # fmt: off
+    @T.prim_func
+    def test_remote_view():
+        T.device_entry()
+        T.cluster_id([1])
+        T.cta_id_in_cluster([2])
+        T.thread_id([128])
+        pool = T.SMEMPool()
+        bar = MBarrier(pool, 1)
+        pool.commit()
+        remote_bar = bar.remote_view(0)
+        remote_bar.arrive(0)
+        remote_bar.arrive(0, count=2)
+    # fmt: on
+
+    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive", 1)
+    with tvm.target.Target("cuda"):
+        src, _ = _get_source(test_remote_view)
+        assert "tvm_builtin_ptx_mapa_u64" in src
+        assert "tvm_builtin_ptx_mbarrier_arrive_remote" in src
+        assert "tvm_builtin_ptx_mbarrier_arrive_remote_count" in src
+        assert "mbarrier.arrive.shared::cluster.b64" in src
+        assert 'asm volatile("mbarrier.arrive.shared.b64' not in src
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda_compute(10), reason="need cuda compute >= 10.0")
+def test_tma_mbarrier_remote_view_codegen():
+    from tvm.tirx.lang.pipeline import TMABar
+
+    # fmt: off
+    @T.prim_func
+    def test_remote_view():
+        T.device_entry()
+        T.cluster_id([1])
+        T.cta_id_in_cluster([2])
+        T.thread_id([128])
+        pool = T.SMEMPool()
+        bar = TMABar(pool, 1)
+        pool.commit()
+        remote_bar = bar.remote_view(0)
+        remote_bar.arrive(0, tx_count=128)
+    # fmt: on
+
+    _assert_remote_mbarrier_ir(test_remote_view, "tirx.ptx.mbarrier_arrive_expect_tx", 2)
+    with tvm.target.Target("cuda"):
+        src, _ = _get_source(test_remote_view)
+        assert "tvm_builtin_ptx_mbarrier_arrive_expect_tx_remote" in src
+        assert "mbarrier.arrive.expect_tx.shared::cluster.b64" in src
+        assert 'asm volatile("mbarrier.arrive.expect_tx.shared.b64' not in src
+
+
+def test_mbarrier_remote_view_rejects_invalid_operations():
+    from tvm.tirx.lang.pipeline import MBarrier, TMABar
+
+    with pytest.raises(tvm.error.DiagnosticError, match=r"remote_view\(\) cannot be initialized"):
+        # fmt: off
+        @T.prim_func
+        def invalid_init():
+            T.device_entry()
+            T.cta_id([2])
+            T.thread_id([128])
+            pool = T.SMEMPool()
+            bar = MBarrier(pool, 1)
+            bar.remote_view(0).init(1)
+        # fmt: on
+
+    with pytest.raises(tvm.error.DiagnosticError, match=r"remote_view\(\) cannot be waited on"):
+        # fmt: off
+        @T.prim_func
+        def invalid_wait():
+            T.device_entry()
+            T.cta_id([2])
+            T.thread_id([128])
+            pool = T.SMEMPool()
+            bar = MBarrier(pool, 1)
+            bar.remote_view(0).wait(0, 0)
+        # fmt: on
+
+    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify cta_id"):
+        # fmt: off
+        @T.prim_func
+        def ambiguous_mbarrier_arrive():
+            T.device_entry()
+            T.cta_id([2])
+            T.thread_id([128])
+            pool = T.SMEMPool()
+            bar = MBarrier(pool, 1)
+            bar.remote_view(0).arrive(0, cta_id=1)
+        # fmt: on
+
+    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify cta_id"):
+        # fmt: off
+        @T.prim_func
+        def ambiguous_tma_arrive():
+            T.device_entry()
+            T.cta_id([2])
+            T.thread_id([128])
+            pool = T.SMEMPool()
+            bar = TMABar(pool, 1)
+            bar.remote_view(0).arrive(0, tx_count=128, cta_id=1)
+        # fmt: on
+
+    with pytest.raises(
+        tvm.error.DiagnosticError,
+        match=r"remote_view\(\) cannot be applied to a remote view",
+    ):
+        # fmt: off
+        @T.prim_func
+        def nested_remote_view():
+            T.device_entry()
+            T.cta_id([2])
+            T.thread_id([128])
+            pool = T.SMEMPool()
+            bar = MBarrier(pool, 1)
+            bar.remote_view(0).remote_view(1)
+        # fmt: on
 
 
 @pytest.mark.gpu
