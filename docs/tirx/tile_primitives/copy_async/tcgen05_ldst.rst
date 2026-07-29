@@ -61,8 +61,8 @@ lowering:
      - matched against a ``tcgen05_atom_layout`` (``.16x64b`` / ``.16x128b`` /
        ``.16x256b``) for the fast path; otherwise the ``.32x32b`` fallback
    * - tmem datapath
-     - classified ``D`` (M=128 identity) or ``F`` (M=64 scattered) — sets how
-       fragment rows map to lanes
+     - classified ``D`` (M=128 identity) or ``F`` (M=64 scattered); an F layout
+       also selects the lower or upper 16-lane sub-slab of each warp partition
 
 Demonstration program
 ----------------------
@@ -111,20 +111,60 @@ is a store (``tcgen05.st``).
 fp32 columns) and the ``num`` count. If nothing matches it falls back to
 ``.32x32b`` and probes ``num ∈ {1, 2, 4, 8, …}`` against the column width.
 
-**3. Issue per datapath slab.** For an M=128 ``.16x*b`` copy the fragment spans two
-16-row slabs, so the warps issue the atom twice (``row = 0`` and ``row = 16``); the
-``.32x32b`` path covers M=128 in a single issue (``row = 0``):
+**3. Issue per datapath slab.** For an M=128 Layout D ``.16x*b`` copy the
+fragment spans two 16-row slabs, so the warps issue the atom twice
+(``row = 0`` and ``row = 16``). An M=64 Layout F copy issues once, at
+``row = 0`` for ``sub_slab=0`` or ``row = 16`` for ``sub_slab=1``. The
+``.32x32b`` path covers M=128 in a single issue at ``row = 0``:
 
 .. code-block:: python
 
     op = T.ptx.tcgen05.ld if load else T.ptx.tcgen05.st
-    for slab in range(n_slabs):                 # 1 for .32x32b / M=64; 2 for .16x*b M=128
+    classified = _check_tmem_layout_for_atom(tmem_buf, "16x*b", frag_rows)
+    datapath, sub_slab = classified if classified is not None else (None, 0)
+    for slab in range(n_slabs):                 # 1 for M=64; 2 for M=128
         op(tmem_buf.allocated_addr[0],
            *[local_32b[reg_base + i] for i in range(regs_eff)],
-           shape=shape, num=num_eff, row=slab * 16, col=col_off_32b)
+           shape=shape, num=num_eff,
+           row=(sub_slab + slab) * 16, col=col_off_32b)
 
 The dispatch emits **no** wait — the caller issues ``tcgen05.wait.ld()`` /
 ``wait.st()`` (as in the demo).
+
+Selecting the upper F sub-slab
+-------------------------------
+
+``sub_slab`` is part of the tensor-memory layout rather than an option on
+``copy_async``. This keeps physical TMEM occupation explicit and lets two
+64-row buffers alias the lower and upper halves of one 128-row allocation:
+
+.. code-block:: python
+
+    from tvm.tirx.layout import tmem_datapath_layout
+
+    lower = T.decl_buffer(
+        (64, cols),
+        "float32",
+        scope="tmem",
+        allocated_addr=tmem_addr[0],
+        layout=tmem_datapath_layout("F", 64, cols, sub_slab=0),
+    )
+    upper = T.decl_buffer(
+        (64, cols),
+        "float32",
+        scope="tmem",
+        allocated_addr=tmem_addr[0],
+        layout=tmem_datapath_layout("F", 64, cols, sub_slab=1),
+    )
+
+    Tx.wg.copy_async(lower_frag, lower)
+    T.ptx.tcgen05.wait.ld()
+    Tx.wg.copy_async(upper_frag, upper)
+    T.ptx.tcgen05.wait.ld()
+
+The lower view emits ``row=0`` and the upper view emits ``row=16`` for
+``.16x64b``, ``.16x128b``, and ``.16x256b`` atoms. Layout D has 128 rows and
+already spans both sub-slabs, so it only accepts ``sub_slab=0``.
 
 Generated TIRx IR
 -----------------
@@ -169,4 +209,5 @@ How inputs change the algorithm
        shape/num logic)
    * - datapath D vs F
      - ``D`` (M=128) covers all 128 rows; an M=128 ``.16x*b`` copy issues two slabs
-       (``row = 0`` / ``row = 16``); ``F`` (M=64) scatters rows to lanes
+       (``row = 0`` / ``row = 16``). ``F`` (M=64) scatters rows to lanes and
+       its layout selects one issue at ``row = 0`` or ``row = 16``
