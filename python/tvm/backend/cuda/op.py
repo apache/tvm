@@ -2375,6 +2375,7 @@ def ptx_tcgen05_mma_block_scale(
     use_a_tmem,
     cta_group,
     enable_input_d=1,
+    pred=None,
 ):
     """TVM intrinsic to call tcgen05.mma.cta_group.kind.block_scale
         Performs matrix multiplication with block scaling:
@@ -2425,12 +2426,14 @@ def ptx_tcgen05_mma_block_scale(
     enable_input_d : Expr
         Scale operand for the input accumulator C/D. Zero means D = A*B,
         non-zero means D = A*B + D.
+
+    pred : Optional[Expr]
+        Runtime ``uint32`` instruction-level predicate. When given, emit
+        ``@p_issue tcgen05.mma...`` with ``p_issue = (pred != 0)``.
     """
 
     _choice("cta_group", cta_group, _TCGEN05_CTA_GROUP)
-    return call_intrin(
-        "",
-        "tirx.ptx.tcgen05_mma_block_scale",
+    args = [
         d_dtype,
         a_dtype,
         b_dtype,
@@ -2445,7 +2448,10 @@ def ptx_tcgen05_mma_block_scale(
         use_a_tmem,
         cta_group,
         enable_input_d,
-    )
+    ]
+    if pred is not None:
+        args.append(pred)
+    return call_intrin("", "tirx.ptx.tcgen05_mma_block_scale", *args)
 
 
 def ptx_tcgen05_mma_sp(

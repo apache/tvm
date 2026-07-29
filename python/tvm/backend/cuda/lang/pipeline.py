@@ -185,17 +185,20 @@ class TCGen05Bar(MBarrier):
     """Barrier signaled by ``tcgen05`` commit.
 
     The caller is responsible for ensuring only one thread issues the
-    commit, e.g. by wrapping the call in ``if T.ptx.elect_sync():``.
+    commit, e.g. by wrapping the call in ``if T.ptx.elect_sync():`` or by
+    passing the same one-lane ``pred`` used by the matching ``gemm_async``.
     """
 
     @T.inline
-    def arrive(self, stage, cta_group=1, cta_mask=None):
+    def arrive(self, stage, cta_group=1, cta_mask=None, pred=None):
         # NOTE: this arrive() kwarg set intentionally differs from
         # MBarrier.arrive (hardware necessity, LSP-incompatible by design).
         if cta_mask is None and cta_group == 1:
-            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]))
+            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]), pred=pred)
         else:
-            T.ptx.tcgen05.commit(self.buf.ptr_to([stage]), cta_group=cta_group, cta_mask=cta_mask)
+            T.ptx.tcgen05.commit(
+                self.buf.ptr_to([stage]), cta_group=cta_group, cta_mask=cta_mask, pred=pred
+            )
 
 
 # Barrier-type tags accepted by Pipeline's ``full=`` / ``empty=`` arguments.

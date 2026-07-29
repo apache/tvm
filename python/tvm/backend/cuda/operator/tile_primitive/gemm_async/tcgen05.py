@@ -356,6 +356,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
             Config:
             - config["cta_group"]: CTA group in tcgen05 instructions (default 1)
             - config["descI"]: Optional pre-encoded instruction descriptor
+            - config["pred"]: Optional runtime instruction predicate
         sctx: Schedule context (single-thread or warp execution scope)
 
     Returns:
@@ -479,6 +480,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     assert cta_group in [1, 2], f"tcgen05 schedule expected cta_group=1 or 2, got {cta_group}"
     # descI: pre-encoded instruction descriptor (uint32), if None we encode it locally
     descI = op_call.config.get("descI", None)
+    issue_pred = op_call.config.get("pred", None)
 
     C_elem_size = DataType(C_type).bits
     C_elem_per_32b = 32 // C_elem_size
@@ -991,6 +993,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
                             sfa_dtype=SFA_type, sfb_dtype=SFB_type,
                             use_a_tmem=a_is_tmem, cta_group=cta_group,
                             enable_input_d=should_accum,
+                            pred=issue_pred,
                         )
     else:
         # Wrap each per-MMA operand in ``T.meta_var`` so the parser inlines
@@ -1019,6 +1022,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
                             d_dtype="float32", a_dtype=A_sem, b_dtype=B_sem,
                             use_a_tmem=a_is_tmem, cta_group=cta_group,
                             enable_input_d=should_accum,
+                            pred=issue_pred,
                         )
 
     descA_val = None  # descriptors built per-MMA from SMEM addr via _uniform_desc

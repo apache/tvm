@@ -39,6 +39,7 @@ from tvm.tirx.cuda.operator.tile_primitive.tma_utils import (
     mma_atom_shape,
     mma_shared_layout,
 )
+from tvm.tirx.lang.pipeline import TCGen05Bar
 from tvm.tirx.layout import S, TCol, TileLayout, TLane, tcgen05_atom_layout
 from tvm.tirx.layout import tid_in_wg as axis_tid_in_wg
 
@@ -2282,6 +2283,112 @@ def _build_smem_desc_kernel(smem_desc):
         # fmt: on
 
     return gemm_async
+
+
+def _build_predicated_dense_kernel():
+    """Compile-only fp16 kernel whose one tile call expands to four MMAs."""
+    M, N, K = 128, 32, 64
+    dtype = "float16"
+    A_layout = mma_shared_layout(dtype, 3, (M, K))
+    B_layout = mma_shared_layout(dtype, 3, (N, K))
+
+    # fmt: off
+    @T.prim_func
+    def gemm_async():
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([128])
+        A_smem = T.alloc_buffer((M, K), dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer((N, K), dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        pool = T.SMEMPool()
+        mma_bar = TCGen05Bar(pool, 1)
+        pool.commit()
+        C_tmem = T.decl_buffer((M, N), "float32", scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        mma_issue: T.uint32
+        mma_issue = T.ptx.elect_sync()
+        Tx.gemm_async(C_tmem[:, :], A_smem[:, :], B_smem[:, :],
+                      dispatch="tcgen05", pred=mma_issue)
+        mma_bar.arrive(0, pred=mma_issue)
+    # fmt: on
+
+    return gemm_async
+
+
+def _build_predicated_block_scaled_kernel():
+    """Compile-only fp8 kernel whose one tile call expands to four MMAs."""
+    M, N, K = 128, 32, 128
+    A_dtype = B_dtype = "float8_e4m3fn"
+    SF_dtype = "float8_e8m0fnu"
+    A_layout = mma_shared_layout(A_dtype, 3, (M, K))
+    B_layout = mma_shared_layout(B_dtype, 3, (N, K))
+    sfa_layout = sf_tmem_layout(M, SF_K=4, sf_per_mma=1)
+    sfb_layout = sf_tmem_layout(N, SF_K=4, sf_per_mma=1)
+
+    # fmt: off
+    @T.prim_func
+    def gemm_async():
+        T.device_entry()
+        T.cta_id([1])
+        T.thread_id([128])
+        A_smem = T.alloc_buffer((M, K), A_dtype, scope="shared", layout=A_layout)
+        B_smem = T.alloc_buffer((N, K), B_dtype, scope="shared", layout=B_layout)
+        tmem_addr = T.alloc_shared([1], "uint32")
+        pool = T.SMEMPool()
+        mma_bar = TCGen05Bar(pool, 1)
+        pool.commit()
+        C_tmem = T.decl_buffer((M, N), "float32", scope="tmem", allocated_addr=tmem_addr[0], layout=TileLayout(S[(M, N) : (1 @ TLane, 1 @ TCol)]))  # noqa: E501
+        SFA_tmem = T.decl_buffer((M, 4), SF_dtype, scope="tmem", allocated_addr=N, layout=sfa_layout)  # noqa: E501
+        SFB_tmem = T.decl_buffer((N, 4), SF_dtype, scope="tmem", allocated_addr=N + 4, layout=sfb_layout)  # noqa: E501
+        mma_issue: T.uint32
+        mma_issue = T.ptx.elect_sync()
+        Tx.gemm_async(C_tmem[:, :], A_smem[:, :], B_smem[:, :],
+                      SFA=SFA_tmem[:, :], SFB=SFB_tmem[:, :],
+                      dispatch="tcgen05", pred=mma_issue)
+        mma_bar.arrive(0, pred=mma_issue)
+    # fmt: on
+
+    return gemm_async
+
+
+def _mma_helper_calls(src, block_scaled):
+    """Return generated kernel call sites, excluding helper definitions."""
+    marker = "ptx_tcgen05_mma_block_scaled_cta_" if block_scaled else "ptx_tcgen05_mma_cta_"
+    return [
+        line.strip()
+        for line in src.splitlines()
+        if line.lstrip().startswith(marker) and line.rstrip().endswith(");")
+    ]
+
+
+@pytest.mark.gpu
+@pytest.mark.parametrize("block_scaled", [False, True])
+def test_gemm_async_predicates_every_internal_mma(block_scaled):
+    kernel = (
+        _build_predicated_block_scaled_kernel()
+        if block_scaled
+        else _build_predicated_dense_kernel()
+    )
+    with tvm.target.Target("cuda"):
+        mod = tvm.compile(
+            tvm.IRModule({"main": kernel}),
+            target="cuda",
+            tir_pipeline="tirx",
+        )
+    src = mod.mod.imports[0].inspect_source()
+    calls = _mma_helper_calls(src, block_scaled)
+    assert len(calls) == 4
+    assert all("_pred(" in call for call in calls)
+    commit_calls = [
+        line.strip()
+        for line in src.splitlines()
+        if line.lstrip().startswith("ptx_tcgen05_commit") and line.rstrip().endswith(");")
+    ]
+    assert len(commit_calls) == 1
+    assert "_predicated(" in commit_calls[0]
+    pred_args = {call.rsplit(",", 1)[-1].removesuffix(");").strip() for call in calls}
+    pred_args.add(commit_calls[0].rsplit(",", 1)[-1].removesuffix(");").strip())
+    assert len(pred_args) == 1
 
 
 @pytest.mark.parametrize("smem_desc", ["hoist", "recompute"])
