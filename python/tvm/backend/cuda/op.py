@@ -4209,7 +4209,7 @@ def ptx_map_shared_rank(ptr, rank):
     return ptx_mapa(ptr, rank, space="", ptx_type="u64", return_type="uint64")
 
 
-def ptx_mapa(ptr, rank, *, space="", ptx_type="u64", return_type="uint64"):
+def ptx_mapa(ptr, rank, space="", ptx_type="u64", return_type="uint64"):
     """TVM intrinsic for PTX ``mapa{.space}.type d, a, b``."""
     if space not in ("", "shared::cluster"):
         raise ValueError(f"Unsupported mapa space {space!r}")
