@@ -1046,6 +1046,20 @@ def test_copy_tma_codegen(case):
         tvm.ir.assert_structural_equal(host_init_stmts[0], expected_host, map_free_vars=True)
 
 
+def test_copy_tma_host_init_dtype_is_string():
+    _, host_init_stmts = _make_tma_call(
+        g_shape=(8, 256),
+        g_region=((0, 8), (0, 256)),
+        s_shape=(8, 256),
+        s_region=((0, 8), (0, 256)),
+        gmem_layout=TileLayout(S[8, 256]),
+        smem_layout=TileLayout(S[8, 256]),
+    )
+    encode_call = host_init_stmts[0].seq[1].value
+    assert isinstance(encode_call.args[2], StringImm)
+    assert encode_call.args[2].value == "float16"
+
+
 # Section 3: TMA special cases (symbolic dimension, buffer view)
 # ===========================================================================
 

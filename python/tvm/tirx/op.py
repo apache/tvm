@@ -59,6 +59,8 @@ def _canonical_device_intrin_name(func_name: str) -> str:
 
 def _primexpr_ty(expr):
     """Return the runtime primitive type of an expression."""
+    if isinstance(expr, tvm.ir.PrimType):
+        return expr
     ty = getattr(expr, "ty", None)
     if isinstance(ty, tvm.ir.PrimType):
         return ty
@@ -658,6 +660,13 @@ def _is_tensormap_var(obj: Var) -> bool:
     return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
+def _buffer_element_pointer_type(buffer: Buffer) -> PointerType:
+    """Return a pointer to ``buffer`` elements in the buffer's storage scope."""
+    data_ty = buffer.data.ty
+    storage_scope = data_ty.storage_scope if isinstance(data_ty, PointerType) else "global"
+    return PointerType(buffer.dtype, storage_scope)
+
+
 def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
@@ -677,7 +686,12 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
     if isinstance(obj, Buffer):
         n_dim = len(obj.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
-        return Call("tirx.address_of", [buffer_load], span=span, ret_ty=obj.data.ty)
+        return Call(
+            "tirx.address_of",
+            [buffer_load],
+            span=span,
+            ret_ty=_buffer_element_pointer_type(obj),
+        )
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
             return call_intrin("uint64", "tirx.address_of", obj, span=span)
@@ -685,7 +699,12 @@ def address_of(obj: Buffer | BufferLoad | Var, span: Span | None = None) -> Expr
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
         return Call("tirx.address_of", [obj], span=span, ret_ty=PointerType(obj.ty))
     elif isinstance(obj, BufferLoad):
-        return Call("tirx.address_of", [obj], span=span, ret_ty=obj.buffer.data.ty)
+        return Call(
+            "tirx.address_of",
+            [obj],
+            span=span,
+            ret_ty=_buffer_element_pointer_type(obj.buffer),
+        )
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
 
@@ -918,11 +937,11 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
 
     Parameters
     ----------
-    ptype : Expr or str
-        The data type of pointer. If a ``str``, it is wrapped via
-        :func:`type_annotation` so that the lowering rule (which reads
-        ``args[0].dtype()`` for the cast type) sees the intended dtype
-        instead of ``void`` from a raw StringImm.
+    ptype : Expr, PrimType, or str
+        The data type of pointer. If a ``PrimType`` or ``str``, it is wrapped
+        via :func:`type_annotation` so that the lowering rule (which reads
+        ``args[0].dtype()`` for the cast type) sees the intended dtype instead
+        of ``void`` from a raw StringImm.
 
     data : DType*
         The data of pointer.
@@ -941,7 +960,7 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
     call : Expr
         The call expression.
     """
-    if isinstance(ptype, str):
+    if isinstance(ptype, str | tvm.ir.PrimType):
         ptype = type_annotation(ptype)
     data_type = getattr(data, "ty", None)
     storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"
@@ -962,7 +981,7 @@ def ptr_byte_offset(data, byte_offset, dtype):
     ``byte_offset`` is always in bytes.  Use this when the source CUDA shape
     needs an explicitly typed local pointer derived from a byte-addressed base.
     """
-    if isinstance(dtype, str):
+    if isinstance(dtype, str | tvm.ir.PrimType):
         dtype = type_annotation(dtype)
     data_type = getattr(data, "ty", None)
     storage_scope = data_type.storage_scope if isinstance(data_type, PointerType) else "global"

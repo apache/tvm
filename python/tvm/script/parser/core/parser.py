@@ -289,6 +289,10 @@ class VarTable:
         """
         return {key: values[-1] for key, values in self.name2value.items() if values}
 
+    def contains_in_current_frame(self, name: str) -> bool:
+        """Check whether a variable name exists in the current frame."""
+        return bool(self.frames) and name in self.frames[-1].vars
+
     def get_at_depth(self, depth: int) -> dict[str, Any]:
         """Get variables visible at the given frame depth, using current values.
 

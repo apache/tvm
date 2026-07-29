@@ -1376,6 +1376,61 @@ def test_buffer_local_ir():
     assert from_source(code).script() == code
 
 
+def test_pointer_expression_assignment_uses_bind():
+    # fmt: off
+    @T.prim_func
+    def func() -> None:
+        T.device_entry()
+        buf = T.alloc_buffer((4,), "uint32", scope="shared")
+        ptr = buf.ptr_to([1])
+        T.evaluate(T.reinterpret("uint64", ptr))
+    # fmt: on
+
+    binds = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
+    )
+    assert len(binds) == 1
+    assert isinstance(binds[0].var.ty, PointerType)
+    assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
+
+    code = func.script()
+    assert_structural_equal(func, from_source(code))
+
+
+def test_pointer_expression_assignment_rejects_reassignment():
+    with pytest.raises(tvm.error.DiagnosticError, match="cannot be reassigned"):
+        # fmt: off
+        @T.prim_func
+        def func() -> None:
+            T.device_entry()
+            buf = T.alloc_buffer((4,), "uint32", scope="shared")
+            ptr = buf.ptr_to([0])
+            ptr = buf.ptr_to([1])
+            T.evaluate(T.reinterpret("uint64", ptr))
+        # fmt: on
+
+
+def test_pointer_expression_assignment_can_shadow_extra_var():
+    source = """
+@T.prim_func
+def func() -> None:
+    T.device_entry()
+    buf = T.alloc_buffer((4,), "uint32", scope="shared")
+    ptr = buf.ptr_to([1])
+    view = T.decl_buffer((3,), "uint32", data=ptr, scope="shared")
+    view[0] = T.uint32(0)
+"""
+    func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
+
+    binds = []
+    tvm.tirx.stmt_functor.post_order_visit(
+        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
+    )
+    assert len(binds) == 1
+    assert_structural_equal(func, from_source(func.script()))
+
+
 def test_buffer_permute_ir():
     """Verify .permute(1, 0): shape swapped, layout permuted, shared data."""
 

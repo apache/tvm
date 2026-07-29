@@ -23,7 +23,7 @@ from functools import partial
 from typing import Any
 
 import tvm
-from tvm.ir import Expr, GlobalVar, PrimType
+from tvm.ir import Expr, GlobalVar, PointerType, PrimType
 from tvm.script.ir_builder import ir as I
 from tvm.script.ir_builder.base import IRBuilder
 from tvm.script.ir_builder.base import IRBuilderFrame as Frame
@@ -217,6 +217,15 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         IRBuilder.name(var_name, value)
         return value
     else:
+        is_pointer_expr = isinstance(value, tvm.ir.Expr) and isinstance(
+            getattr(value, "ty", None), PointerType
+        )
+        if is_pointer_expr:
+            if self.var_table.contains_in_current_frame(var_name):
+                self.report_error(node, f"Pointer variable '{var_name}' cannot be reassigned")
+            ann_var = T.Bind(value)
+            IRBuilder.name(var_name, ann_var)
+            return ann_var
         if not tvm.ir.is_prim_expr(value):
             value = tvm.tirx.const(value)
         if not isinstance(value, tvm.tirx.StringImm):

@@ -103,14 +103,19 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 - ``T.decl_buffer(..., data=ptr)`` declares a buffer over an existing pointer
   ``Var`` ``ptr``.
 - To back a buffer with a pointer **expression** — e.g. ``T.ptx.map_shared_rank``
-  (PTX ``mapa``) giving another cluster CTA's shared address — you must first bind
-  that expression to a pointer ``Var`` (``data`` must be a ``Var``, not an
-  expression), using a ``T.let`` of ``PointerType``:
+  (PTX ``mapa``) giving another cluster CTA's shared address — convert the raw
+  ``uint64`` address returned by ``map_shared_rank`` to a pointer with the
+  intended element type and storage scope.  Assigning that pointer expression
+  to an unannotated name automatically creates an immutable ``Bind`` (and
+  ``data`` receives the resulting pointer ``Var``):
 
   .. code-block:: python
 
       from tvm.ir.type import PointerType, PrimType
 
-      ptr: T.let[T.Var(name="ptr", ty=PointerType(PrimType("uint64")))] = \
-          T.reinterpret("handle", T.ptx.map_shared_rank(mbar.ptr_to([0]), 0))
+      ptr_ty = PointerType(PrimType("uint64"), "shared")
+      ptr = T.reinterpret(ptr_ty, T.ptx.map_shared_rank(mbar.ptr_to([0]), 0))
       remote_mbar = T.decl_buffer([1], "uint64", data=ptr, scope="shared")
+
+  Pointer bindings cannot be reassigned; use a new name for a different
+  pointer value.
