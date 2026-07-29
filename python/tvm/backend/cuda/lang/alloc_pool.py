@@ -54,6 +54,13 @@ _POOL_UNSET = object()
 
 
 def _default_tmem_layout(rows, cols):
+    # Keep the default M=128 layout structurally identical to Layout D. The
+    # tcgen05 copy dispatch recognizes default-allocated accumulators by that
+    # structure, so single-source the named datapath instead of duplicating it.
+    if rows == 128:
+        from tvm.tirx.layout import tmem_datapath_layout
+
+        return tmem_datapath_layout("D", rows, cols)
     return TileLayout(S[(rows, cols) : (1 @ TLane, 1 @ TCol)])
 
 
