@@ -593,7 +593,8 @@ __all__ += ["tcgen05_atom_layout", "tmem_datapath_layout", "wg_local_layout"]
 # Supported today:
 #   - ``"D"``: M=128, ``.cta_group::1``, full datapath. Identity row→lane.
 #   - ``"F"``: M=64, non-``.ws``, half datapath (4x1 lane utilization).
-#     Logical row r → physical lane (r // 16) * 32 + (r % 16).
+#     Logical row r → physical lane
+#     (r // 16) * 32 + sub_slab * 16 + (r % 16).
 #
 # Layouts A / B / C / E / G are reserved for future expansion.
 
@@ -601,7 +602,7 @@ __all__ += ["tcgen05_atom_layout", "tmem_datapath_layout", "wg_local_layout"]
 _TMEM_DATAPATH_ROWS = {"D": 128, "F": 64}
 
 
-def tmem_datapath_layout(datapath: str, rows: int, cols: int) -> "TileLayout":
+def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0) -> "TileLayout":
     """Return the ``TileLayout`` for a tcgen05 MMA datapath.
 
     See PTX ISA §9.7.16.10.5 for the datapath enumeration. The returned
@@ -621,6 +622,12 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int) -> "TileLayout":
         dimension: 128 for D, 64 for F.
     cols : int
         Logical column count.
+    sub_slab : int
+        For Layout F, select the lower (``0``) or upper (``1``) 16-lane
+        half of each warp's 32-lane TMEM partition. The upper half is useful
+        as a 64-row read/write view of the high half-slab of a Layout D
+        accumulator. Layout D already spans both halves and therefore only
+        accepts ``0``.
 
     Returns
     -------
@@ -637,21 +644,32 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int) -> "TileLayout":
         raise ValueError(
             f"tmem_datapath_layout: datapath={datapath!r} expects rows={expected}, got {rows}"
         )
+    if sub_slab not in (0, 1):
+        raise ValueError(f"tmem_datapath_layout: sub_slab must be 0 or 1, got {sub_slab}")
     tlane = Axis.get("TLane")
     tcol = Axis.get("TCol")
     if datapath == "D":
-        # M=128, identity row→lane: row r ∈ [0, 128) → physical lane r.
+        # M=128, identity row→lane: row r ∈ [0, 128) → physical lane r. D
+        # already spans both 16-lane sub-slabs of every warp partition.
+        if sub_slab != 0:
+            raise ValueError(
+                "tmem_datapath_layout: datapath='D' (M=128) already spans both "
+                "sub-slabs; sub_slab must be 0"
+            )
         return TileLayout(S[(rows, cols) : (1 @ tlane, 1 @ tcol)])
     # Layout F: M=64 scattered. Logical row r = wid * 16 + intra (wid ∈ [0,4),
-    # intra ∈ [0,16)) → physical lane wid * 32 + intra, i.e.
-    # ``r // 16`` is the warp selector and ``r % 16`` is the within-slab lane.
+    # intra ∈ [0,16)) → physical lane wid * 32 + sub_slab * 16 + intra.
     # ``TileLayout`` decomposes a scalar row index via ``SplitCoord``
     # (src/tirx/ir/layout/utils.cc), which uses row-major ordering: with
     # shape ``(s0, s1)`` the FIRST iter receives ``coord // s1`` (the high
     # bits) and the SECOND receives ``coord % s1`` (the low bits). So we
     # pin the warp selector to iter 0 (extent 4, TLane stride 32) and the
-    # within-slab lane to iter 1 (extent 16, TLane stride 1).
-    return TileLayout(S[(4, 16, cols) : (32 @ tlane, 1 @ tlane, 1 @ tcol)])
+    # within-slab lane to iter 1 (extent 16, TLane stride 1), then shift the
+    # TMEM lane offset by 16 for the upper sub-slab.
+    spec = S[(4, 16, cols) : (32 @ tlane, 1 @ tlane, 1 @ tcol)]
+    if sub_slab:
+        spec = spec + (16 @ tlane)
+    return TileLayout(spec)
 
 
 def wg_local_layout(cols, rows=128):

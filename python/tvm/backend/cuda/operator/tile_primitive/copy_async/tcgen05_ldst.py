@@ -82,14 +82,17 @@ def _match_tcgen05_atom_layout(buf):
 
 
 def _classify_tmem_datapath(tmem_buf):
-    """Return ``"D"`` / ``"F"`` if ``tmem_buf.layout`` matches a known tcgen05
-    datapath (PTX ISA §9.7.16.10.5), else ``None``.
+    """Return ``(datapath, sub_slab)`` if ``tmem_buf.layout`` matches a known
+    tcgen05 datapath (PTX ISA §9.7.16.10.5), else ``None``.
 
     Layout D (M=128, identity row→lane) is the default returned by
     ``_default_tmem_layout``. Layout F (M=64 non-``.ws``, scattered) is the
     explicit opt-in produced by ``tmem_pool.alloc(..., datapath="F")``.
     The dispatch uses this to pair each ``.16x*b`` / ``.32x32b`` atom with a
     compatible layout — see ``_check_tmem_layout_for_atom``.
+
+    ``sub_slab`` is always 0 for Layout D. For Layout F it selects the lower
+    (0) or upper (1) 16-lane half of each warp's 32-lane partition.
     """
     if tmem_buf.layout is None:
         return None
@@ -99,16 +102,24 @@ def _classify_tmem_datapath(tmem_buf):
         cand = tmem_datapath_layout("D", 128, tmem_buf.shape[1]).canonicalize()
         try:
             tvm.ir.assert_structural_equal(buf_layout, cand)
-            return "D"
+            return ("D", 0)
         except (AssertionError, ValueError):
             return None
     if rows == 64:
-        cand = tmem_datapath_layout("F", 64, tmem_buf.shape[1]).canonicalize()
-        try:
-            tvm.ir.assert_structural_equal(buf_layout, cand)
-            return "F"
-        except (AssertionError, ValueError):
-            return None
+        # Layout F may occupy either 16-lane half of each warp's 32-lane
+        # partition. The layout carries that choice as a +16 TLane offset;
+        # thread it through to the PTX row immediate instead of adding an
+        # out-of-band copy_async option.
+        for sub_slab in (0, 1):
+            cand = tmem_datapath_layout(
+                "F", 64, tmem_buf.shape[1], sub_slab=sub_slab
+            ).canonicalize()
+            try:
+                tvm.ir.assert_structural_equal(buf_layout, cand)
+                return ("F", sub_slab)
+            except (AssertionError, ValueError):
+                continue
+        return None
     return None
 
 
@@ -150,10 +161,13 @@ def _check_tmem_layout_for_atom(tmem_buf, atom_kind, frag_rows):
     M=128 variants, 64 for ``.16x*b`` M=64). If the buffer's layout is
     unrecognized (i.e. it isn't Layout D or Layout F), the dispatch falls
     back to the structural assertions below.
+
+    Returns ``(datapath, sub_slab)`` for a recognized compatible layout.
     """
-    datapath = _classify_tmem_datapath(tmem_buf)
-    if datapath is None:
+    classified = _classify_tmem_datapath(tmem_buf)
+    if classified is None:
         return None
+    datapath, sub_slab = classified
     allowed = _TMEM_ATOM_COMPAT.get((datapath, atom_kind, frag_rows), False)
     if not allowed:
         raise ValueError(
@@ -163,7 +177,7 @@ def _check_tmem_layout_for_atom(tmem_buf, atom_kind, frag_rows):
             f"buffer was allocated via tmem_pool.alloc(..., "
             f"datapath={datapath!r})."
         )
-    return datapath
+    return (datapath, sub_slab)
 
 
 def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
@@ -195,10 +209,10 @@ def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> P
 
     # Try the .16x* (M=64) path first by structural-matching the register-side
     # layout against ``tcgen05_atom_layout(instr_shape, (64, K), dtype)``. The
-    # TMEM-side layout is the standard (128, W):(1@TLane, 1@TCol); the M=64
-    # fragment lives at lanes 0..15 of each warp's accessible slab (per PTX
-    # 9.7.16.8.1), so each warp issues with row_offset=0 and collectively the
-    # 4 warps cover all 64 rows.
+    # An M=64 TMEM-side Layout F fragment lives in either lanes 0..15 or
+    # 16..31 of each warp's accessible slab (per PTX 9.7.16.8.1). The layout
+    # selects the half-slab, and the four warps collectively cover all 64
+    # logical rows.
     atom_match = _match_tcgen05_atom_layout(local_buf)
 
     if atom_match is not None:
@@ -307,15 +321,14 @@ def _emit_16xnb_path(
     """``.16x*b`` fragment path using ``tcgen05.{ld,st}.<shape>.x<num>`` (one
     of ``.16x64b``, ``.16x128b``, ``.16x256b``).
 
-    Each of the warpgroup's 4 warps issues the atom with ``row_offset=0`` to
-    cover lanes 0..15 of its 32-lane TMEM partition (one 16-row slab); the
-    four warps collectively span M=64 rows. When ``frag_rows == 128`` the
-    dispatch emits a second issue with ``row_offset=16`` to also cover lanes
-    16..31 of each warp's partition, doubling the fragment's row coverage to
-    M=128. The two atoms share the same column footprint; the layout factory
-    surfaces the combined per-thread register vector with the second slab's
-    regs in the high half of the m-axis (so the dispatch can split regs
-    contiguously between the two PTX calls).
+    For an M=64 Layout F fragment, each warp issues the atom at the lower or
+    upper 16-lane half selected by the TMEM layout, and the four warps
+    collectively span 64 rows. For an M=128 Layout D fragment, the dispatch
+    emits both ``row_offset=0`` and ``row_offset=16`` issues. The two atoms
+    share the same column footprint; the layout factory surfaces the combined
+    per-thread register vector with the second slab's regs in the high half of
+    the m-axis (so the dispatch can split regs contiguously between the two
+    PTX calls).
     """
     # Per-atom column footprint in fp32 columns:
     #   .16x64b  → 2N    .16x128b → 4N    .16x256b → 8N
@@ -344,7 +357,15 @@ def _emit_16xnb_path(
     # warp partition rule and the atom's lane access pattern are baked into
     # the hardware); the layout classification just keeps the buffer's
     # logical row indexing in sync with the physical TMEM occupation.
-    datapath = _check_tmem_layout_for_atom(tmem_buf, "16x*b", frag_rows)
+    classified = _check_tmem_layout_for_atom(tmem_buf, "16x*b", frag_rows)
+    datapath, sub_slab = classified if classified is not None else (None, 0)
+    # A .16x*b issue covers one 16-lane half-slab. A 64-row fragment issues
+    # once; a 128-row fragment issues for both halves. ``sub_slab`` comes from
+    # the TMEM layout and shifts the first issue to the upper half.
+    assert sub_slab + n_slabs <= 2, (
+        f".16x*b sub_slab={sub_slab} with frag_rows={frag_rows} exceeds the 2 "
+        "sub-slabs of each warp's 32-lane TMEM partition"
+    )
 
     if datapath == "F":
         # Layout F: buffer shape (64, W), scattered row→lane.
@@ -425,7 +446,7 @@ def _emit_16xnb_path(
             op(
                 tmem_buf.allocated_addr[0],
                 *[local_32b[local_reg_base + reg_base + i] for i in range(regs_eff)],
-                shape=shape, num=num_eff, row=slab * 16, col=col_off_32b,
+                shape=shape, num=num_eff, row=(sub_slab + slab) * 16, col=col_off_32b,
             )
     # fmt: on
     return impl

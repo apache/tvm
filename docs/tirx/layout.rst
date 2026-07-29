@@ -256,6 +256,37 @@ MMAs and double-buffering. So the one ``TileLayout`` model expresses both the
 accumulator (a pure placement, no replica) and its scale factors (a replicated,
 routed placement) in the same tensor-memory address space.
 
+TMEM datapath layouts
+~~~~~~~~~~~~~~~~~~~~~
+
+``tmem_datapath_layout`` provides the canonical row placement for supported
+``tcgen05`` MMA datapaths:
+
+.. code-block:: python
+
+    from tvm.tirx.layout import tmem_datapath_layout
+
+    accum = tmem_datapath_layout("D", 128, cols)
+    lower = tmem_datapath_layout("F", 64, cols, sub_slab=0)
+    upper = tmem_datapath_layout("F", 64, cols, sub_slab=1)
+
+Layout D maps logical row ``r`` directly to ``TLane = r`` and spans both
+16-lane halves of every warp's 32-lane TMEM partition. Layout F maps its 64
+logical rows according to
+
+.. math::
+
+   \mathrm{TLane}
+   = 32\left\lfloor\frac{r}{16}\right\rfloor
+     + 16\,\mathrm{sub\_slab}
+     + (r \bmod 16).
+
+Thus F with ``sub_slab=0`` and ``sub_slab=1`` can describe lower- and
+upper-half aliases of the same 128-row Layout D allocation. The
+``tcgen05_ldst`` copy dispatch recognizes the layout and emits the matching
+``row=0`` or ``row=16`` instruction. Layout D already occupies both halves,
+so a nonzero ``sub_slab`` is rejected.
+
 Beyond GPU registers
 ~~~~~~~~~~~~~~~~~~~~~~
 
