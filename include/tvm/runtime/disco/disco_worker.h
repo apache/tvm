@@ -60,7 +60,7 @@ class DiscoWorker {
         channel(channel),
         register_file{},
         ring_in(nullptr),
-        ring_out(nullptr){}
+        ring_out(nullptr) {}
 
   /*! \brief Main loop of the worker */
   void MainLoop();

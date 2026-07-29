@@ -126,7 +126,6 @@ class SocketSessionTester:
                     node.wait()
 
 
-
 def create_socket_session(num_workers, build_ring=False):
     """Create a socket session backed by one local and one remote node.
 

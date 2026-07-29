@@ -321,7 +321,7 @@ class Session(Object):
         """
         func = self._get_cached_method("runtime.disco.load_vm_module")
         return DModule(func(path, device), self)
-    
+
     def upload_vm_module(self, path: str) -> str:
         """Broadcast a module file to every worker and write it locally on each.
 

@@ -29,7 +29,6 @@
 #include <cstring>
 #include <vector>
 
-
 namespace tvm {
 namespace runtime {
 namespace cpuccl {
@@ -248,15 +247,13 @@ void ScatterFromWorker0(ffi::Optional<Tensor> send, bool /*in_group*/, Tensor re
   int64_t recv_bytes = recv.Shape().Product() * DTypeBytes(recv->dtype);
 
   if (num_workers == 1) {
-    TVM_FFI_CHECK(send.has_value(), ValueError)
-        << "Worker 0 must provide send buffer for scatter";
+    TVM_FFI_CHECK(send.has_value(), ValueError) << "Worker 0 must provide send buffer for scatter";
     std::memcpy(recv->data, send.value()->data, static_cast<size_t>(recv_bytes));
     return;
   }
 
   if (rank == 0) {
-    TVM_FFI_CHECK(send.has_value(), ValueError)
-        << "Worker 0 must provide send buffer for scatter";
+    TVM_FFI_CHECK(send.has_value(), ValueError) << "Worker 0 must provide send buffer for scatter";
     char* src = static_cast<char*>(send.value()->data);
     std::memcpy(recv->data, src, static_cast<size_t>(recv_bytes));
     int64_t tail = recv_bytes * (num_workers - 1);
@@ -287,15 +284,13 @@ void GatherToWorker0(Tensor send, bool /*in_group*/, ffi::Optional<Tensor> recv)
   int64_t chunk_bytes = send.Shape().Product() * DTypeBytes(send->dtype);
 
   if (num_workers == 1) {
-    TVM_FFI_CHECK(recv.has_value(), ValueError)
-        << "Worker 0 must provide recv buffer for gather";
+    TVM_FFI_CHECK(recv.has_value(), ValueError) << "Worker 0 must provide recv buffer for gather";
     std::memcpy(recv.value()->data, send->data, static_cast<size_t>(chunk_bytes));
     return;
   }
 
   if (rank == 0) {
-    TVM_FFI_CHECK(recv.has_value(), ValueError)
-        << "Worker 0 must provide recv buffer for gather";
+    TVM_FFI_CHECK(recv.has_value(), ValueError) << "Worker 0 must provide recv buffer for gather";
     char* dst = static_cast<char*>(recv.value()->data);
     std::memcpy(dst, send->data, static_cast<size_t>(chunk_bytes));
     int64_t incoming = chunk_bytes * (num_workers - 1);

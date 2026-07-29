@@ -157,7 +157,7 @@ class ThreadedSessionObj final : public BcastSessionObj {
   ~ThreadedSessionObj() {
     this->Shutdown();
     workers_.clear();
-    ring_channels_.clear(); 
+    ring_channels_.clear();
   }
 
   int64_t GetNumWorkers() { return workers_.size(); }
@@ -191,24 +191,23 @@ class ThreadedSessionObj final : public BcastSessionObj {
   std::vector<DiscoWorkerThread> workers_;
   std::vector<std::unique_ptr<DiscoRingChannel>> ring_channels_;
 
-  private:
+ private:
   void BuildRing(int num_workers) {
-    
     std::vector<int> read_fds(num_workers), write_fds(num_workers);
     for (int i = 0; i < num_workers; ++i) {
       int fds[2];
       TVM_FFI_ICHECK_EQ(::pipe(fds), 0) << "Failed to create ring pipe for worker " << i;
-      read_fds[i]  = fds[0];
-      write_fds[i] = fds[1]; 
+      read_fds[i] = fds[0];
+      write_fds[i] = fds[1];
     }
 
     ring_channels_.reserve(num_workers * 2);
     for (int i = 0; i < num_workers; ++i) {
- 
       auto channel_out = std::make_unique<DiscoRingChannel>(write_fds[i]);
-      auto channel_in  = std::make_unique<DiscoRingChannel>(read_fds[(i - 1 + num_workers) % num_workers]);
+      auto channel_in =
+          std::make_unique<DiscoRingChannel>(read_fds[(i - 1 + num_workers) % num_workers]);
       workers_[i].worker->ring_out = channel_out.get();
-      workers_[i].worker->ring_in  = channel_in.get();
+      workers_[i].worker->ring_in = channel_in.get();
       ring_channels_.push_back(std::move(channel_in));
       ring_channels_.push_back(std::move(channel_out));
     }

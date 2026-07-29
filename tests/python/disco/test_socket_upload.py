@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=missing-docstring
 
+"""Test upload_vm_module over a multi-node SocketSession."""
+
 import hashlib
 import pathlib
 import socket
@@ -37,7 +39,7 @@ if di is None:
     pytest.skip("disco runtime is not available", allow_module_level=True)
 
 _NUM_NODES = 4
-_NUM_WORKERS = 4 
+_NUM_WORKERS = 4
 _REL_PATH = "./mod.so"
 
 
@@ -70,10 +72,7 @@ class Mod:  # pylint: disable=too-few-public-methods
 
 
 class SocketSessionTester:
-
     def __init__(self, num_workers, node_cwds, num_groups=1, build_ring=True):
-        # Initialize the attributes used by __del__ first, so that teardown is
-        # safe even when __init__ raises below.
         self.sess = None
         self.remote_nodes = []
         num_nodes = len(node_cwds)
@@ -133,29 +132,33 @@ class SocketSessionTester:
 
 
 def test_upload_vm_module(monkeypatch):
-
     with tempfile.TemporaryDirectory(prefix="disco_upload_") as tmp_root:
         root = pathlib.Path(tmp_root)
         node_dirs = [root / _node_dir_name(i) for i in range(_NUM_NODES)]
+
         for node_dir in node_dirs:
             node_dir.mkdir()
+        # Please add `-s` to print the directory for verification.
         print(f"\n[setup] created {_NUM_NODES} node directories under {root}")
+
         for node_dir in node_dirs:
             print(f"          {node_dir}")
 
-        # The controller is this process, so give it upload_node0 too -- otherwise the relative
-        # path would resolve against the pytest rootdir and leak the artifact out of the sandbox.
         monkeypatch.chdir(node_dirs[0])
 
         target = tvm.target.Target("llvm")
         tvm.compile(rx.get_pipeline("zero")(Mod), target=target).export_library(_REL_PATH)
         expected_sha = _sha256(_REL_PATH)
         built = node_dirs[0] / _REL_PATH
-        print(f"[setup] compiled {built} ({built.stat().st_size} bytes, sha256={expected_sha[:16]})")
+
+        print(
+            f"[setup] compiled {built} ({built.stat().st_size} bytes, sha256={expected_sha[:16]})"
+        )
 
         # Precondition: only the controller has the artifact.
         for node_dir in node_dirs[1:]:
             assert not (node_dir / _REL_PATH).exists()
+
         print(f"[setup] upload_node1..{_NUM_NODES - 1} are empty, as expected")
 
         tester = SocketSessionTester(_NUM_WORKERS, node_dirs)
@@ -166,6 +169,7 @@ def test_upload_vm_module(monkeypatch):
             sess._sync_all()  # pylint: disable=protected-access
 
             print("[upload] per-node state after upload_vm_module:")
+
             for i, node_dir in enumerate(node_dirs):
                 written = node_dir / _REL_PATH
                 assert written.is_file(), f"{_node_dir_name(i)} never received the module"
@@ -181,8 +185,10 @@ def test_upload_vm_module(monkeypatch):
             print(f"[load] load_vm_module({_REL_PATH!r}) succeeded on all {_NUM_NODES} nodes")
 
             d_x = sess.empty((4,), "float32")
+
             for i in range(_NUM_WORKERS):
                 d_x.debug_copy_from(i, np.full((4,), i + 1, dtype="float32"))
+
             d_y = mod["double"](d_x)
             for i in range(_NUM_WORKERS):
                 got = d_y.debug_get_from_remote(i).numpy()
