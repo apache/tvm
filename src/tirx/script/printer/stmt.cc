@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <algorithm>
+
 #include "../../../tirx/transform/ir_utils.h"  // For `GetPtrStorageScope`
 #include "./utils.h"
 
@@ -318,6 +320,15 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
       }
     }
   }
+  bool same_strides = (child->strides.size() == parent->strides.size());
+  if (same_strides) {
+    for (size_t i = 0; i < child->strides.size(); ++i) {
+      if (!expr_equal(child->strides[i], parent->strides[i])) {
+        same_strides = false;
+        break;
+      }
+    }
+  }
 
   bool child_is_default = IsDefaultLayout(child->layout, child->shape);
   bool parent_is_default = IsDefaultLayout(parent->layout, parent->shape);
@@ -328,12 +339,26 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
   // alias (stores, views) breaks. Such aliases now print as plain
   // T.decl_buffer, which reparses exactly.
 
-  // --- (b) Local: parent has thread axes, child has storage layout (non-thread part) ---
-  if (same_elem_offset && same_dtype && !parent_is_default && parent->layout.has_value()) {
+  // Differences in these Buffer fields cannot be expressed by the alias sugar
+  // below, so conservatively fall back to T.decl_buffer.
+  // Shape, strides, elem_offset, dtype, and layout are checked by each helper
+  // because those are the fields that individual transformations may change.
+  //
+  // The explicit data projection was checked by FindParentBuffers.  name/span
+  // do not participate in structural equality, and BufferTypeNode has no
+  // axis-separators field (unlike tir::Buffer).
+  bool same_common_metadata = child.scope() == parent.scope() &&
+                              child->data_alignment == parent->data_alignment &&
+                              child->offset_factor == parent->offset_factor &&
+                              StructuralEqual()(child->allocated_addr, parent->allocated_addr);
+  if (!same_common_metadata) return std::nullopt;
+
+  // --- (b) Local: parent has thread axes and child spans its physical storage ---
+  if (same_elem_offset && same_dtype && same_strides && !parent_is_default &&
+      parent->layout.has_value() && child->layout.has_value()) {
     if (auto* parent_tile = parent->layout.value().as<tirx::TileLayoutNode>()) {
       if (parent_tile->HasThreadAxis()) {
-        // Check if child's layout matches the storage layout (parent layout with thread axes
-        // removed). Compute expected storage layout by filtering non-thread shard iters.
+        // Compute the raw physical storage span after filtering thread axes.
         std::vector<tirx::Iter> storage_shard;
         std::vector<tirx::Iter> storage_replica;
         ffi::Map<tirx::Axis, PrimExpr> storage_offset;
@@ -356,38 +381,39 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
             ffi::Array<tirx::Iter>(storage_shard.begin(), storage_shard.end()),
             ffi::Array<tirx::Iter>(storage_replica.begin(), storage_replica.end()), storage_offset);
 
-        bool child_matches_storage = false;
-        if (child->layout.has_value()) {
-          child_matches_storage =
-              StructuralEqual()(child->layout.value(), tirx::Layout(expected_storage));
+        PrimExpr storage_span = expected_storage->GetSpan(ffi::Optional<ffi::String>());
+        PrimExpr storage_size = expected_storage->GetSize(ffi::Optional<ffi::String>());
+        PrimExpr child_total = IntImm::Int32(1);
+        for (const PrimExpr& dim : child->shape) {
+          child_total = child_total * dim;
         }
-        if (child_matches_storage) {
-          // Compute storage total for auto-infer check
-          int64_t total = 1;
-          bool all_const = true;
-          for (const auto& iter : storage_shard) {
-            if (auto* imm = iter->extent.as<IntImmNode>()) {
-              total *= imm->value;
-            } else {
-              all_const = false;
-              break;
-            }
-          }
-          // Check if shape can be auto-inferred (single dim matching storage total)
-          if (all_const && child->shape.size() == 1) {
-            if (auto* child_dim = child->shape[0].as<IntImmNode>()) {
-              if (child_dim->value == total) {
-                return pdoc->Attr("local")->Call({});
-              }
-            }
-          }
-          // Print as parent.local(*shape)
+        arith::Analyzer analyzer;
+        bool default_physical =
+            child_is_default && analyzer->CanProveEqual(child_total, storage_span);
+        bool child_has_thread_axis = false;
+        if (const auto* child_tile = child->layout.value().as<tirx::TileLayoutNode>()) {
+          child_has_thread_axis = child_tile->HasThreadAxis();
+        }
+        bool explicit_override = !default_physical && !child_has_thread_axis;
+        if (default_physical || explicit_override) {
+          PrimExpr expected_extent = default_physical ? storage_span : storage_size;
+          bool auto_shape =
+              child->shape.size() == 1 && analyzer->CanProveEqual(child->shape[0], expected_extent);
           ffi::Array<ExprDoc> args;
-          for (size_t i = 0; i < child->shape.size(); ++i) {
-            args.push_back(
-                d->AsDoc<ExprDoc>(child->shape[i], p->Attr("buffer")->Attr("shape")->ArrayItem(i)));
+          if (!auto_shape) {
+            for (size_t i = 0; i < child->shape.size(); ++i) {
+              args.push_back(d->AsDoc<ExprDoc>(child->shape[i],
+                                               p->Attr("buffer")->Attr("shape")->ArrayItem(i)));
+            }
           }
-          return pdoc->Attr("local")->Call(args);
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
+          if (explicit_override) {
+            kwargs_keys.push_back("layout");
+            kwargs_values.push_back(
+                d->AsDoc<ExprDoc>(child->layout.value(), p->Attr("buffer")->Attr("layout")));
+          }
+          return pdoc->Attr("local")->Call(args, kwargs_keys, kwargs_values);
         }
       }
     }
@@ -575,15 +601,6 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     // doesn't (or vice versa), the sugar can't faithfully round-trip
     // through view — fall back to T.decl_buffer where strides is an
     // explicit kwarg.
-    bool same_strides = (child->strides.size() == parent->strides.size());
-    if (same_strides) {
-      for (size_t i = 0; i < child->strides.size(); ++i) {
-        if (!expr_equal(child->strides[i], parent->strides[i])) {
-          same_strides = false;
-          break;
-        }
-      }
-    }
     if (!same_strides) return std::nullopt;
 
     ffi::Array<ExprDoc> args;
@@ -603,7 +620,10 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     // First pass prefers a parent whose layout matches structurally, so the
     // sugar prints as a bare reshape instead of restating the layout.
     if (require_same_layout && !same_layout) return std::nullopt;
-    if (!same_layout && child->layout.has_value() && !child_is_default) {
+    if (!same_layout) {
+      // Buffer.view(..., layout=None) means "inherit the parent layout", so it
+      // cannot reconstruct a layout-less child from a laid-out parent.
+      if (!child->layout.has_value()) return std::nullopt;
       kwargs_keys.push_back("layout");
       kwargs_values.push_back(
           d->AsDoc<ExprDoc>(child->layout.value(), p->Attr("buffer")->Attr("layout")));
