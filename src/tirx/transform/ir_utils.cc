@@ -29,6 +29,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -526,6 +527,33 @@ class IRConvertSSA final : public StmtExprMutator {
     Var new_var;
   };
 
+  /*! \brief Check whether a buffer uses a variable in any remapped field. */
+  static bool BufferDependsOnVar(const Buffer& buffer, const VarNode* var) {
+    if (buffer->data.get() == var) return true;
+
+    auto uses_var = [var](const PrimExpr& expr) {
+      return expr.defined() && UsesVar(expr, [var](const VarNode* node) { return node == var; });
+    };
+    if (uses_var(buffer->elem_offset)) return true;
+    for (const PrimExpr& dim : buffer->shape) {
+      if (uses_var(dim)) return true;
+    }
+    for (const PrimExpr& stride : buffer->strides) {
+      if (uses_var(stride)) return true;
+    }
+    if (buffer->layout.has_value()) {
+      if (const auto* tile_layout = buffer->layout.value().as<TileLayoutNode>()) {
+        for (const Iter& iter : tile_layout->shard) {
+          if (uses_var(iter->extent) || uses_var(iter->stride)) return true;
+        }
+        for (const Iter& iter : tile_layout->replica) {
+          if (uses_var(iter->extent) || uses_var(iter->stride)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   /*! \brief Create a new variable with the same name and type as the original. */
   static Var MakeNewVar(const Var& old_var) { return Var(old_var->name, old_var->ty); }
 
@@ -542,7 +570,7 @@ class IRConvertSSA final : public StmtExprMutator {
     var_remap_[old_var.get()].pop_back();
     for (auto& kv : buf_remap_) {
       std::vector<Buffer>& buffers = kv.second;
-      if (buffers.size() && (buffers.back()->data.get() == new_var.get())) {
+      if (buffers.size() && BufferDependsOnVar(buffers.back(), new_var.get())) {
         buffers.pop_back();
       }
     }
@@ -561,7 +589,7 @@ class IRConvertSSA final : public StmtExprMutator {
       var_remap_[remap.old_var.get()].pop_back();
       for (auto& kv : buf_remap_) {
         std::vector<Buffer>& buffers = kv.second;
-        if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+        if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
           buffers.pop_back();
         }
       }
@@ -598,7 +626,7 @@ class IRConvertSSA final : public StmtExprMutator {
         parent->var_remap_[remap.old_var.get()].pop_back();
         for (auto& kv : parent->buf_remap_) {
           std::vector<Buffer>& buffers = kv.second;
-          if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+          if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
             buffers.pop_back();
           }
         }
@@ -622,7 +650,7 @@ class IRConvertSSA final : public StmtExprMutator {
             parent->var_remap_[remap.old_var.get()].pop_back();
             for (auto& kv : parent->buf_remap_) {
               std::vector<Buffer>& buffers = kv.second;
-              if (buffers.size() && (buffers.back()->data.get() == remap.new_var.get())) {
+              if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
                 buffers.pop_back();
               }
             }
