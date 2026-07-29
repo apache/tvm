@@ -535,5 +535,29 @@ def test_shared_shape_var_in_buffer_map_and_alloc_buffer():
     tvm.ir.assert_structural_equal(after["main"], before)
 
 
+def test_reused_loop_var_in_decl_buffer_elem_offset():
+    """Remap a buffer whose elem_offset depends on an SSA-renamed loop var."""
+    loop_var = tirx.Var("loop_var", "int32")
+    buffer = tirx.decl_buffer(
+        (128,),
+        "float32",
+        "buffer",
+        elem_offset=loop_var * 128,
+        scope="shared.dyn",
+    )
+    loop = tirx.For(
+        loop_var,
+        0,
+        128,
+        tirx.ForKind.SERIAL,
+        tirx.DeclBuffer(buffer, tirx.Evaluate(tirx.BufferLoad(buffer, [0]))),
+    )
+    func = tirx.PrimFunc([buffer.data], tirx.SeqStmt([loop, loop, loop]))
+
+    after = tvm.tirx.transform.ConvertSSA()(tvm.IRModule.from_expr(func))
+
+    tvm.tirx.analysis.verify_well_formed(after["main"], assert_mode=True)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
